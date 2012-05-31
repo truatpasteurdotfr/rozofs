@@ -39,6 +39,8 @@ add_executable(storaged
     sproto.c
     daemon.h
     daemon.c
+    sconfig.h
+    sconfig.c
     storaged.c
 )
 target_link_libraries(storaged ${UUID_LIBRARY} ${CONFIG_LIBRARY})
@@ -70,6 +72,8 @@ add_executable(exportd
     sprotoxdr.c
     sprotoclt.c
     storageclt.c
+    monitor.h
+    monitor.c
     exportd.c
 )
 target_link_libraries(exportd ${XATTR_LIBRARY} ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})

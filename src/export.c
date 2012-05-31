@@ -323,8 +323,8 @@ static inline int export_update_blocks(export_t * e, int32_t n) {
         goto out;
     }
 
-    if (e->quota > 0 && blocks + n > e->quota) {
-        warning("quota exceed: %lu over %lu", blocks + n, e->quota);
+    if (e->hquota > 0 && blocks + n > e->hquota) {
+        warning("quota exceed: %lu over %lu", blocks + n, e->hquota);
         errno = EDQUOT;
         goto out;
     }
@@ -403,7 +403,7 @@ out:
 }
 
 int export_initialize(export_t * e, uint32_t eid, const char *root,
-        const char *md5, uint64_t quota, uint16_t vid) {
+        const char *md5, uint64_t squota, uint64_t hquota, uint16_t vid) {
     int status = -1;
     mfentry_t *mfe;
     uuid_t trash_uuid;
@@ -429,7 +429,8 @@ int export_initialize(export_t * e, uint32_t eid, const char *root,
         memcpy(e->md5, md5, ROZOFS_MD5_SIZE);
     }
 
-    e->quota = quota;
+    e->squota = squota;
+    e->hquota = hquota;
 
     list_init(&e->mfiles);
     list_init(&e->rmfiles);
@@ -514,7 +515,16 @@ int export_stat(export_t * e, estat_t * st) {
     if (getxattr(e->root, EBLOCKSKEY, &(st->blocks), sizeof (uint64_t)) == -1)
         goto out;
     volume_stat(&vstat, e->vid);
-    st->bfree = vstat.bfree;
+    if (e->hquota > 0) {
+        if (e->hquota < vstat.bfree) {
+            st->bfree = e->hquota - st->blocks;
+        } else {
+            st->bfree = vstat.bfree - st->blocks;
+        }
+    } else {
+        st->bfree = vstat.bfree;
+    }
+    //st->bfree = e->hquota > 0 && e->hquota < vstat.bfree ? e->hquota : vstat.bfree;
     // blocks store in EBLOCKSKEY is the number of currently stored blocks
     // blocks in estat_t is the total number of blocks (see struct statvfs)
     // rozofs does not have a constant total number of blocks

@@ -90,3 +90,12 @@ add_executable(test_storage
     test_storage.c
 )
 target_link_libraries(test_storage ${UUID_LIBRARY})
+
+add_executable(test_sconfig
+    ../src/xmalloc.h
+    ../src/xmalloc.c
+    ../src/sconfig.h
+    ../src/sconfig.c
+    test_sconfig.c
+)
+target_link_libraries(test_sconfig ${CONFIG_LIBRARY})

@@ -32,9 +32,9 @@
 #include <libintl.h>
 #include <sys/poll.h>
 #include <rpc/rpc.h>
-#include <getopt.h>
 #include <rpc/pmap_clnt.h>
 #include <libconfig.h>
+#include <getopt.h>
 
 #include "config.h"
 #include "xmalloc.h"
@@ -43,14 +43,57 @@
 #include "daemon.h"
 #include "storage.h"
 #include "sproto.h"
+#include "sconfig.h"
 
 #define STORAGED_PID_FILE "storaged.pid"
 
 static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
-static storage_t *storaged_storages = 0;
+static sconfig_t storaged_config;
+static storage_t *storaged_storages = NULL;
 static uint16_t storaged_nrstorages = 0;
 extern void storage_program_1(struct svc_req *rqstp, SVCXPRT * ctl_svc);
-static SVCXPRT *storaged_svc = 0;
+static SVCXPRT *storaged_svc = NULL;
+
+static int storaged_initialize() {
+    int status = -1;
+    list_t *p;
+    DEBUG_FUNCTION;
+
+    if (rozofs_initialize(storaged_config.layout) != 0) {
+        severe("can't initialize rozofs");
+        goto out;
+    }
+
+    storaged_storages = xmalloc(list_size(&storaged_config.storages) *
+            sizeof (storage_t));
+    storaged_nrstorages = 0;
+    list_for_each_forward(p, &storaged_config.storages) {
+        storage_config_t *sc = list_entry(p, storage_config_t, list);
+        if (storage_initialize(storaged_storages + storaged_nrstorages++,
+                sc->sid, sc->root) != 0) {
+            severe("can't initialize storage (sid:%d) with path %s",
+                    sc->sid, sc->root);
+            goto out;
+        }
+    }
+
+    status = 0;
+out:
+    return status;
+}
+
+static void storaged_release() {
+    DEBUG_FUNCTION;
+
+    if (storaged_storages) {
+        storage_t *st = storaged_storages;
+        while (st != storaged_storages + storaged_nrstorages)
+            storage_release(st++);
+        free(storaged_storages);
+        storaged_nrstorages = 0;
+        storaged_storages = 0;
+    }
+}
 
 storage_t *storaged_lookup(sid_t sid) {
     storage_t *st = 0;
@@ -67,169 +110,15 @@ out:
     return st;
 }
 
-static void storaged_release() {
-    DEBUG_FUNCTION;
-
-    if (storaged_storages) {
-        storage_t *st = storaged_storages;
-        while (st != storaged_storages + storaged_nrstorages)
-            storage_release(st++);
-        free(storaged_storages);
-        storaged_nrstorages = 0;
-        storaged_storages = 0;
-    }
-}
-
-static int load_layout_conf(struct config_t *config) {
-    int status = -1;
-    long int layout;
-
-    // Get the layout setting
-    if (!config_lookup_int(config, "layout", &layout)) {
-        errno = EIO;
-        fprintf(stderr, "cant't fetche layout setting\n");
-        fatal("cant't fetche layout setting");
-        goto out;
-    }
-
-    if (rozofs_initialize(layout) != 0) {
-        fprintf(stderr, "can't initialise rozofs layout: %s\n",
-                strerror(errno));
-        fatal("can't initialise rozofs layout: %s", strerror(errno));
-        goto out;
-    }
-    status = 0;
-out:
-    return status;
-}
-
-static int load_storages_conf(struct config_t *config) {
-
-    int status = -1;
-    int i = 0;
-    struct config_setting_t *settings = NULL;
-
-    if (!(settings = config_lookup(config, "storages"))) {
-        errno = ENOKEY;
-        fprintf(stderr, "can't locate the storages settings in conf file\n");
-        fatal("can't locate the storages settings in conf file");
-        goto out;
-    }
-
-    storaged_storages =
-            xmalloc(config_setting_length(settings) * sizeof (storage_t));
-
-    for (i = 0; i < config_setting_length(settings); i++) {
-        struct config_setting_t *ms = NULL;
-        long int sid;
-        const char *root;
-
-        if (!(ms = config_setting_get_elem(settings, i))) {
-            errno = EIO; //XXX
-            fprintf(stderr, "cant't fetche storage at index %d\n", i);
-            severe("cant't fetche storage at index %d", i);
-            goto out;
-        }
-
-        if (config_setting_lookup_int(ms, "sid", &sid) == CONFIG_FALSE) {
-            errno = ENOKEY;
-            fprintf(stderr, "cant't look up sid for storage (idx=%d)\n", i);
-            fatal("cant't look up sid for storage (idx=%d)", i);
-            goto out;
-        }
-
-        if (storaged_lookup(sid) != NULL) {
-            fprintf(stderr,
-                    "cant't add storage with sid %ld: already exists\n", sid);
-            info("cant't add storage with sid %ld: already exists", sid);
-            goto out;
-        }
-
-        if (config_setting_lookup_string(ms, "root", &root) == CONFIG_FALSE) {
-            errno = ENOKEY;
-            fprintf(stderr, "cant't look up root path for storage (idx=%d)\n",
-                    i);
-            severe("cant't look up root path for storage (idx=%d)", i);
-            goto out;
-        }
-
-        if (storage_initialize(storaged_storages + i, (uint16_t) sid, root) !=
-                0) {
-            fprintf(stderr,
-                    "can't initialize storage (sid:%ld) with path %s: %s\n",
-                    sid, root, strerror(errno));
-            severe("can't initialize storage (sid:%ld) with path %s: %s", sid,
-                    root, strerror(errno));
-            goto out;
-        }
-
-        storaged_nrstorages++;
-    }
-    status = 0;
-out:
-    return status;
-}
-
-static int load_conf_file() {
-    int status = -1, fd;
-    struct config_t config;
-    DEBUG_FUNCTION;
-
-    config_init(&config);
-
-    if ((fd = open(storaged_config_file, O_RDWR)) == -1) {
-        fprintf(stderr, "can't load config file %s: %s\n",
-                storaged_config_file, strerror(errno));
-        fatal("can't load config file %s: %s", storaged_config_file,
-                strerror(errno));
-        status = -1;
-        goto out;
-    }
-    close(fd);
-
-    if (config_read_file(&config, storaged_config_file) == CONFIG_FALSE) {
-        errno = EIO;
-        fprintf(stderr, "can't read config file: %s at line: %d\n",
-                config_error_text(&config), config_error_line(&config));
-        fatal("can't read config file: %s at line: %d",
-                config_error_text(&config), config_error_line(&config));
-        goto out;
-    }
-
-    if (load_layout_conf(&config) != 0) {
-        goto out;
-    }
-
-    if (load_storages_conf(&config) != 0) {
-        goto out;
-    }
-
-    status = 0;
-
-out:
-    config_destroy(&config);
-    return status;
-}
-
-static int storaged_initialize() {
-    int status = -1;
-    DEBUG_FUNCTION;
-
-    // Load configuration
-    if (load_conf_file() != 0) {
-        fprintf(stderr, "can't load settings from config file\n");
-        goto out;
-    }
-
-    status = 0;
-out:
-    return status;
-}
-
 static void on_start() {
     int sock;
     int one = 1;
     DEBUG_FUNCTION;
+
+    if (storaged_initialize() != 0) {
+        fatal("can't initialize storaged: %s.", strerror(errno));
+        return;
+    }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -321,9 +210,8 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 if (!realpath(optarg, storaged_config_file)) {
-                    fprintf(stderr,
-                            "storaged failed: configuration file: %s: %s\n",
-                            optarg, strerror(errno));
+                    fprintf(stderr, "storaged failed: %s %s\n", optarg,
+                            strerror(errno));
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -338,9 +226,20 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (storaged_initialize() != 0) {
-        fprintf(stderr, "storaged start failed\n");
-        exit(EXIT_FAILURE);
+    if (sconfig_initialize(&storaged_config) != 0) {
+        fprintf(stderr, "can't initialize storaged config: %s.\n",
+                strerror(errno));
+        goto error;
+    }
+    if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
+        fprintf(stderr, "failed to parse configuration file: %s.\n",
+                strerror(errno));
+        goto error;
+    }
+    if (sconfig_validate(&storaged_config) != 0) {
+        fprintf(stderr, "inconsistent configuration file: %s.\n",
+                strerror(errno));
+        goto error;
     }
 
     openlog("storaged", LOG_PID, LOG_DAEMON);
@@ -348,4 +247,7 @@ int main(int argc, char *argv[]) {
     daemon_start(STORAGED_PID_FILE, on_start, on_stop, NULL);
 
     exit(0);
+error:
+    fprintf(stderr, "see log for more details.\n");
+    exit(EXIT_FAILURE);
 }

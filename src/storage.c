@@ -125,7 +125,7 @@ static void storage_del_pfentry(storage_t * st, pfentry_t * pfe) {
 static pfentry_t *storage_find_pfentry(storage_t * st, fid_t fid, tid_t pid) {
     pfentry_t key;
     pfentry_t *pfe = 0;
-    char path[PATH_MAX];
+    char path[FILENAME_MAX];
     DEBUG_FUNCTION;
 
     uuid_copy(key.fid, fid);
@@ -202,7 +202,7 @@ int storage_write(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
     pfentry_t *pfe = 0;
     size_t count = 0;
     size_t nb_write = 0;
-    char path[PATH_MAX];
+    char path[FILENAME_MAX];
     DEBUG_FUNCTION;
 
     if (!(pfe = storage_find_pfentry(st, fid, pid)))
@@ -233,7 +233,7 @@ int storage_read(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
     int status = -1;
     pfentry_t *pfe = 0;
     size_t count;
-    char path[PATH_MAX];
+    char path[FILENAME_MAX];
     DEBUG_FUNCTION;
 
     if (!(pfe = storage_find_pfentry(st, fid, pid)))
@@ -270,7 +270,7 @@ out:
 
 int storage_rm_file(storage_t * st, fid_t fid) {
     int status = -1;
-    char pattern[PATH_MAX];
+    char pattern[FILENAME_MAX];
     char fid_str[37];
     char **p;
     pfentry_t key;
