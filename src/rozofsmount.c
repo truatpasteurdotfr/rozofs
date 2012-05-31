@@ -41,7 +41,8 @@
 #define INODE_HSIZE 256
 #define PATH_HSIZE  256
 
-#define FUSE_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs,big_writes"
+#define FUSE28_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs,big_writes"
+#define FUSE27_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs"
 
 static void usage(const char *progname) {
     fprintf(stderr, "Rozofs fuse mounter - %s\n", VERSION);
@@ -1282,9 +1283,16 @@ int main(int argc, char *argv[]) {
         conf.buf_size = 8192;
     }
 
-    if (fuse_opt_add_arg(&args, "-o" FUSE_DEFAULT_OPTIONS) == -1) {
-        fprintf(stderr, "fuse_opt_add_arg failed\n");
-        return 1;
+    if (fuse_version() < 28) {
+        if (fuse_opt_add_arg(&args, "-o" FUSE28_DEFAULT_OPTIONS) == -1) {
+            fprintf(stderr, "fuse_opt_add_arg failed\n");
+            return 1;
+        }
+    } else {
+        if (fuse_opt_add_arg(&args, "-o" FUSE27_DEFAULT_OPTIONS) == -1) {
+            fprintf(stderr, "fuse_opt_add_arg failed\n");
+            return 1;
+        }
     }
 
     if (fuse_parse_cmdline(&args, &mountpoint, NULL, &fg) == -1) {
