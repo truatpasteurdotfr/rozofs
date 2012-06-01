@@ -224,6 +224,28 @@ xdr_ep_mattr_ret_t (XDR *xdrs, ep_mattr_ret_t *objp)
 }
 
 bool_t
+xdr_ep_fid_ret_t (XDR *xdrs, ep_fid_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_status_t (xdrs, &objp->status))
+		 return FALSE;
+	switch (objp->status) {
+	case EP_SUCCESS:
+		 if (!xdr_ep_uuid_t (xdrs, objp->ep_fid_ret_t_u.fid))
+			 return FALSE;
+		break;
+	case EP_FAILURE:
+		 if (!xdr_int (xdrs, &objp->ep_fid_ret_t_u.error))
+			 return FALSE;
+		break;
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+bool_t
 xdr_ep_lookup_arg_t (XDR *xdrs, ep_lookup_arg_t *objp)
 {
 	//register int32_t *buf;
@@ -245,6 +267,34 @@ xdr_ep_mfile_arg_t (XDR *xdrs, ep_mfile_arg_t *objp)
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
 	 if (!xdr_ep_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_unlink_arg_t (XDR *xdrs, ep_unlink_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->eid))
+		 return FALSE;
+	 if (!xdr_ep_uuid_t (xdrs, objp->pfid))
+		 return FALSE;
+	 if (!xdr_ep_name_t (xdrs, &objp->name))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_rmdir_arg_t (XDR *xdrs, ep_rmdir_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->eid))
+		 return FALSE;
+	 if (!xdr_ep_uuid_t (xdrs, objp->pfid))
+		 return FALSE;
+	 if (!xdr_ep_name_t (xdrs, &objp->name))
 		 return FALSE;
 	return TRUE;
 }
@@ -368,6 +418,22 @@ xdr_ep_mknod_arg_t (XDR *xdrs, ep_mknod_arg_t *objp)
 }
 
 bool_t
+xdr_ep_link_arg_t (XDR *xdrs, ep_link_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->eid))
+		 return FALSE;
+	 if (!xdr_ep_uuid_t (xdrs, objp->inode))
+		 return FALSE;
+	 if (!xdr_ep_uuid_t (xdrs, objp->newparent))
+		 return FALSE;
+	 if (!xdr_ep_name_t (xdrs, &objp->newname))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_mkdir_arg_t (XDR *xdrs, ep_mkdir_arg_t *objp)
 {
 	//register int32_t *buf;
@@ -482,11 +548,13 @@ xdr_ep_rename_arg_t (XDR *xdrs, ep_rename_arg_t *objp)
 
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
-	 if (!xdr_ep_uuid_t (xdrs, objp->from))
+	 if (!xdr_ep_uuid_t (xdrs, objp->pfid))
 		 return FALSE;
-	 if (!xdr_ep_uuid_t (xdrs, objp->to_parent))
+	 if (!xdr_ep_name_t (xdrs, &objp->name))
 		 return FALSE;
-	 if (!xdr_ep_name_t (xdrs, &objp->to_name))
+	 if (!xdr_ep_uuid_t (xdrs, objp->npfid))
+		 return FALSE;
+	 if (!xdr_ep_name_t (xdrs, &objp->newname))
 		 return FALSE;
 	return TRUE;
 }
