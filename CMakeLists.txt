@@ -21,8 +21,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "0")
-set(MINOR "6")
-set(REVISION "2")
+set(MINOR "7")
+set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -36,6 +36,13 @@ find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
 find_program(DEBUILD NAMES debuild)
+
+IF(CMAKE_COMPILER_IS_GNUCC)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fmessage-length=0")
+ENDIF(CMAKE_COMPILER_IS_GNUCC)
+IF(CMAKE_COMPILER_IS_GNUCXX)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fmessage-length=0")
+ENDIF(CMAKE_COMPILER_IS_GNUCXX)
 
 #
 # Project config.
@@ -136,5 +143,5 @@ set(CPACK_COMPONENT_HEADERS_DESCRIPTION "storaged")
 # Sources
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${ROZOFS_SOURCE_PACKAGE_FILE_NAME}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
-set(CPACK_SOURCE_IGNORE_FILES "test_fuse.sh$;exportd$;config.h$;rozofsmount$;sample$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings")
+set(CPACK_SOURCE_IGNORE_FILES "test_fuse.sh$;exportd$;/config.h$;rozofsmount$;sample$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git")
 include(CPack)

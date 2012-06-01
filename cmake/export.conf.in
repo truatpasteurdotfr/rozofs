@@ -123,8 +123,12 @@ volumes =
 # only the first letter of suffix is used that is:
 # 128G is equivalent to 128Giga wich in turn can be 128GigaBytes etc...
 # For no quota use empty quota.
-# warning: any other suffix leads to quota express in blocks.
+# Warning: any other suffix leads to quota express in blocks.
+# squota stands for soft quota which are non blocking quotas i.e write
+# operations will succeeded but exceeded quotas will be notified in 
+# /var/run/exportd/export_[eid] monitoring file
+# hquota are blocking quotas i.e every attempt to write beyond hquota will fail (EDQUOT) 
 exports = (
-    {eid = 1; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0"; quota="256G"; vid=1;},
-    {eid = 2; root = "/path/to/bar"; md5=""; quota = "", vid=2;}
+    {eid = 1; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0"; squota="128G"; hquota="256G"; vid=1;},
+    {eid = 2; root = "/path/to/bar"; md5=""; squota=""; hquota = ""; vid=2;}
 );

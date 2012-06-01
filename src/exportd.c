@@ -40,6 +40,8 @@
 #include "eproto.h"
 #include "export.h"
 #include "xmalloc.h"
+#include "monitor.h"
+#include "rozofs.h"
 
 #define EXPORTD_PID_FILE "exportd.pid"
 
@@ -55,6 +57,7 @@ static list_t exports;
 
 static pthread_t bal_vol_thread;
 static pthread_t rm_bins_thread;
+static pthread_t monitor_thread;
 
 static char exportd_config_file[PATH_MAX] = EXPORTD_DEFAULT_CONFIG;
 
@@ -102,6 +105,29 @@ static void *remove_bins_thread(void *v) {
         if (exports_remove_bins() != 0) {
             severe("remove_bins_thread failed: %s", strerror(errno));
         }
+        nanosleep(&ts, NULL);
+    }
+    return 0;
+}
+
+static void *monitoring_thread(void *v) {
+    struct timespec ts = {2, 0};
+    list_t *p;
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+    for (;;) {
+        list_for_each_forward(p, &volumes_list.vol_list) {
+            if (monitor_volume(list_entry(p, volume_t, list)) != 0) {
+                severe("monitor thread failed: %s", strerror(errno));
+            }
+        }
+        list_for_each_forward(p, &exports) {
+            if (monitor_export(&list_entry(p, export_entry_t, list)->export) != 0) {
+                severe("monitor thread failed: %s", strerror(errno));
+            }
+        }
+
         nanosleep(&ts, NULL);
     }
     return 0;
@@ -445,7 +471,8 @@ static int load_exports_conf(struct config_t *config) {
         const char *md5;
         uint32_t eid; // Export identifier
         const char *str;
-        uint64_t quota;
+        uint64_t squota;
+        uint64_t hquota;
         long int vid; // Volume identifier
 
         if ((mfs_setting = config_setting_get_elem(export_set, i)) == NULL) {
@@ -485,14 +512,26 @@ static int load_exports_conf(struct config_t *config) {
             goto out;
         }
 
-        if (config_setting_lookup_string(mfs_setting, "quota", &str) ==
+        if (config_setting_lookup_string(mfs_setting, "squota", &str) ==
                 CONFIG_FALSE) {
             errno = ENOKEY;
-            fprintf(stderr, "can't look up quota for export (idx=%d)\n", i);
+            fprintf(stderr, "can't look up squota for export (idx=%d)\n", i);
             goto out;
         }
 
-        if (strquota_to_nbblocks(str, &quota) != 0) {
+        if (strquota_to_nbblocks(str, &squota) != 0) {
+            fprintf(stderr, "%s: can't convert to quota)\n", str);
+            goto out;
+        }
+
+        if (config_setting_lookup_string(mfs_setting, "hquota", &str) ==
+                CONFIG_FALSE) {
+            errno = ENOKEY;
+            fprintf(stderr, "can't look up hquota for export (idx=%d)\n", i);
+            goto out;
+        }
+
+        if (strquota_to_nbblocks(str, &hquota) != 0) {
             fprintf(stderr, "%s: can't convert to quota)\n", str);
             goto out;
         }
@@ -518,8 +557,8 @@ static int load_exports_conf(struct config_t *config) {
         }
 
         // Initialize export
-        if (export_initialize(&export_entry->export, eid, root, md5, quota,
-                vid) != 0) {
+        if (export_initialize(&export_entry->export, eid, root, md5, squota,
+                hquota, vid) != 0) {
             fprintf(stderr, "can't initialize export with path %s: %s\n",
                     root, strerror(errno));
             goto out;
@@ -560,7 +599,8 @@ static int reload_exports_conf(struct config_t *config) {
         const char *root;
         const char *md5;
         const char *str;
-        uint64_t quota;
+        uint64_t squota;
+        uint64_t hquota;
         uint32_t eid; // Export identifier
         long int vid; // Volume identifier
         export_t *current;
@@ -582,14 +622,25 @@ static int reload_exports_conf(struct config_t *config) {
         // If this eid already exists, (check if quota has changed) 
         // and go to the next export
         if ((current = exports_lookup_export(eid)) != NULL) {
-            if (config_setting_lookup_string(mfs_setting, "quota", &str) ==
+            if (config_setting_lookup_string(mfs_setting, "squota", &str) ==
                     CONFIG_FALSE) {
                 errno = ENOKEY;
-                severe("can't look up quota for export (idx=%d)\n", i);
+                severe("can't look up squota for export (idx=%d)\n", i);
                 goto out;
             }
 
-            if (strquota_to_nbblocks(str, &current->quota) != 0) {
+            if (strquota_to_nbblocks(str, &current->squota) != 0) {
+                fprintf(stderr, "%s: can't convert to quota)\n", str);
+                goto out;
+            }
+            if (config_setting_lookup_string(mfs_setting, "hquota", &str) ==
+                    CONFIG_FALSE) {
+                errno = ENOKEY;
+                severe("can't look up hquota for export (idx=%d)\n", i);
+                goto out;
+            }
+
+            if (strquota_to_nbblocks(str, &current->hquota) != 0) {
                 fprintf(stderr, "%s: can't convert to quota)\n", str);
                 goto out;
             }
@@ -610,14 +661,26 @@ static int reload_exports_conf(struct config_t *config) {
             goto out;
         }
 
-        if (config_setting_lookup_string(mfs_setting, "quota", &str) ==
+        if (config_setting_lookup_string(mfs_setting, "squota", &str) ==
                 CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("can't look up quota for export (idx=%d)\n", i);
+            severe("can't look up squota for export (idx=%d)\n", i);
             goto out;
         }
 
-        if (strquota_to_nbblocks(str, &quota) != 0) {
+        if (strquota_to_nbblocks(str, &squota) != 0) {
+            fprintf(stderr, "%s: can't convert to quota)\n", str);
+            goto out;
+        }
+
+        if (config_setting_lookup_string(mfs_setting, "hquota", &str) ==
+                CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't look up hquota for export (idx=%d)\n", i);
+            goto out;
+        }
+
+        if (strquota_to_nbblocks(str, &hquota) != 0) {
             fprintf(stderr, "%s: can't convert to quota)\n", str);
             goto out;
         }
@@ -642,7 +705,8 @@ static int reload_exports_conf(struct config_t *config) {
         }
 
         // Initialize export
-        if (export_initialize(&export_entry->export, eid, root, md5, quota, vid) != 0) {
+        if (export_initialize(&export_entry->export, eid, root, md5, squota,
+                hquota, vid) != 0) {
             severe("can't initialize export with path %s: %s", root,
                     strerror(errno));
             goto out;
@@ -954,6 +1018,11 @@ static int exportd_initialize() {
         fprintf(stderr, "can't initialize exports: %s\n", strerror(errno));
         goto out;
     }
+    // Initialize monitoring
+    if (monitor_initialize() != 0) {
+        fprintf(stderr, "can't initialize monitoring: %s\n", strerror(errno));
+        goto out;
+    }
     // Load configuration
     if (load_conf_file() != 0) {
         fprintf(stderr, "can't load settings from config file\n");
@@ -969,9 +1038,11 @@ static void exportd_release() {
 
     pthread_cancel(bal_vol_thread);
     pthread_cancel(rm_bins_thread);
+    pthread_cancel(monitor_thread);
 
     exports_release();
     volume_release();
+    monitor_release();
     rozofs_release();
 }
 
@@ -1027,6 +1098,11 @@ static void on_start() {
 
     if (pthread_create(&rm_bins_thread, NULL, remove_bins_thread, NULL) != 0) {
         fatal("can't create remove files thread %s", strerror(errno));
+        return;
+    }
+
+    if (pthread_create(&monitor_thread, NULL, monitoring_thread, NULL) != 0) {
+        fatal("can't create monitoring thread %s", strerror(errno));
         return;
     }
 

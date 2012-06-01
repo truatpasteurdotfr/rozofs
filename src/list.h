@@ -21,6 +21,7 @@
 #define _LIST_H
 
 #include <stdlib.h>
+#include <stddef.h>
 
 typedef struct list {
     struct list *next, *prev;
