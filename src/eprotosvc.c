@@ -30,8 +30,8 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		ep_mfile_arg_t ep_readlink_1_arg;
 		ep_mknod_arg_t ep_mknod_1_arg;
 		ep_mkdir_arg_t ep_mkdir_1_arg;
-		ep_mfile_arg_t ep_unlink_1_arg;
-		ep_mfile_arg_t ep_rmdir_1_arg;
+		ep_unlink_arg_t ep_unlink_1_arg;
+		ep_rmdir_arg_t ep_rmdir_1_arg;
 		ep_symlink_arg_t ep_symlink_1_arg;
 		ep_rename_arg_t ep_rename_1_arg;
 		ep_readdir_arg_t ep_readdir_1_arg;
@@ -41,6 +41,7 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		ep_write_block_arg_t ep_write_block_1_arg;
 		ep_mfile_arg_t ep_open_1_arg;
 		ep_mfile_arg_t ep_close_1_arg;
+		ep_link_arg_t ep_link_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -108,14 +109,14 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		break;
 
 	case EP_UNLINK:
-		_xdr_argument = (xdrproc_t) xdr_ep_mfile_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
+		_xdr_argument = (xdrproc_t) xdr_ep_unlink_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_fid_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_unlink_1_svc;
 		break;
 
 	case EP_RMDIR:
-		_xdr_argument = (xdrproc_t) xdr_ep_mfile_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
+		_xdr_argument = (xdrproc_t) xdr_ep_rmdir_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_fid_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_rmdir_1_svc;
 		break;
 
@@ -127,7 +128,7 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 
 	case EP_RENAME:
 		_xdr_argument = (xdrproc_t) xdr_ep_rename_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
+		_xdr_result = (xdrproc_t) xdr_ep_fid_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_rename_1_svc;
 		break;
 
@@ -171,6 +172,12 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_ep_mfile_arg_t;
 		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_close_1_svc;
+		break;
+
+	case EP_LINK:
+		_xdr_argument = (xdrproc_t) xdr_ep_link_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_mattr_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_link_1_svc;
 		break;
 
 	default:

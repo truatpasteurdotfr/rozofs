@@ -65,20 +65,22 @@ int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs);
 
 int exportclt_readlink(exportclt_t * clt, fid_t fid, char *link);
 
+int exportclt_link(exportclt_t * clt, fid_t inode, fid_t newparent, char *newname, mattr_t * attrs);
+
 int exportclt_mknod(exportclt_t * clt, fid_t parent, char *name, uint32_t uid,
         uint32_t gid, mode_t mode, mattr_t * attrs);
 
 int exportclt_mkdir(exportclt_t * clt, fid_t parent, char *name, uint32_t uid,
         uint32_t gid, mode_t mode, mattr_t * attrs);
 
-int exportclt_unlink(exportclt_t * clt, fid_t fid);
+int exportclt_unlink(exportclt_t * clt, fid_t pfid, char *name, fid_t * fid);
 
-int exportclt_rmdir(exportclt_t * clt, fid_t fid);
+int exportclt_rmdir(exportclt_t * clt, fid_t pfid, char *name, fid_t * fid);
 
 int exportclt_symlink(exportclt_t * clt, char *link, fid_t parent, char *name,
         mattr_t * attrs);
 
-int exportclt_rename(exportclt_t * clt, fid_t from, fid_t parent, char *name);
+int exportclt_rename(exportclt_t * clt, fid_t parent, char *name, fid_t newparent, char *newname, fid_t * fid);
 
 int64_t exportclt_read(exportclt_t * clt, fid_t fid, uint64_t off,
         uint32_t len);

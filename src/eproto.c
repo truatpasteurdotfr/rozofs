@@ -213,6 +213,25 @@ out:
     return &ret;
 }
 
+ep_mattr_ret_t *ep_link_1_svc(ep_link_arg_t * arg, struct svc_req * req) {
+    static ep_mattr_ret_t ret;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    if (!(exp = exports_lookup_export(arg->eid)))
+        goto error;
+    if (export_link(exp, arg->inode, arg->newparent, arg->newname, (mattr_t *) & ret.ep_mattr_ret_t_u.attrs) != 0)
+        goto error;
+    ret.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status = EP_FAILURE;
+    ret.ep_mattr_ret_t_u.error = errno;
+out:
+
+    return &ret;
+}
+
 ep_mattr_ret_t *ep_mknod_1_svc(ep_mknod_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
@@ -255,39 +274,39 @@ out:
     return &ret;
 }
 
-ep_status_ret_t *ep_unlink_1_svc(ep_mfile_arg_t * arg, struct svc_req * req) {
-    static ep_status_ret_t ret;
+ep_fid_ret_t *ep_unlink_1_svc(ep_unlink_arg_t * arg, struct svc_req * req) {
+    static ep_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
 
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
-    if (export_unlink(exp, arg->fid) != 0)
+    if (export_unlink(exp, arg->pfid, arg->name, (fid_t *) & ret.ep_fid_ret_t_u.fid) != 0)
         goto error;
     ret.status = EP_SUCCESS;
     goto out;
 error:
     ret.status = EP_FAILURE;
-    ret.ep_status_ret_t_u.error = errno;
+    ret.ep_fid_ret_t_u.error = errno;
 out:
 
     return &ret;
 }
 
-ep_status_ret_t *ep_rmdir_1_svc(ep_mfile_arg_t * arg, struct svc_req * req) {
-    static ep_status_ret_t ret;
+ep_fid_ret_t *ep_rmdir_1_svc(ep_rmdir_arg_t * arg, struct svc_req * req) {
+    static ep_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
 
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
-    if (export_rmdir(exp, arg->fid) != 0)
+    if (export_rmdir(exp, arg->pfid, arg->name, (fid_t *) & ret.ep_fid_ret_t_u.fid) != 0)
         goto error;
     ret.status = EP_SUCCESS;
     goto out;
 error:
     ret.status = EP_FAILURE;
-    ret.ep_status_ret_t_u.error = errno;
+    ret.ep_fid_ret_t_u.error = errno;
 out:
 
     return &ret;
@@ -315,22 +334,21 @@ out:
     return &ret;
 }
 
-ep_status_ret_t *ep_rename_1_svc(ep_rename_arg_t * arg, struct svc_req * req) {
-    static ep_status_ret_t ret;
+ep_fid_ret_t *ep_rename_1_svc(ep_rename_arg_t * arg, struct svc_req * req) {
+    static ep_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
 
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
-    if (export_rename(exp, arg->from, arg->to_parent, arg->to_name) != 0)
+    if (export_rename(exp, arg->pfid, arg->name, arg->npfid, arg->newname, (fid_t *) & ret.ep_fid_ret_t_u.fid) != 0)
         goto error;
     ret.status = EP_SUCCESS;
     goto out;
 error:
     ret.status = EP_FAILURE;
-    ret.ep_status_ret_t_u.error = errno;
+    ret.ep_fid_ret_t_u.error = errno;
 out:
-
     return &ret;
 }
 
@@ -340,13 +358,13 @@ ep_readdir_ret_t *ep_readdir_1_svc(ep_readdir_arg_t * arg, struct svc_req * req)
     DEBUG_FUNCTION;
 
     xdr_free((xdrproc_t) xdr_ep_readdir_ret_t, (char *) &ret);
-    
+
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
     if (export_readdir
-            (exp, arg->fid, arg->cookie, (child_t **) & ret.ep_readdir_ret_t_u.reply.children,(uint8_t *) &ret.ep_readdir_ret_t_u.reply.eof) != 0)
+            (exp, arg->fid, arg->cookie, (child_t **) & ret.ep_readdir_ret_t_u.reply.children, (uint8_t *) & ret.ep_readdir_ret_t_u.reply.eof) != 0)
         goto error;
-    ret.status = EP_SUCCESS;   
+    ret.status = EP_SUCCESS;
     goto out;
 error:
     ret.status = EP_FAILURE;

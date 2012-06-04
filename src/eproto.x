@@ -85,6 +85,13 @@ union ep_mattr_ret_t switch (ep_status_t status) {
     default:            void;
 };
 
+
+union ep_fid_ret_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_uuid_t   fid;
+    case EP_FAILURE:    int         error;
+    default:            void;
+};
+
 struct ep_lookup_arg_t {
     uint32_t    eid;
     ep_uuid_t   parent;
@@ -94,6 +101,18 @@ struct ep_lookup_arg_t {
 struct ep_mfile_arg_t {
     uint32_t    eid;
     ep_uuid_t   fid;
+};
+
+struct ep_unlink_arg_t {
+    uint32_t    eid;
+    ep_uuid_t   pfid;
+    ep_name_t   name;
+};
+
+struct ep_rmdir_arg_t {
+    uint32_t    eid;
+    ep_uuid_t   pfid;
+    ep_name_t   name;
 };
 
 struct ep_statfs_t {
@@ -135,6 +154,13 @@ struct ep_mknod_arg_t {
     uint32_t    uid;
     uint32_t    gid;
     uint32_t    mode;
+};
+
+struct ep_link_arg_t {
+    uint32_t    eid;
+    ep_uuid_t   inode;
+    ep_uuid_t   newparent;
+    ep_name_t   newname;
 };
 
 struct ep_mkdir_arg_t {
@@ -180,28 +206,11 @@ union ep_readdir_ret_t switch (ep_status_t status) {
 
 struct ep_rename_arg_t {
     uint32_t    eid;
-    ep_uuid_t   from;
-    ep_uuid_t   to_parent;
-    ep_name_t   to_name;
+    ep_uuid_t   pfid;
+    ep_name_t   name;
+    ep_uuid_t   npfid;
+    ep_name_t   newname;
 };
-
-/*
-struct ep_storage_t {
-    uint16_t    sid;
-    ep_host_t   host;
-};
-
-struct ep_attr_t {
-    ep_uuid_t       fid;
-    ep_storage_t    storages[ROZOFS_SAFE];
-};
-
-union ep_attr_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    ep_attr_t   attr;
-    case EP_FAILURE:    int         error;
-    default:            void;
-};
-*/
 
 struct ep_io_arg_t {
     uint32_t    eid;
@@ -270,16 +279,16 @@ program EXPORT_PROGRAM {
         ep_mattr_ret_t
         EP_MKDIR(ep_mkdir_arg_t)                = 9;
 
-        ep_status_ret_t
-        EP_UNLINK(ep_mfile_arg_t)               = 10;
+        ep_fid_ret_t
+        EP_UNLINK(ep_unlink_arg_t)              = 10;
 
-        ep_status_ret_t
-        EP_RMDIR(ep_mfile_arg_t)                = 11;
+        ep_fid_ret_t
+        EP_RMDIR(ep_rmdir_arg_t)                = 11;
 
         ep_mattr_ret_t
         EP_SYMLINK(ep_symlink_arg_t)            = 12;
 
-        ep_status_ret_t
+        ep_fid_ret_t
         EP_RENAME(ep_rename_arg_t)              = 13;
 
         ep_readdir_ret_t
@@ -302,6 +311,10 @@ program EXPORT_PROGRAM {
 
         ep_status_ret_t
         EP_CLOSE(ep_mfile_arg_t)                = 20;
+
+        ep_mattr_ret_t
+        EP_LINK(ep_link_arg_t)                  = 21;
+
     } = 1;
 } = 0x20000005;
 

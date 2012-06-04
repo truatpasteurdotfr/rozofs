@@ -160,30 +160,30 @@ ep_mkdir_1(ep_mkdir_arg_t *argp, CLIENT *clnt)
 	return (&clnt_res);
 }
 
-ep_status_ret_t *
-ep_unlink_1(ep_mfile_arg_t *argp, CLIENT *clnt)
+ep_fid_ret_t *
+ep_unlink_1(ep_unlink_arg_t *argp, CLIENT *clnt)
 {
-	static ep_status_ret_t clnt_res;
+	static ep_fid_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_UNLINK,
-		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_ep_unlink_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_ep_fid_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_status_ret_t *
-ep_rmdir_1(ep_mfile_arg_t *argp, CLIENT *clnt)
+ep_fid_ret_t *
+ep_rmdir_1(ep_rmdir_arg_t *argp, CLIENT *clnt)
 {
-	static ep_status_ret_t clnt_res;
+	static ep_fid_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_RMDIR,
-		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_ep_rmdir_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_ep_fid_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
@@ -205,15 +205,15 @@ ep_symlink_1(ep_symlink_arg_t *argp, CLIENT *clnt)
 	return (&clnt_res);
 }
 
-ep_status_ret_t *
+ep_fid_ret_t *
 ep_rename_1(ep_rename_arg_t *argp, CLIENT *clnt)
 {
-	static ep_status_ret_t clnt_res;
+	static ep_fid_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_RENAME,
 		(xdrproc_t) xdr_ep_rename_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_ep_fid_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
@@ -319,6 +319,21 @@ ep_close_1(ep_mfile_arg_t *argp, CLIENT *clnt)
 	if (clnt_call (clnt, EP_CLOSE,
 		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
 		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+ep_mattr_ret_t *
+ep_link_1(ep_link_arg_t *argp, CLIENT *clnt)
+{
+	static ep_mattr_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_LINK,
+		(xdrproc_t) xdr_ep_link_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}

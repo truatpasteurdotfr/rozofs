@@ -79,7 +79,7 @@ int x,excel;
 int verbose = 0;
 int sz = 1;
 char *mbuffer;
-int incr;
+int incr = 1;
 #define _STAT_CREATE 0
 #define _STAT_WRITE 1
 #define _STAT_CLOSE 2
@@ -128,7 +128,7 @@ void bzero();
 void clear_stats();
 int validate(char *, int , char );
 
-#define THISVERSION "        $Revision: 1.59 $"
+#define THISVERSION "        $Revision: 1.60 $"
 /*#define NULL 0*/
 
 char version[]=THISVERSION;
@@ -261,9 +261,9 @@ int main(int argc, char **argv)
 		"access","chmod","readdir","delete"," Total_files");
 #else
 
-	   	printf(" .     %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %10s\n",
+	   	printf(" .     %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %7s %10s\n",
        	   	"mkdir","chdir","rmdir","create","open", "read","write","close","stat",
-		"access","chmod","readdir","delete",
+		"access","chmod","readdir","link  ","unlink","delete",
 		" Total_files");
 #endif
 	}
@@ -463,14 +463,11 @@ int main(int argc, char **argv)
 	      printf("         Worst readdir(s)/sec = %12.2f (%12.9f seconds/op)\n\n",
 			1/stats[_STAT_READDIR].worst,stats[_STAT_READDIR].worst);
 	   }
-/*
 #if !defined(Windows)
-*/
 	   /*
 	    * link test 
 	    */
-/*	   
-       purge_buffer_cache();
+	   purge_buffer_cache();
 	   file_link(x);
 	   if(verbose)
 	   {
@@ -484,11 +481,9 @@ int main(int argc, char **argv)
 	      printf("         Worst link(s)/sec    = %12.2f (%12.9f seconds/op)\n\n",
 			1/stats[_STAT_LINK].worst,stats[_STAT_LINK].worst);
 	   }
-*/
 	   /*
 	    * unlink test 
 	    */
-/*	
 	   purge_buffer_cache();
 	   file_unlink(x);
 	   if(verbose)
@@ -504,7 +499,6 @@ int main(int argc, char **argv)
 			1/stats[_STAT_UNLINK].worst,stats[_STAT_UNLINK].worst);
 	   }
 #endif
-*/
 	   /*
 	    * Delete test 
 	    */
@@ -537,8 +531,8 @@ int main(int argc, char **argv)
 	         printf("%7.0f ",stats[_STAT_CHMOD].counter/stats[_STAT_CHMOD].total_time);
 	         printf("%7.0f ",stats[_STAT_READDIR].counter/stats[_STAT_READDIR].total_time);
 #ifndef Windows
-/*	         printf("%7.0f ",stats[_STAT_LINK].counter/stats[_STAT_LINK].total_time);
-	         printf("%7.0f ",stats[_STAT_UNLINK].counter/stats[_STAT_UNLINK].total_time);*/
+	         printf("%7.0f ",stats[_STAT_LINK].counter/stats[_STAT_LINK].total_time);
+	         printf("%7.0f ",stats[_STAT_UNLINK].counter/stats[_STAT_UNLINK].total_time);
 #endif
 	         printf("%7.0f ",stats[_STAT_DELETE].counter/stats[_STAT_DELETE].total_time);
 	         printf("%10d ",x*x*x);
@@ -560,8 +554,8 @@ int main(int argc, char **argv)
 	         printf("%7.0f ",1/stats[_STAT_CHMOD].best);
 	         printf("%7.0f ",1/stats[_STAT_READDIR].best);
 #ifndef Windows
-/*	         printf("%7.0f ",1/stats[_STAT_LINK].best);
-	         printf("%7.0f ",1/stats[_STAT_UNLINK].best);*/
+	         printf("%7.0f ",1/stats[_STAT_LINK].best);
+	         printf("%7.0f ",1/stats[_STAT_UNLINK].best);
 #endif
 	         printf("%7.0f ",1/stats[_STAT_DELETE].best);
 	         printf("%10d ",x*x*x);

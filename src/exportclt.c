@@ -439,6 +439,46 @@ out:
     return status;
 }
 
+int exportclt_link(exportclt_t * clt, fid_t inode, fid_t newparent, char *newname, mattr_t * attrs) {
+    int status = -1;
+    ep_link_arg_t arg;
+    ep_mattr_ret_t *ret = 0;
+    int retry = 0;
+    DEBUG_FUNCTION;
+
+    arg.eid = clt->eid;
+    memcpy(arg.inode, inode, sizeof (uuid_t));
+    memcpy(arg.newparent, newparent, sizeof (uuid_t));
+    arg.newname = newname;
+
+    while ((retry++ < clt->retries) &&
+            (!(clt->rpcclt.client) ||
+            !(ret = ep_link_1(&arg, clt->rpcclt.client)))) {
+
+        if (rpcclt_initialize
+                (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
+                ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE) != 0) {
+            rpcclt_release(&clt->rpcclt);
+            errno = EPROTO;
+        }
+    }
+
+    if (ret == 0) {
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status == EP_FAILURE) {
+        errno = ret->ep_mattr_ret_t_u.error;
+        goto out;
+    }
+    memcpy(attrs, &ret->ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_ep_mattr_ret_t, (char *) ret);
+    return status;
+}
+
 int exportclt_mknod(exportclt_t * clt, fid_t parent, char *name, uint32_t uid,
         uint32_t gid, mode_t mode, mattr_t * attrs) {
     int status = -1;
@@ -525,15 +565,16 @@ out:
     return status;
 }
 
-int exportclt_unlink(exportclt_t * clt, fid_t fid) {
+int exportclt_unlink(exportclt_t * clt, fid_t pfid, char *name, fid_t * fid) {
     int status = -1;
-    ep_mfile_arg_t arg;
-    ep_status_ret_t *ret = 0;
+    ep_unlink_arg_t arg;
+    ep_fid_ret_t *ret = 0;
     int retry = 0;
     DEBUG_FUNCTION;
 
     arg.eid = clt->eid;
-    memcpy(arg.fid, fid, sizeof (uuid_t));
+    memcpy(arg.pfid, pfid, sizeof (uuid_t));
+    arg.name = name;
 
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
@@ -552,25 +593,27 @@ int exportclt_unlink(exportclt_t * clt, fid_t fid) {
         goto out;
     }
     if (ret->status == EP_FAILURE) {
-        errno = ret->ep_status_ret_t_u.error;
+        errno = ret->ep_fid_ret_t_u.error;
         goto out;
     }
+    memcpy(fid, &ret->ep_fid_ret_t_u.fid, sizeof (fid_t));
     status = 0;
 out:
     if (ret)
-        xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_ep_fid_ret_t, (char *) ret);
     return status;
 }
 
-int exportclt_rmdir(exportclt_t * clt, fid_t fid) {
+int exportclt_rmdir(exportclt_t * clt, fid_t pfid, char *name, fid_t * fid) {
     int status = -1;
-    ep_mfile_arg_t arg;
-    ep_status_ret_t *ret = 0;
+    ep_rmdir_arg_t arg;
+    ep_fid_ret_t *ret = 0;
     int retry = 0;
     DEBUG_FUNCTION;
 
     arg.eid = clt->eid;
-    memcpy(arg.fid, fid, sizeof (uuid_t));
+    memcpy(arg.pfid, pfid, sizeof (uuid_t));
+    arg.name = name;
 
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
@@ -589,13 +632,14 @@ int exportclt_rmdir(exportclt_t * clt, fid_t fid) {
         goto out;
     }
     if (ret->status == EP_FAILURE) {
-        errno = ret->ep_status_ret_t_u.error;
+        errno = ret->ep_fid_ret_t_u.error;
         goto out;
     }
+    memcpy(fid, &ret->ep_fid_ret_t_u.fid, sizeof (fid_t));
     status = 0;
 out:
     if (ret)
-        xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_ep_fid_ret_t, (char *) ret);
     return status;
 }
 
@@ -640,17 +684,18 @@ out:
     return status;
 }
 
-int exportclt_rename(exportclt_t * clt, fid_t from, fid_t parent, char *name) {
+int exportclt_rename(exportclt_t * clt, fid_t parent, char *name, fid_t newparent, char *newname, fid_t * fid) {
     int status = -1;
     ep_rename_arg_t arg;
-    ep_status_ret_t *ret = 0;
+    ep_fid_ret_t *ret = 0;
     int retry = 0;
     DEBUG_FUNCTION;
 
     arg.eid = clt->eid;
-    memcpy(arg.from, from, sizeof (fid_t));
-    memcpy(arg.to_parent, parent, sizeof (fid_t));
-    arg.to_name = name;
+    memcpy(arg.pfid, parent, sizeof (fid_t));
+    arg.name = name;
+    memcpy(arg.npfid, newparent, sizeof (fid_t));
+    arg.newname = newname;
 
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
@@ -669,13 +714,14 @@ int exportclt_rename(exportclt_t * clt, fid_t from, fid_t parent, char *name) {
         goto out;
     }
     if (ret->status == EP_FAILURE) {
-        errno = ret->ep_status_ret_t_u.error;
+        errno = ret->ep_fid_ret_t_u.error;
         goto out;
     }
+    memcpy(fid, &ret->ep_fid_ret_t_u.fid, sizeof (fid_t));
     status = 0;
 out:
     if (ret)
-        xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_ep_fid_ret_t, (char *) ret);
     return status;
 }
 

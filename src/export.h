@@ -64,22 +64,24 @@ int export_setattr(export_t * e, fid_t fid, mattr_t * attrs);
 
 int export_readlink(export_t * e, fid_t fid, char link[PATH_MAX]);
 
+int export_link(export_t *e, fid_t inode, fid_t newparent, const char *newname, mattr_t *attrs);
+
 int export_mknod(export_t * e, fid_t parent, const char *name, uint32_t uid,
         uint32_t gid, mode_t mode, mattr_t * attrs);
 
 int export_mkdir(export_t * e, fid_t parent, const char *name, uint32_t uid,
         uint32_t gid, mode_t mode, mattr_t * attrs);
 
-int export_unlink(export_t * e, fid_t fid);
+int export_unlink(export_t * e, fid_t pfid, const char *name, fid_t * fid);
 
 int export_rm_bins(export_t * e);
 
-int export_rmdir(export_t * e, fid_t fid);
+int export_rmdir(export_t * e, fid_t pfid, const char *name, fid_t * fid);
 
 int export_symlink(export_t * e, const char *link, fid_t parent,
         const char *name, mattr_t * attrs);
 
-int export_rename(export_t * e, fid_t from, fid_t parent, const char *name);
+int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const char *newname, fid_t * fid);
 
 int64_t export_read(export_t * e, fid_t fid, uint64_t off, uint32_t len);
 

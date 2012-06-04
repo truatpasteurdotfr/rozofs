@@ -101,7 +101,7 @@ typedef struct mfentry {
     list_t list;
 } mfentry_t;
 
-static int mfentry_initialize(mfentry_t *mfe, mfentry_t *parent, 
+static int mfentry_initialize(mfentry_t *mfe, mfentry_t *parent,
         const char *name, char *path, mattr_t *mattrs) {
 
     DEBUG_FUNCTION;
@@ -118,7 +118,8 @@ static int mfentry_initialize(mfentry_t *mfe, mfentry_t *parent,
     mfe->fd = -1;
     // The counter is initialized to zero
     mfe->cnt = 0;
-    if (mattrs != NULL) memcpy(&mfe->attrs, mattrs, sizeof(mattr_t));
+    if (mattrs != NULL)
+        memcpy(&mfe->attrs, mattrs, sizeof (mattr_t));
     list_init(&mfe->list);
 
     return 0;
@@ -141,7 +142,7 @@ static int mfentry_create(mfentry_t * mfe) {
 }
 
 static int mfentry_read(mfentry_t *mfe) {
-    return (getxattr(mfe->path, EATTRSTKEY, &(mfe->attrs), 
+    return (getxattr(mfe->path, EATTRSTKEY, &(mfe->attrs),
             sizeof (mattr_t)) < 0 ? -1 : 0);
 }
 
@@ -351,8 +352,8 @@ int export_create(const char *root) {
         goto out;
     if (setxattr(path, EFILESKEY, &zero, sizeof (zero), XATTR_CREATE) != 0)
         goto out;
-    if (setxattr(path, EVERSIONKEY, &version, 
-                sizeof (char) * strlen(version) + 1, XATTR_CREATE) != 0)
+    if (setxattr(path, EVERSIONKEY, &version,
+            sizeof (char) * strlen(version) + 1, XATTR_CREATE) != 0)
         goto out;
 
     memset(&attrs, 0, sizeof (mattr_t));
@@ -537,76 +538,89 @@ int export_lookup(export_t *e, fid_t parent, const char *name,
     mfentry_t *mfkey = 0;
     DEBUG_FUNCTION;
 
+    // Get the mfentry for the parent from htable hfids
     if (!(pmfe = htable_get(&e->hfids, parent))) {
         errno = ESTALE;
         goto out;
     }
-    // manage "." and ".."
+
+    // Manage "." and ".."
     if (strcmp(name, ".") == 0) {
         memcpy(attrs, &pmfe->attrs, sizeof (mattr_t));
         status = 0;
         goto out;
     }
-    // what if root ?
     if (strcmp(name, "..") == 0) {
-        if (uuid_compare(parent, e->rfid) == 0) // we're looking for root parent
+        if (uuid_compare(parent, e->rfid) == 0) // We're looking for root parent
             memcpy(attrs, &pmfe->attrs, sizeof (mattr_t));
         else
             memcpy(attrs, &pmfe->parent->attrs, sizeof (mattr_t));
         status = 0;
         goto out;
     }
-    // XXX make this check on client
+
+    // Manage trash directory
+    // XXX We can make this check on client
     if ((uuid_compare(parent, e->rfid) == 0) && strcmp(name, e->trashname) == 0) {
         errno = ENOENT;
-        status = -1;
         goto out;
     }
 
-    strcpy(path, pmfe->path);
-    strcat(path, "/");
-    strcat(path, name);
-
+    // Check if this file is already cached
     mfkey = xmalloc(sizeof (mfentry_t));
     memcpy(mfkey->pfid, pmfe->attrs.fid, sizeof (fid_t));
     mfkey->name = xstrdup(name);
 
-    // Check if already cached
     if (!(mfe = htable_get(&e->h_pfids, mfkey))) {
         // If no cached, test the existence of this file
+        strcpy(path, pmfe->path);
+        strcat(path, "/");
+        strcat(path, name);
         if (access(path, F_OK) == 0) {
-            // If exists, cache it
+            // If the file exists we cache it
             mattr_t fake;
             mfe = xmalloc(sizeof (mfentry_t));
-            if (mfentry_initialize(mfe, pmfe, name, path, &fake) != 0) {
+            if (mfentry_initialize(mfe, pmfe, name, path, &fake) != 0)
                 goto error;
-            }
-            if (mfentry_read(mfe) != 0) {
+            if (mfentry_read(mfe) != 0)
                 goto error;
-            }
             export_put_mfentry(e, mfe);
+            /* We can return attributes from the hash table h_pfids
+             *  because we read the data before
+             * They are necessarily update even in the case of hardlinks*/
+            memcpy(attrs, &mfe->attrs, sizeof (mattr_t));
+            status = 0;
+            goto out;
         } else {
+            // If the file does not exist
+            goto out;
+        }
+    } else { // This file is already cached
+        if (!S_ISDIR(mfe->attrs.mode)) {
+            /* We can not return attributes from the hash table h_pfids
+             *  because they are not necessarily up to date
+             * in the case of hardlinks*/
+            mfentry_t *mfe_fid = 0;
+            // Get the mfentry for this file from htable hfids
+            if (!(mfe_fid = htable_get(&e->hfids, mfe->attrs.fid))) {
+                errno = ESTALE;
+                goto out;
+            }
+            memcpy(attrs, &mfe_fid->attrs, sizeof (mattr_t));
+            status = 0;
+            goto out;
+        } else {
+            memcpy(attrs, &mfe->attrs, sizeof (mattr_t));
+            status = 0;
             goto out;
         }
     }
-
-    if (mfe) {
-        // Need to verify if the path is good (see rename)
-        // Put the new path for the file
-        // XXX : Why ?
-        if (strcmp(mfe->path, path) != 0) {
-            free(mfe->path);
-            mfe->path = xstrdup(path);
-        }
-        memcpy(attrs, &mfe->attrs, sizeof(mattr_t));
-        status = 0;
-
-    } else {
+    if (!mfe) {
         warning("export_lookup failed but file: %s exists", name);
         errno = ENOENT;
     }
-    goto out;
 
+    goto out;
 error:
     if (mfe)
         free(mfe);
@@ -655,7 +669,7 @@ int export_setattr(export_t * e, fid_t fid, mattr_t * attrs) {
         }
 
         uint64_t nrb_new = ((attrs->size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE);
-        uint64_t nrb_old = ((mfe->attrs.size + ROZOFS_BSIZE - 1) / 
+        uint64_t nrb_old = ((mfe->attrs.size + ROZOFS_BSIZE - 1) /
                 ROZOFS_BSIZE);
 
         // Open the file descriptor
@@ -732,6 +746,79 @@ error:
         close(fd);
     errno = xerrno;
 
+out:
+    return status;
+}
+
+int export_link(export_t *e, fid_t inode, fid_t newparent, const char *newname, mattr_t *attrs) {
+    int status = -1;
+    mfentry_t *mfe = 0;
+    mfentry_t *pmfe = 0;
+    mfentry_t *nmfe = 0;
+    char newpath[PATH_MAX + FILENAME_MAX + 1];
+    int xerrno = errno;
+    DEBUG_FUNCTION;
+
+    // Get mfe for inode
+    if (!(mfe = htable_get(&e->hfids, inode))) {
+        errno = ESTALE;
+        goto out;
+    }
+
+    // Get mfe for new_parent
+    if (!(pmfe = htable_get(&e->hfids, newparent))) {
+        errno = ESTALE;
+        goto out;
+    }
+
+    // Make the hardlink
+    strcpy(newpath, pmfe->path);
+    strcat(newpath, "/");
+    strcat(newpath, newname);
+    if (link(mfe->path, newpath) != 0)
+        goto out;
+
+    // Update nlink and ctime for inode
+    mfe->attrs.nlink++;
+    mfe->attrs.ctime = time(NULL);
+
+    // Effective write for the inode
+    if (mfentry_write(mfe) != 0)
+        goto error; // XXX Link is already made
+
+    // Update new parent
+    pmfe->attrs.mtime = pmfe->attrs.ctime = time(NULL);
+
+    // Effective write for parent
+    if (mfentry_write(pmfe) != 0)
+        goto error; // XXX Link is already made
+
+    // Create new mfe for this new link
+    // We get attrs from htable hfids
+    nmfe = xmalloc(sizeof (mfentry_t));
+    if (mfentry_initialize(nmfe, pmfe, newname, newpath, &mfe->attrs) != 0)
+        goto error; // XXX Link is already made
+
+    // Put this mfentry on :
+    // htable &e->hfids
+    // htable &e->pfids
+    // list &e->mfiles
+    export_put_mfentry(e, nmfe);
+
+    // Not necessary to do a effective write for this inode (already up to date)
+
+    // Put the mattrs for the response
+    memcpy(attrs, &mfe->attrs, sizeof (mattr_t));
+
+    status = 0;
+    goto out;
+error:
+    xerrno = errno;
+    if (mfe) {
+        mfentry_release(mfe);
+        free(mfe);
+    }
+    errno = xerrno;
 out:
     return status;
 }
@@ -868,70 +955,189 @@ out:
     return status;
 }
 
-int export_unlink(export_t * e, uuid_t fid) {
+static int unlink_hard_link(export_t * e, mfentry_t * mfe_fid, mfentry_t * mfe_pfid_name, fid_t * fid) {
     int status = -1;
-    mfentry_t *mfe = 0;
-    rmfentry_t *rmfe = 0;
-    char path[PATH_MAX + NAME_MAX + 1];
+    DEBUG_FUNCTION;
+
+    // Remove file
+    if (unlink(mfe_pfid_name->path) == -1)
+        goto out;
+
+    // Update mtime and ctime for parent directory
+    if (mfe_pfid_name->parent != NULL) {
+        mfe_pfid_name->parent->attrs.mtime = mfe_pfid_name->parent->attrs.ctime = time(NULL);
+        if (mfentry_write(mfe_pfid_name->parent) != 0)
+            goto out; // XXX The inode is already deleted
+    }
+
+    // Verify if mfentry is the same on the 2 htables
+    if (strcmp(mfe_pfid_name->path, mfe_fid->path) == 0) {
+
+        // This mfentry is the same on h_pfids and on h_fids
+        // Delete mfentry from htable h_pfids
+        htable_del(&e->h_pfids, mfe_pfid_name);
+        // Delete mfentry from htable hfids
+        htable_del(&e->hfids, mfe_fid->attrs.fid);
+
+        // Pay attention now this entry is no longer up to date
+        // parent, pfid, path, name, fd, cnt are not up to date
+
+        // Search in list another entry with the same fid
+        list_t *p;
+
+        list_for_each_forward(p, &e->mfiles) {
+            mfentry_t *mfentry = list_entry(p, mfentry_t, list);
+            if ((uuid_compare(mfentry->attrs.fid, mfe_fid->attrs.fid) == 0) && (strcmp(mfentry->path, mfe_fid->path) != 0)) {
+                // Updates attributes with the only mattr we know who is up to date
+                memcpy(&mfentry->attrs, &mfe_fid->attrs, sizeof (mattr_t));
+                // Update nlink for mfentry h_fids 
+                mfentry->attrs.nlink--;
+                // Add this mfentry on the htable hfids
+                htable_put(&e->hfids, mfentry->attrs.fid, mfentry);
+                // Effective write
+                if (mfentry_write(mfentry) != 0)
+                    goto out; // XXX The inode is already deleted
+                break;
+            }
+        }
+        // Remove mfentry from mfiles list for this export
+        list_remove(&mfe_fid->list);
+        // Free memory for this mfentry  
+        mfentry_release(mfe_fid);
+        free(mfe_fid);
+
+    } else { // This mfentry is not the same on h_pfids and on h_fids
+
+        // Delete entry on h_pfids
+        htable_del(&e->h_pfids, mfe_pfid_name);
+        // Remove entry from mfiles list for this export
+        list_remove(&mfe_pfid_name->list);
+        // Free memory for this mfentry  
+        mfentry_release(mfe_pfid_name); // What for file descriptor ?
+        free(mfe_pfid_name);
+        // Update nlink for mfentry h_fids 
+        mfe_fid->attrs.nlink--;
+        // Effective write
+        if (mfentry_write(mfe_fid) != 0)
+            goto out; // XXX The inode is already deleted
+    }
+    // Return a empty fid because no inode has been deleted
+    memset(fid, 0, 16);
+
+    status = 0;
+out:
+    return status;
+}
+
+static int unlink_file(export_t * e, mfentry_t * mfe_fid, fid_t * fid, uint8_t mv_file) {
+    int status = -1;
+    char file_path[PATH_MAX + NAME_MAX + 1];
     char rm_path[PATH_MAX + NAME_MAX + 1];
+    rmfentry_t *rmfe = 0;
     uint64_t size = 0;
     mode_t mode;
     DEBUG_FUNCTION;
 
-    if (!(mfe = htable_get(&e->hfids, fid))) {
-        errno = ESTALE;
-        goto out;
-    }
-
-    strcpy(path, mfe->path);
-    size = mfe->attrs.size;
-    mode = mfe->attrs.mode;
-
-    // Put the new path for the remove file
-    // If the size is equal to 0 ? not move hum I'm not sure beacause setxattr ?
-    if (rename(path, export_trash_map(e, fid, rm_path)) == -1) {
-        severe("export_unlink failed: rename(%s,%s) failed: %s", path,
-                rm_path, strerror(errno));
-        goto out;
-    }
-
-    rmfe = xmalloc(sizeof (rmfentry_t));
-    memcpy(rmfe->fid, mfe->attrs.fid, sizeof (fid_t));
-    memcpy(rmfe->sids, mfe->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-
-    list_init(&rmfe->list);
-
-    if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
-        goto out; // XXX PROBLEM: THE NODE IS RENAMED
-
-    list_push_back(&e->rmfiles, &rmfe->list);
-
-    if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
-        goto out; // XXX PROBLEM: THE NODE IS RENAMED
-
-    // Update times of parent
-    if (mfe->parent != NULL) {
-        mfe->parent->attrs.mtime = mfe->parent->attrs.ctime = time(NULL);
-        if (mfentry_write(mfe->parent) != 0) {
-            goto out; // XXX PROBLEM: THE NODE IS RENAMED
+    // If mv_file == 1 move the physical file to the trash directory
+    if (mv_file == 1) {
+        strcpy(file_path, mfe_fid->path);
+        if (rename(file_path, export_trash_map(e, mfe_fid->attrs.fid, rm_path)) == -1) {
+            severe("unlink_file failed: rename(%s,%s) failed: %s", file_path, rm_path, strerror(errno));
+            goto out;
         }
     }
 
-    export_del_mfentry(e, mfe);
-    mfentry_release(mfe);
-    free(mfe);
+    // Preparation of the rmfentry
+    rmfe = xmalloc(sizeof (rmfentry_t));
+    memcpy(rmfe->fid, mfe_fid->attrs.fid, sizeof (fid_t));
+    memcpy(rmfe->sids, mfe_fid->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+    list_init(&rmfe->list);
 
+    // Adding the rmfentry to the list of files to delete
+    if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
+        goto out; // XXX The inode is already renamed
+    list_push_back(&e->rmfiles, &rmfe->list);
+    if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
+        goto out; // XXX The inode is already renamed
+
+    // Update mtime and ctime for parent directory
+    if (mfe_fid->parent != NULL) {
+        mfe_fid->parent->attrs.mtime = mfe_fid->parent->attrs.ctime = time(NULL);
+        if (mfentry_write(mfe_fid->parent) != 0)
+            goto out; // XXX The inode is already renamed
+    }
+
+    // Return the removed fid
+    memcpy(fid, mfe_fid->attrs.fid, sizeof (fid_t));
+
+    // Removed mfentry
+    export_del_mfentry(e, mfe_fid);
+    mfentry_release(mfe_fid);
+    free(mfe_fid);
+
+    // Update the nb. of files for this export
     if (export_update_files(e, -1) != 0)
         goto out;
 
+    // Update the nb. of blocks for this export
+    size = mfe_fid->attrs.size;
+    mode = mfe_fid->attrs.mode;
     if (!S_ISLNK(mode))
-        if (export_update_blocks
-                (e, -(((int64_t) size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0)
+        if (export_update_blocks(e, -(((int64_t) size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0)
             goto out;
 
     status = 0;
 out:
+    return status;
+}
 
+int export_unlink(export_t * e, fid_t pfid, const char *name, fid_t * fid) {
+    int status = -1;
+    mfentry_t *mfe_pfid_name = 0;
+    mfentry_t *mfe_fid = 0;
+    mfentry_t *mfkey = 0;
+    uint16_t nlink = 0;
+    DEBUG_FUNCTION;
+
+    // Get mfentry from htable h_pfids
+    mfkey = xmalloc(sizeof (mfentry_t));
+    memcpy(mfkey->pfid, pfid, sizeof (fid_t));
+    mfkey->name = xstrdup(name);
+    if (!(mfe_pfid_name = htable_get(&e->h_pfids, mfkey))) {
+        errno = ESTALE;
+        goto out;
+    }
+
+    // Get mfentry from htable h_fids
+    if (!(mfe_fid = htable_get(&e->hfids, &mfe_pfid_name->attrs.fid))) {
+        errno = ESTALE;
+        goto out;
+    }
+
+    // Get the nb. of nlink for this file
+    nlink = mfe_fid->attrs.nlink;
+
+    // If nlink = 1, it's a normal file
+    if (nlink == 1) {
+        if (unlink_file(e, mfe_fid, fid, 1) != 0) {
+            goto out;
+        }
+    }
+
+    // If nlink > 1, it's a hardlink
+    if (nlink > 1) {
+        if (unlink_hard_link(e, mfe_fid, mfe_pfid_name, fid) != 0) {
+            goto out;
+        }
+    }
+
+    status = 0;
+out:
+    if (mfkey) {
+        if (mfkey->name)
+            free(mfkey->name);
+        free(mfkey);
+    }
     return status;
 }
 
@@ -1009,19 +1215,29 @@ out:
     return status;
 }
 
-int export_rmdir(export_t * e, uuid_t fid) {
+int export_rmdir(export_t * e, fid_t pfid, const char *name, fid_t * fid) {
     int status = -1;
+    mfentry_t *mfkey = 0;
     mfentry_t *mfe = 0;
     DEBUG_FUNCTION;
 
-    if (!(mfe = htable_get(&e->hfids, fid))) {
+    // Get the mfentry for the directory to remove from htable h_pfids
+    mfkey = xmalloc(sizeof (mfentry_t));
+    memcpy(mfkey->pfid, pfid, sizeof (fid_t));
+    mfkey->name = xstrdup(name);
+    if (!(mfe = htable_get(&e->h_pfids, mfkey))) {
         errno = ESTALE;
         goto out;
     }
 
+    // We return the fid of removed directory
+    memcpy(fid, mfe->attrs.fid, sizeof (fid_t));
+
+    // Remove directory
     if (rmdir(mfe->path) == -1)
         goto out;
 
+    // Update the nb. of files for this export
     if (export_update_files(e, -1) != 0)
         goto out; // XXX PROBLEM: THE DIRECTORY IS REMOVED
 
@@ -1035,12 +1251,18 @@ int export_rmdir(export_t * e, uuid_t fid) {
         }
     }
 
+    // Removed mfentry
     export_del_mfentry(e, mfe);
     mfentry_release(mfe);
     free(mfe);
 
     status = 0;
 out:
+    if (mfkey) {
+        if (mfkey->name)
+            free(mfkey->name);
+        free(mfkey);
+    }
     return status;
 }
 
@@ -1129,108 +1351,142 @@ out:
     return status;
 }
 
-int export_rename(export_t * e, uuid_t from, uuid_t parent, const char *name) {
+int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const char *newname, fid_t * fid) {
     int status = -1;
-    mfentry_t *fmfe = 0;
-    mfentry_t *pmfe = 0;
-    mfentry_t *ofmfe = 0;
+    mfentry_t *fmfe_pfid_name = 0;
+    mfentry_t *fmfe_fid = 0;
+    mfentry_t *new_pmfe = 0;
+    mfentry_t *old_mfe_pfid_name = 0;
+    mfentry_t *mfkey = 0;
     mfentry_t *to_mfkey = 0;
-    char to[PATH_MAX + NAME_MAX + 1];
-    uint64_t size = 0;
-    mode_t mode;
+    char new_path[PATH_MAX + NAME_MAX + 1];
     DEBUG_FUNCTION;
 
-    // Get the mfe for the file
-    if (!(fmfe = htable_get(&e->hfids, from))) {
+    // Get the mfentry for the file to rename from htable h_pfids
+    mfkey = xmalloc(sizeof (mfentry_t));
+    memcpy(mfkey->pfid, pfid, sizeof (fid_t));
+    mfkey->name = xstrdup(name);
+    if (!(fmfe_pfid_name = htable_get(&e->h_pfids, mfkey))) {
         errno = ESTALE;
         goto out;
     }
-    // Get the mfe for the new parent
-    if (!(pmfe = htable_get(&e->hfids, parent))) {
+
+    // Get the mfentry for the file to rename from htable hfids
+    if (!(fmfe_fid = htable_get(&e->hfids, fmfe_pfid_name->attrs.fid))) {
         errno = ESTALE;
         goto out;
     }
-    // Put the new path for the file
-    strcpy(to, pmfe->path);
-    strcat(to, "/");
-    strcat(to, name);
 
-    if (rename(fmfe->path, to) == -1)
+    // Get the mfentry for the new parent
+    if (!(new_pmfe = htable_get(&e->hfids, npfid))) {
+        errno = ESTALE;
+        goto out;
+    }
+
+    // Rename file
+    strcpy(new_path, new_pmfe->path);
+    strcat(new_path, "/");
+    strcat(new_path, newname);
+    if (rename(fmfe_pfid_name->path, new_path) == -1)
         goto out;
 
-    // Prepare the NEW key
+    // We return the fid of the file being replaced (crushed)
+    // by default we puts the identifier 0 (no file replaced)
+    memset(fid, 0, 16);
+
+    // See if the target file or directory already existed
     to_mfkey = xmalloc(sizeof (mfentry_t));
-    memcpy(to_mfkey->pfid, pmfe->attrs.fid, sizeof (fid_t));
-    to_mfkey->name = xstrdup(name);
+    memcpy(to_mfkey->pfid, new_pmfe->attrs.fid, sizeof (fid_t));
+    to_mfkey->name = xstrdup(newname);
+    if ((old_mfe_pfid_name = htable_get(&e->h_pfids, to_mfkey))) {
 
-    // If the target file or directory already existed
-    if ((ofmfe = htable_get(&e->h_pfids, to_mfkey))) {
+        // Get mfentry from htable h_fids
+        mfentry_t *old_mfe_fid = 0;
+        if (!(old_mfe_fid = htable_get(&e->hfids, old_mfe_pfid_name->attrs.fid))) {
+            errno = ESTALE;
+            goto out;
+        }
 
-        if (S_ISDIR(ofmfe->attrs.mode)) {
-            // Update the nlink of new parent
-            pmfe->attrs.nlink--;
-            if (mfentry_write(pmfe) != 0) {
-                pmfe->attrs.nlink++;
+        // If old_mfe is a directory
+        if (S_ISDIR(old_mfe_fid->attrs.mode)) {
+            // Update the nb. of blocks for this export
+            if (export_update_files(e, -1) != 0)
+                goto out;
+            // Update the nlink and times of parent
+            new_pmfe->attrs.nlink--;
+            new_pmfe->attrs.mtime = new_pmfe->attrs.ctime = time(NULL);
+            if (mfentry_write(new_pmfe) != 0) {
+                new_pmfe->attrs.nlink++;
                 goto out;
             }
+            // Delete the old mfentry
+            export_del_mfentry(e, old_mfe_fid);
+            mfentry_release(old_mfe_fid);
+            free(old_mfe_fid);
+
+            // Return the removed fid
+            memcpy(fid, old_mfe_fid->attrs.fid, sizeof (fid_t));
         }
-        // Delete the old newpath
-        size = ofmfe->attrs.size;
-        mode = ofmfe->attrs.mode;
-        export_del_mfentry(e, ofmfe);
-        mfentry_release(ofmfe);
-        free(ofmfe);
 
-        if (export_update_files(e, -1) != 0)
-            goto out;
+        // If old_mfe is a symlink or a regular file
+        if (S_ISREG(old_mfe_fid->attrs.mode) || S_ISLNK(old_mfe_fid->attrs.mode)) {
 
-        if (!S_ISLNK(mode) && !S_ISDIR(mode))
-            if (export_update_blocks
-                    (e,
-                    -(((int64_t) size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0)
-                goto out;
+            uint16_t nlink_old_file = old_mfe_fid->attrs.nlink;
+
+            // If nlink=1
+            // XXX The physical file is not move to the trash directory
+            if (nlink_old_file == 1)
+                if (unlink_file(e, old_mfe_pfid_name, fid, 0) != 0)
+                    goto out;
+
+            // If nlink>1 (hardlink)
+            if (nlink_old_file > 1)
+                if (unlink_hard_link(e, old_mfe_fid, old_mfe_pfid_name, fid) != 0)
+                    goto out;
+        }
     }
-
-    if (S_ISDIR(fmfe->attrs.mode)) {
+    // If the renamed file is a directory
+    if (S_ISDIR(fmfe_fid->attrs.mode)) {
         // Update the nlink of new parent
-        pmfe->attrs.nlink++;
-        if (mfentry_write(pmfe) != 0) {
-            pmfe->attrs.nlink--;
+        new_pmfe->attrs.nlink++;
+        if (mfentry_write(new_pmfe) != 0) {
+            new_pmfe->attrs.nlink--;
             goto out;
         }
         // Update the nlink of old parent
-        fmfe->parent->attrs.nlink--;
-        if (mfentry_write(fmfe->parent) != 0) {
-            fmfe->parent->attrs.nlink++;
+        fmfe_pfid_name->parent->attrs.nlink--;
+        if (mfentry_write(fmfe_pfid_name->parent) != 0) {
+            fmfe_pfid_name->parent->attrs.nlink++;
             goto out;
         }
     }
 
-    htable_del(&e->h_pfids, fmfe);
+    /* Update mfentry for the renamed file*/
+    htable_del(&e->h_pfids, fmfe_pfid_name);
+    free(fmfe_pfid_name->path);
+    fmfe_pfid_name->path = xstrdup(new_path);
+    free(fmfe_pfid_name->name);
+    fmfe_pfid_name->name = xstrdup(newname);
+    fmfe_fid->attrs.ctime = time(NULL);
+    fmfe_pfid_name->parent = new_pmfe;
+    memcpy(fmfe_pfid_name->pfid, new_pmfe->attrs.fid, sizeof (fid_t));
+    htable_put(&e->h_pfids, fmfe_pfid_name, fmfe_pfid_name);
 
-    // Change the path
-    free(fmfe->path);
-    fmfe->path = xstrdup(to);
-    free(fmfe->name);
-    fmfe->name = xstrdup(name);
-    fmfe->attrs.ctime = time(NULL);
-    // Put the new parent
-    fmfe->parent = pmfe;
-    memcpy(fmfe->pfid, pmfe->attrs.fid, sizeof (fid_t));
-
-    htable_put(&e->h_pfids, fmfe, fmfe);
-
-    if (mfentry_write(fmfe) != 0)
+    /* Writing physical mattr in the file.*/
+    if (mfentry_write(fmfe_fid) != 0)
         goto out;
 
     status = 0;
 out:
     if (to_mfkey) {
-        if (to_mfkey->name) {
-
+        if (to_mfkey->name)
             free(to_mfkey->name);
-        }
         free(to_mfkey);
+    }
+    if (mfkey) {
+        if (mfkey->name)
+            free(mfkey->name);
+        free(mfkey);
     }
     return status;
 }
@@ -1357,7 +1613,7 @@ out:
     return status;
 }
 
-int export_readdir(export_t * e, fid_t fid, uint64_t cookie, 
+int export_readdir(export_t * e, fid_t fid, uint64_t cookie,
         child_t ** children, uint8_t * eof) {
     int status = -1, i;
     mfentry_t *mfe = NULL;
