@@ -33,8 +33,6 @@
 #include "sproto.h"
 #include <pthread.h>
 
-extern volume_t volume;
-
 void *ep_null_1_svc(void *noargs, struct svc_req *req) {
     DEBUG_FUNCTION;
     return 0;
@@ -42,7 +40,7 @@ void *ep_null_1_svc(void *noargs, struct svc_req *req) {
 
 ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     static ep_mount_ret_t ret;
-    list_t *it_1, *q;
+    list_t *p, *q, *r;
     eid_t *eid = NULL;
     export_t *exp;
     int i = 0;
@@ -55,46 +53,45 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 
-    if ((errno = pthread_rwlock_rdlock(&volumes_list.lock)) != 0) {
-        ret.status = EP_FAILURE;
+    if ((errno = pthread_rwlock_rdlock(&config_lock)) != 0) {
         goto error;
     }
 
-    list_for_each_forward(it_1, &volumes_list.vol_list) {
-
-        volume_t *entry_vol = list_entry(it_1, volume_t, list);
+    list_for_each_forward(p, &exportd_config.volumes) {
+        volume_config_t *vc = list_entry(p, volume_config_t, list);
 
         // Get volume with this vid
-        if (entry_vol->vid == exp->vid) {
+        if (vc->vid == exp->volume->vid) {
+            ret.ep_mount_ret_t_u.volume.clusters_nb = list_size(&vc->clusters);
 
-            list_for_each_forward(q, &entry_vol->cluster_list) {
+            i = 0;
+            list_for_each_forward(q, &vc->clusters) {
+                cluster_config_t *cc = list_entry(q, cluster_config_t, list);
 
-                cluster_t *cluster = list_entry(q, cluster_t, list);
-
-                ret.ep_mount_ret_t_u.volume.clusters[i].cid = cluster->cid;
-                ret.ep_mount_ret_t_u.volume.clusters[i].storages_nb = cluster->nb_ms;
-
-                for (j = 0; j < cluster->nb_ms; j++) {
-                    volume_storage_t *p = (cluster->ms) + j;
-                    strcpy(ret.ep_mount_ret_t_u.volume.clusters[i].storages[j].host, p->host);
-                    ret.ep_mount_ret_t_u.volume.clusters[i].storages[j].sid = p->sid;
+                ret.ep_mount_ret_t_u.volume.clusters[i].cid = cc->cid;
+                ret.ep_mount_ret_t_u.volume.clusters[i].storages_nb = list_size(&cc->storages);
+                j = 0;
+                list_for_each_forward(r, &cc->storages) {
+                    storage_node_config_t *sc = list_entry(r,
+                            storage_node_config_t, list);
+                    strcpy(ret.ep_mount_ret_t_u.volume.clusters[i].storages[j].
+                            host, sc->host);
+                    ret.ep_mount_ret_t_u.volume.clusters[i].storages[j].sid = sc->sid;
+                    j++;
                 }
                 i++;
             }
         }
     }
 
-    ret.ep_mount_ret_t_u.volume.clusters_nb = i;
-
-    if ((errno = pthread_rwlock_unlock(&volumes_list.lock)) != 0) {
-        ret.status = EP_FAILURE;
-        goto error;
-    }
-
     ret.ep_mount_ret_t_u.volume.eid = *eid;
     memcpy(ret.ep_mount_ret_t_u.volume.md5, exp->md5, ROZOFS_MD5_SIZE);
-    ret.ep_mount_ret_t_u.volume.rl = layout;
+    ret.ep_mount_ret_t_u.volume.rl = exportd_config.layout;
     memcpy(ret.ep_mount_ret_t_u.volume.rfid, exp->rfid, sizeof (fid_t));
+
+    if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
+        goto error;
+    }
 
     ret.status = EP_SUCCESS;
     goto out;

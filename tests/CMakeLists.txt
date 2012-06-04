@@ -99,3 +99,12 @@ add_executable(test_sconfig
     test_sconfig.c
 )
 target_link_libraries(test_sconfig ${CONFIG_LIBRARY})
+
+add_executable(test_econfig
+    ../src/xmalloc.h
+    ../src/xmalloc.c
+    ../src/econfig.h
+    ../src/econfig.c
+    test_econfig.c
+)
+target_link_libraries(test_econfig ${CONFIG_LIBRARY})

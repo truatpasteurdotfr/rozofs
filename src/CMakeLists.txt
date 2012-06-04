@@ -74,6 +74,8 @@ add_executable(exportd
     storageclt.c
     monitor.h
     monitor.c
+    econfig.h
+    econfig.c
     exportd.c
 )
 target_link_libraries(exportd ${XATTR_LIBRARY} ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})

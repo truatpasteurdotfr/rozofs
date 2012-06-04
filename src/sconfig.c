@@ -22,6 +22,7 @@
 #include <string.h>
 #include <errno.h>
 #include <libconfig.h>
+#include <unistd.h>
 #include "rozofs.h"
 #include "xmalloc.h"
 #include "log.h"
@@ -146,6 +147,11 @@ int sconfig_validate(sconfig_t *config) {
     list_for_each_forward(p, &config->storages) {
         list_t *q;
         storage_config_t *e1 = list_entry(p, storage_config_t, list);
+        if (access(e1->root, F_OK) != 0) {
+            severe("invalid root %s: %s.", e1->root, strerror(errno));
+            errno = EINVAL;
+            goto out;
+        }
         list_for_each_forward(q, &config->storages) {
             storage_config_t *e2 = list_entry(q, storage_config_t, list);
             if (e1 == e2)
@@ -155,6 +161,7 @@ int sconfig_validate(sconfig_t *config) {
                 errno = EINVAL;
                 goto out;
             }
+
             if (strcmp(e1->root, e2->root) == 0) {
                 severe("duplicated root: %s", e1->root);
                 errno = EINVAL;

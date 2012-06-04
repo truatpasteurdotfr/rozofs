@@ -33,7 +33,6 @@
 int monitor_initialize() {
     int status = -1;
     char path[FILENAME_MAX];
-
     DEBUG_FUNCTION;
 
     sprintf(path, "%s%s", DAEMON_PID_DIRECTORY, "exportd");
@@ -58,7 +57,7 @@ int monitor_volume(volume_t *volume) {
     int fd = -1;
     char path[FILENAME_MAX];
     volume_stat_t vstat;
-    list_t *p;
+    list_t *p, *q;
     DEBUG_FUNCTION;
 
     sprintf(path, "%s%s%d", DAEMON_PID_DIRECTORY, "exportd/volume_", volume->vid);
@@ -70,24 +69,23 @@ int monitor_volume(volume_t *volume) {
     dprintf(fd, HEADER, VERSION);
     dprintf(fd, "volume: %d\n", volume->vid);
 
-    volume_stat(&vstat, volume->vid);
+    volume_stat(volume, &vstat);
     dprintf(fd, "bsize: %d\n", vstat.bsize);
     dprintf(fd, "bfree: %lu\n", vstat.bfree);
-    dprintf(fd, "nb_clusters: %d\n", list_size(&volume->cluster_list));
-    list_for_each_forward(p, &volume->cluster_list) {
+    dprintf(fd, "nb_clusters: %d\n", list_size(&volume->clusters));
+    list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        volume_storage_t *storages = cluster->ms;
-        int i;
         dprintf(fd, "cluster: %d\n", cluster->cid);
-        dprintf(fd, "nb_storages: %d\n", cluster->nb_ms);
+        dprintf(fd, "nb_storages: %d\n", list_size(&cluster->storages));
         dprintf(fd, "size: %lu\n", cluster->size);
         dprintf(fd, "free: %lu\n", cluster->free);
-        for (i = 0; i < cluster->nb_ms; i++) {
-            dprintf(fd, "storage: %d\n", storages->sid);
-            dprintf(fd, "host: %s\n", storages->host);
-            dprintf(fd, "status: %d\n", storages->status);
-            dprintf(fd, "size: %lu\n", storages->stat.size);
-            dprintf(fd, "free: %lu\n", storages->stat.free);
+        list_for_each_forward(q, &cluster->storages) {
+            volume_storage_t *storage = list_entry(q, volume_storage_t, list);
+            dprintf(fd, "storage: %d\n", storage->sid);
+            dprintf(fd, "host: %s\n", storage->host);
+            dprintf(fd, "status: %d\n", storage->status);
+            dprintf(fd, "size: %lu\n", storage->stat.size);
+            dprintf(fd, "free: %lu\n", storage->stat.free);
         }
     }
     status = 0;
@@ -117,7 +115,7 @@ int monitor_export(export_t *export) {
 
     dprintf(fd, HEADER, VERSION);
     dprintf(fd, "export: %d\n", export->eid);
-    dprintf(fd, "volume: %d\n", export->vid);
+    dprintf(fd, "volume: %d\n", export->volume->vid);
     dprintf(fd, "root: %s\n", export->root);
     dprintf(fd, "squota: %lu\n", export->squota);
     dprintf(fd, "hquota: %lu\n", export->hquota);

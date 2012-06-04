@@ -51,17 +51,6 @@
 #define EVERSIONKEY	"user.rozofs.export.version"
 #define EATTRSTKEY	"user.rozofs.export.file.attrs"
 
-static inline char *export_map(export_t * e, const char *vpath, char *path) {
-    strcpy(path, e->root);
-    strcat(path, vpath);
-    return path;
-}
-
-static inline char *export_unmap(export_t * e, const char *path, char *vpath) {
-    strcpy(vpath, path + strlen(e->root));
-    return vpath;
-}
-
 static inline char *export_trash_map(export_t * e, fid_t fid, char *path) {
     char fid_str[37];
     uuid_unparse(fid, fid_str);
@@ -402,8 +391,8 @@ out:
     return status;
 }
 
-int export_initialize(export_t * e, uint32_t eid, const char *root,
-        const char *md5, uint64_t squota, uint64_t hquota, uint16_t vid) {
+int export_initialize(export_t * e, volume_t *volume, uint32_t eid,
+        const char *root, const char *md5, uint64_t squota, uint64_t hquota) {
     int status = -1;
     mfentry_t *mfe;
     uuid_t trash_uuid;
@@ -421,7 +410,7 @@ int export_initialize(export_t * e, uint32_t eid, const char *root,
     }
 
     e->eid = eid;
-    e->vid = vid;
+    e->volume = volume;
 
     if (strlen(md5) == 0) {
         memcpy(e->md5, ROZOFS_MD5_NONE, ROZOFS_MD5_SIZE);
@@ -514,7 +503,7 @@ int export_stat(export_t * e, estat_t * st) {
     st->ffree = stfs.f_ffree;
     if (getxattr(e->root, EBLOCKSKEY, &(st->blocks), sizeof (uint64_t)) == -1)
         goto out;
-    volume_stat(&vstat, e->vid);
+    volume_stat(e->volume, &vstat);
     if (e->hquota > 0) {
         if (e->hquota < vstat.bfree) {
             st->bfree = e->hquota - st->blocks;
@@ -770,7 +759,7 @@ int export_mknod(export_t *e, uuid_t parent, const char *name, uint32_t uid,
 
     uuid_generate(attrs->fid);
     /* Get a distribution of one cluster included in the volume given by the export */
-    if (volume_distribute(&attrs->cid, attrs->sids, e->vid) != 0)
+    if (volume_distribute(e->volume, &attrs->cid, attrs->sids) != 0)
         goto error;
     attrs->mode = mode;
     attrs->uid = uid;
@@ -972,7 +961,7 @@ int export_rm_bins(export_t * e) {
                 char host[ROZOFS_HOSTNAME_MAX];
                 storageclt_t sclt;
 
-                lookup_volume_storage(*it, host);
+                lookup_volume_storage(e->volume, *it, host);
                 strcpy(sclt.host, host);
                 sclt.sid = *it;
 
@@ -995,9 +984,7 @@ int export_rm_bins(export_t * e) {
         }
 
         if (cnt == rozofs_safe) {
-
             char path[PATH_MAX + NAME_MAX + 1];
-
             if (unlink(export_trash_map(e, entry->fid, path)) == -1) {
                 severe("export_rm_bins failed: unlink file %s failed: %s",
                         path, strerror(errno));

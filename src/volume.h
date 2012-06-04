@@ -31,69 +31,43 @@ typedef struct volume_stat {
 } volume_stat_t;
 
 typedef struct volume_storage {
-    uint16_t sid; // Storage identifier
+    sid_t sid; // Storage identifier
     char host[ROZOFS_HOSTNAME_MAX];
     uint8_t status;
     sstat_t stat;
+    list_t list;
 } volume_storage_t;
 
+void volume_storage_initialize(volume_storage_t * vs, uint16_t sid,
+        const char *hostname);
+
 typedef struct cluster {
-    uint16_t cid; // Cluster identifier
-    volume_storage_t *ms;
-    uint16_t nb_ms;
+    cid_t cid; // Cluster identifier
     uint64_t size;
     uint64_t free;
+    list_t storages;
     list_t list;
 } cluster_t;
 
+void cluster_initialize(cluster_t *cluster, cid_t cid, uint64_t size,
+        uint64_t free);
+
 typedef struct volume {
-    uint16_t vid; // Volume identifier
-    list_t list;
-    list_t cluster_list; // Cluster(s) list
-    // pthread_rwlock_t lock;
+    vid_t vid; // Volume identifier
+    list_t clusters; // Cluster(s) list
+    pthread_rwlock_t lock;
 } volume_t;
 
-typedef struct volumes_list {
-    list_t vol_list; // Volume(s) list
-    uint8_t version;
-    pthread_rwlock_t lock;
-} volumes_list_t;
+int volume_initialize(volume_t *volume, vid_t vid);
 
-volumes_list_t volumes_list;
+void volume_release(volume_t *volume);
 
-int volumes_list_initialize();
+void volume_balance(volume_t *volume);
 
-int volume_release();
+char *lookup_volume_storage(volume_t *volume, sid_t sid, char *host);
 
-int mstorage_initialize(volume_storage_t * st, uint16_t sid,
-        const char *hostname);
+int volume_distribute(volume_t *volume, uint16_t * cid, uint16_t * sids);
 
-int volume_register(uint16_t cid, volume_storage_t * storages,
-        uint16_t ms_nb);
+void volume_stat(volume_t *volume, volume_stat_t * volume_stat);
 
-int volume_balance();
-
-char *lookup_volume_storage(sid_t sid, char *host);
-
-int volume_distribute(uint16_t * cid, uint16_t * sids, uint16_t vid);
-
-void volume_stat(volume_stat_t * volume_stat, uint16_t vid);
-
-int volume_print();
-
-uint16_t volume_size();
-
-int volume_exist(vid_t vid);
-
-int cluster_exist(cid_t cid);
-
-int cluster_exist_vol(volume_t * v, cid_t cid);
-
-int storage_exist(sid_t sid);
-
-int storage_exist_volume(volume_t * v, sid_t sid);
-
-int storage_exist_cluster(volume_storage_t * vs, int nb, sid_t sid);
-
-int add_cluster_to_volume(vid_t vid, cluster_t * cluster);
 #endif

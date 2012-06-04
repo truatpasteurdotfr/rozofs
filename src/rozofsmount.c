@@ -142,8 +142,10 @@ static int myfs_opt_proc(void *data, const char *arg, int key,
 }
 
 typedef struct ientry {
-    fuse_ino_t inode;
-    fid_t fid;
+    fuse_ino_t inode;               /**< value of the inode allocated by rozofs  */
+    char name[ROZOFS_FILENAME_MAX]; /**< filename or directory name associated with inode */
+    fuse_ino_t parent;             /**< inode value of the parent              */ 
+    fid_t fid;                     /**< unique file identifier associated with the file or directory */
     list_t list;
 } ientry_t;
 
@@ -239,6 +241,70 @@ static mattr_t *stat_to_mattr(struct stat *st, mattr_t * attr, int to_set) {
     return attr;
 }
 
+/**
+*  Recovery function on STALE error: this might be called when exportd is restarted
+*
+*
+*/
+int rozofs_ll_lookup_recover(fuse_ino_t parent, const char *name,fuse_ino_t child) {
+
+    ientry_t *ie = 0;
+    ientry_t *nie = 0;
+    mattr_t attrs;
+    DEBUG_FUNCTION;
+    int ret;
+
+    DEBUG("lookup recover (%lu,%s)\n", (unsigned long int) parent, name);
+
+    if (strlen(name) > ROZOFS_FILENAME_MAX) {
+        errno = ENAMETOOLONG;
+        goto error;
+    }
+    if (!(ie = htable_get(&htable_inode, &parent))) {
+        errno = ENOENT;
+        goto error;
+    }
+    if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) != 0) {
+        if (errno == ESTALE) {
+            ret = rozofs_ll_lookup_recover(ie->parent,(const char*) ie->name,ie->inode);
+            if (ret == 0)
+            {
+              /*
+              ** successful recover, let's retry once again for the current entry
+              */
+              if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) != 0) 
+              { 
+                 /*
+                 ** unlucky
+                 */
+                 return -1;
+              }
+              /*
+              ** everything is find, go to next if any and try again
+              */
+              return 0;            
+            }
+            errno = ESTALE;
+        }
+        goto error;
+
+    }
+    if (!(nie = htable_get(&htable_fid, attrs.fid))) {
+        nie = xmalloc(sizeof (ientry_t));
+        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
+        nie->inode = child;
+        list_init(&nie->list);
+        strcpy(nie->name,name); // FDL
+        nie->parent = parent;                // FDL
+        put_ientry(nie);
+    }
+
+    return 0;
+error:
+
+    return -1;
+}
+
 static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
     int *piped = (int *) userdata;
     char s;
@@ -279,16 +345,26 @@ void rozofs_ll_mknod(fuse_req_t req, fuse_ino_t parent, const char *name,
             (&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid, mode,
             &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_mknod
+                        (&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid, mode,
+                        &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     if (!(nie = htable_get(&htable_fid, attrs.fid))) {
         nie = xmalloc(sizeof (ientry_t));
         memcpy(nie->fid, attrs.fid, sizeof (fid_t));
         nie->inode = inode_idx++;
+        strcpy(nie->name,name); 
+        nie->parent = parent;   
         list_init(&nie->list);
         put_ientry(nie);
     }
@@ -333,16 +409,26 @@ void rozofs_ll_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
             (&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid, mode,
             &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_mkdir
+                    (&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid, mode,
+                    &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     if (!(nie = htable_get(&htable_fid, (attrs.fid)))) {
         nie = xmalloc(sizeof (ientry_t));
         memcpy(nie->fid, attrs.fid, sizeof (fid_t));
         nie->inode = inode_idx++;
+        strcpy(nie->name,name); 
+        nie->parent = parent;   
         list_init(&nie->list);
         put_ientry(nie);
     }
@@ -366,6 +452,7 @@ void rozofs_ll_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
     ientry_t *npie = 0;
     mattr_t attrs;
     DEBUG_FUNCTION;
+    int success = 0;
 
     DEBUG("rename (%lu,%s,%lu,%s)\n", (unsigned long int) parent, name,
             (unsigned long int) newparent, newname);
@@ -385,25 +472,49 @@ void rozofs_ll_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
     }
     if (exportclt_lookup(&exportclt, pie->fid, (char *) name, &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(pie->parent,pie->name,parent) == 0)
+            {
+              if (exportclt_lookup(&exportclt, pie->fid, (char *) name, &attrs) == 0) goto success_recov1;     
+            }
             del_ientry(pie);
             free(pie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov1:
     if (exportclt_rename(&exportclt, attrs.fid, npie->fid, (char *) newname)
             != 0) {
         if (errno == ESTALE) {
             // XXX Only one of them might be stale
             // cache might (WILL) be inconsistent !!!
-            del_ientry(pie);
-            del_ientry(npie);
-            free(pie);
-            free(npie);
+            /* attempt to step back to avoid ESTALE error */
+            /*
+            ** In order to avoid cache inconsistency, rozofs attempts a lookup on each of the path
+            */
+            if (rozofs_ll_lookup_recover(pie->parent,pie->name,parent) != 0) 
+            {
+              del_ientry(pie);
+              free(pie);
+              success = -1;
+            }
+            if (rozofs_ll_lookup_recover(npie->parent,npie->name,newparent) != 0) 
+            {
+              del_ientry(npie);
+              free(npie);
+              success = -1;
+            }
+            if (success == 0)
+            {
+              if (exportclt_rename(&exportclt, attrs.fid, npie->fid, (char *) newname)== 0) goto success_recov2;
+            
+            }
             errno = ESTALE;
         }
         goto error;
     }
+success_recov2:
     fuse_reply_err(req, 0);
     goto out;
 error:
@@ -425,12 +536,18 @@ void rozofs_ll_readlink(fuse_req_t req, fuse_ino_t ino) {
     }
     if (exportclt_readlink(&exportclt, ie->fid, target) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (exportclt_readlink(&exportclt, ie->fid, target) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     fuse_reply_readlink(req, (char *) target);
     goto out;
 error:
@@ -452,12 +569,18 @@ void rozofs_ll_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
     }
     if (!(file = file_open(&exportclt, ie->fid, S_IRWXU))) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if ((file = file_open(&exportclt, ie->fid, S_IRWXU))!= NULL) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     fi->fh = (unsigned long) file;
     fuse_reply_open(req, fi);
     goto out;
@@ -552,12 +675,18 @@ void rozofs_ll_flush(fuse_req_t req, fuse_ino_t ino,
 
     if (file_flush(f) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (file_flush(f)== 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     fuse_reply_err(req, 0);
     goto out;
 error:
@@ -594,13 +723,18 @@ void rozofs_ll_release(fuse_req_t req, fuse_ino_t ino,
 
     if (file_flush(f) != 0) {
         if (errno == ESTALE) {
+             /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (file_flush(f)== 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
-
+success_recov:
     if (file_close(&exportclt, f) != 0)
         goto error;
 
@@ -653,13 +787,18 @@ void rozofs_ll_getattr(fuse_req_t req, fuse_ino_t ino,
 
     if (exportclt_getattr(&exportclt, ie->fid, &attr) == -1) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (exportclt_getattr(&exportclt, ie->fid, &attr) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
-
+success_recov:
     mattr_to_stat(&attr, &stbuf);
 
     stbuf.st_ino = ino;
@@ -690,23 +829,35 @@ void rozofs_ll_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
         goto error;
     }
     if (exportclt_getattr(&exportclt, ie->fid, &attr) == -1) {
-        if (errno == ESTALE) {
+        if (errno == ESTALE) {  
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (exportclt_getattr(&exportclt, ie->fid, &attr) == 0) goto success_recov1;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov1:
     if (exportclt_setattr
             (&exportclt, ie->fid, stat_to_mattr(stbuf, &attr, to_set)) == -1) {
-        if (errno == ESTALE) {
+        if (errno == ESTALE) {   
+             /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (exportclt_setattr
+                       (&exportclt, ie->fid, stat_to_mattr(stbuf, &attr, to_set)) == 0) goto success_recov2;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
-
+success_recov2:
     mattr_to_stat(&attr, &o_stbuf);
     o_stbuf.st_ino = ino;
 
@@ -742,16 +893,25 @@ void rozofs_ll_symlink(fuse_req_t req, const char *link, fuse_ino_t parent,
     if (exportclt_symlink
             (&exportclt, (char *) link, ie->fid, (char *) name, &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_symlink
+                    (&exportclt, (char *) link, ie->fid, (char *) name, &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     if (!(nie = htable_get(&htable_fid, attrs.fid))) {
         nie = xmalloc(sizeof (ientry_t));
         memcpy(nie->fid, attrs.fid, sizeof (fid_t));
         nie->inode = inode_idx++;
+        strcpy(nie->name,name); 
+        nie->parent = parent;   
         list_init(&nie->list);
         put_ientry(nie);
     }
@@ -786,12 +946,18 @@ void rozofs_ll_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
     }
     if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     if (exportclt_rmdir(&exportclt, attrs.fid) != 0) {
         goto error;
     }
@@ -821,12 +987,18 @@ void rozofs_ll_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
     }
     if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     if (exportclt_unlink(&exportclt, attrs.fid) != 0) {
         goto error;
     }
@@ -889,13 +1061,18 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
     if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+            {
+              if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
-
+success_recov:
     memset(&b, 0, sizeof (b));
     iterator = child;
 
@@ -909,6 +1086,12 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
             // If not cache it
             ie2 = xmalloc(sizeof (ientry_t));
             memcpy(ie2->fid, iterator->fid, sizeof (fid_t));
+            /*
+            ** to address the case of the STALE recover, need to insert the inode reference of the parent
+            ** as well as the name of the entry (filename or directory name)
+            */
+            strcpy(ie2->name,child->name); 
+            ie2->parent = ino;               
             ie2->inode = inode_idx++;
             list_init(&ie2->list);
             put_ientry(ie2);
@@ -929,12 +1112,18 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
             if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
                 if (errno == ESTALE) {
+                    /* attempt to step back to avoid ESTALE error */
+                    if (rozofs_ll_lookup_recover(ie->parent,ie->name,ino) == 0)
+                    {
+                      if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) == 0) goto success_recov1;     
+                    }
                     del_ientry(ie);
                     free(ie);
                     errno = ESTALE;
                 }
                 goto error;
             }
+success_recov1:            
             iterator = child;
         }
     }
@@ -968,6 +1157,11 @@ void rozofs_ll_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
     }
     if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
@@ -975,10 +1169,13 @@ void rozofs_ll_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
         goto error;
 
     }
+success_recov:
     if (!(nie = htable_get(&htable_fid, attrs.fid))) {
         nie = xmalloc(sizeof (ientry_t));
         memcpy(nie->fid, attrs.fid, sizeof (fid_t));
         nie->inode = inode_idx++;
+        strcpy(nie->name,name); 
+        nie->parent = parent;   
         list_init(&nie->list);
         put_ientry(nie);
     }
@@ -1024,22 +1221,37 @@ void rozofs_ll_create(fuse_req_t req, fuse_ino_t parent, const char *name,
             (&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid, mode,
             &attrs) != 0) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(ie->parent,ie->name,parent) == 0)
+            {
+              if (exportclt_mknod
+                    (&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid, mode,
+                    &attrs) == 0) goto success_recov;     
+            }
             del_ientry(ie);
             free(ie);
             errno = ESTALE;
         }
         goto error;
     }
+success_recov:
     if (!(nie = htable_get(&htable_fid, attrs.fid))) {
         nie = xmalloc(sizeof (ientry_t));
         memcpy(nie->fid, attrs.fid, sizeof (fid_t));
         nie->inode = inode_idx++;
+        strcpy(nie->name,name); 
+        nie->parent = parent;   
         list_init(&nie->list);
         put_ientry(nie);
     }
 
     if (!(file = file_open(&exportclt, nie->fid, S_IRWXU))) {
         if (errno == ESTALE) {
+            /* attempt to step back to avoid ESTALE error */
+            if (rozofs_ll_lookup_recover(nie->parent,nie->name,nie->inode) == 0)
+            {
+              if ((file = file_open(&exportclt, nie->fid, S_IRWXU)) != NULL) goto success_recov;     
+            }
             del_ientry(nie);
             free(nie);
             errno = ESTALE;
@@ -1133,6 +1345,11 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     ientry_t *root = xmalloc(sizeof (ientry_t));
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
+    /*
+    ** caution: for the case of root name and parent are always 0!!
+    */
+    root->name[0] = 0;  
+    root->parent = 0;  
     root->inode = inode_idx++;
     put_ientry(root);
 

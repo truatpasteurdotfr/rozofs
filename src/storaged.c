@@ -243,9 +243,7 @@ int main(int argc, char *argv[]) {
     }
 
     openlog("storaged", LOG_PID, LOG_DAEMON);
-
     daemon_start(STORAGED_PID_FILE, on_start, on_stop, NULL);
-
     exit(0);
 error:
     fprintf(stderr, "see log for more details.\n");

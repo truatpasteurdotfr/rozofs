@@ -27,10 +27,12 @@
 #include "rozofs.h"
 #include "htable.h"
 #include "dist.h"
+#include "volume.h"
 
 typedef struct export {
     eid_t eid; // Export identifier
-    vid_t vid; // Volume identifier
+    //vid_t vid; // Volume identifier
+    volume_t *volume;
     char root[PATH_MAX]; // absolute path
     char md5[ROZOFS_MD5_SIZE]; //passwd
     uint64_t squota; // soft quota in blocks
@@ -46,8 +48,8 @@ typedef struct export {
 
 int export_create(const char *root);
 
-int export_initialize(export_t * e, eid_t eid, const char *root,
-        const char *md5, uint64_t squota, uint64_t hquota, uint16_t vid);
+int export_initialize(export_t * e, volume_t *volume, eid_t eid,
+        const char *root, const char *md5, uint64_t squota, uint64_t hquota);
 
 void export_release(export_t * e);
 

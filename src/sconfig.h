@@ -17,6 +17,9 @@
   <http://www.gnu.org/licenses/>.
 */
 
+#ifndef SCONFIG_H
+#define SCONFIG_H
+
 #include <stdio.h>
 #include <limits.h>
 #include "rozofs.h"
@@ -40,3 +43,5 @@ void sconfig_release(sconfig_t *config);
 int sconfig_read(sconfig_t *config, const char *fname);
 
 int sconfig_validate(sconfig_t *config);
+
+#endif
