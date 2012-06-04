@@ -124,8 +124,10 @@ int monitor_export(export_t *export) {
     dprintf(fd, "bfree: %lu\n", estat.bfree);
     dprintf(fd, "files: %lu\n", estat.files);
     dprintf(fd, "ffree: %lu\n", estat.ffree);
-    exceed = estat.blocks - estat.bfree > export->squota ?
+    if (export->squota > 0) {
+        exceed = estat.blocks - estat.bfree > export->squota ?
             estat.blocks - estat.bfree - export->squota : 0;
+    }
     dprintf(fd, "squota_exceed: %lu\n", exceed);
 
     status = 0;
