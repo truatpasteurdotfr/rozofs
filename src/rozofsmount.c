@@ -28,14 +28,17 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <pthread.h>
 
 #include "rozofs.h"
 #include "config.h"
+#include "list.h"
 #include "log.h"
 #include "file.h"
 #include "htable.h"
 #include "xmalloc.h"
 #include "profile.h"
+#include "sproto.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 256
@@ -43,6 +46,8 @@
 
 #define FUSE28_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs,big_writes"
 #define FUSE27_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs"
+
+//static pthread_t connection_thread;
 
 static void usage(const char *progname) {
     fprintf(stderr, "Rozofs fuse mounter - %s\n", VERSION);
@@ -157,6 +162,61 @@ static htable_t htable_fid;
 static list_t inode_entries;
 
 static fuse_ino_t inode_idx = 1;
+
+static void *connect_storage(void *v) {
+    storageclt_t *storage = (storageclt_t*) v;
+    //storageclt_t fake;
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+    //fake.sid = storage->sid;
+    //strcpy(fake.host, storage->host);
+
+    for (;;) {
+        /*
+        if (storageclt_initialize(&fake) != 0) { // not try to reconnect obviously storage is not reachable
+            info("storage : %d is unreachable for now", fake.sid);
+            continue;
+        }
+
+        storageclt_release(&fake);
+        */
+        if (storage->rpcclt.client == 0 || storage->status != 1) {
+            severe("STATUS: %d", storage->status);
+            // fake has reached storage but storage in cluster is disconnected, try to reconnect it
+            info("storage : %d needs reconnection", storage->sid);
+            if (storageclt_initialize(storage) != 0) {
+                severe("warning failed to join storage %d: %s, %s\n",
+                storage->sid, storage->host, strerror(errno));
+            }
+        }
+    }
+    return 0;
+}
+/*
+static void *check_connection_thread(void *v) {
+    list_t *p;
+    int i;
+    struct timespec ts = {1, 0};
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+    for(;;) {
+        list_for_each_forward(p, &exportclt.mcs) {
+            mcluster_t *cluster = list_entry(p, mcluster_t, list);
+
+            for (i = 0; i < cluster->nb_ms; i++) {
+                pthread_t thread;
+                if (pthread_create(&thread, NULL, connect_storage, &cluster->ms[i]) != 0) {
+                    severe("can't create connexion thread %s", strerror(errno));
+                }
+            }
+        }
+        nanosleep(&ts, NULL);
+    }
+    return 0;
+}
+*/
 
 static void ientries_release() {
     list_t *p, *q;
@@ -498,63 +558,6 @@ out:
 
 void rozofs_ll_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
         fuse_ino_t newparent, const char *newname) {
-/*
-    ientry_t *pie = 0;
-    ientry_t *npie = 0;
-    ientry_t *old_ie = 0;
-    int success = 0;
-    fid_t fid;
-    DEBUG_FUNCTION;
-
-    DEBUG("rename (%lu,%s,%lu,%s)\n", (unsigned long int) parent, name, (unsigned long int) newparent, newname);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX || strlen(newname) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(pie = htable_get(&htable_inode, &parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (!(npie = htable_get(&htable_inode, &newparent))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_rename(&exportclt, pie->fid, (char *) name, npie->fid,
-            (char *) newname, &fid) != 0) {
-        if (errno == ESTALE) {
-            // XXX Only one of them might be stale
-            // cache might (WILL) be inconsistent !!!
-            if (rozofs_ll_lookup_recover(pie->parent,pie->name,parent) != 0) {
-              del_ientry(pie);
-              free(pie);
-              success = -1;
-            }
-            if (rozofs_ll_lookup_recover(npie->parent,npie->name,newparent) != 0) {
-              del_ientry(npie);
-              free(npie);
-              success = -1;
-            }
-            if (success == 0) {
-              if (exportclt_rename(&exportclt, pie->fid, (char *) name, npie->fid,
-                      (char *) newname, &fid)== 0)
-                  goto success_recov2;
-            }
-            errno = ESTALE;
-        }
-        goto error;
-    }
-success_recov2:
-    if ((old_ie = htable_get(&htable_fid, &fid))) {
-        del_ientry(old_ie);
-        free(old_ie);
-    }
-    fuse_reply_err(req, 0);
-    goto out;
-error: fuse_reply_err(req, errno);
-out: return;
-*/
     ientry_t *pie = 0;
     ientry_t *npie = 0;
     ientry_t *old_ie = 0;
@@ -1440,6 +1443,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int err;
     struct fuse_chan *ch;
     struct fuse_session *se;
+    list_t *p;
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
@@ -1550,6 +1554,25 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         }
     }
 
+    list_for_each_forward(p, &exportclt.mcs) {
+        mcluster_t *cluster = list_entry(p, mcluster_t, list);
+
+        for (i = 0; i < cluster->nb_ms; i++) {
+            pthread_t thread;
+            if (pthread_create(&thread, NULL, connect_storage, &cluster->ms[i]) != 0) {
+                severe("can't create connexion thread %s", strerror(errno));
+            }
+        }
+    }
+
+    /*
+    if (pthread_create(&connection_thread, NULL, check_connection_thread, NULL) !=
+            0) {
+        fprintf(stderr, "can't create connexion thread %s", strerror(errno));
+        return 1;
+    }
+    */
+
     err = fuse_session_loop(se);
 
     if (err) {
@@ -1564,6 +1587,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     fuse_session_remove_chan(ch);
     fuse_session_destroy(se);
     fuse_unmount(mountpoint, ch);
+    //pthread_cancel(connection_thread);
     exportclt_release(&exportclt);
     ientries_release();
     rozofs_release();

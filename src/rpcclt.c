@@ -115,7 +115,7 @@ out:
     return status;
 }
 
-void rpcclt_release(rpcclt_t * client) {
+void rpcclt_release(rpcclt_t *client) {
     DEBUG_FUNCTION;
     if (client) {
         if (client->client) {

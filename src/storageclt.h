@@ -29,6 +29,7 @@
 typedef struct storageclt {
     char host[ROZOFS_HOSTNAME_MAX];
     sid_t sid;
+    int status;
     rpcclt_t rpcclt;
 } storageclt_t;
 

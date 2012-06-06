@@ -57,34 +57,33 @@ static int file_connect(file_t * f) {
             return -1;
         }
 
-        if (f->storages[i]->rpcclt.client != 0)
+        if (f->storages[i]->status != 0 || f->storages[i]->rpcclt.client != 0)
             connected++;
     }
 
+    /* Let the connection thread do the job !
     // Not enough server storage connections to retrieve the file
     if (connected < rozofs_forward) {
-
         for (i = 0; i < rozofs_safe; i++) {
-
             if (f->storages[i]->rpcclt.client == 0) {
-
                 if (storageclt_initialize(f->storages[i]) != 0) {
-
                     warning("failed to join: %s,  %s", f->storages[i]->host,
                             strerror(errno));
-
                 } else {
                     connected++;
                 }
-
             }
-
         }
 
         if (connected < rozofs_forward) {
             errno = EIO;
             return -1;
         }
+    }
+    */
+    if (connected < rozofs_forward) {
+        errno = EIO;
+        return -1;
     }
 
     return 0;
@@ -147,9 +146,11 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
                 }
             }
 
-            if (!f->storages[mps]->rpcclt.client)
+            //if (!f->storages[mps]->rpcclt.client)
+            if (!f->storages[mps]->rpcclt.client || f->storages[mps]->status != 1)
                 continue;
 
+            info("PIER - READ ON SID:%d, MP:%d, BID: %lu, N: %d", f->storages[mps]->sid, mp, bid + i, n);
             b = xmalloc(n * rozofs_psizes[mp] * sizeof (bin_t));
             if (storageclt_read(f->storages[mps], f->fid, mp, bid + i, n, b)
                 != 0) {
@@ -465,7 +466,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
         if (fread == 1 || lread == 1) {
             retry = 0;
             while (read_blocks(f, first, 1, block) != 0 &&
-                   retry++ < f->export->retries) {
+                    retry++ < f->export->retries) {
                 if (file_connect(f) != 0) {
                     length = -1;
                     goto out;
@@ -592,8 +593,7 @@ int64_t file_write(file_t * f, uint64_t off, const char *buf, uint32_t len) {
         if (len > (f->export->bufsize - f->buf_pos) ||
             (off != (f->buf_from + f->buf_pos) && f->buf_write_wait != 0)) {
 
-            if ((len_write =
-                 write_buf(f, f->buf_from, f->buffer, f->buf_pos)) < 0) {
+            if ((len_write = write_buf(f, f->buf_from, f->buffer, f->buf_pos)) < 0) {
                 goto out;
             }
 

@@ -25,19 +25,23 @@
 #include "storageclt.h"
 
 // TODO : check sid.
-int storageclt_initialize(storageclt_t * clt) {
+int storageclt_initialize(storageclt_t *clt) {
     int status = -1;
     DEBUG_FUNCTION;
 
+    clt->status = 0;
     if (rpcclt_initialize
         (&clt->rpcclt, clt->host, STORAGE_PROGRAM, STORAGE_VERSION,
          ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE) != 0) {
         // storageclt_release can change errno
+        warning("failed to initialise rpc sid: %u", clt->sid);
         int xerrno = errno;
         storageclt_release(clt);
         errno = xerrno;
         goto out;
     }
+    clt->status = 1;
+
     status = 0;
 out:
     return status;
@@ -122,7 +126,8 @@ int storageclt_read(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
     args.nrb = nrb;
     ret = sp_read_1(&args, clt->rpcclt.client);
     if (ret == 0) {
-        storageclt_release(clt);
+        //storageclt_release(clt);
+        clt->status = 0;
         warning
             ("storageclt_read failed: storage read failed (no response from storage server: %s)",
              clt->host);
