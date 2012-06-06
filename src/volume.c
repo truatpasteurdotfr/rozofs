@@ -124,6 +124,10 @@ void volume_balance(volume_t *volume) {
     // Try to join each storage server & stat it
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
+
+        cluster->free = 0;
+        cluster->size = 0;
+
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
             storageclt_t sclt;
@@ -141,6 +145,10 @@ void volume_balance(volume_t *volume) {
                     vs->status = 1;
                 }
             }
+
+            cluster->free += vs->stat.free;
+            cluster->size += vs->stat.size;
+
             storageclt_release(&sclt);
         }
     }
