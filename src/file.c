@@ -47,44 +47,23 @@ static storageclt_t *lookup_mstorage(exportclt_t * e, cid_t cid, sid_t sid) {
 static int file_connect(file_t * f) {
     int i = 0;
     int connected = 0;
+    struct timespec ts = {2, 0};
     DEBUG_FUNCTION;
 
     for (i = 0; i < rozofs_safe; i++) {
 
-        if ((f->storages[i] =
-             lookup_mstorage(f->export, f->attrs.cid,
-                             f->attrs.sids[i])) == NULL) {
+        if ((f->storages[i] = lookup_mstorage(f->export, f->attrs.cid, f->attrs.sids[i])) == NULL)
             return -1;
-        }
 
-        if (f->storages[i]->rpcclt.client != 0)
-            connected++;
+        if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+            connected++; // This storage seems to be OK
     }
 
-    // Not enough server storage connections to retrieve the file
     if (connected < rozofs_forward) {
-
-        for (i = 0; i < rozofs_safe; i++) {
-
-            if (f->storages[i]->rpcclt.client == 0) {
-
-                if (storageclt_initialize(f->storages[i]) != 0) {
-
-                    warning("failed to join: %s,  %s", f->storages[i]->host,
-                            strerror(errno));
-
-                } else {
-                    connected++;
-                }
-
-            }
-
-        }
-
-        if (connected < rozofs_forward) {
-            errno = EIO;
-            return -1;
-        }
+        // We wait a little time for the thread try to reconnect one storage 
+        nanosleep(&ts, NULL);
+        errno = EIO;
+        return -1;
     }
 
     return 0;
@@ -92,7 +71,7 @@ static int file_connect(file_t * f) {
 
 static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
     int status = -1, i, j;
-    dist_t *dist;               // Pointer to memory area where the block distribution will be stored
+    dist_t *dist; // Pointer to memory area where the block distribution will be stored
     dist_t *dist_iterator;
     uint8_t mp;
     bin_t **bins;
@@ -112,7 +91,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
         goto out;
 
     /* Until we don't decode all data blocks (nmbs blocks) */
-    i = 0;                      // Nb. of blocks decoded (at begin = 0)
+    i = 0; // Nb. of blocks decoded (at begin = 0)
     dist_iterator = dist;
     while (i < nmbs) {
         if (*dist_iterator == 0) {
@@ -142,17 +121,18 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
             for (mps = 0; mps < rozofs_safe; mps++) {
                 if (dist_is_set(*dist_iterator, mps) && j == mp) {
                     break;
-                } else {        // Try with the next storage server
+                } else { // Try with the next storage server
                     j += dist_is_set(*dist_iterator, mps);
                 }
             }
 
-            if (!f->storages[mps]->rpcclt.client)
+            //if (!f->storages[mps]->rpcclt.client)
+            if (!f->storages[mps]->rpcclt.client || f->storages[mps]->status != 1)
                 continue;
 
             b = xmalloc(n * rozofs_psizes[mp] * sizeof (bin_t));
-            if (storageclt_read(f->storages[mps], f->fid, mp, bid + i, n, b)
-                != 0) {
+
+            if (storageclt_read(f->storages[mps], f->fid, mp, bid + i, n, b) != 0) {
                 free(b);
                 continue;
             }
@@ -188,9 +168,9 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
 
             // Inverse data for the block j
             transform_inverse((pxl_t *) (data + (ROZOFS_BSIZE * (i + j))),
-                              rozofs_inverse,
-                              ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
-                              rozofs_inverse, projections);
+                    rozofs_inverse,
+                    ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                    rozofs_inverse, projections);
         }
         PROFILE_TRANSFORM_INV_STOP;
         // Free the memory area where are stored the bins.
@@ -226,13 +206,13 @@ out:
 }
 
 static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
-                        const char *data) {
+        const char *data) {
     int status = -1;
-    projection_t *projections;  // Table of projections used to transform data
+    projection_t *projections; // Table of projections used to transform data
     bin_t **bins;
     angle_t *angles;
     uint16_t *psizes;
-    dist_t dist = 0;            // Important
+    dist_t dist = 0; // Important
     uint16_t mp = 0;
     uint16_t ps = 0;
     uint32_t i = 0;
@@ -264,9 +244,9 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
         }
         // Apply the erasure code transform for the block i
         transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
-                          rozofs_inverse,
-                          ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
-                          rozofs_forward, projections);
+                rozofs_inverse,
+                ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                rozofs_forward, projections);
     }
     PROFILE_TRANSFORM_FRWD_STOP;
     do {
@@ -279,11 +259,10 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
             // Warning: the server can be disconnected
             // but f->storages[ps].rpcclt->client != NULL
             // the disconnection will be detected when the request will be sent
-            if (!(f->storages[ps]->rpcclt.client))
+            if (!f->storages[ps]->rpcclt.client || f->storages[ps]->status != 1)
                 continue;
 
-            if (storageclt_write
-                (f->storages[ps], f->fid, mp, bid, nmbs, bins[mp]) != 0)
+            if (storageclt_write(f->storages[ps], f->fid, mp, bid, nmbs, bins[mp]) != 0)
                 continue;
 
             dist_set_true(dist, ps);
@@ -355,8 +334,8 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
     first = off / ROZOFS_BSIZE;
     foffset = off % ROZOFS_BSIZE;
     last =
-        (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE ==
-                                         0 ? -1 : 0);
+            (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE ==
+            0 ? -1 : 0);
     loffset = (off + length) - last * ROZOFS_BSIZE;
 
     // if our read is one block only
@@ -365,7 +344,7 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
         memset(block, 0, ROZOFS_BSIZE);
         retry = 0;
         while (read_blocks(f, first, 1, block) != 0 &&
-               retry++ < f->export->retries) {
+                retry++ < f->export->retries) {
             if (file_connect(f) != 0) {
                 length = -1;
                 goto out;
@@ -380,7 +359,7 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
         if (foffset != 0) {
             retry = 0;
             while (read_blocks(f, first, 1, block) != 0 &&
-                   retry++ < f->export->retries) {
+                    retry++ < f->export->retries) {
                 if (file_connect(f) != 0) {
                     length = -1;
                     goto out;
@@ -393,7 +372,7 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
         if (loffset != ROZOFS_BSIZE) {
             retry = 0;
             while (read_blocks(f, last, 1, block) != 0 &&
-                   retry++ < f->export->retries) {
+                    retry++ < f->export->retries) {
                 if (file_connect(f) != 0) {
                     length = -1;
                     goto out;
@@ -406,7 +385,7 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
         if ((last - first) + 1 != 0) {
             retry = 0;
             while (read_blocks(f, first, (last - first) + 1, bufp) != 0 &&
-                   retry++ < f->export->retries) {
+                    retry++ < f->export->retries) {
                 if (file_connect(f) != 0) {
                     length = -1;
                     goto out;
@@ -420,7 +399,7 @@ out:
 }
 
 static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
-                         uint32_t len) {
+        uint32_t len) {
     int64_t length = -1;
     uint64_t first;
     uint16_t foffset;
@@ -440,7 +419,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
     foffset = off % ROZOFS_BSIZE;
     // Nb. of the last block to write
     last = (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE ==
-                                         0 ? -1 : 0);
+            0 ? -1 : 0);
     // Offset (in bytes) for the last block
     loffset = (off + length) - last * ROZOFS_BSIZE;
 
@@ -465,7 +444,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
         if (fread == 1 || lread == 1) {
             retry = 0;
             while (read_blocks(f, first, 1, block) != 0 &&
-                   retry++ < f->export->retries) {
+                    retry++ < f->export->retries) {
                 if (file_connect(f) != 0) {
                     length = -1;
                     goto out;
@@ -490,7 +469,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
             if (fread == 1) {
                 retry = 0;
                 while (read_blocks(f, first, 1, block) != 0 &&
-                       retry++ < f->export->retries) {
+                        retry++ < f->export->retries) {
                     if (file_connect(f) != 0) {
                         length = -1;
                         goto out;
@@ -511,7 +490,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
             if (lread == 1) {
                 retry = 0;
                 while (read_blocks(f, last, 1, block) != 0 &&
-                       retry++ < f->export->retries) {
+                        retry++ < f->export->retries) {
                     if (file_connect(f) != 0) {
                         length = -1;
                         goto out;
@@ -590,10 +569,9 @@ int64_t file_write(file_t * f, uint64_t off, const char *buf, uint32_t len) {
     while (done) {
 
         if (len > (f->export->bufsize - f->buf_pos) ||
-            (off != (f->buf_from + f->buf_pos) && f->buf_write_wait != 0)) {
+                (off != (f->buf_from + f->buf_pos) && f->buf_write_wait != 0)) {
 
-            if ((len_write =
-                 write_buf(f, f->buf_from, f->buffer, f->buf_pos)) < 0) {
+            if ((len_write = write_buf(f, f->buf_from, f->buffer, f->buf_pos)) < 0) {
                 goto out;
             }
 
@@ -644,7 +622,7 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
     DEBUG_FUNCTION;
 
     if ((off < f->buf_from) || (off >= (f->buf_from + f->buf_pos)) ||
-        (len > (f->buf_from + f->buf_pos - off))) {
+            (len > (f->buf_from + f->buf_pos - off))) {
 
         if ((len_rec = read_buf(f, off, f->buffer, f->export->bufsize)) <= 0) {
             length = len_rec;
@@ -659,9 +637,9 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
         f->buf_read_wait = 1;
     } else {
         length =
-            (len <=
-             (f->buf_pos - (off - f->buf_from))) ? len : (f->buf_pos - (off -
-                                                                        f->buf_from));
+                (len <=
+                (f->buf_pos - (off - f->buf_from))) ? len : (f->buf_pos - (off -
+                f->buf_from));
         *buf = f->buffer + (off - f->buf_from);
     }
 

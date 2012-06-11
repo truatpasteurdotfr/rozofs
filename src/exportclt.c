@@ -104,6 +104,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
 
             strcpy(cluster->ms[j].host, ep_cluster.storages[j].host);
             cluster->ms[j].sid = ep_cluster.storages[j].sid;
+            cluster->ms[j].status = 0;
 
             //Initialize the connection with the storage
             if (storageclt_initialize(&cluster->ms[j]) != 0) {
@@ -113,7 +114,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
                         ep_cluster.storages[j].host, strerror(errno));
             }
 
-        }
+            }
         // Add to the list
         list_push_back(&clt->mcs, &cluster->list);
     }
