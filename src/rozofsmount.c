@@ -1587,12 +1587,12 @@ int main(int argc, char *argv[]) {
     }
 
     if (fuse_version() < 28) {
-        if (fuse_opt_add_arg(&args, "-o" FUSE28_DEFAULT_OPTIONS) == -1) {
+        if (fuse_opt_add_arg(&args, "-o" FUSE27_DEFAULT_OPTIONS) == -1) {
             fprintf(stderr, "fuse_opt_add_arg failed\n");
             return 1;
         }
     } else {
-        if (fuse_opt_add_arg(&args, "-o" FUSE27_DEFAULT_OPTIONS) == -1) {
+        if (fuse_opt_add_arg(&args, "-o" FUSE28_DEFAULT_OPTIONS) == -1) {
             fprintf(stderr, "fuse_opt_add_arg failed\n");
             return 1;
         }
