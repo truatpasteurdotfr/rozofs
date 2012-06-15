@@ -43,7 +43,7 @@
 #include "volume.h"
 #include "storageclt.h"
 
-#define EHSIZE 2048
+#define EHSIZE 8192
 
 #define EBLOCKSKEY	"user.rozofs.export.blocks"
 #define ETRASHUUID	"user.rozofs.export.trashid"
@@ -1124,7 +1124,7 @@ int export_unlink(export_t * e, fid_t pfid, const char *name, fid_t * fid) {
     }
 
     // Get mfentry from htable h_fids
-    if (!(mfe_fid = htable_get(&e->hfids, &mfe_pfid_name->attrs.fid))) {
+    if (!(mfe_fid = htable_get(&e->hfids, mfe_pfid_name->attrs.fid))) {
         errno = ESTALE;
         goto out;
     }

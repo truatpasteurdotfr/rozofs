@@ -41,8 +41,8 @@
 #include "sproto.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
-#define INODE_HSIZE 256
-#define PATH_HSIZE  256
+#define INODE_HSIZE 8192
+#define PATH_HSIZE  8192
 
 #define FUSE28_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs,big_writes"
 #define FUSE27_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs"
