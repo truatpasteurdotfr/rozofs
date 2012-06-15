@@ -78,9 +78,9 @@ typedef struct rozofsmnt_conf {
 
 static rozofsmnt_conf_t conf;
 
-static double direntry_cache_timeo = 5.0;
-static double entry_cache_timeo = 5.0;
-static double attr_cache_timeo = 0.0;
+static double direntry_cache_timeo = 10.0;
+static double entry_cache_timeo = 10.0;
+static double attr_cache_timeo = 10.0;
 
 enum {
     KEY_EXPORT_HOST,
@@ -383,9 +383,11 @@ void rozofs_ll_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const 
 
     memset(&fep, 0, sizeof (fep));
     fep.ino = ie->inode;
+    mattr_to_stat(&attrs, &stbuf);
+    stbuf.st_ino = ie->inode;
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
 error:
@@ -445,9 +447,11 @@ success_recov:
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
+    mattr_to_stat(&attrs, &stbuf);
+    stbuf.st_ino = nie->inode;
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
 error:
@@ -509,9 +513,11 @@ success_recov:
 
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
+    mattr_to_stat(&attrs, &stbuf);
+    stbuf.st_ino = nie->inode;
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = direntry_cache_timeo;
-    memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
 error:
@@ -821,7 +827,8 @@ void rozofs_ll_getattr(fuse_req_t req, fuse_ino_t ino,
     mattr_t attr;
     DEBUG_FUNCTION;
 
-    //DEBUG("getattr for inode: %lu\n", (unsigned long int) ino);
+    DEBUG("getattr for inode: %lu\n", (unsigned long int) ino);
+
     if (!(ie = htable_get(&htable_inode, &ino))) {
         errno = ENOENT;
         goto error;
@@ -955,9 +962,11 @@ success_recov:
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
+    mattr_to_stat(&attrs, &stbuf);
+    stbuf.st_ino = nie->inode;
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
 error:
@@ -1252,10 +1261,13 @@ success_recov:
         put_ientry(nie);
     }
     memset(&fep, 0, sizeof (fep));
+    mattr_to_stat(&attrs, &stbuf);
+    stbuf.st_ino = nie->inode;
     fep.ino = nie->inode;
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
+
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
 
     fuse_reply_entry(req, &fep);
     goto out;
@@ -1330,11 +1342,13 @@ success_recov:
     }
 
     memset(&fep, 0, sizeof (fep));
+    mattr_to_stat(&attrs, &stbuf);
+    stbuf.st_ino = nie->inode;
     fep.ino = nie->inode;
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
 
-    memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
 
 
     fi->fh = (unsigned long) file;

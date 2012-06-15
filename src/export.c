@@ -962,10 +962,8 @@ static int unlink_hard_link(export_t * e, mfentry_t * mfe_fid, mfentry_t * mfe_p
     // If rm_file == 1 you need to remove the file
     if (rm_file == 1) {
         // Remove file
-        if (unlink(mfe_pfid_name->path) == -1) {
-            severe("rename unlink hard failed: %s", mfe_pfid_name->path);
+        if (unlink(mfe_pfid_name->path) == -1)
             goto out;
-        }
     }
 
     // Update mtime and ctime for parent directory
@@ -1401,7 +1399,7 @@ int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const
     strcpy(new_path, new_pmfe->path);
     strcat(new_path, "/");
     strcat(new_path, newname);
-    severe("rename %s to %s ", fmfe_pfid_name->path, new_path);
+    
     if (rename(fmfe_pfid_name->path, new_path) == -1)
         goto out;
 
@@ -1456,7 +1454,6 @@ int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const
 
             // If nlink>1 (hardlink)
             if (nlink_old_file > 1) {
-                severe("rename %s to %s rename a hardlink", fmfe_pfid_name->path, new_path);
                 if (unlink_hard_link(e, old_mfe_fid, old_mfe_pfid_name, fid, 0) != 0)
                     goto out;
             }
