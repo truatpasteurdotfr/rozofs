@@ -800,10 +800,10 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, const char *newname, 
         goto error; // XXX Link is already made
 
     // Put this mfentry on :
-    // htable &e->hfids
     // htable &e->pfids
     // list &e->mfiles
-    export_put_mfentry(e, nmfe);
+    htable_put(&e->h_pfids, nmfe, nmfe);
+    list_push_front(&e->mfiles, &nmfe->list);
 
     // Not necessary to do a effective write for this inode (already up to date)
 

@@ -114,7 +114,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
                         ep_cluster.storages[j].host, strerror(errno));
             }
 
-        }
+            }
         // Add to the list
         list_push_back(&clt->mcs, &cluster->list);
     }
