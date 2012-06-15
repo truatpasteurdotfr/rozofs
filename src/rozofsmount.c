@@ -78,6 +78,10 @@ typedef struct rozofsmnt_conf {
 
 static rozofsmnt_conf_t conf;
 
+static double direntry_cache_timeo = 5.0;
+static double entry_cache_timeo = 5.0;
+static double attr_cache_timeo = 0.0;
+
 enum {
     KEY_EXPORT_HOST,
     KEY_EXPORT_PATH,
@@ -379,8 +383,8 @@ void rozofs_ll_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const 
 
     memset(&fep, 0, sizeof (fep));
     fep.ino = ie->inode;
-    fep.attr_timeout = 0.0;
-    fep.entry_timeout = 0.0;
+    fep.attr_timeout = attr_cache_timeo;
+    fep.entry_timeout = entry_cache_timeo;
     memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
@@ -441,8 +445,8 @@ success_recov:
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    fep.attr_timeout = 0.0;
-    fep.entry_timeout = 0.0;
+    fep.attr_timeout = attr_cache_timeo;
+    fep.entry_timeout = entry_cache_timeo;
     memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
@@ -505,8 +509,8 @@ success_recov:
 
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    fep.attr_timeout = 0.0;
-    fep.entry_timeout = 0.0;
+    fep.attr_timeout = attr_cache_timeo;
+    fep.entry_timeout = direntry_cache_timeo;
     memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
@@ -840,7 +844,7 @@ success_recov:
 
     stbuf.st_ino = ino;
 
-    fuse_reply_attr(req, &stbuf, 0.0);
+    fuse_reply_attr(req, &stbuf, attr_cache_timeo);
 
     goto out;
 error:
@@ -896,7 +900,7 @@ success_recov2:
     mattr_to_stat(&attr, &o_stbuf);
     o_stbuf.st_ino = ino;
 
-    fuse_reply_attr(req, &o_stbuf, 0.0);
+    fuse_reply_attr(req, &o_stbuf, attr_cache_timeo);
     goto out;
 error:
     fuse_reply_err(req, errno);
@@ -951,8 +955,8 @@ success_recov:
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    fep.attr_timeout = 0.0;
-    fep.entry_timeout = 0.0;
+    fep.attr_timeout = attr_cache_timeo;
+    fep.entry_timeout = entry_cache_timeo;
     memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
     fuse_reply_entry(req, &fep);
     goto out;
@@ -1249,8 +1253,8 @@ success_recov:
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    fep.attr_timeout = 0.0;
-    fep.entry_timeout = 0.0;
+    fep.attr_timeout = attr_cache_timeo;
+    fep.entry_timeout = entry_cache_timeo;
     memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
 
     fuse_reply_entry(req, &fep);
@@ -1327,8 +1331,8 @@ success_recov:
 
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    fep.attr_timeout = 0.0;
-    fep.entry_timeout = 0.0;
+    fep.attr_timeout = attr_cache_timeo;
+    fep.entry_timeout = entry_cache_timeo;
 
     memcpy(&fep.attr, mattr_to_stat(&attrs, &stbuf), sizeof (struct stat));
 

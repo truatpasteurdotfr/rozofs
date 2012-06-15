@@ -60,16 +60,16 @@ typedef struct pfentry {
 } pfentry_t;
 
 static int pfentry_initialize(pfentry_t * pfe, const char *path, fid_t fid,
-                              tid_t pid) {
+        tid_t pid) {
     int status = -1;
     DEBUG_FUNCTION;
 
     uuid_copy(pfe->fid, fid);
     pfe->pid = pid;
-    if ((pfe->fd = open(path, 
-                    O_RDWR | O_CREAT, S_IFREG | S_IRUSR | S_IWUSR)) < 0) {
+    if ((pfe->fd = open(path,
+            O_RDWR | O_CREAT, S_IFREG | S_IRUSR | S_IWUSR)) < 0) {
         severe("pfentry_initialize failed: open for file %s failed: %s", path,
-               strerror(errno));
+                strerror(errno));
         goto out;
     }
     list_init(&pfe->list);
@@ -136,7 +136,7 @@ static pfentry_t *storage_find_pfentry(storage_t * st, fid_t fid, tid_t pid) {
         pfe = xmalloc(sizeof (pfentry_t));
 
         if (pfentry_initialize(pfe, storage_map(st, fid, pid, path), fid, pid)
-            != 0) {
+                != 0) {
             free(pfe);
             pfe = 0;
             warning("storage_find_pfentry failed");
@@ -197,7 +197,7 @@ void storage_release(storage_t * st) {
 }
 
 int storage_write(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
-                  size_t len, const bin_t * bins) {
+        size_t len, const bin_t * bins) {
     int status = -1;
     pfentry_t *pfe = 0;
     size_t count = 0;
@@ -210,14 +210,14 @@ int storage_write(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
 
     count = n * rozofs_psizes[pid] * sizeof (bin_t);
     if ((nb_write =
-         pwrite(pfe->fd, bins, len,
-                (off_t) bid * (off_t) rozofs_psizes[pid] *
-                (off_t) sizeof (bin_t))) != count) {
+            pwrite(pfe->fd, bins, len,
+            (off_t) bid * (off_t) rozofs_psizes[pid] *
+            (off_t) sizeof (bin_t))) != count) {
         severe("storage_write failed: pwrite in file %s failed: %s",
-               storage_map(st, fid, pid, path), strerror(errno));
+                storage_map(st, fid, pid, path), strerror(errno));
         if (nb_write != -1) {
             severe("pwrite failed: %lu bytes written instead of %lu",
-                   nb_write, count);
+                    nb_write, count);
             errno = EIO;
         }
         goto out;
@@ -229,7 +229,7 @@ out:
 }
 
 int storage_read(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
-                 bin_t * bins) {
+        bin_t * bins) {
     int status = -1;
     pfentry_t *pfe = 0;
     size_t count;
@@ -242,11 +242,11 @@ int storage_read(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
     count = n * rozofs_psizes[pid] * sizeof (bin_t);
 
     if (pread
-        (pfe->fd, bins, count,
-         (off_t) bid * (off_t) rozofs_psizes[pid] * (off_t) sizeof (bin_t)) !=
-        count) {
+            (pfe->fd, bins, count,
+            (off_t) bid * (off_t) rozofs_psizes[pid] * (off_t) sizeof (bin_t)) !=
+            count) {
         severe("storage_read failed: pread in file %s failed: %s",
-               storage_map(st, fid, pid, path), strerror(errno));
+                storage_map(st, fid, pid, path), strerror(errno));
         goto out;
     }
 
@@ -263,22 +263,19 @@ int storage_truncate(storage_t * st, fid_t fid, tid_t pid, bid_t bid) {
     if (!(pfe = storage_find_pfentry(st, fid, pid)))
         goto out;
     status =
-        ftruncate(pfe->fd, (bid + 1) * rozofs_psizes[pid] * sizeof (bin_t));
+            ftruncate(pfe->fd, (bid + 1) * rozofs_psizes[pid] * sizeof (bin_t));
 out:
     return status;
 }
 
 int storage_rm_file(storage_t * st, fid_t fid) {
     int status = -1;
-    char pattern[FILENAME_MAX];
+    char bins_filename[FILENAME_MAX];
     char fid_str[37];
-    char **p;
     pfentry_t key;
     pfentry_t *pfe = 0;
     pid_t pid;
-    size_t cnt;
-    glob_t glob_results;
-
+    
     DEBUG_FUNCTION;
 
     if (chdir(st->root) != 0) {
@@ -286,37 +283,30 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     }
 
     uuid_unparse(fid, fid_str);
-    strcpy(pattern, fid_str);
-    strcat(pattern, "*");
 
-    if (glob(pattern, 0, 0, &glob_results) == 0) {
+    for (pid = 0; pid < rozofs_forward; pid++) {
 
-        for (p = glob_results.gl_pathv, cnt = glob_results.gl_pathc; cnt;
-             p++, cnt--) {
+        if (sprintf(bins_filename, "%36s-%u.bins", fid_str, pid) < 0) {
+            severe("storage_rm_file failed: sprintf for bins %s failed: %s", fid_str, strerror(errno));
+            goto out;
+        }
 
-            if (unlink(*p) == -1) {
-                severe("storage_rm_file failed: unlink file %s failed: %s",
-                       *p, strerror(errno));
+        if (unlink(bins_filename) == -1) {
+            if (errno != ENOENT) {
+                severe("storage_rm_file failed: unlink file %s failed: %s", bins_filename, strerror(errno));
                 goto out;
-            }
-
-            if (sscanf(*p, "%36s-%u.*", fid_str, &pid) != 2) {
-                severe
-                    ("storage_rm_file failed: sscanf for file %s failed: %s",
-                     *p, strerror(errno));
-                goto out;
-            }
-
-            uuid_copy(key.fid, fid);
-            key.pid = pid;
-            if ((pfe = htable_get(&st->htable, &key))) {
-                storage_del_pfentry(st, pfe);
-                pfentry_release(pfe);
-                free(pfe);
             }
         }
-        globfree(&glob_results);
+
+        uuid_copy(key.fid, fid);
+        key.pid = pid;
+        if ((pfe = htable_get(&st->htable, &key))) {
+            storage_del_pfentry(st, pfe);
+            pfentry_release(pfe);
+            free(pfe);
+        }
     }
+
     status = 0;
 out:
     return status;
