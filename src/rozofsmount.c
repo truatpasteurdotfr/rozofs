@@ -878,13 +878,13 @@ void rozofs_ll_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
         goto error;
     }
 success_recov1:
-    if (exportclt_setattr
-            (&exportclt, ie->fid, stat_to_mattr(stbuf, &attr, to_set)) == -1) {
+    if (exportclt_setattr (&exportclt, ie->fid, stat_to_mattr(stbuf, &attr,
+            to_set)) == -1) {
         if (errno == ESTALE) {
             /* attempt to step back to avoid ESTALE error */
             if (rozofs_ll_lookup_recover(ie->parent, ie->name, ino) == 0) {
-                if (exportclt_setattr
-                        (&exportclt, ie->fid, stat_to_mattr(stbuf, &attr, to_set)) == 0) goto success_recov2;
+                if (exportclt_setattr (&exportclt, ie->fid, stat_to_mattr(stbuf,
+                        &attr, to_set)) == 0) goto success_recov2;
             }
             del_ientry(ie);
             free(ie);

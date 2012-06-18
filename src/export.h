@@ -44,6 +44,7 @@ typedef struct export {
     pthread_rwlock_t rm_lock;
     htable_t hfids; // fid indexed
     htable_t h_pfids; // parent fid indexed
+    uint32_t csize; // nb mfentry_t cached
 } export_t;
 
 int export_create(const char *root);

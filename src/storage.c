@@ -132,9 +132,7 @@ static pfentry_t *storage_find_pfentry(storage_t * st, fid_t fid, tid_t pid) {
     key.pid = pid;
 
     if (!(pfe = htable_get(&st->htable, &key))) {
-
         pfe = xmalloc(sizeof (pfentry_t));
-
         if (pfentry_initialize(pfe, storage_map(st, fid, pid, path), fid, pid)
             != 0) {
             free(pfe);
@@ -145,8 +143,8 @@ static pfentry_t *storage_find_pfentry(storage_t * st, fid_t fid, tid_t pid) {
         // if cache is full delete the tail of the list which should be the lru.
         if (st->csize == STORAGE_CSIZE) {
             pfentry_t *lru = list_entry(st->pfiles.prev, pfentry_t, list);
-            pfentry_release(lru);
             storage_del_pfentry(st, lru);
+            pfentry_release(lru);
             free(lru);
         }
         storage_put_pfentry(st, pfe);
