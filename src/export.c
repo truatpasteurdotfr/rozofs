@@ -43,7 +43,7 @@
 #include "volume.h"
 #include "storageclt.h"
 
-#define EHSIZE 2048
+#define EHSIZE 8192
 #define E_CSIZE 65536
 
 #define EBLOCKSKEY	"user.rozofs.export.blocks"
@@ -945,7 +945,7 @@ int export_mkdir(export_t * e, uuid_t parent, const char *name, uint32_t uid,
         goto error;
     attrs->size = ROZOFS_BSIZE;
 
-    mfe = xmalloc(sizeof(mfentry_t));
+    mfe = xmalloc(sizeof (mfentry_t));
     if (mfentry_initialize(mfe, pmfe, name, path, attrs) != 0)
         goto error;
     if (mfentry_create(mfe) != 0)
@@ -981,13 +981,16 @@ out:
     return status;
 }
 
-static int unlink_hard_link(export_t * e, mfentry_t * mfe_fid, mfentry_t * mfe_pfid_name, fid_t * fid) {
+static int unlink_hard_link(export_t * e, mfentry_t * mfe_fid, mfentry_t * mfe_pfid_name, fid_t * fid, uint8_t rm_file) {
     int status = -1;
     DEBUG_FUNCTION;
 
-    // Remove file
-    if (unlink(mfe_pfid_name->path) == -1)
-        goto out;
+    // If rm_file == 1 you need to remove the file
+    if (rm_file == 1) {
+        // Remove file
+        if (unlink(mfe_pfid_name->path) == -1)
+            goto out;
+    }
 
     // Update mtime and ctime for parent directory
     if (mfe_pfid_name->parent != NULL) {
@@ -1064,27 +1067,37 @@ static int unlink_file(export_t * e, mfentry_t * mfe_fid, fid_t * fid, uint8_t m
     mode_t mode;
     DEBUG_FUNCTION;
 
-    // If mv_file == 1 move the physical file to the trash directory
-    if (mv_file == 1) {
-        strcpy(file_path, mfe_fid->path);
-        if (rename(file_path, export_trash_map(e, mfe_fid->attrs.fid, rm_path)) == -1) {
-            severe("unlink_file failed: rename(%s,%s) failed: %s", file_path, rm_path, strerror(errno));
-            goto out;
+    // If the file is empty is not neccessary to delete bins on each storages
+    if (mfe_fid->attrs.size > 0) {
+
+        // If mv_file == 1 move the physical file to the trash directory
+        if (mv_file == 1) {
+            strcpy(file_path, mfe_fid->path);
+            if (rename(file_path, export_trash_map(e, mfe_fid->attrs.fid, rm_path)) == -1) {
+                severe("unlink_file failed: rename(%s,%s) failed: %s", file_path, rm_path, strerror(errno));
+                goto out;
+            }
+        }
+
+        // Preparation of the rmfentry
+        rmfe = xmalloc(sizeof (rmfentry_t));
+        memcpy(rmfe->fid, mfe_fid->attrs.fid, sizeof (fid_t));
+        memcpy(rmfe->sids, mfe_fid->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+        list_init(&rmfe->list);
+
+        // Adding the rmfentry to the list of files to delete
+        if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
+            goto out; // XXX The inode is already renamed
+        list_push_back(&e->rmfiles, &rmfe->list);
+        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
+            goto out; // XXX The inode is already renamed
+    } else {
+        // Remove file
+        if (mv_file == 1) {
+            if (unlink(mfe_fid->path) == -1)
+                goto out;
         }
     }
-
-    // Preparation of the rmfentry
-    rmfe = xmalloc(sizeof (rmfentry_t));
-    memcpy(rmfe->fid, mfe_fid->attrs.fid, sizeof (fid_t));
-    memcpy(rmfe->sids, mfe_fid->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-    list_init(&rmfe->list);
-
-    // Adding the rmfentry to the list of files to delete
-    if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
-        goto out; // XXX The inode is already renamed
-    list_push_back(&e->rmfiles, &rmfe->list);
-    if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
-        goto out; // XXX The inode is already renamed
 
     // Update mtime and ctime for parent directory
     if (mfe_fid->parent != NULL) {
@@ -1148,7 +1161,7 @@ int export_unlink(export_t * e, fid_t pfid, const char *name, fid_t * fid) {
 
     // If nlink > 1, it's a hardlink
     if (nlink > 1) {
-        if (unlink_hard_link(e, mfe_fid, mfe_pfid_name, fid) != 0) {
+        if (unlink_hard_link(e, mfe_fid, mfe_pfid_name, fid, 1) != 0) {
             goto out;
         }
     }
@@ -1213,10 +1226,9 @@ int export_rm_bins(export_t * e) {
 
         if (cnt == rozofs_safe) {
             char path[PATH_MAX + NAME_MAX + 1];
+            // In case of rename it's not neccessary to remove trash file
             if (unlink(export_trash_map(e, entry->fid, path)) == -1) {
-                severe("export_rm_bins failed: unlink file %s failed: %s",
-                        path, strerror(errno));
-                goto out;
+                //XXX : ??????
             }
             free(entry);
 
@@ -1399,6 +1411,7 @@ int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const
     strcpy(new_path, new_pmfe->path);
     strcat(new_path, "/");
     strcat(new_path, newname);
+    
     if (rename(fmfe_pfid_name->path, new_path) == -1)
         goto out;
 
@@ -1450,9 +1463,10 @@ int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const
                     goto out;
 
             // If nlink>1 (hardlink)
-            if (nlink_old_file > 1)
-                if (unlink_hard_link(e, old_mfe_fid, old_mfe_pfid_name, fid) != 0)
+            if (nlink_old_file > 1) {
+                if (unlink_hard_link(e, old_mfe_fid, old_mfe_pfid_name, fid, 0) != 0)
                     goto out;
+            }
         }
     }
     // If the renamed file is a directory
