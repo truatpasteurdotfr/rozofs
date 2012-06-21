@@ -901,6 +901,8 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** 
     child_t **it2;
     DEBUG_FUNCTION;
 
+    //severe("exportclt_readdir");
+    
     arg.eid = clt->eid;
     memcpy(arg.fid, fid, sizeof (fid_t));
     arg.cookie = cookie;

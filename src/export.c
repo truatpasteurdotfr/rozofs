@@ -196,6 +196,11 @@ typedef struct rmfentry {
     list_t list;
 } rmfentry_t;
 
+typedef struct cnxentry {
+    storageclt_t *cnx;
+    list_t list;
+} cnxentry_t;
+
 static int export_load_rmfentry(export_t * e) {
     int status = -1;
     DIR *dd = NULL;
@@ -1112,6 +1117,8 @@ static int unlink_file(export_t * e, mfentry_t * mfe_fid, fid_t * fid, uint8_t m
     // Removed mfentry
     export_del_mfentry(e, mfe_fid);
     mfentry_release(mfe_fid);
+    size = mfe_fid->attrs.size;
+    mode = mfe_fid->attrs.mode;
     free(mfe_fid);
 
     // Update the nb. of files for this export
@@ -1119,8 +1126,6 @@ static int unlink_file(export_t * e, mfentry_t * mfe_fid, fid_t * fid, uint8_t m
         goto out;
 
     // Update the nb. of blocks for this export
-    size = mfe_fid->attrs.size;
-    mode = mfe_fid->attrs.mode;
     if (!S_ISLNK(mode))
         if (export_update_blocks(e, -(((int64_t) size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0)
             goto out;
@@ -1176,72 +1181,178 @@ out:
     return status;
 }
 
+static int init_storages_cnx(volume_t *volume, list_t *list) {
+    list_t *p, *q;
+    int status = -1;
+    DEBUG_FUNCTION;
+
+    if ((errno = pthread_rwlock_tryrdlock(&volume->lock)) != 0) {
+        severe("init_storages_cnx failed: can't lock volume %d.", volume->vid);
+        goto out;
+    }
+
+    list_for_each_forward(p, &volume->clusters) {
+
+        cluster_t *cluster = list_entry(p, cluster_t, list);
+
+        list_for_each_forward(q, &cluster->storages) {
+
+            volume_storage_t *vs = list_entry(q, volume_storage_t, list);
+
+            storageclt_t * sclt = (storageclt_t *) xmalloc(sizeof (storageclt_t));
+
+            strcpy(sclt->host, vs->host);
+            sclt->sid = vs->sid;
+
+            if (storageclt_initialize(sclt) != 0) {
+                warning("failed to join: %s,  %s", vs->host, strerror(errno));
+            }
+
+            cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
+            cnx_entry->cnx = sclt;
+            // Add this export to the list of exports
+            list_push_back(list, &cnx_entry->list);
+
+        }
+    }
+
+    if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
+        severe("init_storages_cnx failed: can't unlock volume %d.", volume->vid);
+        goto out;
+    }
+    status = 0;
+out:
+    return status;
+}
+
+static storageclt_t * lookup_cnx(list_t *list, sid_t sid) {
+    list_t *p;
+    DEBUG_FUNCTION;
+
+    list_for_each_forward(p, list) {
+        cnxentry_t *cnx_entry = list_entry(p, cnxentry_t, list);
+
+        if (sid == cnx_entry->cnx->sid) {
+            return cnx_entry->cnx;
+            break;
+        }
+    }
+
+    severe("lookup_cnx failed : storage connexion (sid: %u) not found", sid);
+
+    errno = EINVAL;
+    return NULL;
+}
+
+static void release_storages_cnx(list_t *list) {
+    list_t *p, *q;
+    DEBUG_FUNCTION;
+
+    list_for_each_forward_safe(p, q, list) {
+        cnxentry_t *cnx_entry = list_entry(p, cnxentry_t, list);
+        storageclt_release(cnx_entry->cnx);
+        list_remove(p);
+        free(cnx_entry);
+    }
+}
+
 int export_rm_bins(export_t * e) {
     int status = -1;
     int cnt = 0;
+    int release = 0;
     DEBUG_FUNCTION;
+    list_t connexions;
 
+    // If the list is no empty 
+    // Create a list of connections to storages
+    if (!list_empty(&e->rmfiles)) {
+        // Init list of connexions
+        list_init(&connexions);
+        release = 1;
+        if (init_storages_cnx(e->volume, &connexions) != 0) {
+            severe("init_storages_cnx failed: %s", strerror(errno));
+            goto out;
+        }
+    }
+
+    // For each file to delete
     while (!list_empty(&e->rmfiles)) {
 
-        if ((errno = pthread_rwlock_trywrlock(&e->rm_lock)) != 0)
+        // Remove entry for the list of files to delete
+        if ((errno = pthread_rwlock_trywrlock(&e->rm_lock)) != 0) {
+            severe("pthread_rwlock_trywrlock failed");
             goto out;
+        }
 
         rmfentry_t *entry = list_first_entry(&e->rmfiles, rmfentry_t, list);
-
         list_remove(&entry->list);
 
-        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
+        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0) {
+            severe("pthread_rwlock_unlock failed");
             goto out;
+        }
 
         sid_t *it = entry->sids;
-        cnt = 0;
+        cnt = 0; // Nb. of bins removed
 
+        // For each storage
         while (it != entry->sids + rozofs_safe) {
 
+            // If this storage have bins for this file
             if (*it != 0) {
-                char host[ROZOFS_HOSTNAME_MAX];
-                storageclt_t sclt;
+                // Get the connexion for this storage
+                storageclt_t* stor = lookup_cnx(&connexions, *it);
 
-                lookup_volume_storage(e->volume, *it, host);
-                strcpy(sclt.host, host);
-                sclt.sid = *it;
-
-                if (storageclt_initialize(&sclt) != 0) {
-                    warning("failed to join: %s,  %s", host, strerror(errno));
-
+                // Send request to storage for remove bins
+                if (storageclt_remove(stor, entry->fid) != 0) {
+                    severe("storageclt_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
                 } else {
-                    if (storageclt_remove(&sclt, entry->fid) != 0) {
-                        warning("failed to remove: %s", host);
-                    } else {
-                        *it = 0;
-                        cnt++;
-                    }
+                    // If storageclt_remove works
+                    // Replace sid for this storage by 0
+                    // Increment nb. of bins deleted
+                    *it = 0;
+                    cnt++;
                 }
-                storageclt_release(&sclt);
+
             } else {
+                // Bins are already deleted for this storage
                 cnt++;
             }
             it++;
         }
 
+        // If all bins are deleted
+        // Remove the file from trash
         if (cnt == rozofs_safe) {
             char path[PATH_MAX + NAME_MAX + 1];
             // In case of rename it's not neccessary to remove trash file
             if (unlink(export_trash_map(e, entry->fid, path)) == -1) {
-                //XXX : ??????
+                if (errno != ENOENT) {
+                    severe("unlink failed: unlink file %s failed: %s", export_trash_map(e, entry->fid, path), strerror(errno));
+                    goto out;
+                }
             }
             free(entry);
+        } else { // If NO all bins are deleted
 
-        } else {
-
-            if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
+            // Repush entry in the list of files to delete
+            if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0) {
+                severe("pthread_rwlock_trywrlock failed");
                 goto out;
+            }
 
             list_push_back(&e->rmfiles, &entry->list);
 
-            if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
+            if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0) {
+                severe("pthread_rwlock_unlock failed");
                 goto out;
+            }
         }
+    }
+
+    if (release == 1) {
+        // Release storage connexions
+        release_storages_cnx(&connexions);
     }
 
     status = 0;
@@ -1411,7 +1522,7 @@ int export_rename(export_t * e, fid_t pfid, const char *name, fid_t npfid, const
     strcpy(new_path, new_pmfe->path);
     strcat(new_path, "/");
     strcat(new_path, newname);
-    
+
     if (rename(fmfe_pfid_name->path, new_path) == -1)
         goto out;
 

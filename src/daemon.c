@@ -115,10 +115,10 @@ void daemon_start(const char *name, void (*on_start) (void),
         fprintf(stderr, "already running as pid: %d\n", pid);
         return;
     }
-        if (daemon(0, 0) != 0) {
-            fprintf(stderr, "daemon failed");
-            return;
-        }
+    if (daemon(0, 0) != 0) {
+        fprintf(stderr, "daemon failed");
+        return;
+    }
     if (on_stop)
         daemon_on_stop = on_stop;
     if (on_hup)

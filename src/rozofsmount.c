@@ -148,11 +148,17 @@ static int myfs_opt_proc(void *data, const char *arg, int key,
     return 1;
 }
 
+typedef struct dirbuf {
+    char *p;
+    size_t size;
+} dirbuf_t;
+
 typedef struct ientry {
     fuse_ino_t inode; /**< value of the inode allocated by rozofs  */
     char name[ROZOFS_FILENAME_MAX]; /**< filename or directory name associated with inode */
     fuse_ino_t parent; /**< inode value of the parent              */
     fid_t fid; /**< unique file identifier associated with the file or directory */
+    dirbuf_t db;
     list_t list;
 } ientry_t;
 
@@ -205,6 +211,8 @@ static void ientries_release() {
 static void put_ientry(ientry_t * ie) {
     DEBUG_FUNCTION;
     DEBUG("put inode: %lu\n", ie->inode);
+    ie->db.size = 0;
+    ie->db.p = NULL;
     htable_put(&htable_inode, &ie->inode, ie);
     htable_put(&htable_fid, ie->fid, ie);
     list_push_front(&inode_entries, &ie->list);
@@ -1098,31 +1106,37 @@ out:
      */
 }
 
-struct dirbuf {
-    char *p;
-    size_t size;
-};
-
-static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name,
-        fuse_ino_t ino, mattr_t * attrs) {
-    struct stat stbuf;
+static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name, fuse_ino_t ino, mattr_t * attrs) {
+    // Get oldsize of buffer
     size_t oldsize = b->size;
-    b->size += fuse_add_direntry(req, NULL, 0, name, NULL, 0);
-    b->p = (char *) realloc(b->p, b->size);
+    // Set the inode number in stbuf
+    struct stat stbuf;
     mattr_to_stat(attrs, &stbuf);
     stbuf.st_ino = ino;
-    fuse_add_direntry(req, b->p + oldsize, b->size - oldsize, name, &stbuf,
-            b->size);
+    // Get the size for this entry
+    b->size += fuse_add_direntry(req, NULL, 0, name, &stbuf, 0);
+    // Realloc dirbuf
+    b->p = (char *) realloc(b->p, b->size);
+    // Add this entry
+    fuse_add_direntry(req, b->p + oldsize, b->size - oldsize, name, &stbuf, b->size);
 }
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-static int reply_buf_limited(fuse_req_t req, const char *buf, size_t bufsize,
-        off_t off, size_t maxsize) {
-    if (off < bufsize)
-        return fuse_reply_buf(req, buf + off, min(bufsize - off, maxsize));
-    else
+static int reply_buf_limited(fuse_req_t req, struct dirbuf *b, off_t off, size_t maxsize) {
+    if (off < b->size) {
+        return fuse_reply_buf(req, b->p + off, min(b->size - off, maxsize));
+    } else {
+        // At the end
+        // Free buffer
+        if (b->p != NULL) {
+            free(b->p);
+            b->size = 0;
+            b->p = NULL;
+
+        }
         return fuse_reply_buf(req, NULL, 0);
+    }
 }
 
 void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
@@ -1131,87 +1145,91 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     child_t *child = NULL;
     child_t *iterator = NULL;
     child_t *free_it = NULL;
-    struct dirbuf b;
     uint64_t cookie = 0;
     uint8_t eof = 1;
     DEBUG_FUNCTION;
 
-    DEBUG("readdir (%lu)\n", (unsigned long int) ino);
+    DEBUG("readdir (%lu,size:%lu,off:%lu)\n", (unsigned long int) ino, size, off);
 
     if (!(ie = htable_get(&htable_inode, &ino))) {
         errno = ENOENT;
         goto error;
     }
 
-    if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
-        if (errno == ESTALE) {
-            /* attempt to step back to avoid ESTALE error */
-            if (rozofs_ll_lookup_recover(ie->parent, ie->name, ino) == 0) {
-                if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) == 0) goto success_recov;
-            }
-            del_ientry(ie);
-            free(ie);
-            errno = ESTALE;
-        }
-        goto error;
-    }
-success_recov:
-    memset(&b, 0, sizeof (b));
-    iterator = child;
+    // if the offset is 0 or if the buffer is empty
+    // it sends a request to the metadata server
+    // to retrieve the list of children of this directory.
+    if (off == 0) {
 
-    while (iterator != NULL) {
-        mattr_t attrs;
-        memset(&attrs, 0, sizeof (mattr_t));
-        ientry_t *ie2 = 0;
-
-        // May be already cached
-        if (!(ie2 = htable_get(&htable_fid, iterator->fid))) {
-            // If not cache it
-            ie2 = xmalloc(sizeof (ientry_t));
-            memcpy(ie2->fid, iterator->fid, sizeof (fid_t));
-            /*
-             ** to address the case of the STALE recover, need to insert the inode reference of the parent
-             ** as well as the name of the entry (filename or directory name)
-             */
-            strcpy(ie2->name, child->name);
-            ie2->parent = ino;
-            ie2->inode = inode_idx++;
-            list_init(&ie2->list);
-            put_ientry(ie2);
-        }
-
-        memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
-
-        // put it on the request
-        dirbuf_add(req, &b, iterator->name, ie2->inode, &attrs);
-        free_it = iterator;
-        iterator = iterator->next;
-        free(free_it->name);
-        free(free_it);
-
-        cookie++;
-
-        if (eof == 0 && iterator == NULL) {
-
-            if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
-                if (errno == ESTALE) {
-                    /* attempt to step back to avoid ESTALE error */
-                    if (rozofs_ll_lookup_recover(ie->parent, ie->name, ino) == 0) {
-                        if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) == 0) goto success_recov1;
-                    }
-                    del_ientry(ie);
-                    free(ie);
-                    errno = ESTALE;
+        if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
+            if (errno == ESTALE) {
+                /* attempt to step back to avoid ESTALE error */
+                if (rozofs_ll_lookup_recover(ie->parent, ie->name, ino) == 0) {
+                    if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) == 0) goto success_recov;
                 }
-                goto error;
+                del_ientry(ie);
+                free(ie);
+                errno = ESTALE;
             }
+            goto error;
+        }
+success_recov:
+
+        //memset(&ie->db, 0, sizeof (dirbuf_t));
+        iterator = child;
+
+        while (iterator != NULL) {
+            mattr_t attrs;
+            memset(&attrs, 0, sizeof (mattr_t));
+            ientry_t *ie2 = 0;
+
+            // May be already cached
+            if (!(ie2 = htable_get(&htable_fid, iterator->fid))) {
+                // If not cache it
+                ie2 = xmalloc(sizeof (ientry_t));
+                memcpy(ie2->fid, iterator->fid, sizeof (fid_t));
+                /*
+                 ** to address the case of the STALE recover, need to insert the inode reference of the parent
+                 ** as well as the name of the entry (filename or directory name)
+                 */
+                strcpy(ie2->name, iterator->name);
+                ie2->parent = ino;
+                ie2->inode = inode_idx++;
+                list_init(&ie2->list);
+                put_ientry(ie2);
+            }
+
+            memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
+
+            // put it on the request
+            dirbuf_add(req, &ie->db, iterator->name, ie2->inode, &attrs);
+            free_it = iterator;
+            iterator = iterator->next;
+            free(free_it->name);
+            free(free_it);
+
+            cookie++;
+
+            if (eof == 0 && iterator == NULL) {
+
+                if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
+                    if (errno == ESTALE) {
+                        /* attempt to step back to avoid ESTALE error */
+                        if (rozofs_ll_lookup_recover(ie->parent, ie->name, ino) == 0) {
+                            if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) == 0) goto success_recov1;
+                        }
+                        del_ientry(ie);
+                        free(ie);
+                        errno = ESTALE;
+                    }
+                    goto error;
+                }
 success_recov1:
-            iterator = child;
+                iterator = child;
+            }
         }
     }
-
-    reply_buf_limited(req, b.p, b.size, off, size);
-    free(b.p);
+    reply_buf_limited(req, &ie->db, off, size);
     goto out;
 error:
     fuse_reply_err(req, errno);
