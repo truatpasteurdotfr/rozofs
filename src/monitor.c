@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include "config.h"
 #include "list.h"
 #include "log.h"
@@ -61,31 +62,31 @@ int monitor_volume(volume_t *volume) {
     DEBUG_FUNCTION;
 
     sprintf(path, "%s%s%d", DAEMON_PID_DIRECTORY, "exportd/volume_", volume->vid);
-    if ((fd = open(path, O_WRONLY|O_CREAT)) < 0) {
+    if ((fd = open(path, O_WRONLY|O_CREAT, S_IRWXU|S_IROTH)) < 0) {
         severe("can't open %s", path);
         goto out;
     }
 
     dprintf(fd, HEADER, VERSION);
-    dprintf(fd, "volume: %d\n", volume->vid);
+    dprintf(fd, "volume: %u\n", volume->vid);
 
     volume_stat(volume, &vstat);
-    dprintf(fd, "bsize: %d\n", vstat.bsize);
-    dprintf(fd, "bfree: %lu\n", vstat.bfree);
+    dprintf(fd, "bsize: %u\n", vstat.bsize);
+    dprintf(fd, "bfree: %"PRIu64"\n", vstat.bfree);
     dprintf(fd, "nb_clusters: %d\n", list_size(&volume->clusters));
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        dprintf(fd, "cluster: %d\n", cluster->cid);
+        dprintf(fd, "cluster: %u\n", cluster->cid);
         dprintf(fd, "nb_storages: %d\n", list_size(&cluster->storages));
-        dprintf(fd, "size: %lu\n", cluster->size);
-        dprintf(fd, "free: %lu\n", cluster->free);
+        dprintf(fd, "size: %"PRIu64"\n", cluster->size);
+        dprintf(fd, "free: %"PRIu64"\n", cluster->free);
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *storage = list_entry(q, volume_storage_t, list);
-            dprintf(fd, "storage: %d\n", storage->sid);
+            dprintf(fd, "storage: %u\n", storage->sid);
             dprintf(fd, "host: %s\n", storage->host);
-            dprintf(fd, "status: %d\n", storage->status);
-            dprintf(fd, "size: %lu\n", storage->stat.size);
-            dprintf(fd, "free: %lu\n", storage->stat.free);
+            dprintf(fd, "status: %u\n", storage->status);
+            dprintf(fd, "size: %"PRIu64"\n", storage->stat.size);
+            dprintf(fd, "free: %"PRIu64"\n", storage->stat.free);
         }
     }
     status = 0;
@@ -103,32 +104,32 @@ int monitor_export(export_t *export) {
     DEBUG_FUNCTION;
 
     sprintf(path, "%s%s%d", DAEMON_PID_DIRECTORY, "exportd/export_", export->eid);
-    if ((fd = open(path, O_WRONLY|O_CREAT|O_TRUNC)) < 0) {
+    if ((fd = open(path, O_WRONLY|O_CREAT|O_TRUNC, S_IRWXU|S_IROTH)) < 0) {
         severe("can't open %s", path);
         goto out;
     }
 
     if (export_stat(export, &estat) != 0) {
-        severe("can't stat export: %d", export->eid);
+        severe("can't stat export: %"PRIu32"", export->eid);
         goto out;
     }
 
     dprintf(fd, HEADER, VERSION);
-    dprintf(fd, "export: %d\n", export->eid);
-    dprintf(fd, "volume: %d\n", export->volume->vid);
+    dprintf(fd, "export: %"PRIu32"\n", export->eid);
+    dprintf(fd, "volume: %u\n", export->volume->vid);
     dprintf(fd, "root: %s\n", export->root);
-    dprintf(fd, "squota: %lu\n", export->squota);
-    dprintf(fd, "hquota: %lu\n", export->hquota);
-    dprintf(fd, "bsize: %d\n", estat.bsize);
-    dprintf(fd, "blocks: %lu\n", estat.blocks);
-    dprintf(fd, "bfree: %lu\n", estat.bfree);
-    dprintf(fd, "files: %lu\n", estat.files);
-    dprintf(fd, "ffree: %lu\n", estat.ffree);
+    dprintf(fd, "squota: %"PRIu64"\n", export->squota);
+    dprintf(fd, "hquota: %"PRIu64"\n", export->hquota);
+    dprintf(fd, "bsize: %u\n", estat.bsize);
+    dprintf(fd, "blocks: %"PRIu64"\n", estat.blocks);
+    dprintf(fd, "bfree: %"PRIu64"\n", estat.bfree);
+    dprintf(fd, "files: %"PRIu64"\n", estat.files);
+    dprintf(fd, "ffree: %"PRIu64"\n", estat.ffree);
     if (export->squota > 0) {
         exceed = estat.blocks - estat.bfree > export->squota ?
             estat.blocks - estat.bfree - export->squota : 0;
     }
-    dprintf(fd, "squota_exceed: %lu\n", exceed);
+    dprintf(fd, "squota_exceed: %"PRIu64"\n", exceed);
 
     status = 0;
 out:

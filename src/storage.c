@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/statfs.h>
+#include <inttypes.h>
 #include <glob.h>
 
 #include "rozofs.h"
@@ -214,7 +215,7 @@ int storage_write(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
         severe("storage_write failed: pwrite in file %s failed: %s",
                 storage_map(st, fid, pid, path), strerror(errno));
         if (nb_write != -1) {
-            severe("pwrite failed: %lu bytes written instead of %lu",
+            severe("pwrite failed: %zu bytes written instead of %zu",
                     nb_write, count);
             errno = EIO;
         }

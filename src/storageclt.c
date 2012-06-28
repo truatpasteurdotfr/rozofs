@@ -91,8 +91,7 @@ int storageclt_write(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
 
     if (!(clt->rpcclt.client) || !(ret = sp_write_1(&args, clt->rpcclt.client))) {
         clt->status = 0;
-        warning("storageclt_write failed: storage write failed (bid : %lu, nrbd: %u) (no response from storage server: %s)",
-                bid, nrb, clt->host);
+        warning("storageclt_write failed: storage write failed (no response from storage server: %s)", clt->host);
         errno = EPROTO;
         goto out;
     }

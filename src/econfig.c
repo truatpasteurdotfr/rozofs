@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <libconfig.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "xmalloc.h"
 #include "log.h"
@@ -645,7 +646,7 @@ int econfig_print(econfig_t *config) {
     }
     list_for_each_forward(p, &config->exports) {
         export_config_t *e = list_entry(p, export_config_t, list);
-        printf("eid: %d, vid:%d,  root: %s, squota:%ld, hquota: %ld\n", e->eid, e->vid, e->root, e->squota, e->hquota);
+        printf("eid: %d, vid:%d,  root: %s, squota:%"PRIu64", hquota: %"PRIu64"\n", e->eid, e->vid, e->root, e->squota, e->hquota);
     }
     return 0;
 }

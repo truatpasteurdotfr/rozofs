@@ -31,6 +31,7 @@
 #include <sys/vfs.h>
 #include <uuid/uuid.h>
 #include <sys/types.h>
+#include <inttypes.h>
 #include <dirent.h>
 #include <time.h>
 
@@ -359,7 +360,7 @@ static inline int export_update_blocks(export_t * e, int32_t n) {
     }
 
     if (e->hquota > 0 && blocks + n > e->hquota) {
-        warning("quota exceed: %lu over %lu", blocks + n, e->hquota);
+        warning("quota exceed: %"PRIu64" over %"PRIu64"", blocks + n, e->hquota);
         errno = EDQUOT;
         goto out;
     }
@@ -1666,7 +1667,7 @@ int export_read_block(export_t * e, uuid_t fid, uint64_t bid, uint32_t n,
 
     if ((nrb =pread(mfe->fd, d, n * sizeof (dist_t), bid * sizeof (dist_t)))
             != n * sizeof (dist_t)) {
-        severe("export_read_block failed: (bid: %lu, n: %u) pread in file %s failed: %s just %d bytes for %d blocks ",
+        severe("export_read_block failed: (bid: %"PRIu64", n: %u) pread in file %s failed: %s just %d bytes for %d blocks ",
                 bid, n, mfe->path, strerror(errno), nrb, n);
         goto out;
     }
