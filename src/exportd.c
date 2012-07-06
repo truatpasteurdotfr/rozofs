@@ -108,7 +108,7 @@ out:
 }
 
 static void *remove_bins_thread(void *v) {
-    struct timespec ts = {30, 0};
+    struct timespec ts = {20, 0};
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -630,7 +630,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-	if (econfig_initialize(&exportd_config) != 0) {
+    if (econfig_initialize(&exportd_config) != 0) {
         fprintf(stderr, "can't initialize exportd config: %s.\n",
                 strerror(errno));
         goto error;

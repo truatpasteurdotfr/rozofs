@@ -87,8 +87,10 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
     memset(data, 0, nmbs * ROZOFS_BSIZE);
     dist = xmalloc(nmbs * sizeof (dist_t));
 
-    if (exportclt_read_block(f->export, f->fid, bid, nmbs, dist) != 0)
+    if (exportclt_read_block(f->export, f->fid, bid, nmbs, dist) != 0) {
+        severe("exportclt_read_block failed: %s", strerror(errno));
         goto out;
+    }
 
     /* Until we don't decode all data blocks (nmbs blocks) */
     i = 0; // Nb. of blocks decoded (at begin = 0)
@@ -290,6 +292,7 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
     }
 
     if (exportclt_write_block(f->export, f->fid, bid, nmbs, dist) != 0) {
+        severe("exportclt_write_block failed: %s", strerror(errno));
         errno = EIO;
         goto out;
     }
@@ -328,8 +331,10 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
     int retry = 0;
     DEBUG_FUNCTION;
 
-    if ((length = exportclt_read(f->export, f->fid, off, len)) < 0)
+    if ((length = exportclt_read(f->export, f->fid, off, len)) < 0) {
+        severe("exportclt_read_block failed: %s", strerror(errno));
         goto out;
+    }
 
     first = off / ROZOFS_BSIZE;
     foffset = off % ROZOFS_BSIZE;
@@ -409,8 +414,10 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
     int lread;
     int retry = 0;
 
-    if (exportclt_getattr(f->export, f->attrs.fid, &f->attrs) != 0)
+    if (exportclt_getattr(f->export, f->attrs.fid, &f->attrs) != 0) {
+        severe("exportclt_getattr failed: %s", strerror(errno));
         goto out;
+    }
 
     length = len;
     // Nb. of the first block to write
@@ -457,7 +464,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
             length = -1;
             goto out;
         }
-    } else {                    // If we must write more than one block
+    } else { // If we must write more than one block
         const char *bufp;
         char block[ROZOFS_BSIZE];
 
@@ -515,6 +522,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
     }
 
     if (exportclt_write(f->export, f->fid, off, len) == -1) {
+        severe("exportclt_write failed: %s", strerror(errno));
         length = -1;
         goto out;
     }
@@ -530,14 +538,18 @@ file_t *file_open(exportclt_t * e, fid_t fid, mode_t mode) {
 
     memcpy(f->fid, fid, sizeof (fid_t));
     f->storages = xmalloc(rozofs_safe * sizeof (storageclt_t *));
-    if (exportclt_getattr(e, fid, &f->attrs) != 0)
+    if (exportclt_getattr(e, fid, &f->attrs) != 0) {
+        severe("exportclt_getattr failed: %s", strerror(errno));
         goto error;
+    }
 
     f->buffer = xmalloc(e->bufsize * sizeof (char));
 
     // Open the file descriptor in the export server
-    if (exportclt_open(e, fid) != 0)
+    if (exportclt_open(e, fid) != 0) {
+        severe("exportclt_open failed: %s", strerror(errno));
         goto error;
+    }
 
     f->export = e;
 
@@ -658,8 +670,10 @@ int file_close(exportclt_t * e, file_t * f) {
         f->buf_read_wait = 0;
 
         // Close the file descriptor in the export server
-        if (exportclt_close(e, f->fid) != 0)
+        if (exportclt_close(e, f->fid) != 0) {
+            severe("exportclt_close failed: %s", strerror(errno));
             goto out;
+        }
 
         free(f->storages);
         free(f->buffer);
