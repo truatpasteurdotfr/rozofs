@@ -578,9 +578,9 @@ void rozofs_ll_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
             // XXX Only one of them might be stale
             // cache might (WILL) be inconsistent !!!
             del_ientry(pie);
-            del_ientry(npie);
+            //del_ientry(npie);
             free(pie);
-            free(npie);
+            //free(npie);
             errno = ESTALE;
         }
         goto error;
