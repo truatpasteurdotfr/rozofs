@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include <limits.h>
 #include <uuid/uuid.h>
+#include <sys/param.h>
+
 #include "rozofs.h"
 #include "list.h"
 #include "htable.h"

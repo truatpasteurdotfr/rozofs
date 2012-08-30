@@ -286,13 +286,15 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     for (pid = 0; pid < rozofs_forward; pid++) {
 
         if (sprintf(bins_filename, "%36s-%u.bins", fid_str, pid) < 0) {
-            severe("storage_rm_file failed: sprintf for bins %s failed: %s", fid_str, strerror(errno));
+            severe("storage_rm_file failed: sprintf for bins %s failed: %s", 
+                    fid_str, strerror(errno));
             goto out;
         }
 
         if (unlink(bins_filename) == -1) {
             if (errno != ENOENT) {
-                severe("storage_rm_file failed: unlink file %s failed: %s", bins_filename, strerror(errno));
+                severe("storage_rm_file failed: unlink file %s failed: %s", 
+                        bins_filename, strerror(errno));
                 goto out;
             }
         }

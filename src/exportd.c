@@ -49,6 +49,8 @@
 econfig_t exportd_config;
 pthread_rwlock_t config_lock;
 
+lv2_cache_t cache;
+
 typedef struct export_entry {
     export_t export;
     list_t list;
@@ -75,7 +77,6 @@ static SVCXPRT *exportd_svc = NULL;
 
 extern void export_program_1(struct svc_req *rqstp, SVCXPRT * ctl_svc);
 
-// XXX locks ??
 static void *balance_volume_thread(void *v) {
     struct timespec ts = {8, 0};
 
@@ -83,9 +84,20 @@ static void *balance_volume_thread(void *v) {
 
     for (;;) {
         list_t *p;
+
+        if ((errno = pthread_rwlock_tryrdlock(&volumes_lock)) != 0) {
+            warning("can lock volumes, balance_volume_thread deferred.");
+            continue;
+        }
+
         list_for_each_forward(p, &volumes)  {
             volume_balance(&list_entry(p, volume_entry_t, list)->volume);
         }
+
+        if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
+            severe("can unlock volumes, potential dead lock.");
+        }
+
         nanosleep(&ts, NULL);
     }
     return 0;
@@ -114,7 +126,7 @@ static void *remove_bins_thread(void *v) {
 
     for (;;) {
         if (exports_remove_bins() != 0) {
-            severe("remove_bins_thread failed: %s", strerror(errno));
+            warning("remove_bins_thread failed: %s", strerror(errno));
         }
         nanosleep(&ts, NULL);
     }
@@ -128,16 +140,36 @@ static void *monitoring_thread(void *v) {
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     for (;;) {
+        if ((errno = pthread_rwlock_tryrdlock(&volumes_lock)) != 0) {
+            warning("can lock volumes, monitoring_thread deferred.");
+            continue;
+        }
+
         list_for_each_forward(p, &volumes) {
             if (monitor_volume(&list_entry(p, volume_entry_t, list)->volume) != 0) {
                 severe("monitor thread failed: %s", strerror(errno));
             }
         }
 
+        if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
+            severe("can unlock volumes, potential dead lock.");
+            continue;
+        }
+
+        if ((errno = pthread_rwlock_tryrdlock(&exports_lock)) != 0) {
+            warning("can lock exports, monitoring_thread deferred.");
+            continue;
+        }
+
         list_for_each_forward(p, &exports) {
             if (monitor_export(&list_entry(p, export_entry_t, list)->export) != 0) {
                 severe("monitor thread failed: %s", strerror(errno));
             }
+        }
+
+        if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+            severe("can unlock exports, potential dead lock.");
+            continue;
         }
 
         nanosleep(&ts, NULL);
@@ -154,10 +186,25 @@ eid_t *exports_lookup_id(ep_path_t path) {
         return NULL;
     }
 
+    if ((errno = pthread_rwlock_rdlock(&exports_lock)) != 0) {
+        severe("can lock exports.");
+        return NULL;
+    }
+
     list_for_each_forward(iterator, &exports) {
         export_entry_t *entry = list_entry(iterator, export_entry_t, list);
-        if (strcmp(entry->export.root, export_path) == 0)
+        if (strcmp(entry->export.root, export_path) == 0) {
+            if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+                severe("can unlock exports, potential dead lock.");
+                return NULL;
+            }
             return &entry->export.eid;
+        }
+    }
+
+    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+        severe("can unlock exports, potential dead lock.");
+        return NULL;
     }
     errno = EINVAL;
     return NULL;
@@ -167,12 +214,26 @@ export_t *exports_lookup_export(eid_t eid) {
     list_t *iterator;
     DEBUG_FUNCTION;
 
-    list_for_each_forward(iterator, &exports) {
-        export_entry_t *entry = list_entry(iterator, export_entry_t, list);
-        if (eid == entry->export.eid)
-            return &entry->export;
+    if ((errno = pthread_rwlock_rdlock(&exports_lock)) != 0) {
+        severe("can lock exports.");
+        return NULL;
     }
 
+    list_for_each_forward(iterator, &exports) {
+        export_entry_t *entry = list_entry(iterator, export_entry_t, list);
+        if (eid == entry->export.eid) {
+            if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+                severe("can unlock exports, potential dead lock.");
+                return NULL;
+            }
+            return &entry->export;
+        }
+    }
+
+    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+        severe("can unlock exports, potential dead lock.");
+        return NULL;
+    }
     errno = EINVAL;
     return NULL;
 }
@@ -181,10 +242,25 @@ volume_t *volumes_lookup_volume(vid_t vid) {
     list_t *iterator;
     DEBUG_FUNCTION;
 
+    if ((errno = pthread_rwlock_rdlock(&volumes_lock)) != 0) {
+        severe("can't lock volumes.");
+        return NULL;
+    }
+
     list_for_each_forward(iterator, &volumes) {
         volume_entry_t *entry = list_entry(iterator, volume_entry_t, list);
-        if (vid == entry->volume.vid)
+        if (vid == entry->volume.vid) {
+            if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
+                severe("can't unlock volumes, potential dead lock.");
+                return NULL;
+            }
             return &entry->volume;
+        }
+    }
+
+    if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
+        severe("can't unlock volumes, potential dead lock.");
+        return NULL;
     }
 
     errno = EINVAL;
@@ -192,19 +268,14 @@ volume_t *volumes_lookup_volume(vid_t vid) {
 }
 
 int exports_initialize() {
-    DEBUG_FUNCTION;
-
     list_init(&exports);
     if (pthread_rwlock_init(&exports_lock, NULL) != 0) {
         return -1;
     }
-
     return 0;
 }
 
 int volumes_initialize() {
-    DEBUG_FUNCTION;
-
     list_init(&volumes);
     if (pthread_rwlock_init(&volumes_lock, NULL) != 0) {
         return -1;
@@ -260,9 +331,6 @@ static int load_volumes_conf() {
     list_t *p, *q, *r;
     DEBUG_FUNCTION;
 
-    //if ((errno = pthread_rwlock_wrlock(&volumes_lock)) != 0)
-    //    goto out;
-
     // For each volume
     list_for_each_forward(p, &exportd_config.volumes) {
         volume_config_t *vconfig = list_entry(p, volume_config_t, list);
@@ -295,14 +363,6 @@ static int load_volumes_conf() {
         list_push_back(&volumes, &ventry->list);
     }
 
-    //if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0)
-    //    goto out;
-
-    /*
-    status = 0;
-out:
-    return status;
-    */
     return 0;
 }
 
@@ -311,21 +371,30 @@ static int load_exports_conf() {
     list_t *p;
     DEBUG_FUNCTION;
 
-    //if ((errno = pthread_rwlock_wrlock(&exports_lock)) != 0)
-    //    goto out;
-
     // For each export
     list_for_each_forward(p, &exportd_config.exports) {
         export_config_t *econfig = list_entry(p, export_config_t, list);
-        export_entry_t *entry = (export_entry_t *) xmalloc(sizeof (export_entry_t));
+        export_entry_t *entry = xmalloc(sizeof (export_entry_t));
         volume_t *volume;
+
+        list_init(&entry->list);
 
         if (! (volume = volumes_lookup_volume(econfig->vid))) {
             severe("can't lookup volume for vid %d: %s\n",
                     econfig->vid, strerror(errno));
         }
+
+        if (export_is_valid(econfig->root) != 0) {
+            // try to create it
+            if (export_create(econfig->root) != 0) {
+                severe("can't create export with path %s: %s\n",
+                        econfig->root, strerror(errno));
+                goto out;
+            }
+        }
+
         // Initialize export
-        if (export_initialize(&entry->export, volume, econfig->eid,
+        if (export_initialize(&entry->export, volume, &cache, econfig->eid,
                 econfig->root, econfig->md5, econfig->squota,
                 econfig->hquota) != 0) {
             severe("can't initialize export with path %s: %s\n",
@@ -336,8 +405,6 @@ static int load_exports_conf() {
         // Add this export to the list of exports
         list_push_back(&exports, &entry->list);
     }
-    //if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0)
-    //    goto out;
 
     status = 0;
 out:
@@ -345,47 +412,47 @@ out:
 }
 
 static int exportd_initialize() {
-    int status = -1;
     DEBUG_FUNCTION;
 
-    if ((errno = pthread_rwlock_init(&config_lock, NULL)) != 0) {
-        severe("can't initialize lock for config: %s", strerror(errno));
-    }
+    if ((errno = pthread_rwlock_init(&config_lock, NULL)) != 0)
+        fatal("can't initialize lock for config: %s", strerror(errno));
+
+    // initialize lv2 cache
+    lv2_cache_initialize(&cache);
 
     // Initialize list of volume(s)
-    if (volumes_initialize() != 0) {
-        severe("can't initialize volume: %s", strerror(errno));
-        goto out;
-    }
+    if (volumes_initialize() != 0)
+        fatal("can't initialize volume: %s", strerror(errno));
+
     // Initialize list of exports
-    if (exports_initialize() != 0) {
-        severe("can't initialize exports: %s", strerror(errno));
-        goto out;
-    }
+    if (exports_initialize() != 0)
+        fatal("can't initialize exports: %s", strerror(errno));
+
     // Initialize monitoring
-    if (monitor_initialize() != 0) {
-        severe("can't initialize monitoring: %s", strerror(errno));
-        goto out;
-    }
+    if (monitor_initialize() != 0)
+        fatal("can't initialize monitoring: %s", strerror(errno));
+
     // Load configuration
-    if (load_layout_conf() != 0) {
-        severe("can't load layout");
-        goto out;
-    }
+    if (load_layout_conf() != 0)
+        fatal("can't load layout");
 
-    if (load_volumes_conf() != 0) {
-        severe("can't load volume");
-        goto out;
-    }
+    if (load_volumes_conf() != 0)
+        fatal("can't load volume");
 
-    if (load_exports_conf() != 0) {
-        severe("can't load exports");
-        goto out;
-    }
+    if (load_exports_conf() != 0)
+        fatal("can't load exports");
 
-    status = 0;
-out:
-    return status;
+    if (pthread_create(&bal_vol_thread, NULL, balance_volume_thread, NULL) !=
+            0)
+        fatal("can't create balancing thread %s", strerror(errno));
+
+    if (pthread_create(&rm_bins_thread, NULL, remove_bins_thread, NULL) != 0)
+        fatal("can't create remove files thread %s", strerror(errno));
+
+    if (pthread_create(&monitor_thread, NULL, monitoring_thread, NULL) != 0)
+        fatal("can't create monitoring thread %s", strerror(errno));
+
+    return 0;
 }
 
 static void exportd_release() {
@@ -398,10 +465,11 @@ static void exportd_release() {
         severe("can't release config lock: %s", strerror(errno));
     }
 
+    monitor_release();
     exports_release();
     volumes_release();
-    monitor_release();
     econfig_release(&exportd_config);
+    lv2_cache_release(&cache);
     rozofs_release();
 }
 
@@ -412,7 +480,6 @@ static void on_start() {
 
     if (exportd_initialize() != 0) {
         fatal("can't initialize exportd.");
-        return;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -442,7 +509,6 @@ static void on_start() {
             ROZOFS_RPC_BUFFER_SIZE);
     if (exportd_svc == NULL) {
         fatal("can't create service %s", strerror(errno));
-        return;
     }
 
     pmap_unset(EXPORT_PROGRAM, EXPORT_VERSION); // in case !
@@ -451,23 +517,6 @@ static void on_start() {
             (exportd_svc, EXPORT_PROGRAM, EXPORT_VERSION, export_program_1,
             IPPROTO_TCP)) {
         fatal("can't register service %s", strerror(errno));
-        return;
-    }
-
-    if (pthread_create(&bal_vol_thread, NULL, balance_volume_thread, NULL) !=
-            0) {
-        fatal("can't create balancing thread %s", strerror(errno));
-        return;
-    }
-
-    if (pthread_create(&rm_bins_thread, NULL, remove_bins_thread, NULL) != 0) {
-        fatal("can't create remove files thread %s", strerror(errno));
-        return;
-    }
-
-    if (pthread_create(&monitor_thread, NULL, monitoring_thread, NULL) != 0) {
-        fatal("can't create monitoring thread %s", strerror(errno));
-        return;
     }
 
     info("running.");
@@ -494,9 +543,9 @@ static void on_stop() {
 
 static void on_hup() {
     econfig_t new;
-    list_t *p;
-    DEBUG_FUNCTION;
+    list_t *p, *q;
 
+    info("hup signal received.");
     // sanity check
     if (econfig_initialize(&new) != 0) {
         severe("can't initialize exportd config: %s.", strerror(errno));
@@ -516,7 +565,7 @@ static void on_hup() {
     econfig_release(&new);
 
     // do the job
-    if ((errno = pthread_rwlock_trywrlock(&config_lock)) != 0) {
+    if ((errno = pthread_rwlock_wrlock(&config_lock)) != 0) {
         severe("can't lock config: %s", strerror(errno));
         goto error;
     }
@@ -526,43 +575,48 @@ static void on_hup() {
         goto error;
     }
 
-    if ((errno = pthread_rwlock_trywrlock(&volumes_lock)) != 0) {
+    if ((errno = pthread_rwlock_wrlock(&volumes_lock)) != 0) {
         severe("can't lock volumes: %s", strerror(errno));
         goto error;
     }
 
-    if ((errno = pthread_rwlock_trywrlock(&exports_lock)) != 0) {
-        severe("can't lock exports: %s", strerror(errno));
-        goto error;
+    list_for_each_forward_safe(p, q, &volumes) {
+        volume_entry_t *entry = list_entry(p, volume_entry_t, list);
+        volume_release(&entry->volume);
+        list_remove(p);
+        free(entry);
     }
 
-    pthread_cancel(rm_bins_thread);
-
-    // XXX check error
-    volumes_release();
-    volumes_initialize();
     load_volumes_conf();
 
-    exports_release();
-    exports_initialize();
-    load_exports_conf();
+    // volumes lock should be released before loading exports config
+    // since load_exports_conf calls volume_lookup_volume which
+    // needs to acquire volumes lock
+    if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
+        severe("can't unlock volumes: %s", strerror(errno));
+        goto error;
+    }
 
     list_for_each_forward(p, &volumes)  {
         volume_balance(&list_entry(p, volume_entry_t, list)->volume);
     }
 
-    if (pthread_create(&rm_bins_thread, NULL, remove_bins_thread, NULL) != 0) {
-        severe("can't create remove files thread %s", strerror(errno));
-        return;
-    }
-
-    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
-        severe("can't unlock exports: %s", strerror(errno));
+    if ((errno = pthread_rwlock_wrlock(&exports_lock)) != 0) {
+        severe("can't lock exports: %s", strerror(errno));
         goto error;
     }
 
-    if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
-        severe("can't unlock volumes: %s", strerror(errno));
+    list_for_each_forward_safe(p, q, &exports){
+        export_entry_t *entry = list_entry(p, export_entry_t, list);
+        export_release(&entry->export);
+        list_remove(p);
+        free(entry);
+    }
+
+    load_exports_conf();
+
+    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+        severe("can't unlock exports: %s", strerror(errno));
         goto error;
     }
 
@@ -574,6 +628,9 @@ static void on_hup() {
     info("reloaded.");
     goto out;
 error:
+    pthread_rwlock_unlock(&exports_lock);
+    pthread_rwlock_unlock(&volumes_lock);
+    pthread_rwlock_unlock(&config_lock);
     severe("reload failed.");
 out :
     econfig_release(&new);

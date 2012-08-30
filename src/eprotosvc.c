@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "eproto.h"
+#include "../src/eproto.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <rpc/pmap_clnt.h>
@@ -35,12 +35,8 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		ep_symlink_arg_t ep_symlink_1_arg;
 		ep_rename_arg_t ep_rename_1_arg;
 		ep_readdir_arg_t ep_readdir_1_arg;
-		ep_io_arg_t ep_read_1_arg;
-		ep_read_block_arg_t ep_read_block_1_arg;
-		ep_io_arg_t ep_write_1_arg;
+		ep_io_arg_t ep_read_block_1_arg;
 		ep_write_block_arg_t ep_write_block_1_arg;
-		ep_mfile_arg_t ep_open_1_arg;
-		ep_mfile_arg_t ep_close_1_arg;
 		ep_link_arg_t ep_link_1_arg;
 	} argument;
 	char *result;
@@ -138,40 +134,16 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		local = (char *(*)(char *, struct svc_req *)) ep_readdir_1_svc;
 		break;
 
-	case EP_READ:
-		_xdr_argument = (xdrproc_t) xdr_ep_io_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_io_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) ep_read_1_svc;
-		break;
-
 	case EP_READ_BLOCK:
-		_xdr_argument = (xdrproc_t) xdr_ep_read_block_arg_t;
+		_xdr_argument = (xdrproc_t) xdr_ep_io_arg_t;
 		_xdr_result = (xdrproc_t) xdr_ep_read_block_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_read_block_1_svc;
 		break;
 
-	case EP_WRITE:
-		_xdr_argument = (xdrproc_t) xdr_ep_io_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_io_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) ep_write_1_svc;
-		break;
-
 	case EP_WRITE_BLOCK:
 		_xdr_argument = (xdrproc_t) xdr_ep_write_block_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
+		_xdr_result = (xdrproc_t) xdr_ep_io_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_write_block_1_svc;
-		break;
-
-	case EP_OPEN:
-		_xdr_argument = (xdrproc_t) xdr_ep_mfile_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) ep_open_1_svc;
-		break;
-
-	case EP_CLOSE:
-		_xdr_argument = (xdrproc_t) xdr_ep_mfile_arg_t;
-		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) ep_close_1_svc;
 		break;
 
 	case EP_LINK:

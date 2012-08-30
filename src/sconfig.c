@@ -33,12 +33,11 @@
 #define SSID	    "sid"
 #define SROOT	    "root"
 
-
 int storage_config_initialize(storage_config_t *s, sid_t sid, const char *root) {
 	DEBUG_FUNCTION;
 
 	s->sid = sid;
-	memcpy(s->root, root, FILENAME_MAX * sizeof(char));
+	strcpy(s->root, root);
 	list_init(&s->list);
 	return 0;
 }

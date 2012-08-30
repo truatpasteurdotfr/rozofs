@@ -25,6 +25,7 @@
 #include "rpcclt.h"
 #include "dist.h"
 #include "storageclt.h"
+#include "mattr.h"
 
 typedef struct mcluster {
     cid_t cid;
@@ -61,7 +62,7 @@ int exportclt_lookup(exportclt_t * clt, fid_t parent, char *name,
 
 int exportclt_getattr(exportclt_t * clt, fid_t fid, mattr_t * attrs);
 
-int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs);
+int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs, int to_set);
 
 int exportclt_readlink(exportclt_t * clt, fid_t fid, char *link);
 
@@ -82,22 +83,27 @@ int exportclt_symlink(exportclt_t * clt, char *link, fid_t parent, char *name,
 
 int exportclt_rename(exportclt_t * clt, fid_t parent, char *name, fid_t newparent, char *newname, fid_t * fid);
 
-int64_t exportclt_read(exportclt_t * clt, fid_t fid, uint64_t off,
-        uint32_t len);
+//int64_t exportclt_read(exportclt_t * clt, fid_t fid, uint64_t off,
+//        uint32_t len);
+//
+//int exportclt_read_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
+//        dist_t * d);
 
-int exportclt_read_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
-        dist_t * d);
+//int64_t exportclt_read_block(exportclt_t * clt, fid_t fid, uint64_t off, uint32_t len, dist_t * d);
 
-int64_t exportclt_write(exportclt_t * clt, fid_t fid, uint64_t off,
-        uint32_t len);
+dist_t * exportclt_read_block(exportclt_t * clt, fid_t fid, uint64_t off, uint32_t len, int64_t * length);
 
-int exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
-        dist_t d);
+//int64_t exportclt_write(exportclt_t * clt, fid_t fid, uint64_t off,
+//        uint32_t len);
+
+int64_t exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n, dist_t d, uint64_t off, uint32_t len);
 
 int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** children, uint8_t * eof);
 
+/* not used anymore
 int exportclt_open(exportclt_t * clt, fid_t fid);
 
 int exportclt_close(exportclt_t * clt, fid_t fid);
+*/
 
 #endif

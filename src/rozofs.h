@@ -38,17 +38,22 @@
 #define ROZOFS_MD5_SIZE 22
 #define ROZOFS_MD5_NONE "0000000000000000000000"
 
+#define STORAGE_PROGRAM_CHECK 0x20000002
+#define EXPORT_PROGRAM_CHECK 0x20000007
+#define ROZOFS_EXPORT_TIMEOUT_SEC 10
+#define ROZOFS_STORAGE_TIMEOUT_SEC 2
+
 typedef enum {
     LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16
 } rozofs_layout_t;
 
-typedef uint8_t tid_t;          // projection id
-typedef uint64_t bid_t;         // block id
-typedef uuid_t fid_t;           // file id
-typedef uint16_t sid_t;         // storage id
-typedef uint16_t cid_t;         // cluster id
-typedef uint16_t vid_t;         // volume id
-typedef uint32_t eid_t;         // export id
+typedef uint8_t tid_t;          /**< projection id */
+typedef uint64_t bid_t;         /**< block id */
+typedef uuid_t fid_t;           /**< file id */
+typedef uint16_t sid_t;         /**< storage id */
+typedef uint16_t cid_t;         /**< cluster id */
+typedef uint16_t vid_t;         /**< volume id */
+typedef uint32_t eid_t;         /**< export id */
 
 // storage stat
 
@@ -56,22 +61,6 @@ typedef struct sstat {
     uint64_t size;
     uint64_t free;
 } sstat_t;
-
-// meta file attr
-
-typedef struct mattr {
-    fid_t fid;
-    cid_t cid;                      // 0 for non regular files
-    sid_t sids[ROZOFS_SAFE_MAX];    // not used for non regular files
-    uint32_t mode;
-    uint32_t uid;
-    uint32_t gid;
-    uint16_t nlink;
-    uint64_t ctime;
-    uint64_t atime;
-    uint64_t mtime;
-    uint64_t size;
-} mattr_t;
 
 typedef struct estat {
     uint16_t bsize;

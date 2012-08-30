@@ -59,22 +59,28 @@ int monitor_volume(volume_t *volume) {
     char path[FILENAME_MAX];
     volume_stat_t vstat;
     list_t *p, *q;
-    DEBUG_FUNCTION;
+    volume_t clone;
 
-    sprintf(path, "%s%s%d", DAEMON_PID_DIRECTORY, "exportd/volume_", volume->vid);
+    volume_initialize(&clone, 0);
+    if (volume_safe_copy(&clone, volume) != 0) {
+        severe("can't clone volume: %d", volume->vid);
+        goto out;
+    }
+
+    sprintf(path, "%s%s%d", DAEMON_PID_DIRECTORY, "exportd/volume_", clone.vid);
     if ((fd = open(path, O_WRONLY|O_CREAT, S_IRWXU|S_IROTH)) < 0) {
         severe("can't open %s", path);
         goto out;
     }
 
     dprintf(fd, HEADER, VERSION);
-    dprintf(fd, "volume: %u\n", volume->vid);
+    dprintf(fd, "volume: %u\n", clone.vid);
 
-    volume_stat(volume, &vstat);
+    volume_stat(&clone, &vstat);
     dprintf(fd, "bsize: %u\n", vstat.bsize);
     dprintf(fd, "bfree: %"PRIu64"\n", vstat.bfree);
-    dprintf(fd, "nb_clusters: %d\n", list_size(&volume->clusters));
-    list_for_each_forward(p, &volume->clusters) {
+    dprintf(fd, "nb_clusters: %d\n", list_size(&clone.clusters));
+    list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
         dprintf(fd, "cluster: %u\n", cluster->cid);
         dprintf(fd, "nb_storages: %d\n", list_size(&cluster->storages));

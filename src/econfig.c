@@ -50,7 +50,7 @@ int storage_node_config_initialize(storage_node_config_t *s, sid_t sid,
 	DEBUG_FUNCTION;
 
 	s->sid = sid;
-	memcpy(s->host, host, ROZOFS_HOSTNAME_MAX * sizeof(char));
+	strcpy(s->host, host);
 	list_init(&s->list);
 	return 0;
 }
@@ -108,8 +108,8 @@ int export_config_initialize(export_config_t *e, eid_t eid, vid_t vid,
 
     e->eid = eid;
     e->vid = vid;
-    memcpy(e->root, root, FILENAME_MAX * sizeof(char));
-    memcpy(e->md5, md5, MD5_LEN * sizeof(char));
+    strcpy(e->root, root);
+    strcpy(e->md5, md5);
     e->squota = squota;
     e->hquota = hquota;
     list_init(&e->list);

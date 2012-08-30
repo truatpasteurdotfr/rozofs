@@ -22,9 +22,8 @@
 #include "log.h"
 #include "xmalloc.h"
 #include "sproto.h"
-#include "profile.h"
 
-static storageclt_t *lookup_mstorage(exportclt_t * e, cid_t cid, sid_t sid) {
+static storageclt_t *get_storage_cnt(exportclt_t * e, cid_t cid, sid_t sid) {
     list_t *iterator;
     int i = 0;
     DEBUG_FUNCTION;
@@ -44,23 +43,51 @@ static storageclt_t *lookup_mstorage(exportclt_t * e, cid_t cid, sid_t sid) {
     return NULL;
 }
 
-static int file_connect(file_t * f) {
+/** Verifies that the number of connections to servers is sufficient
+ * 
+ *  To verify that number of connections is sufficient from a given distribution
+ *  then we must pass the distribution as parameter
+ * 
+ * @param *f: pointer to the file structure 
+ * @param nb_required: nb. of connections required
+ * @param *dist_p: pointer to the distribution if necessary or NULL 
+ *
+ * @return: 0 on success -1 otherwise (errno: EIO is set)
+ */
+static int file_check_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
     int i = 0;
     int connected = 0;
-    struct timespec ts = {2, 0};
+    struct timespec ts = {2, 0}; /// XXX static
     DEBUG_FUNCTION;
 
     for (i = 0; i < rozofs_safe; i++) {
+        // Not necessary to check the distribution
+        if (dist_p == NULL) {
+            // Get connection for this storage
+            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.cid, f->attrs.sids[i])) == NULL)
+                return -1;
 
-        if ((f->storages[i] = lookup_mstorage(f->export, f->attrs.cid, f->attrs.sids[i])) == NULL)
-            return -1;
+            // Check connection status
+            if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+                connected++; // This storage seems to be OK
 
-        if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
-            connected++; // This storage seems to be OK
+        } else {
+            // Check if the storage server has data
+            if (dist_is_set(*dist_p, i)) {
+                // Get connection for this storage
+                if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.cid, f->attrs.sids[i])) == NULL)
+                    return -1;
+
+                // Check connection status
+                if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+                    connected++; // This storage seems to be OK
+            }
+        }
     }
 
-    if (connected < rozofs_forward) {
-        // We wait a little time for the thread try to reconnect one storage 
+    // Is it sufficient?
+    if (connected < nb_required) {
+        // Wait a little time for the thread try to reconnect one storage 
         nanosleep(&ts, NULL);
         errno = EIO;
         return -1;
@@ -69,15 +96,29 @@ static int file_connect(file_t * f) {
     return 0;
 }
 
-static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
+/** Reads the data on the storage servers and perform the inverse transform
+ * 
+ * If the distribution is identical for several consecutive blocks then
+ * it sends only one request to each server (request cluster)
+ * 
+ * @param *f: pointer to the file structure 
+ * @param bid: first block address (from the start of the file)
+ * @param nmbs: number of blocks to read
+ * @param *data: pointer where the data will be stored
+ * @param *dist: pointer to distributions of different blocks to read
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t * dist) {
     int status = -1, i, j;
-    dist_t *dist; // Pointer to memory area where the block distribution will be stored
-    dist_t *dist_iterator;
+    dist_t *dist_iterator = NULL;
     uint8_t mp;
     bin_t **bins;
-    projection_t *projections;
-    angle_t *angles;
-    uint16_t *psizes;
+    projection_t *projections = NULL;
+    angle_t *angles = NULL;
+    uint16_t *psizes = NULL;
+    int receive = 0;
+
     DEBUG_FUNCTION;
 
     bins = xcalloc(rozofs_inverse, sizeof (bin_t *));
@@ -85,12 +126,6 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
     angles = xmalloc(rozofs_inverse * sizeof (angle_t));
     psizes = xmalloc(rozofs_inverse * sizeof (uint16_t));
     memset(data, 0, nmbs * ROZOFS_BSIZE);
-    dist = xmalloc(nmbs * sizeof (dist_t));
-
-    if (exportclt_read_block(f->export, f->fid, bid, nmbs, dist) != 0) {
-        severe("exportclt_read_block failed: %s", strerror(errno));
-        goto out;
-    }
 
     /* Until we don't decode all data blocks (nmbs blocks) */
     i = 0; // Nb. of blocks decoded (at begin = 0)
@@ -111,50 +146,62 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
         // I don't know if it 's possible
         if (i + n > nmbs)
             goto out;
-        // Nb. of received requests (at begin=0)
-        int connected = 0;
-        // For each projection
-        PROFILE_STORAGE_START;
-        for (mp = 0; mp < rozofs_forward; mp++) {
-            int mps = 0;
-            int j = 0;
-            bin_t *b;
-            // Find the host for projection mp
-            for (mps = 0; mps < rozofs_safe; mps++) {
-                if (dist_is_set(*dist_iterator, mps) && j == mp) {
-                    break;
-                } else { // Try with the next storage server
-                    j += dist_is_set(*dist_iterator, mps);
+
+        int retry = 0;
+        do {
+            // Nb. of received requests (at begin=0)
+            int connected = 0;
+            // For each projection
+            for (mp = 0; mp < rozofs_forward; mp++) {
+                int mps = 0;
+                int j = 0;
+                bin_t *b;
+                // Find the host for projection mp
+                for (mps = 0; mps < rozofs_safe; mps++) {
+                    if (dist_is_set(*dist_iterator, mps) && j == mp) {
+                        break;
+                    } else { // Try with the next storage server
+                        j += dist_is_set(*dist_iterator, mps);
+                    }
                 }
+
+                if (!f->storages[mps]->rpcclt.client || f->storages[mps]->status != 1)
+                    continue;
+
+                b = xmalloc(n * rozofs_psizes[mp] * sizeof (bin_t));
+
+                if (storageclt_read(f->storages[mps], f->fid, mp, bid + i, n, b) != 0) {
+                    free(b);
+                    continue;
+                }
+                bins[connected] = b;
+                angles[connected].p = rozofs_angles[mp].p;
+                angles[connected].q = rozofs_angles[mp].q;
+                psizes[connected] = rozofs_psizes[mp];
+
+                // Increment the number of received requests
+                if (++connected == rozofs_inverse)
+                    break;
             }
 
-            //if (!f->storages[mps]->rpcclt.client)
-            if (!f->storages[mps]->rpcclt.client || f->storages[mps]->status != 1)
-                continue;
-
-            b = xmalloc(n * rozofs_psizes[mp] * sizeof (bin_t));
-
-            if (storageclt_read(f->storages[mps], f->fid, mp, bid + i, n, b) != 0) {
-                free(b);
-                continue;
-            }
-            bins[connected] = b;
-            angles[connected].p = rozofs_angles[mp].p;
-            angles[connected].q = rozofs_angles[mp].q;
-            psizes[connected] = rozofs_psizes[mp];
-
-            // Increment the number of received requests
-            if (++connected == rozofs_inverse)
+            if (connected == rozofs_inverse) {
+                // All data were received
+                receive = 1;
                 break;
-        }
-        PROFILE_STORAGE_STOP;
+            }
+
+            // If file_check_connections fail
+            // It's not necessary to retry to read on storage servers
+            while (file_check_cnts(f, rozofs_inverse, dist_iterator) != 0 && retry++ < f->export->retries);
+
+        } while (retry++ < f->export->retries);
+
         // Not enough server storage response to retrieve the file
-        if (connected < rozofs_inverse) {
+        if (receive != 1) {
             errno = EIO;
             goto out;
         }
 
-        PROFILE_TRANSFORM_START;
         // Proceed the inverse data transform for the n blocks.
         for (j = 0; j < n; j++) {
             // Fill the table of projections for the block j
@@ -174,7 +221,6 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data) {
                     ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
                     rozofs_inverse, projections);
         }
-        PROFILE_TRANSFORM_INV_STOP;
         // Free the memory area where are stored the bins.
         for (mp = 0; mp < rozofs_inverse; mp++) {
             if (bins[mp])
@@ -202,30 +248,40 @@ out:
         free(angles);
     if (psizes)
         free(psizes);
-    if (dist)
-        free(dist);
+
     return status;
 }
 
-static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
-        const char *data) {
-    int status = -1;
+/** Perform the transform, write the data on storage servers and write
+ *  the distribution on the export server
+ * 
+ * If the distribution is identical for several consecutive blocks then
+ * it sends only one request to each server (request cluster)
+ * 
+ * @param *f: pointer to the file structure 
+ * @param bid: first block address (from the start of the file)
+ * @param nmbs: number of blocks to write
+ * @param *data: pointer where the data are be stored
+ * @param off: offset to write from
+ * @param len: length to write
+ *
+ * @return: the length written on success, -1 otherwise (errno is set)
+ */
+static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nmbs, const char *data, uint64_t off, uint32_t len) {
     projection_t *projections; // Table of projections used to transform data
     bin_t **bins;
-    angle_t *angles;
-    uint16_t *psizes;
     dist_t dist = 0; // Important
     uint16_t mp = 0;
     uint16_t ps = 0;
     uint32_t i = 0;
     int retry = 0;
     int send = 0;
+    int64_t length = -1;
+
     DEBUG_FUNCTION;
 
     projections = xmalloc(rozofs_forward * sizeof (projection_t));
     bins = xcalloc(rozofs_forward, sizeof (bin_t *));
-    angles = xmalloc(rozofs_forward * sizeof (angle_t));
-    psizes = xmalloc(rozofs_forward * sizeof (uint16_t));
 
     // For each projection
     for (mp = 0; mp < rozofs_forward; mp++) {
@@ -235,7 +291,6 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
         projections[mp].size = rozofs_psizes[mp];
     }
 
-    PROFILE_TRANSFORM_START;
     /* Transform the data */
     // For each block to send
     for (i = 0; i < nmbs; i++) {
@@ -250,13 +305,11 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
                 ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
                 rozofs_forward, projections);
     }
-    PROFILE_TRANSFORM_FRWD_STOP;
     do {
         /* Send requests to the storage servers */
         // For each projection server
         mp = 0;
         dist = 0;
-        PROFILE_STORAGE_START;
         for (ps = 0; ps < rozofs_safe; ps++) {
             // Warning: the server can be disconnected
             // but f->storages[ps].rpcclt->client != NULL
@@ -272,15 +325,15 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
             if (++mp == rozofs_forward)
                 break;
         }
-        PROFILE_STORAGE_STOP;
 
         if (mp == rozofs_forward) {
+            // All data were sent to storage servers
             send = 1;
             break;
         }
-        // If file_connect don't return 0
+        // If file_check_connections don't return 0
         // It's not necessary to retry to write on storage servers
-        while (file_connect(f) != 0 && retry++ < f->export->retries);
+        while (file_check_cnts(f, rozofs_forward, NULL) != 0 && retry++ < f->export->retries);
 
     } while (retry++ < f->export->retries);
 
@@ -291,13 +344,13 @@ static int write_blocks(file_t * f, bid_t bid, uint32_t nmbs,
         goto out;
     }
 
-    if (exportclt_write_block(f->export, f->fid, bid, nmbs, dist) != 0) {
+    if ((length = exportclt_write_block(f->export, f->fid, bid, nmbs, dist, off, len)) == -1) {
+        // XXX data has already been written on the storage servers
         severe("exportclt_write_block failed: %s", strerror(errno));
         errno = EIO;
         goto out;
     }
 
-    status = 0;
 out:
     if (bins) {
         for (mp = 0; mp < rozofs_forward; mp++)
@@ -307,113 +360,105 @@ out:
     }
     if (projections)
         free(projections);
-    if (angles)
-        free(angles);
-    if (psizes)
-        free(psizes);
-    return status;
+    return length;
 }
 
-// XXX : in each while (read_blocks(...))
-// it's possible to do the file_connect() indefinitely
-// EXAMPLE : WE HAVE 16 (0->16) STORAGE SERVERS
-// AND I HAVE STORE A FILE IN STORAGE SERVER 0 to 11
-// STORAGE SERVERS 0, 1, 2, 3 ARE OFFLINE BUT
-// STORAGE SERVERS 12, 13, 14, 15 ARE ONLINE
-// THEN CONNECT_FILE() IS GOOD BUT IT'S IMPOSSIBLE TO RETRIEVE THE FILE
-
+/** Reads the distributions on the export server,
+ *  adjust the read buffer to read only whole data blocks 
+ *  and uses the function read_blocks to read data
+ * 
+ * @param *f: pointer to the file structure 
+ * @param off: offset to read from
+ * @param *buf: pointer where the data will be stored
+ * @param len: length to read
+ *
+ * @return: the length read on success, -1 otherwise (errno is set)
+ */
 static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
-    int64_t length;
-    uint64_t first;
-    uint16_t foffset;
-    uint64_t last;
-    uint16_t loffset;
-    int retry = 0;
+    int64_t length = -1;
+    uint64_t first = 0;
+    uint16_t foffset = 0;
+    uint64_t last = 0;
+    uint16_t loffset = 0;
+    dist_t * dist_p = NULL;
+
     DEBUG_FUNCTION;
 
-    if ((length = exportclt_read(f->export, f->fid, off, len)) < 0) {
+    // Sends request to the metadata server
+    // to know the size of the file and block data distributions
+    if ((dist_p = exportclt_read_block(f->export, f->fid, off, len, &length)) == NULL) {
         severe("exportclt_read_block failed: %s", strerror(errno));
         goto out;
     }
 
+    // Nb. of the first block to read
     first = off / ROZOFS_BSIZE;
+    // Offset (in bytes) for the first block
     foffset = off % ROZOFS_BSIZE;
-    last =
-            (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE ==
-            0 ? -1 : 0);
+    // Nb. of the last block to read
+    last = (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE == 0 ? -1 : 0);
+    // Offset (in bytes) for the last block
     loffset = (off + length) - last * ROZOFS_BSIZE;
 
-    // if our read is one block only
-    if (first == last) {
-        char block[ROZOFS_BSIZE];
-        memset(block, 0, ROZOFS_BSIZE);
-        retry = 0;
-        while (read_blocks(f, first, 1, block) != 0 &&
-                retry++ < f->export->retries) {
-            if (file_connect(f) != 0) {
-                length = -1;
-                goto out;
-            }
+    char * buff_p = NULL;
+
+    if (foffset != 0 || loffset != ROZOFS_BSIZE) {
+
+        // Readjust the buffer
+        buff_p = xmalloc(((last - first) + 1) * ROZOFS_BSIZE * sizeof (char));
+
+        // Read blocks
+        if (read_blocks(f, first, (last - first) + 1, buff_p, dist_p) != 0) {
+            length = -1;
+            goto out;
         }
-        memcpy(buf, &block[foffset], length);
+
+        // Copy blocks read into the buffer
+        memcpy(buf, buff_p + foffset, length);
+
+        // Free adjusted buffer
+        free(buff_p);
+
     } else {
-        char *bufp;
-        char block[ROZOFS_BSIZE];
-        memset(block, 0, ROZOFS_BSIZE);
-        bufp = buf;
-        if (foffset != 0) {
-            retry = 0;
-            while (read_blocks(f, first, 1, block) != 0 &&
-                    retry++ < f->export->retries) {
-                if (file_connect(f) != 0) {
-                    length = -1;
-                    goto out;
-                }
-            }
-            memcpy(buf, &block[foffset], ROZOFS_BSIZE - foffset);
-            first++;
-            bufp += ROZOFS_BSIZE - foffset;
-        }
-        if (loffset != ROZOFS_BSIZE) {
-            retry = 0;
-            while (read_blocks(f, last, 1, block) != 0 &&
-                    retry++ < f->export->retries) {
-                if (file_connect(f) != 0) {
-                    length = -1;
-                    goto out;
-                }
-            }
-            memcpy(bufp + ROZOFS_BSIZE * (last - first), block, loffset);
-            last--;
-        }
-        // Read the others
-        if ((last - first) + 1 != 0) {
-            retry = 0;
-            while (read_blocks(f, first, (last - first) + 1, bufp) != 0 &&
-                    retry++ < f->export->retries) {
-                if (file_connect(f) != 0) {
-                    length = -1;
-                    goto out;
-                }
-            }
+        // No need for readjusting the buffer
+        buff_p = buf;
+
+        // Read blocks
+        if (read_blocks(f, first, (last - first) + 1, buff_p, dist_p) != 0) {
+            length = -1;
+            goto out;
         }
     }
 
 out:
+    if (dist_p)
+        free(dist_p);
+
     return length;
 }
 
-static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
-        uint32_t len) {
+/** Send a request to the export server to know the file size
+ *  adjust the write buffer to write only whole data blocks,
+ *  reads blocks if necessary (incomplete blocks)
+ *  and uses the function write_blocks to write data
+ * 
+ * @param *f: pointer to the file structure 
+ * @param off: offset to write from
+ * @param *buf: pointer where the data are be stored
+ * @param len: length to write
+ *
+ * @return: the length written on success, -1 otherwise (errno is set)
+ */
+static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len) {
     int64_t length = -1;
-    uint64_t first;
-    uint16_t foffset;
-    int fread;
-    uint64_t last;
-    uint16_t loffset;
-    int lread;
-    int retry = 0;
+    uint64_t first = 0;
+    uint64_t last = 0;
+    int fread = 0;
+    int lread = 0;
+    uint16_t foffset = 0;
+    uint16_t loffset = 0;
 
+    // Get attr just for get size of file
     if (exportclt_getattr(f->export, f->attrs.fid, &f->attrs) != 0) {
         severe("exportclt_getattr failed: %s", strerror(errno));
         goto out;
@@ -425,112 +470,98 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf,
     // Offset (in bytes) for the first block
     foffset = off % ROZOFS_BSIZE;
     // Nb. of the last block to write
-    last = (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE ==
-            0 ? -1 : 0);
+    last = (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE == 0 ? -1 : 0);
     // Offset (in bytes) for the last block
     loffset = (off + length) - last * ROZOFS_BSIZE;
 
     // Is it neccesary to read the first block ?
     if (first <= (f->attrs.size / ROZOFS_BSIZE) && foffset != 0)
         fread = 1;
-    else
-        fread = 0;
 
     // Is it necesary to read the last block ?
     if (last < (f->attrs.size / ROZOFS_BSIZE) && loffset != ROZOFS_BSIZE)
         lread = 1;
-    else
-        lread = 0;
 
     // If we must write only one block
     if (first == last) {
-        char block[ROZOFS_BSIZE];
-        memset(block, 0, ROZOFS_BSIZE);
 
-        // If it's neccesary to read this block (first == last)
+        // Reading block if necessary
         if (fread == 1 || lread == 1) {
-            retry = 0;
-            while (read_blocks(f, first, 1, block) != 0 &&
-                    retry++ < f->export->retries) {
-                if (file_connect(f) != 0) {
+            char block[ROZOFS_BSIZE];
+            memset(block, 0, ROZOFS_BSIZE);
+
+            if (read_buf(f, first * ROZOFS_BSIZE, block, ROZOFS_BSIZE) == -1) {
+                length = -1;
+                goto out;
+            }
+
+            // Copy data to be written in full block
+            memcpy(&block[foffset], buf, len);
+
+            // Write the full block
+            if (write_blocks(f, first, 1, block, off, len) == -1) {
+                length = -1;
+                goto out;
+            }
+        } else {
+
+            // Write the full block
+            if (write_blocks(f, first, 1, buf, off, len) == -1) {
+                length = -1;
+                goto out;
+            }
+        }
+
+    } else { // If we must write more than one block
+
+        if (fread || lread) {
+
+            // Readjust the buffer
+            char * buff_p = xmalloc(((last - first) + 1) * ROZOFS_BSIZE * sizeof (char));
+
+            // Read the first block if necessary
+            if (fread == 1) {
+                if (read_buf(f, first * ROZOFS_BSIZE, buff_p, ROZOFS_BSIZE) == -1) {
                     length = -1;
                     goto out;
                 }
             }
-        }
-        memcpy(&block[foffset], buf, len);
-        retry = 0;
-        if (write_blocks(f, first, 1, block) != 0) {
-            length = -1;
-            goto out;
-        }
-    } else { // If we must write more than one block
-        const char *bufp;
-        char block[ROZOFS_BSIZE];
 
-        memset(block, 0, ROZOFS_BSIZE);
-        bufp = buf;
-        // Manage the first and last blocks if needed
-        if (foffset != 0) {
-            // If we need to read the first block
-            if (fread == 1) {
-                retry = 0;
-                while (read_blocks(f, first, 1, block) != 0 &&
-                        retry++ < f->export->retries) {
-                    if (file_connect(f) != 0) {
-                        length = -1;
-                        goto out;
-                    }
-                }
-            }
-            memcpy(&block[foffset], buf, ROZOFS_BSIZE - foffset);
-            if (write_blocks(f, first, 1, block) != 0) {
-                length = -1;
-                goto out;
-            }
-            first++;
-            bufp += ROZOFS_BSIZE - foffset;
-        }
-
-        if (loffset != ROZOFS_BSIZE) {
-            // If we need to read the last block
+            // Read the last block if necessary
             if (lread == 1) {
-                retry = 0;
-                while (read_blocks(f, last, 1, block) != 0 &&
-                        retry++ < f->export->retries) {
-                    if (file_connect(f) != 0) {
-                        length = -1;
-                        goto out;
-                    }
+                if (read_buf(f, last * ROZOFS_BSIZE, buff_p + ((last - first) * ROZOFS_BSIZE * sizeof (char)), ROZOFS_BSIZE) == -1) {
+                    length = -1;
+                    goto out;
                 }
             }
-            memcpy(block, bufp + ROZOFS_BSIZE * (last - first), loffset);
-            if (write_blocks(f, last, 1, block) != 0) {
+
+            // Copy data to be written into the buffer
+            memcpy(buff_p + foffset, buf, len);
+
+            // Write complete blocks
+            if (write_blocks(f, first, (last - first) + 1, buff_p, off, len) == -1) {
                 length = -1;
                 goto out;
             }
-            last--;
-        }
-        // Write the other blocks
-        if ((last - first) + 1 != 0) {
-            retry = 0;
-            if (write_blocks(f, first, (last - first) + 1, bufp) != 0) {
+
+            // Free adjusted buffer if necessary
+            free(buff_p);
+
+        } else {
+            // No need for readjusting the buffer
+            // Write complete blocks
+            if (write_blocks(f, first, (last - first) + 1, buf, off, len) == -1) {
                 length = -1;
                 goto out;
             }
         }
     }
 
-    if (exportclt_write(f->export, f->fid, off, len) == -1) {
-        severe("exportclt_write failed: %s", strerror(errno));
-        length = -1;
-        goto out;
-    }
 out:
     return length;
 }
 
-file_t *file_open(exportclt_t * e, fid_t fid, mode_t mode) {
+file_t * file_open(exportclt_t * e, fid_t fid, mode_t mode) {
     file_t *f = 0;
     DEBUG_FUNCTION;
 
@@ -546,14 +577,18 @@ file_t *file_open(exportclt_t * e, fid_t fid, mode_t mode) {
     f->buffer = xmalloc(e->bufsize * sizeof (char));
 
     // Open the file descriptor in the export server
+    /* no need anymore
     if (exportclt_open(e, fid) != 0) {
         severe("exportclt_open failed: %s", strerror(errno));
         goto error;
     }
+     */
 
     f->export = e;
 
-    if (file_connect(f) != 0)
+    // XXX use the mode because if we open the file in read-only,
+    // it is not always necessary to have as many connections
+    if (file_check_cnts(f, rozofs_forward, NULL) != 0)
         goto error;
 
     f->buf_from = 0;
@@ -570,6 +605,7 @@ error:
     }
     f = 0;
 out:
+
     return f;
 }
 
@@ -606,6 +642,7 @@ int64_t file_write(file_t * f, uint64_t off, const char *buf, uint32_t len) {
     }
 
 out:
+
     return len_write;
 }
 
@@ -625,6 +662,7 @@ int file_flush(file_t * f) {
     }
     status = 0;
 out:
+
     return status;
 }
 
@@ -656,12 +694,11 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
     }
 
 out:
+
     return length;
 }
 
 int file_close(exportclt_t * e, file_t * f) {
-    int status = -1;
-    DEBUG_FUNCTION;
 
     if (f) {
         f->buf_from = 0;
@@ -670,17 +707,17 @@ int file_close(exportclt_t * e, file_t * f) {
         f->buf_read_wait = 0;
 
         // Close the file descriptor in the export server
+        /* no need anymore
         if (exportclt_close(e, f->fid) != 0) {
             severe("exportclt_close failed: %s", strerror(errno));
             goto out;
         }
+         */
 
         free(f->storages);
         free(f->buffer);
         free(f);
 
     }
-    status = 0;
-out:
-    return status;
+    return 0;
 }

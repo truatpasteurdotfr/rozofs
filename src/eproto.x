@@ -132,6 +132,7 @@ union ep_statfs_ret_t switch (ep_status_t status) {
 
 struct ep_setattr_arg_t {
     uint32_t    eid;
+    uint32_t    to_set;
     ep_mattr_t  attrs;
 };
 
@@ -225,17 +226,17 @@ struct ep_write_block_arg_t {
     uint64_t    bid;
     uint32_t    nrb;
     uint16_t    dist;
+    uint64_t    offset;
+    uint32_t    length;
 };
 
-struct ep_read_block_arg_t {
-    uint32_t    eid;
-    ep_uuid_t   fid;
-    uint64_t    bid;
-    uint32_t    nrb;
+struct ep_read_t {
+    uint16_t    dist<>;
+    int64_t     length;
 };
 
 union ep_read_block_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    uint16_t    dist<>;
+    case EP_SUCCESS:    ep_read_t    ret;
     case EP_FAILURE:    int         error;
     default:            void;
 };
@@ -283,38 +284,25 @@ program EXPORT_PROGRAM {
         EP_UNLINK(ep_unlink_arg_t)              = 10;
 
         ep_fid_ret_t
-        EP_RMDIR(ep_rmdir_arg_t)                = 11;
+        EP_RMDIR(ep_rmdir_arg_t)                = 12;
 
         ep_mattr_ret_t
-        EP_SYMLINK(ep_symlink_arg_t)            = 12;
+        EP_SYMLINK(ep_symlink_arg_t)            = 13;
 
         ep_fid_ret_t
-        EP_RENAME(ep_rename_arg_t)              = 13;
+        EP_RENAME(ep_rename_arg_t)              = 14;
 
         ep_readdir_ret_t
-        EP_READDIR(ep_readdir_arg_t)            = 14;
-
-        ep_io_ret_t
-        EP_READ(ep_io_arg_t)                    = 15;
+        EP_READDIR(ep_readdir_arg_t)            = 15;
 
         ep_read_block_ret_t
-        EP_READ_BLOCK(ep_read_block_arg_t)      = 16;
+        EP_READ_BLOCK(ep_io_arg_t)              = 16;
 
         ep_io_ret_t
-        EP_WRITE(ep_io_arg_t)                   = 17;
-
-        ep_status_ret_t
-        EP_WRITE_BLOCK(ep_write_block_arg_t)    = 18;
-
-        ep_status_ret_t
-        EP_OPEN(ep_mfile_arg_t)                 = 19;
-
-        ep_status_ret_t
-        EP_CLOSE(ep_mfile_arg_t)                = 20;
+        EP_WRITE_BLOCK(ep_write_block_arg_t)    = 17;
 
         ep_mattr_ret_t
-        EP_LINK(ep_link_arg_t)                  = 21;
+        EP_LINK(ep_link_arg_t)                  = 18;
 
     } = 1;
-} = 0x20000005;
-
+} = 0x20000007;

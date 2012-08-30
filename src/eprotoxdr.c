@@ -348,6 +348,8 @@ xdr_ep_setattr_arg_t (XDR *xdrs, ep_setattr_arg_t *objp)
 
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->to_set))
+		 return FALSE;
 	 if (!xdr_ep_mattr_t (xdrs, &objp->attrs))
 		 return FALSE;
 	return TRUE;
@@ -590,21 +592,22 @@ xdr_ep_write_block_arg_t (XDR *xdrs, ep_write_block_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint16_t (xdrs, &objp->dist))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->offset))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->length))
+		 return FALSE;
 	return TRUE;
 }
 
 bool_t
-xdr_ep_read_block_arg_t (XDR *xdrs, ep_read_block_arg_t *objp)
+xdr_ep_read_t (XDR *xdrs, ep_read_t *objp)
 {
 	//register int32_t *buf;
 
-	 if (!xdr_uint32_t (xdrs, &objp->eid))
+	 if (!xdr_array (xdrs, (char **)&objp->dist.dist_val, (u_int *) &objp->dist.dist_len, ~0,
+		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
 		 return FALSE;
-	 if (!xdr_ep_uuid_t (xdrs, objp->fid))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->bid))
-		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->nrb))
+	 if (!xdr_int64_t (xdrs, &objp->length))
 		 return FALSE;
 	return TRUE;
 }
@@ -618,8 +621,7 @@ xdr_ep_read_block_ret_t (XDR *xdrs, ep_read_block_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case EP_SUCCESS:
-		 if (!xdr_array (xdrs, (char **)&objp->ep_read_block_ret_t_u.dist.dist_val, (u_int *) &objp->ep_read_block_ret_t_u.dist.dist_len, ~0,
-			sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		 if (!xdr_ep_read_t (xdrs, &objp->ep_read_block_ret_t_u.ret))
 			 return FALSE;
 		break;
 	case EP_FAILURE:

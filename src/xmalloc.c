@@ -21,12 +21,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "log.h"
 
-#define check_memory(p) if (p == 0) {\
-	fatal("memory allocation failed -- exiting.");\
-	exit (-1);\
-}
+#include "xmalloc.h"
+#include "log.h"
 
 void *xmalloc(size_t n) {
     void *p = 0;

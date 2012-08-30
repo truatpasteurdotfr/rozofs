@@ -60,6 +60,18 @@ add_executable(exportd
     daemon.c
     volume.h
     volume.c
+    mattr.h
+    mattr.c
+    mreg.h
+    mreg.c
+    mdir.h
+    mdir.c
+    mslnk.h
+    mslnk.c
+    mdirent.h
+    mdirent.c
+    cache.h
+    cache.c
     export.h
     export.c
     eproto.h
@@ -78,7 +90,7 @@ add_executable(exportd
     econfig.c
     exportd.c
 )
-target_link_libraries(exportd ${XATTR_LIBRARY} ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+target_link_libraries(exportd ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 add_executable(rozofsmount
     config.h
@@ -100,8 +112,6 @@ add_executable(rozofsmount
     storageclt.c
     eproto.h
     eprotoxdr.c
-    profile.h
-    profile.c
     eprotoclt.c
     exportclt.c
     file.h

@@ -31,7 +31,6 @@
 #include "xmalloc.h"
 #include "eproto.h"
 #include "exportclt.h"
-#include "profile.h"
 
 int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         const char *passwd, uint32_t bufsize,
@@ -114,7 +113,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
                         ep_cluster.storages[j].host, strerror(errno));
             }
 
-            }
+        }
         // Add to the list
         list_push_back(&clt->mcs, &cluster->list);
     }
@@ -254,7 +253,6 @@ int exportclt_stat(exportclt_t * clt, estat_t * st) {
     int retry = 0;
     DEBUG_FUNCTION;
 
-    PROFILE_EXPORT_START;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_statfs_1(&clt->eid, clt->rpcclt.client)))) {
@@ -265,7 +263,6 @@ int exportclt_stat(exportclt_t * clt, estat_t * st) {
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
 
     if (ret == 0) {
         errno = EPROTO;
@@ -294,7 +291,6 @@ int exportclt_lookup(exportclt_t * clt, fid_t parent, char *name,
     arg.eid = clt->eid;
     memcpy(arg.parent, parent, sizeof (uuid_t));
     arg.name = name;
-    PROFILE_EXPORT_START;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_lookup_1(&arg, clt->rpcclt.client)))) {
@@ -306,7 +302,6 @@ int exportclt_lookup(exportclt_t * clt, fid_t parent, char *name,
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
 
     if (ret == 0) {
         errno = EPROTO;
@@ -333,7 +328,6 @@ int exportclt_getattr(exportclt_t * clt, fid_t fid, mattr_t * attrs) {
 
     arg.eid = clt->eid;
     memcpy(arg.fid, fid, sizeof (uuid_t));
-    PROFILE_EXPORT_START;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_getattr_1(&arg, clt->rpcclt.client)))) {
@@ -345,7 +339,6 @@ int exportclt_getattr(exportclt_t * clt, fid_t fid, mattr_t * attrs) {
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
 
     if (ret == 0) {
         errno = EPROTO;
@@ -363,7 +356,7 @@ out:
     return status;
 }
 
-int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs) {
+int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs, int to_set) {
     int status = -1;
     ep_setattr_arg_t arg;
     ep_mattr_ret_t *ret = 0;
@@ -373,7 +366,7 @@ int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs) {
     arg.eid = clt->eid;
     memcpy(&arg.attrs, attrs, sizeof (mattr_t));
     memcpy(arg.attrs.fid, fid, sizeof (fid_t));
-    PROFILE_EXPORT_START;
+    arg.to_set = to_set;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_setattr_1(&arg, clt->rpcclt.client)))) {
@@ -385,7 +378,6 @@ int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs) {
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
     if (ret == 0) {
         errno = EPROTO;
         goto out;
@@ -726,6 +718,7 @@ out:
     return status;
 }
 
+/*
 int64_t exportclt_read(exportclt_t * clt, fid_t fid, uint64_t off,
         uint32_t len) {
     int64_t lenght = -1;
@@ -738,7 +731,6 @@ int64_t exportclt_read(exportclt_t * clt, fid_t fid, uint64_t off,
     memcpy(arg.fid, fid, sizeof (fid_t));
     arg.offset = off;
     arg.length = len;
-    PROFILE_EXPORT_START;
 
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
@@ -752,7 +744,6 @@ int64_t exportclt_read(exportclt_t * clt, fid_t fid, uint64_t off,
         }
     }
 
-    PROFILE_EXPORT_STOP;
     if (ret == 0) {
         errno = EPROTO;
         goto out;
@@ -767,48 +758,50 @@ out:
         xdr_free((xdrproc_t) xdr_ep_io_ret_t, (char *) ret);
     return lenght;
 }
+ */
 
-int exportclt_read_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
-        dist_t * d) {
-    int status = -1;
-    ep_read_block_arg_t arg;
+dist_t * exportclt_read_block(exportclt_t * clt, fid_t fid, uint64_t off, uint32_t len, int64_t * length) {
+    dist_t * dist = NULL;
+    ep_io_arg_t arg;
     ep_read_block_ret_t *ret = 0;
     int retry = 0;
+
     DEBUG_FUNCTION;
 
     arg.eid = clt->eid;
     memcpy(arg.fid, fid, sizeof (fid_t));
-    arg.bid = bid;
-    arg.nrb = n;
-    PROFILE_EXPORT_START;
-    while ((retry++ < clt->retries) &&
-            (!(clt->rpcclt.client) ||
-            !(ret = ep_read_block_1(&arg, clt->rpcclt.client)))) {
+    arg.offset = off;
+    arg.length = len;
 
-        if (rpcclt_initialize
-                (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
-                ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE) != 0) {
+    while ((retry++ < clt->retries) && (!(clt->rpcclt.client) || !(ret = ep_read_block_1(&arg, clt->rpcclt.client)))) {
+
+        if (rpcclt_initialize(&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE) != 0) {
             rpcclt_release(&clt->rpcclt);
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
+
     if (ret == 0) {
         errno = EPROTO;
         goto out;
     }
+
     if (ret->status == EP_FAILURE) {
         errno = ret->ep_read_block_ret_t_u.error;
         goto out;
     }
-    memcpy(d, ret->ep_read_block_ret_t_u.dist.dist_val, n * sizeof (dist_t));
-    status = 0;
+
+    dist = xmalloc(ret->ep_read_block_ret_t_u.ret.dist.dist_len * sizeof (dist_t));
+    memcpy(dist, ret->ep_read_block_ret_t_u.ret.dist.dist_val, ret->ep_read_block_ret_t_u.ret.dist.dist_len * sizeof (dist_t));
+    *length = ret->ep_read_block_ret_t_u.ret.length;
+
 out:
     if (ret)
         xdr_free((xdrproc_t) xdr_ep_read_block_ret_t, (char *) ret);
-    return status;
+    return dist;
 }
 
+/*
 int64_t exportclt_write(exportclt_t * clt, fid_t fid, uint64_t off,
         uint32_t len) {
     int64_t lenght = -1;
@@ -821,7 +814,6 @@ int64_t exportclt_write(exportclt_t * clt, fid_t fid, uint64_t off,
     memcpy(arg.fid, fid, sizeof (fid_t));
     arg.offset = off;
     arg.length = len;
-    PROFILE_EXPORT_START;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_write_1(&arg, clt->rpcclt.client)))) {
@@ -833,7 +825,6 @@ int64_t exportclt_write(exportclt_t * clt, fid_t fid, uint64_t off,
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
     if (ret == 0) {
         errno = EPROTO;
         goto out;
@@ -848,12 +839,12 @@ out:
         xdr_free((xdrproc_t) xdr_ep_io_ret_t, (char *) ret);
     return lenght;
 }
+ */
 
-int exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
-        dist_t d) {
-    int status = -1;
+int64_t exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n, dist_t d, uint64_t off, uint32_t len) {
+    int64_t length = -1;
     ep_write_block_arg_t arg;
-    ep_status_ret_t *ret = 0;
+    ep_io_ret_t *ret = 0;
     int retry = 0;
     DEBUG_FUNCTION;
 
@@ -861,10 +852,10 @@ int exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
     memcpy(arg.fid, fid, sizeof (fid_t));
     arg.bid = bid;
     arg.nrb = n;
-    //arg.dist.dist_len = n;
-    //arg.dist.dist_val = d;
+    arg.length = len;
+    arg.offset = off;
+
     arg.dist = d;
-    PROFILE_EXPORT_START;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_write_block_1(&arg, clt->rpcclt.client)))) {
@@ -876,20 +867,19 @@ int exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n,
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
     if (ret == 0) {
         errno = EPROTO;
         goto out;
     }
     if (ret->status == EP_FAILURE) {
-        errno = ret->ep_status_ret_t_u.error;
+        errno = ret->ep_io_ret_t_u.error;
         goto out;
     }
-    status = 0;
+    length = ret->ep_io_ret_t_u.length;
 out:
     if (ret)
-        xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
-    return status;
+        xdr_free((xdrproc_t) xdr_ep_io_ret_t, (char *) ret);
+    return length;
 }
 
 int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** children, uint8_t * eof) {
@@ -902,12 +892,11 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** 
     DEBUG_FUNCTION;
 
     //severe("exportclt_readdir");
-    
+
     arg.eid = clt->eid;
     memcpy(arg.fid, fid, sizeof (fid_t));
     arg.cookie = cookie;
 
-    PROFILE_EXPORT_START;
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_readdir_1(&arg, clt->rpcclt.client)))) {
@@ -919,7 +908,6 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** 
             errno = EPROTO;
         }
     }
-    PROFILE_EXPORT_STOP;
     if (ret == 0) {
         errno = EPROTO;
         goto out;
@@ -947,6 +935,7 @@ out:
     return status;
 }
 
+/* not used anymore
 int exportclt_open(exportclt_t * clt, fid_t fid) {
 
     int status = -1;
@@ -1022,3 +1011,4 @@ out:
         xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
     return status;
 }
+ */

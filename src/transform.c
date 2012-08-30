@@ -86,7 +86,7 @@ static inline int min(int a, int b) {
 void transform_inverse(pxl_t * support, int rows, int cols, int np,
                        projection_t * projections) {
     int s_minus, s_plus, s, i, rdv, k, l;
-    double tmp;
+    //double tmp;
     int *k_offsets, *offsets;
 
     k_offsets = xcalloc(np, sizeof (int));
@@ -108,21 +108,10 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
     s = s_minus - s_plus;
 
     // compute the rendez-vous row rdv
-    tmp = pow(((double) projections[0].angle.p - 0.5 * (double) s), 2);
+    //tmp = pow(((double) projections[0].angle.p - 0.5 * (double) s), 2);
     rdv = 0;
     // XXX
     rdv = rows - 1;
-    /*
-       for (i = 0; i < rows; i++) {
-       double tmpi =
-       pow(((double) projections[i].angle.p - 0.5 * (double) s), 2);
-       //XXX
-       if (tmpi = tmp) {
-       tmp = tmpi;
-       rdv = i;
-       }
-       }
-     */
 
     // Determine the initial image column offset for each projection
     k_offsets[rdv] =
@@ -196,7 +185,7 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
         }
     }
 
-    // finished the work
+    // finish the work
     for (k = cols - max(k_offsets[0], k_offsets[rows - 1]); k < cols; k++) {
         for (l = 0; l < rdv; l++) {
             if (k + k_offsets[l] < cols) {

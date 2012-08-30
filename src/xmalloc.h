@@ -21,6 +21,11 @@
 #define _XMALLOC_H
 
 #include <stdlib.h>
+#include "log.h"
+
+#define check_memory(p) if (p == 0) {\
+    fatal("null pointer detected -- exiting.");\
+}
 
 void *xmalloc(size_t n);
 

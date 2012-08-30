@@ -4,7 +4,7 @@
  */
 
 #include <memory.h> /* for memset */
-#include "eproto.h"
+#include "../src/eproto.h"
 #include "rozofs.h"
 
 /* Default timeout can be changed using clnt_control() */
@@ -235,29 +235,14 @@ ep_readdir_1(ep_readdir_arg_t *argp, CLIENT *clnt)
 	return (&clnt_res);
 }
 
-ep_io_ret_t *
-ep_read_1(ep_io_arg_t *argp, CLIENT *clnt)
-{
-	static ep_io_ret_t clnt_res;
-
-	memset((char *)&clnt_res, 0, sizeof(clnt_res));
-	if (clnt_call (clnt, EP_READ,
-		(xdrproc_t) xdr_ep_io_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_io_ret_t, (caddr_t) &clnt_res,
-		TIMEOUT) != RPC_SUCCESS) {
-		return (NULL);
-	}
-	return (&clnt_res);
-}
-
 ep_read_block_ret_t *
-ep_read_block_1(ep_read_block_arg_t *argp, CLIENT *clnt)
+ep_read_block_1(ep_io_arg_t *argp, CLIENT *clnt)
 {
 	static ep_read_block_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_READ_BLOCK,
-		(xdrproc_t) xdr_ep_read_block_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_ep_io_arg_t, (caddr_t) argp,
 		(xdrproc_t) xdr_ep_read_block_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
@@ -266,59 +251,14 @@ ep_read_block_1(ep_read_block_arg_t *argp, CLIENT *clnt)
 }
 
 ep_io_ret_t *
-ep_write_1(ep_io_arg_t *argp, CLIENT *clnt)
+ep_write_block_1(ep_write_block_arg_t *argp, CLIENT *clnt)
 {
 	static ep_io_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
-	if (clnt_call (clnt, EP_WRITE,
-		(xdrproc_t) xdr_ep_io_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_io_ret_t, (caddr_t) &clnt_res,
-		TIMEOUT) != RPC_SUCCESS) {
-		return (NULL);
-	}
-	return (&clnt_res);
-}
-
-ep_status_ret_t *
-ep_write_block_1(ep_write_block_arg_t *argp, CLIENT *clnt)
-{
-	static ep_status_ret_t clnt_res;
-
-	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_WRITE_BLOCK,
 		(xdrproc_t) xdr_ep_write_block_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
-		TIMEOUT) != RPC_SUCCESS) {
-		return (NULL);
-	}
-	return (&clnt_res);
-}
-
-ep_status_ret_t *
-ep_open_1(ep_mfile_arg_t *argp, CLIENT *clnt)
-{
-	static ep_status_ret_t clnt_res;
-
-	memset((char *)&clnt_res, 0, sizeof(clnt_res));
-	if (clnt_call (clnt, EP_OPEN,
-		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
-		TIMEOUT) != RPC_SUCCESS) {
-		return (NULL);
-	}
-	return (&clnt_res);
-}
-
-ep_status_ret_t *
-ep_close_1(ep_mfile_arg_t *argp, CLIENT *clnt)
-{
-	static ep_status_ret_t clnt_res;
-
-	memset((char *)&clnt_res, 0, sizeof(clnt_res));
-	if (clnt_call (clnt, EP_CLOSE,
-		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_ep_io_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}

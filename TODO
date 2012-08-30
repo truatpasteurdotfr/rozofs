@@ -1,2 +1,1 @@
-remove PROFILING
-replace strcpy by sprintf
+See https://github.com/rozofs/rozofs/issues

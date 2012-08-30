@@ -48,7 +48,7 @@ static const int priorities[] = {
 #define info(...) log(EINFO, __VA_ARGS__)
 #define warning(...) log(EWARNING, __VA_ARGS__)
 #define severe(...) log(ESEVERE, __VA_ARGS__)
-#define fatal(...) log(EFATAL, __VA_ARGS__)
+#define fatal(...) {log(EFATAL, __VA_ARGS__); abort();}
 
 #ifndef NDEBUG
 #define DEBUG(...) log(EDEBUG, __VA_ARGS__)

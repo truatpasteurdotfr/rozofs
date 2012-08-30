@@ -1,0 +1,53 @@
+set title "Meta data performances (Average Ops/sec)"
+set key autotitle columnhead
+set autoscale x
+set log y
+set grid
+set xtics
+set xlabel "Force factor"
+set ylabel "Ops/sec (log scale)"
+set key under
+plot \
+'fileop_gen_out' using 1:2 w lp, \
+'fileop_gen_out' using 1:3 w lp, \
+'fileop_gen_out' using 1:4 w lp, \
+'fileop_gen_out' using 1:5 w lp, \
+'fileop_gen_out' using 1:6 w lp, \
+'fileop_gen_out' using 1:7 w lp, \
+'fileop_gen_out' using 1:8 w lp, \
+'fileop_gen_out' using 1:9 w lp, \
+'fileop_gen_out' using 1:10 w lp, \
+'fileop_gen_out' using 1:11 w lp, \
+'fileop_gen_out' using 1:12 w lp, \
+'fileop_gen_out' using 1:13 w lp, \
+'fileop_gen_out' using 1:14 w lp, \
+'fileop_gen_out' using 1:15 w lp, \
+'fileop_gen_out' using 1:16 w lp
+pause -1 "Hit return to continue"
+set terminal postscript color
+set output "fileop.ps"
+set title "Meta data performances (Average Ops/sec)"
+set key autotitle columnhead
+set autoscale x
+set log y
+set grid
+set xtics
+set xlabel "Force factor"
+set ylabel "Ops/sec (log scale)"
+set key under
+plot \
+'fileop_gen_out' using 1:2 w lp, \
+'fileop_gen_out' using 1:3 w lp, \
+'fileop_gen_out' using 1:4 w lp, \
+'fileop_gen_out' using 1:5 w lp, \
+'fileop_gen_out' using 1:6 w lp, \
+'fileop_gen_out' using 1:7 w lp, \
+'fileop_gen_out' using 1:8 w lp, \
+'fileop_gen_out' using 1:9 w lp, \
+'fileop_gen_out' using 1:10 w lp, \
+'fileop_gen_out' using 1:11 w lp, \
+'fileop_gen_out' using 1:12 w lp, \
+'fileop_gen_out' using 1:13 w lp, \
+'fileop_gen_out' using 1:14 w lp, \
+'fileop_gen_out' using 1:15 w lp, \
+'fileop_gen_out' using 1:16 w lp

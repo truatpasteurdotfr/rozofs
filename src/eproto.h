@@ -154,6 +154,7 @@ typedef struct ep_statfs_ret_t ep_statfs_ret_t;
 
 struct ep_setattr_arg_t {
 	uint32_t eid;
+	uint32_t to_set;
 	ep_mattr_t attrs;
 };
 typedef struct ep_setattr_arg_t ep_setattr_arg_t;
@@ -266,24 +267,24 @@ struct ep_write_block_arg_t {
 	uint64_t bid;
 	uint32_t nrb;
 	uint16_t dist;
+	uint64_t offset;
+	uint32_t length;
 };
 typedef struct ep_write_block_arg_t ep_write_block_arg_t;
 
-struct ep_read_block_arg_t {
-	uint32_t eid;
-	ep_uuid_t fid;
-	uint64_t bid;
-	uint32_t nrb;
+struct ep_read_t {
+	struct {
+		u_int dist_len;
+		uint16_t *dist_val;
+	} dist;
+	int64_t length;
 };
-typedef struct ep_read_block_arg_t ep_read_block_arg_t;
+typedef struct ep_read_t ep_read_t;
 
 struct ep_read_block_ret_t {
 	ep_status_t status;
 	union {
-		struct {
-			u_int dist_len;
-			uint16_t *dist_val;
-		} dist;
+		ep_read_t ret;
 		int error;
 	} ep_read_block_ret_t_u;
 };
@@ -298,7 +299,7 @@ struct ep_io_ret_t {
 };
 typedef struct ep_io_ret_t ep_io_ret_t;
 
-#define EXPORT_PROGRAM 0x20000005
+#define EXPORT_PROGRAM 0x20000007
 #define EXPORT_VERSION 1
 
 #if defined(__STDC__) || defined(__cplusplus)
@@ -335,37 +336,25 @@ extern  ep_mattr_ret_t * ep_mkdir_1_svc(ep_mkdir_arg_t *, struct svc_req *);
 #define EP_UNLINK 10
 extern  ep_fid_ret_t * ep_unlink_1(ep_unlink_arg_t *, CLIENT *);
 extern  ep_fid_ret_t * ep_unlink_1_svc(ep_unlink_arg_t *, struct svc_req *);
-#define EP_RMDIR 11
+#define EP_RMDIR 12
 extern  ep_fid_ret_t * ep_rmdir_1(ep_rmdir_arg_t *, CLIENT *);
 extern  ep_fid_ret_t * ep_rmdir_1_svc(ep_rmdir_arg_t *, struct svc_req *);
-#define EP_SYMLINK 12
+#define EP_SYMLINK 13
 extern  ep_mattr_ret_t * ep_symlink_1(ep_symlink_arg_t *, CLIENT *);
 extern  ep_mattr_ret_t * ep_symlink_1_svc(ep_symlink_arg_t *, struct svc_req *);
-#define EP_RENAME 13
+#define EP_RENAME 14
 extern  ep_fid_ret_t * ep_rename_1(ep_rename_arg_t *, CLIENT *);
 extern  ep_fid_ret_t * ep_rename_1_svc(ep_rename_arg_t *, struct svc_req *);
-#define EP_READDIR 14
+#define EP_READDIR 15
 extern  ep_readdir_ret_t * ep_readdir_1(ep_readdir_arg_t *, CLIENT *);
 extern  ep_readdir_ret_t * ep_readdir_1_svc(ep_readdir_arg_t *, struct svc_req *);
-#define EP_READ 15
-extern  ep_io_ret_t * ep_read_1(ep_io_arg_t *, CLIENT *);
-extern  ep_io_ret_t * ep_read_1_svc(ep_io_arg_t *, struct svc_req *);
 #define EP_READ_BLOCK 16
-extern  ep_read_block_ret_t * ep_read_block_1(ep_read_block_arg_t *, CLIENT *);
-extern  ep_read_block_ret_t * ep_read_block_1_svc(ep_read_block_arg_t *, struct svc_req *);
-#define EP_WRITE 17
-extern  ep_io_ret_t * ep_write_1(ep_io_arg_t *, CLIENT *);
-extern  ep_io_ret_t * ep_write_1_svc(ep_io_arg_t *, struct svc_req *);
-#define EP_WRITE_BLOCK 18
-extern  ep_status_ret_t * ep_write_block_1(ep_write_block_arg_t *, CLIENT *);
-extern  ep_status_ret_t * ep_write_block_1_svc(ep_write_block_arg_t *, struct svc_req *);
-#define EP_OPEN 19
-extern  ep_status_ret_t * ep_open_1(ep_mfile_arg_t *, CLIENT *);
-extern  ep_status_ret_t * ep_open_1_svc(ep_mfile_arg_t *, struct svc_req *);
-#define EP_CLOSE 20
-extern  ep_status_ret_t * ep_close_1(ep_mfile_arg_t *, CLIENT *);
-extern  ep_status_ret_t * ep_close_1_svc(ep_mfile_arg_t *, struct svc_req *);
-#define EP_LINK 21
+extern  ep_read_block_ret_t * ep_read_block_1(ep_io_arg_t *, CLIENT *);
+extern  ep_read_block_ret_t * ep_read_block_1_svc(ep_io_arg_t *, struct svc_req *);
+#define EP_WRITE_BLOCK 17
+extern  ep_io_ret_t * ep_write_block_1(ep_write_block_arg_t *, CLIENT *);
+extern  ep_io_ret_t * ep_write_block_1_svc(ep_write_block_arg_t *, struct svc_req *);
+#define EP_LINK 18
 extern  ep_mattr_ret_t * ep_link_1(ep_link_arg_t *, CLIENT *);
 extern  ep_mattr_ret_t * ep_link_1_svc(ep_link_arg_t *, struct svc_req *);
 extern int export_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
@@ -404,37 +393,25 @@ extern  ep_mattr_ret_t * ep_mkdir_1_svc();
 #define EP_UNLINK 10
 extern  ep_fid_ret_t * ep_unlink_1();
 extern  ep_fid_ret_t * ep_unlink_1_svc();
-#define EP_RMDIR 11
+#define EP_RMDIR 12
 extern  ep_fid_ret_t * ep_rmdir_1();
 extern  ep_fid_ret_t * ep_rmdir_1_svc();
-#define EP_SYMLINK 12
+#define EP_SYMLINK 13
 extern  ep_mattr_ret_t * ep_symlink_1();
 extern  ep_mattr_ret_t * ep_symlink_1_svc();
-#define EP_RENAME 13
+#define EP_RENAME 14
 extern  ep_fid_ret_t * ep_rename_1();
 extern  ep_fid_ret_t * ep_rename_1_svc();
-#define EP_READDIR 14
+#define EP_READDIR 15
 extern  ep_readdir_ret_t * ep_readdir_1();
 extern  ep_readdir_ret_t * ep_readdir_1_svc();
-#define EP_READ 15
-extern  ep_io_ret_t * ep_read_1();
-extern  ep_io_ret_t * ep_read_1_svc();
 #define EP_READ_BLOCK 16
 extern  ep_read_block_ret_t * ep_read_block_1();
 extern  ep_read_block_ret_t * ep_read_block_1_svc();
-#define EP_WRITE 17
-extern  ep_io_ret_t * ep_write_1();
-extern  ep_io_ret_t * ep_write_1_svc();
-#define EP_WRITE_BLOCK 18
-extern  ep_status_ret_t * ep_write_block_1();
-extern  ep_status_ret_t * ep_write_block_1_svc();
-#define EP_OPEN 19
-extern  ep_status_ret_t * ep_open_1();
-extern  ep_status_ret_t * ep_open_1_svc();
-#define EP_CLOSE 20
-extern  ep_status_ret_t * ep_close_1();
-extern  ep_status_ret_t * ep_close_1_svc();
-#define EP_LINK 21
+#define EP_WRITE_BLOCK 17
+extern  ep_io_ret_t * ep_write_block_1();
+extern  ep_io_ret_t * ep_write_block_1_svc();
+#define EP_LINK 18
 extern  ep_mattr_ret_t * ep_link_1();
 extern  ep_mattr_ret_t * ep_link_1_svc();
 extern int export_program_1_freeresult ();
@@ -479,7 +456,7 @@ extern  bool_t xdr_ep_readdir_ret_t (XDR *, ep_readdir_ret_t*);
 extern  bool_t xdr_ep_rename_arg_t (XDR *, ep_rename_arg_t*);
 extern  bool_t xdr_ep_io_arg_t (XDR *, ep_io_arg_t*);
 extern  bool_t xdr_ep_write_block_arg_t (XDR *, ep_write_block_arg_t*);
-extern  bool_t xdr_ep_read_block_arg_t (XDR *, ep_read_block_arg_t*);
+extern  bool_t xdr_ep_read_t (XDR *, ep_read_t*);
 extern  bool_t xdr_ep_read_block_ret_t (XDR *, ep_read_block_ret_t*);
 extern  bool_t xdr_ep_io_ret_t (XDR *, ep_io_ret_t*);
 
@@ -520,7 +497,7 @@ extern bool_t xdr_ep_readdir_ret_t ();
 extern bool_t xdr_ep_rename_arg_t ();
 extern bool_t xdr_ep_io_arg_t ();
 extern bool_t xdr_ep_write_block_arg_t ();
-extern bool_t xdr_ep_read_block_arg_t ();
+extern bool_t xdr_ep_read_t ();
 extern bool_t xdr_ep_read_block_ret_t ();
 extern bool_t xdr_ep_io_ret_t ();
 

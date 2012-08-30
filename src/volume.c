@@ -117,12 +117,81 @@ void volume_release(volume_t *volume) {
     }
 }
 
+int volume_safe_copy(volume_t *to, volume_t *from) {
+    list_t *p, *q;
+
+    if ((errno = pthread_rwlock_rdlock(&from->lock)) != 0) {
+        severe("can't lock volume: %d", from->vid);
+        goto error;
+    }
+
+    if ((errno = pthread_rwlock_wrlock(&to->lock)) != 0) {
+        severe("can't lock volume: %d", to->vid);
+        goto error;
+    }
+
+    list_for_each_forward_safe(p, q, &to->clusters) {
+        cluster_t *entry = list_entry(p, cluster_t, list);
+        list_remove(p);
+        cluster_release(entry);
+        free(entry);
+    }
+
+    to->vid = from->vid;
+    list_for_each_forward(p, &from->clusters) {
+        cluster_t *to_cluster = xmalloc(sizeof(cluster_t));
+        cluster_t *from_cluster = list_entry(p, cluster_t, list);
+        cluster_initialize(to_cluster, from_cluster->cid, from_cluster->size,
+                from_cluster->free);
+        list_for_each_forward(q, &from_cluster->storages) {
+            volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
+            volume_storage_t *to_storage = xmalloc(sizeof(volume_storage_t));
+            volume_storage_initialize(to_storage, from_storage->sid, from_storage->host);
+            to_storage->stat = from_storage->stat;
+            to_storage->status = from_storage->status;
+            list_push_front(&to_cluster->storages, &to_storage->list);
+        }
+        list_push_front(&to->clusters, &to_cluster->list);
+    }
+
+    if ((errno = pthread_rwlock_unlock(&from->lock)) != 0) {
+        severe("can't unlock volume: %d", from->vid);
+        goto error;
+    }
+
+    if ((errno = pthread_rwlock_unlock(&to->lock)) != 0) {
+        severe("can't unlock volume: %d", to->vid);
+        goto error;
+    }
+
+    return 0;
+error:
+    // Best effort to release locks
+    pthread_rwlock_unlock(&from->lock);
+    pthread_rwlock_unlock(&to->lock);
+    return -1;
+
+}
+
 void volume_balance(volume_t *volume) {
     list_t *p, *q;
+    volume_t clone;
     DEBUG_FUNCTION;
 
-    // Try to join each storage server & stat it
-    list_for_each_forward(p, &volume->clusters) {
+    // create a working copy
+    if (volume_initialize(&clone, 0) != 0) {
+        severe("can't initialize clone volume: %d", volume->vid);
+        return;
+    }
+
+    if (volume_safe_copy(&clone, volume) != 0) {
+        severe("can't clone volume: %d", volume->vid);
+        return;
+    }
+
+    // work on the clone
+    // try to join each storage server & stat it
+    list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 
         cluster->free = 0;
@@ -153,22 +222,22 @@ void volume_balance(volume_t *volume) {
         }
     }
 
-    // sort the volume
-    if ((errno = pthread_rwlock_trywrlock(&volume->lock)) != 0) {
-        severe("can't lock volume: %d", volume->vid);
-        return;
-    }
-    list_for_each_forward(p, &volume->clusters) {
+    // sort the clone
+    // no need to lock the volume since it's a local only volume
+    list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
         list_sort(&cluster->storages, volume_storage_compare);
     }
-    list_sort(&volume->clusters, cluster_compare_capacity);
-    if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
-        severe("can't unlock volume: %d, %d, %s", volume->vid, errno, strerror(errno));
+    list_sort(&clone.clusters, cluster_compare_capacity);
+
+    // move the result back to our volume
+    if (volume_safe_copy(volume, &clone) != 0) {
+        severe("can't clone volume: %d", volume->vid);
+        return;
     }
 }
 
-//XXX lock ?
+/*
 char *lookup_volume_storage(volume_t *volume, sid_t sid, char *host) {
     list_t *p, *q;
     DEBUG_FUNCTION;
@@ -194,6 +263,7 @@ char *lookup_volume_storage(volume_t *volume, sid_t sid, char *host) {
 out:
     return host;
 }
+*/
 
 // what if a cluster is < rozofs safe
 static int cluster_distribute(cluster_t *cluster, uint16_t *sids) {
@@ -224,7 +294,7 @@ int volume_distribute(volume_t *volume, uint16_t *cid, uint16_t *sids) {
     DEBUG_FUNCTION;
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
-        warning("VOLUME_DISTRIBUTE can't lock volume %d.", volume->vid);
+        warning("can't lock volume %d.", volume->vid);
         goto out;
     }
     errno = ENOSPC;
@@ -244,7 +314,6 @@ out:
     return errno == 0 ? 0 : -1;
 }
 
-// XXX : locks ?
 void volume_stat(volume_t *volume, volume_stat_t *stat) {
     list_t *p;
     DEBUG_FUNCTION;

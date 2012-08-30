@@ -21,8 +21,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "0")
-set(MINOR "8")
-set(REVISION "11")
+set(MINOR "9")
+set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -35,6 +35,7 @@ find_package(CONFIG REQUIRED)
 find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
+find_package(Doxygen QUIET)
 find_program(DEBUILD NAMES debuild)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
@@ -81,7 +82,8 @@ set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOS
 set(ROZOFS_SOURCE_PACKAGE_FILE_NAME "rozofs-${VERSION}")
 
 configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/package.in" "${PROJECT_BINARY_DIR}/package.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/ubuntu.in" "${PROJECT_BINARY_DIR}/ubuntu.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/src/config.h")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/export.conf.in" "${PROJECT_BINARY_DIR}/src/export.conf.sample")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/storage.conf.in" "${PROJECT_BINARY_DIR}/src/storage.conf.sample")
@@ -91,6 +93,7 @@ configure_file("${PROJECT_SOURCE_DIR}/doc/storaged.8" "${PROJECT_BINARY_DIR}/doc
 configure_file("${PROJECT_SOURCE_DIR}/doc/storage.conf.5" "${PROJECT_BINARY_DIR}/doc/storage.conf.5")
 configure_file("${PROJECT_SOURCE_DIR}/doc/exportd.8" "${PROJECT_BINARY_DIR}/doc/exportd.8")
 configure_file("${PROJECT_SOURCE_DIR}/doc/export.conf.5" "${PROJECT_BINARY_DIR}/doc/export.conf.5")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)
 
 #
 # Build settings
@@ -105,20 +108,17 @@ set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
 
-#Profile build type allows to keep track of the time spent for each action of rozofsmount (e.g export exchanges, storage exchanges, transform)
-#The stat can be viewed in the syslogs when rozofsmount has been stopped.
-set(CMAKE_CXX_FLAGS_PROFILE "-DPROFILE -DNDEBUG")
-set(CMAKE_C_FLAGS_PROFILE "-DPROFILE -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DBGPROFILE "-DPROFILE")
-set(CMAKE_C_FLAGS_DBGPROFILE "-DPROFILE")
-
+#
+# uninstall target
+#
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake")
-add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/package.cmake")
+add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/debian.cmake")
+add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/ubuntu.cmake")
+
 
 #
 # Packing
 #
-
 include(InstallRequiredSystemLibraries)
 
 # Binaries
@@ -143,5 +143,5 @@ set(CPACK_COMPONENT_HEADERS_DESCRIPTION "storaged")
 # Sources
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${ROZOFS_SOURCE_PACKAGE_FILE_NAME}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
-set(CPACK_SOURCE_IGNORE_FILES "test_fuse.sh$;exportd$;/config.h$;rozofsmount$;sample$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git")
+set(CPACK_SOURCE_IGNORE_FILES "exportd$;/config.h$;rozofsmount$;sample$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;ubuntu.cmake;debian.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git;/\\\\.project;/\\\\.cproject")
 include(CPack)

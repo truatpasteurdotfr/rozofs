@@ -108,3 +108,48 @@ add_executable(test_econfig
     test_econfig.c
 )
 target_link_libraries(test_econfig ${CONFIG_LIBRARY})
+
+add_executable(test_mdirent
+    ../src/xmalloc.h
+    ../src/xmalloc.c
+    ../src/mdirent.h
+    ../src/mdirent.c
+    test_mdirent.c
+)
+target_link_libraries(test_mdirent ${UUID_LIBRARY})
+
+add_executable(test_export
+    ../src/xmalloc.h
+    ../src/xmalloc.c
+    ../src/htable.h
+    ../src/htable.c
+    ../src/list.h
+    ../src/rozofs.h
+    ../src/rozofs.c
+    ../src/rpcclt.h
+    ../src/rpcclt.c
+    ../src/sproto.h
+    ../src/sprotoxdr.c
+    ../src/sprotoclt.c
+    ../src/storageclt.c
+    ../src/volume.h
+    ../src/volume.c
+    ../src/volume.h
+    ../src/volume.c
+    ../src/mattr.h
+    ../src/mattr.c
+    ../src/cache.h
+    ../src/cache.c
+    ../src/mreg.h
+    ../src/mreg.c
+    ../src/mdir.h
+    ../src/mslnk.c
+    ../src/mslnk.h
+    ../src/mdir.c
+    ../src/mdirent.h
+    ../src/mdirent.c
+    ../src/export.h
+    ../src/export.c
+    test_export.c
+)
+target_link_libraries(test_export ${UUID_LIBRARY} ${PTHREAD_LIBRARY})

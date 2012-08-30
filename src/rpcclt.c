@@ -23,12 +23,13 @@
 #include <string.h>
 #include <rpc/pmap_clnt.h>
 #include <unistd.h>
+#include "rozofs.h"
 #include "log.h"
 #include "rpcclt.h"
 
 int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
-                      unsigned long vers, unsigned int sendsz,
-                      unsigned int recvsz) {
+        unsigned long vers, unsigned int sendsz,
+        unsigned int recvsz) {
     int status = -1;
     struct sockaddr_in server;
     struct hostent *hp;
@@ -42,7 +43,7 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
 
     if ((hp = gethostbyname(host)) == 0) {
         severe("gethostbyname failed for host : %s, %s", host,
-               strerror(errno));
+                strerror(errno));
         goto out;
     }
     bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
@@ -58,54 +59,76 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
     // Allows other sockets to bind() to this port, unless there is an active
     // listening socket bound to the port already.
     if (setsockopt
-        (client->sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one,
-         sizeof (int)) < 0) {
+            (client->sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one,
+            sizeof (int)) < 0) {
         goto out;
     }
     // Set a timeout value for output operations
+
     struct timeval timeo;
-    timeo.tv_sec = 2;
     timeo.tv_usec = 0;
+    switch (prog) {
+        case EXPORT_PROGRAM_CHECK:
+            timeo.tv_sec = ROZOFS_EXPORT_TIMEOUT_SEC;
+            break;
+        case STORAGE_PROGRAM_CHECK:
+            timeo.tv_sec = ROZOFS_STORAGE_TIMEOUT_SEC;
+            break;
+        default:
+            fatal("Check version of program failed");
+            goto out;
+    }
+
     if (setsockopt
-        (client->sock, SOL_SOCKET, SO_SNDTIMEO, (char *) &timeo,
-         sizeof (timeo)) < 0) {
+            (client->sock, SOL_SOCKET, SO_SNDTIMEO, (char *) &timeo,
+            sizeof (timeo)) < 0) {
         goto out;
     }
     // This option specifies what should happen when the socket
     // of a type that promises reliable delivery still has untransmitted
     // messages when it is closed
     struct linger linger;
-    linger.l_onoff = 1;         //0 = off (l_linger ignored), nonzero = on
-    linger.l_linger = 0;        //0 = discard data, nonzero = wait for data sent
+    linger.l_onoff = 1; //0 = off (l_linger ignored), nonzero = on
+    linger.l_linger = 0; //0 = discard data, nonzero = wait for data sent
     if (setsockopt
-        (client->sock, SOL_SOCKET, SO_LINGER, &linger, sizeof (linger)) < 0) {
+            (client->sock, SOL_SOCKET, SO_LINGER, &linger, sizeof (linger)) < 0) {
         goto out;
     }
     // If set, disable the Nagle algorithm. This means that segments are always
     // sent as soon as possible, even if there is only a small amount of data.
     if (setsockopt
-        (client->sock, SOL_TCP, TCP_NODELAY, (char *) &one,
-         sizeof (int)) < 0) {
+            (client->sock, SOL_TCP, TCP_NODELAY, (char *) &one,
+            sizeof (int)) < 0) {
         goto out;
     }
 
     if ((client->sock < 0) ||
-        (connect(client->sock, (struct sockaddr *) &server, sizeof (server)) <
-         0)) {
+            (connect(client->sock, (struct sockaddr *) &server, sizeof (server)) <
+            0)) {
         status = -1;
         goto out;
     }
 
     if ((client->client =
-         clnttcp_create(&server, prog, vers, &client->sock, sendsz,
-                        recvsz)) == NULL) {
+            clnttcp_create(&server, prog, vers, &client->sock, sendsz,
+            recvsz)) == NULL) {
         errno = EPROTO;
         goto out;
     }
     // Set TIMEOUT for this connection
     struct timeval timeout_set;
-    timeout_set.tv_sec = 2;
     timeout_set.tv_usec = 0;
+    switch (prog) {
+        case EXPORT_PROGRAM_CHECK:
+            timeout_set.tv_sec = ROZOFS_EXPORT_TIMEOUT_SEC;
+            break;
+        case STORAGE_PROGRAM_CHECK:
+            timeout_set.tv_sec = ROZOFS_STORAGE_TIMEOUT_SEC;
+            break;
+        default:
+            fatal("Check version of program failed");
+            goto out;
+    }
     clnt_control(client->client, CLSET_TIMEOUT, (char *) &timeout_set);
 
     status = 0;

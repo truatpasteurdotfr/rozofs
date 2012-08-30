@@ -220,7 +220,7 @@ stop_storaged ()
     if [ "$PID" != "" ]
     then
         echo "Stop ${STORAGE_DAEMON} (PID: ${PID})"
-        kill -9 $PID
+        kill $PID
     else
         echo "Unable to stop ${STORAGE_DAEMON} (not running)"
     fi
@@ -357,7 +357,7 @@ stop_exportd ()
     if [ "$PID" != "" ]
     then
         echo "Stop ${EXPORT_DAEMON} (PID: ${PID})"
-        kill -9 $PID
+        kill $PID
     else
         echo "Unable to stop ${EXPORT_DAEMON} (not running)"
     fi
