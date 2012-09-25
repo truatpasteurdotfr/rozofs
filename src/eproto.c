@@ -367,11 +367,12 @@ ep_readdir_ret_t *ep_readdir_1_svc(ep_readdir_arg_t * arg,
 
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
-    if (export_readdir
-            (exp, arg->fid, arg->cookie,
-            (child_t **) & ret.ep_readdir_ret_t_u.reply.children,
-            (uint8_t *) & ret.ep_readdir_ret_t_u.reply.eof) != 0)
+
+    if (export_readdir(exp, arg->fid, &arg->cookie, (child_t **) & ret.ep_readdir_ret_t_u.reply.children, (uint8_t *) & ret.ep_readdir_ret_t_u.reply.eof) != 0)
         goto error;
+
+    ret.ep_readdir_ret_t_u.reply.cookie = arg->cookie;
+
     ret.status = EP_SUCCESS;
     goto out;
 error:

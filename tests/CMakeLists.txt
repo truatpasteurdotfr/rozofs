@@ -109,14 +109,29 @@ add_executable(test_econfig
 )
 target_link_libraries(test_econfig ${CONFIG_LIBRARY})
 
-add_executable(test_mdirent
+add_executable(test_mdirent_vers2
     ../src/xmalloc.h
     ../src/xmalloc.c
-    ../src/mdirent.h
-    ../src/mdirent.c
-    test_mdirent.c
+    ../src/dirent_journal.h
+    ../src/mdirent_vers2.h
+    ../src/dirent_file_repair.c
+    ../src/writeback_cache.c
+    ../src/dirent_file.c
+    ../src/dirent_cache.c
+    ../src/dirent_search.c
+    ../src/dirent_insert.c
+    test_mdirent_vers2.c
 )
-target_link_libraries(test_mdirent ${UUID_LIBRARY})
+target_link_libraries(test_mdirent_vers2 ${UUID_LIBRARY})
+
+add_executable(test_mdirent_vers1
+    ../src/xmalloc.h
+    ../src/xmalloc.c
+    ../src/mdirent_vers1.h
+    ../src/mdirent_vers1.c
+    test_mdirent_vers1.c
+)
+target_link_libraries(test_mdirent_vers1 ${UUID_LIBRARY})
 
 add_executable(test_export
     ../src/xmalloc.h
@@ -146,8 +161,18 @@ add_executable(test_export
     ../src/mslnk.c
     ../src/mslnk.h
     ../src/mdir.c
-    ../src/mdirent.h
-    ../src/mdirent.c
+    # New mdirent version
+    ../src/dirent_journal.h
+    ../src/mdirent_vers1.h
+    ../src/dirent_file_repair.c
+    ../src/writeback_cache.c
+    ../src/dirent_file.c
+    ../src/dirent_cache.c
+    ../src/dirent_search.c
+    ../src/dirent_insert.c
+    # Old mdirent version
+    #../src/mdirent.h
+    #../src/mdirent.c
     ../src/export.h
     ../src/export.c
     test_export.c

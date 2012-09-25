@@ -882,7 +882,7 @@ out:
     return length;
 }
 
-int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** children, uint8_t * eof) {
+int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t * cookie, child_t ** children, uint8_t * eof) {
     int status = -1;
     ep_readdir_arg_t arg;
     ep_readdir_ret_t *ret = 0;
@@ -891,12 +891,11 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** 
     child_t **it2;
     DEBUG_FUNCTION;
 
-    //severe("exportclt_readdir");
-
     arg.eid = clt->eid;
     memcpy(arg.fid, fid, sizeof (fid_t));
-    arg.cookie = cookie;
+    arg.cookie = *cookie;
 
+    // Send readdir request to export
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_readdir_1(&arg, clt->rpcclt.client)))) {
@@ -917,6 +916,7 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** 
         goto out;
     }
 
+    // Copy list of children
     it2 = children;
     it1 = ret->ep_readdir_ret_t_u.reply.children;
     while (it1 != NULL) {
@@ -927,7 +927,11 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** 
         it1 = it1->next;
     }
     *it2 = NULL;
+    
+    // End of readdir?
     *eof = ret->ep_readdir_ret_t_u.reply.eof;
+    *cookie = ret->ep_readdir_ret_t_u.reply.cookie;
+    
     status = 0;
 out:
     if (ret)

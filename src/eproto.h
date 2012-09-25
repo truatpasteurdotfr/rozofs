@@ -225,6 +225,7 @@ typedef struct ep_child_t ep_child_t;
 struct dirlist_t {
 	ep_children_t children;
 	uint8_t eof;
+	uint64_t cookie;
 };
 typedef struct dirlist_t dirlist_t;
 

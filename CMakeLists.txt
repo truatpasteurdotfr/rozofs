@@ -21,7 +21,7 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "0")
-set(MINOR "9")
+set(MINOR "10")
 set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
@@ -104,7 +104,11 @@ if(NOT CMAKE_BUILD_TYPE)
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
-set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION" CACHE STRING
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE" CACHE STRING
+    "Flags used by the C compiler during maintainer builds."
+    FORCE)
+
+set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
 

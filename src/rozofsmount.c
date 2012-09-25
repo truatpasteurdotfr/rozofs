@@ -15,7 +15,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
- */ 
+ */
 
 #define FUSE_USE_VERSION 26
 
@@ -146,9 +146,18 @@ static int myfs_opt_proc(void *data, const char *arg, int key,
     return 1;
 }
 
+/*
 typedef struct dirbuf {
     char *p;
     size_t size;
+} dirbuf_t;
+ */
+
+typedef struct dirbuf {
+    char *p;
+    size_t size;
+    uint8_t eof;
+    uint64_t cookie;
 } dirbuf_t;
 
 /** entry kept locally to map fuse_inode_t with rozofs fid_t */
@@ -236,7 +245,7 @@ static void *connect_storage(void *v) {
 
     for (;;) {
         if (storage->rpcclt.client == 0 || storage->status != 1) {
-            warning("SID: %d (%s) needs reconnection", storage->sid, 
+            warning("SID: %d (%s) needs reconnection", storage->sid,
                     storage->host);
             if (storageclt_initialize(storage) != 0) {
                 warning("storageclt_initialize failed for SID: %d (%s): %s",
@@ -316,8 +325,8 @@ void rozofs_ll_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
         goto error;
     }
 
-    if (exportclt_link(&exportclt, ie->fid, npie->fid, (char *) newname, 
-                &attrs) != 0) {
+    if (exportclt_link(&exportclt, ie->fid, npie->fid, (char *) newname,
+            &attrs) != 0) {
         goto error;
     }
 
@@ -381,6 +390,8 @@ void rozofs_ll_mknod(fuse_req_t req, fuse_ino_t parent, const char *name,
         list_init(&nie->list);
         nie->db.size = 0;
         nie->db.p = NULL;
+        nie->db.eof = 0;
+        nie->db.cookie = 0;
         nie->nlookup = 1;
         put_ientry(nie);
     }
@@ -435,6 +446,8 @@ void rozofs_ll_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
         list_init(&nie->list);
         nie->db.size = 0;
         nie->db.p = NULL;
+        nie->db.eof = 0;
+        nie->db.cookie = 0;
         nie->nlookup = 1;
         put_ientry(nie);
     }
@@ -447,6 +460,7 @@ void rozofs_ll_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
     fep.entry_timeout = direntry_cache_timeo;
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     nie->nlookup++;
+
     fuse_reply_entry(req, &fep);
     goto out;
 error:
@@ -741,10 +755,10 @@ void rozofs_ll_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     if (exportclt_getattr(&exportclt, ie->fid, &attr) == -1) {
         goto error;
     }
-    */
+     */
 
-    if (exportclt_setattr(&exportclt, ie->fid, stat_to_mattr(stbuf, &attr, 
-                    to_set), to_set) == -1) {
+    if (exportclt_setattr(&exportclt, ie->fid, stat_to_mattr(stbuf, &attr,
+            to_set), to_set) == -1) {
         goto error;
     }
 
@@ -791,6 +805,8 @@ void rozofs_ll_symlink(fuse_req_t req, const char *link, fuse_ino_t parent,
         list_init(&nie->list);
         nie->db.size = 0;
         nie->db.p = NULL;
+        nie->db.eof = 0;
+        nie->db.cookie = 0;
         nie->nlookup = 1;
         put_ientry(nie);
     }
@@ -894,8 +910,9 @@ static int reply_buf_limited(fuse_req_t req, struct dirbuf *b, off_t off,
         if (b->p != NULL) {
             free(b->p);
             b->size = 0;
+            b->eof = 0;
+            b->cookie = 0;
             b->p = NULL;
-
         }
         return fuse_reply_buf(req, NULL, 0);
     }
@@ -907,29 +924,31 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     child_t *child = NULL;
     child_t *iterator = NULL;
     child_t *free_it = NULL;
-    uint64_t cookie = 0;
-    uint8_t eof = 1;
 
     DEBUG("readdir (%lu,size:%lu,off:%lu)\n", (unsigned long int) ino, size, 
             off);
 
+    // Get ientry
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
         goto error;
     }
 
-    // if the offset is 0 or if the buffer is empty
-    // it sends a request to the metadata server
-    // to retrieve the list of children of this directory.
-    if (off == 0) {
+    // If the requested size is greater than the current size of buffer
+    // and the end of stream is not reached:
+    // we send a readdir request
+    if ((off + size) > ie->db.size && ie->db.eof == 0) {
 
-        if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, &eof) != 0) {
+        // Send readdir request
+        // cookie is a uint64_t.
+        // It's the index of next directory entry
+        if (exportclt_readdir(&exportclt, ie->fid, &ie->db.cookie, &child, &ie->db.eof) != 0) {
             goto error;
         }
 
-        //memset(&ie->db, 0, sizeof (dirbuf_t));
         iterator = child;
 
+        // Process the list of children
         while (iterator != NULL) {
             mattr_t attrs;
             memset(&attrs, 0, sizeof (mattr_t));
@@ -937,12 +956,14 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
             // May be already cached
             if (!(ie2 = get_ientry_by_fid(iterator->fid))) {
-                // If not cache it
+                // If not, cache it
                 ie2 = xmalloc(sizeof (ientry_t));
                 memcpy(ie2->fid, iterator->fid, sizeof (fid_t));
                 ie2->inode = next_inode_idx();
                 list_init(&ie2->list);
                 ie2->db.size = 0;
+                ie2->db.cookie = 0;
+                ie2->db.eof = 0;
                 ie2->db.p = NULL;
                 ie2->nlookup = 1;
                 put_ientry(ie2);
@@ -950,27 +971,30 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
             memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
 
-            // put it on the request
+            // Add this directory entry to the buffer
             dirbuf_add(req, &ie->db, iterator->name, ie2->inode, &attrs);
+
+            // Free it and go to the next child
             free_it = iterator;
             iterator = iterator->next;
             free(free_it->name);
             free(free_it);
 
-            cookie++;
+            // If we reached the end of this current child list but the
+            // end of stream is not reached and the requested size is greater
+            // than the current size of buffer then send another request
+            if (iterator == NULL && ie->db.eof == 0 && ((off + size) > ie->db.size)) {
 
-            if (eof == 0 && iterator == NULL) {
-
-                if (exportclt_readdir(&exportclt, ie->fid, cookie, &child, 
-                            &eof) != 0) {
+                if (exportclt_readdir(&exportclt, ie->fid, &ie->db.cookie, &child, &ie->db.eof) != 0) {
                     goto error;
                 }
                 iterator = child;
             }
         }
     }
-
+    // Reply with data
     reply_buf_limited(req, &ie->db, off, size);
+
     goto out;
 error:
     fuse_reply_err(req, errno);
@@ -1007,6 +1031,8 @@ void rozofs_ll_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
         list_init(&nie->list);
         nie->db.size = 0;
         nie->db.p = NULL;
+        nie->db.eof = 0;
+        nie->db.cookie = 0;
         nie->nlookup = 1;
         put_ientry(nie);
     }
@@ -1061,6 +1087,8 @@ void rozofs_ll_create(fuse_req_t req, fuse_ino_t parent, const char *name,
         list_init(&nie->list);
         nie->db.size = 0;
         nie->db.p = NULL;
+        nie->db.eof = 0;
+        nie->db.cookie = 0;
         nie->nlookup = 1;
         put_ientry(nie);
     }

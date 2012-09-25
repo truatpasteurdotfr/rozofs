@@ -504,6 +504,8 @@ xdr_dirlist_t (XDR *xdrs, dirlist_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->eof))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->cookie))
+		 return FALSE;
 	return TRUE;
 }
 

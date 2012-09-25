@@ -670,7 +670,7 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
     int64_t len_rec = 0;
     int64_t length = 0;
     DEBUG_FUNCTION;
-
+    
     if ((off < f->buf_from) || (off >= (f->buf_from + f->buf_pos)) ||
             (len > (f->buf_from + f->buf_pos - off))) {
 

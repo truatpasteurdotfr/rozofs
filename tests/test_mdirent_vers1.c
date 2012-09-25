@@ -26,7 +26,36 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include <../src/mdirent.h>
+#include <../src/mdirent_vers1.h>
+
+/**
+ *    MESSAGE : message to print out
+ *   root_count : number of dirent root entries
+ *   loop_count  number of entries per root count
+ */
+#define PRINT_TIME(loop_count,MESSAGE) \
+   gettimeofday(&tv_stop,NULL); \
+   { \
+      uint64_t stop_time; \
+      stop_time = tv_stop.tv_sec; \
+      stop_time = stop_time*1000000; \
+      stop_time += tv_stop.tv_usec; \
+      uint64_t start_time; \
+      start_time = tv_start.tv_sec; \
+      start_time = start_time*1000000; \
+      start_time += tv_start.tv_usec; \
+      uint64_t delay_us; \
+      uint64_t delay_ns;\
+      delay_us = (stop_time - start_time)/(loop_count); \
+      delay_ns = (stop_time - start_time) -(delay_us*(loop_count)); \
+      printf( #MESSAGE " %d\n",loop_count);\
+      printf("Delay %llu.%llu us\n", (long long unsigned int)(stop_time - start_time)/(loop_count),\
+          (long long unsigned int)(delay_ns*10)/(loop_count));   \
+      printf("Delay %llu us ( %llu s)\n", (long long unsigned int)(stop_time - start_time),   \
+            (long long unsigned int)(stop_time - start_time)/1000000);\
+      printf("Start Delay %u s %u us\n", (unsigned int)tv_start.tv_sec,(unsigned int)tv_start.tv_usec);   \
+      printf("stop Delay %u s %u us\n", (unsigned int)tv_stop.tv_sec,(unsigned int)tv_stop.tv_usec);   \
+   }
 
 int main(int argc, char **argv) {
     int status = -1;
@@ -34,7 +63,9 @@ int main(int argc, char **argv) {
     fid_t pfid;
     char pfid_str[37];
     mdir_t mdir;
-    int32_t nb_mdirentries = 10000;
+    int32_t nb_mdirentries = 500000;
+    struct timeval tv_start;
+    struct timeval tv_stop;
 
     // Parent directory fid
     memset(pfid, 0, sizeof (fid_t));
@@ -56,6 +87,7 @@ int main(int argc, char **argv) {
         goto out;
     }
 
+    gettimeofday(&tv_start, NULL);
     // Put nb_mdirentries mdirentries
     fprintf(stdout, "Put %u mdirentries\n", nb_mdirentries);
     for (j = 0; j < nb_mdirentries; j++) {
@@ -73,7 +105,9 @@ int main(int argc, char **argv) {
             goto out;
         }
     }
+    PRINT_TIME(nb_mdirentries, put_mdirentry);
 
+    gettimeofday(&tv_start, NULL);
     // Get nb_mdirentries mdirentries
     fprintf(stdout, "Get %u mdirentries\n", nb_mdirentries);
     for (j = 0; j < nb_mdirentries; j++) {
@@ -88,7 +122,47 @@ int main(int argc, char **argv) {
             goto out;
         }
     }
+    PRINT_TIME(nb_mdirentries, get_mdirentry);
 
+
+    // Readdir nb_mdirentries mdirentries
+    child_t *children;
+    uint64_t cookie = 0;
+    uint8_t eof = 0;
+
+    gettimeofday(&tv_start, NULL);
+
+    while (eof == 0) {
+        if (list_mdirentries(&mdir, &children, cookie, &eof) != 0) {
+            fprintf(stderr, "Can't list mdirentries: (%s)\n", strerror(errno));
+            goto out;
+        }
+        cookie = cookie + 100;
+    }
+
+    PRINT_TIME(nb_mdirentries, list_mdirentries);
+
+    gettimeofday(&tv_start, NULL);
+    // Delete nb_mdirentries mdirentries
+    fprintf(stdout, "Delete %u mdirentries\n", nb_mdirentries);
+    j = 0;
+    while (j < nb_mdirentries) {
+
+
+        fid_t fid;
+        uint32_t type;
+        char name[ROZOFS_FILENAME_MAX];
+        sprintf(name, "file_%u", j);
+
+        if (del_mdirentry(&mdir, name, fid, &type) != 0) {
+            fprintf(stderr, "Can't delete mdirentry with name: %s (%s)\n", name, strerror(errno));
+            goto out;
+        }
+        j++;
+    }
+    PRINT_TIME(nb_mdirentries, del_mdirentry);
+
+#if 0
     // Delete impair mdirentries
     fprintf(stdout, "Delete impair mdirentries\n");
     j = 0;
@@ -266,16 +340,16 @@ int main(int argc, char **argv) {
             goto out;
         }
     }
-
+#endif
     // Close parent directory
     if (close(mdir.fdp) == -1) {
-        fprintf(stderr, "close failed for directory %s: %s", pfid_str, strerror(errno));
+        fprintf(stderr, "close failed for directory %s: %s\n", pfid_str, strerror(errno));
         goto out;
     }
 
     // Rmdir parent directory
     if (rmdir(pfid_str) == -1) {
-        fprintf(stderr, "rmdir failed for directory %s: %s", pfid_str, strerror(errno));
+        fprintf(stderr, "rmdir failed for directory %s: %s\n", pfid_str, strerror(errno));
         goto out;
     }
 

@@ -191,6 +191,7 @@ struct ep_child_t {
 struct dirlist_t {
 	ep_children_t children;
 	uint8_t eof;
+        uint64_t cookie;
 };
 
 struct ep_readdir_arg_t {

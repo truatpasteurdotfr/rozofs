@@ -26,9 +26,6 @@
  * $FreeBSD: src/tools/regression/fstest/fstest.c,v 1.1 2007/01/17 01:42:07 pjd Exp $
  */
 
-#ifdef linux
-#define _GNU_SOURCE
-#endif
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <stdio.h>

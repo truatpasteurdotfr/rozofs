@@ -42,7 +42,7 @@
 #include "export.h"
 #include "storageclt.h"
 #include "cache.h"
-#include "mdirent.h"
+#include "mdirent_vers2.h"
 
 /** max entries of lv1 directory structure */
 #define MAX_LV1_BUCKETS 128
@@ -376,12 +376,15 @@ int export_create(const char *root) {
         return -1;
     }
 
+    // Initialize the dirent level 0 cache 
+    dirent_cache_level0_initialize();
+
     // create "." ".." lv3 entries
-    if (put_mdirentry(&root_mdir, ".", root_attrs.fid, S_IFDIR | S_IRWXU) != 0) {
+    if (put_mdirentry(root_mdir.fdp, root_attrs.fid, ".", root_attrs.fid, S_IFDIR | S_IRWXU) != 0) {
         mdir_close(&root_mdir);
         return -1;
     }
-    if (put_mdirentry(&root_mdir, "..", root_attrs.fid, S_IFDIR | S_IRWXU) != 0) {
+    if (put_mdirentry(root_mdir.fdp, root_attrs.fid, "..", root_attrs.fid, S_IFDIR | S_IRWXU) != 0) {
         mdir_close(&root_mdir);
         return -1;
     }
@@ -421,6 +424,9 @@ int export_initialize(export_t * e, volume_t *volume, lv2_cache_t *lv2_cache,
     e->eid = eid;
     e->volume = volume;
     e->lv2_cache = lv2_cache;
+
+    // Initialize the dirent level 0 cache
+    dirent_cache_level0_initialize();
 
     if (strlen(md5) == 0) {
         memcpy(e->md5, ROZOFS_MD5_NONE, ROZOFS_MD5_SIZE);
@@ -529,7 +535,7 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs) {
         return -1;
     }
 
-    if (get_mdirentry(&plv2->container.mdir, name, child_fid, &child_type) != 0) {
+    if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, child_fid, &child_type) != 0) {
         return -1;
     }
 
@@ -627,13 +633,13 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
         goto error;
 
     // Verify that the mdirentry does not already exist
-    if (get_mdirentry(&plv2->container.mdir, newname, child_fid, &child_type) != -1) {
+    if (get_mdirentry(plv2->container.mdir.fdp, newparent, newname, child_fid, &child_type) != -1) {
         errno = EEXIST;
         goto error;
     }
 
     // Put the new mdirentry
-    if (put_mdirentry(&plv2->container.mdir, newname, target->attributes.fid, target->attributes.mode) != 0)
+    if (put_mdirentry(plv2->container.mdir.fdp, newparent, newname, target->attributes.fid, target->attributes.mode) != 0)
         goto error;
 
     // Update nlink and ctime for inode
@@ -676,7 +682,7 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
 
     // check if exists
-    if (get_mdirentry(&plv2->container.mdir, name, node_fid, &type) == 0) {
+    if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, &type) == 0) {
         errno = EEXIST;
         goto error;
     }
@@ -717,14 +723,16 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     // update the parent
     // add the new child to the parent
-    if (put_mdirentry(&plv2->container.mdir, name, node_fid, attrs->mode) != 0)
+    if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0) {
         goto error;
+    }
     plv2->container.mdir.children++;
 
     // update times of parent
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
-    if (export_lv2_write_attributes(plv2) != 0)
+    if (export_lv2_write_attributes(plv2) != 0) {
         goto error;
+    }
 
     // update export files
     if (export_update_files(e, 1) != 0)
@@ -755,8 +763,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
 
     // check if exists
-    if (get_mdirentry(&plv2->container.mdir, name, node_fid, &attrs->mode) == 0) {
-        DEBUG("directory exists");
+    if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, &attrs->mode) == 0) {
         errno = EEXIST;
         goto error;
     }
@@ -791,20 +798,20 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     }
 
     // create "." ".." lv3 entries
-    if (put_mdirentry(&node_mdir, ".", node_fid, S_IFDIR | S_IRWXU) != 0) {
+    if (put_mdirentry(node_mdir.fdp, node_fid, ".", node_fid, S_IFDIR | S_IRWXU) != 0) {
         mdir_close(&node_mdir);
         return -1;
     }
-    if (put_mdirentry(&node_mdir, "..", plv2->attributes.fid, S_IFDIR | S_IRWXU) != 0) {
+    if (put_mdirentry(node_mdir.fdp, node_fid, "..", plv2->attributes.fid, S_IFDIR | S_IRWXU) != 0) {
         mdir_close(&node_mdir);
         return -1;
     }
-
 
     // update the parent
     // add the new child to the parent
-    if (put_mdirentry(&plv2->container.mdir, name, node_fid, attrs->mode) != 0)
+    if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0) {
         goto error;
+    }
 
     plv2->container.mdir.children++;
     plv2->attributes.nlink++;
@@ -830,8 +837,8 @@ error:
         sprintf(fname, "%s/%s", node_path, MDIR_ATTRS_FNAME);
         unlink(fname);
         node_mdir_del.fdp = open(node_path, O_RDONLY, S_IRWXU);
-        del_mdirentry(&node_mdir_del, ".", fid, &type);
-        del_mdirentry(&node_mdir_del, "..", fid, &type);
+        del_mdirentry(node_mdir_del.fdp, node_fid, ".", fid, &type);
+        del_mdirentry(node_mdir_del.fdp, node_fid, "..", fid, &type);
         rmdir(node_path);
         mdir_close(&node_mdir_del);
     }
@@ -852,7 +859,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
         goto error;
 
     // Check if name exist
-    if (get_mdirentry(&plv2->container.mdir, name, child_fid, &child_type) != 0)
+    if (get_mdirentry(plv2->container.mdir.fdp, parent, name, child_fid, &child_type) != 0)
         goto error;
 
     if (S_ISDIR(child_type)) {
@@ -861,7 +868,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
     }
 
     // Delete the mdirentry if exist
-    if (del_mdirentry(&plv2->container.mdir, name, child_fid, &child_type) != 0)
+    if (del_mdirentry(plv2->container.mdir.fdp, parent, name, child_fid, &child_type) != 0)
         goto error;
 
     // Resolve path for the file to delete
@@ -1155,7 +1162,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
         return -1;
 
     // get the fid according to name
-    if (get_mdirentry(&plv2->container.mdir, name, fid, &fake_type) != 0)
+    if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, fid, &fake_type) != 0)
         return -1;
 
     // get the lv2
@@ -1174,16 +1181,16 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
     }
 
     // XXX starting from here, any failure will leads to inconsistent state.
-    if (del_mdirentry(&lv2->container.mdir, ".", dot_fid, &dot_type) != 0)
+    if (del_mdirentry(lv2->container.mdir.fdp, fid, ".", dot_fid, &dot_type) != 0)
         return -1;
-    if (del_mdirentry(&lv2->container.mdir, "..", dot_dot_fid, &dot_dot_type) != 0)
+    if (del_mdirentry(lv2->container.mdir.fdp, fid, "..", dot_dot_fid, &dot_dot_type) != 0)
         return -1;
 
     // remove from the cache (will be closed and freed)
     lv2_cache_del(e->lv2_cache, fid);
 
     // update parent
-    if (del_mdirentry(&plv2->container.mdir, name, fake_fid, &fake_type) != 0)
+    if (del_mdirentry(plv2->container.mdir.fdp, pfid, name, fake_fid, &fake_type) != 0)
         return -1;
 
     plv2->container.mdir.children--;
@@ -1225,7 +1232,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
         goto error;
 
     // check if exists
-    if (get_mdirentry(&plv2->container.mdir, name, node_fid, &attrs->mode) == 0) {
+    if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, &attrs->mode) == 0) {
         errno = EEXIST;
         goto error;
     }
@@ -1267,7 +1274,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
 
     // update the parent
     // add the new child to the parent
-    if (put_mdirentry(&plv2->container.mdir, name, node_fid, attrs->mode) != 0)
+    if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0)
         goto error;
     plv2->container.mdir.children++;
     // update times of parent
@@ -1321,7 +1328,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
     }
 
     // Check if the file/dir to rename exist
-    if (get_mdirentry(&lv2_old_parent->container.mdir, name, fid_to_rename, &type_to_rename) != 0)
+    if (get_mdirentry(lv2_old_parent->container.mdir.fdp, pfid, name, fid_to_rename, &type_to_rename) != 0)
         goto error;
 
     // Get the lv2 entry of file/dir to rename
@@ -1341,7 +1348,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
     memset(fid, 0, sizeof (fid_t));
 
     // Get the old mdirentry if exist
-    if (get_mdirentry(&lv2_new_parent->container.mdir, newname, fid_to_replace, &type_to_replace) == 0) {
+    if (get_mdirentry(lv2_new_parent->container.mdir.fdp, npfid, newname, fid_to_replace, &type_to_replace) == 0) {
 
         // We must delete the old entry
 
@@ -1368,9 +1375,9 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
             fid_t dot_fid, dot_dot_fid;
             uint32_t dot_type, dot_dot_type;
 
-            if (del_mdirentry(&lv2_to_replace->container.mdir, ".", dot_fid, &dot_type) != 0)
+            if (del_mdirentry(lv2_to_replace->container.mdir.fdp, fid_to_replace, ".", dot_fid, &dot_type) != 0)
                 return -1;
-            if (del_mdirentry(&lv2_to_replace->container.mdir, "..", dot_dot_fid, &dot_dot_type) != 0)
+            if (del_mdirentry(lv2_to_replace->container.mdir.fdp, fid_to_replace, "..", dot_dot_fid, &dot_dot_type) != 0)
                 return -1;
 
             // Update parent directory
@@ -1481,12 +1488,12 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
     }
 
     // Put the mdirentry
-    if (put_mdirentry(&lv2_new_parent->container.mdir, newname, lv2_to_rename->attributes.fid, lv2_to_rename->attributes.mode) != 0) {
+    if (put_mdirentry(lv2_new_parent->container.mdir.fdp, npfid, newname, lv2_to_rename->attributes.fid, lv2_to_rename->attributes.mode) != 0) {
         goto error;
     }
 
     // Delete the mdirentry
-    if (del_mdirentry(&lv2_old_parent->container.mdir, name, fid_to_rename, &type_to_rename) != 0)
+    if (del_mdirentry(lv2_old_parent->container.mdir.fdp, pfid, name, fid_to_rename, &type_to_rename) != 0)
         goto error;
 
     if (memcmp(pfid, npfid, sizeof (fid_t)) != 0) {
@@ -1500,7 +1507,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
             // If the node to rename is a directory
             // We must change the subdirectory '..'
-            if (put_mdirentry(&lv2_to_rename->container.mdir, "..", lv2_new_parent->attributes.fid, lv2_new_parent->attributes.mode) != 0) {
+            if (put_mdirentry(lv2_to_rename->container.mdir.fdp, fid_to_rename, "..", lv2_new_parent->attributes.fid, lv2_new_parent->attributes.mode) != 0) {
                 goto error;
             }
 
@@ -1654,7 +1661,7 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n, dis
     return len;
 }
 
-int export_readdir(export_t * e, fid_t fid, uint64_t cookie, child_t ** children, uint8_t *eof) {
+int export_readdir(export_t * e, fid_t fid, uint64_t * cookie, child_t ** children, uint8_t *eof) {
     lv2_entry_t *parent = NULL;
 
     // Get the lv2 inode
@@ -1668,7 +1675,7 @@ int export_readdir(export_t * e, fid_t fid, uint64_t cookie, child_t ** children
     }
 
     // List directory
-    if (list_mdirentries(&parent->container.mdir, children, cookie, eof) != 0) {
+    if (list_mdirentries(parent->container.mdir.fdp, fid, children, cookie, eof) != 0) {
         goto error;
     }
 

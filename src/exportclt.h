@@ -98,7 +98,7 @@ dist_t * exportclt_read_block(exportclt_t * clt, fid_t fid, uint64_t off, uint32
 
 int64_t exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t n, dist_t d, uint64_t off, uint32_t len);
 
-int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t cookie, child_t ** children, uint8_t * eof);
+int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t * cookie, child_t ** children, uint8_t * eof);
 
 /* not used anymore
 int exportclt_open(exportclt_t * clt, fid_t fid);

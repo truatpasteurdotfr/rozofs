@@ -68,8 +68,18 @@ add_executable(exportd
     mdir.c
     mslnk.h
     mslnk.c
-    mdirent.h
-    mdirent.c
+    # New mdirent version
+    dirent_journal.h
+    mdirent_vers2.h
+    dirent_file_repair.c
+    writeback_cache.c
+    dirent_file.c
+    dirent_cache.c
+    dirent_search.c
+    dirent_insert.c
+    # Old mdirent version
+    #mdirent.h
+    #mdirent.c
     cache.h
     cache.c
     export.h

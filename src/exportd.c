@@ -29,6 +29,8 @@
 #include <getopt.h>
 #include <libconfig.h>
 #include <limits.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <unistd.h>
 #include <rpc/pmap_clnt.h>
 
@@ -45,6 +47,8 @@
 #include "exportd.h"
 
 #define EXPORTD_PID_FILE "exportd.pid"
+/* Maximum open file descriptor number for exportd daemon */
+#define EXPORTD_MAX_OPEN_FILES 5000 
 
 econfig_t exportd_config;
 pthread_rwlock_t config_lock;
@@ -372,6 +376,7 @@ static int load_exports_conf() {
     DEBUG_FUNCTION;
 
     // For each export
+
     list_for_each_forward(p, &exportd_config.exports) {
         export_config_t *econfig = list_entry(p, export_config_t, list);
         export_entry_t *entry = xmalloc(sizeof (export_entry_t));
@@ -476,6 +481,7 @@ static void exportd_release() {
 static void on_start() {
     int sock;
     int one = 1;
+    struct rlimit rls;
     DEBUG_FUNCTION;
 
     if (exportd_initialize() != 0) {
@@ -503,6 +509,16 @@ static void on_start() {
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
     setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
+
+
+    /* Change the value of the maximum file descriptor number 
+     * that can be opened by this process.*/
+
+    rls.rlim_cur = EXPORTD_MAX_OPEN_FILES;
+    rls.rlim_max = EXPORTD_MAX_OPEN_FILES;
+    if (setrlimit(RLIMIT_NOFILE, &rls) < 0) {
+        warning("Failed to change open files limit to %u", EXPORTD_MAX_OPEN_FILES);
+    }
 
     // XXX Buffers sizes hard coded
     exportd_svc = svctcp_create(sock, ROZOFS_RPC_BUFFER_SIZE,
@@ -537,7 +553,7 @@ static void on_stop() {
 
     exportd_release();
 
-    info("stopped.");    
+    info("stopped.");
     closelog();
 }
 

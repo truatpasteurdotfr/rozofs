@@ -31,7 +31,7 @@
 #include "log.h"
 #include "rozofs.h"
 #include "xmalloc.h"
-#include "mdirent.h"
+#include "mdirent_vers1.h"
 #include "mdir.h"
 
 /**
@@ -831,7 +831,7 @@ int list_mdirentries(mdir_t * mdir, child_t ** children, uint64_t cookie, uint8_
 
     iterator = children;
 
-    // 
+    // For each file
     while (((ep = readdir(dp)) != NULL && j < MAX_DIR_ENTRIES)) {
 
         // manage . .. and file for mattrs for this directory
@@ -856,6 +856,7 @@ int list_mdirentries(mdir_t * mdir, child_t ** children, uint64_t cookie, uint8_
             // If is this mdirentry is empty
             if ((mdirents_file_p->header.bitmap & (0x1 << i)) == 0) continue;
 
+            // Entry found
             entry_p = &mdirents_file_p->mdirentry[i];
 
             if (c >= cookie) {
