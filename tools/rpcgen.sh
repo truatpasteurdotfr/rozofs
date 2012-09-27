@@ -46,4 +46,8 @@ rpcgen -C -c -o $XDR $XFILE
 rpcgen -C -l -o $CLT $XFILE
 rpcgen -C -m -o $SVC $XFILE
 
+# remove unused generated code
+sed -ie 's/register/\/\/register/' $XDR
+sed -ie 's/int\ i/\/\/int \i/' $XDR
+
 exit
