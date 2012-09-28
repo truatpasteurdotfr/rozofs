@@ -275,7 +275,7 @@ mdirents_cache_entry_t *dirent_cache_create_entry(mdirents_header_new_t *dirent_
     /*
     ** store the virtual pointer
     */
-    val = (uint64_t) sect0_p;
+    val = (uint64_t) (uintptr_t) sect0_p;
     p->sect0_p.s.val = val;
     
   }
@@ -287,7 +287,7 @@ mdirents_cache_entry_t *dirent_cache_create_entry(mdirents_header_new_t *dirent_
     /*
     ** store the virtual pointer
     */
-    val = (uint64_t) coll_bitmap_hash_full_p;
+    val = (uint64_t) (uintptr_t) coll_bitmap_hash_full_p;
     p->coll_bitmap_hash_full_p.s.val = val;
     
   }
@@ -302,7 +302,7 @@ mdirents_cache_entry_t *dirent_cache_create_entry(mdirents_header_new_t *dirent_
     /*
     ** store the virtual pointer
     */
-    val = (uint64_t) name_bitmap_p;
+    val = (uint64_t) (uintptr_t) name_bitmap_p;
     p->name_bitmap_p.s.val = val;     
   }
   
@@ -1674,7 +1674,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,mdirents_header_new_t *dir
       /*
       ** store the virtual pointer
       */
-      val = (uint64_t) sect0_p;
+      val = (uint64_t) (uintptr_t) sect0_p;
       dirent_p->sect0_p.s.val = val;
 
     }
@@ -1689,7 +1689,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,mdirents_header_new_t *dir
       /*
       ** store the virtual pointer
       */
-      val = (uint64_t) coll_bitmap_hash_full_p;
+      val = (uint64_t) (uintptr_t) coll_bitmap_hash_full_p;
       dirent_p->coll_bitmap_hash_full_p.s.val = val;
 
     }
@@ -1709,7 +1709,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,mdirents_header_new_t *dir
       /*
       ** store the virtual pointer
       */
-      val = (uint64_t) name_bitmap_p;
+      val = (uint64_t) (uintptr_t) name_bitmap_p;
       dirent_p->name_bitmap_p.s.val = val;     
     }
     /*
@@ -1743,7 +1743,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,mdirents_header_new_t *dir
              DIRENT_SEVERE("Out of memory at line %d\n",__LINE__); 
              goto error;    
            }
-           val = (uint64_t) elem_p;
+           val = (uint64_t) (uintptr_t) elem_p;
            hash_tbl_p[i].s.val = val;
            hash_tbl_p[i].s.dirty = 0;             
            hash_tbl_p[i].s.rd    = 0;  
@@ -1796,7 +1796,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,mdirents_header_new_t *dir
             DIRENT_SEVERE("Out of memory at line %d\n",__LINE__); 
             goto error;    
           }
-          val = (uint64_t) elem_p;
+          val = (uint64_t) (uintptr_t) elem_p;
           hash_entry_p[index].s.val = val;
           hash_entry_p[index].s.dirty = 0;             
           hash_entry_p[index].s.rd    = 0;  

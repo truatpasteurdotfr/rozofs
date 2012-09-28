@@ -22,11 +22,18 @@
 #define DIRENT_VERS1_H
 
 #include <string.h>
+
 #include "log.h"
 #include "rozofs.h"
 #include "list.h"
 #include "mdir.h"
 #include "htable.h"
+
+#ifdef __i386__ 
+	#define PTR2INT (uint32_t) 
+#else 
+	#define PTR2INT
+#endif
 
 /**
 *  Flag in indicate if disk read/write is enable
@@ -819,12 +826,21 @@ typedef union
 //#define DIRENT_VIRT_TO_PHY_OFF(p,offset)  (p->offset.s.val==0)?0:(void*)(uint64_t)(p->offset.s.val);
 
 // TEST
-#define DIRENT_VIRT_TO_PHY_OFF(p,offset)  (p->offset.s.val==0)?0:(void*)(uint64_t)(p->offset.s.val);   
+#ifdef __i386__ 
+	#define DIRENT_VIRT_TO_PHY_OFF(p,offset)  (p->offset.s.val==0)?0:(void*)(uint32_t)(p->offset.s.val);   
+#else 
+	#define DIRENT_VIRT_TO_PHY_OFF(p,offset)  (p->offset.s.val==0)?0:(void*)(uint64_t)(p->offset.s.val);   
+#endif
 
 /**
 *  Macro to convert virtual pointer to physical pointer
 */
-#define DIRENT_VIRT_TO_PHY(vir_p)  (vir_p.s.val==0)?0:(void*)(uint64_t)(vir_p.s.val);   
+#ifdef __i386__ 
+	#define DIRENT_VIRT_TO_PHY(vir_p)  (vir_p.s.val==0)?0:(void*)(uint32_t)(vir_p.s.val);   
+#else 
+	#define DIRENT_VIRT_TO_PHY(vir_p)  (vir_p.s.val==0)?0:(void*)(uint64_t)(vir_p.s.val);   
+#endif
+
 
 /**
 *  clear a virtual pointer
@@ -1669,7 +1685,7 @@ static inline void *dirent_cache_get_entry_base_ptr(mdirent_cache_ptr_t *p,
    if (p[idx_array].s.val == 0) return NULL;
    uint64_t val = (uint64_t)p[idx_array].s.val;
    if (virt_p != NULL) *virt_p = &p[idx_array];
-   return (void*) val;
+   return (void*) PTR2INT val;
 }
 
 /**
@@ -1756,7 +1772,7 @@ static inline void *dirent_cache_allocate_entry_array(mdirent_cache_ptr_t *p,
      */
      memset(elem_p,0,element_size*nb_elem_per_array);
 #endif
-     val = (uint64_t) elem_p;
+     val = (uint64_t) (uintptr_t)elem_p;
      idx_array =  idx/nb_elem_per_array;
      rel_idx   =  idx%nb_elem_per_array;
      p[idx_array].s.val = val;   
@@ -1827,7 +1843,7 @@ static inline int dirent_cache_release_entry_array(mdirent_cache_ptr_t *p,
       ** ned to release the memory block
       */
       val =  p[idx_array].s.val;
-      DIRENT_FREE((void*)val);
+      DIRENT_FREE((void*) PTR2INT val);
       p[idx_array].s.val   = 0;
       /*
       ** indicates that the memory array must be re-written on disk with the default value for the array
@@ -2054,20 +2070,20 @@ static inline void *dirent_cache_store_ptr(mdirent_cache_ptr_t *virt_head_p,
             return ptr;
          }
          memset(ptr,0,size);
-         val = (uint64_t) ptr;
+         val = (uint64_t) (uintptr_t)ptr;
          p[tab_idx[i]].s.val = val;       
       }
       /*
       ** OK, let's go to the next array
       */
       val = (uint64_t)p[tab_idx[i]].s.val;
-      p = (mdirent_cache_ptr_t*)val;   
+      p = (mdirent_cache_ptr_t*) PTR2INT val;   
    }
    /*
    ** OK now store the logical pointer associated with the dirent entry
    ** if the entry was not empty, return the pointer that was stored
    */
-   val = (uint64_t)ptr;
+   val = (uint64_t) (uintptr_t) ptr;
    old_val = p[tab_idx[ nb_levels-1]].s.val;
    p[tab_idx[ nb_levels-1]].s.val    = val;
    /*
@@ -2075,7 +2091,7 @@ static inline void *dirent_cache_store_ptr(mdirent_cache_ptr_t *virt_head_p,
    */ 
    p[tab_idx[ nb_levels-1]].s.dirty = 1;  
    p[tab_idx[ nb_levels-1]].s.rd    = 0;  
-   return (void *)old_val;
+   return (void *) PTR2INT old_val;
 }
 /*
 **______________________________________________________________________________
@@ -2132,14 +2148,14 @@ static inline void *dirent_cache_get_ptr(mdirent_cache_ptr_t *virt_head_p,
       ** OK, let's go to the next array
       */
       val = (uint64_t)p[tab_idx[i]].s.val;
-      p = (mdirent_cache_ptr_t*)val;   
+      p = (mdirent_cache_ptr_t*) PTR2INT val;   
    }
    /*
    ** OK now get  the logical pointer associated with the dirent entry
    */
    val = p[tab_idx[ nb_levels-1]].s.val;  
 
-   return (void*) val;
+   return (void*) PTR2INT val;
 }
 
 /*
@@ -2200,7 +2216,7 @@ static inline mdirent_cache_ptr_t dirent_cache_get_virtual_ptr(mdirent_cache_ptr
       ** OK, let's go to the next array
       */
       val = (uint64_t)p[tab_idx[i]].s.val;
-      p = (mdirent_cache_ptr_t*)val;   
+      p = (mdirent_cache_ptr_t*) PTR2INT val;   
    }
    /*
    ** OK now get  the logical pointer associated with the dirent entry
@@ -2274,12 +2290,12 @@ static inline void *dirent_cache_del_ptr(mdirent_cache_ptr_t *virt_head_p,
       ** OK, let's go to the next array
       */
       val = (uint64_t)p[tab_idx[i]].s.val;
-      p = (mdirent_cache_ptr_t*)val;   
+      p = (mdirent_cache_ptr_t*) PTR2INT val;   
    }
    /*
    ** OK now remove the entry
    */
-   val = (uint64_t)ptr;
+   val = (uint64_t)(uintptr_t)ptr;
    if (val != p[tab_idx[ nb_levels-1]].s.val)
 #if 1
    {
@@ -2287,7 +2303,7 @@ static inline void *dirent_cache_del_ptr(mdirent_cache_ptr_t *virt_head_p,
      ** not the right one
      */
      val = p[tab_idx[ nb_levels-1]].s.val;
-     return (void*) val ;
+     return (void*) PTR2INT val ;
    
    }
 #endif
@@ -2884,7 +2900,7 @@ static inline int dirent_cache_del_entry_name(mdirents_cache_entry_t *dirent_ent
    
    mem_p = (uint8_t*)dirent_cache_del_ptr(&dirent_entry_p->name_entry_lvl0_p[0],
                                                                 &mdirent_cache_name_ptr_distrib,
-                                                                first_chunk_of_array,(void *)val);
+                                                                first_chunk_of_array,(void *) PTR2INT val);
    if (mem_p != NULL)
    {
       /*
@@ -2897,7 +2913,7 @@ static inline int dirent_cache_del_entry_name(mdirents_cache_entry_t *dirent_ent
    /*
    ** OK release the memory block
    */
-   DIRENT_FREE((void*)val);
+   DIRENT_FREE((void*) PTR2INT val);
    return 0;
                                          
 }   
@@ -3430,7 +3446,7 @@ static inline mdirents_cache_entry_t *dirent_cache_get_collision_ptr(mdirents_ca
  {
    uint64_t val;
    val = virt_ptr.s.val;
-   return (mdirents_cache_entry_t*)val;
+   return (mdirents_cache_entry_t*) PTR2INT val;
  
  }
  /*
