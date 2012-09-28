@@ -128,7 +128,7 @@ static inline uint32_t dirent_cache_bucket_hash_fnv(uint32_t h, void *key1, uint
     unsigned char *d = (unsigned char *) key1;
     int i = 0;
 
-    if (h == 0) h = 2166136261;
+    if (h == 0) h = 2166136261U;
 
     /*
      ** hash on fid
@@ -593,7 +593,7 @@ static inline uint32_t filename_uuid_hash_fnv(uint32_t h, void *key1, void *key2
     unsigned char *d = (unsigned char *) key1;
     int i = 0;
 
-    if (h == 0) h = 2166136261;
+    if (h == 0) h = 2166136261U;
     /*
      ** hash on name
      */

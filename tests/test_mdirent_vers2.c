@@ -8,8 +8,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "mdirent_vers2.h"
 #include <sys/time.h>
+#include <inttypes.h>
+#include "mdirent_vers2.h"
 #include "mattr.h"
 
 uint64_t my_global;
@@ -76,12 +77,12 @@ void print_sector_offset() {
 }
 
 void test_print_constants() {
-    printf("mattr_t  size                    : %lu\n", sizeof (mattr_t));
+    printf("mattr_t  size                    : %d\n", (int) sizeof (mattr_t));
     printf("Hash entry variables:\n");
     printf("  Number of hash entries         : %d\n", MDIRENTS_ENTRIES_COUNT);
     printf("  hash entries bitmap size       : %d bytes\n", MDIRENTS_BITMAP_FREE_HASH_SZ);
-    printf("  hash entry context size        : %lu bytes\n", sizeof (mdirents_hash_entry_t));
-    printf("  free hash entry bitmap tb size : %lu bytes\n", sizeof (mdirents_btmap_free_hash_t));
+    printf("  hash entry context size        : %d bytes\n", (int) sizeof (mdirents_hash_entry_t));
+    printf("  free hash entry bitmap tb size : %d bytes\n", (int) sizeof (mdirents_btmap_free_hash_t));
     printf("\n");
     printf("Hash table variables:\n");
     printf("  Number of buckets       : %d\n", MDIRENTS_HASH_TB_INT_SZ);
@@ -105,9 +106,9 @@ void test_print_constants() {
         //uint8_t *q;
         //q = (uint8_t*)p;
         mdirent_sector0_not_aligned_t *p = NULL;
-        uint64_t offset = (uint64_t) (&p->coll_bitmap);
+        uint64_t offset = (uint64_t) PTR2INT (&p->coll_bitmap);
         printf(" -mdirents_btmap_coll_dirent_t offset : %llx modulo %d\n", (long long unsigned int) offset, (int) offset % 8);
-        offset = (uint64_t) (&p->hash_bitmap);
+        offset = (uint64_t) PTR2INT (&p->hash_bitmap);
 
         printf(" -hash_bitmap  offset                 : %llx modulo %d\n", (long long unsigned int) offset, (int) offset % 8);
 
@@ -1903,7 +1904,7 @@ remove_entries:
 #warning compiled for ubuntu path : 
 #define DIR_PATHNAME "/home/didier/fizians/rozofs/dir_test"
 #else
-#define DIR_PATHNAME "/home/sylvain/fizians/docs-rozofs-new-metadata/dirent_cache_091012/dir_test"
+#define DIR_PATHNAME "/root/dir_test"
 #endif
 
 int test_dirent_create_fake_file(char *dir_path, mdirents_header_new_t *header) {
@@ -2880,7 +2881,7 @@ void mdirent_test_sylvain(char *dir_path) {
     }
 
     PRINT_TIME(root_cnt, loop_count, Number of entries read);
-    printf("Nb. of mdirentries %lu, Nb. of requests: %lu\n", count_entries, count_request);
+    printf("Nb. of mdirentries %"PRIu64", Nb. of requests: %"PRIu64"\n", count_entries, count_request);
     //dirent_readdir_stats_print();
 
 

@@ -925,9 +925,6 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     child_t *iterator = NULL;
     child_t *free_it = NULL;
 
-    DEBUG("readdir (%lu,size:%lu,off:%lu)\n", (unsigned long int) ino, size, 
-            off);
-
     // Get ientry
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
