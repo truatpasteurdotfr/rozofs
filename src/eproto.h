@@ -55,19 +55,24 @@ struct ep_cluster_t {
 typedef struct ep_cluster_t ep_cluster_t;
 
 struct ep_volume_t {
-	uint32_t eid;
-	ep_md5_t md5;
-	ep_uuid_t rfid;
-	int rl;
 	uint8_t clusters_nb;
 	ep_cluster_t clusters[ROZOFS_CLUSTERS_MAX];
 };
 typedef struct ep_volume_t ep_volume_t;
 
+struct ep_export_t {
+	uint32_t eid;
+	ep_md5_t md5;
+	ep_uuid_t rfid;
+	int rl;
+	ep_volume_t volume;
+};
+typedef struct ep_export_t ep_export_t;
+
 struct ep_mount_ret_t {
 	ep_status_t status;
 	union {
-		ep_volume_t volume;
+		ep_export_t export;
 		int error;
 	} ep_mount_ret_t_u;
 };
@@ -300,7 +305,7 @@ struct ep_io_ret_t {
 };
 typedef struct ep_io_ret_t ep_io_ret_t;
 
-#define EXPORT_PROGRAM 0x20000007
+#define EXPORT_PROGRAM 0x20000001
 #define EXPORT_VERSION 1
 
 #if defined(__STDC__) || defined(__cplusplus)
@@ -432,6 +437,7 @@ extern  bool_t xdr_ep_status_ret_t (XDR *, ep_status_ret_t*);
 extern  bool_t xdr_ep_storage_t (XDR *, ep_storage_t*);
 extern  bool_t xdr_ep_cluster_t (XDR *, ep_cluster_t*);
 extern  bool_t xdr_ep_volume_t (XDR *, ep_volume_t*);
+extern  bool_t xdr_ep_export_t (XDR *, ep_export_t*);
 extern  bool_t xdr_ep_mount_ret_t (XDR *, ep_mount_ret_t*);
 extern  bool_t xdr_ep_mattr_t (XDR *, ep_mattr_t*);
 extern  bool_t xdr_ep_mattr_ret_t (XDR *, ep_mattr_ret_t*);
@@ -473,6 +479,7 @@ extern bool_t xdr_ep_status_ret_t ();
 extern bool_t xdr_ep_storage_t ();
 extern bool_t xdr_ep_cluster_t ();
 extern bool_t xdr_ep_volume_t ();
+extern bool_t xdr_ep_export_t ();
 extern bool_t xdr_ep_mount_ret_t ();
 extern bool_t xdr_ep_mattr_t ();
 extern bool_t xdr_ep_mattr_ret_t ();

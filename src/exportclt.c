@@ -64,28 +64,28 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     }
     // check passwd
     if (memcmp
-            (ret->ep_mount_ret_t_u.volume.md5, ROZOFS_MD5_NONE,
+            (ret->ep_mount_ret_t_u.export.md5, ROZOFS_MD5_NONE,
             ROZOFS_MD5_SIZE) != 0) {
         md5pass = crypt(passwd, "$1$rozofs$");
         if (memcmp
-                (md5pass + 10, ret->ep_mount_ret_t_u.volume.md5,
+                (md5pass + 10, ret->ep_mount_ret_t_u.export.md5,
                 ROZOFS_MD5_SIZE) != 0) {
             errno = EACCES;
             goto out;
         }
     }
 
-    clt->eid = ret->ep_mount_ret_t_u.volume.eid;
-    clt->rl = ret->ep_mount_ret_t_u.volume.rl;
-    memcpy(clt->rfid, ret->ep_mount_ret_t_u.volume.rfid, sizeof (fid_t));
+    clt->eid = ret->ep_mount_ret_t_u.export.eid;
+    clt->rl = ret->ep_mount_ret_t_u.export.rl;
+    memcpy(clt->rfid, ret->ep_mount_ret_t_u.export.rfid, sizeof (fid_t));
 
     // Initialize the list of clusters
     list_init(&clt->mcs);
 
     // For each cluster
-    for (i = 0; i < ret->ep_mount_ret_t_u.volume.clusters_nb; i++) {
+    for (i = 0; i < ret->ep_mount_ret_t_u.export.volume.clusters_nb; i++) {
 
-        ep_cluster_t ep_cluster = ret->ep_mount_ret_t_u.volume.clusters[i];
+        ep_cluster_t ep_cluster = ret->ep_mount_ret_t_u.export.volume.clusters[i];
 
         mcluster_t *cluster = (mcluster_t *) xmalloc(sizeof (mcluster_t));
 
@@ -160,28 +160,28 @@ int exportclt_reload(exportclt_t * clt) {
     }
 
     if (memcmp
-            (ret->ep_mount_ret_t_u.volume.md5, ROZOFS_MD5_NONE,
+            (ret->ep_mount_ret_t_u.export.md5, ROZOFS_MD5_NONE,
             ROZOFS_MD5_SIZE) != 0) {
         md5pass = crypt(clt->passwd, "$1$rozofs$");
         if (memcmp
-                (md5pass + 10, ret->ep_mount_ret_t_u.volume.md5,
+                (md5pass + 10, ret->ep_mount_ret_t_u.export.md5,
                 ROZOFS_MD5_SIZE) != 0) {
             errno = EACCES;
             goto out;
         }
     }
 
-    clt->eid = ret->ep_mount_ret_t_u.volume.eid;
-    clt->rl = ret->ep_mount_ret_t_u.volume.rl;
-    memcpy(clt->rfid, ret->ep_mount_ret_t_u.volume.rfid, sizeof (fid_t));
+    clt->eid = ret->ep_mount_ret_t_u.export.eid;
+    clt->rl = ret->ep_mount_ret_t_u.export.rl;
+    memcpy(clt->rfid, ret->ep_mount_ret_t_u.export.rfid, sizeof (fid_t));
 
     // Initialize the list of clusters
     list_init(&clt->mcs);
 
     // For each cluster
-    for (i = 0; i < ret->ep_mount_ret_t_u.volume.clusters_nb; i++) {
+    for (i = 0; i < ret->ep_mount_ret_t_u.export.volume.clusters_nb; i++) {
 
-        ep_cluster_t ep_cluster = ret->ep_mount_ret_t_u.volume.clusters[i];
+        ep_cluster_t ep_cluster = ret->ep_mount_ret_t_u.export.volume.clusters[i];
 
         mcluster_t *cluster = (mcluster_t *) xmalloc(sizeof (mcluster_t));
 

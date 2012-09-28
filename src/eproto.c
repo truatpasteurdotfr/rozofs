@@ -62,23 +62,23 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
 
         // Get volume with this vid
         if (vc->vid == exp->volume->vid) {
-            ret.ep_mount_ret_t_u.volume.clusters_nb = list_size(&vc->clusters);
+            ret.ep_mount_ret_t_u.export.volume.clusters_nb = list_size(&vc->clusters);
 
             i = 0;
 
             list_for_each_forward(q, &vc->clusters) {
                 cluster_config_t *cc = list_entry(q, cluster_config_t, list);
 
-                ret.ep_mount_ret_t_u.volume.clusters[i].cid = cc->cid;
-                ret.ep_mount_ret_t_u.volume.clusters[i].storages_nb = list_size(&cc->storages);
+                ret.ep_mount_ret_t_u.export.volume.clusters[i].cid = cc->cid;
+                ret.ep_mount_ret_t_u.export.volume.clusters[i].storages_nb = list_size(&cc->storages);
                 j = 0;
 
                 list_for_each_forward(r, &cc->storages) {
                     storage_node_config_t *sc = list_entry(r,
                             storage_node_config_t, list);
-                    strcpy(ret.ep_mount_ret_t_u.volume.clusters[i].storages[j].
+                    strcpy(ret.ep_mount_ret_t_u.export.volume.clusters[i].storages[j].
                             host, sc->host);
-                    ret.ep_mount_ret_t_u.volume.clusters[i].storages[j].sid = sc->sid;
+                    ret.ep_mount_ret_t_u.export.volume.clusters[i].storages[j].sid = sc->sid;
                     j++;
                 }
                 i++;
@@ -86,10 +86,10 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
         }
     }
 
-    ret.ep_mount_ret_t_u.volume.eid = *eid;
-    memcpy(ret.ep_mount_ret_t_u.volume.md5, exp->md5, ROZOFS_MD5_SIZE);
-    ret.ep_mount_ret_t_u.volume.rl = exportd_config.layout;
-    memcpy(ret.ep_mount_ret_t_u.volume.rfid, exp->rfid, sizeof (fid_t));
+    ret.ep_mount_ret_t_u.export.eid = *eid;
+    memcpy(ret.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
+    ret.ep_mount_ret_t_u.export.rl = exportd_config.layout;
+    memcpy(ret.ep_mount_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
 
     if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
         goto error;

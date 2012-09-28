@@ -131,6 +131,19 @@ xdr_ep_volume_t (XDR *xdrs, ep_volume_t *objp)
 	//register int32_t *buf;
 
 	//int i;
+	 if (!xdr_uint8_t (xdrs, &objp->clusters_nb))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->clusters, ROZOFS_CLUSTERS_MAX,
+		sizeof (ep_cluster_t), (xdrproc_t) xdr_ep_cluster_t))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
+{
+	//register int32_t *buf;
+
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
 	 if (!xdr_ep_md5_t (xdrs, objp->md5))
@@ -139,10 +152,7 @@ xdr_ep_volume_t (XDR *xdrs, ep_volume_t *objp)
 		 return FALSE;
 	 if (!xdr_int (xdrs, &objp->rl))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->clusters_nb))
-		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->clusters, ROZOFS_CLUSTERS_MAX,
-		sizeof (ep_cluster_t), (xdrproc_t) xdr_ep_cluster_t))
+	 if (!xdr_ep_volume_t (xdrs, &objp->volume))
 		 return FALSE;
 	return TRUE;
 }
@@ -156,7 +166,7 @@ xdr_ep_mount_ret_t (XDR *xdrs, ep_mount_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case EP_SUCCESS:
-		 if (!xdr_ep_volume_t (xdrs, &objp->ep_mount_ret_t_u.volume))
+		 if (!xdr_ep_export_t (xdrs, &objp->ep_mount_ret_t_u.export))
 			 return FALSE;
 		break;
 	case EP_FAILURE:

@@ -51,16 +51,20 @@ struct ep_cluster_t {
 };
 
 struct ep_volume_t {
-    uint32_t        eid;
-    ep_md5_t        md5;
-    ep_uuid_t       rfid;   /*root fid*/
-    int             rl;     /* rozofs layout */
     uint8_t         clusters_nb;
     ep_cluster_t    clusters[ROZOFS_CLUSTERS_MAX];
 };
 
+struct ep_export_t {
+    uint32_t        eid;
+    ep_md5_t        md5;
+    ep_uuid_t       rfid;   /*root fid*/
+    int             rl;     /* rozofs layout */
+    ep_volume_t     volume;
+};
+
 union ep_mount_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    ep_volume_t volume;
+    case EP_SUCCESS:    ep_export_t export;
     case EP_FAILURE:    int         error;
     default:            void;
 };
@@ -306,4 +310,4 @@ program EXPORT_PROGRAM {
         EP_LINK(ep_link_arg_t)                  = 18;
 
     } = 1;
-} = 0x20000007;
+} = 0x20000001;
