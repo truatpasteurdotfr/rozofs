@@ -33,6 +33,8 @@ typedef struct storage_config {
 
 typedef struct sconfig {
 	int layout;
+        uint32_t sproto_svc_nb;
+        uint32_t ports[STORAGE_NODE_PORTS_MAX];
 	list_t storages;
 } sconfig_t;
 

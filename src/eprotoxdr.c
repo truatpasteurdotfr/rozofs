@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "eproto.h"
+#include "../src/eproto.h"
 #include "rozofs.h"
 
 bool_t
@@ -98,43 +98,17 @@ xdr_ep_status_ret_t (XDR *xdrs, ep_status_ret_t *objp)
 }
 
 bool_t
-xdr_ep_storage_t (XDR *xdrs, ep_storage_t *objp)
+xdr_ep_storage_node_t (XDR *xdrs, ep_storage_node_t *objp)
 {
 	//register int32_t *buf;
 
-	 if (!xdr_uint16_t (xdrs, &objp->sid))
-		 return FALSE;
+	//int i;
 	 if (!xdr_ep_host_t (xdrs, objp->host))
 		 return FALSE;
-	return TRUE;
-}
-
-bool_t
-xdr_ep_cluster_t (XDR *xdrs, ep_cluster_t *objp)
-{
-	//register int32_t *buf;
-
-	//int i;
-	 if (!xdr_uint16_t (xdrs, &objp->cid))
+	 if (!xdr_uint8_t (xdrs, &objp->sids_nb))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->storages_nb))
-		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->storages, ROZOFS_STORAGES_MAX,
-		sizeof (ep_storage_t), (xdrproc_t) xdr_ep_storage_t))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
-xdr_ep_volume_t (XDR *xdrs, ep_volume_t *objp)
-{
-	//register int32_t *buf;
-
-	//int i;
-	 if (!xdr_uint8_t (xdrs, &objp->clusters_nb))
-		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->clusters, ROZOFS_CLUSTERS_MAX,
-		sizeof (ep_cluster_t), (xdrproc_t) xdr_ep_cluster_t))
+	 if (!xdr_vector (xdrs, (char *)objp->sids, STORAGE_NODE_SIDS_MAX,
+		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
 		 return FALSE;
 	return TRUE;
 }
@@ -144,6 +118,7 @@ xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
 {
 	//register int32_t *buf;
 
+	//int i;
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
 	 if (!xdr_ep_md5_t (xdrs, objp->md5))
@@ -152,7 +127,10 @@ xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
 		 return FALSE;
 	 if (!xdr_int (xdrs, &objp->rl))
 		 return FALSE;
-	 if (!xdr_ep_volume_t (xdrs, &objp->volume))
+	 if (!xdr_uint8_t (xdrs, &objp->storage_nodes_nb))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->storage_nodes, STORAGE_NODES_MAX,
+		sizeof (ep_storage_node_t), (xdrproc_t) xdr_ep_storage_node_t))
 		 return FALSE;
 	return TRUE;
 }

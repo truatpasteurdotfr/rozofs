@@ -28,22 +28,24 @@
 #include "log.h"
 #include "sconfig.h"
 
+/* Settings names for storage configuration file */
 #define SLAYOUT	    "layout"
 #define SSTORAGES   "storages"
 #define SSID	    "sid"
 #define SROOT	    "root"
+#define SPORTS      "ports"
 
 int storage_config_initialize(storage_config_t *s, sid_t sid, const char *root) {
-	DEBUG_FUNCTION;
+    DEBUG_FUNCTION;
 
-	s->sid = sid;
-	strcpy(s->root, root);
-	list_init(&s->list);
-	return 0;
+    s->sid = sid;
+    strcpy(s->root, root);
+    list_init(&s->list);
+    return 0;
 }
 
 void storage_config_release(storage_config_t *s) {
-	return;
+    return;
 }
 
 int sconfig_initialize(sconfig_t *sc) {
@@ -54,8 +56,8 @@ int sconfig_initialize(sconfig_t *sc) {
 }
 
 void sconfig_release(sconfig_t *config) {
-	list_t *p, *q;
-	DEBUG_FUNCTION;
+    list_t *p, *q;
+    DEBUG_FUNCTION;
 
     list_for_each_forward_safe(p, q, &config->storages) {
         storage_config_t *entry = list_entry(p, storage_config_t, list);
@@ -69,7 +71,8 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
     long int layout;
-    struct config_setting_t *settings = 0;
+    struct config_setting_t *stor_settings = 0;
+    struct config_setting_t *ports_settings = 0;
     int i;
     DEBUG_FUNCTION;
 
@@ -86,21 +89,39 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         fatal("can't fetch layout setting.");
         goto out;
     }
-    config->layout = (sid_t)layout;
+    config->layout = (sid_t) layout;
 
-    if (!(settings = config_lookup(&cfg, SSTORAGES))) {
+    if (!(ports_settings = config_lookup(&cfg, SPORTS))) {
+        errno = ENOKEY;
+        fatal("can't fetch ports settings.");
+        goto out;
+    }
+
+    for (i = 0; i < config_setting_length(ports_settings); i++) {
+
+        long int port = 0;
+
+        if ((port = config_setting_get_int_elem(ports_settings, i)) == 0) {
+            errno = ENOKEY;
+            fatal("cant't lookup port at index %d.", i);
+        }
+        config->ports[i] = port;
+        config->sproto_svc_nb++;
+    }
+
+    if (!(stor_settings = config_lookup(&cfg, SSTORAGES))) {
         errno = ENOKEY;
         fatal("can't fetch storages settings.");
         goto out;
     }
 
-    for (i = 0; i < config_setting_length(settings); i++) {
+    for (i = 0; i < config_setting_length(stor_settings); i++) {
         storage_config_t *new = 0;
         struct config_setting_t *ms = 0;
         long int sid;
         const char *root = 0;
 
-        if (!(ms = config_setting_get_elem(settings, i))) {
+        if (!(ms = config_setting_get_elem(stor_settings, i))) {
             errno = ENOKEY;
             severe("cant't fetch storage.");
             goto out;
@@ -119,8 +140,8 @@ int sconfig_read(sconfig_t *config, const char *fname) {
             goto out;
         }
 
-        new = xmalloc(sizeof(storage_config_t));
-        if (storage_config_initialize(new, (sid_t)sid, root) != 0) {
+        new = xmalloc(sizeof (storage_config_t));
+        if (storage_config_initialize(new, (sid_t) sid, root) != 0) {
             goto out;
         }
         list_push_back(&config->storages, &new->list);
@@ -143,6 +164,15 @@ int sconfig_validate(sconfig_t *config) {
         goto out;
     }
 
+    /* Checking the number of process */
+    if (config->sproto_svc_nb < 1 ||
+            config->sproto_svc_nb > STORAGE_NODE_PORTS_MAX) {
+        severe("invalid number of process: %u. (minimum: 1, maximum: %d)",
+                config->sproto_svc_nb,STORAGE_NODE_PORTS_MAX);
+        errno = EINVAL;
+        goto out;
+    }
+
     list_for_each_forward(p, &config->storages) {
         list_t *q;
         storage_config_t *e1 = list_entry(p, storage_config_t, list);
@@ -151,6 +181,7 @@ int sconfig_validate(sconfig_t *config) {
             errno = EINVAL;
             goto out;
         }
+
         list_for_each_forward(q, &config->storages) {
             storage_config_t *e2 = list_entry(q, storage_config_t, list);
             if (e1 == e2)

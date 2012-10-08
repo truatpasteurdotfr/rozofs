@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii storage.conf.5
 .\"
-.TH STORAGE.CONF 5 "DECEMBER 2010" Rozofs "User Manuals"
+.TH STORAGE.CONF 5 "OCTOBER 2012" Rozofs "User Manuals"
 .SH NAME
 storage.conf \- rozofs storage daemon configuration file
 .SH DESCRIPTION
@@ -11,15 +11,6 @@ is manage throw
 <http://www.hyperrealm.com/libconfig/> and thus complies to the
 .B libconfig
 grammar.
-.SS storages
-A storage in Rozofs is directory used by a
-.B storaged
-deamon to store erase coded data.
-
-.B storaged
-deamon.
-.B storaged
-can manage several storages.
 
 .SS layout
 Transform layout used by rozofs. Data will be transform in 
@@ -35,19 +26,34 @@ Valid layouts are :
    - 1 : inverse = 4, forward = 6, safe = 8
    - 2 : inverse = 8, forward = 12, safe = 16
 
-.SS storages
- A storage in this file is an sid (uint16_t)
-and an root directory. 
+.B Example:
+ layout = 0;  
 
-.B warning
-sids should be the same as those used in 
+.SS ports
+
+ TCP ports used for receive write and read requests from clients.
+ A process will be created for each TCP port.
+ Another process will be created to receive other requests.
+ 
+.B Example:
+ ports = [40001, 40002, 40003, 40004];  
+
+.SS storages
+ A storage in Rozofs is directory used by a 
+.B storaged deamon to store erase coded data.
+ One storaged deamon can manage several storages.
+ A storage in this file is identified by an sid (uint16_t) and an root directory. 
+
+.B Warning
+:sids should be the same as those used in 
 .B export.conf
 
-storages = (
-    {sid = 01; root = "/path/to/foo";},
-    {sid = 02; root = "/path/to/bar";}
+.B Example:
+ storages = (
+    {sid = 1; root = "/path/to/foo";},
+    {sid = 2; root = "/path/to/bar";}
     #...
-);
+ );
 
 .SH FILES
 .I /etc/rozofs/storage.conf (/usr/local/etc/rozofs/storage.conf)

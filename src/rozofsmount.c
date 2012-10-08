@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <assert.h>
 
 #include "rozofs.h"
 #include "config.h"
@@ -38,8 +39,8 @@
 #include "file.h"
 #include "htable.h"
 #include "xmalloc.h"
-#include "sproto.h"
-#include <assert.h>
+#include "sclient.h"
+#include "mclient.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -49,6 +50,8 @@
 #define FUSE27_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs"
 
 #define CACHE_TIMEOUT 10.0
+
+#define CONNECTION_THREAD_TIMESPEC  2
 
 static void usage(const char *progname) {
     fprintf(stderr, "Rozofs fuse mounter - %s\n", VERSION);
@@ -60,7 +63,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\n");
     fprintf(stderr, "ROZOFS options:\n");
     fprintf(stderr, "\t-H EXPORT_HOST\t\tdefine address (or dns name) where exportd deamon is running (default: rozofsexport) equivalent to '-o exporthost=EXPORT_HOST'\n");
-    fprintf(stderr, "\t-E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozo/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
+    fprintf(stderr, "\t-E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "\t-P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "\t-o rozofsbufsize=N\tdefine size of I/O buffer in KiB (default: 256)\n");
     fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 5)\n");
@@ -146,13 +149,6 @@ static int myfs_opt_proc(void *data, const char *arg, int key,
     return 1;
 }
 
-/*
-typedef struct dirbuf {
-    char *p;
-    size_t size;
-} dirbuf_t;
- */
-
 typedef struct dirbuf {
     char *p;
     size_t size;
@@ -162,10 +158,10 @@ typedef struct dirbuf {
 
 /** entry kept locally to map fuse_inode_t with rozofs fid_t */
 typedef struct ientry {
-    fuse_ino_t inode;       ///< value of the inode allocated by rozofs
-    fid_t fid;              ///< unique file identifier associated with the file or directory
-    dirbuf_t db;            ///< buffer used for directory listing
-    unsigned long nlookup;   ///< number of lookup done on this entry (used for forget)
+    fuse_ino_t inode; ///< value of the inode allocated by rozofs
+    fid_t fid; ///< unique file identifier associated with the file or directory
+    dirbuf_t db; ///< buffer used for directory listing
+    unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
     list_t list;
 } ientry_t;
 
@@ -175,16 +171,16 @@ static list_t inode_entries;
 static htable_t htable_inode;
 static htable_t htable_fid;
 
-static uint32_t fuse_ino_hash(void *n) {
+static inline uint32_t fuse_ino_hash(void *n) {
     return hash_xor8(*(uint32_t *) n);
 }
 
-static int fuse_ino_cmp(void *v1, void *v2) {
+static inline int fuse_ino_cmp(void *v1, void *v2) {
     return (*(fuse_ino_t *) v1 - *(fuse_ino_t *) v2);
 }
 
-static int fid_cmp(void *key1, void *key2) {
-    return memcmp(key1, key2, sizeof(fid_t));
+static inline int fid_cmp(void *key1, void *key2) {
+    return memcmp(key1, key2, sizeof (fid_t));
 }
 
 static unsigned int fid_hash(void *key) {
@@ -208,25 +204,25 @@ static void ientries_release() {
     }
 }
 
-static void put_ientry(ientry_t * ie) {
+static inline void put_ientry(ientry_t * ie) {
     DEBUG("put inode: %lu\n", ie->inode);
     htable_put(&htable_inode, &ie->inode, ie);
     htable_put(&htable_fid, ie->fid, ie);
     list_push_front(&inode_entries, &ie->list);
 }
 
-static void del_ientry(ientry_t * ie) {
+static inline void del_ientry(ientry_t * ie) {
     DEBUG("del inode: %lu\n", ie->inode);
     htable_del(&htable_inode, &ie->inode);
     htable_del(&htable_fid, ie->fid);
     list_remove(&ie->list);
 }
 
-static ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
+static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
     return htable_get(&htable_inode, &ino);
 }
 
-static ientry_t *get_ientry_by_fid(fid_t fid) {
+static inline ientry_t *get_ientry_by_fid(fid_t fid) {
     return htable_get(&htable_fid, fid);
 }
 
@@ -236,20 +232,89 @@ static inline fuse_ino_t next_inode_idx() {
     return inode_idx++;
 }
 
-static void *connect_storage(void *v) {
-    storageclt_t *storage = (storageclt_t*) v;
+/** Send a request to a storage node for get the list of TCP ports this storage
+ *
+ * @param storage: the storage node 
+ *
+ * @return 0 on success otherwise -1
+ */
+static int get_storage_ports(mstorage_t *s) {
+    int status = -1;
+    int i = 0;
+    mclient_t mclt;
 
-    struct timespec ts = {2, 0};
+    uint32_t ports[STORAGE_NODE_PORTS_MAX];
+    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+    strcpy(mclt.host, s->host);
+
+    /* Initialize connection with storage (by mproto) */
+    if (mclient_initialize(&mclt) != 0) {
+        severe("Warning: failed to join storage (host: %s), %s.\n",
+                s->host, strerror(errno));
+        goto out;
+    } else {
+        /* Send request to get storage TCP ports */
+        if (mclient_ports(&mclt, ports) != 0) {
+            severe("Warning: failed to get ports for storage (host: %s).\n",
+                    s->host);
+            goto out;
+        }
+    }
+
+    /* Copy each TCP ports */
+    for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+        if (ports[i] != 0) {
+            strcpy(s->sclients[i].host, s->host);
+            s->sclients[i].port = ports[i];
+            s->sclients[i].status = 0;
+            s->sclients_nb++;
+        }
+    }
+
+    /* Release mclient*/
+    mclient_release(&mclt);
+
+    status = 0;
+out:
+    return status;
+}
+
+/** Check if the connections for one storage node are active or not
+ *
+ * @param storage: the storage node 
+ */
+static void *connect_storage(void *v) {
+    mstorage_t *mstorage = (mstorage_t*) v;
+    int i = 0;
+
+    struct timespec ts = {CONNECTION_THREAD_TIMESPEC, 0};
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     for (;;) {
-        if (storage->rpcclt.client == 0 || storage->status != 1) {
-            warning("SID: %d (%s) needs reconnection", storage->sid,
-                    storage->host);
-            if (storageclt_initialize(storage) != 0) {
-                warning("storageclt_initialize failed for SID: %d (%s): %s",
-                        storage->sid, storage->host, strerror(errno));
+
+        /* We don't have the ports for this storage node */
+        if (mstorage->sclients_nb == 0) {
+            /* Get ports for this storage node */
+            if (get_storage_ports(mstorage) != 0) {
+                DEBUG("Cannot get ports for host: %s", mstorage->host);
+            }
+        }
+
+        /* Verify each connections for this storage node */
+        for (i = 0; i < mstorage->sclients_nb; i++) {
+
+            sclient_t *sclt = &mstorage->sclients[i];
+
+            if (sclt->rpcclt.client == 0 || sclt->status != 1) {
+
+                DEBUG("Disconnection (host: %s, port: %u) detected",
+                        sclt->host, sclt->port);
+
+                if (sclient_initialize(sclt) != 0) {
+                    DEBUG("sclient_initialize failed for connection (host: %s, port: %u): %s",
+                            sclt->host, sclt->port, strerror(errno));
+                }
             }
         }
         nanosleep(&ts, NULL);
@@ -872,7 +937,7 @@ void rozofs_ll_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
     }
 
     if ((ie2 = get_ientry_by_fid(fid))) {
-        ie2->nlookup --;
+        ie2->nlookup--;
     }
     fuse_reply_err(req, 0);
     goto out;
@@ -882,7 +947,7 @@ out:
     return;
 }
 
-static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name, 
+static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name,
         fuse_ino_t ino, mattr_t * attrs) {
     // Get oldsize of buffer
     size_t oldsize = b->size;
@@ -900,7 +965,7 @@ static void dirbuf_add(fuse_req_t req, struct dirbuf *b, const char *name,
 
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-static int reply_buf_limited(fuse_req_t req, struct dirbuf *b, off_t off, 
+static int reply_buf_limited(fuse_req_t req, struct dirbuf *b, off_t off,
         size_t maxsize) {
     if (off < b->size) {
         return fuse_reply_buf(req, b->p + off, min(b->size - off, maxsize));
@@ -1166,19 +1231,27 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
 };
 
 int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
-    int i;
-    char s;
+    int i = 0;
+    int err;
     int piped[2];
     piped[0] = piped[1] = -1;
-    int err;
+    char s;
     struct fuse_chan *ch;
     struct fuse_session *se;
-    list_t *p;
+    list_t *p = NULL;
+    list_t *iterator = NULL;
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
-    if (exportclt_initialize (&exportclt, conf.host, conf.export, conf.passwd,
-            conf.buf_size * 1024, conf.max_retry) != 0) {
+    /* Initiate the connection to the export and get informations
+     * about exported filesystem */
+    if (exportclt_initialize(
+            &exportclt,
+            conf.host,
+            conf.export,
+            conf.passwd,
+            conf.buf_size * 1024,
+            conf.max_retry) != 0) {
         fprintf(stderr,
                 "rozofsmount failed for:\n" "export directory: %s\n"
                 "export hostname: %s\n" "local mountpoint: %s\n" "error: %s\n"
@@ -1187,9 +1260,57 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         return 1;
     }
 
+    /* Initiate the connection to each storage node (with mproto),
+     *  get the list of ports and
+     *  establish a connection with each storage socket (with sproto) */
+    list_for_each_forward(iterator, &exportclt.storages) {
+
+        mstorage_t *s = list_entry(iterator, mstorage_t, list);
+
+        mclient_t mclt;
+        strcpy(mclt.host, s->host);
+        uint32_t ports[STORAGE_NODE_PORTS_MAX];
+        memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+
+        /* Initialize connection with storage (by mproto) */
+        if (mclient_initialize(&mclt) != 0) {
+            fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
+                    s->host, strerror(errno));
+        } else {
+            /* Send request to get storage TCP ports */
+            if (mclient_ports(&mclt, ports) != 0) {
+                fprintf(stderr,
+                        "Warning: failed to get ports for storage (host: %s).\n"
+                        , s->host);
+            }
+        }
+
+        /* Initialize each TCP ports connection with this storage node
+         *  (by sproto) */
+        for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+            if (ports[i] != 0) {
+                strcpy(s->sclients[i].host, s->host);
+                s->sclients[i].port = ports[i];
+                s->sclients[i].status = 0;
+                if (sclient_initialize(&s->sclients[i]) != 0) {
+                    fprintf(stderr,
+                            "Warning: failed to join storage (host: %s, port: %u), %s.\n",
+                            s->host, s->sclients[i].port, strerror(errno));
+                }
+                s->sclients_nb++;
+            }
+        }
+
+        /* Release mclient*/
+        mclient_release(&mclt);
+    }
+
+    /* Initialize list and htables for inode_entries*/
     list_init(&inode_entries);
     htable_initialize(&htable_inode, INODE_HSIZE, fuse_ino_hash, fuse_ino_cmp);
     htable_initialize(&htable_fid, PATH_HSIZE, fid_hash, fid_cmp);
+
+    /* Put the root inode entry*/
     ientry_t *root = xmalloc(sizeof (ientry_t));
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
     root->inode = next_inode_idx();
@@ -1278,21 +1399,16 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         }
     }
 
-    // Creates one thread for each storage.
-    // Each thread will detect if a storage is going offline
-    // and try to reconnect it.
+    /* Creates one thread for each storage TCP connection.
+     Each thread will detect if a storage connection is going offline
+     and try to reconnect it.*/
+    list_for_each_forward(p, &exportclt.storages) {
 
-    // For each cluster
-    list_for_each_forward(p, &exportclt.mcs) {
-        mcluster_t *cluster = list_entry(p, mcluster_t, list);
+        mstorage_t *storage = list_entry(p, mstorage_t, list);
+        pthread_t thread;
 
-        // For each storage
-        for (i = 0; i < cluster->nb_ms; i++) {
-            pthread_t thread;
-            if (pthread_create(&thread, NULL, connect_storage, &cluster->ms[i])
-                    != 0) {
-                severe("can't create connexion thread: %s", strerror(errno));
-            }
+        if ((errno = pthread_create(&thread, NULL, connect_storage, storage)) != 0){
+            severe("can't create connexion thread: %s", strerror(errno));
         }
     }
 
@@ -1337,7 +1453,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (conf.export == NULL) {
-        conf.export = strdup("/srv/rozo/exports/export");
+        conf.export = strdup("/srv/rozofs/exports/export");
     }
 
     if (conf.passwd == NULL) {

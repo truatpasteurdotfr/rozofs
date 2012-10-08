@@ -29,7 +29,7 @@
 
 int mdir_open(mdir_t *mdir, const char *path) {
 
-    if ((mdir->fdp = open(path, O_RDONLY, S_IRWXU)) < 0) {
+    if ((mdir->fdp = open(path, O_RDONLY | O_NOATIME, S_IRWXU)) < 0) {
         return -1;
     }
 

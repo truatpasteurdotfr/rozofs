@@ -22,23 +22,23 @@
 #include "log.h"
 #include "sproto.h"
 #include "rpcclt.h"
-#include "storageclt.h"
+#include "sclient.h"
 
-int storageclt_initialize(storageclt_t * clt) {
+int sclient_initialize(sclient_t * sclt) {
     int status = -1;
     DEBUG_FUNCTION;
 
-    clt->status = 0;
+    sclt->status = 0;
 
-    if (rpcclt_initialize(&clt->rpcclt, clt->host, STORAGE_PROGRAM, STORAGE_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE) != 0) {
+    if (rpcclt_initialize(&sclt->rpcclt, sclt->host, STORAGE_PROGRAM, STORAGE_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, sclt->port) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);
-        clt->status = 0;
+        sclt->status = 0;
         errno = xerrno;
         goto out;
     }
-    clt->status = 1;
+    sclt->status = 1;
 
     status = 0;
 out:
@@ -46,42 +46,20 @@ out:
 }
 
 // XXX Useless
-void storageclt_release(storageclt_t * clt) {
+void sclient_release(sclient_t * clt) {
     DEBUG_FUNCTION;
     if (clt && clt->rpcclt.client)
         rpcclt_release(&clt->rpcclt);
 }
 
-int storageclt_stat(storageclt_t * clt, sstat_t * st) {
-    int status = -1;
-    sp_stat_ret_t *ret = 0;
-    DEBUG_FUNCTION;
-
-    if (!(clt->rpcclt.client) || !(ret = sp_stat_1(&clt->sid, clt->rpcclt.client))) {
-        errno = EPROTO;
-        goto out;
-    }
-    if (ret->status != 0) {
-        errno = ret->sp_stat_ret_t_u.error;
-        goto out;
-    }
-    memcpy(st, &ret->sp_stat_ret_t_u.sstat, sizeof (sstat_t));
-
-    status = 0;
-out:
-    if (ret)
-        xdr_free((xdrproc_t) xdr_sp_stat_ret_t, (char *) ret);
-    return status;
-}
-
-int storageclt_write(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
+int sclient_write(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
         uint32_t nrb, const bin_t * bins) {
     int status = -1;
     sp_status_ret_t *ret = 0;
     sp_write_arg_t args;
     DEBUG_FUNCTION;
 
-    args.sid = clt->sid;
+    args.sid = sid;
     memcpy(args.fid, fid, sizeof (uuid_t));
     args.tid = tid;
     args.bid = bid;
@@ -91,12 +69,12 @@ int storageclt_write(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
 
     if (!(clt->rpcclt.client) || !(ret = sp_write_1(&args, clt->rpcclt.client))) {
         clt->status = 0;
-        warning("storageclt_write failed: storage write failed (no response from storage server: %s)", clt->host);
+        warning("sclient_write failed: no response from storage server (%s, %u, %u)", clt->host, clt->port, sid);
         errno = EPROTO;
         goto out;
     }
     if (ret->status != 0) {
-        severe("storageclt_write failed: storage write response failure (%s)",
+        severe("sclient_write failed: storage write response failure (%s)",
                 strerror(errno));
         errno = ret->sp_status_ret_t_u.error;
         goto out;
@@ -108,27 +86,27 @@ out:
     return status;
 }
 
-int storageclt_read(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
+int sclient_read(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
         uint32_t nrb, bin_t * bins) {
     int status = -1;
     sp_read_ret_t *ret = 0;
     sp_read_arg_t args;
     DEBUG_FUNCTION;
 
-    args.sid = clt->sid;
+    args.sid = sid;
     memcpy(args.fid, fid, sizeof (fid_t));
     args.tid = tid;
     args.bid = bid;
     args.nrb = nrb;
     if (!(clt->rpcclt.client) || !(ret = sp_read_1(&args, clt->rpcclt.client))) {
         clt->status = 0;
-        warning("storageclt_read failed: storage read failed (no response from storage server: %s)", clt->host);
+        warning("sclient_read failed: storage read failed (no response from storage server: %s)", clt->host);
         errno = EPROTO;
         goto out;
     }
     if (ret->status != 0) {
         errno = ret->sp_read_ret_t_u.error;
-        severe("storageclt_read failed: storage read response failure (%s)", strerror(errno));
+        severe("sclient_read failed: storage read response failure (%s)", strerror(errno));
         goto out;
     }
     // XXX ret->sp_read_ret_t_u.bins.bins_len is coherent
@@ -145,41 +123,18 @@ out:
 
 
 // XXX Never used
-int storageclt_truncate(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid) {
+int storageclt_truncate(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid) {
     int status = -1;
     sp_status_ret_t *ret = 0;
     sp_truncate_arg_t args;
     DEBUG_FUNCTION;
 
-    args.sid = clt->sid;
+    args.sid = sid;
     memcpy(args.fid, fid, sizeof (fid_t));
     args.tid = tid;
     args.bid = bid;
     ret = sp_truncate_1(&args, clt->rpcclt.client);
     if (ret == 0) {
-        errno = EPROTO;
-        goto out;
-    }
-    if (ret->status != 0) {
-        errno = ret->sp_status_ret_t_u.error;
-        goto out;
-    }
-    status = 0;
-out:
-    if (ret)
-        xdr_free((xdrproc_t) xdr_sp_status_ret_t, (char *) ret);
-    return status;
-}
-
-int storageclt_remove(storageclt_t * clt, fid_t fid) {
-    int status = -1;
-    sp_status_ret_t *ret = 0;
-    sp_remove_arg_t args;
-    DEBUG_FUNCTION;
-
-    args.sid = clt->sid;
-    memcpy(args.fid, fid, sizeof (fid_t));
-    if (!(clt->rpcclt.client) || !(ret = sp_remove_1(&args, clt->rpcclt.client))) {
         errno = EPROTO;
         goto out;
     }

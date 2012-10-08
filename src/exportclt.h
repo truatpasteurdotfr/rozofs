@@ -24,22 +24,24 @@
 #include "rozofs.h"
 #include "rpcclt.h"
 #include "dist.h"
-#include "storageclt.h"
+#include "sclient.h"
 #include "mattr.h"
 
-typedef struct mcluster {
-    cid_t cid;
-    storageclt_t *ms;
-    uint16_t nb_ms;
+typedef struct mstorage {
+    char host[ROZOFS_HOSTNAME_MAX];  
+    sclient_t sclients[STORAGE_NODE_PORTS_MAX];
+    uint16_t sids[STORAGE_NODE_SIDS_MAX];
+    uint8_t sclients_nb;
+    uint8_t sids_nb;
     list_t list;
-} mcluster_t;
+} mstorage_t;
 
 typedef struct exportclt {
     char host[ROZOFS_HOSTNAME_MAX];
     char *root;
     char *passwd;
     eid_t eid;
-    list_t mcs;
+    list_t storages; // XXX: Need a lock?
     rozofs_layout_t rl;
     fid_t rfid;
     uint32_t bufsize;

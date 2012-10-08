@@ -8,6 +8,9 @@
 # 2 : safe = 16, forward = 12, inverse = 8 
 layout = 0;
 
+# TCP ports used for receive write and read requests from clients.
+ports = [40001, 40002, 40003, 40004 ];
+
 # sid : - must be an unsigned 16 bytes int.
 #       - should exist in exportd config file
 storages = (

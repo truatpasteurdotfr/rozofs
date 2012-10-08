@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "../src/sproto.h"
+#include "../src/mproto.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <rpc/pmap_clnt.h>
@@ -18,40 +18,39 @@
 #include "rozofs.h"
 
 void
-storage_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
+monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
-		sp_write_arg_t sp_write_1_arg;
-		sp_read_arg_t sp_read_1_arg;
-		sp_truncate_arg_t sp_truncate_1_arg;
+		uint16_t mp_stat_1_arg;
+		mp_remove_arg_t mp_remove_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
 	char *(*local)(char *, struct svc_req *);
 
 	switch (rqstp->rq_proc) {
-	case SP_NULL:
+	case MP_NULL:
 		_xdr_argument = (xdrproc_t) xdr_void;
 		_xdr_result = (xdrproc_t) xdr_void;
-		local = (char *(*)(char *, struct svc_req *)) sp_null_1_svc;
+		local = (char *(*)(char *, struct svc_req *)) mp_null_1_svc;
 		break;
 
-	case SP_WRITE:
-		_xdr_argument = (xdrproc_t) xdr_sp_write_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) sp_write_1_svc;
+	case MP_STAT:
+		_xdr_argument = (xdrproc_t) xdr_uint16_t;
+		_xdr_result = (xdrproc_t) xdr_mp_stat_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) mp_stat_1_svc;
 		break;
 
-	case SP_READ:
-		_xdr_argument = (xdrproc_t) xdr_sp_read_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_read_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) sp_read_1_svc;
+	case MP_REMOVE:
+		_xdr_argument = (xdrproc_t) xdr_mp_remove_arg_t;
+		_xdr_result = (xdrproc_t) xdr_mp_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) mp_remove_1_svc;
 		break;
 
-	case SP_TRUNCATE:
-		_xdr_argument = (xdrproc_t) xdr_sp_truncate_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) sp_truncate_1_svc;
+	case MP_PORTS:
+		_xdr_argument = (xdrproc_t) xdr_void;
+		_xdr_result = (xdrproc_t) xdr_mp_ports_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) mp_ports_1_svc;
 		break;
 
 	default:

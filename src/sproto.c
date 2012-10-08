@@ -31,26 +31,6 @@ void *sp_null_1_svc(void *args, struct svc_req *req) {
     return 0;
 }
 
-sp_status_ret_t *sp_remove_1_svc(sp_remove_arg_t * args, struct svc_req * req) {
-    static sp_status_ret_t ret;
-    storage_t *st = 0;
-    DEBUG_FUNCTION;
-
-    ret.status = SP_FAILURE;
-    if ((st = storaged_lookup(args->sid)) == 0) {
-        ret.sp_status_ret_t_u.error = errno;
-        goto out;
-    }
-    if (storage_rm_file(st, args->fid) != 0 && errno != ENOENT) {
-        ret.sp_status_ret_t_u.error = errno;
-        goto out;
-    }
-
-    ret.status = SP_SUCCESS;
-out:
-    return &ret;
-}
-
 sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     static sp_status_ret_t ret;
     storage_t *st = 0;
@@ -115,28 +95,6 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
-    ret.status = SP_SUCCESS;
-out:
-    return &ret;
-}
-
-sp_stat_ret_t *sp_stat_1_svc(uint16_t * sid, struct svc_req * req) {
-    static sp_stat_ret_t ret;
-    storage_t *st = 0;
-    sstat_t sstat;
-    DEBUG_FUNCTION;
-
-    ret.status = SP_FAILURE;
-    if ((st = storaged_lookup(*sid)) == 0) {
-        ret.sp_stat_ret_t_u.error = errno;
-        goto out;
-    }
-    if (storage_stat(st, &sstat) != 0) {
-        ret.sp_stat_ret_t_u.error = errno;
-        goto out;
-    }
-    ret.sp_stat_ret_t_u.sstat.size = sstat.size;
-    ret.sp_stat_ret_t_u.sstat.free = sstat.free;
     ret.status = SP_SUCCESS;
 out:
     return &ret;

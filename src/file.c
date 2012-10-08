@@ -23,30 +23,61 @@
 #include "xmalloc.h"
 #include "sproto.h"
 
-static storageclt_t *get_storage_cnt(exportclt_t * e, cid_t cid, sid_t sid) {
+/** Get one storage connection for a given sid and given hash value
+ * 
+ * @param *e: pointer to exportclt_t
+ * @param sid: storage ID
+ * @param hash: hash value for this fid 
+ *
+ * @return: storage connection on success, NULL otherwise (errno: EINVAL is set)
+ */
+static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid, uint32_t hash) {
     list_t *iterator;
     int i = 0;
     DEBUG_FUNCTION;
 
-    list_for_each_forward(iterator, &e->mcs) {
-        mcluster_t *entry = list_entry(iterator, mcluster_t, list);
-        if (cid == entry->cid) {
-            for (i = 0; i < entry->nb_ms; i++) {
-                if (sid == entry->ms[i].sid)
-                    return &entry->ms[i];
+    list_for_each_forward(iterator, &e->storages) {
+
+        mstorage_t *entry = list_entry(iterator, mstorage_t, list);
+
+        for (i = 0; i < entry->sids_nb; i++) {
+
+            if (sid == entry->sids[i]) {
+                // The good storage node is find
+                // modulo between all connections for this node
+                if (entry->sclients_nb > 0) {
+                    hash %= entry->sclients_nb;
+                    return &entry->sclients[hash];
+                } else {
+                    // We find a storage node for this sid but
+                    // it don't have connection.
+                    // It's only possible when all connections for one storage
+                    // node are down when we mount the filesystem or we don't
+                    // have get ports for this storage when we mount the
+                    // the filesystem
+                    severe("No connection found for storage with sid: %u", sid);
+                    return NULL;
+                }
             }
         }
     }
-    warning("lookup_mstorage failed : mstorage (cid: %u, sid: %u) not found",
-            cid, sid);
-    errno = EINVAL;
+    severe("Storage point (sid: %u) is unknow, the volume has been modified",
+            sid);
+    // XXX: We must send a request to the export server 
+    // for reload the configuration 
     return NULL;
 }
 
-/** Verifies that the number of connections to servers is sufficient
+/** Get connections to storage servers for a given file and 
+ *  verifies that the number of connections to storage servers is sufficient 
  * 
  *  To verify that number of connections is sufficient from a given distribution
  *  then we must pass the distribution as parameter
+ * 
+ * This function computes a hash value for the fid to select a connection
+ * among all those available for one storage server (one SID).
+ * That allows you to load balancing connections between proccess
+ * for one storage server
  * 
  * @param *f: pointer to the file structure 
  * @param nb_required: nb. of connections required
@@ -54,33 +85,42 @@ static storageclt_t *get_storage_cnt(exportclt_t * e, cid_t cid, sid_t sid) {
  *
  * @return: 0 on success -1 otherwise (errno: EIO is set)
  */
-static int file_check_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
+static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
     int i = 0;
     int connected = 0;
     struct timespec ts = {2, 0}; /// XXX static
+    uint32_t hash = 0;
+    uint8_t *c = 0;
+
     DEBUG_FUNCTION;
+
+    // Get a hash value for this fid
+    for (c = f->fid; c != f->fid + 16; c++)
+        hash = *c + (hash << 6) + (hash << 16) - hash;
+
 
     for (i = 0; i < rozofs_safe; i++) {
         // Not necessary to check the distribution
         if (dist_p == NULL) {
-            // Get connection for this storage
-            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.cid, f->attrs.sids[i])) == NULL)
-                return -1;
 
-            // Check connection status
-            if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
-                connected++; // This storage seems to be OK
+            // Get connection for this storage
+            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.sids[i], hash)) != NULL) {
+
+                // Check connection status
+                if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+                    connected++; // This storage seems to be OK
+            }
 
         } else {
             // Check if the storage server has data
             if (dist_is_set(*dist_p, i)) {
                 // Get connection for this storage
-                if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.cid, f->attrs.sids[i])) == NULL)
-                    return -1;
+                if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.sids[i], hash)) != NULL) {
 
-                // Check connection status
-                if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
-                    connected++; // This storage seems to be OK
+                    // Check connection status
+                    if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+                        connected++; // This storage seems to be OK
+                }
             }
         }
     }
@@ -170,7 +210,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t 
 
                 b = xmalloc(n * rozofs_psizes[mp] * sizeof (bin_t));
 
-                if (storageclt_read(f->storages[mps], f->fid, mp, bid + i, n, b) != 0) {
+                if (sclient_read(f->storages[mps], f->attrs.sids[mps], f->fid, mp, bid + i, n, b) != 0) {
                     free(b);
                     continue;
                 }
@@ -192,7 +232,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t 
 
             // If file_check_connections fail
             // It's not necessary to retry to read on storage servers
-            while (file_check_cnts(f, rozofs_inverse, dist_iterator) != 0 && retry++ < f->export->retries);
+            while (file_get_cnts(f, rozofs_inverse, dist_iterator) != 0 && retry++ < f->export->retries);
 
         } while (retry++ < f->export->retries);
 
@@ -317,7 +357,7 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nmbs, const char *da
             if (!f->storages[ps]->rpcclt.client || f->storages[ps]->status != 1)
                 continue;
 
-            if (storageclt_write(f->storages[ps], f->fid, mp, bid, nmbs, bins[mp]) != 0)
+            if (sclient_write(f->storages[ps], f->attrs.sids[ps], f->fid, mp, bid, nmbs, bins[mp]) != 0)
                 continue;
 
             dist_set_true(dist, ps);
@@ -333,7 +373,7 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nmbs, const char *da
         }
         // If file_check_connections don't return 0
         // It's not necessary to retry to write on storage servers
-        while (file_check_cnts(f, rozofs_forward, NULL) != 0 && retry++ < f->export->retries);
+        while (file_get_cnts(f, rozofs_forward, NULL) != 0 && retry++ < f->export->retries);
 
     } while (retry++ < f->export->retries);
 
@@ -568,7 +608,7 @@ file_t * file_open(exportclt_t * e, fid_t fid, mode_t mode) {
     f = xmalloc(sizeof (file_t));
 
     memcpy(f->fid, fid, sizeof (fid_t));
-    f->storages = xmalloc(rozofs_safe * sizeof (storageclt_t *));
+    f->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     if (exportclt_getattr(e, fid, &f->attrs) != 0) {
         severe("exportclt_getattr failed: %s", strerror(errno));
         goto error;
@@ -588,7 +628,7 @@ file_t * file_open(exportclt_t * e, fid_t fid, mode_t mode) {
 
     // XXX use the mode because if we open the file in read-only,
     // it is not always necessary to have as many connections
-    if (file_check_cnts(f, rozofs_forward, NULL) != 0)
+    if (file_get_cnts(f, rozofs_forward, NULL) != 0)
         goto error;
 
     f->buf_from = 0;
@@ -670,7 +710,7 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
     int64_t len_rec = 0;
     int64_t length = 0;
     DEBUG_FUNCTION;
-    
+
     if ((off < f->buf_from) || (off >= (f->buf_from + f->buf_pos)) ||
             (len > (f->buf_from + f->buf_pos - off))) {
 

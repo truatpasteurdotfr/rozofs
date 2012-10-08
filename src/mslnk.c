@@ -27,7 +27,7 @@
 #include "mslnk.h"
 
 int mslnk_open(mslnk_t *mslnk, const char *path) {
-    mslnk->fdattrs = open(path, O_RDWR, S_IRWXU);
+    mslnk->fdattrs = open(path, O_RDWR | O_NOATIME, S_IRWXU);
     return mslnk->fdattrs < 0 ? -1 : 0;
 }
 

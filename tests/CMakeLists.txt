@@ -68,10 +68,10 @@ add_executable(test_volume
     ../src/rozofs.c
     ../src/rpcclt.h
     ../src/rpcclt.c
-    ../src/sproto.h
-    ../src/sprotoxdr.c
-    ../src/sprotoclt.c
-    ../src/storageclt.c
+    ../src/mproto.h
+    ../src/mprotoxdr.c
+    ../src/mprotoclt.c
+    ../src/mclient.c
     ../src/volume.h
     ../src/volume.c
     test_volume.c
@@ -143,10 +143,10 @@ add_executable(test_export
     ../src/rozofs.c
     ../src/rpcclt.h
     ../src/rpcclt.c
-    ../src/sproto.h
-    ../src/sprotoxdr.c
-    ../src/sprotoclt.c
-    ../src/storageclt.c
+    ../src/mproto.h
+    ../src/mprotoxdr.c
+    ../src/mprotoclt.c
+    ../src/mclient.c
     ../src/volume.h
     ../src/volume.c
     ../src/volume.h

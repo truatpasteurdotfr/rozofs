@@ -94,7 +94,7 @@ static void *balance_volume_thread(void *v) {
             continue;
         }
 
-        list_for_each_forward(p, &volumes)  {
+        list_for_each_forward(p, &volumes) {
             volume_balance(&list_entry(p, volume_entry_t, list)->volume);
         }
 
@@ -331,7 +331,6 @@ out:
 }
 
 static int load_volumes_conf() {
-    //int status = -1;
     list_t *p, *q, *r;
     DEBUG_FUNCTION;
 
@@ -341,7 +340,7 @@ static int load_volumes_conf() {
         volume_entry_t *ventry = 0;
 
         // Memory allocation for this volume
-        ventry = (volume_entry_t *)xmalloc(sizeof (volume_entry_t));
+        ventry = (volume_entry_t *) xmalloc(sizeof (volume_entry_t));
 
         // Initialize the volume
         volume_initialize(&ventry->volume, vconfig->vid);
@@ -351,12 +350,12 @@ static int load_volumes_conf() {
             cluster_config_t *cconfig = list_entry(q, cluster_config_t, list);
 
             // Memory allocation for this cluster
-            cluster_t *cluster = (cluster_t *)xmalloc(sizeof (cluster_t));
+            cluster_t *cluster = (cluster_t *) xmalloc(sizeof (cluster_t));
             cluster_initialize(cluster, cconfig->cid, 0, 0);
 
             list_for_each_forward(r, &cconfig->storages) {
                 storage_node_config_t *sconfig = list_entry(r, storage_node_config_t, list);
-                volume_storage_t *vs = (volume_storage_t *)xmalloc(sizeof (volume_storage_t));
+                volume_storage_t *vs = (volume_storage_t *) xmalloc(sizeof (volume_storage_t));
                 volume_storage_initialize(vs, sconfig->sid, sconfig->host);
                 list_push_back(&cluster->storages, &vs->list);
             }
@@ -384,7 +383,7 @@ static int load_exports_conf() {
 
         list_init(&entry->list);
 
-        if (! (volume = volumes_lookup_volume(econfig->vid))) {
+        if (!(volume = volumes_lookup_volume(econfig->vid))) {
             severe("can't lookup volume for vid %d: %s\n",
                     econfig->vid, strerror(errno));
         }
@@ -422,7 +421,7 @@ static int exportd_initialize() {
     if ((errno = pthread_rwlock_init(&config_lock, NULL)) != 0)
         fatal("can't initialize lock for config: %s", strerror(errno));
 
-    // initialize lv2 cache
+    // Initialize lv2 cache
     lv2_cache_initialize(&cache);
 
     // Initialize list of volume(s)
@@ -613,7 +612,7 @@ static void on_hup() {
         goto error;
     }
 
-    list_for_each_forward(p, &volumes)  {
+    list_for_each_forward(p, &volumes) {
         volume_balance(&list_entry(p, volume_entry_t, list)->volume);
     }
 
@@ -622,7 +621,7 @@ static void on_hup() {
         goto error;
     }
 
-    list_for_each_forward_safe(p, q, &exports){
+    list_for_each_forward_safe(p, q, &exports) {
         export_entry_t *entry = list_entry(p, export_entry_t, list);
         export_release(&entry->export);
         list_remove(p);
@@ -648,7 +647,7 @@ error:
     pthread_rwlock_unlock(&volumes_lock);
     pthread_rwlock_unlock(&config_lock);
     severe("reload failed.");
-out :
+out:
     econfig_release(&new);
     return;
 }

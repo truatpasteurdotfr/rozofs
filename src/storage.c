@@ -63,12 +63,12 @@ typedef struct pfentry {
 static int pfentry_initialize(pfentry_t * pfe, const char *path, fid_t fid,
         tid_t pid) {
     int status = -1;
+    int flags = O_RDWR | O_CREAT | O_NOATIME;
     DEBUG_FUNCTION;
 
     uuid_copy(pfe->fid, fid);
     pfe->pid = pid;
-    if ((pfe->fd = open(path,
-            O_RDWR | O_CREAT, S_IFREG | S_IRUSR | S_IWUSR)) < 0) {
+    if ((pfe->fd = open(path, flags, S_IFREG | S_IRUSR | S_IWUSR)) < 0) {
         severe("pfentry_initialize failed: open for file %s failed: %s", path,
                 strerror(errno));
         goto out;
@@ -274,7 +274,7 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     pfentry_t key;
     pfentry_t *pfe = 0;
     pid_t pid;
-    
+
     DEBUG_FUNCTION;
 
     if (chdir(st->root) != 0) {
@@ -286,14 +286,14 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     for (pid = 0; pid < rozofs_forward; pid++) {
 
         if (sprintf(bins_filename, "%36s-%u.bins", fid_str, pid) < 0) {
-            severe("storage_rm_file failed: sprintf for bins %s failed: %s", 
+            severe("storage_rm_file failed: sprintf for bins %s failed: %s",
                     fid_str, strerror(errno));
             goto out;
         }
 
         if (unlink(bins_filename) == -1) {
             if (errno != ENOENT) {
-                severe("storage_rm_file failed: unlink file %s failed: %s", 
+                severe("storage_rm_file failed: unlink file %s failed: %s",
                         bins_filename, strerror(errno));
                 goto out;
             }

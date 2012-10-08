@@ -22,14 +22,14 @@
 
 #include "rozofs.h"
 #include "exportclt.h"
-#include "storageclt.h"
+#include "sclient.h"
 
 typedef struct file {
     fid_t fid;
     mode_t mode;
     mattr_t attrs;
     exportclt_t *export;
-    storageclt_t **storages;
+    sclient_t **storages;
     //char buffer[ROZOFS_BUF_SIZE];
     char *buffer;
     int buf_write_wait;

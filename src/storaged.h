@@ -20,4 +20,8 @@
 #include <uuid/uuid.h>
 #include "storage.h"
 
+extern uint8_t process_nb;
+
+extern uint32_t ports[STORAGE_NODE_PORTS_MAX];
+
 storage_t *storaged_lookup(sid_t sid);

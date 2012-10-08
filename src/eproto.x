@@ -39,28 +39,19 @@ union ep_status_ret_t switch (ep_status_t status) {
     default:            void;
 };
 
-struct ep_storage_t {
-    uint16_t        sid;
+struct ep_storage_node_t {
     ep_host_t       host;
-};
-
-struct ep_cluster_t {
-    uint16_t        cid;
-    uint8_t         storages_nb;
-    ep_storage_t    storages[ROZOFS_STORAGES_MAX];
-};
-
-struct ep_volume_t {
-    uint8_t         clusters_nb;
-    ep_cluster_t    clusters[ROZOFS_CLUSTERS_MAX];
+    uint8_t         sids_nb;
+    uint16_t        sids[STORAGE_NODE_SIDS_MAX];
 };
 
 struct ep_export_t {
-    uint32_t        eid;
-    ep_md5_t        md5;
-    ep_uuid_t       rfid;   /*root fid*/
-    int             rl;     /* rozofs layout */
-    ep_volume_t     volume;
+    uint32_t            eid;
+    ep_md5_t            md5;
+    ep_uuid_t           rfid;   /*root fid*/
+    int                 rl;     /* rozofs layout */
+    uint8_t             storage_nodes_nb;
+    ep_storage_node_t   storage_nodes[STORAGE_NODES_MAX];
 };
 
 union ep_mount_ret_t switch (ep_status_t status) {

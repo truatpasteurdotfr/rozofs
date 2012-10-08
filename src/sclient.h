@@ -15,19 +15,33 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
- */
+*/
 
-#include <pthread.h>
 
+#ifndef _SCLIENT_H
+#define _SCLIENT_H
+
+#include <uuid/uuid.h>
 #include "rozofs.h"
-#include "econfig.h"
-#include "eproto.h"
+#include "rpcclt.h"
+#include "storage.h"
 
-extern econfig_t exportd_config;
-extern pthread_rwlock_t config_lock;
+typedef struct sclient {
+    char host[ROZOFS_HOSTNAME_MAX];
+    //sid_t sid;
+    uint32_t port;
+    int status;
+    rpcclt_t rpcclt;
+} sclient_t;
 
-eid_t *exports_lookup_id(ep_path_t path);
+int sclient_initialize(sclient_t * clt);
 
-export_t *exports_lookup_export(eid_t eid);
+void sclient_release(sclient_t * clt);
 
-int exports_remove_bins();
+int sclient_write(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
+                     uint32_t nrb, const bin_t * bins);
+
+int sclient_read(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
+                    uint32_t nrb, bin_t * bins);
+
+#endif

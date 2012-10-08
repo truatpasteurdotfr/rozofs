@@ -30,7 +30,7 @@ typedef struct hash_entry {
     list_t list;
 } hash_entry_t;
 
-void htable_initialize(htable_t * h, uint32_t size, uint32_t(*hash) (void *),
+inline void htable_initialize(htable_t * h, uint32_t size, uint32_t(*hash) (void *),
                        int (*cmp) (void *, void *)) {
     list_t *it;
     DEBUG_FUNCTION;
@@ -43,7 +43,7 @@ void htable_initialize(htable_t * h, uint32_t size, uint32_t(*hash) (void *),
         list_init(it);
 }
 
-void htable_release(htable_t * h) {
+inline void htable_release(htable_t * h) {
     list_t *it;
     DEBUG_FUNCTION;
 
@@ -64,7 +64,7 @@ void htable_release(htable_t * h) {
     return;
 }
 
-void htable_put(htable_t * h, void *key, void *value) {
+inline void htable_put(htable_t * h, void *key, void *value) {
     list_t *bucket, *p;
     hash_entry_t *he = 0;
 
@@ -88,7 +88,7 @@ void htable_put(htable_t * h, void *key, void *value) {
     list_push_back(bucket, &he->list);
 }
 
-void *htable_get(htable_t * h, void *key) {
+inline void *htable_get(htable_t * h, void *key) {
     list_t *p;
     DEBUG_FUNCTION;
 
@@ -102,7 +102,7 @@ void *htable_get(htable_t * h, void *key) {
 }
 
 // Return the removed value or NULL if not found.
-void *htable_del(htable_t * h, void *key) {
+inline void *htable_del(htable_t * h, void *key) {
     void *value = NULL;
     list_t *p, *q;
     DEBUG_FUNCTION;

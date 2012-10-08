@@ -67,6 +67,7 @@ gen_storage_conf ()
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "ports = [ 40000, 40001, 40002, 40003 ] ;" >> $FILE
     echo 'storages = (' >> $FILE
     let nb_storages=$((${STORAGES_BY_CLUSTER}*${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
     for j in $(seq ${nb_storages}); do
@@ -438,6 +439,64 @@ check_build ()
 
 }
 
+pjd_test()
+{
+
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+        then
+        echo "Unable to run pjd tests (configuration file doesn't exist)"
+    else
+		NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+		EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
+
+		for j in $(seq ${NB_EXPORTS}); do
+		    echo "------------------------------------------------------"
+		    mountpoint -q ${LOCAL_MNT_ROOT}${j}
+		    if [ "$?" -eq 0 ]
+		    then
+		        echo "Run pjd tests on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
+		        echo "------------------------------------------------------"
+
+		        cd ${LOCAL_MNT_ROOT}${j}
+		        prove -r ${LOCAL_PJDTESTS}
+		        cd ..
+
+		    else
+		        echo "Unable to run pjd tests (${LOCAL_MNT_PREFIX}${j} is not mounted)"
+		    fi
+		done;
+	fi
+}
+
+fileop_test(){
+
+	if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+		    then
+		    echo "Unable to run pjd tests (configuration file doesn't exist)"
+		else
+			LOWER_LMT=1
+			UPPER_LMT=4
+			INCREMENT=1
+			FILE_SIZE=2M
+
+			NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+			EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
+
+			for j in $(seq ${NB_EXPORTS}); do
+				echo "------------------------------------------------------"
+				mountpoint -q ${LOCAL_MNT_ROOT}${j}
+				if [ "$?" -eq 0 ]
+				then
+				    echo "Run fileop test on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
+				    echo "------------------------------------------------------"
+				    ${FSOP_BINARY} -l ${LOWER_LMT} -u ${UPPER_LMT} -i ${INCREMENT} -e -s ${FILE_SIZE} -d ${LOCAL_MNT_ROOT}${j}
+				else
+				    echo "Unable to run fileop test (${LOCAL_MNT_PREFIX}${j} is not mounted)"
+				fi
+			done;
+	fi
+}
+
 
 usage ()
 {
@@ -447,6 +506,8 @@ usage ()
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
     echo >&2 "$0 clean"
+    echo >&2 "$0 pjd_test"
+    echo >&2 "$0 fileop_test"
     echo >&2 "$0 mount"
     echo >&2 "$0 umount"
     exit 0;
@@ -516,6 +577,15 @@ main ()
         reload_exportd
 
         deploy_clients_local
+
+    elif [ "$1" == "pjd_test" ]
+    then
+        check_build
+        pjd_test
+    elif [ "$1" == "fileop_test" ]
+    then
+        check_build
+        fileop_test
 
     elif [ "$1" == "mount" ]
     then

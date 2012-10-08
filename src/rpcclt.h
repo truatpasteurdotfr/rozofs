@@ -30,7 +30,8 @@ typedef struct rpcclt {
 
 int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
                       unsigned long vers, unsigned int sendsz,
-                      unsigned int recvsz);
+                      unsigned int recvsz,
+                      uint32_t port_num);
 
 void rpcclt_release(rpcclt_t * client);
 

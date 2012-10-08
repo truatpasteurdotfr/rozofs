@@ -44,7 +44,9 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     eid_t *eid = NULL;
     export_t *exp;
     int i = 0;
-    int j = 0;
+    int stor_idx = 0;
+    int exist = 0;
+
     DEBUG_FUNCTION;
 
     // XXX exportd_lookup_id could return export_t *
@@ -53,39 +55,68 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 
+    /* Get lock on config */
     if ((errno = pthread_rwlock_rdlock(&config_lock)) != 0) {
         goto error;
     }
 
+    /* For each volume */
     list_for_each_forward(p, &exportd_config.volumes) {
+
         volume_config_t *vc = list_entry(p, volume_config_t, list);
 
-        // Get volume with this vid
+        /* Get volume with this vid */
         if (vc->vid == exp->volume->vid) {
-            ret.ep_mount_ret_t_u.export.volume.clusters_nb = list_size(&vc->clusters);
 
-            i = 0;
+            stor_idx = 0;
+            ret.ep_mount_ret_t_u.export.storage_nodes_nb = 0;
+            memset(ret.ep_mount_ret_t_u.export.storage_nodes, 0, sizeof (ep_storage_node_t) * ROZOFS_STORAGES_MAX);
 
+            /* For each cluster */
             list_for_each_forward(q, &vc->clusters) {
+
                 cluster_config_t *cc = list_entry(q, cluster_config_t, list);
 
-                ret.ep_mount_ret_t_u.export.volume.clusters[i].cid = cc->cid;
-                ret.ep_mount_ret_t_u.export.volume.clusters[i].storages_nb = list_size(&cc->storages);
-                j = 0;
-
+                /* For each sid */
                 list_for_each_forward(r, &cc->storages) {
-                    storage_node_config_t *sc = list_entry(r,
-                            storage_node_config_t, list);
-                    strcpy(ret.ep_mount_ret_t_u.export.volume.clusters[i].storages[j].
-                            host, sc->host);
-                    ret.ep_mount_ret_t_u.export.volume.clusters[i].storages[j].sid = sc->sid;
-                    j++;
+
+                    storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
+
+                    /* Verify that this hostname does not already exist 
+                     * in the list of physical storage nodes. */
+                    for (i = 0; i < stor_idx; i++) {
+
+                        if (strcmp(s->host, ret.ep_mount_ret_t_u.export.storage_nodes[i].host) == 0) {
+
+                            /* This physical storage node exist
+                             *  but we add this SID*/
+                            uint8_t sids_nb = ret.ep_mount_ret_t_u.export.storage_nodes[i].sids_nb;
+                            ret.ep_mount_ret_t_u.export.storage_nodes[i].sids[sids_nb] = s->sid;
+                            ret.ep_mount_ret_t_u.export.storage_nodes[i].sids_nb++;
+                            exist = 1;
+                            break;
+                        }
+                    }
+
+                    /* This physical storage node doesn't exist*/
+                    if (exist == 0) {
+
+                        /* Add this storage node to the list */
+                        strcpy(ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].host, s->host);
+                        /* Add this sid */
+                        ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].sids[0] = s->sid;
+                        ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].sids_nb++;
+
+                        /* Increments the nb. of physical storage nodes */
+                        stor_idx++;
+                    }
+                    exist = 0;
                 }
-                i++;
             }
         }
     }
 
+    ret.ep_mount_ret_t_u.export.storage_nodes_nb = stor_idx;
     ret.ep_mount_ret_t_u.export.eid = *eid;
     memcpy(ret.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
     ret.ep_mount_ret_t_u.export.rl = exportd_config.layout;

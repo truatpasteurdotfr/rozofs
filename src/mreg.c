@@ -26,7 +26,7 @@
 #include "mreg.h"
 
 int mreg_open(mreg_t *mreg, const char *path) {
-    mreg->fdattrs = open(path, O_RDWR, S_IRWXU);
+    mreg->fdattrs = open(path, O_RDWR | O_NOATIME, S_IRWXU);
     return mreg->fdattrs < 0 ? -1 : 0;
 }
 

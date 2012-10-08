@@ -3,7 +3,7 @@
  * It was generated using rpcgen.
  */
 
-#include "sproto.h"
+#include "../src/sproto.h"
 #include "rozofs.h"
 
 bool_t
@@ -42,18 +42,6 @@ xdr_sp_status_ret_t (XDR *xdrs, sp_status_ret_t *objp)
 	default:
 		break;
 	}
-	return TRUE;
-}
-
-bool_t
-xdr_sp_remove_arg_t (XDR *xdrs, sp_remove_arg_t *objp)
-{
-	//register int32_t *buf;
-
-	 if (!xdr_uint16_t (xdrs, &objp->sid))
-		 return FALSE;
-	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
-		 return FALSE;
 	return TRUE;
 }
 
@@ -125,40 +113,6 @@ xdr_sp_read_ret_t (XDR *xdrs, sp_read_ret_t *objp)
 		break;
 	case SP_FAILURE:
 		 if (!xdr_int (xdrs, &objp->sp_read_ret_t_u.error))
-			 return FALSE;
-		break;
-	default:
-		break;
-	}
-	return TRUE;
-}
-
-bool_t
-xdr_sp_sstat_t (XDR *xdrs, sp_sstat_t *objp)
-{
-	//register int32_t *buf;
-
-	 if (!xdr_uint64_t (xdrs, &objp->size))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->free))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
-xdr_sp_stat_ret_t (XDR *xdrs, sp_stat_ret_t *objp)
-{
-	//register int32_t *buf;
-
-	 if (!xdr_sp_status_t (xdrs, &objp->status))
-		 return FALSE;
-	switch (objp->status) {
-	case SP_SUCCESS:
-		 if (!xdr_sp_sstat_t (xdrs, &objp->sp_stat_ret_t_u.sstat))
-			 return FALSE;
-		break;
-	case SP_FAILURE:
-		 if (!xdr_int (xdrs, &objp->sp_stat_ret_t_u.error))
 			 return FALSE;
 		break;
 	default:

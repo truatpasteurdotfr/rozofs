@@ -32,7 +32,7 @@
 #include "rozofs.h"
 #include "volume.h"
 #include <pthread.h>
-#include "storageclt.h"
+#include "mclient.h"
 
 static int volume_storage_compare(list_t * l1, list_t *l2) {
     volume_storage_t *e1 = list_entry(l1, volume_storage_t, list);
@@ -199,15 +199,15 @@ void volume_balance(volume_t *volume) {
 
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
-            storageclt_t sclt;
+            mclient_t sclt;
             strcpy(sclt.host, vs->host);
             sclt.sid = vs->sid;
 
-            if (storageclt_initialize(&sclt) != 0) {
+            if (mclient_initialize(&sclt) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
                 vs->status = 0;
             } else {
-                if (storageclt_stat(&sclt, &vs->stat) != 0) {
+                if (mclient_stat(&sclt, &vs->stat) != 0) {
                     warning("failed to stat (sid: %d, host: %s)", vs->sid, vs->host);
                     vs->status = 0;
                 } else {
@@ -218,7 +218,7 @@ void volume_balance(volume_t *volume) {
             cluster->free += vs->stat.free;
             cluster->size += vs->stat.size;
 
-            storageclt_release(&sclt);
+            mclient_release(&sclt);
         }
     }
 

@@ -40,12 +40,12 @@
 #include "xmalloc.h"
 #include "list.h"
 #include "export.h"
-#include "storageclt.h"
+#include "mclient.h"
 #include "cache.h"
 #include "mdirent_vers2.h"
 
 /** max entries of lv1 directory structure */
-#define MAX_LV1_BUCKETS 128
+#define MAX_LV1_BUCKETS 256
 #define LV1_NOCREATE 0
 #define LV1_CREATE 1
 #define RM_FILES_MAX 2500
@@ -57,7 +57,7 @@ typedef struct rmfentry {
 } rmfentry_t;
 
 typedef struct cnxentry {
-    storageclt_t *cnx;
+    mclient_t *cnx;
     list_t list;
 } cnxentry_t;
 
@@ -975,12 +975,12 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
 
-            storageclt_t * sclt = (storageclt_t *) xmalloc(sizeof (storageclt_t));
+            mclient_t * sclt = (mclient_t *) xmalloc(sizeof (mclient_t));
 
             strcpy(sclt->host, vs->host);
             sclt->sid = vs->sid;
 
-            if (storageclt_initialize(sclt) != 0) {
+            if (mclient_initialize(sclt) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
             }
 
@@ -1002,7 +1002,7 @@ out:
     return status;
 }
 
-static storageclt_t * lookup_cnx(list_t *list, sid_t sid) {
+static mclient_t * lookup_cnx(list_t *list, sid_t sid) {
 
     list_t *p;
     DEBUG_FUNCTION;
@@ -1031,7 +1031,7 @@ static void release_storages_cnx(list_t *list) {
     list_for_each_forward_safe(p, q, list) {
 
         cnxentry_t *cnx_entry = list_entry(p, cnxentry_t, list);
-        storageclt_release(cnx_entry->cnx);
+        mclient_release(cnx_entry->cnx);
         list_remove(p);
         free(cnx_entry);
     }
@@ -1084,10 +1084,10 @@ int export_rm_bins(export_t * e) {
             // If this storage have bins for this file
             if (*it != 0) {
                 // Get the connexion for this storage
-                storageclt_t* stor = lookup_cnx(&connexions, *it);
+                mclient_t* stor = lookup_cnx(&connexions, *it);
 
                 // Send request to storage for remove bins
-                if (storageclt_remove(stor, entry->fid) != 0) {
+                if (mclient_remove(stor, entry->fid) != 0) {
                     severe("storageclt_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
                 } else {
                     // If storageclt_remove works

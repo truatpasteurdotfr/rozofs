@@ -18,35 +18,29 @@
 */
 
 
-#ifndef _STORAGECLT_H
-#define _STORAGECLT_H
+#ifndef _MCLIENT_H
+#define _MCLIENT_H
 
 #include <uuid/uuid.h>
 #include "rozofs.h"
 #include "rpcclt.h"
 #include "storage.h"
 
-typedef struct storageclt {
+typedef struct mclient {
     char host[ROZOFS_HOSTNAME_MAX];
     sid_t sid;
     int status;
     rpcclt_t rpcclt;
-} storageclt_t;
+} mclient_t;
 
-int storageclt_initialize(storageclt_t * clt);
+int mclient_initialize(mclient_t * clt);
 
-void storageclt_release(storageclt_t * clt);
+void mclient_release(mclient_t * clt);
 
-int storageclt_stat(storageclt_t * clt, sstat_t * st);
+int mclient_stat(mclient_t * clt, sstat_t * st);
 
-int storageclt_write(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
-                     uint32_t nrb, const bin_t * bins);
+int mclient_remove(mclient_t * clt, fid_t fid);
 
-int storageclt_read(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid,
-                    uint32_t nrb, bin_t * bins);
-
-int storageclt_truncate(storageclt_t * clt, fid_t fid, tid_t tid, bid_t bid);
-
-int storageclt_remove(storageclt_t * clt, fid_t fid);
+int mclient_ports(mclient_t * mclt, uint32_t * ports_p);
 
 #endif

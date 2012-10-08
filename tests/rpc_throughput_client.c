@@ -50,8 +50,8 @@ int main(int argc, char *argv[]) {
 
     // Initialize the RPC client
     if (rpcclt_initialize
-        (&rpcclt, host, RPC_THROUGHPUT_PROGRAM, RPC_THROUGHPUT_VERSION, 0,
-         0) != 0) {
+            (&rpcclt, host, RPC_THROUGHPUT_PROGRAM, RPC_THROUGHPUT_VERSION, 0,
+            0, 0) != 0) {
         perror("rpcclt_initialize failed");
         exit(EXIT_FAILURE);
     }
@@ -85,12 +85,12 @@ int main(int argc, char *argv[]) {
 
         if (ret == 0)
             fprintf(stderr,
-                    "rpc_th_write_1 failed (no response from storage server: %s)",
-                    host);
+                "rpc_th_write_1 failed (no response from storage server: %s)",
+                host);
         if (ret->status != 0)
             fprintf(stderr,
-                    "rpc_th_write_1 failed: storage write response failure (%s)",
-                    strerror(errno));
+                "rpc_th_write_1 failed: storage write response failure (%s)",
+                strerror(errno));
 
         // Update the offset
         off += len;

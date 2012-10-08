@@ -4,7 +4,7 @@
  */
 
 #include <memory.h> /* for memset */
-#include "eproto.h"
+#include "../src/eproto.h"
 #include "rozofs.h"
 
 /* Default timeout can be changed using clnt_control() */

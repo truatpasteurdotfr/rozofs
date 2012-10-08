@@ -29,12 +29,12 @@
 
 int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
         unsigned long vers, unsigned int sendsz,
-        unsigned int recvsz) {
+        unsigned int recvsz, uint32_t port_num) {
     int status = -1;
     struct sockaddr_in server;
     struct hostent *hp;
     int one = 1;
-    int port;
+    int port = 0;
     DEBUG_FUNCTION;
 
     client->client = 0;
@@ -46,13 +46,20 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
                 strerror(errno));
         goto out;
     }
+
     bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
-    if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
-        warning("pmap_getport failed%s", clnt_spcreateerror(""));
-        errno = EPROTO;
-        goto out;
+
+    if (port_num == 0) {
+        if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
+            warning("pmap_getport failed%s", clnt_spcreateerror(""));
+            errno = EPROTO;
+            goto out;
+        }
+        server.sin_port = htons(port);
+    }else{
+        server.sin_port = htons(port_num);
     }
-    server.sin_port = htons(port);
+
     if ((client->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         goto out;
     }
@@ -68,11 +75,14 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
     struct timeval timeo;
     timeo.tv_usec = 0;
     switch (prog) {
-        case EXPORT_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_EXPORT_TIMEOUT_SEC;
+        case EPROTO_PROGRAM_CHECK:
+            timeo.tv_sec = ROZOFS_EPROTO_TIMEOUT_SEC;
             break;
-        case STORAGE_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_STORAGE_TIMEOUT_SEC;
+        case SPROTO_PROGRAM_CHECK:
+            timeo.tv_sec = ROZOFS_SPROTO_TIMEOUT_SEC;
+            break;
+        case MPROTO_PROGRAM_CHECK:
+            timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             break;
         default:
             fatal("Check version of program failed");
@@ -119,11 +129,14 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
     struct timeval timeout_set;
     timeout_set.tv_usec = 0;
     switch (prog) {
-        case EXPORT_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_EXPORT_TIMEOUT_SEC;
+        case EPROTO_PROGRAM_CHECK:
+            timeout_set.tv_sec = ROZOFS_EPROTO_TIMEOUT_SEC;
             break;
-        case STORAGE_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_STORAGE_TIMEOUT_SEC;
+        case SPROTO_PROGRAM_CHECK:
+            timeout_set.tv_sec = ROZOFS_SPROTO_TIMEOUT_SEC;
+            break;
+        case MPROTO_PROGRAM_CHECK:
+            timeout_set.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             break;
         default:
             fatal("Check version of program failed");

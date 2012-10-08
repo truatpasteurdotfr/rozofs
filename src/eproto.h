@@ -41,31 +41,20 @@ struct ep_status_ret_t {
 };
 typedef struct ep_status_ret_t ep_status_ret_t;
 
-struct ep_storage_t {
-	uint16_t sid;
+struct ep_storage_node_t {
 	ep_host_t host;
+	uint8_t sids_nb;
+	uint16_t sids[STORAGE_NODE_SIDS_MAX];
 };
-typedef struct ep_storage_t ep_storage_t;
-
-struct ep_cluster_t {
-	uint16_t cid;
-	uint8_t storages_nb;
-	ep_storage_t storages[ROZOFS_STORAGES_MAX];
-};
-typedef struct ep_cluster_t ep_cluster_t;
-
-struct ep_volume_t {
-	uint8_t clusters_nb;
-	ep_cluster_t clusters[ROZOFS_CLUSTERS_MAX];
-};
-typedef struct ep_volume_t ep_volume_t;
+typedef struct ep_storage_node_t ep_storage_node_t;
 
 struct ep_export_t {
 	uint32_t eid;
 	ep_md5_t md5;
 	ep_uuid_t rfid;
 	int rl;
-	ep_volume_t volume;
+	uint8_t storage_nodes_nb;
+	ep_storage_node_t storage_nodes[STORAGE_NODES_MAX];
 };
 typedef struct ep_export_t ep_export_t;
 
@@ -434,9 +423,7 @@ extern  bool_t xdr_ep_host_t (XDR *, ep_host_t);
 extern  bool_t xdr_ep_md5_t (XDR *, ep_md5_t);
 extern  bool_t xdr_ep_status_t (XDR *, ep_status_t*);
 extern  bool_t xdr_ep_status_ret_t (XDR *, ep_status_ret_t*);
-extern  bool_t xdr_ep_storage_t (XDR *, ep_storage_t*);
-extern  bool_t xdr_ep_cluster_t (XDR *, ep_cluster_t*);
-extern  bool_t xdr_ep_volume_t (XDR *, ep_volume_t*);
+extern  bool_t xdr_ep_storage_node_t (XDR *, ep_storage_node_t*);
 extern  bool_t xdr_ep_export_t (XDR *, ep_export_t*);
 extern  bool_t xdr_ep_mount_ret_t (XDR *, ep_mount_ret_t*);
 extern  bool_t xdr_ep_mattr_t (XDR *, ep_mattr_t*);
@@ -476,9 +463,7 @@ extern bool_t xdr_ep_host_t ();
 extern bool_t xdr_ep_md5_t ();
 extern bool_t xdr_ep_status_t ();
 extern bool_t xdr_ep_status_ret_t ();
-extern bool_t xdr_ep_storage_t ();
-extern bool_t xdr_ep_cluster_t ();
-extern bool_t xdr_ep_volume_t ();
+extern bool_t xdr_ep_storage_node_t ();
 extern bool_t xdr_ep_export_t ();
 extern bool_t xdr_ep_mount_ret_t ();
 extern bool_t xdr_ep_mattr_t ();

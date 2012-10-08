@@ -31,11 +31,6 @@ union sp_status_ret_t switch (sp_status_t status) {
     default:            void;
 };
 
-struct sp_remove_arg_t {
-    uint16_t    sid;
-    sp_uuid_t   fid;
-};
-
 struct sp_write_arg_t {
     uint16_t    sid;
     sp_uuid_t   fid; 
@@ -66,36 +61,19 @@ union sp_read_ret_t switch (sp_status_t status) {
     default:            void;
 };
 
-struct sp_sstat_t {
-    uint64_t size;
-    uint64_t free;
-};
-
-union sp_stat_ret_t switch (sp_status_t status) {
-    case SP_SUCCESS:    sp_sstat_t  sstat;
-    case SP_FAILURE:    int         error;
-    default:            void;
-};
-
 program STORAGE_PROGRAM {
     version STORAGE_VERSION {
         void
         SP_NULL(void)                   = 0;
 
         sp_status_ret_t
-        SP_REMOVE(sp_remove_arg_t)      = 1;
-
-        sp_status_ret_t
-        SP_WRITE(sp_write_arg_t)        = 2;
+        SP_WRITE(sp_write_arg_t)        = 1;
 
         sp_read_ret_t
-        SP_READ(sp_read_arg_t)          = 3;
+        SP_READ(sp_read_arg_t)          = 2;
 
         sp_status_ret_t
-        SP_TRUNCATE(sp_truncate_arg_t)  = 4;
-
-        sp_stat_ret_t
-        SP_STAT(uint16_t)               = 5;
+        SP_TRUNCATE(sp_truncate_arg_t)  = 3;
 
     }=1;
 } = 0x20000002;

@@ -37,6 +37,10 @@ add_executable(storaged
     sprotoxdr.c
     sprotosvc.c
     sproto.c
+    mproto.h
+    mprotoxdr.c
+    mprotosvc.c
+    mproto.c
     daemon.h
     daemon.c
     sconfig.h
@@ -90,10 +94,11 @@ add_executable(exportd
     eproto.c
     rpcclt.h
     rpcclt.c
-    sproto.h
-    sprotoxdr.c
-    sprotoclt.c
-    storageclt.c
+    mproto.h
+    mprotoxdr.c
+    mprotoclt.c
+    mclient.h
+    mclient.c
     monitor.h
     monitor.c
     econfig.h
@@ -119,7 +124,12 @@ add_executable(rozofsmount
     sproto.h
     sprotoxdr.c
     sprotoclt.c
-    storageclt.c
+    sclient.c
+    mproto.h
+    mprotoxdr.c
+    mprotoclt.c
+    mclient.h
+    mclient.c
     eproto.h
     eprotoxdr.c
     eprotoclt.c
