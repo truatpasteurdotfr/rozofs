@@ -315,7 +315,7 @@ reloop:
              int not_found = 0;
              for (k = 0; k < len; k++)
              {
-               if (name_entry_p->name[k] != name[k]) 
+               if (name_entry_p->name[k] != (char) name[k]) 
                {
                  /*
                  ** not the right entry

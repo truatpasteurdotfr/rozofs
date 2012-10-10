@@ -401,6 +401,7 @@ void rozofs_ll_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
         ie->inode = next_inode_idx();
         list_init(&ie->list);
         ie->db.size = 0;
+        ie->db.eof = 0;
         ie->db.p = NULL;
         ie->nlookup = 1;
         put_ientry(ie);
@@ -990,6 +991,9 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     child_t *iterator = NULL;
     child_t *free_it = NULL;
 
+    severe("readdir (%lu, size:%llu, off:%llu)\n", (unsigned long int) ino,
+            (unsigned long long int) size, (unsigned long long int) off);
+
     // Get ientry
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
@@ -1315,6 +1319,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
     root->inode = next_inode_idx();
     root->db.size = 0;
+    root->db.eof = 0;
     root->db.p = NULL;
     root->nlookup = 1;
     put_ientry(root);
@@ -1407,7 +1412,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         mstorage_t *storage = list_entry(p, mstorage_t, list);
         pthread_t thread;
 
-        if ((errno = pthread_create(&thread, NULL, connect_storage, storage)) != 0){
+        if ((errno = pthread_create(&thread, NULL, connect_storage, storage)) != 0) {
             severe("can't create connexion thread: %s", strerror(errno));
         }
     }
