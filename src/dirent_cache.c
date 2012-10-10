@@ -1238,7 +1238,7 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry ( int dir_fd,
            int not_found = 0;
            for (k = 0; k < len; k++)
            {
-             if (name_entry_p->name[k] != name[k]) 
+             if (name_entry_p->name[k] != (char) name[k]) 
              {
                /*
                ** not the right entry

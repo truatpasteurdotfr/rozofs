@@ -991,7 +991,7 @@ void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     child_t *iterator = NULL;
     child_t *free_it = NULL;
 
-    severe("readdir (%lu, size:%llu, off:%llu)\n", (unsigned long int) ino,
+    DEBUG("readdir (%lu, size:%llu, off:%llu)\n", (unsigned long int) ino,
             (unsigned long long int) size, (unsigned long long int) off);
 
     // Get ientry
