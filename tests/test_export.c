@@ -19,9 +19,15 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include "export.h"
 #include <inttypes.h>
 #include <unistd.h>
+
+#include <rozofs/common/profile.h>
+#include <rozofs/rpc/epproto.h>
+
+#include "export.h"
+
+DEFINE_PROFILING(epp_profiler_t);
 
 void print_cache(lv2_cache_t *cache) {
     char str[37];

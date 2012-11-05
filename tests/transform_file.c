@@ -2,11 +2,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-
-#include "xmalloc.h"
-#include "transform.h"
 #include <fcntl.h>
 #include <unistd.h>
+
+#include <rozofs/common/xmalloc.h>
+#include <rozofs/common/transform.h>
+
 
 #define BSIZE 8192              //BYTES
 #define FORWARD 12

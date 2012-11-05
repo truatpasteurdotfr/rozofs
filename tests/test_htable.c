@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "htable.h"
+#include <rozofs/common/htable.h>
 
 static unsigned int string_hash(void *key) {
     int hash = 0;

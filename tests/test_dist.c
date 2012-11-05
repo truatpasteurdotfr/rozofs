@@ -18,7 +18,8 @@
 */
 
 #include <stdio.h>
-#include "dist.h"
+
+#include <rozofs/common/dist.h>
 
 int main(int argc, char **argv) {
 

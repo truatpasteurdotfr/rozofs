@@ -10,17 +10,22 @@ Package: rozofs-exportd
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, rpcbind (>= 0.2.0-7ubuntu1), libattr1 (>= 1:2.4.46-5ubuntu1), libuuid1 (>= 2.20.1-1ubuntu3), libconfig8 (>= 1.3.2-2ubuntu2)
 Description: Rozofs filesystem (export package).
- Rozofs is a scale-out NAS using erasure coding on multiple backends.
+ Rozofs is a scale-out NAS using erasure coding.
 
 Package: rozofs-storaged
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, rpcbind (>= 0.2.0-7ubuntu1), libuuid1 (>= 2.20.1-1ubuntu3), libconfig8 (>= 1.3.2-2ubuntu2)
 Description: Rozofs filesystem (storage package).
- Rozofs is a scale-out NAS using erasure coding on multiple backends.
+ Rozofs is a scale-out NAS using erasure coding.
 
 Package: rozofs-rozofsmount
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.8.6-2ubuntu2), fuse-utils (>= 2.8.6-2ubuntu2)
 Description: Rozofs filesystem (rozofsmount package).
- Rozofs is a scale-out NAS using erasure coding on multiple backends.
+ Rozofs is a scale-out NAS using erasure coding.
 
+Package: rozofs-monitoring
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Rozofs filesystem (monitoring package).
+ Rozofs is a scale-out NAS using erasure coding.

@@ -2,9 +2,10 @@
 #include <stdio.h>
 #include <inttypes.h>
 
-#include "rozofs.h"
-#include "xmalloc.h"
-#include "transform.h"
+#include <rozofs/rozofs.h>
+#include <rozofs/common/xmalloc.h>
+#include <rozofs/common/transform.h>
+
 #include "storage.h"
 
 int main(int argc, char **argv) {
@@ -12,7 +13,7 @@ int main(int argc, char **argv) {
     sid_t sid = 0;
     sstat_t sst;
     fid_t fid;
-    bin_t *bins;
+    //bin_t *bins;
 
     rozofs_initialize(LAYOUT_2_3_4);
     storage_initialize(&st, sid, "/tmp");
@@ -25,7 +26,7 @@ int main(int argc, char **argv) {
 
     uuid_generate(fid);
     // Write some bins (15 prj)
-    bins = xmalloc(rozofs_psizes[0] * 15);
+    //bins = xmalloc(rozofs_psizes[0] * 15);
 /*
     if (storage_write(&st, fid, 0, 10, 15, bins) != 0) {
         perror("failed to write bins");

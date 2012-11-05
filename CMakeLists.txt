@@ -21,8 +21,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "0")
-set(MINOR "11")
-set(REVISION "2")
+set(MINOR "12")
+set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -71,6 +71,7 @@ if(NOT TRAILING_SLASH)
     set(DAEMON_PID_DIRECTORY "${DAEMON_PID_DIRECTORY}/")
 endif(NOT TRAILING_SLASH)
 
+add_subdirectory(rozofs)
 add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(tests)
@@ -84,9 +85,9 @@ set(ROZOFS_SOURCE_PACKAGE_FILE_NAME "rozofs-${VERSION}")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/ubuntu.in" "${PROJECT_BINARY_DIR}/ubuntu.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/src/config.h")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/export.conf.in" "${PROJECT_BINARY_DIR}/src/export.conf.sample")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/storage.conf.in" "${PROJECT_BINARY_DIR}/src/storage.conf.sample")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/export.conf.in" "${PROJECT_BINARY_DIR}/src/exportd/export.conf.sample")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/storage.conf.in" "${PROJECT_BINARY_DIR}/src/storaged/storage.conf.sample")
 configure_file("${PROJECT_SOURCE_DIR}/doc/rozofs.7" "${PROJECT_BINARY_DIR}/doc/rozofs.7")
 configure_file("${PROJECT_SOURCE_DIR}/doc/rozofsmount.8" "${PROJECT_BINARY_DIR}/doc/rozofsmount.8")
 configure_file("${PROJECT_SOURCE_DIR}/doc/storaged.8" "${PROJECT_BINARY_DIR}/doc/storaged.8")
@@ -99,8 +100,8 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/
 # Build settings
 #
 if(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Release CACHE STRING 
-  "Choose the type of build, options are: None Debug Release Profile RelWithDebInfo MinSizeRel." 
+  SET(CMAKE_BUILD_TYPE Release CACHE STRING
+  "Choose the type of build, options are: None Debug Release Profile RelWithDebInfo MinSizeRel."
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 

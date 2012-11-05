@@ -26,7 +26,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include <../src/mdirent_vers1.h>
+#include "mdirent_vers1.h"
 
 /**
  *    MESSAGE : message to print out

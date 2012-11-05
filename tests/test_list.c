@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "list.h"
+#include <rozofs/common/list.h>
 
 typedef struct entry {
     list_t list;

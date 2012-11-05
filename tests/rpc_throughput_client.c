@@ -26,8 +26,9 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "../tests/rpc_throughput.h"
-#include "../src/rpcclt.h"
+#include <rozofs/rpc/rpcclt.h>
+
+#include "rpc_throughput.h"
 
 static char host[255];
 static rpcclt_t rpcclt;

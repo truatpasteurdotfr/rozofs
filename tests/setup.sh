@@ -172,7 +172,7 @@ start_storaged ()
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_STORAGE_DAEMON}"
-    	${LOCAL_BINARY_DIR}${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE}
+    	${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE}
     else
         echo "Unable to start ${LOCAL_STORAGE_DAEMON} (already running as PID: ${PID})"
         exit 0;
@@ -278,7 +278,7 @@ deploy_clients_local ()
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
 
-                ${LOCAL_BINARY_DIR}${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}
+                ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}
             else
                 echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j} already mounted)"
             fi
@@ -310,7 +310,7 @@ start_exportd ()
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_EXPORT_DAEMON}"
-        ${LOCAL_BINARY_DIR}${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
+        ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
     else
         echo "Unable to start ${EXPORT_DAEMON} (already running as PID: ${PID})"
         exit 0;
@@ -417,12 +417,12 @@ clean_all ()
 check_no_run ()
 {
 
-    PID_EXPORTD=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
-    PID_STORAGED=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
+    PID_EXPORTD=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v "grep" | awk '{print $1}'`
+    PID_STORAGED=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v "grep" | awk '{print $1}'`
 
     if [ "$PID_STORAGED" != "" ] || [ "$PID_EXPORTD" != "" ]
     then
-        echo "${ELOCAL_XPORT_DAEMON} or/and ${LOCAL_STORAGE_DAEMON} already running"
+        echo "${LOCAL_EXPORT_DAEMON} or/and ${LOCAL_STORAGE_DAEMON} already running"
         exit 0;
     fi
 
@@ -431,7 +431,7 @@ check_no_run ()
 check_build ()
 {
 
-    if [ ! -e "${LOCAL_BINARY_DIR}${LOCAL_EXPORT_DAEMON}" ]
+    if [ ! -e "${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON}" ]
     then
         echo "Daemons are not build !!! use $0 build"
         exit 0;

@@ -5,9 +5,17 @@
 #include <signal.h>
 #include <errno.h>
 #include <inttypes.h>
-#include "rozofs.h"
+
+#include <rozofs/rozofs.h>
+#include <rozofs/common/xmalloc.h>
+#include <rozofs/common/profile.h>
+
+#include <rozofs/rpc/epproto.h>
+
+
+DEFINE_PROFILING(epp_profiler_t);
+
 #include "volume.h"
-#include "xmalloc.h"
 
 int main(int argc, char **argv) {
 

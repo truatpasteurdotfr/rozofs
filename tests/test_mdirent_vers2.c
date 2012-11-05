@@ -10,8 +10,10 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <inttypes.h>
+
+#include <rozofs/common/mattr.h>
+
 #include "mdirent_vers2.h"
-#include "mattr.h"
 
 uint64_t my_global;
 
@@ -133,10 +135,10 @@ void test_print_constants() {
         mdirent_cache_ptr_t sect0_p; ///< header+coll entry bitmap+hash entry bitmap
         mdirent_cache_ptr_t coll_bitmap_hash_full_p; ///< bitmap of the collision dirent for which all hash entries are busy
         mdirent_cache_ptr_t name_bitmap_p; ///< bitmap of the free name/fid/type entries
-        mdirent_cache_ptr_t hash_tbl_p[MDIRENTS_HASH_TB_CACHE_MAX_IDX]; ///< set of pointer to an cache array of 64 hash logical pointers   
-        mdirent_cache_ptr_t hash_entry_p[MDIRENTS_HASH_CACHE_MAX_IDX]; ///< table of hash entries   
-        mdirent_cache_ptr_t name_entry_lvl0_p[MDIRENTS_NAME_PTR_LVL0_NB_PTR]; ///< table of hash entries   
-        mdirent_cache_ptr_t dirent_coll_lvl0_p[MDIRENTS_CACHE_DIRENT_COLL_LVL0_NB_PTR]; ///< dirent collision file array pointers */ 
+        mdirent_cache_ptr_t hash_tbl_p[MDIRENTS_HASH_TB_CACHE_MAX_IDX]; ///< set of pointer to an cache array of 64 hash logical pointers
+        mdirent_cache_ptr_t hash_entry_p[MDIRENTS_HASH_CACHE_MAX_IDX]; ///< table of hash entries
+        mdirent_cache_ptr_t name_entry_lvl0_p[MDIRENTS_NAME_PTR_LVL0_NB_PTR]; ///< table of hash entries
+        mdirent_cache_ptr_t dirent_coll_lvl0_p[MDIRENTS_CACHE_DIRENT_COLL_LVL0_NB_PTR]; ///< dirent collision file array pointers */
 
     } mdirents_cache_entry_t;
 #endif
@@ -667,7 +669,7 @@ void dirent_cache_alloc_name_entry_idx_test2(char *dir_path) {
                     }
                 }
                 /*
-                 ** Check if root needs to be re-written on disk : 
+                 ** Check if root needs to be re-written on disk :
                  **   - adding a new collision file
                  **   - update of a bucket entry
                  **   - update of a hash entry (pnext)
@@ -892,7 +894,7 @@ void dirent_cache_alloc_name_entry_idx_test2(char *dir_path) {
             /*        if (bucket_idx == 127)
                     {
                        printf("hash value %d\n",idx2check);
-        
+
                     }
              */
             returned_entry = dirent_cache_delete_hash_entry(fd_dir, root,
@@ -1027,7 +1029,7 @@ void dirent_cache_alloc_name_entry_idx_test2(char *dir_path) {
                 }
             }
             /*
-             ** Check if root needs to be re-written on disk : 
+             ** Check if root needs to be re-written on disk :
              **   - adding a new collision file
              **   - update of a bucket entry
              **   - update of a hash entry (pnext)
@@ -1120,7 +1122,7 @@ void dirent_cache_alloc_name_entry_idx_test2(char *dir_path) {
      */
     /*
      ** Deletion of a dirent cache entry
-     **  
+     **
      ** The goal of the test is to remove al the cache entry by removing the
      ** root cache entry first
      */
@@ -1149,7 +1151,7 @@ remove_entries:
     PRINT_TIME(root_cnt, 1, Number of entries removed from cache);
     printf("--->dirent_cache_remove_entry() test end\n\n");
 
-    //out:   
+    //out:
     if (root_tb != NULL) free(root_tb);
     if (dirent_alloc_p != NULL) free(dirent_alloc_p);
 
@@ -1341,7 +1343,7 @@ void dirent_cache_alloc_name_entry_idx_test3(char *dir_path) {
                     }
                 }
                 /*
-                 ** Check if root needs to be re-written on disk : 
+                 ** Check if root needs to be re-written on disk :
                  **   - adding a new collision file
                  **   - update of a bucket entry
                  **   - update of a hash entry (pnext)
@@ -1623,7 +1625,7 @@ void dirent_cache_alloc_name_entry_idx_test3(char *dir_path) {
             /*        if (bucket_idx == 127)
                     {
                        printf("hash value %d\n",idx2check);
-        
+
                     }
              */
             returned_entry = dirent_cache_delete_hash_entry(fd_dir, root,
@@ -1758,7 +1760,7 @@ void dirent_cache_alloc_name_entry_idx_test3(char *dir_path) {
                 }
             }
             /*
-             ** Check if root needs to be re-written on disk : 
+             ** Check if root needs to be re-written on disk :
              **   - adding a new collision file
              **   - update of a bucket entry
              **   - update of a hash entry (pnext)
@@ -1846,7 +1848,7 @@ void dirent_cache_alloc_name_entry_idx_test3(char *dir_path) {
      */
     /*
      ** Deletion of a dirent cache entry
-     **  
+     **
      ** The goal of the test is to remove al the cache entry by removing the
      ** root cache entry first
      */
@@ -1879,7 +1881,7 @@ remove_entries:
     }
     printf("--->dirent_cache_remove_entry() test end\n\n");
 
-    //out:   
+    //out:
     if (root_tb != NULL) free(root_tb);
     if (dirent_alloc_p != NULL) free(dirent_alloc_p);
 
@@ -1901,7 +1903,7 @@ remove_entries:
  *_____________________________________________________
  */
 #ifdef UBUNTU
-#warning compiled for ubuntu path : 
+#warning compiled for ubuntu path :
 #define DIR_PATHNAME "/home/didier/fizians/rozofs/dir_test"
 #else
 #define DIR_PATHNAME "/root/dir_test"
@@ -2019,7 +2021,7 @@ void readdir_test(char * dir_path);
  */
 extern int dirent_append_entry;
 extern int dirent_update_entry;
-extern uint32_t hash_debug_trc;
+//extern uint32_t hash_debug_trc;
 extern int fdl_debug_file_idx_trace;
 
 void put_mdirentry_test1(char *dir_path) {
@@ -2057,7 +2059,7 @@ void put_mdirentry_test1(char *dir_path) {
         printf("Error on directory Open %s error %s\n", dir_path, strerror(errno));
         exit(0);
     }
-#if 1  
+#if 1
     printf("file_test_put_mdirentry with file descriptor %d\n", fd_dir);
     printf("____________________________________________________________________\n");
     printf("      --->PUT_MDIRENTRY_TEST1 test start\n");
@@ -2106,8 +2108,8 @@ void put_mdirentry_test1(char *dir_path) {
         sprintf(bufall, "file_test_put_mdirentry_%d", i);
         ret = get_mdirentry(fd_dir, fid_parent, bufall, fid_read, &mode);
         if (ret < 0) {
-            //printf("Error on get_mdirentry_test1 line %d for index %d\n",__LINE__,i); 
-            //exit(0); 
+            //printf("Error on get_mdirentry_test1 line %d for index %d\n",__LINE__,i);
+            //exit(0);
             lost_count++;
 
         }
@@ -2123,7 +2125,7 @@ void put_mdirentry_test1(char *dir_path) {
     printf("Number of files lost %d\n", lost_count);
 
 
-#if 0  
+#if 0
     printf("file_test_put_mdirentry with file descriptor %d\n", fd_dir);
     printf("____________________________________________________________________\n");
     printf("      --->PUT_MDIRENTRY_TEST1 step 2 test start\n");
@@ -2170,12 +2172,12 @@ void put_mdirentry_test1(char *dir_path) {
             return;
         }
         dirent_repair_print_enable = 1;
-        //     dirent_file_check( fd_dir , root_entry_p,5);   
+        //     dirent_file_check( fd_dir , root_entry_p,5);
         dirent_repair_print_enable = 0;
     }
 #endif
 
-#if 1  
+#if 1
     printf("____________________________________________________________________\n");
     printf("      --->DEL_MDIRENTRY_TEST1 test start\n");
     gettimeofday(&tv_start, NULL);
@@ -2185,8 +2187,8 @@ void put_mdirentry_test1(char *dir_path) {
         sprintf(bufall, "file_test_put_mdirentry_%d", i);
         ret = del_mdirentry(fd_dir, fid_parent, bufall, fid_read, &mode);
         if (ret < 0) {
-            // printf("Error on del_mdirentry test1 line %d for index %d\n",__LINE__,i); 
-            //  exit(0); 
+            // printf("Error on del_mdirentry test1 line %d for index %d\n",__LINE__,i);
+            //  exit(0);
             lost_count++;
 
         }
@@ -2215,7 +2217,7 @@ void put_mdirentry_test1(char *dir_path) {
     printf("Number of files lost %d\n", lost_count);
     dirent_file_repair_stats_print();
 
-#endif  
+#endif
 
 }
 
@@ -2252,7 +2254,7 @@ void put_mdirentry_test3(char *dir_path) {
         printf("Error on directory Open %s error %s\n", dir_path, strerror(errno));
         exit(0);
     }
-#if 0  
+#if 0
     printf("file_test_put_mdirentry with file descriptor %d\n", fd_dir);
     printf("____________________________________________________________________\n");
     printf("      --->PUT_MDIRENTRY_TEST3 test start\n");
@@ -2320,8 +2322,8 @@ void put_mdirentry_test3(char *dir_path) {
         sprintf(bufall, "file_test_put_mdirentry_%d", i);
         ret = get_mdirentry(fd_dir, fid_parent, bufall, fid_read, &mode);
         if (ret < 0) {
-            //printf("Error on get_mdirentry_test1 line %d for index %d\n",__LINE__,i); 
-            //exit(0); 
+            //printf("Error on get_mdirentry_test1 line %d for index %d\n",__LINE__,i);
+            //exit(0);
             lost_count++;
 
         }
@@ -2338,7 +2340,7 @@ void put_mdirentry_test3(char *dir_path) {
     dirent_file_repair_stats_print();
 
 
-#if 0  
+#if 0
     printf("file_test_put_mdirentry with file descriptor %d\n", fd_dir);
     printf("____________________________________________________________________\n");
     printf("      --->PUT_MDIRENTRY_TEST1 step 2 test start\n");
@@ -2369,7 +2371,7 @@ void put_mdirentry_test3(char *dir_path) {
      */
     readdir_test(dir_path);
     lost_count = 0;
-#if 0  
+#if 0
     {
         /*
          ** Get the root idx 0 and perform a repair for bucket_idx 5
@@ -2385,9 +2387,9 @@ void put_mdirentry_test3(char *dir_path) {
         }
         dirent_file_repair(fd_dir, root_entry_p, 5, DIRENT_REPAIR_BUCKET_IDX_MISMATCH);
     }
-#endif    
+#endif
 
-#if 0  
+#if 0
     printf("____________________________________________________________________\n");
     printf("      --->DEL_MDIRENTRY_TEST1 test start\n");
     gettimeofday(&tv_start, NULL);
@@ -2396,8 +2398,8 @@ void put_mdirentry_test3(char *dir_path) {
         sprintf(bufall, "file_test_put_mdirentry_%d", i);
         ret = del_mdirentry(fd_dir, fid_parent, bufall, fid_read, &mode);
         if (ret < 0) {
-            // printf("Error on del_mdirentry test1 line %d for index %d\n",__LINE__,i); 
-            //  exit(0); 
+            // printf("Error on del_mdirentry test1 line %d for index %d\n",__LINE__,i);
+            //  exit(0);
             lost_count++;
 
         }
@@ -2411,7 +2413,7 @@ void put_mdirentry_test3(char *dir_path) {
     dirent_disk_print_stats();
     printf("Number of files lost %d\n", lost_count);
 
-#endif  
+#endif
 
 }
 
@@ -2424,7 +2426,7 @@ void put_mdirentry_test3(char *dir_path) {
  */
 extern int dirent_append_entry;
 extern int dirent_update_entry;
-extern uint32_t hash_debug_trc;
+//extern uint32_t hash_debug_trc;
 extern int fdl_debug_file_idx_trace;
 
 void put_mdirentry_test2(char *dir_path) {
@@ -2456,7 +2458,7 @@ void put_mdirentry_test2(char *dir_path) {
         printf("Error on directory Open %s error %s\n", dir_path, strerror(errno));
         exit(0);
     }
-#if 1  
+#if 1
     printf("file_test_put_mdirentry with file descriptor %d\n", fd_dir);
     printf("____________________________________________________________________\n");
     printf("      --->PUT_MDIRENTRY_TEST2 test start\n");
@@ -2524,7 +2526,7 @@ void put_mdirentry_test2(char *dir_path) {
      */
     readdir_test(dir_path);
 
-#if 1  
+#if 1
     printf("____________________________________________________________________\n");
     printf("      --->DEL/GET/PUT/GET/MDIRENTRY_TEST1 test start\n");
     gettimeofday(&tv_start, NULL);
@@ -2574,8 +2576,8 @@ void put_mdirentry_test2(char *dir_path) {
     dirent_mem_print_stats_per_size();
     dirent_disk_print_stats();
 
-#endif  
-#if 1  
+#endif
+#if 1
     printf("____________________________________________________________________\n");
     printf("      --->DEL_MDIRENTRY_TEST1 test start\n");
     gettimeofday(&tv_start, NULL);
@@ -2597,7 +2599,7 @@ void put_mdirentry_test2(char *dir_path) {
     dirent_mem_print_stats_per_size();
     dirent_disk_print_stats();
 
-#endif  
+#endif
 }
 
 /*
@@ -2640,8 +2642,8 @@ void faccessat_test(char *dir_path) {
             sprintf(bufall, "d_%d", i);
             ret = faccessat(fd_dir, bufall, mode, 0);
             if (ret < 0) {
-                //       printf("faccessat error %s for index %d\n",strerror(errno),i); 
-                //       exit(0); 
+                //       printf("faccessat error %s for index %d\n",strerror(errno),i);
+                //       exit(0);
                 continue;
 
             }
@@ -2744,8 +2746,8 @@ void openat_test(char *dir_path) {
             sprintf(bufall, "d_%d", i);
             ret = openat(fd_dir, bufall, O_RDONLY, S_IRWXU);
             if (ret < 0) {
-                //       printf("faccessat error %s for index %d\n",strerror(errno),i); 
-                //       exit(0); 
+                //       printf("faccessat error %s for index %d\n",strerror(errno),i);
+                //       exit(0);
                 continue;
 
             }
@@ -2913,7 +2915,7 @@ void mdirent_test_sylvain(char *dir_path) {
 }
 
 
-extern void uuid_test();
+//extern void uuid_test();
 
 int main() {
     //print_sector_offset();

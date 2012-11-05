@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "export_config.h"
+#include "econfig.h"
 
 int main(int argc, char **argv) {
 

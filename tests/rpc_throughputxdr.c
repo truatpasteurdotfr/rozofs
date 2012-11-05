@@ -17,7 +17,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-#include "../tests/rpc_throughput.h"
+#include "rpc_throughput.h"
 
 bool_t xdr_rpc_th_status_t(XDR * xdrs, rpc_th_status_t * objp) {
     //register int32_t *buf;

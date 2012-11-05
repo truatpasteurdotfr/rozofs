@@ -25,7 +25,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
-#include "../tests/rpc_throughput.h"
+#include "rpc_throughput.h"
 
 #ifndef SIG_PF
 #define SIG_PF void(*)(int)

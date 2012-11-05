@@ -572,6 +572,7 @@ main(int argc, char *argv[])
 			break;
 		default:
 			usage();
+			break;
 		}
 	}
 	argc -= optind;

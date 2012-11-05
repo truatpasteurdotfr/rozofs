@@ -3,9 +3,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "xmalloc.h"
-#include "transform.h"
-#include <uuid/uuid.h>
+#include <rozofs/common/xmalloc.h>
+#include <rozofs/common/transform.h>
+#include <sys/time.h>
 
 #define BSIZE 8192              //BYTES
 #define FORWARD 6

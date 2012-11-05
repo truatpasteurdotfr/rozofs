@@ -1,0 +1,61 @@
+/*
+  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
+  This file is part of Rozofs.
+
+  Rozofs is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published
+  by the Free Software Foundation; either version 3 of the License,
+  or (at your option) any later version.
+
+  Rozofs is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see
+  <http://www.gnu.org/licenses/>.
+ */
+
+#include <limits.h>
+#include <errno.h>
+#include <time.h>
+
+#include <rozofs/common/log.h>
+#include <rozofs/common/xmalloc.h>
+#include <rozofs/common/profile.h>
+#include <rozofs/rpc/spproto.h>
+
+DECLARE_PROFILING(spp_profiler_t);
+
+void *spp_null_1_svc(void *args, struct svc_req *req) {
+    DEBUG_FUNCTION;
+    return 0;
+}
+
+spp_profiler_ret_t *spp_get_profiler_1_svc(void *args,struct svc_req *req) {
+    static spp_profiler_ret_t ret;
+    DEBUG_FUNCTION;
+
+    gprofiler.now = time(0);
+    memcpy(&ret.spp_profiler_ret_t_u.profiler, &gprofiler, sizeof(gprofiler));
+    ret.status = SPP_SUCCESS;
+
+    return &ret;
+}
+
+spp_status_ret_t *spp_clear_1_svc(void *args,struct svc_req *req) {
+    static spp_status_ret_t ret;
+    DEBUG_FUNCTION;
+
+    CLEAR_PROBE(stat);
+    CLEAR_PROBE(ports);
+    CLEAR_PROBE(remove);
+    CLEAR_PROBE(read);
+    CLEAR_PROBE(write);
+    CLEAR_PROBE(truncate);
+
+    ret.status = SPP_SUCCESS;
+    return &ret;
+}
+
