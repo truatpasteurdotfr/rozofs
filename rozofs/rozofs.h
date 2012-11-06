@@ -4,8 +4,7 @@
 
  Rozofs is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published
- by the Free Software Foundation; either version 3 of the License,
- or (at your option) any later version.
+ by the Free Software Foundation, version 2.
 
  Rozofs is distributed in the hope that it will be useful, but
  WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,10 +23,6 @@
 #include <uuid/uuid.h>
 
 #include <config.h>
-
-#define M_COUNT            0
-#define M_ELAPSE           1
-#define M_RW_BYTES         2
 
 #define ROZOFS_UUID_SIZE 16
 #define ROZOFS_HOSTNAME_MAX 128
