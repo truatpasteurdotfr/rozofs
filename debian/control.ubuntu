@@ -24,7 +24,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.8.6-2ubuntu2), fuse-
 Description: Rozofs filesystem (rozofsmount package).
  Rozofs is a scale-out NAS using erasure coding.
 
-Package: rozofs-monitoring
+Package: rozofs-rprof
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Rozofs filesystem (monitoring package).

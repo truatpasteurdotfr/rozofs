@@ -19,7 +19,7 @@ include_directories(${CMAKE_SOURCE_DIR}) # for librozofs headers
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(rprof
-    rprofile.c
+    rprof.c
 )
 target_link_libraries(rprof rozofs)
 
@@ -29,5 +29,5 @@ install(TARGETS rprof
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
-    COMPONENT profile
+    COMPONENT rprof
 )

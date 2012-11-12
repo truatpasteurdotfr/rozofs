@@ -17,4 +17,4 @@
 add_subdirectory(exportd)
 add_subdirectory(storaged)
 add_subdirectory(rozofsmount)
-add_subdirectory(profile)
+add_subdirectory(rprof)
