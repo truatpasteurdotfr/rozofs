@@ -602,7 +602,6 @@ ep_getxattr_ret_t *ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * r
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
 
-    //XXX FREE?
     ret.ep_getxattr_ret_t_u.ret.value = xmalloc(ROZOFS_XATTR_VALUE_MAX);
     
     if ((size = export_getxattr(exp, arg->fid, arg->name, ret.ep_getxattr_ret_t_u.ret.value, arg->size)) == -1) {

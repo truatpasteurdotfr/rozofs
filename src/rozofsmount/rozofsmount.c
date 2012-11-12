@@ -1303,11 +1303,12 @@ void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
     DEBUG("getxattr (inode: %lu, name: %s, size: %llu) \n",
             (unsigned long int) ino, name, (unsigned long long int) size);
 
-    /// XXX: respond with the error ENOSYS for these calls
-    // to avoid that the getxattr called at each write to this file
+    /// XXX: respond with the error ENODATA for these calls
+    // to avoid that the getxattr called on export at each write to this file
+    // But these calls have overhead (each one requires a context switch)
     // It's seems to be a bug in kernel.
     if (strcmp(XATTR_CAPABILITY_NAME, name) == 0) {
-        fuse_reply_err(req, ENOSYS);
+        fuse_reply_err(req, ENODATA);
         goto out;
     }
 
