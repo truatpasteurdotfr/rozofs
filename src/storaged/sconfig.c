@@ -71,7 +71,7 @@ void sconfig_release(sconfig_t *config) {
 int sconfig_read(sconfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
-    long long layout;
+    long int layout;
     struct config_setting_t *stor_settings = 0;
     struct config_setting_t *ports_settings = 0;
     int i;
@@ -85,7 +85,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         goto out;
     }
 
-    if (!config_lookup_int64(&cfg, SLAYOUT, &layout)) {
+    if (!config_lookup_int(&cfg, SLAYOUT, &layout)) {
         errno = ENOKEY;
         severe("can't fetch layout setting.");
         goto out;
@@ -119,7 +119,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     for (i = 0; i < config_setting_length(stor_settings); i++) {
         storage_config_t *new = 0;
         struct config_setting_t *ms = 0;
-        long long sid;
+        long int sid;
         const char *root = 0;
 
         if (!(ms = config_setting_get_elem(stor_settings, i))) {
@@ -128,7 +128,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
             goto out;
         }
 
-        if (config_setting_lookup_int64(ms, SSID, &sid) == CONFIG_FALSE) {
+        if (config_setting_lookup_int(ms, SSID, &sid) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("cant't lookup sid for storage %d.", i);
             goto out;

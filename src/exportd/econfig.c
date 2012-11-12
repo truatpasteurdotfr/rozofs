@@ -162,7 +162,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
 
     // For each volume
     for (v = 0; v < config_setting_length(volumes_set); v++) {
-        long long vid; // Volume identifier
+        long int vid; // Volume identifier
         struct config_setting_t *vol_set = NULL; // Settings for one volume
         /* Settings of list of clusters for one volume */
         struct config_setting_t *clu_list_set = NULL;
@@ -176,7 +176,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
         }
 
         // Lookup vid for this volume
-        if (config_setting_lookup_int64(vol_set, EVID, &vid) == CONFIG_FALSE) {
+        if (config_setting_lookup_int(vol_set, EVID, &vid) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't lookup vid setting for volume idx: %d.", v);
             goto out;
@@ -199,7 +199,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
         // For each cluster of this volume
         for (c = 0; c < config_setting_length(clu_list_set); c++) {
 
-            long long cid;
+            long int cid;
             struct config_setting_t *stor_set;
             struct config_setting_t *clu_set;
             cluster_config_t *cconfig;
@@ -212,7 +212,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
             }
 
             // Lookup cid for this cluster
-            if (config_setting_lookup_int64(clu_set, ECID, &cid) == CONFIG_FALSE) {
+            if (config_setting_lookup_int(clu_set, ECID, &cid) == CONFIG_FALSE) {
                 errno = ENOKEY;
                 severe("can't lookup cid for volume idx: %d cluster idx: %d.", v, c);
                 goto out;
@@ -234,7 +234,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
             for (s = 0; s < config_setting_length(stor_set); s++) {
 
                 struct config_setting_t *mstor_set = NULL;
-                long long sid;
+                long int sid;
                 const char *host;
                 storage_node_config_t *snconfig = NULL;
 
@@ -247,7 +247,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
                 }
 
                 // Lookup sid for this storage
-                if (config_setting_lookup_int64(mstor_set, ESID, &sid) == CONFIG_FALSE) {
+                if (config_setting_lookup_int(mstor_set, ESID, &sid) == CONFIG_FALSE) {
                     errno = ENOKEY;
                     severe("can't get sid for volume idx: %d\
                              , cluster idx: %d,  storage idx: %d.", v, c, s);
@@ -345,11 +345,11 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
         struct config_setting_t *mfs_setting = NULL;
         const char *root;
         const char *md5;
-        long long eid; // Export identifier
+        long int eid; // Export identifier
         const char *str;
         uint64_t squota;
         uint64_t hquota;
-        long long vid; // Volume identifier
+        long int vid; // Volume identifier
         export_config_t *econfig = NULL;
 
         if ((mfs_setting = config_setting_get_elem(export_set, i)) == NULL) {
@@ -358,7 +358,7 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
-        if (config_setting_lookup_int64(mfs_setting, EEID, &eid) == CONFIG_FALSE) {
+        if (config_setting_lookup_int(mfs_setting, EEID, &eid) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't look up eid for export idx: %d", i);
             goto out;
@@ -399,7 +399,7 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
         }
 
         // Lookup volume identifier
-        if (config_setting_lookup_int64(mfs_setting, EVID, &vid) == CONFIG_FALSE) {
+        if (config_setting_lookup_int(mfs_setting, EVID, &vid) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't look up vid for export idx: %d", i);
             goto out;
@@ -424,7 +424,7 @@ out:
 int econfig_read(econfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
-    long long layout;
+    long int layout;
     DEBUG_FUNCTION;
 
     config_init(&cfg);
@@ -435,7 +435,7 @@ int econfig_read(econfig_t *config, const char *fname) {
         goto out;
     }
 
-    if (!config_lookup_int64(&cfg, ELAYOUT, &layout)) {
+    if (!config_lookup_int(&cfg, ELAYOUT, &layout)) {
         errno = ENOKEY;
         severe("can't lookup layout setting.");
         goto out;
@@ -650,4 +650,3 @@ int econfig_print(econfig_t *config) {
     }
     return 0;
 }
-
