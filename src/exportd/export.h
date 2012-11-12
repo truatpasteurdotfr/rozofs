@@ -335,4 +335,54 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n, dis
  */
 int export_readdir(export_t * e, fid_t fid, uint64_t * cookie, child_t **children, uint8_t *eof);
 
+/** retrieve an extended attribute value.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, size_t size);
+
+/** set an extended attribute value for a file or directory.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * @param flags: parameter can be used to refine the semantics of the operation.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
+int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags);
+
+/** remove an extended attribute from a file or directory.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
+int export_removexattr(export_t *e, fid_t fid, char *name);
+
+/** list extended attribute names from the lv2 regular file.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param list: list of extended attribute names associated with this file/dir.
+ * @param size: the size of a buffer to hold the list of extended attributes.
+ * 
+ * @return: On success, the size of the extended attribute name list.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size);
+
 #endif

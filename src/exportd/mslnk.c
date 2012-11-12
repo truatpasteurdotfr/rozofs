@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <attr/xattr.h>
 #include <fcntl.h>
 #include <string.h>
 
@@ -95,6 +97,38 @@ int mslnk_write_link(mslnk_t *mslnk, char *link) {
             == ROZOFS_PATH_MAX ? 0 : -1;
 
     STOP_PROFILING(mslnk_write_link);
+
+    return status;
+}
+
+int mslnk_set_xattr(mslnk_t *mslnk, const char *name, const void *value, size_t size, int flags) {
+    int status;
+    
+    status = fsetxattr(mslnk->fdattrs, name, value, size, flags);
+
+    return status;
+}
+
+ssize_t mslnk_get_xattr(mslnk_t *mslnk, const char *name, void *value, size_t size) {
+    ssize_t status;
+
+    status = fgetxattr(mslnk->fdattrs, name, value, size);
+
+    return status;
+}
+
+int mslnk_remove_xattr(mslnk_t *mslnk, const char *name) {
+    int status;
+
+    status = fremovexattr(mslnk->fdattrs, name);
+
+    return status;
+}
+
+ssize_t mslnk_list_xattr(mslnk_t *mslnk, char *list, size_t size) {
+    ssize_t status;
+
+    status = flistxattr(mslnk->fdattrs, list, size);
 
     return status;
 }

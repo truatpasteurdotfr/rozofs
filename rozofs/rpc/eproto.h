@@ -19,6 +19,12 @@ typedef u_char ep_uuid_t[ROZOFS_UUID_SIZE];
 
 typedef char *ep_name_t;
 
+typedef char *ep_xattr_name_t;
+
+typedef char *ep_xattr_value_t;
+
+typedef u_char ep_xattr_list_t[ROZOFS_XATTR_LIST_MAX];
+
 typedef char *ep_path_t;
 
 typedef char *ep_link_t;
@@ -294,6 +300,68 @@ struct ep_io_ret_t {
 };
 typedef struct ep_io_ret_t ep_io_ret_t;
 
+struct ep_setxattr_arg_t {
+	uint32_t eid;
+	ep_uuid_t fid;
+	ep_xattr_name_t name;
+	ep_xattr_value_t value;
+	uint64_t size;
+	uint8_t flags;
+};
+typedef struct ep_setxattr_arg_t ep_setxattr_arg_t;
+
+struct ep_getxattr_arg_t {
+	uint32_t eid;
+	ep_uuid_t fid;
+	ep_xattr_name_t name;
+	uint64_t size;
+};
+typedef struct ep_getxattr_arg_t ep_getxattr_arg_t;
+
+struct ep_getxattr_t {
+	ep_xattr_value_t value;
+	uint64_t size;
+};
+typedef struct ep_getxattr_t ep_getxattr_t;
+
+struct ep_getxattr_ret_t {
+	ep_status_t status;
+	union {
+		ep_getxattr_t ret;
+		int error;
+	} ep_getxattr_ret_t_u;
+};
+typedef struct ep_getxattr_ret_t ep_getxattr_ret_t;
+
+struct ep_removexattr_arg_t {
+	uint32_t eid;
+	ep_uuid_t fid;
+	ep_xattr_name_t name;
+};
+typedef struct ep_removexattr_arg_t ep_removexattr_arg_t;
+
+struct ep_listxattr_arg_t {
+	uint32_t eid;
+	ep_uuid_t fid;
+	uint64_t size;
+};
+typedef struct ep_listxattr_arg_t ep_listxattr_arg_t;
+
+struct ep_listxattr_t {
+	ep_xattr_list_t list;
+	uint64_t size;
+};
+typedef struct ep_listxattr_t ep_listxattr_t;
+
+struct ep_listxattr_ret_t {
+	ep_status_t status;
+	union {
+		ep_listxattr_t ret;
+		int error;
+	} ep_listxattr_ret_t_u;
+};
+typedef struct ep_listxattr_ret_t ep_listxattr_ret_t;
+
 #define EXPORT_PROGRAM 0x20000001
 #define EXPORT_VERSION 1
 
@@ -352,6 +420,18 @@ extern  ep_io_ret_t * ep_write_block_1_svc(ep_write_block_arg_t *, struct svc_re
 #define EP_LINK 18
 extern  ep_mattr_ret_t * ep_link_1(ep_link_arg_t *, CLIENT *);
 extern  ep_mattr_ret_t * ep_link_1_svc(ep_link_arg_t *, struct svc_req *);
+#define EP_SETXATTR 19
+extern  ep_status_ret_t * ep_setxattr_1(ep_setxattr_arg_t *, CLIENT *);
+extern  ep_status_ret_t * ep_setxattr_1_svc(ep_setxattr_arg_t *, struct svc_req *);
+#define EP_GETXATTR 20
+extern  ep_getxattr_ret_t * ep_getxattr_1(ep_getxattr_arg_t *, CLIENT *);
+extern  ep_getxattr_ret_t * ep_getxattr_1_svc(ep_getxattr_arg_t *, struct svc_req *);
+#define EP_REMOVEXATTR 21
+extern  ep_status_ret_t * ep_removexattr_1(ep_removexattr_arg_t *, CLIENT *);
+extern  ep_status_ret_t * ep_removexattr_1_svc(ep_removexattr_arg_t *, struct svc_req *);
+#define EP_LISTXATTR 22
+extern  ep_listxattr_ret_t * ep_listxattr_1(ep_listxattr_arg_t *, CLIENT *);
+extern  ep_listxattr_ret_t * ep_listxattr_1_svc(ep_listxattr_arg_t *, struct svc_req *);
 extern int export_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -409,6 +489,18 @@ extern  ep_io_ret_t * ep_write_block_1_svc();
 #define EP_LINK 18
 extern  ep_mattr_ret_t * ep_link_1();
 extern  ep_mattr_ret_t * ep_link_1_svc();
+#define EP_SETXATTR 19
+extern  ep_status_ret_t * ep_setxattr_1();
+extern  ep_status_ret_t * ep_setxattr_1_svc();
+#define EP_GETXATTR 20
+extern  ep_getxattr_ret_t * ep_getxattr_1();
+extern  ep_getxattr_ret_t * ep_getxattr_1_svc();
+#define EP_REMOVEXATTR 21
+extern  ep_status_ret_t * ep_removexattr_1();
+extern  ep_status_ret_t * ep_removexattr_1_svc();
+#define EP_LISTXATTR 22
+extern  ep_listxattr_ret_t * ep_listxattr_1();
+extern  ep_listxattr_ret_t * ep_listxattr_1_svc();
 extern int export_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -417,6 +509,9 @@ extern int export_program_1_freeresult ();
 #if defined(__STDC__) || defined(__cplusplus)
 extern  bool_t xdr_ep_uuid_t (XDR *, ep_uuid_t);
 extern  bool_t xdr_ep_name_t (XDR *, ep_name_t*);
+extern  bool_t xdr_ep_xattr_name_t (XDR *, ep_xattr_name_t*);
+extern  bool_t xdr_ep_xattr_value_t (XDR *, ep_xattr_value_t*);
+extern  bool_t xdr_ep_xattr_list_t (XDR *, ep_xattr_list_t);
 extern  bool_t xdr_ep_path_t (XDR *, ep_path_t*);
 extern  bool_t xdr_ep_link_t (XDR *, ep_link_t*);
 extern  bool_t xdr_ep_host_t (XDR *, ep_host_t);
@@ -453,10 +548,21 @@ extern  bool_t xdr_ep_write_block_arg_t (XDR *, ep_write_block_arg_t*);
 extern  bool_t xdr_ep_read_t (XDR *, ep_read_t*);
 extern  bool_t xdr_ep_read_block_ret_t (XDR *, ep_read_block_ret_t*);
 extern  bool_t xdr_ep_io_ret_t (XDR *, ep_io_ret_t*);
+extern  bool_t xdr_ep_setxattr_arg_t (XDR *, ep_setxattr_arg_t*);
+extern  bool_t xdr_ep_getxattr_arg_t (XDR *, ep_getxattr_arg_t*);
+extern  bool_t xdr_ep_getxattr_t (XDR *, ep_getxattr_t*);
+extern  bool_t xdr_ep_getxattr_ret_t (XDR *, ep_getxattr_ret_t*);
+extern  bool_t xdr_ep_removexattr_arg_t (XDR *, ep_removexattr_arg_t*);
+extern  bool_t xdr_ep_listxattr_arg_t (XDR *, ep_listxattr_arg_t*);
+extern  bool_t xdr_ep_listxattr_t (XDR *, ep_listxattr_t*);
+extern  bool_t xdr_ep_listxattr_ret_t (XDR *, ep_listxattr_ret_t*);
 
 #else /* K&R C */
 extern bool_t xdr_ep_uuid_t ();
 extern bool_t xdr_ep_name_t ();
+extern bool_t xdr_ep_xattr_name_t ();
+extern bool_t xdr_ep_xattr_value_t ();
+extern bool_t xdr_ep_xattr_list_t ();
 extern bool_t xdr_ep_path_t ();
 extern bool_t xdr_ep_link_t ();
 extern bool_t xdr_ep_host_t ();
@@ -493,6 +599,14 @@ extern bool_t xdr_ep_write_block_arg_t ();
 extern bool_t xdr_ep_read_t ();
 extern bool_t xdr_ep_read_block_ret_t ();
 extern bool_t xdr_ep_io_ret_t ();
+extern bool_t xdr_ep_setxattr_arg_t ();
+extern bool_t xdr_ep_getxattr_arg_t ();
+extern bool_t xdr_ep_getxattr_t ();
+extern bool_t xdr_ep_getxattr_ret_t ();
+extern bool_t xdr_ep_removexattr_arg_t ();
+extern bool_t xdr_ep_listxattr_arg_t ();
+extern bool_t xdr_ep_listxattr_t ();
+extern bool_t xdr_ep_listxattr_ret_t ();
 
 #endif /* K&R C */
 

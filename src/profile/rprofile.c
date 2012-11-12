@@ -420,6 +420,10 @@ static void profile_exportd_display() {
     ep_display_io_probe(ep, ep_read_block);
     ep_display_io_probe(ep, ep_write_block);
     ep_display_probe(ep, ep_link);
+    ep_display_probe(ep, ep_setxattr);
+    ep_display_probe(ep, ep_getxattr);
+    ep_display_probe(ep, ep_removexattr);
+    ep_display_probe(ep, ep_listxattr);
     ep_display_probe(ep, export_lv1_resolve_entry);
     ep_display_probe(ep, export_lv2_resolve_path);
     ep_display_probe(ep, export_lookup_fid);
@@ -441,6 +445,10 @@ static void profile_exportd_display() {
     ep_display_probe(ep, export_read_block);
     ep_display_probe(ep, export_write_block);
     ep_display_probe(ep, export_readdir);
+    ep_display_probe(ep, export_setxattr);
+    ep_display_probe(ep, export_getxattr);
+    ep_display_probe(ep, export_removexattr);
+    ep_display_probe(ep, export_listxattr);
     ep_display_probe(ep, lv2_cache_put);
     ep_display_probe(ep, lv2_cache_get);
     ep_display_probe(ep, lv2_cache_del);

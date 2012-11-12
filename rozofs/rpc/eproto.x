@@ -24,6 +24,9 @@
  */
 typedef unsigned char   ep_uuid_t[ROZOFS_UUID_SIZE];
 typedef string          ep_name_t<ROZOFS_FILENAME_MAX>;
+typedef string          ep_xattr_name_t<ROZOFS_XATTR_NAME_MAX>;
+typedef string          ep_xattr_value_t<ROZOFS_XATTR_VALUE_MAX>;
+typedef unsigned char   ep_xattr_list_t[ROZOFS_XATTR_LIST_MAX];
 typedef string          ep_path_t<ROZOFS_PATH_MAX>;
 typedef string          ep_link_t<ROZOFS_PATH_MAX>;
 typedef char            ep_host_t[ROZOFS_HOSTNAME_MAX];
@@ -243,6 +246,56 @@ union ep_io_ret_t switch (ep_status_t status) {
     default:            void;
 };
 
+struct ep_setxattr_arg_t {
+    uint32_t          eid;
+    ep_uuid_t         fid;
+    ep_xattr_name_t   name;
+    ep_xattr_value_t  value;
+    uint64_t          size;
+    uint8_t           flags;
+};
+
+struct ep_getxattr_arg_t {
+    uint32_t          eid;
+    ep_uuid_t         fid;
+    ep_xattr_name_t   name;
+    uint64_t          size;
+};
+
+struct ep_getxattr_t {
+    ep_xattr_value_t  value;
+    uint64_t          size;
+};
+
+union ep_getxattr_ret_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_getxattr_t   ret;
+    case EP_FAILURE:    int             error;
+    default:            void;
+};
+
+struct ep_removexattr_arg_t {
+    uint32_t          eid;
+    ep_uuid_t         fid;
+    ep_xattr_name_t   name;
+};
+
+struct ep_listxattr_arg_t {
+    uint32_t          eid;
+    ep_uuid_t         fid;
+    uint64_t          size;
+};
+
+struct ep_listxattr_t {
+    ep_xattr_list_t   list;
+    uint64_t          size;
+};
+
+union ep_listxattr_ret_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_listxattr_t   ret;
+    case EP_FAILURE:    int             error;
+    default:            void;
+};
+
 program EXPORT_PROGRAM {
     version EXPORT_VERSION {
 
@@ -299,6 +352,18 @@ program EXPORT_PROGRAM {
 
         ep_mattr_ret_t
         EP_LINK(ep_link_arg_t)                  = 18;
+
+        ep_status_ret_t
+        EP_SETXATTR(ep_setxattr_arg_t)          = 19;
+
+        ep_getxattr_ret_t
+        EP_GETXATTR(ep_getxattr_arg_t)          = 20;
+
+        ep_status_ret_t
+        EP_REMOVEXATTR(ep_removexattr_arg_t)    = 21;
+
+        ep_listxattr_ret_t
+        EP_LISTXATTR(ep_listxattr_arg_t)        = 22;
 
     } = 1;
 } = 0x20000001;

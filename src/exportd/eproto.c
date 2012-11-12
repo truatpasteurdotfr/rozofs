@@ -566,3 +566,108 @@ out:
     return &ret;
 }
  */
+
+ep_status_ret_t *ep_setxattr_1_svc(ep_setxattr_arg_t * arg, struct svc_req * req) {
+    static ep_status_ret_t ret;
+    export_t *exp;
+    DEBUG_FUNCTION;
+    
+    START_PROFILING(ep_setxattr);
+
+    if (!(exp = exports_lookup_export(arg->eid)))
+        goto error;
+
+    if (export_setxattr(exp, arg->fid, arg->name, arg->value, arg->size, arg->flags) != 0) {
+        goto error;
+    }
+
+    ret.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status = EP_FAILURE;
+    ret.ep_status_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_setxattr);
+    return &ret;
+}
+
+ep_getxattr_ret_t *ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * req) {
+    static ep_getxattr_ret_t ret;
+    export_t *exp;
+    ssize_t size = -1;
+    DEBUG_FUNCTION;
+    
+    START_PROFILING(ep_getxattr);
+
+    if (!(exp = exports_lookup_export(arg->eid)))
+        goto error;
+
+    //XXX FREE?
+    ret.ep_getxattr_ret_t_u.ret.value = xmalloc(ROZOFS_XATTR_VALUE_MAX);
+    
+    if ((size = export_getxattr(exp, arg->fid, arg->name, ret.ep_getxattr_ret_t_u.ret.value, arg->size)) == -1) {
+        goto error;
+    }
+
+    ret.ep_getxattr_ret_t_u.ret.size = size;
+
+    ret.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status = EP_FAILURE;
+    ret.ep_getxattr_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_getxattr);
+    return &ret;
+}
+
+ep_status_ret_t *ep_removexattr_1_svc(ep_removexattr_arg_t * arg, struct svc_req * req) {
+    static ep_status_ret_t ret;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    START_PROFILING(ep_removexattr);
+    
+    if (!(exp = exports_lookup_export(arg->eid)))
+        goto error;
+
+    if (export_removexattr(exp, arg->fid, arg->name) != 0) {
+        goto error;
+    }
+
+    ret.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status = EP_FAILURE;
+    ret.ep_status_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_removexattr);
+    return &ret;
+}
+
+ep_listxattr_ret_t *ep_listxattr_1_svc(ep_listxattr_arg_t * arg, struct svc_req * req) {
+    static ep_listxattr_ret_t ret;
+    export_t *exp;
+    ssize_t size = -1;
+    DEBUG_FUNCTION;
+    
+    START_PROFILING(ep_listxattr);
+
+    if (!(exp = exports_lookup_export(arg->eid)))
+        goto error;
+    
+    if ((size = export_listxattr(exp, arg->fid, ret.ep_listxattr_ret_t_u.ret.list, arg->size)) == -1) {
+        goto error;
+    }
+
+    ret.ep_listxattr_ret_t_u.ret.size = size;
+
+    ret.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status = EP_FAILURE;
+    ret.ep_listxattr_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_listxattr);
+    return &ret;
+}

@@ -40,6 +40,10 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		ep_io_arg_t ep_read_block_1_arg;
 		ep_write_block_arg_t ep_write_block_1_arg;
 		ep_link_arg_t ep_link_1_arg;
+		ep_setxattr_arg_t ep_setxattr_1_arg;
+		ep_getxattr_arg_t ep_getxattr_1_arg;
+		ep_removexattr_arg_t ep_removexattr_1_arg;
+		ep_listxattr_arg_t ep_listxattr_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -152,6 +156,30 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_ep_link_arg_t;
 		_xdr_result = (xdrproc_t) xdr_ep_mattr_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_link_1_svc;
+		break;
+
+	case EP_SETXATTR:
+		_xdr_argument = (xdrproc_t) xdr_ep_setxattr_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_setxattr_1_svc;
+		break;
+
+	case EP_GETXATTR:
+		_xdr_argument = (xdrproc_t) xdr_ep_getxattr_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_getxattr_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_getxattr_1_svc;
+		break;
+
+	case EP_REMOVEXATTR:
+		_xdr_argument = (xdrproc_t) xdr_ep_removexattr_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_removexattr_1_svc;
+		break;
+
+	case EP_LISTXATTR:
+		_xdr_argument = (xdrproc_t) xdr_ep_listxattr_arg_t;
+		_xdr_result = (xdrproc_t) xdr_ep_listxattr_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_listxattr_1_svc;
 		break;
 
 	default:

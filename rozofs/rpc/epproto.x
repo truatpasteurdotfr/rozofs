@@ -53,6 +53,10 @@ struct epp_profiler_t {
     uint64_t    ep_read_block[3];
     uint64_t    ep_write_block[3];
     uint64_t    ep_link[2];
+    uint64_t    ep_setxattr[2];
+    uint64_t    ep_getxattr[2];
+    uint64_t    ep_removexattr[2];
+    uint64_t    ep_listxattr[2];
     uint64_t    export_lv1_resolve_entry[2];
     uint64_t    export_lv2_resolve_path[2];
     uint64_t    export_lookup_fid[2];
@@ -73,6 +77,10 @@ struct epp_profiler_t {
     uint64_t    export_read[3];
     uint64_t    export_read_block[2];
     uint64_t    export_write_block[2];
+    uint64_t    export_setxattr[2];
+    uint64_t    export_getxattr[2];
+    uint64_t    export_removexattr[2];
+    uint64_t    export_listxattr[2];
     uint64_t    export_readdir[2];
     uint64_t    lv2_cache_put[2];
     uint64_t    lv2_cache_get[2];

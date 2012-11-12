@@ -63,4 +63,50 @@ int mdir_read_attributes(mdir_t *mdir, mattr_t *mattr);
  */
 int mdir_write_attributes(mdir_t *mdir, mattr_t *mattr);
 
+/** set an extended attribute value for a lv2 directory.
+ *
+ * @param mdir: the mdir.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * @param flags: parameter can be used to refine the semantics of the operation.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
+int mdir_set_xattr(mdir_t *mdir, const char *name, const void *value, size_t size, int flags);
+
+/** retrieve an extended attribute value from the lv2 directory.
+ *
+ * @param mdir: the mdir to read from.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+ssize_t mdir_get_xattr(mdir_t *mdir, const char *name, void *value, size_t size);
+
+/** remove an extended attribute from the lv2 directory.
+ *
+ * @param mdir: the mdir for this directory.
+ * @param name: the extended attribute name.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
+int mdir_remove_xattr(mdir_t *mdir, const char *name);
+
+/** list extended attribute names from the lv2 directory.
+ *
+ * @param mdir: the mdir for this directory.
+ * @param list: list of extended attribute names associated with this directory.
+ * @param size: the size of a buffer to hold the list of extended attributes.
+ * 
+ * @return: On success, the size of the extended attribute name list.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+ssize_t mdir_list_xattr(mdir_t *mdir, char *list, size_t size);
+
 #endif

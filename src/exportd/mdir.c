@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <attr/xattr.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
@@ -93,7 +95,39 @@ int mdir_write_attributes(mdir_t *mdir, mattr_t *attrs) {
         return -1;
     }
     status = 0;
-out:
+    
     STOP_PROFILING(mdir_write_attributes);
+    return status;
+}
+
+int mdir_set_xattr(mdir_t *mdir, const char *name, const void *value, size_t size, int flags) {
+    int status;
+
+    status = fsetxattr(mdir->fdattrs, name, value, size, flags);
+
+    return status;
+}
+
+ssize_t mdir_get_xattr(mdir_t *mdir, const char *name, void *value, size_t size) {
+    ssize_t status;
+
+    status = fgetxattr(mdir->fdattrs, name, value, size);
+
+    return status;
+}
+
+int mdir_remove_xattr(mdir_t *mdir, const char *name) {
+    int status;
+
+    status = fremovexattr(mdir->fdattrs, name);
+
+    return status;
+}
+
+ssize_t mdir_list_xattr(mdir_t *mdir, char *list, size_t size) {
+    ssize_t status;
+
+    status = flistxattr(mdir->fdattrs, list, size);
+
     return status;
 }

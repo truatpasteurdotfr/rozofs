@@ -995,3 +995,175 @@ out:
     return status;
 }
  */
+
+int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, char* value,
+        uint64_t size, uint8_t flags) {
+    int status = -1;
+    ep_setxattr_arg_t arg;
+    ep_status_ret_t *ret = 0;
+    int retry = 0;
+    DEBUG_FUNCTION;
+
+    arg.eid = clt->eid;
+    memcpy(arg.fid, fid, sizeof (fid_t));
+    arg.name = name;
+    arg.value = value;
+    arg.size = size;
+    arg.flags = flags;
+
+    while ((retry++ < clt->retries) &&
+            (!(clt->rpcclt.client) ||
+            !(ret = ep_setxattr_1(&arg, clt->rpcclt.client)))) {
+
+        if (rpcclt_initialize
+                (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
+                ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0) != 0) {
+            rpcclt_release(&clt->rpcclt);
+            errno = EPROTO;
+        }
+    }
+    if (ret == 0) {
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status == EP_FAILURE) {
+        errno = ret->ep_status_ret_t_u.error;
+        goto out;
+    }
+
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
+    return status;
+}
+
+int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, char * value,
+        uint64_t size, uint64_t * value_size) {
+    int status = -1;
+    ep_getxattr_arg_t arg;
+    ep_getxattr_ret_t *ret = 0;
+    int retry = 0;
+    DEBUG_FUNCTION;
+
+    arg.eid = clt->eid;
+    memcpy(arg.fid, fid, sizeof (uuid_t));
+    arg.name = name;
+    arg.size = size;
+
+    while ((retry++ < clt->retries) &&
+            (!(clt->rpcclt.client) ||
+            !(ret = ep_getxattr_1(&arg, clt->rpcclt.client)))) {
+
+        if (rpcclt_initialize
+                (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
+                ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0) != 0) {
+            rpcclt_release(&clt->rpcclt);
+            errno = EPROTO;
+        }
+    }
+
+    if (ret == 0) {
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status == EP_FAILURE) {
+        errno = ret->ep_getxattr_ret_t_u.error;
+        goto out;
+    }
+
+    if (ret->ep_getxattr_ret_t_u.ret.size != 0) {
+        strcpy(value, ret->ep_getxattr_ret_t_u.ret.value);
+    }
+
+    *value_size = ret->ep_getxattr_ret_t_u.ret.size;
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_ep_getxattr_ret_t, (char *) ret);
+    return status;
+}
+
+int exportclt_removexattr(exportclt_t * clt, fid_t fid, char * name) {
+    int status = -1;
+    ep_removexattr_arg_t arg;
+    ep_status_ret_t *ret = 0;
+    int retry = 0;
+    DEBUG_FUNCTION;
+
+    arg.eid = clt->eid;
+    memcpy(arg.fid, fid, sizeof (fid_t));
+    arg.name = name;
+
+    while ((retry++ < clt->retries) &&
+            (!(clt->rpcclt.client) ||
+            !(ret = ep_removexattr_1(&arg, clt->rpcclt.client)))) {
+
+        if (rpcclt_initialize
+                (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
+                ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0) != 0) {
+            rpcclt_release(&clt->rpcclt);
+            errno = EPROTO;
+        }
+    }
+    if (ret == 0) {
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status == EP_FAILURE) {
+        errno = ret->ep_status_ret_t_u.error;
+        goto out;
+    }
+
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_ep_status_ret_t, (char *) ret);
+    return status;
+}
+
+int exportclt_listxattr(exportclt_t * clt, fid_t fid, char * list,
+        uint64_t size, uint64_t * list_size) {
+    int status = -1;
+    ep_listxattr_arg_t arg;
+    ep_listxattr_ret_t *ret = 0;
+    int retry = 0;
+    DEBUG_FUNCTION;
+
+    arg.eid = clt->eid;
+    memcpy(arg.fid, fid, sizeof (uuid_t));
+    arg.size = size;
+
+    while ((retry++ < clt->retries) &&
+            (!(clt->rpcclt.client) ||
+            !(ret = ep_listxattr_1(&arg, clt->rpcclt.client)))) {
+
+        if (rpcclt_initialize
+                (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
+                ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0) != 0) {
+            rpcclt_release(&clt->rpcclt);
+            errno = EPROTO;
+        }
+    }
+
+    if (ret == 0) {
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status == EP_FAILURE) {
+        errno = ret->ep_listxattr_ret_t_u.error;
+        goto out;
+    }
+
+    if (ret->ep_listxattr_ret_t_u.ret.size != 0)
+        memcpy(list, ret->ep_listxattr_ret_t_u.ret.list,
+                ret->ep_listxattr_ret_t_u.ret.size);
+        
+    *list_size = ret->ep_listxattr_ret_t_u.ret.size;
+    
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_ep_listxattr_ret_t, (char *) ret);
+    return status;
+}

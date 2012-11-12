@@ -167,10 +167,10 @@ typedef struct dirbuf {
 
 /** entry kept locally to map fuse_inode_t with rozofs fid_t */
 typedef struct ientry {
-    fuse_ino_t inode;       ///< value of the inode allocated by rozofs
-    fid_t fid;              ///< unique file identifier associated with the file or directory
-    dirbuf_t db;            ///< buffer used for directory listing
-    unsigned long nlookup;  ///< number of lookup done on this entry (used for forget)
+    fuse_ino_t inode; ///< value of the inode allocated by rozofs
+    fid_t fid; ///< unique file identifier associated with the file or directory
+    dirbuf_t db; ///< buffer used for directory listing
+    unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
     list_t list;
 } ientry_t;
 
@@ -1293,6 +1293,136 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
     STOP_PROFILING(rozofs_ll_forget);
 }
 
+#define XATTR_CAPABILITY_NAME "security.capability"
+
+void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+        size_t size) {
+
+    START_PROFILING(rozofs_ll_getxattr);
+    
+    DEBUG("getxattr (inode: %lu, name: %s, size: %llu) \n",
+            (unsigned long int) ino, name, (unsigned long long int) size);
+
+    /// XXX: respond with the error ENOSYS for these calls
+    // to avoid that the getxattr called at each write to this file
+    // It's seems to be a bug in kernel.
+    if (strcmp(XATTR_CAPABILITY_NAME, name) == 0) {
+        fuse_reply_err(req, ENOSYS);
+        goto out;
+    }
+
+    ientry_t *ie = 0;
+    uint64_t value_size = 0;
+    char value[ROZOFS_XATTR_VALUE_MAX];
+
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+
+    if (exportclt_getxattr(&exportclt, ie->fid, (char *) name, value, size,
+            &value_size) == -1)
+        goto error;
+
+    if (size == 0) {
+        fuse_reply_xattr(req, value_size);
+        goto out;
+    }
+
+    fuse_reply_buf(req, (char *) value, value_size);
+    goto out;
+error:
+    fuse_reply_err(req, errno);
+out:
+    STOP_PROFILING(rozofs_ll_getxattr);
+    return;
+}
+
+void rozofs_ll_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+        const char *value, size_t size, int flags) {
+    ientry_t *ie = 0;
+
+    START_PROFILING(rozofs_ll_setxattr);
+    
+    DEBUG("setxattr (inode: %lu, name: %s, value: %s, size: %llu)\n",
+            (unsigned long int) ino, name, value,
+            (unsigned long long int) size);
+
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+
+    if (exportclt_setxattr(&exportclt, ie->fid, (char *) name, (char *) value,
+            size, flags) == -1)
+        goto error;
+
+    fuse_reply_err(req, 0);
+    goto out;
+error:
+    fuse_reply_err(req, errno);
+out:
+    STOP_PROFILING(rozofs_ll_setxattr);
+    return;
+}
+
+void rozofs_ll_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
+    ientry_t *ie = 0;
+    uint64_t list_size = 0;
+    char list[ROZOFS_XATTR_LIST_MAX];
+    
+    START_PROFILING(rozofs_ll_listxattr);
+
+    DEBUG("listxattr (inode: %lu, size: %llu)\n", (unsigned long int) ino,
+            (unsigned long long int) size);
+
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+
+    if (exportclt_listxattr(&exportclt, ie->fid, list, size, &list_size) == -1)
+        goto error;
+
+    if (size == 0) {
+        fuse_reply_xattr(req, list_size);
+        goto out;
+    }
+
+    fuse_reply_buf(req, (char *) list, list_size);
+    goto out;
+error:
+    fuse_reply_err(req, errno);
+out:
+   STOP_PROFILING(rozofs_ll_listxattr); 
+   return;
+}
+
+void rozofs_ll_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name) {
+    ientry_t *ie = 0;
+
+    START_PROFILING(rozofs_ll_removexattr);
+    
+    DEBUG("removexattr (inode: %lu, name: %s)\n", (unsigned long int) ino,
+            name);
+
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+
+    if (exportclt_removexattr(&exportclt, ie->fid, (char *) name) == -1)
+        goto error;
+
+    fuse_reply_err(req, 0);
+    goto out;
+error:
+    fuse_reply_err(req, errno);
+out:
+    STOP_PROFILING(rozofs_ll_removexattr); 
+    return;
+}
+
 /*
  * All below are implemented for monitoring purpose.
  */
@@ -1333,13 +1463,6 @@ void rozofs_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd, void *arg,
         const void *in_buf, size_t in_bufsz, size_t out_bufsz) {
     START_PROFILING(rozofs_ll_ioctl);
     fuse_reply_ioctl(req, 0, in_buf, out_bufsz);
-    STOP_PROFILING(rozofs_ll_ioctl);
-}
-
-#warning fake untested function.
-void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name, size_t size) {
-    START_PROFILING(rozofs_ll_ioctl);
-    fuse_reply_err(req, ENODATA);
     STOP_PROFILING(rozofs_ll_ioctl);
 }
 
@@ -1425,10 +1548,10 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .releasedir = rozofs_ll_releasedir,
     .fsyncdir = rozofs_ll_fsyncdir,
     .statfs = rozofs_ll_statfs,
-    //.setxattr = rozofs_ll_setxattr,
-    //.getxattr = rozofs_ll_getxattr,
-    //.listxattr = rozofs_ll_listxattr,
-    //.removexattr = rozofs_ll_removexattr,
+    .setxattr = rozofs_ll_setxattr,
+    .getxattr = rozofs_ll_getxattr,
+    .listxattr = rozofs_ll_listxattr,
+    .removexattr = rozofs_ll_removexattr,
     .access = rozofs_ll_access,
     .create = rozofs_ll_create,
     .getlk = rozofs_ll_getlk,
@@ -1628,7 +1751,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      * Start profiling server
      */
     gprofiler.uptime = time(0);
-    strcpy((char *)gprofiler.vers, VERSION);
+    strcpy((char *) gprofiler.vers, VERSION);
     /* Find a free port */
     for (profiling_port = 50000; profiling_port < 60000; profiling_port++) {
         if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -1639,7 +1762,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         addr.sin_family = AF_INET;
         addr.sin_port = htons(profiling_port);
         addr.sin_addr.s_addr = INADDR_ANY;
-        if ((bind(sock, (struct sockaddr *) &addr, sizeof(struct sockaddr_in))) != 0) {
+        if ((bind(sock, (struct sockaddr *) &addr, sizeof (struct sockaddr_in))) != 0) {
             if (errno == EADDRINUSE)
                 profiling_port++; /* Try next port */
             else {

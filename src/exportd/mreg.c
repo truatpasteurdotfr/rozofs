@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <attr/xattr.h>
 #include <fcntl.h>
 
 #include <rozofs/common/profile.h>
@@ -102,6 +104,38 @@ int mreg_write_dist(mreg_t *mreg, bid_t bid, uint32_t n, dist_t *dist) {
     status = pwrite(mreg->fdattrs, dist, len, off) == len ? 0 : -1;
 
     STOP_PROFILING(mreg_write_dist);
+
+    return status;
+}
+
+int mreg_set_xattr(mreg_t *mreg, const char *name, const void *value, size_t size, int flags) {
+    int status;
+
+    status = fsetxattr(mreg->fdattrs, name, value, size, flags);
+
+    return status;
+}
+
+ssize_t mreg_get_xattr(mreg_t *mreg, const char *name, void *value, size_t size) {
+    ssize_t status;
+    
+    status = fgetxattr(mreg->fdattrs, name, value, size);
+
+    return status;
+}
+
+int mreg_remove_xattr(mreg_t *mreg, const char *name) {
+    int status;
+
+    status = fremovexattr(mreg->fdattrs, name);
+
+    return status;
+}
+
+ssize_t mreg_list_xattr(mreg_t *mreg, char *list, size_t size) {
+    ssize_t status;
+
+    status = flistxattr(mreg->fdattrs, list, size);
 
     return status;
 }

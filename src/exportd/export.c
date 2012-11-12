@@ -173,6 +173,100 @@ static int export_lv2_write_attributes(lv2_entry_t *entry) {
     }
 }
 
+/** set an extended attribute value for a lv2_entry_t.
+ *
+ * @param entry: the entry used
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * @param flags: parameter can be used to refine the semantics of the operation.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
+static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void *value, size_t size, int flags) {
+
+    if (S_ISDIR(entry->attributes.mode)) {
+        return mdir_set_xattr(&entry->container.mdir, name, value, size, flags);
+    } else if (S_ISREG(entry->attributes.mode)) {
+        return mreg_set_xattr(&entry->container.mreg, name, value, size, flags);
+    } else if (S_ISLNK(entry->attributes.mode)) {
+        return mslnk_set_xattr(&entry->container.mslnk, name, value, size, flags);
+    } else {
+        errno = ENOTSUP;
+        return -1;
+    }
+}
+
+/** retrieve an extended attribute value from the lv2_entry_t.
+ *
+ * @param entry: the entry used
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+static ssize_t export_lv2_get_xattr(lv2_entry_t *entry, const char *name, void *value, size_t size) {
+
+    if (S_ISDIR(entry->attributes.mode)) {
+        return mdir_get_xattr(&entry->container.mdir, name, value, size);
+    } else if (S_ISREG(entry->attributes.mode)) {
+        return mreg_get_xattr(&entry->container.mreg, name, value, size);
+    } else if (S_ISLNK(entry->attributes.mode)) {
+        return mslnk_get_xattr(&entry->container.mslnk, name, value, size);
+    } else {
+        errno = ENOTSUP;
+        return -1;
+    }
+}
+
+/** remove an extended attribute from the lv2_entry_t.
+ *
+ * @param entry: the entry used
+ * @param name: the extended attribute name.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
+static int export_lv2_remove_xattr(lv2_entry_t *entry, const char *name) {
+
+    if (S_ISDIR(entry->attributes.mode)) {
+        return mdir_remove_xattr(&entry->container.mdir, name);
+    } else if (S_ISREG(entry->attributes.mode)) {
+        return mreg_remove_xattr(&entry->container.mreg, name);
+    } else if (S_ISLNK(entry->attributes.mode)) {
+        return mslnk_remove_xattr(&entry->container.mslnk, name);
+    } else {
+        errno = ENOTSUP;
+        return -1;
+    }
+}
+
+/** list extended attribute names from the lv2_entry_t.
+ *
+ * @param entry: the entry used
+ * @param list: list of extended attribute names associated with this directory.
+ * @param size: the size of a buffer to hold the list of extended attributes.
+ * 
+ * @return: On success, the size of the extended attribute name list.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+static ssize_t export_lv2_list_xattr(lv2_entry_t *entry, void *list, size_t size) {
+
+    if (S_ISDIR(entry->attributes.mode)) {
+        return mdir_list_xattr(&entry->container.mdir, list, size);
+    } else if (S_ISREG(entry->attributes.mode)) {
+        return mreg_list_xattr(&entry->container.mreg, list, size);
+    } else if (S_ISLNK(entry->attributes.mode)) {
+        return mslnk_list_xattr(&entry->container.mslnk, list, size);
+    } else {
+        errno = ENOTSUP;
+        return -1;
+    }
+}
+
 /** update the number of files in file system
  *
  * @param e: the export to update
@@ -1801,6 +1895,88 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
     status = 0;
 out:
     STOP_PROFILING(export_readdir);
+    return status;
+}
+
+ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, size_t size) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+
+    START_PROFILING(export_getxattr);
+    
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_getattr failed: %s", strerror(errno));
+        goto out;
+    }
+
+    if ((status = export_lv2_get_xattr(lv2, name, value, size)) < 0) {
+        goto out;
+    }
+
+out:
+    STOP_PROFILING(export_getxattr);
+    return status;
+}
+
+int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags) {
+    int status = -1;
+    lv2_entry_t *lv2 = 0;
+
+    START_PROFILING(export_setxattr);
+    
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_getattr failed: %s", strerror(errno));
+        goto out;
+    }
+
+    if ((status = export_lv2_set_xattr(lv2, name, value, size, flags)) != 0) {
+        goto out;
+    }
+
+    status = 0;
+out:
+    STOP_PROFILING(export_setxattr);
+    return status;
+}
+
+int export_removexattr(export_t *e, fid_t fid, char *name) {
+    int status = -1;
+    lv2_entry_t *lv2 = 0;
+    
+    START_PROFILING(export_removexattr);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_getattr failed: %s", strerror(errno));
+        goto out;
+    }
+
+    if ((status = export_lv2_remove_xattr(lv2, name)) != 0) {
+        goto out;
+    }
+
+    status = 0;
+out:
+    STOP_PROFILING(export_removexattr);
+    return status;
+}
+
+ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    
+    START_PROFILING(export_listxattr);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_getattr failed: %s", strerror(errno));
+        goto out;
+    }
+
+    if ((status = export_lv2_list_xattr(lv2, list, size)) < 0) {
+        goto out;
+    }
+
+out:
+    STOP_PROFILING(export_listxattr);
     return status;
 }
 
