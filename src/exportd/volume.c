@@ -111,6 +111,7 @@ out:
 void volume_release(volume_t *volume) {
     list_t *p, *q;
     DEBUG_FUNCTION;
+    
     list_for_each_forward_safe(p, q, &volume->clusters) {
         cluster_t *entry = list_entry(p, cluster_t, list);
         list_remove(p);
@@ -230,17 +231,30 @@ void volume_balance(volume_t *volume) {
 
     // sort the clone
     // no need to lock the volume since it's a local only volume
+
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
         list_sort(&cluster->storages, volume_storage_compare);
     }
     list_sort(&clone.clusters, cluster_compare_capacity);
 
-    // move the result back to our volume
+    // Copy the result back to our volume
     if (volume_safe_copy(volume, &clone) != 0) {
         severe("can't clone volume: %d", volume->vid);
         goto out;
     }
+
+    // Free the clone volume
+    p = NULL;
+    q = NULL;
+    
+    list_for_each_forward_safe(p, q, &clone.clusters) {
+        cluster_t *entry = list_entry(p, cluster_t, list);
+        list_remove(p);
+        cluster_release(entry);
+        free(entry);
+    }
+
 out:
     STOP_PROFILING(volume_balance);
 }
@@ -271,9 +285,10 @@ char *lookup_volume_storage(volume_t *volume, sid_t sid, char *host) {
 out:
     return host;
 }
-*/
+ */
 
 // what if a cluster is < rozofs safe
+
 static int cluster_distribute(cluster_t *cluster, uint16_t *sids) {
     list_t *p;
     int status = -1;
@@ -307,6 +322,7 @@ int volume_distribute(volume_t *volume, uint16_t *cid, uint16_t *sids) {
         goto out;
     }
     errno = ENOSPC;
+
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
         if (cluster_distribute(cluster, sids) == 0) {
