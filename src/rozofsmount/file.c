@@ -24,15 +24,16 @@
 
 #include "file.h"
 
-/** Get one storage connection for a given sid and given hash value
+/** Get one storage connection for a given sid and given random value
  *
  * @param *e: pointer to exportclt_t
  * @param sid: storage ID
- * @param hash: hash value for this fid
+ * @param rand_value: random value
  *
  * @return: storage connection on success, NULL otherwise (errno: EINVAL is set)
  */
-static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid, uint32_t hash) {
+static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid,
+        uint8_t rand_value) {
     list_t *iterator;
     int i = 0;
     DEBUG_FUNCTION;
@@ -47,8 +48,8 @@ static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid, uint32_t hash) {
                 // The good storage node is find
                 // modulo between all connections for this node
                 if (entry->sclients_nb > 0) {
-                    hash %= entry->sclients_nb;
-                    return &entry->sclients[hash];
+                    rand_value %= entry->sclients_nb;
+                    return &entry->sclients[rand_value];
                 } else {
                     // We find a storage node for this sid but
                     // it don't have connection.
@@ -75,8 +76,9 @@ static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid, uint32_t hash) {
  *  To verify that number of connections is sufficient from a given distribution
  *  then we must pass the distribution as parameter
  *
- * This function computes a hash value for the fid to select a connection
- * among all those available for one storage server (one SID).
+ * This function computes a pseudo-random integer in the range 0 to RAND_MAX
+ * inclusive to select a connection among all those available for
+ * one storage server (one SID).
  * That allows you to load balancing connections between proccess
  * for one storage server
  *
@@ -90,25 +92,24 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
     int i = 0;
     int connected = 0;
     struct timespec ts = {2, 0}; /// XXX static
-    uint32_t hash = 0;
-    uint8_t *c = 0;
+    uint8_t rand_value = 0;
 
     DEBUG_FUNCTION;
 
-    // Get a hash value for this fid
-    for (c = f->fid; c != f->fid + 16; c++)
-        hash = *c + (hash << 6) + (hash << 16) - hash;
-
+    // Get a pseudo-random integer in the range 0 to RAND_MAX inclusive
+    rand_value = rand();
 
     for (i = 0; i < rozofs_safe; i++) {
         // Not necessary to check the distribution
         if (dist_p == NULL) {
 
             // Get connection for this storage
-            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.sids[i], hash)) != NULL) {
+            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.sids[i],
+                    rand_value)) != NULL) {
 
                 // Check connection status
-                if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+                if (f->storages[i]->status == 1 &&
+                        f->storages[i]->rpcclt.client != 0)
                     connected++; // This storage seems to be OK
             }
 
@@ -116,10 +117,12 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
             // Check if the storage server has data
             if (dist_is_set(*dist_p, i)) {
                 // Get connection for this storage
-                if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.sids[i], hash)) != NULL) {
+                if ((f->storages[i] = get_storage_cnt(f->export,
+                        f->attrs.sids[i], rand_value)) != NULL) {
 
                     // Check connection status
-                    if (f->storages[i]->status == 1 && f->storages[i]->rpcclt.client != 0)
+                    if (f->storages[i]->status == 1 &&
+                            f->storages[i]->rpcclt.client != 0)
                         connected++; // This storage seems to be OK
                 }
             }
