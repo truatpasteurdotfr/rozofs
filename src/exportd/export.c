@@ -52,6 +52,9 @@
 #define LV1_CREATE 1
 #define RM_FILES_MAX 2500
 
+/** Default mode for export root directory */
+#define EXPORT_DEFAULT_ROOT_MODE S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+
 typedef struct rmfentry {
     fid_t fid;
     sid_t sids[ROZOFS_SAFE_MAX];
@@ -462,8 +465,10 @@ int export_create(const char *root) {
     uuid_generate(root_attrs.fid);
     root_attrs.cid = 0;
     memset(root_attrs.sids, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
-    root_attrs.mode = S_IFDIR | S_IRUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH
-            | S_IWOTH | S_IXOTH;
+    
+    // Put the default mode for the root directory
+    root_attrs.mode = EXPORT_DEFAULT_ROOT_MODE;
+    
     root_attrs.nlink = 2;
     root_attrs.uid = 0; // root
     root_attrs.gid = 0; // root
