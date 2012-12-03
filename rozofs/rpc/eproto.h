@@ -304,8 +304,10 @@ struct ep_setxattr_arg_t {
 	uint32_t eid;
 	ep_uuid_t fid;
 	ep_xattr_name_t name;
-	ep_xattr_value_t value;
-	uint64_t size;
+	struct {
+		u_int value_len;
+		char *value_val;
+	} value;
 	uint8_t flags;
 };
 typedef struct ep_setxattr_arg_t ep_setxattr_arg_t;
@@ -327,7 +329,10 @@ typedef struct ep_getxattr_t ep_getxattr_t;
 struct ep_getxattr_ret_t {
 	ep_status_t status;
 	union {
-		ep_getxattr_t ret;
+		struct {
+			u_int value_len;
+			char *value_val;
+		} value;
 		int error;
 	} ep_getxattr_ret_t_u;
 };

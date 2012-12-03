@@ -250,8 +250,7 @@ struct ep_setxattr_arg_t {
     uint32_t          eid;
     ep_uuid_t         fid;
     ep_xattr_name_t   name;
-    ep_xattr_value_t  value;
-    uint64_t          size;
+    opaque            value<>;
     uint8_t           flags;
 };
 
@@ -268,7 +267,7 @@ struct ep_getxattr_t {
 };
 
 union ep_getxattr_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    ep_getxattr_t   ret;
+    case EP_SUCCESS:    opaque          value<>;
     case EP_FAILURE:    int             error;
     default:            void;
 };

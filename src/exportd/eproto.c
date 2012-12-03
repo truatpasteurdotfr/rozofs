@@ -577,7 +577,7 @@ ep_status_ret_t *ep_setxattr_1_svc(ep_setxattr_arg_t * arg, struct svc_req * req
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
 
-    if (export_setxattr(exp, arg->fid, arg->name, arg->value, arg->size, arg->flags) != 0) {
+    if (export_setxattr(exp, arg->fid, arg->name, arg->value.value_val, arg->value.value_len, arg->flags) != 0) {
         goto error;
     }
 
@@ -602,13 +602,15 @@ ep_getxattr_ret_t *ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * r
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
 
-    ret.ep_getxattr_ret_t_u.ret.value = xmalloc(ROZOFS_XATTR_VALUE_MAX);
-    
-    if ((size = export_getxattr(exp, arg->fid, arg->name, ret.ep_getxattr_ret_t_u.ret.value, arg->size)) == -1) {
+    xdr_free((xdrproc_t) xdr_ep_getxattr_ret_t, (char *) &ret);
+
+    ret.ep_getxattr_ret_t_u.value.value_val = xmalloc(ROZOFS_XATTR_VALUE_MAX);
+
+    if ((size = export_getxattr(exp, arg->fid, arg->name, ret.ep_getxattr_ret_t_u.value.value_val, arg->size)) == -1) {
         goto error;
     }
 
-    ret.ep_getxattr_ret_t_u.ret.size = size;
+    ret.ep_getxattr_ret_t_u.value.value_len = size;
 
     ret.status = EP_SUCCESS;
     goto out;

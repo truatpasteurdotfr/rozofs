@@ -689,9 +689,7 @@ xdr_ep_setxattr_arg_t (XDR *xdrs, ep_setxattr_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_ep_xattr_name_t (xdrs, &objp->name))
 		 return FALSE;
-	 if (!xdr_ep_xattr_value_t (xdrs, &objp->value))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->size))
+	 if (!xdr_bytes (xdrs, (char **)&objp->value.value_val, (u_int *) &objp->value.value_len, ~0))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->flags))
 		 return FALSE;
@@ -735,7 +733,7 @@ xdr_ep_getxattr_ret_t (XDR *xdrs, ep_getxattr_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case EP_SUCCESS:
-		 if (!xdr_ep_getxattr_t (xdrs, &objp->ep_getxattr_ret_t_u.ret))
+		 if (!xdr_bytes (xdrs, (char **)&objp->ep_getxattr_ret_t_u.value.value_val, (u_int *) &objp->ep_getxattr_ret_t_u.value.value_len, ~0))
 			 return FALSE;
 		break;
 	case EP_FAILURE:

@@ -102,10 +102,10 @@ int64_t exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t 
 
 int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t * cookie, child_t ** children, uint8_t * eof);
 
-int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, char* value,
+int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, void * value,
         uint64_t size, uint8_t flags);
 
-int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, char * value,
+int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, void * value,
         uint64_t size, uint64_t * size2);
 
 int exportclt_removexattr(exportclt_t * clt, fid_t fid, char * name);

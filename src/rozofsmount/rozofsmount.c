@@ -1315,6 +1315,7 @@ void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
     ientry_t *ie = 0;
     uint64_t value_size = 0;
     char value[ROZOFS_XATTR_VALUE_MAX];
+    memset(value, 0, ROZOFS_XATTR_VALUE_MAX * sizeof (char));
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;

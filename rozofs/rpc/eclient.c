@@ -996,7 +996,7 @@ out:
 }
  */
 
-int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, char* value,
+int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, void* value,
         uint64_t size, uint8_t flags) {
     int status = -1;
     ep_setxattr_arg_t arg;
@@ -1007,8 +1007,8 @@ int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, char* value,
     arg.eid = clt->eid;
     memcpy(arg.fid, fid, sizeof (fid_t));
     arg.name = name;
-    arg.value = value;
-    arg.size = size;
+    arg.value.value_len = size;
+    arg.value.value_val = value;
     arg.flags = flags;
 
     while ((retry++ < clt->retries) &&
@@ -1038,7 +1038,7 @@ out:
     return status;
 }
 
-int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, char * value,
+int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, void * value,
         uint64_t size, uint64_t * value_size) {
     int status = -1;
     ep_getxattr_arg_t arg;
@@ -1072,11 +1072,11 @@ int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, char * value,
         goto out;
     }
 
-    if (ret->ep_getxattr_ret_t_u.ret.size != 0) {
-        strcpy(value, ret->ep_getxattr_ret_t_u.ret.value);
+    if (ret->ep_getxattr_ret_t_u.value.value_len != 0) {
+        memcpy(value, ret->ep_getxattr_ret_t_u.value.value_val, ret->ep_getxattr_ret_t_u.value.value_len);
     }
 
-    *value_size = ret->ep_getxattr_ret_t_u.ret.size;
+    *value_size = ret->ep_getxattr_ret_t_u.value.value_len;
     status = 0;
 out:
     if (ret)
