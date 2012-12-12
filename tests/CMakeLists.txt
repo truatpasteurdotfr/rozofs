@@ -79,7 +79,8 @@ add_executable(rpc_throughput_server
 
 add_executable(test_volume
     ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
     ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.h
@@ -95,10 +96,10 @@ add_executable(test_volume
 target_link_libraries(test_volume ${PTHREAD_LIBRARY})
 
 add_executable(test_storage
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.c
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
     ${CMAKE_SOURCE_DIR}/rozofs/common/htable.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/htable.c
     ${CMAKE_SOURCE_DIR}/src/storaged/storage.h
@@ -151,7 +152,8 @@ target_link_libraries(test_mdirent_vers1 ${UUID_LIBRARY})
 
 add_executable(test_export
     ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
     ${CMAKE_SOURCE_DIR}/rozofs/common/htable.h

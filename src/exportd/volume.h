@@ -27,17 +27,17 @@
 
 /** status of a volume */
 typedef struct volume_stat {
-    uint16_t bsize;     ///< the block size
-    uint64_t bfree;     ///< number of free blocks
+    uint16_t bsize; ///< the block size
+    uint64_t bfree; ///< number of free blocks
 } volume_stat_t;
 
 /** a managed storage */
 typedef struct volume_storage {
-    sid_t sid;                          ///< storage identifier
-    char host[ROZOFS_HOSTNAME_MAX];     ///< storage host name
-    uint8_t status;                     ///< status (0 = off line)
-    sstat_t stat;                       ///< storage stat
-    list_t list;                        ///< used to chain storages
+    sid_t sid; ///< storage identifier
+    char host[ROZOFS_HOSTNAME_MAX]; ///< storage host name
+    uint8_t status; ///< status (0 = off line)
+    sstat_t stat; ///< storage stat
+    list_t list; ///< used to chain storages
 } volume_storage_t;
 
 /** initialize a volume storage
@@ -46,7 +46,7 @@ typedef struct volume_storage {
  * @param sid: identifier to set
  * @param hostname : hostname to set (memory is copied)
  */
-void volume_storage_initialize(volume_storage_t * vs, uint16_t sid,
+void volume_storage_initialize(volume_storage_t * vs, sid_t sid,
         const char *hostname);
 
 /** release a volume storage
@@ -63,11 +63,11 @@ void volume_storage_release(volume_storage_t *vs);
  * each volume storage should be of the same capacity
  */
 typedef struct cluster {
-    cid_t cid;          ///< cluster identifier
-    uint64_t size;      ///< cluster size
-    uint64_t free;      ///< free space on cluster
-    list_t storages;    ///< list of storages managed in the cluster
-    list_t list;        ///< used to chain cluster in a volume
+    cid_t cid; ///< cluster identifier
+    uint64_t size; ///< cluster size
+    uint64_t free; ///< free space on cluster
+    list_t storages; ///< list of storages managed in the cluster
+    list_t list; ///< used to chain cluster in a volume
 } cluster_t;
 
 /** initialize a cluster
@@ -95,9 +95,9 @@ void cluster_release(cluster_t *cluster);
  * it is made of a pool of clusters and are shared across several exports
  */
 typedef struct volume {
-    vid_t vid;              ///< volume identifier
-    list_t clusters;        ///< cluster(s) list
-    pthread_rwlock_t lock;  ///< lock to be used by export
+    vid_t vid; ///< volume identifier
+    list_t clusters; ///< cluster(s) list
+    pthread_rwlock_t lock; ///< lock to be used by export
 } volume_t;
 
 /** initialize a volume
@@ -153,18 +153,20 @@ void volume_balance(volume_t *volume);
  * for a new file.
  *
  * @param volume: the volume to scan
+ * @param layout: rozofs layout used
  * @param cid: destination cid_t where cid is copied
  * @param host: destination sid_t pointer where sids are copied
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int volume_distribute(volume_t *volume, cid_t *cid, sid_t *sids);
+int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids);
 
 /** get status of a volume
  *
  * @param volume: the volume to scan
+ * @param layout: rozofs layout used
  * @param volume_stat: the volume_stat_t to fill
  */
-void volume_stat(volume_t *volume, volume_stat_t *volume_stat);
+void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *volume_stat);
 
 #endif

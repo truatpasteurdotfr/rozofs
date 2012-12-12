@@ -32,7 +32,9 @@ union mp_status_ret_t switch (mp_status_t status) {
 };
 
 struct mp_remove_arg_t {
-    uint16_t    sid;
+    uint8_t     sid;
+    uint8_t     layout;
+    uint8_t     dist_set[ROZOFS_SAFE_MAX];
     mp_uuid_t   fid;
 };
 
@@ -59,7 +61,7 @@ program MONITOR_PROGRAM {
         MP_NULL(void)                   = 0;
 
         mp_stat_ret_t
-        MP_STAT(uint16_t)               = 1;
+        MP_STAT(uint8_t)                = 1;
 
         mp_status_ret_t
         MP_REMOVE(mp_remove_arg_t)      = 2;

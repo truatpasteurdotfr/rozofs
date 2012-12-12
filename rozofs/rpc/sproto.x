@@ -17,7 +17,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-%#include "rozofs.h"
+%#include <rozofs/rozofs.h>
 
 typedef unsigned char sp_uuid_t[ROZOFS_UUID_SIZE];
 
@@ -32,26 +32,36 @@ union sp_status_ret_t switch (sp_status_t status) {
 };
 
 struct sp_write_arg_t {
-    uint16_t    sid;
-    sp_uuid_t   fid; 
-    uint8_t     tid; 
-    uint64_t    bid; 
-    uint32_t    nrb; 
+    uint8_t     sid;          
+    uint8_t     layout;
+    uint16_t    effective_len;
+    uint8_t     spare;
+    uint8_t     dist_set[ROZOFS_SAFE_MAX];
+    sp_uuid_t   fid;        
+    uint8_t     proj_id;     
+    uint64_t    bid;
+    uint32_t    nb_proj;
     opaque      bins<>;
 };
 
 struct sp_read_arg_t {
-    uint16_t    sid;
+    uint8_t     sid;
+    uint8_t     layout;
+    uint8_t     spare;
+    uint8_t     dist_set[ROZOFS_SAFE_MAX];
     sp_uuid_t   fid; 
-    uint8_t     tid; 
+    uint8_t     proj_id; 
     uint64_t    bid;
-    uint32_t    nrb;
+    uint32_t    nb_proj;
 };
 
 struct sp_truncate_arg_t {
-    uint16_t    sid;
+    uint8_t     sid;
+    uint8_t     layout;
+    uint8_t     spare;
+    uint8_t     dist_set[ROZOFS_SAFE_MAX];
     sp_uuid_t   fid; 
-    uint8_t     tid; 
+    uint8_t     proj_id; 
     uint64_t    bid; 
 };
 

@@ -140,7 +140,7 @@ xdr_ep_storage_node_t (XDR *xdrs, ep_storage_node_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->sids_nb))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->sids, STORAGE_NODE_SIDS_MAX,
-		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
 	return TRUE;
 }
@@ -157,7 +157,7 @@ xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
 		 return FALSE;
 	 if (!xdr_ep_uuid_t (xdrs, objp->rfid))
 		 return FALSE;
-	 if (!xdr_int (xdrs, &objp->rl))
+	 if (!xdr_uint8_t (xdrs, &objp->rl))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->storage_nodes_nb))
 		 return FALSE;
@@ -200,7 +200,7 @@ xdr_ep_mattr_t (XDR *xdrs, ep_mattr_t *objp)
 	 if (!xdr_uint16_t (xdrs, &objp->cid))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->sids, ROZOFS_SAFE_MAX,
-		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->mode))
 		 return FALSE;

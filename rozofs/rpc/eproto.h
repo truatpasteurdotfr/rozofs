@@ -50,7 +50,7 @@ typedef struct ep_status_ret_t ep_status_ret_t;
 struct ep_storage_node_t {
 	ep_host_t host;
 	uint8_t sids_nb;
-	uint16_t sids[STORAGE_NODE_SIDS_MAX];
+	uint8_t sids[STORAGE_NODE_SIDS_MAX];
 };
 typedef struct ep_storage_node_t ep_storage_node_t;
 
@@ -58,7 +58,7 @@ struct ep_export_t {
 	uint32_t eid;
 	ep_md5_t md5;
 	ep_uuid_t rfid;
-	int rl;
+	uint8_t rl;
 	uint8_t storage_nodes_nb;
 	ep_storage_node_t storage_nodes[STORAGE_NODES_MAX];
 };
@@ -76,7 +76,7 @@ typedef struct ep_mount_ret_t ep_mount_ret_t;
 struct ep_mattr_t {
 	ep_uuid_t fid;
 	uint16_t cid;
-	uint16_t sids[ROZOFS_SAFE_MAX];
+	uint8_t sids[ROZOFS_SAFE_MAX];
 	uint32_t mode;
 	uint32_t uid;
 	uint32_t gid;

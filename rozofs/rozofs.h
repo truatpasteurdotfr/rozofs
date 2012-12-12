@@ -27,7 +27,7 @@
 #define ROZOFS_UUID_SIZE 16
 #define ROZOFS_HOSTNAME_MAX 128
 #define ROZOFS_BSIZE 8192       // could it be export specific ?
-#define ROZOFS_SAFE_MAX 16
+#define ROZOFS_SAFE_MAX 36
 #define ROZOFS_DIR_SIZE 4096
 #define ROZOFS_PATH_MAX 1024
 #define ROZOFS_XATTR_NAME_MAX 255
@@ -37,6 +37,10 @@
 #define ROZOFS_CLUSTERS_MAX 16
 #define ROZOFS_STORAGES_MAX 64
 
+/* Value max for a SID */
+#define SID_MAX 255
+/* Value min for a SID */
+#define SID_MIN 1
 /* Nb. max of storage node for one volume */
 #define STORAGE_NODES_MAX 64
 /* Nb. max of storaged ports on the same storage node */
@@ -71,7 +75,7 @@ typedef enum {
 typedef uint8_t tid_t;          /**< projection id */
 typedef uint64_t bid_t;         /**< block id */
 typedef uuid_t fid_t;           /**< file id */
-typedef uint16_t sid_t;         /**< storage id */
+typedef uint8_t sid_t;         /**< storage id */
 typedef uint16_t cid_t;         /**< cluster id */
 typedef uint16_t vid_t;         /**< volume id */
 typedef uint32_t eid_t;         /**< export id */
@@ -99,14 +103,14 @@ typedef struct child {
 } child_t;
 
 #include "common/transform.h"
-extern uint8_t rozofs_safe;
-extern uint8_t rozofs_forward;
-extern uint8_t rozofs_inverse;
-extern angle_t *rozofs_angles;
-extern uint16_t *rozofs_psizes;
-
-int rozofs_initialize(rozofs_layout_t layout);
-
-void rozofs_release();
+//extern uint8_t rozofs_safe;
+//extern uint8_t rozofs_forward;
+//extern uint8_t rozofs_inverse;
+//extern angle_t *rozofs_angles;
+//extern uint16_t *rozofs_psizes;
+//
+//int rozofs_initialize(rozofs_layout_t layout);
+//
+//void rozofs_release();
 
 #endif
