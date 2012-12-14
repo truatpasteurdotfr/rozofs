@@ -47,8 +47,7 @@ build ()
 # $2 -> storages by node
 gen_storage_conf ()
 {
-    ROZOFS_LAYOUT=$1
-    STORAGES_BY_CLUSTER=$2
+    STORAGES_BY_CLUSTER=$1
 
     FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'.conf'
 
@@ -65,7 +64,6 @@ gen_storage_conf ()
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
-    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo "ports = [ 40000, 40001, 40002, 40003 ] ;" >> $FILE
     echo 'storages = (' >> $FILE
     let nb_storages=$((${STORAGES_BY_CLUSTER}*${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
@@ -545,7 +543,7 @@ main ()
         NB_VOLUMES=2;
         NB_CLUSTERS_BY_VOLUME=2;
 
-        gen_storage_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
+        gen_storage_conf ${STORAGES_BY_CLUSTER}
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT}

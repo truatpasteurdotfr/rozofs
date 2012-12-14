@@ -71,7 +71,6 @@ void sconfig_release(sconfig_t *config) {
 int sconfig_read(sconfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
-    long int layout;
     struct config_setting_t *stor_settings = 0;
     struct config_setting_t *ports_settings = 0;
     int i;
@@ -84,13 +83,6 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         severe("can't read %s : %s.", fname, config_error_text(&cfg));
         goto out;
     }
-
-    if (!config_lookup_int(&cfg, SLAYOUT, &layout)) {
-        errno = ENOKEY;
-        severe("can't fetch layout setting.");
-        goto out;
-    }
-    config->layout = (int)layout;
 
     if (!(ports_settings = config_lookup(&cfg, SPORTS))) {
         errno = ENOKEY;
@@ -158,12 +150,6 @@ int sconfig_validate(sconfig_t *config) {
     int status = -1;
     list_t *p;
     DEBUG_FUNCTION;
-
-    if (config->layout < LAYOUT_2_3_4 || config->layout > LAYOUT_8_12_16) {
-        severe("unknown layout: %d.", config->layout);
-        errno = EINVAL;
-        goto out;
-    }
 
     /* Checking the number of process */
     if (config->sproto_svc_nb < 1 ||

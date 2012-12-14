@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
 
     sconfig_initialize(&config);
     sconfig_read(&config, argv[1]);
-    printf("layout: %d\n", config.layout);
+
     list_for_each_forward(p, &config.storages) {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
         printf("%d, %s\n", sc->sid, sc->root);

@@ -2,20 +2,13 @@
 # storaged configuration file sample
 #
 
-# storage layout
-# 0 : safe =  4, forward =  3, inverse = 2
-# 1 : safe =  8, forward =  6, inverse = 4
-# 2 : safe = 16, forward = 12, inverse = 8 
-layout = 0;
-
 # TCP ports used for receive write and read requests from clients.
 ports = [40001, 40002, 40003, 40004 ];
 
-# sid : - must be an unsigned 16 bytes int.
+# sid : - must be an unsigned 8 bytes int (between 1 and 255).
 #       - should exist in exportd config file
 storages = (
     {sid = 1; root = "/path/to/foo";},
     {sid = 2; root = "/path/to/bar";}
     #...
 );
-
