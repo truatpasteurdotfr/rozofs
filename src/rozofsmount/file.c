@@ -193,13 +193,13 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, di
         }
 
         /* We calculate the number blocks with identical distributions */
-        uint32_t n = 1;
-        while ((i + n) < nb_blocks && *dist_iterator == *(dist_iterator + 1)) {
-            n++;
+        uint32_t nb_blocks_identical_dist = 1;
+        while ((i + nb_blocks_identical_dist) < nb_blocks && *dist_iterator == *(dist_iterator + 1)) {
+            nb_blocks_identical_dist++;
             dist_iterator++;
         }
         // I don't know if it's possible
-        if (i + n > nb_blocks)
+        if (i + nb_blocks_identical_dist > nb_blocks)
             goto out;
 
         int retry = 0;
@@ -244,16 +244,14 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, di
                             local_spare_cnt += dist_is_set(*dist_iterator, stor_idx);
                         }
                     }
-                    // Should not occurs
-                    severe("No storage found for projection %u", proj_id);
                 }
 
                 if (!f->storages[proj_stor_idx]->rpcclt.client || f->storages[proj_stor_idx]->status != 1)
                     continue; // Try with the next projection
 
-                b = xmalloc(n * rozofs_get_psizes(rozofs_layout, proj_id) * sizeof (bin_t));
+                b = xmalloc(nb_blocks_identical_dist * rozofs_get_psizes(rozofs_layout, proj_id) * sizeof (bin_t));
 
-                if (sclient_read(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid, nb_blocks, b) != 0) {
+                if (sclient_read(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid, nb_blocks_identical_dist, b) != 0) {
                     free(b);
                     continue; // Try with the next projection
                 }
@@ -288,7 +286,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, di
         }
 
         // Proceed the inverse data transform for the n blocks.
-        for (j = 0; j < n; j++) {
+        for (j = 0; j < nb_blocks_identical_dist; j++) {
             // Fill the table of projections for the block j
             // For each meta-projection
             for (proj_id = 0; proj_id < rozofs_inverse; proj_id++) {
@@ -313,7 +311,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, di
             bins[proj_id] = 0;
         }
         // Increment the nb. of blocks decoded
-        i += n;
+        i += nb_blocks_identical_dist;
         // Shift to the next distribution
         dist_iterator++;
     }
