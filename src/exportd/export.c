@@ -1137,7 +1137,6 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
     DEBUG_FUNCTION;
 
     if ((errno = pthread_rwlock_tryrdlock(&volume->lock)) != 0) {
-
         severe("init_storages_cnx failed: can't lock volume %d.", volume->vid);
         goto out;
     }
@@ -1161,7 +1160,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
             cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
             cnx_entry->cnx = sclt;
-            // Add this export to the list of exports
+            
+            // Add to the list
             list_push_back(list, &cnx_entry->list);
 
         }
@@ -1214,7 +1214,8 @@ static void release_storages_cnx(list_t *list) {
 
 int export_rm_bins(export_t * e) {
     int status = -1;
-    int cnt = 0;
+    int rm_bins_file_nb = 0;
+    int i = 0;
     int release = 0;
     int limit_rm_files = RM_FILES_MAX;
     int curr_rm_files = 0;
@@ -1235,9 +1236,10 @@ int export_rm_bins(export_t * e) {
         }
     }
 
+    // Get the nb. of safe storages for this layout
     rozofs_safe = rozofs_get_rozofs_safe(e->layout);
 
-    // For each file to delete
+    // For each file to remove
     while (!list_empty(&e->rmfiles) && curr_rm_files < limit_rm_files) {
 
         // Remove entry for the list of files to delete
@@ -1246,6 +1248,7 @@ int export_rm_bins(export_t * e) {
             goto out;
         }
 
+        // Get from the list, one file to remove
         rmfentry_t *entry = list_first_entry(&e->rmfiles, rmfentry_t, list);
         list_remove(&entry->list);
 
@@ -1254,38 +1257,45 @@ int export_rm_bins(export_t * e) {
             goto out;
         }
 
-        sid_t *it = entry->current_dist_set;
-        cnt = 0; // Nb. of bins removed
+        // Nb. of bins files removed for this file
+        rm_bins_file_nb = 0;
 
-        // For each storage
-        while (it != entry->current_dist_set + rozofs_safe) {
+        // For each storage associated with this file
+        for (i = 0; i < rozofs_safe; i++) {
 
-            // If this storage have bins for this file
-            if (*it != 0) {
-                // Get the connexion for this storage
-                mclient_t* stor = lookup_cnx(&connexions, *it);
+            mclient_t* stor = NULL;
 
-                // Send request to storage for remove bins
-                if (mclient_remove(stor, e->layout, entry->initial_dist_set, entry->fid) != 0) {
-                    severe("storageclt_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
-                } else {
-                    // If storageclt_remove works
-                    // Replace sid for this storage by 0
-                    // Increment nb. of bins deleted
-                    *it = 0;
-                    cnt++;
-                }
-
-            } else {
-                // Bins are already deleted for this storage
-                cnt++;
+            if (0 == entry->current_dist_set[i]) {
+                // The bins file has already been deleted for this server
+                rm_bins_file_nb++;
+                continue; // Go to the next storage
             }
-            it++;
+
+            if ((stor = lookup_cnx(&connexions, entry->current_dist_set[i])) == NULL) {
+                // lookup_cnx failed !!! 
+                continue; // Go to the next storage
+            }
+
+            if (0 == stor->status) {
+                // This storage is down
+                // it's not necessary to send a request
+                continue; // Go to the next storage
+            }
+
+            if (mclient_remove(stor, e->layout, entry->initial_dist_set, entry->fid) != 0) {
+                // Problem with request
+                warning("mclient_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
+                continue; // Go to the next storage
+            }
+            
+            // The bins file has been deleted successfully
+            entry->current_dist_set[i] = 0;
+            rm_bins_file_nb++;
         }
 
-        // If all bins are deleted
+        // If all bins file are deleted
         // Remove the file from trash
-        if (cnt == rozofs_safe) {
+        if (rm_bins_file_nb == rozofs_safe) {
             char path[PATH_MAX];
             // In case of rename it's not neccessary to remove trash file
             char fid_str[37];
@@ -1400,6 +1410,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
     status = 0;
 out:
     STOP_PROFILING(export_rmdir);
+
     return status;
 }
 
@@ -1486,6 +1497,7 @@ error:
 
 out:
     STOP_PROFILING(export_symlink);
+
     return status;
 }
 
@@ -1500,6 +1512,7 @@ int export_readlink(export_t *e, fid_t fid, char *link) {
     status = mslnk_read_link(&lv2->container.mslnk, link);
 out:
     STOP_PROFILING(export_readlink);
+
     return status;
 }
 
@@ -1740,6 +1753,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
 out:
     STOP_PROFILING(export_rename);
+
     return status;
 }
 
@@ -1791,10 +1805,11 @@ error:
     length = -1;
 out:
     STOP_PROFILING(export_read);
+
     return length;
 }
 
-int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t* d) {
+int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d) {
     int status = -1;
     lv2_entry_t *lv2 = NULL;
 
@@ -1807,6 +1822,7 @@ int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t* d) 
     status = mreg_read_dist(&lv2->container.mreg, bid, n, d);
 out:
     STOP_PROFILING(export_read_block);
+
     return status;
 }
 
@@ -1881,11 +1897,12 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     length = len;
 out:
     STOP_PROFILING(export_write_block);
+
     return length;
 }
 
 int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
-        child_t ** children, uint8_t *eof) {
+        child_t ** children, uint8_t * eof) {
     int status = -1;
     lv2_entry_t *parent = NULL;
 
@@ -1917,6 +1934,7 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
     status = 0;
 out:
     STOP_PROFILING(export_readdir);
+
     return status;
 }
 
@@ -1937,6 +1955,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
 
 out:
     STOP_PROFILING(export_getxattr);
+
     return status;
 }
 
@@ -1958,6 +1977,7 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
     status = 0;
 out:
     STOP_PROFILING(export_setxattr);
+
     return status;
 }
 
@@ -1979,6 +1999,7 @@ int export_removexattr(export_t *e, fid_t fid, char *name) {
     status = 0;
 out:
     STOP_PROFILING(export_removexattr);
+
     return status;
 }
 

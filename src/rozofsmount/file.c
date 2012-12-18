@@ -251,7 +251,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, di
 
                 b = xmalloc(nb_blocks_identical_dist * rozofs_get_psizes(rozofs_layout, proj_id) * sizeof (bin_t));
 
-                if (sclient_read(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid, nb_blocks_identical_dist, b) != 0) {
+                if (sclient_read(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid + i, nb_blocks_identical_dist, b) != 0) {
                     free(b);
                     continue; // Try with the next projection
                 }
@@ -371,7 +371,6 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, const cha
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(rozofs_layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(rozofs_layout);
     uint8_t proj_idx_send[rozofs_forward];
-    memset(&proj_idx_send, 0, rozofs_forward * sizeof (uint8_t));
 
     projections = xmalloc(rozofs_forward * sizeof (projection_t));
     bins = xcalloc(rozofs_forward, sizeof (bin_t *));
@@ -404,6 +403,7 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, const cha
         proj_id = 0;
         dist = 0;
         nb_proj_send = 0;
+        memset(&proj_idx_send, 0, rozofs_forward * sizeof (uint8_t));
 
         // For each projection server
         for (proj_stor_idx = 0; proj_stor_idx < rozofs_safe; proj_stor_idx++) {

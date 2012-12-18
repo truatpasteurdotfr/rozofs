@@ -74,7 +74,7 @@ out:
 
 sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
-    int psize = 0;
+    uint16_t psize = 0;
     storage_t *st = 0;
     // Variables to be used in a later version.
     uint64_t ts = 0;

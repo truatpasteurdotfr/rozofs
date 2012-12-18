@@ -312,6 +312,8 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
                 + (off_t) (rozofs_max_psize * sizeof (bin_t))) +
                 sizeof (rozofs_stor_bins_hdr_t);
 
+        // XXX: to do read projection header
+
         // Read the projection
         nb_read = pread(fd, bins + bins_offset, bins_len, init_off +
                 file_offset);
@@ -390,6 +392,8 @@ int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
                 goto out;
             }
         } else {
+            // It's not possible for one storage to store one bins file
+            // in directories spare and no spare.
             status = 0;
             goto out;
         }
