@@ -1,0 +1,32 @@
+Source: rozofs
+Section: admin
+Priority: optional
+Maintainer: Fizians S.A.S. <rd@fizians.org>
+Build-Depends: cdbs, debhelper (>= 9.20120909), cmake (>= 2.8.9-1), libc6-dev (>= 2.13-37), libfuse-dev (>= 2.9.0-2), libattr1-dev (>= 1:2.4.46-8) , uuid-dev (>= 2.20.1-5.2), libconfig-dev  (>= 1.4.8-5)
+Standards-Version: 3.8.4
+Homepage: http://www.fizians.org
+
+Package: rozofs-exportd
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, rpcbind(>= 0.2.0-8), libattr1 (>= 1:2.4.46-8), libuuid1 (>= 2.20.1-5.2), libconfig9 (>= 1.4.8-5)
+Description: Rozofs filesystem (export package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-storaged
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, rpcbind(>= 0.2.0-8), libuuid1 (>= 2.20.1-5.2), libconfig9 (>= 1.4.8-5)
+Description: Rozofs filesystem (storage package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-rozofsmount
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0-2), fuse-utils (>=2.9.0-2)
+Description: Rozofs filesystem (rozofsmount package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-rprof
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Rozofs filesystem (monitoring package).
+ Rozofs is a scale-out NAS using erasure coding.
+
