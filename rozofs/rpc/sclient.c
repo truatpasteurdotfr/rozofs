@@ -75,8 +75,8 @@ int sclient_write(sclient_t * clt, sid_t sid, uint8_t layout, uint8_t spare,
     args.proj_id = proj_id;
     args.bid = bid;
     args.nb_proj = nb_proj;
-    args.bins.bins_len = nb_proj * rozofs_get_psizes(layout, proj_id)
-            * sizeof (bin_t);
+    args.bins.bins_len = nb_proj * (rozofs_get_max_psize(layout)
+            * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
     args.bins.bins_val = (char *) bins;
 
     if (!(clt->rpcclt.client) ||

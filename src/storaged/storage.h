@@ -29,7 +29,7 @@
 #include <rozofs/common/htable.h>
 
 /** Maximum size in bytes for the header of file bins */
-#define ROZOFS_ST_BINS_FILE_HDR_SIZE 5242880
+#define ROZOFS_ST_BINS_FILE_HDR_SIZE 524288
 
 /** Default open flags to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_FLAG O_RDWR | O_CREAT | O_NOATIME
@@ -96,17 +96,13 @@ void storage_release(storage_t * st);
  * @param fid: unique file id.
  * @param bid: first block idx (offset).
  * @param nb_proj: nb of projections to write.
- * @param proj_id: the projection id.
- * @param ts: time stamp. (not used yet)
- * @param effective_length: length of the last user block used for these proj.
  * @param version: version of rozofs used by the client. (not used yet)
  * @param *bins: bins to store.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        tid_t proj_id, uint64_t ts, uint16_t effective_length, uint8_t version,
+        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
         const bin_t * bins);
 
 /** Read nb_proj projections
@@ -118,17 +114,12 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
  * @param fid: unique file id.
  * @param bid: first block idx (offset).
  * @param nb_proj: nb of projections to read.
- * @param proj_id: the projection id.
- * @param ts: time stamp. (not used yet)
- * @param effective_length: length of the last user block used for these proj.
- * @param version: version of rozofs used by the client. (not used yet)
  * @param *bins: bins to store.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid, uint32_t nb_proj,
-        uint64_t * ts, uint16_t * effective_length, uint8_t * version,
+        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
         bin_t * bins);
 
 /** Truncate a bins file (not used yet)

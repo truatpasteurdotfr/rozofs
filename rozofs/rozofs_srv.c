@@ -26,12 +26,6 @@
 
 rozofs_conf_layout_t rozofs_conf_layout_table[LAYOUT_MAX];
 
-/**
- * initialize the layout table
-
- @param none
- @retval none
- */
 void rozofs_layout_initialize() {
     int i;
     uint8_t layout;

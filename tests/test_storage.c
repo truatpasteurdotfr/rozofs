@@ -27,9 +27,6 @@ int main(int argc, char **argv) {
     uint64_t write_ts;
     uint16_t write_effective_len;
     uint8_t write_version;
-    uint64_t read_ts;
-    uint16_t read_effective_len;
-    uint8_t read_version;
     uint8_t i = 0;
 
     // Initialize the layout table
@@ -63,14 +60,14 @@ int main(int argc, char **argv) {
     write_version = 0;
 
     // Write some bins (nrb. projections with projection = tid)
-    bins_write_1 = xmalloc(nrb * rozofs_get_psizes(layout, tid_1) * sizeof (bin_t));
-    memset(bins_write_1, 1, nrb * rozofs_get_psizes(layout, tid_1) * sizeof (bin_t));
+    bins_write_1 = xmalloc(nrb * rozofs_get_max_psize(layout) * sizeof (bin_t));
+    memset(bins_write_1, 1, nrb * rozofs_get_max_psize(layout) * sizeof (bin_t));
 
-    bins_write_2 = xmalloc(nrb * rozofs_get_psizes(layout, tid_2) * sizeof (bin_t));
-    memset(bins_write_2, 2, nrb * rozofs_get_psizes(layout, tid_2) * sizeof (bin_t));
+    bins_write_2 = xmalloc(nrb * rozofs_get_max_psize(layout) * sizeof (bin_t));
+    memset(bins_write_2, 2, nrb * rozofs_get_max_psize(layout) * sizeof (bin_t));
 
-    bins_read_1 = xmalloc(nrb * rozofs_get_psizes(layout, tid_1) * sizeof (bin_t));
-    bins_read_2 = xmalloc(nrb * rozofs_get_psizes(layout, tid_2) * sizeof (bin_t));
+    bins_read_1 = xmalloc(nrb * rozofs_get_max_psize(layout) * sizeof (bin_t));
+    bins_read_2 = xmalloc(nrb * rozofs_get_max_psize(layout) * sizeof (bin_t));
 
     // For each layout
     for (layout = 0; layout < LAYOUT_MAX; layout++) {
@@ -91,7 +88,7 @@ int main(int argc, char **argv) {
             // Write projections
             fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
 
-            if (storage_write(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, tid_1, write_ts, write_effective_len, write_version, bins_write_1) != 0) {
+            if (storage_write(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, bins_write_1) != 0) {
                 perror("failed to write bins");
                 exit(-1);
             }
@@ -100,7 +97,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
 
-            if (storage_write(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, tid_2, write_ts, write_effective_len, write_version, bins_write_2) != 0) {
+            if (storage_write(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, bins_write_2) != 0) {
                 perror("failed to write bins");
                 exit(-1);
             }
@@ -109,7 +106,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
 
-            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, tid_1, bid, nrb, &read_ts, &read_effective_len, &read_version, bins_read_1) != 0) {
+            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_1) != 0) {
                 perror("failed to read bins");
                 exit(-1);
             }
@@ -125,7 +122,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
 
-            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, tid_2, bid, nrb, &read_ts, &read_effective_len, &read_version, bins_read_2) != 0) {
+            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_2) != 0) {
                 perror("failed to read bins");
                 exit(-1);
             }

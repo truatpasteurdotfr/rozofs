@@ -153,20 +153,16 @@ void storage_release(storage_t * st) {
 }
 
 int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, tid_t proj_id,
-        uint64_t ts, uint16_t effective_len, uint8_t version,
+        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
         const bin_t * bins) {
-
     int status = -1;
     char path[FILENAME_MAX];
     int fd = -1;
     size_t nb_write = 0;
-    size_t bins_len = 0;
-    off_t init_off = 0;
-    int i = 0;
-    rozofs_stor_bins_hdr_t bins_hdr;
-    rozofs_stor_bins_file_hdr_t file_hdr;
-    int write_file_hdr = 0;
+    size_t length_to_write = 0;
+    off_t bins_file_offset = 0;
+    uint16_t rozofs_max_psize = 0;
+    uint8_t write_file_hdr = 0;
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -201,6 +197,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
     // If we write the bins file for the first time, we must write the header
     if (write_file_hdr) {
         // Prepare file header
+        rozofs_stor_bins_file_hdr_t file_hdr;
         memcpy(file_hdr.dist_set_current, dist_set,
                 ROZOFS_SAFE_MAX * sizeof (sid_t));
         memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
@@ -215,46 +212,18 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         }
     }
 
-    // Prepare projection header
-    bins_hdr.s.projection_id = proj_id;
-    bins_hdr.s.effective_length = effective_len;
-    bins_hdr.s.version = version;
-    bins_hdr.s.timestamp = ts;
-
-    uint16_t rozofs_max_psize = rozofs_get_max_psize(layout);
-
-    // Compute the initial offset
-    init_off = ROZOFS_ST_BINS_FILE_HDR_SIZE + bid * (rozofs_max_psize *
+    // Compute the offset and length to write
+    rozofs_max_psize = rozofs_get_max_psize(layout);
+    bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + bid * (rozofs_max_psize *
             sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
-    // Compute the len for this projection
-    bins_len = rozofs_get_psizes(layout, proj_id) * sizeof (bin_t);
+    length_to_write = nb_proj * (rozofs_max_psize * sizeof (bin_t)
+            + sizeof (rozofs_stor_bins_hdr_t));
 
-    // For each projection to write
-    for (i = 0; i < nb_proj; i++) {
-
-        // Compute the currents offsets
-        off_t bins_offset = i * (off_t) rozofs_get_psizes(layout, proj_id);
-        off_t file_offset = i * (sizeof (rozofs_stor_bins_hdr_t) +
-                (off_t) (rozofs_max_psize * sizeof (bin_t)));
-
-        // Write the projection header
-        nb_write = pwrite(fd, &bins_hdr, sizeof (rozofs_stor_bins_hdr_t),
-                init_off + file_offset);
-        if (nb_write != sizeof (rozofs_stor_bins_hdr_t)) {
-            severe("pwrite failed: %s", strerror(errno));
-            goto out;
-        }
-
-        // Update the file offset
-        file_offset = file_offset + sizeof (rozofs_stor_bins_hdr_t);
-
-        // Write the projection
-        nb_write = pwrite(fd, bins + bins_offset, bins_len,
-                init_off + file_offset);
-        if (nb_write != bins_len) {
-            severe("pwrite failed: %s", strerror(errno));
-            goto out;
-        }
+    // Write nb_proj * (projection + header)
+    nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
+    if (nb_write != length_to_write) {
+        severe("pwrite failed: %s", strerror(errno));
+        goto out;
     }
 
     // Write is successful
@@ -266,17 +235,16 @@ out:
 }
 
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid, uint32_t nb_proj,
-        uint64_t * ts, uint16_t * effective_len, uint8_t * version,
+        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
         bin_t * bins) {
 
     int status = -1;
     char path[FILENAME_MAX];
     int fd = -1;
     size_t nb_read = 0;
-    size_t bins_len = 0;
-    off_t init_off = 0;
-    int i = 0;
+    size_t length_to_read = 0;
+    off_t bins_file_offset = 0;
+    uint16_t rozofs_max_psize = 0;
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -295,32 +263,19 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         goto out;
     }
 
-    uint16_t rozofs_max_psize = rozofs_get_max_psize(layout);
+    // Compute the offset and length to read
+    rozofs_max_psize = rozofs_get_max_psize(layout);
+    bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE +
+            bid * ((off_t) (rozofs_max_psize * sizeof (bin_t)) +
+            sizeof (rozofs_stor_bins_hdr_t));
+    length_to_read = nb_proj * (rozofs_max_psize * sizeof (bin_t)
+            + sizeof (rozofs_stor_bins_hdr_t));
 
-    // Compute the initial offset
-    init_off = ROZOFS_ST_BINS_FILE_HDR_SIZE + bid * ((off_t) (rozofs_max_psize *
-            sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t));
-    // Compute the len for this projection
-    bins_len = rozofs_get_psizes(layout, proj_id) * sizeof (bin_t);
-
-    // For each projection to read
-    for (i = 0; i < nb_proj; i++) {
-
-        // Compute the currents offsets
-        off_t bins_offset = i * (off_t) rozofs_get_psizes(layout, proj_id);
-        off_t file_offset = i * (sizeof (rozofs_stor_bins_hdr_t)
-                + (off_t) (rozofs_max_psize * sizeof (bin_t))) +
-                sizeof (rozofs_stor_bins_hdr_t);
-
-        // XXX: to do read projection header
-
-        // Read the projection
-        nb_read = pread(fd, bins + bins_offset, bins_len, init_off +
-                file_offset);
-        if (nb_read != bins_len) {
-            severe("pread failed: %s", strerror(errno));
-            goto out;
-        }
+    // Read nb_proj * (projection + header)
+    nb_read = pread(fd, bins, length_to_read, bins_file_offset);
+    if (nb_read != length_to_read) {
+        severe("pread failed: %s", strerror(errno));
+        goto out;
     }
 
     // Read is successful
@@ -330,7 +285,7 @@ out:
     if (fd != -1) close(fd);
     return status;
 }
-
+// XXX Not used
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid) {
     int status = -1;
@@ -372,7 +327,6 @@ int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
     DEBUG_FUNCTION;
 
     // For spare and no spare
-    // XXX: TO change
     for (spare = 0; spare < 2; spare++) {
 
         // Build the full path of directory that contains the bins file

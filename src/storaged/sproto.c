@@ -39,9 +39,7 @@ void *sp_null_1_svc(void *args, struct svc_req *req) {
 sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     static sp_status_ret_t ret;
     storage_t *st = 0;
-    // Variables to be used in a later version.
-    uint64_t ts = 0;
-    uint16_t effective_length = 0;
+    // Variable to be used in a later version.
     uint8_t version = 0;
 
     DEBUG_FUNCTION;
@@ -60,8 +58,8 @@ sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
 
     // Write projections
     if (storage_write(st, args->layout, args->dist_set, args->spare, args->fid,
-            args->bid, args->nb_proj, args->proj_id, ts, effective_length,
-            version, (bin_t *) args->bins.bins_val) != 0) {
+            args->bid, args->nb_proj, version,
+            (bin_t *) args->bins.bins_val) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
@@ -76,10 +74,6 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
     uint16_t psize = 0;
     storage_t *st = 0;
-    // Variables to be used in a later version.
-    uint64_t ts = 0;
-    uint16_t effective_len = 0;
-    uint8_t version = 0;
 
     DEBUG_FUNCTION;
 
@@ -98,17 +92,19 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     }
 
     // Compute the length
-    psize = rozofs_get_psizes(args->layout, args->proj_id);
-    ret.sp_read_ret_t_u.bins.bins_len = args->nb_proj * psize * sizeof (bin_t);
+    psize = rozofs_get_max_psize(args->layout);
+    ret.sp_read_ret_t_u.bins.bins_len = args->nb_proj * (psize * sizeof (bin_t)
+            + sizeof (rozofs_stor_bins_hdr_t));
 
     // Allocate memory
     ret.sp_read_ret_t_u.bins.bins_val =
-            (char *) xmalloc(args->nb_proj * psize * sizeof (bin_t));
+            (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
+            sizeof (rozofs_stor_bins_hdr_t)));
 
     // Read projections
     if (storage_read(st, args->layout, args->dist_set, args->spare, args->fid,
-            args->proj_id, args->bid, args->nb_proj, &ts, &effective_len,
-            &version, (bin_t *) ret.sp_read_ret_t_u.bins.bins_val) != 0) {
+            args->bid, args->nb_proj,
+            (bin_t *) ret.sp_read_ret_t_u.bins.bins_val) != 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }
