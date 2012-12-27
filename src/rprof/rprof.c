@@ -384,24 +384,47 @@ static void connect_to_exportd_profil() {
 
 static void profile_exportd_display() {
     time_t elapse;
-    int days, hours, mins, secs;
+    int days, hours, mins, secs, i, j;
     epp_profiler_t ep;
 
     if (ep_client_get_profiler(&profiler_client.ep, &ep) != 0) {
         perror("failed to to get monitor");
         exit(EXIT_FAILURE);
     }
-
     elapse = (int) (ep.now - ep.uptime);
     days = (int) (elapse / 86400);
     hours = (int)((elapse / 3600) - (days * 24));
     mins = (int)((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
-    fprintf(stdout, "rozofsmount: %s - uptime: %d days, %d:%d:%d\n",
+    fprintf(stdout, "exportd: %s - uptime: %d days, %d:%d:%d\n",
             ep.vers, days, hours, mins, secs);
+    fprintf(stdout, "\nSTATS:\n");
+    fprintf(stdout, "------\n");
+    for (i = 0; i < ep.nb_volumes; i++) {
+        fprintf(stdout, "VOLUME: %d - BSIZE: %d ,BFREE: %"PRIu64"\n",
+                ep.vstats[i].vid, ep.vstats[i].bsize, ep.vstats[i].bfree);
+        fprintf(stdout, "\n\t%-6s %-6s %-20s %-20s\n", "SID", "STATUS", "CAPACITY(B)",
+                "FREE(B)");
+        for (j = 0; j < ep.vstats[i].nb_storages; j++) {
+            fprintf(stdout, "\t%-6d %-6d %-20"PRIu64" %-20"PRIu64"\n", ep.vstats[i].sstats[j].sid,
+                    ep.vstats[i].sstats[j].status, ep.vstats[i].sstats[j].size,
+                    ep.vstats[i].sstats[j].free);
+        }
+        fprintf(stdout, "\n\t%-6s %-6s %-12s %-12s %-12s %-12s\n", "EID", "BSIZE",
+                "BLOCKS", "BFREE", "FILES", "FFREE");
+        for (j = 0; j < ep.nb_exports; j++) {
+            if (ep.estats[j].vid == ep.vstats[i].vid)
+            fprintf(stdout, "\t%-6d %-6d %-12"PRIu64" %-12"PRIu64" %-12"PRIu64" %-12"PRIu64"\n", ep.estats[j].eid,
+                    ep.estats[j].bsize, ep.estats[j].blocks, ep.estats[j].bfree,
+                    ep.estats[j].files, ep.estats[j].ffree);
+        }
+        fprintf(stdout, "\n");
+    }
 
+    fprintf(stdout, "PROFILING:\n");
+    fprintf(stdout, "----------\n");
     fprintf(stdout, "%-25s %-12s %-12s %-12s %-12s %-12s\n", "OP",
-            "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MB/s)");
+            "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MBps)");
 
     ep_display_probe(ep, ep_mount);
     ep_display_probe(ep, ep_umount);

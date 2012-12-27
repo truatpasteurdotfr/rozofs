@@ -111,7 +111,7 @@ out:
 void volume_release(volume_t *volume) {
     list_t *p, *q;
     DEBUG_FUNCTION;
-    
+
     list_for_each_forward_safe(p, q, &volume->clusters) {
         cluster_t *entry = list_entry(p, cluster_t, list);
         list_remove(p);
@@ -197,7 +197,7 @@ void volume_balance(volume_t *volume) {
     }
 
     // work on the clone
-    // try to join each storage server & stat it
+    // try to join each storage server & stats it
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 
@@ -247,7 +247,7 @@ void volume_balance(volume_t *volume) {
     // Free the clone volume
     p = NULL;
     q = NULL;
-    
+
     list_for_each_forward_safe(p, q, &clone.clusters) {
         cluster_t *entry = list_entry(p, cluster_t, list);
         list_remove(p);

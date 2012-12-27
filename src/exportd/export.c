@@ -184,7 +184,7 @@ static int export_lv2_write_attributes(lv2_entry_t *entry) {
  * @param size: the size of a buffer to hold the value associated
  *  with this extended attribute.
  * @param flags: parameter can be used to refine the semantics of the operation.
- * 
+ *
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
 static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void *value, size_t size, int flags) {
@@ -208,7 +208,7 @@ static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void
  * @param value: the value of this extended attribute.
  * @param size: the size of a buffer to hold the value associated
  *  with this extended attribute.
- * 
+ *
  * @return: On success, the size of the extended attribute value.
  * On failure, -1 is returned and errno is set appropriately.
  */
@@ -230,7 +230,7 @@ static ssize_t export_lv2_get_xattr(lv2_entry_t *entry, const char *name, void *
  *
  * @param entry: the entry used
  * @param name: the extended attribute name.
- * 
+ *
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
 static int export_lv2_remove_xattr(lv2_entry_t *entry, const char *name) {
@@ -252,7 +252,7 @@ static int export_lv2_remove_xattr(lv2_entry_t *entry, const char *name) {
  * @param entry: the entry used
  * @param list: list of extended attribute names associated with this directory.
  * @param size: the size of a buffer to hold the list of extended attributes.
- * 
+ *
  * @return: On success, the size of the extended attribute name list.
  * On failure, -1 is returned and errno is set appropriately.
  */
@@ -465,10 +465,10 @@ int export_create(const char *root) {
     uuid_generate(root_attrs.fid);
     root_attrs.cid = 0;
     memset(root_attrs.sids, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
-    
+
     // Put the default mode for the root directory
     root_attrs.mode = EXPORT_DEFAULT_ROOT_MODE;
-    
+
     root_attrs.nlink = 2;
     root_attrs.uid = 0; // root
     root_attrs.gid = 0; // root
@@ -1908,7 +1908,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
     lv2_entry_t *lv2 = 0;
 
     START_PROFILING(export_getxattr);
-    
+
     if (!(lv2 = export_lookup_fid(e, fid))) {
         severe("export_getattr failed: %s", strerror(errno));
         goto out;
@@ -1928,7 +1928,7 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
     lv2_entry_t *lv2 = 0;
 
     START_PROFILING(export_setxattr);
-    
+
     if (!(lv2 = export_lookup_fid(e, fid))) {
         severe("export_getattr failed: %s", strerror(errno));
         goto out;
@@ -1947,7 +1947,7 @@ out:
 int export_removexattr(export_t *e, fid_t fid, char *name) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
-    
+
     START_PROFILING(export_removexattr);
 
     if (!(lv2 = export_lookup_fid(e, fid))) {
@@ -1968,7 +1968,7 @@ out:
 ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;
-    
+
     START_PROFILING(export_listxattr);
 
     if (!(lv2 = export_lookup_fid(e, fid))) {
