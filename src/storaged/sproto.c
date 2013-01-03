@@ -21,6 +21,7 @@
 
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/rpc/sproto.h>
@@ -38,22 +39,31 @@ void *sp_null_1_svc(void *args, struct svc_req *req) {
 sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     static sp_status_ret_t ret;
     storage_t *st = 0;
+    // Variable to be used in a later version.
+    uint8_t version = 0;
+
     DEBUG_FUNCTION;
 
     START_PROFILING_IO(write,
-            args->nrb * rozofs_psizes[args->tid] * sizeof (bin_t));
+            args->nb_proj * rozofs_get_psizes(args->layout, args->proj_id)
+            * sizeof (bin_t));
 
     ret.status = SP_FAILURE;
+
+    // Get the root path for this SID
     if ((st = storaged_lookup(args->sid)) == 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
-    if (storage_write
-        (st, args->fid, args->tid, args->bid, args->nrb, args->bins.bins_len,
-         (bin_t *) args->bins.bins_val) != 0) {
+
+    // Write projections
+    if (storage_write(st, args->layout, args->dist_set, args->spare, args->fid,
+            args->bid, args->nb_proj, version,
+            (bin_t *) args->bins.bins_val) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
+
     ret.status = SP_SUCCESS;
 out:
     STOP_PROFILING(write);
@@ -62,52 +72,71 @@ out:
 
 sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
-    uint32_t psize;
+    uint16_t psize = 0;
     storage_t *st = 0;
+
     DEBUG_FUNCTION;
 
     START_PROFILING_IO(read,
-            args->nrb * rozofs_psizes[args->tid] * sizeof (bin_t));
+            args->nb_proj * rozofs_get_psizes(args->layout, args->proj_id)
+            * sizeof (bin_t));
 
     xdr_free((xdrproc_t) xdr_sp_read_ret_t, (char *) &ret);
+
     ret.status = SP_FAILURE;
 
+    // Get the root path for this SID
     if ((st = storaged_lookup(args->sid)) == 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }
-    psize = rozofs_psizes[args->tid];
-    ret.sp_read_ret_t_u.bins.bins_len = args->nrb * psize * sizeof (bin_t);
+
+    // Compute the length
+    psize = rozofs_get_max_psize(args->layout);
+    ret.sp_read_ret_t_u.bins.bins_len = args->nb_proj * (psize * sizeof (bin_t)
+            + sizeof (rozofs_stor_bins_hdr_t));
+
+    // Allocate memory
     ret.sp_read_ret_t_u.bins.bins_val =
-        (char *) xmalloc(args->nrb * psize * sizeof (bin_t));
-    if (storage_read
-        (st, args->fid, args->tid, args->bid, args->nrb,
-         (bin_t *) ret.sp_read_ret_t_u.bins.bins_val) != 0) {
+            (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
+            sizeof (rozofs_stor_bins_hdr_t)));
+
+    // Read projections
+    if (storage_read(st, args->layout, args->dist_set, args->spare, args->fid,
+            args->bid, args->nb_proj,
+            (bin_t *) ret.sp_read_ret_t_u.bins.bins_val) != 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }
-    ret.status = SP_SUCCESS;
 
+    ret.status = SP_SUCCESS;
 out:
     STOP_PROFILING(read);
     return &ret;
 }
 
 sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
-                                   struct svc_req * req) {
+        struct svc_req * req) {
     static sp_status_ret_t ret;
     storage_t *st = 0;
+
     DEBUG_FUNCTION;
 
     ret.status = SP_FAILURE;
+
+    // Get the root path for this SID
     if ((st = storaged_lookup(args->sid)) == 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
-    if (storage_truncate(st, args->fid, args->tid, args->bid) != 0) {
+
+    // Truncate bins file
+    if (storage_truncate(st, args->layout, args->dist_set, args->spare,
+            args->fid, args->proj_id, args->bid) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
+
     ret.status = SP_SUCCESS;
 out:
     return &ret;

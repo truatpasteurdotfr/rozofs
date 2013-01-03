@@ -40,6 +40,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/mproto.h>
@@ -85,28 +86,24 @@ DEFINE_PROFILING(spp_profiler_t) = {0};
 sm_monitor_t storaged_monitor = {0};
 
 sim_monitor_t storaged_io_monitor = {{0}};
-*/
+ */
 static int storaged_initialize() {
     int status = -1;
     list_t *p = NULL;
     DEBUG_FUNCTION;
 
     /* Initialize rozofs constants (redundancy) */
-    if (rozofs_initialize(storaged_config.layout) != 0) {
-        severe("can't initialize rozofs");
-        goto out;
-    }
+    rozofs_layout_initialize();
 
     storaged_nrstorages = 0;
 
     storaged_nb_io_processes = storaged_config.sproto_svc_nb;
 
     memcpy(storaged_storage_ports, storaged_config.ports,
-            STORAGE_NODE_PORTS_MAX * sizeof(uint32_t));
+            STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
 
     /* For each storage on configuration file */
-    list_for_each_forward(p, &storaged_config.storages)
-    {
+    list_for_each_forward(p, &storaged_config.storages) {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
@@ -118,7 +115,8 @@ static int storaged_initialize() {
     }
 
     status = 0;
-    out: return status;
+out:
+    return status;
 }
 
 static void storaged_release() {
@@ -142,7 +140,8 @@ storage_t *storaged_lookup(sid_t sid) {
     } while (st++ != storaged_storages + storaged_nrstorages);
     errno = EINVAL;
     st = 0;
-    out: return st;
+out:
+    return st;
 }
 
 static SVCXPRT *storaged_create_rpc_service(int port) {
@@ -163,12 +162,12 @@ static SVCXPRT *storaged_create_rpc_service(int port) {
     }
 
     /* Set socket options */
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof(int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof(int));
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
+    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
+    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
 
     /* Bind the socket */
-    if (bind(sock, (struct sockaddr *) &sin, sizeof(struct sockaddr)) < 0) {
+    if (bind(sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) < 0) {
         severe("Couldn't bind to tcp port %d", port);
         return NULL;
     }
@@ -192,7 +191,7 @@ static void on_start() {
     }
 
     SET_PROBE_VALUE(uptime, time(0));
-    strcpy((char*)gprofiler.vers, VERSION);
+    strcpy((char*) gprofiler.vers, VERSION);
     SET_PROBE_VALUE(nb_io_processes, storaged_nb_io_processes);
 
     /* Create io processes */
@@ -218,7 +217,7 @@ static void on_start() {
                 fatal("can't register service : %s", strerror(errno));
             }
 
-            if ((storaged_profile_svc = storaged_create_rpc_service(storaged_storage_ports[i]+1000)) == NULL) {
+            if ((storaged_profile_svc = storaged_create_rpc_service(storaged_storage_ports[i] + 1000)) == NULL) {
                 fatal("can't create monitoring service on port: %d",
                         storaged_storage_ports[i] + 1000);
             }
@@ -240,12 +239,12 @@ static void on_start() {
     /* Create internal monitoring service */
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof(int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof(int));
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
+    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
+    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
 
     if ((storaged_monitoring_svc = svctcp_create(sock,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE)) == NULL ) {
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE)) == NULL) {
         fatal("can't create internal monitoring service.");
         return;
     }
@@ -270,8 +269,8 @@ static void on_start() {
     setsockopt(mon_sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int));
     setsockopt(mon_sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof(int));
     setsockopt(mon_sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof(int));
-    */
-    if ((storaged_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL ) {
+     */
+    if ((storaged_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL) {
         severe("can't create profiling service.");
     }
     pmap_unset(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION); // in case !
@@ -295,13 +294,13 @@ static void on_stop() {
     svc_unregister(MONITOR_PROGRAM, MONITOR_VERSION);
     pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION);
 
-    if(storaged_monitoring_svc)
+    if (storaged_monitoring_svc)
         svc_destroy(storaged_monitoring_svc);
-    if(storaged_profile_svc)
+    if (storaged_profile_svc)
         svc_destroy(storaged_profile_svc);
 
     storaged_release();
-    rozofs_release();
+
     info("stopped.");
     closelog();
 }
@@ -316,8 +315,13 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     int c;
-    static struct option long_options[] = { { "help", no_argument, 0, 'h' }, {
-            "config", required_argument, 0, 'c' }, { 0, 0, 0, 0 } };
+    static struct option long_options[] = {
+        { "help", no_argument, 0, 'h'},
+        {
+            "config", required_argument, 0, 'c'
+        },
+        { 0, 0, 0, 0}
+    };
 
     while (1) {
 
@@ -329,25 +333,25 @@ int main(int argc, char *argv[]) {
 
         switch (c) {
 
-        case 'h':
-            usage();
-            exit(EXIT_SUCCESS);
-            break;
-        case 'c':
-            if (!realpath(optarg, storaged_config_file)) {
-                fprintf(stderr, "storaged failed: %s %s\n", optarg,
-                        strerror(errno));
+            case 'h':
+                usage();
+                exit(EXIT_SUCCESS);
+                break;
+            case 'c':
+                if (!realpath(optarg, storaged_config_file)) {
+                    fprintf(stderr, "storaged failed: %s %s\n", optarg,
+                            strerror(errno));
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case '?':
+                usage();
+                exit(EXIT_SUCCESS);
+                break;
+            default:
+                usage();
                 exit(EXIT_FAILURE);
-            }
-            break;
-        case '?':
-            usage();
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            usage();
-            exit(EXIT_FAILURE);
-            break;
+                break;
         }
     }
     /* Initialize the list of storage config */
@@ -371,8 +375,9 @@ int main(int argc, char *argv[]) {
     }
 
     openlog("storaged", LOG_PID, LOG_DAEMON);
-    daemon_start(STORAGED_PID_FILE, on_start, on_stop, NULL );
+    daemon_start(STORAGED_PID_FILE, on_start, on_stop, NULL);
     exit(0);
-    error: fprintf(stderr, "see log for more details.\n");
+error:
+    fprintf(stderr, "see log for more details.\n");
     exit(EXIT_FAILURE);
 }

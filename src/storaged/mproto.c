@@ -45,7 +45,7 @@ mp_status_ret_t *mp_remove_1_svc(mp_remove_arg_t * args, struct svc_req * req) {
         ret.mp_status_ret_t_u.error = errno;
         goto out;
     }
-    if (storage_rm_file(st, args->fid) != 0 && errno != ENOENT) {
+    if (storage_rm_file(st, args->layout, args->dist_set, args->fid) != 0) {
         ret.mp_status_ret_t_u.error = errno;
         goto out;
     }
@@ -55,7 +55,7 @@ out:
     return &ret;
 }
 
-mp_stat_ret_t *mp_stat_1_svc(uint16_t * sid, struct svc_req * req) {
+mp_stat_ret_t *mp_stat_1_svc(sid_t * sid, struct svc_req * req) {
     static mp_stat_ret_t ret;
     storage_t *st = 0;
     sstat_t sstat;

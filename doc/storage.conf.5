@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii storage.conf.5
 .\"
-.TH STORAGE.CONF 5 "OCTOBER 2012" Rozofs "User Manuals"
+.TH STORAGE.CONF 5 "DECEMBER 2012" Rozofs "User Manuals"
 .SH NAME
 storage.conf \- rozofs storage daemon configuration file
 .SH DESCRIPTION
@@ -11,23 +11,6 @@ is manage throw
 <http://www.hyperrealm.com/libconfig/> and thus complies to the
 .B libconfig
 grammar.
-
-.SS layout
-Transform layout used by rozofs. Data will be transform in 
-.B forward
-chunks, only 
-.B inverse 
-of them will be need to reconstruct, and they will be distributed over 
-.B safe
-storages.
-  
-Valid layouts are :
-   - 0 : inverse = 2, forward = 3, safe = 4
-   - 1 : inverse = 4, forward = 6, safe = 8
-   - 2 : inverse = 8, forward = 12, safe = 16
-
-.B Example:
- layout = 0;  
 
 .SS ports
 
@@ -42,7 +25,7 @@ Valid layouts are :
  A storage in Rozofs is directory used by a 
 .B storaged deamon to store erase coded data.
  One storaged deamon can manage several storages.
- A storage in this file is identified by an sid (uint16_t) and an root directory. 
+ A storage in this file is identified by an sid (uint8_t) and an root directory. 
 
 .B Warning
 :sids should be the same as those used in 

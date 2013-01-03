@@ -32,7 +32,9 @@ struct mp_status_ret_t {
 typedef struct mp_status_ret_t mp_status_ret_t;
 
 struct mp_remove_arg_t {
-	uint16_t sid;
+	uint8_t sid;
+	uint8_t layout;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
 	mp_uuid_t fid;
 };
 typedef struct mp_remove_arg_t mp_remove_arg_t;
@@ -69,8 +71,8 @@ typedef struct mp_ports_ret_t mp_ports_ret_t;
 extern  void * mp_null_1(void *, CLIENT *);
 extern  void * mp_null_1_svc(void *, struct svc_req *);
 #define MP_STAT 1
-extern  mp_stat_ret_t * mp_stat_1(uint16_t *, CLIENT *);
-extern  mp_stat_ret_t * mp_stat_1_svc(uint16_t *, struct svc_req *);
+extern  mp_stat_ret_t * mp_stat_1(uint8_t *, CLIENT *);
+extern  mp_stat_ret_t * mp_stat_1_svc(uint8_t *, struct svc_req *);
 #define MP_REMOVE 2
 extern  mp_status_ret_t * mp_remove_1(mp_remove_arg_t *, CLIENT *);
 extern  mp_status_ret_t * mp_remove_1_svc(mp_remove_arg_t *, struct svc_req *);

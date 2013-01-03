@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 
 #ifndef _MCLIENT_H
@@ -39,7 +39,8 @@ void mclient_release(mclient_t *clt);
 
 int mclient_stat(mclient_t *clt, sstat_t *st);
 
-int mclient_remove(mclient_t *clt, fid_t fid);
+int mclient_remove(mclient_t * clt, uint8_t layout, 
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid);
 
 int mclient_ports(mclient_t *mclt, uint32_t *ports_p);
 

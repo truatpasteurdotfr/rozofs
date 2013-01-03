@@ -3,7 +3,9 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 set (librozofs_sources
     rozofs.h
-    rozofs.c
+    #rozofs.c
+    rozofs_srv.h
+    rozofs_srv.c
     common/types.h
     common/daemon.h
     common/daemon.c

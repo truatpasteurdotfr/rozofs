@@ -37,6 +37,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
@@ -55,10 +56,16 @@
 /** Default mode for export root directory */
 #define EXPORT_DEFAULT_ROOT_MODE S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
 
+/**
+ *  Structure used for store information about a file to remove
+ */
 typedef struct rmfentry {
-    fid_t fid;
-    sid_t sids[ROZOFS_SAFE_MAX];
-    list_t list;
+    fid_t fid; ///<  unique file id.
+    sid_t initial_dist_set[ROZOFS_SAFE_MAX];
+    ///< initial sids of storage nodes target for this file.
+    sid_t current_dist_set[ROZOFS_SAFE_MAX];
+    ///< current sids of storage nodes target for this file.
+    list_t list; ///<  pointer for extern list.
 } rmfentry_t;
 
 typedef struct cnxentry {
@@ -397,7 +404,8 @@ static int export_load_rmfentry(export_t * e) {
 
         rmfe = xmalloc(sizeof (rmfentry_t));
         memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
-        memcpy(rmfe->sids, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+        memcpy(rmfe->initial_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+        memcpy(rmfe->current_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
 
         list_init(&rmfe->list);
 
@@ -465,10 +473,10 @@ int export_create(const char *root) {
     uuid_generate(root_attrs.fid);
     root_attrs.cid = 0;
     memset(root_attrs.sids, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
-    
+
     // Put the default mode for the root directory
     root_attrs.mode = EXPORT_DEFAULT_ROOT_MODE;
-    
+
     root_attrs.nlink = 2;
     root_attrs.uid = 0; // root
     root_attrs.gid = 0; // root
@@ -535,9 +543,9 @@ int export_create(const char *root) {
     return 0;
 }
 
-int export_initialize(export_t * e, volume_t *volume, lv2_cache_t *lv2_cache,
-        uint32_t eid, const char *root, const char *md5, uint64_t squota,
-        uint64_t hquota) {
+int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
+        lv2_cache_t *lv2_cache, uint32_t eid, const char *root, const char *md5,
+        uint64_t squota, uint64_t hquota) {
 
     char fstat_path[PATH_MAX];
     char const_path[PATH_MAX];
@@ -551,6 +559,7 @@ int export_initialize(export_t * e, volume_t *volume, lv2_cache_t *lv2_cache,
     e->eid = eid;
     e->volume = volume;
     e->lv2_cache = lv2_cache;
+    e->layout = layout; // Layout used for this export
 
     // Initialize the dirent level 0 cache
     dirent_cache_level0_initialize();
@@ -631,7 +640,7 @@ int export_stat(export_t * e, estat_t * st) {
     st->namemax = ROZOFS_FILENAME_MAX;
     st->ffree = stfs.f_ffree;
     st->blocks = e->fstat.blocks;
-    volume_stat(e->volume, &vstat);
+    volume_stat(e->volume, e->layout, &vstat);
 
     if (e->hquota > 0) {
         if (e->hquota < vstat.bfree) {
@@ -856,7 +865,7 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     // generate attributes
     uuid_copy(attrs->fid, node_fid);
-    if (volume_distribute(e->volume, &attrs->cid, attrs->sids) != 0)
+    if (volume_distribute(e->volume, e->layout, &attrs->cid, attrs->sids) != 0)
         goto error;
     attrs->mode = mode;
     attrs->uid = uid;
@@ -984,7 +993,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
 
     mdir_close(&node_mdir);
-    status =  0;
+    status = 0;
     goto out;
 
 error:
@@ -1069,7 +1078,8 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
             // Preparation of the rmfentry
             rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
             memcpy(rmfe->fid, lv2->attributes.fid, sizeof (fid_t));
-            memcpy(rmfe->sids, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->initial_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->current_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
             list_init(&rmfe->list);
 
             // Adding the rmfentry to the list of files to delete
@@ -1127,7 +1137,6 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
     DEBUG_FUNCTION;
 
     if ((errno = pthread_rwlock_tryrdlock(&volume->lock)) != 0) {
-
         severe("init_storages_cnx failed: can't lock volume %d.", volume->vid);
         goto out;
     }
@@ -1151,7 +1160,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
             cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
             cnx_entry->cnx = sclt;
-            // Add this export to the list of exports
+            
+            // Add to the list
             list_push_back(list, &cnx_entry->list);
 
         }
@@ -1204,12 +1214,15 @@ static void release_storages_cnx(list_t *list) {
 
 int export_rm_bins(export_t * e) {
     int status = -1;
-    int cnt = 0;
+    int rm_bins_file_nb = 0;
+    int i = 0;
     int release = 0;
     int limit_rm_files = RM_FILES_MAX;
     int curr_rm_files = 0;
-    DEBUG_FUNCTION;
+    uint8_t rozofs_safe = 0;
     list_t connexions;
+
+    DEBUG_FUNCTION;
 
     // If the list is no empty
     // Create a list of connections to storages
@@ -1223,7 +1236,10 @@ int export_rm_bins(export_t * e) {
         }
     }
 
-    // For each file to delete
+    // Get the nb. of safe storages for this layout
+    rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+
+    // For each file to remove
     while (!list_empty(&e->rmfiles) && curr_rm_files < limit_rm_files) {
 
         // Remove entry for the list of files to delete
@@ -1232,6 +1248,7 @@ int export_rm_bins(export_t * e) {
             goto out;
         }
 
+        // Get from the list, one file to remove
         rmfentry_t *entry = list_first_entry(&e->rmfiles, rmfentry_t, list);
         list_remove(&entry->list);
 
@@ -1240,38 +1257,45 @@ int export_rm_bins(export_t * e) {
             goto out;
         }
 
-        sid_t *it = entry->sids;
-        cnt = 0; // Nb. of bins removed
+        // Nb. of bins files removed for this file
+        rm_bins_file_nb = 0;
 
-        // For each storage
-        while (it != entry->sids + rozofs_safe) {
+        // For each storage associated with this file
+        for (i = 0; i < rozofs_safe; i++) {
 
-            // If this storage have bins for this file
-            if (*it != 0) {
-                // Get the connexion for this storage
-                mclient_t* stor = lookup_cnx(&connexions, *it);
+            mclient_t* stor = NULL;
 
-                // Send request to storage for remove bins
-                if (mclient_remove(stor, entry->fid) != 0) {
-                    severe("storageclt_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
-                } else {
-                    // If storageclt_remove works
-                    // Replace sid for this storage by 0
-                    // Increment nb. of bins deleted
-                    *it = 0;
-                    cnt++;
-                }
-
-            } else {
-                // Bins are already deleted for this storage
-                cnt++;
+            if (0 == entry->current_dist_set[i]) {
+                // The bins file has already been deleted for this server
+                rm_bins_file_nb++;
+                continue; // Go to the next storage
             }
-            it++;
+
+            if ((stor = lookup_cnx(&connexions, entry->current_dist_set[i])) == NULL) {
+                // lookup_cnx failed !!! 
+                continue; // Go to the next storage
+            }
+
+            if (0 == stor->status) {
+                // This storage is down
+                // it's not necessary to send a request
+                continue; // Go to the next storage
+            }
+
+            if (mclient_remove(stor, e->layout, entry->initial_dist_set, entry->fid) != 0) {
+                // Problem with request
+                warning("mclient_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
+                continue; // Go to the next storage
+            }
+            
+            // The bins file has been deleted successfully
+            entry->current_dist_set[i] = 0;
+            rm_bins_file_nb++;
         }
 
-        // If all bins are deleted
+        // If all bins file are deleted
         // Remove the file from trash
-        if (cnt == rozofs_safe) {
+        if (rm_bins_file_nb == rozofs_safe) {
             char path[PATH_MAX];
             // In case of rename it's not neccessary to remove trash file
             char fid_str[37];
@@ -1386,6 +1410,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
     status = 0;
 out:
     STOP_PROFILING(export_rmdir);
+
     return status;
 }
 
@@ -1472,6 +1497,7 @@ error:
 
 out:
     STOP_PROFILING(export_symlink);
+
     return status;
 }
 
@@ -1486,6 +1512,7 @@ int export_readlink(export_t *e, fid_t fid, char *link) {
     status = mslnk_read_link(&lv2->container.mslnk, link);
 out:
     STOP_PROFILING(export_readlink);
+
     return status;
 }
 
@@ -1631,7 +1658,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                         // Preparation of the rmfentry
                         rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
                         memcpy(rmfe->fid, lv2_to_replace->attributes.fid, sizeof (fid_t));
-                        memcpy(rmfe->sids, lv2_to_replace->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+                        memcpy(rmfe->initial_dist_set, lv2_to_replace->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
                         list_init(&rmfe->list);
 
                         // Adding the rmfentry to the list of files to delete
@@ -1726,6 +1753,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
 out:
     STOP_PROFILING(export_rename);
+
     return status;
 }
 
@@ -1777,10 +1805,11 @@ error:
     length = -1;
 out:
     STOP_PROFILING(export_read);
+
     return length;
 }
 
-int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t* d) {
+int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d) {
     int status = -1;
     lv2_entry_t *lv2 = NULL;
 
@@ -1793,6 +1822,7 @@ int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t* d) 
     status = mreg_read_dist(&lv2->container.mreg, bid, n, d);
 out:
     STOP_PROFILING(export_read_block);
+
     return status;
 }
 
@@ -1867,22 +1897,26 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     length = len;
 out:
     STOP_PROFILING(export_write_block);
+
     return length;
 }
 
 int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
-        child_t ** children, uint8_t *eof) {
+        child_t ** children, uint8_t * eof) {
     int status = -1;
     lv2_entry_t *parent = NULL;
 
     START_PROFILING(export_readdir);
 
     // Get the lv2 inode
-    if (!(parent = export_lookup_fid(e, fid)))
+    if (!(parent = export_lookup_fid(e, fid))) {
+        severe("export_readdir failed: %s", strerror(errno));
         goto out;
+    }
 
     // Verify that the target is a directory
     if (!S_ISDIR(parent->attributes.mode)) {
+        severe("export_readdir failed: %s", strerror(errno));
         errno = ENOTDIR;
         goto out;
     }
@@ -1900,6 +1934,7 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
     status = 0;
 out:
     STOP_PROFILING(export_readdir);
+
     return status;
 }
 
@@ -1908,7 +1943,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
     lv2_entry_t *lv2 = 0;
 
     START_PROFILING(export_getxattr);
-    
+
     if (!(lv2 = export_lookup_fid(e, fid))) {
         severe("export_getattr failed: %s", strerror(errno));
         goto out;
@@ -1920,6 +1955,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
 
 out:
     STOP_PROFILING(export_getxattr);
+
     return status;
 }
 
@@ -1928,7 +1964,7 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
     lv2_entry_t *lv2 = 0;
 
     START_PROFILING(export_setxattr);
-    
+
     if (!(lv2 = export_lookup_fid(e, fid))) {
         severe("export_getattr failed: %s", strerror(errno));
         goto out;
@@ -1941,13 +1977,14 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
     status = 0;
 out:
     STOP_PROFILING(export_setxattr);
+
     return status;
 }
 
 int export_removexattr(export_t *e, fid_t fid, char *name) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
-    
+
     START_PROFILING(export_removexattr);
 
     if (!(lv2 = export_lookup_fid(e, fid))) {
@@ -1962,13 +1999,14 @@ int export_removexattr(export_t *e, fid_t fid, char *name) {
     status = 0;
 out:
     STOP_PROFILING(export_removexattr);
+
     return status;
 }
 
 ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;
-    
+
     START_PROFILING(export_listxattr);
 
     if (!(lv2 = export_lookup_fid(e, fid))) {

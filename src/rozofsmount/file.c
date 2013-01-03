@@ -20,6 +20,7 @@
 
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/rpc/sproto.h>
 
 #include "file.h"
@@ -93,8 +94,11 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
     int connected = 0;
     struct timespec ts = {2, 0}; /// XXX static
     uint8_t rand_value = 0;
+    uint8_t rozofs_safe = 0;
 
     DEBUG_FUNCTION;
+
+    rozofs_safe = rozofs_get_rozofs_safe(f->export->layout);
 
     // Get a pseudo-random integer in the range 0 to RAND_MAX inclusive
     rand_value = rand();
@@ -147,94 +151,129 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
  *
  * @param *f: pointer to the file structure
  * @param bid: first block address (from the start of the file)
- * @param nmbs: number of blocks to read
+ * @param nb_blocks: number of blocks to read
  * @param *data: pointer where the data will be stored
  * @param *dist: pointer to distributions of different blocks to read
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t * dist) {
+static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, dist_t * dist) {
     int status = -1, i, j;
     dist_t *dist_iterator = NULL;
-    uint8_t mp;
+    uint8_t proj_id = 0;
     bin_t **bins;
     projection_t *projections = NULL;
     angle_t *angles = NULL;
     uint16_t *psizes = NULL;
     int receive = 0;
+    uint8_t spare = 0;
 
     DEBUG_FUNCTION;
+
+    // Get the parameters relative to this layout
+    uint8_t rozofs_layout = f->export->layout;
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(rozofs_layout);
+    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(rozofs_layout);
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(rozofs_layout);
 
     bins = xcalloc(rozofs_inverse, sizeof (bin_t *));
     projections = xmalloc(rozofs_inverse * sizeof (projection_t));
     angles = xmalloc(rozofs_inverse * sizeof (angle_t));
     psizes = xmalloc(rozofs_inverse * sizeof (uint16_t));
-    memset(data, 0, nmbs * ROZOFS_BSIZE);
+    memset(data, 0, nb_blocks * ROZOFS_BSIZE);
 
     /* Until we don't decode all data blocks (nmbs blocks) */
     i = 0; // Nb. of blocks decoded (at begin = 0)
     dist_iterator = dist;
-    while (i < nmbs) {
+    while (i < nb_blocks) {
         if (*dist_iterator == 0) {
             i++;
             dist_iterator++;
             continue;
         }
 
-        /* We calculate the number blocks with identical distributions */
-        uint32_t n = 1;
-        while ((i + n) < nmbs && *dist_iterator == *(dist_iterator + 1)) {
-            n++;
+        /* We calculate the number of blocks with identical distributions */
+        uint32_t nb_blocks_identical_dist = 1;
+        while ((i + nb_blocks_identical_dist) < nb_blocks && *dist_iterator == *(dist_iterator + 1)) {
+            nb_blocks_identical_dist++;
             dist_iterator++;
         }
-        // I don't know if it 's possible
-        if (i + n > nmbs)
+        // I don't know if it's possible
+        if (i + nb_blocks_identical_dist > nb_blocks)
             goto out;
 
         int retry = 0;
         do {
             // Nb. of received requests (at begin=0)
-            int connected = 0;
-            // For each projection
-            for (mp = 0; mp < rozofs_forward; mp++) {
-                int mps = 0;
-                int j = 0;
-                bin_t *b;
-                // Find the host for projection mp
-                for (mps = 0; mps < rozofs_safe; mps++) {
-                    if (dist_is_set(*dist_iterator, mps) && j == mp) {
-                        break;
-                    } else { // Try with the next storage server
-                        j += dist_is_set(*dist_iterator, mps);
+            uint8_t nb_proj_recv = 0;
+            // Nb. of spare projection encountered
+            uint8_t current_proj_spare_nb = 0;
+
+            // For each existent projection
+            for (proj_id = 0; proj_id < rozofs_forward; proj_id++) {
+
+                uint8_t proj_stor_idx = 0;
+                bin_t *b = NULL;
+
+                // Find the projection server for projection proj_id
+                // Two cases possible: 
+                // This projection was stored on a no-spare server
+                // This projection was stored on a spare server
+                if (dist_is_set(*dist_iterator, proj_id)) {
+                    // The proj. is store on a no-spare server
+                    proj_stor_idx = proj_id;
+                    spare = 0;
+                } else {
+
+                    // This projection is store on a spare server                    
+                    uint8_t stor_idx = 0;
+                    uint8_t local_spare_cnt = 0;
+
+                    // Find the storage for this proj.
+                    // For each spare storage
+                    for (stor_idx = rozofs_forward; stor_idx < rozofs_safe; stor_idx++) {
+
+                        // Verify if this spare storage have this projection
+                        if (dist_is_set(*dist_iterator, stor_idx) && local_spare_cnt == current_proj_spare_nb) {
+                            proj_stor_idx = stor_idx;
+                            current_proj_spare_nb++;
+                            spare = 1;
+                            break;
+                        } else {
+                            // Try with the next spare storage
+                            local_spare_cnt += dist_is_set(*dist_iterator, stor_idx);
+                        }
                     }
                 }
 
-                if (!f->storages[mps]->rpcclt.client || f->storages[mps]->status != 1)
-                    continue;
+                if (!f->storages[proj_stor_idx]->rpcclt.client || f->storages[proj_stor_idx]->status != 1)
+                    continue; // Try with the next projection
 
-                b = xmalloc(n * rozofs_psizes[mp] * sizeof (bin_t));
+                b = xmalloc(nb_blocks_identical_dist * ((rozofs_get_max_psize(rozofs_layout) * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t)));
 
-                if (sclient_read(f->storages[mps], f->attrs.sids[mps], f->fid, mp, bid + i, n, b) != 0) {
+                if (sclient_read(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid + i, nb_blocks_identical_dist, b) != 0) {
                     free(b);
-                    continue;
+                    continue; // Try with the next projection
                 }
-                bins[connected] = b;
-                angles[connected].p = rozofs_angles[mp].p;
-                angles[connected].q = rozofs_angles[mp].q;
-                psizes[connected] = rozofs_psizes[mp];
+
+                bins[nb_proj_recv] = b;
+
+                angles[nb_proj_recv].p = rozofs_get_angles_p(rozofs_layout, proj_id);
+                angles[nb_proj_recv].q = rozofs_get_angles_q(rozofs_layout, proj_id);
+                psizes[nb_proj_recv] = rozofs_get_psizes(rozofs_layout, proj_id);
 
                 // Increment the number of received requests
-                if (++connected == rozofs_inverse)
+                if (++nb_proj_recv == rozofs_inverse)
                     break;
             }
 
-            if (connected == rozofs_inverse) {
+            if (nb_proj_recv == rozofs_inverse) {
                 // All data were received
                 receive = 1;
                 break;
             }
 
-            // If file_check_connections fail
+            // If file_get_cnts fail
             // It's not necessary to retry to read on storage servers
             while (file_get_cnts(f, rozofs_inverse, dist_iterator) != 0 && retry++ < f->export->retries);
 
@@ -247,16 +286,16 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t 
         }
 
         // Proceed the inverse data transform for the n blocks.
-        for (j = 0; j < n; j++) {
+        for (j = 0; j < nb_blocks_identical_dist; j++) {
             // Fill the table of projections for the block j
             // For each meta-projection
-            for (mp = 0; mp < rozofs_inverse; mp++) {
+            for (proj_id = 0; proj_id < rozofs_inverse; proj_id++) {
                 // It's really important to specify the angles and sizes here
                 // because the data inverse function sorts the projections.
-                projections[mp].angle.p = angles[mp].p;
-                projections[mp].angle.q = angles[mp].q;
-                projections[mp].size = psizes[mp];
-                projections[mp].bins = bins[mp] + (psizes[mp] * j);
+                projections[proj_id].angle.p = angles[proj_id].p;
+                projections[proj_id].angle.q = angles[proj_id].q;
+                projections[proj_id].size = psizes[proj_id];
+                projections[proj_id].bins = bins[proj_id] + ((rozofs_get_max_psize(rozofs_layout) + (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t))) * j) + (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t));
             }
 
             // Inverse data for the block j
@@ -266,13 +305,13 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t 
                     rozofs_inverse, projections);
         }
         // Free the memory area where are stored the bins.
-        for (mp = 0; mp < rozofs_inverse; mp++) {
-            if (bins[mp])
-                free(bins[mp]);
-            bins[mp] = 0;
+        for (proj_id = 0; proj_id < rozofs_inverse; proj_id++) {
+            if (bins[proj_id])
+                free(bins[proj_id]);
+            bins[proj_id] = 0;
         }
         // Increment the nb. of blocks decoded
-        i += n;
+        i += nb_blocks_identical_dist;
         // Shift to the next distribution
         dist_iterator++;
     }
@@ -281,9 +320,9 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nmbs, char *data, dist_t 
 out:
     // Free the memory area where are stored the bins used by the inverse transform
     if (bins) {
-        for (mp = 0; mp < rozofs_inverse; mp++)
-            if (bins[mp])
-                free(bins[mp]);
+        for (proj_id = 0; proj_id < rozofs_inverse; proj_id++)
+            if (bins[proj_id])
+                free(bins[proj_id]);
         free(bins);
     }
     if (projections)
@@ -304,73 +343,130 @@ out:
  *
  * @param *f: pointer to the file structure
  * @param bid: first block address (from the start of the file)
- * @param nmbs: number of blocks to write
+ * @param nb_blocks: number of blocks/projections to write
  * @param *data: pointer where the data are be stored
  * @param off: offset to write from
  * @param len: length to write
  *
  * @return: the length written on success, -1 otherwise (errno is set)
  */
-static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nmbs, const char *data, uint64_t off, uint32_t len) {
+static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, const char *data, uint64_t off, uint32_t len) {
     projection_t *projections; // Table of projections used to transform data
     bin_t **bins;
     dist_t dist = 0; // Important
-    uint16_t mp = 0;
-    uint16_t ps = 0;
+    uint8_t proj_id = 0;
+    uint8_t proj_stor_idx = 0;
     uint32_t i = 0;
+    int j = 0;
     int retry = 0;
     int send = 0;
+    uint8_t nb_proj_send = 0;
     int64_t length = -1;
+    uint8_t spare = 0;
 
     DEBUG_FUNCTION;
+
+    // Get rozofs layout parameters
+    uint8_t rozofs_layout = f->export->layout;
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(rozofs_layout);
+    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(rozofs_layout);
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(rozofs_layout);
+    uint16_t rozofs_max_psize = rozofs_get_max_psize(rozofs_layout);
+    uint8_t proj_idx_send[rozofs_forward];
 
     projections = xmalloc(rozofs_forward * sizeof (projection_t));
     bins = xcalloc(rozofs_forward, sizeof (bin_t *));
 
     // For each projection
-    for (mp = 0; mp < rozofs_forward; mp++) {
-        bins[mp] = xmalloc(rozofs_psizes[mp] * nmbs * sizeof (bin_t));
-        projections[mp].angle.p = rozofs_angles[mp].p;
-        projections[mp].angle.q = rozofs_angles[mp].q;
-        projections[mp].size = rozofs_psizes[mp];
+    for (proj_id = 0; proj_id < rozofs_forward; proj_id++) {
+        bins[proj_id] = xmalloc((rozofs_max_psize * sizeof (bin_t) +
+                sizeof (rozofs_stor_bins_hdr_t)) * nb_blocks);
+        projections[proj_id].angle.p = rozofs_get_angles_p(rozofs_layout, proj_id);
+        projections[proj_id].angle.q = rozofs_get_angles_q(rozofs_layout, proj_id);
+        projections[proj_id].size = rozofs_get_psizes(rozofs_layout, proj_id);
     }
 
     /* Transform the data */
     // For each block to send
-    for (i = 0; i < nmbs; i++) {
+    for (i = 0; i < nb_blocks; i++) {
+
         // seek bins for each projection
-        for (mp = 0; mp < rozofs_forward; mp++) {
+        for (proj_id = 0; proj_id < rozofs_forward; proj_id++) {
+
             // Indicates the memory area where the transformed data must be stored
-            projections[mp].bins = bins[mp] + (rozofs_psizes[mp] * i);
+            projections[proj_id].bins = bins[proj_id] + ((rozofs_max_psize + (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t))) * i);
+
+            rozofs_stor_bins_hdr_t *rozofs_stor_bins_hdr_p = (rozofs_stor_bins_hdr_t*) projections[proj_id].bins;
+
+            // fill the header of the projection
+            rozofs_stor_bins_hdr_p->s.projection_id = proj_id;
+            // XXX TO DO: Change these values
+            rozofs_stor_bins_hdr_p->s.timestamp = 0;
+            rozofs_stor_bins_hdr_p->s.effective_length = 0;
+            rozofs_stor_bins_hdr_p->s.version = 0;
+
+            // update the pointer to point out the first bins
+            projections[proj_id].bins += sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t);
         }
+
         // Apply the erasure code transform for the block i
         transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
                 rozofs_inverse,
                 ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
                 rozofs_forward, projections);
     }
+
     do {
         /* Send requests to the storage servers */
-        // For each projection server
-        mp = 0;
+        proj_id = 0;
         dist = 0;
-        for (ps = 0; ps < rozofs_safe; ps++) {
+        nb_proj_send = 0;
+        memset(&proj_idx_send, 0, rozofs_forward * sizeof (uint8_t));
+
+        // For each projection server
+        for (proj_stor_idx = 0; proj_stor_idx < rozofs_safe; proj_stor_idx++) {
+
             // Warning: the server can be disconnected
             // but f->storages[ps].rpcclt->client != NULL
             // the disconnection will be detected when the request will be sent
-            if (!f->storages[ps]->rpcclt.client || f->storages[ps]->status != 1)
+            if (!f->storages[proj_stor_idx]->rpcclt.client || f->storages[proj_stor_idx]->status != 1) {
+                proj_id++;
                 continue;
+            }
 
-            if (sclient_write(f->storages[ps], f->attrs.sids[ps], f->fid, mp, bid, nmbs, bins[mp]) != 0)
+            // If (proj_stor_idx >= rozofs_forward) :
+            // this means that one or more projections could not be stored
+            // on their no-spare storage respective
+            if (proj_stor_idx >= rozofs_forward) {
+
+                // Find the first projection not yet sent
+                for (j = 0; j < rozofs_forward; j++) {
+                    if (proj_idx_send[j] == 0) {
+                        proj_id = j;
+                        spare = 1;
+                        break;
+                    }
+                }
+            } else {
+                spare = 0;
+            }
+
+            if (sclient_write(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], rozofs_layout, spare, f->attrs.sids, f->fid, proj_id, bid,
+                    nb_blocks, bins[proj_id]) != 0) {
+                proj_id++;
                 continue;
+            }
 
-            dist_set_true(dist, ps);
+            dist_set_true(dist, proj_stor_idx);
+            proj_idx_send[proj_id] = 1;
 
-            if (++mp == rozofs_forward)
+            proj_id++;
+
+            if (++nb_proj_send == rozofs_forward)
                 break;
         }
 
-        if (mp == rozofs_forward) {
+        if (nb_proj_send == rozofs_forward) {
             // All data were sent to storage servers
             send = 1;
             break;
@@ -388,7 +484,7 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nmbs, const char *da
         goto out;
     }
 
-    if ((length = exportclt_write_block(f->export, f->fid, bid, nmbs, dist, off, len)) == -1) {
+    if ((length = exportclt_write_block(f->export, f->fid, bid, nb_blocks, dist, off, len)) == -1) {
         // XXX data has already been written on the storage servers
         severe("exportclt_write_block failed: %s", strerror(errno));
         errno = EIO;
@@ -397,13 +493,14 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nmbs, const char *da
 
 out:
     if (bins) {
-        for (mp = 0; mp < rozofs_forward; mp++)
-            if (bins[mp])
-                free(bins[mp]);
+        for (proj_id = 0; proj_id < rozofs_forward; proj_id++)
+            if (bins[proj_id])
+                free(bins[proj_id]);
         free(bins);
     }
     if (projections)
         free(projections);
+
     return length;
 }
 
@@ -602,6 +699,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
     }
 
 out:
+
     return length;
 }
 
@@ -610,6 +708,9 @@ file_t * file_open(exportclt_t * e, fid_t fid, mode_t mode) {
     DEBUG_FUNCTION;
 
     f = xmalloc(sizeof (file_t));
+
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(e->layout);
 
     memcpy(f->fid, fid, sizeof (fid_t));
     f->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));

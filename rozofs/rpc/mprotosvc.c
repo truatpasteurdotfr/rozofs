@@ -22,7 +22,7 @@ void
 monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
-		uint16_t mp_stat_1_arg;
+		uint8_t mp_stat_1_arg;
 		mp_remove_arg_t mp_remove_1_arg;
 	} argument;
 	char *result;
@@ -37,7 +37,7 @@ monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		break;
 
 	case MP_STAT:
-		_xdr_argument = (xdrproc_t) xdr_uint16_t;
+		_xdr_argument = (xdrproc_t) xdr_uint8_t;
 		_xdr_result = (xdrproc_t) xdr_mp_stat_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) mp_stat_1_svc;
 		break;

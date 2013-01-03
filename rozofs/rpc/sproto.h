@@ -32,11 +32,15 @@ struct sp_status_ret_t {
 typedef struct sp_status_ret_t sp_status_ret_t;
 
 struct sp_write_arg_t {
-	uint16_t sid;
+	uint8_t sid;
+	uint8_t layout;
+	uint16_t effective_len;
+	uint8_t spare;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
 	sp_uuid_t fid;
-	uint8_t tid;
+	uint8_t proj_id;
 	uint64_t bid;
-	uint32_t nrb;
+	uint32_t nb_proj;
 	struct {
 		u_int bins_len;
 		char *bins_val;
@@ -45,18 +49,24 @@ struct sp_write_arg_t {
 typedef struct sp_write_arg_t sp_write_arg_t;
 
 struct sp_read_arg_t {
-	uint16_t sid;
+	uint8_t sid;
+	uint8_t layout;
+	uint8_t spare;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
 	sp_uuid_t fid;
-	uint8_t tid;
+	uint8_t proj_id;
 	uint64_t bid;
-	uint32_t nrb;
+	uint32_t nb_proj;
 };
 typedef struct sp_read_arg_t sp_read_arg_t;
 
 struct sp_truncate_arg_t {
-	uint16_t sid;
+	uint8_t sid;
+	uint8_t layout;
+	uint8_t spare;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
 	sp_uuid_t fid;
-	uint8_t tid;
+	uint8_t proj_id;
 	uint64_t bid;
 };
 typedef struct sp_truncate_arg_t sp_truncate_arg_t;

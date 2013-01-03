@@ -1653,6 +1653,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     /* Put the root inode entry*/
     ientry_t *root = xmalloc(sizeof (ientry_t));
+    memset(root, 0, sizeof (ientry_t));
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
     root->inode = next_inode_idx();
     root->db.size = 0;
@@ -1810,7 +1811,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     fuse_unmount(mountpoint, ch);
     exportclt_release(&exportclt);
     ientries_release();
-    rozofs_release();
 
     return err ? 1 : 0;
 }
