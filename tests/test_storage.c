@@ -77,6 +77,7 @@ int main(int argc, char **argv) {
 
             spare = i;
             uuid_generate(fid);
+            size_t len_read = 0;
 
             // Write projections
             fprintf(stdout, "----------------------------------------------\n");
@@ -106,7 +107,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
 
-            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_1) != 0) {
+            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_1, &len_read) != 0) {
                 perror("failed to read bins");
                 exit(-1);
             }
@@ -122,7 +123,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
 
-            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_2) != 0) {
+            if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_2, &len_read) != 0) {
                 perror("failed to read bins");
                 exit(-1);
             }

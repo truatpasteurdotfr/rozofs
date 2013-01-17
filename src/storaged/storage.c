@@ -54,7 +54,7 @@ static char *storage_map_distribution(storage_t * st, uint8_t layout,
 
     for (i = 0; i < rozofs_safe; i++) {
         char build_path_2[FILENAME_MAX];
-        sprintf(build_path_2, "%u", dist_set[i]);
+        sprintf(build_path_2, "%.3u", dist_set[i]);
         strcat(path, build_path_2);
         if (i != (rozofs_safe - 1))
             strcat(path, "-");
@@ -236,7 +236,7 @@ out:
 
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins) {
+        bin_t * bins, size_t * len_read) {
 
     int status = -1;
     char path[FILENAME_MAX];
@@ -273,10 +273,15 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
 
     // Read nb_proj * (projection + header)
     nb_read = pread(fd, bins, length_to_read, bins_file_offset);
-    if (nb_read != length_to_read) {
+
+    // Check the length read
+    if ((nb_read % (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t))) != 0) {
         severe("pread failed: %s", strerror(errno));
         goto out;
     }
+
+    // Update the length read
+    *len_read = nb_read;
 
     // Read is successful
     status = 0;

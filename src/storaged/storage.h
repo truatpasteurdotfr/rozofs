@@ -115,12 +115,13 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
  * @param bid: first block idx (offset).
  * @param nb_proj: nb of projections to read.
  * @param *bins: bins to store.
+ * @param *len_read: the length read.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins);
+        bin_t * bins, size_t * len_read);
 
 /** Truncate a bins file (not used yet)
  *

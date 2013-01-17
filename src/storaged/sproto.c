@@ -91,10 +91,7 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
         goto out;
     }
 
-    // Compute the length
     psize = rozofs_get_max_psize(args->layout);
-    ret.sp_read_ret_t_u.bins.bins_len = args->nb_proj * (psize * sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t));
 
     // Allocate memory
     ret.sp_read_ret_t_u.bins.bins_val =
@@ -104,7 +101,8 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     // Read projections
     if (storage_read(st, args->layout, args->dist_set, args->spare, args->fid,
             args->bid, args->nb_proj,
-            (bin_t *) ret.sp_read_ret_t_u.bins.bins_val) != 0) {
+            (bin_t *) ret.sp_read_ret_t_u.bins.bins_val,
+            (size_t *) &ret.sp_read_ret_t_u.bins.bins_len) != 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }
