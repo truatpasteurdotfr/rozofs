@@ -25,6 +25,9 @@
 
 #include "file.h"
 
+// For compute the timestamp
+#define MICROLONG(time) ((uint64_t )time.tv_sec * 1000000 + time.tv_usec)
+
 /** Get one storage connection for a given sid and given random value
  *
  * @param *e: pointer to exportclt_t
@@ -154,10 +157,13 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
  * @param nb_blocks: number of blocks to read
  * @param *data: pointer where the data will be stored
  * @param *dist: pointer to distributions of different blocks to read
+ * @param *last_block_size_p: pointer to store the size of the last block size
+ *  read
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, dist_t * dist) {
+static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data,
+        dist_t * dist, uint16_t * last_block_size_p) {
     int status = -1, i, j;
     dist_t *dist_iterator = NULL;
     uint8_t proj_id = 0;
@@ -256,6 +262,15 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data, di
                     continue; // Try with the next projection
                 }
 
+                // If we read the last block, get the last_block_size
+                if ((i + nb_blocks_identical_dist) == nb_blocks) {
+                    // Get pointer on last projection header
+                    rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*) (b
+                            + ((rozofs_get_max_psize(rozofs_layout)+(sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t))) * (nb_blocks_identical_dist - 1)));
+                    // Get last_block_size
+                    *last_block_size_p = rozofs_bins_hdr_p->s.effective_length;
+                }
+
                 bins[nb_proj_recv] = b;
 
                 angles[nb_proj_recv].p = rozofs_get_angles_p(rozofs_layout, proj_id);
@@ -347,10 +362,13 @@ out:
  * @param *data: pointer where the data are be stored
  * @param off: offset to write from
  * @param len: length to write
+ * @param last_block_size: size of the last block to write
  *
  * @return: the length written on success, -1 otherwise (errno is set)
  */
-static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, const char *data, uint64_t off, uint32_t len) {
+static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks,
+        const char *data, uint64_t off, uint32_t len,
+        uint16_t last_block_size) {
     projection_t *projections; // Table of projections used to transform data
     bin_t **bins;
     dist_t dist = 0; // Important
@@ -390,6 +408,11 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, const cha
     // For each block to send
     for (i = 0; i < nb_blocks; i++) {
 
+        // Compute the timestamp
+        struct timeval timeDay;
+        gettimeofday(&timeDay, (struct timezone *) 0);
+        uint64_t ts = MICROLONG(timeDay);
+
         // seek bins for each projection
         for (proj_id = 0; proj_id < rozofs_forward; proj_id++) {
 
@@ -398,12 +421,19 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, const cha
 
             rozofs_stor_bins_hdr_t *rozofs_stor_bins_hdr_p = (rozofs_stor_bins_hdr_t*) projections[proj_id].bins;
 
-            // fill the header of the projection
+            // Fill the header of the projection
             rozofs_stor_bins_hdr_p->s.projection_id = proj_id;
-            // XXX TO DO: Change these values
-            rozofs_stor_bins_hdr_p->s.timestamp = 0;
-            rozofs_stor_bins_hdr_p->s.effective_length = 0;
+            rozofs_stor_bins_hdr_p->s.timestamp = ts;
+            // Set the effective size of the block.
+            // It is always ROZOFS_BSIZE except for the last block
+            if (i == (nb_blocks - 1)) {
+                rozofs_stor_bins_hdr_p->s.effective_length = last_block_size;
+            } else {
+                rozofs_stor_bins_hdr_p->s.effective_length = ROZOFS_BSIZE;
+            }
+            // XXX: TO CHANGE
             rozofs_stor_bins_hdr_p->s.version = 0;
+            rozofs_stor_bins_hdr_p->s.filler = 0;
 
             // update the pointer to point out the first bins
             projections[proj_id].bins += sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t);
@@ -512,10 +542,13 @@ out:
  * @param off: offset to read from
  * @param *buf: pointer where the data will be stored
  * @param len: length to read
+ * @param *last_block_size_p: pointer to store the size of the last block size
+ *  read
  *
  * @return: the length read on success, -1 otherwise (errno is set)
  */
-static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
+static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len,
+        uint16_t * last_block_size) {
     int64_t length = -1;
     uint64_t first = 0;
     uint16_t foffset = 0;
@@ -549,7 +582,7 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
         buff_p = xmalloc(((last - first) + 1) * ROZOFS_BSIZE * sizeof (char));
 
         // Read blocks
-        if (read_blocks(f, first, (last - first) + 1, buff_p, dist_p) != 0) {
+        if (read_blocks(f, first, (last - first) + 1, buff_p, dist_p, last_block_size) != 0) {
             length = -1;
             goto out;
         }
@@ -565,7 +598,7 @@ static int64_t read_buf(file_t * f, uint64_t off, char *buf, uint32_t len) {
         buff_p = buf;
 
         // Read blocks
-        if (read_blocks(f, first, (last - first) + 1, buff_p, dist_p) != 0) {
+        if (read_blocks(f, first, (last - first) + 1, buff_p, dist_p, last_block_size) != 0) {
             length = -1;
             goto out;
         }
@@ -598,6 +631,9 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
     int lread = 0;
     uint16_t foffset = 0;
     uint16_t loffset = 0;
+    uint16_t last_block_buffer_size = 0;
+    uint16_t last_block_size_to_write = 0;
+    uint16_t last_block_size_read = 0;
 
     // Get attr just for get size of file
     if (exportclt_getattr(f->export, f->attrs.fid, &f->attrs) != 0) {
@@ -623,6 +659,12 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
     if (last < (f->attrs.size / ROZOFS_BSIZE) && loffset != ROZOFS_BSIZE)
         lread = 1;
 
+    // Compute the size of the the last block of buffer to write
+    last_block_buffer_size = (((off + len) % ROZOFS_BSIZE) == 0 ? ROZOFS_BSIZE : ((off + len) % ROZOFS_BSIZE));
+    // By default the size of the last block to write is the size of last block
+    // of buffer
+    last_block_size_to_write = last_block_buffer_size;
+
     // If we must write only one block
     if (first == last) {
 
@@ -631,7 +673,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
             char block[ROZOFS_BSIZE];
             memset(block, 0, ROZOFS_BSIZE);
 
-            if (read_buf(f, first * ROZOFS_BSIZE, block, ROZOFS_BSIZE) == -1) {
+            if (read_buf(f, first * ROZOFS_BSIZE, block, ROZOFS_BSIZE, &last_block_size_read) == -1) {
                 length = -1;
                 goto out;
             }
@@ -639,15 +681,17 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
             // Copy data to be written in full block
             memcpy(&block[foffset], buf, len);
 
+            last_block_size_to_write = (last_block_buffer_size > last_block_size_read ? last_block_buffer_size : last_block_size_read);
+
             // Write the full block
-            if (write_blocks(f, first, 1, block, off, len) == -1) {
+            if (write_blocks(f, first, 1, block, off, len, last_block_size_to_write) == -1) {
                 length = -1;
                 goto out;
             }
         } else {
 
             // Write the full block
-            if (write_blocks(f, first, 1, buf, off, len) == -1) {
+            if (write_blocks(f, first, 1, buf, off, len, last_block_size_to_write) == -1) {
                 length = -1;
                 goto out;
             }
@@ -662,7 +706,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
 
             // Read the first block if necessary
             if (fread == 1) {
-                if (read_buf(f, first * ROZOFS_BSIZE, buff_p, ROZOFS_BSIZE) == -1) {
+                if (read_buf(f, first * ROZOFS_BSIZE, buff_p, ROZOFS_BSIZE, &last_block_size_read) == -1) {
                     length = -1;
                     goto out;
                 }
@@ -670,17 +714,18 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
 
             // Read the last block if necessary
             if (lread == 1) {
-                if (read_buf(f, last * ROZOFS_BSIZE, buff_p + ((last - first) * ROZOFS_BSIZE * sizeof (char)), ROZOFS_BSIZE) == -1) {
+                if (read_buf(f, last * ROZOFS_BSIZE, buff_p + ((last - first) * ROZOFS_BSIZE * sizeof (char)), ROZOFS_BSIZE, &last_block_size_read) == -1) {
                     length = -1;
                     goto out;
                 }
+                last_block_size_to_write = (last_block_buffer_size > last_block_size_read ? last_block_buffer_size : last_block_size_read);
             }
 
             // Copy data to be written into the buffer
             memcpy(buff_p + foffset, buf, len);
 
             // Write complete blocks
-            if (write_blocks(f, first, (last - first) + 1, buff_p, off, len) == -1) {
+            if (write_blocks(f, first, (last - first) + 1, buff_p, off, len, last_block_size_to_write) == -1) {
                 length = -1;
                 goto out;
             }
@@ -691,7 +736,7 @@ static int64_t write_buf(file_t * f, uint64_t off, const char *buf, uint32_t len
         } else {
             // No need for readjusting the buffer
             // Write complete blocks
-            if (write_blocks(f, first, (last - first) + 1, buf, off, len) == -1) {
+            if (write_blocks(f, first, (last - first) + 1, buf, off, len, last_block_size_to_write) == -1) {
                 length = -1;
                 goto out;
             }
@@ -814,12 +859,14 @@ out:
 int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
     int64_t len_rec = 0;
     int64_t length = 0;
+    uint16_t last_block_size = 0;
     DEBUG_FUNCTION;
 
     if ((off < f->buf_from) || (off >= (f->buf_from + f->buf_pos)) ||
             (len > (f->buf_from + f->buf_pos - off))) {
 
-        if ((len_rec = read_buf(f, off, f->buffer, f->export->bufsize)) <= 0) {
+        if ((len_rec = read_buf(f, off, f->buffer, f->export->bufsize,
+                &last_block_size)) <= 0) {
             length = len_rec;
             goto out;
         }
