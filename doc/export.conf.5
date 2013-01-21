@@ -1,108 +1,147 @@
 .\" Process this file with
 .\" groff -man -Tascii export.conf.5
 .\"
-.TH EXPORT.CONF 5 "DECEMBER 2012" Rozofs "User Manuals"
+.TH EXPORT.CONF 5 "JANUARY 2013" Rozofs "User Manuals"
 .SH NAME
 export.conf \- rozofs export daemon configuration file
 .SH DESCRIPTION
 .B export.conf
 is manage throw 
 .B libconfig
-<http://www.hyperrealm.com/libconfig/> and thus complies to the
+<http://www.hyperrealm.com/libconfig/>
+and thus complies to the
 .B libconfig
 grammar.
 
+
 .SS layout
-Transform layout used by rozofs. Data will be transform in 
-.B forward
-chunks, only 
-.B inverse 
-of them will be need to reconstruct, and they will be distributed over 
-.B safe
-storages.
-  
-Valid layouts are :
-   - 0 : inverse = 2, forward = 3, safe = 4
-   - 1 : inverse = 4, forward = 6, safe = 8
-   - 2 : inverse = 8, forward = 12, safe = 16
+    It's the transform layout used by rozofs. Each file data will be transform
+    in *forward* chunks, only *inverse* of them will be need to reconstruct
+    data (read data), and they will be distributed over *safe* storages.  
+
+       Valid layouts are :
+           - 0 (inverse = 2, forward = 3, safe = 4);
+           - 1 (inverse = 4, forward = 6, safe = 8);
+           - 2 (inverse = 8, forward = 12, safe = 16);
+
 
 .SS volumes
-A volume in Rozofs is made by a list of storages managed by a
-.B storaged
-deamon on dedicate hosts. A storage in this file is an sid (uint16_t)
-and an ip or dns name to reach the 
-.B storaged
-deamon.
-.B storaged
-can manage several storages.
-storages are grouped together in
-.B clusters
-each cluster should contain at least 
-.B safe
-storages of the same capacity. Use a new cluster when scaling with storage of different capacity.
+   It's a list of volume. Each volume is identified by its vid and may contain
+   a list of one or more clusters (cids). Each clusters is identified by its
+   cid and may contain at least a list of *safe* storages of the same 
+   capacity (sids).
 
-An 
-.B exportd
-daemon can manage several
-.B volumes
-, this way, volumes can rely on differents physical storages devices (let say SAS, SATA, NAS or even StAAS) 
+       vid: (volume identifier)
+               - must be an integer.
+               - must be unique for each volume managed by this exportd.
 
-.B warning
-modifying or removing sid of storage servers can (will) lead to DATA LOSS !
-Adding storages is of course mandatory.
+       cid: (cluster identifier)
+               - must be an integer.
+               - must be unique for each cluster managed by this exportd.
 
-volumes =
+       sid: (storage identifier)
+               - must be an integer (between 1 and 255).
+               - must be unique within a cluster.
+
+       host: (IP or hostname of the physical node that contains the storage)
+               - must be a valid IPv4 address or a valid hostname.
+
+.B  WARNING:
+   - Use a new cluster when scaling with storage of different capacity.
+   - Modifying or removing sid of storage can (will) lead to DATA LOSS !!!
+   - Modifying or removing cid can (will) lead to DATA LOSS !!!
+
+.SS exports
+   It's the list of rozo file system exported by the exportd daemon. Each
+   exported file system is identified by its eid. root is the directory path
+   where the metadata for this file system are stored. md5 is a 22 characters
+   md5 crypt of the password required to mount the exported filesystem.
+   squota is the number of data blocks that can be stored on a file system
+   before being notified. hquota is the number maximum of data blocks that can
+   be stored on a file system. vid is the volume where the file data for this
+   exported filesystem will be stored.
+
+       eid: (export identifier)
+               - must be an integer.
+               - must be unique for each exported filesystem managed by this
+                 exportd.
+
+       root: (directory path where metadata for this filesystem will be stored)
+               - must be an existing directory.
+               - must be unique for each filesystem managed by this exportd.
+
+       md5: (22 characters md5 crypt of the password)
+               - it could be generated with: md5 utility (see md5pass (1))
+                 the salt used should be: rozofs. Only the last 22 characters
+                 should be used (omitting newline).
+
+                 Example: 
+                           for password "mypass":
+                           md5 is: md5pass mypass rozofs | cut -c 11-
+                           that is: AyBvjVmNoKAkLQwNa2c4b0
+
+               - For no authentification use empty md5.
+
+       squota: (soft quota)
+               - squota stands for soft quota which are non blocking quotas
+                 i.e write operations will succeeded but exceeded quotas will
+                 be notified in /var/run/exportd/export_[eid] monitoring file.
+               - for no soft quota use empty squota.
+
+       hquota: (hard quota)
+               - hquota stands for blocking quotas which are blocking quotas
+                 i.e every attempt to write beyond hquota will fail (EDQUOT).
+               - for no hard quota use empty hquota.
+
+       for squota and hquota:
+               - quotas are express in nb. of blocks (no suffix), Kilo, Mega or
+                 Giga Bytes accordind to suffix K, M or G. Only the first 
+                 letter of  suffix is used that is: 128G is equivalent to
+                 128Giga wich in turn can be 128GigaBytes etc...
+               - warning: any other suffix leads to quota express in blocks.
+
+       vid: (volume identifier used to store file data for this filesystem)
+               - must be an integer.
+               - should exist in volume list.
+               - several filesystem can use the same volume.
+
+.SH EXAMPLE
+.PP
+.nf
+.ta +3i
+
+# sample /etc/rozofs/export.conf file
+
+layout = 0;
+
+volumes =  # List of volumes
 (
     {
         # First volume
-        vid = 1;
-        cids= 
+        vid = 1; # Volume identifier = 1
+        cids=    # List of clusters for the volume 1
         (
             {
-                # First cluster
-                cid = 1;
-                sids =
+                # First cluster of volume 1
+                cid = 1; # Cluster identifier = 1
+                sids =   # List of storages for the cluster 1
                 (
-                    {sid = 01; host = "host1";},
-                    {sid = 02; host = "host2";},
-                    {sid = 03; host = "host3";},
-                    {sid = 04; host = "host4";},
-                    {sid = 05; host = "host5";},
-                    {sid = 06; host = "host6";},
-                    {sid = 07; host = "host7";},
-                    {sid = 08; host = "host8";},
-                    {sid = 09; host = "host9";},
-                    {sid = 10; host = "host10";},
-                    {sid = 11; host = "host11";},
-                    {sid = 12; host = "host12";},
-                    {sid = 13; host = "host13";},
-                    {sid = 14; host = "host14";},
-                    {sid = 15; host = "host15";},
-                    {sid = 16; host = "host16";}
+                    {sid = 01; host = "storage-node-1-1";},
+                    {sid = 02; host = "storage-node-1-2";},
+                    {sid = 03; host = "storage-node-1-3";},
+                    {sid = 04; host = "storage-node-1-4";}
                     # ...
                 );
             },
             {
-                # Second cluster
-                cid = 2;
-                sids =
+                 # Second cluster of volume 1
+                cid = 2; # Cluster identifier = 2
+                sids =   # List of storages for the cluster 2
                 (
-                    {sid = 17; host = "host17";},
-                    {sid = 18; host = "host18";},
-                    {sid = 19; host = "host19";},
-                    {sid = 20; host = "host20";},
-                    {sid = 21; host = "host21";},
-                    {sid = 22; host = "host22";},
-                    {sid = 23; host = "host23";},
-                    {sid = 24; host = "host24";},
-                    {sid = 25; host = "host25";},
-                    {sid = 26; host = "host26";},
-                    {sid = 27; host = "host27";},
-                    {sid = 28; host = "host28";},
-                    {sid = 29; host = "host29";},
-                    {sid = 30; host = "host30";},
-                    {sid = 31; host = "host31";},
-                    {sid = 32; host = "host32";}
+                    {sid = 01; host = "storage-node-2-1";},
+                    {sid = 02; host = "storage-node-2-2";},
+                    {sid = 03; host = "storage-node-2-3";},
+                    {sid = 04; host = "storage-node-2-4";}
                     # ...
                 );
             }
@@ -110,29 +149,18 @@ volumes =
     },
     {
         # Second volume
-        vid = 2;
-        cids = 
+        vid = 2; # Volume identifier = 2
+        cids =   # List of clusters for the volume 2
         (
             {
-                cid = 3;
-                sids =
+                # First cluster of volume 2
+                cid = 3; # Cluster identifier = 3
+                sids =   # List of storages for the cluster 3
                 (
-                    {sid = 32; host = "host32";},
-                    {sid = 33; host = "host33";},
-                    {sid = 34; host = "host34";},
-                    {sid = 35; host = "host35";},
-                    {sid = 36; host = "host36";},
-                    {sid = 37; host = "host37";},
-                    {sid = 38; host = "host38";},
-                    {sid = 39; host = "host39";},
-                    {sid = 40; host = "host40";},
-                    {sid = 41; host = "host41";},
-                    {sid = 42; host = "host42";},
-                    {sid = 43; host = "host43";},
-                    {sid = 44; host = "host44";},
-                    {sid = 45; host = "host45";},
-                    {sid = 46; host = "host46";},
-                    {sid = 47; host = "host47";}
+                    {sid = 01; host = "storage-node-3-1";},
+                    {sid = 02; host = "storage-node-3-2";},
+                    {sid = 03; host = "storage-node-3-3";},
+                    {sid = 04; host = "storage-node-3-4";}
                     # ...
                 );
             }
@@ -141,32 +169,16 @@ volumes =
 )
 ;
 
-.SS exports
-exports are directory exported by 
-.B exportd
-daemon as virtual filesystems for clients. A volume can be used by several exports.
+exports = ( # List of exported filesystem
 
-.B md5 
-is a 22 characters md5 crypt of the password.
-It could be generated with: md5pass utility 
-.BR md5pass (1)
-the salt used should be: rozofs. Only the last 22 characters should be used (omitting newline).For no authentification use empty md5. For example, for password "mypass", md5 is given by: md5pass mypass rozofs | cut -c 11-, that is: AyBvjVmNoKAkLQwNa2c4b0
+    # First filesystem exported
+    {eid = 1; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0";
+                                    squota="128G"; hquota="256G"; vid=1;},
 
-.B quota 
-are express in nb blocks (no suffix), Kilo, Mega or Giga Bytes 
-accordind to suffix K, M or G. Only the first letter of suffix is used that is:
-128G is equivalent to 128Giga wich in turn can be 128GigaBytes etc... For no quota use empty quota.
-Warning: any other suffix leads to quota express in blocks.
-.B squota 
-stands for soft quota, which are non blocking quotas i.e write
-operations will succeed but exceeded quotas will be notified in 
-.I /var/run/exportd/export_[eid] monitoring file 
-.B hquota 
-are blocking quotas i.e every attempt to write beyond hquota will fail (EDQUOT)
-
-exports = (
-    {eid = 1; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0"; squota="128G"; hquota="256G"; vid=1;},
-    {eid = 2; root = "/path/to/bar"; md5=""; squota=""; hquota = ""; vid=2;}
+    # Second filesystem exported
+    {eid = 2; root = "/path/to/bar"; md5="";
+                            squota=""; hquota = ""; vid=2;}
+    # ...
 );
 
 .SH FILES

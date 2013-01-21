@@ -75,7 +75,7 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
 
             stor_idx = 0;
             ret.ep_mount_ret_t_u.export.storage_nodes_nb = 0;
-            memset(ret.ep_mount_ret_t_u.export.storage_nodes, 0, sizeof (ep_storage_node_t) * ROZOFS_STORAGES_MAX);
+            memset(ret.ep_mount_ret_t_u.export.storage_nodes, 0, sizeof (ep_storage_node_t) * STORAGE_NODES_MAX);
 
             /* For each cluster */
             list_for_each_forward(q, &vc->clusters) {
@@ -97,6 +97,7 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
                              *  but we add this SID*/
                             uint8_t sids_nb = ret.ep_mount_ret_t_u.export.storage_nodes[i].sids_nb;
                             ret.ep_mount_ret_t_u.export.storage_nodes[i].sids[sids_nb] = s->sid;
+                            ret.ep_mount_ret_t_u.export.storage_nodes[i].cids[sids_nb] = cc->cid;
                             ret.ep_mount_ret_t_u.export.storage_nodes[i].sids_nb++;
                             exist = 1;
                             break;
@@ -110,6 +111,7 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
                         strcpy(ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].host, s->host);
                         /* Add this sid */
                         ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].sids[0] = s->sid;
+                        ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].cids[0] = cc->cid;
                         ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].sids_nb++;
 
                         /* Increments the nb. of physical storage nodes */
@@ -543,6 +545,7 @@ out:
     return &ret;
 }
  */
+
 /*
 ep_status_ret_t *ep_close_1_svc(ep_mfile_arg_t * arg, struct svc_req * req) {
     static ep_status_ret_t ret;
@@ -571,7 +574,7 @@ ep_status_ret_t *ep_setxattr_1_svc(ep_setxattr_arg_t * arg, struct svc_req * req
     static ep_status_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
-    
+
     START_PROFILING(ep_setxattr);
 
     if (!(exp = exports_lookup_export(arg->eid)))
@@ -596,7 +599,7 @@ ep_getxattr_ret_t *ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * r
     export_t *exp;
     ssize_t size = -1;
     DEBUG_FUNCTION;
-    
+
     START_PROFILING(ep_getxattr);
 
     if (!(exp = exports_lookup_export(arg->eid)))
@@ -628,7 +631,7 @@ ep_status_ret_t *ep_removexattr_1_svc(ep_removexattr_arg_t * arg, struct svc_req
     DEBUG_FUNCTION;
 
     START_PROFILING(ep_removexattr);
-    
+
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
 
@@ -651,12 +654,12 @@ ep_listxattr_ret_t *ep_listxattr_1_svc(ep_listxattr_arg_t * arg, struct svc_req 
     export_t *exp;
     ssize_t size = -1;
     DEBUG_FUNCTION;
-    
+
     START_PROFILING(ep_listxattr);
 
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
-    
+
     if ((size = export_listxattr(exp, arg->fid, ret.ep_listxattr_ret_t_u.ret.list, arg->size)) == -1) {
         goto error;
     }

@@ -93,6 +93,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         strcpy(mstor->host, stor_node.host);
         mstor->sids_nb = stor_node.sids_nb;
         memcpy(mstor->sids, stor_node.sids, sizeof (sid_t) * stor_node.sids_nb);
+        memcpy(mstor->cids, stor_node.cids, sizeof (cid_t) * stor_node.sids_nb);
 
         /* Add to the list */
         list_push_back(&clt->storages, &mstor->list);
@@ -100,13 +101,13 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
 
     /* Initialize rozofs */
     rozofs_layout_initialize();
-    
-/*
-    if (rozofs_initialize(clt->layout) != 0) {
-        fatal("can't initialise rozofs %s", strerror(errno));
-        goto out;
-    }
-*/
+
+    /*
+        if (rozofs_initialize(clt->layout) != 0) {
+            fatal("can't initialise rozofs %s", strerror(errno));
+            goto out;
+        }
+     */
 
     status = 0;
 out:
@@ -1161,10 +1162,10 @@ int exportclt_listxattr(exportclt_t * clt, fid_t fid, char * list,
 
     if (ret->ep_listxattr_ret_t_u.ret.size != 0)
         memcpy(list, ret->ep_listxattr_ret_t_u.ret.list,
-                ret->ep_listxattr_ret_t_u.ret.size);
-        
+            ret->ep_listxattr_ret_t_u.ret.size);
+
     *list_size = ret->ep_listxattr_ret_t_u.ret.size;
-    
+
     status = 0;
 out:
     if (ret)

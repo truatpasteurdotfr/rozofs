@@ -61,6 +61,7 @@
  */
 typedef struct rmfentry {
     fid_t fid; ///<  unique file id.
+    cid_t cid; /// unique cluster id where the file is stored.
     sid_t initial_dist_set[ROZOFS_SAFE_MAX];
     ///< initial sids of storage nodes target for this file.
     sid_t current_dist_set[ROZOFS_SAFE_MAX];
@@ -404,6 +405,7 @@ static int export_load_rmfentry(export_t * e) {
 
         rmfe = xmalloc(sizeof (rmfentry_t));
         memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
+        rmfe->cid = attrs.cid;
         memcpy(rmfe->initial_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
         memcpy(rmfe->current_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
 
@@ -1078,6 +1080,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
             // Preparation of the rmfentry
             rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
             memcpy(rmfe->fid, lv2->attributes.fid, sizeof (fid_t));
+            rmfe->cid = lv2->attributes.cid;
             memcpy(rmfe->initial_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
             memcpy(rmfe->current_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
             list_init(&rmfe->list);
@@ -1152,6 +1155,7 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
             mclient_t * sclt = (mclient_t *) xmalloc(sizeof (mclient_t));
 
             strcpy(sclt->host, vs->host);
+            sclt->cid = cluster->cid;
             sclt->sid = vs->sid;
 
             if (mclient_initialize(sclt) != 0) {
@@ -1160,7 +1164,7 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
             cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
             cnx_entry->cnx = sclt;
-            
+
             // Add to the list
             list_push_back(list, &cnx_entry->list);
 
@@ -1177,7 +1181,7 @@ out:
     return status;
 }
 
-static mclient_t * lookup_cnx(list_t *list, sid_t sid) {
+static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
 
     list_t *p;
     DEBUG_FUNCTION;
@@ -1185,13 +1189,14 @@ static mclient_t * lookup_cnx(list_t *list, sid_t sid) {
     list_for_each_forward(p, list) {
         cnxentry_t *cnx_entry = list_entry(p, cnxentry_t, list);
 
-        if (sid == cnx_entry->cnx->sid) {
+        if ((sid == cnx_entry->cnx->sid) && (cid == cnx_entry->cnx->cid)) {
             return cnx_entry->cnx;
             break;
         }
     }
 
-    severe("lookup_cnx failed : storage connexion (sid: %u) not found", sid);
+    severe("lookup_cnx failed : storage connexion (cid:%u ; sid: %u) not found",
+            cid, sid);
 
     errno = EINVAL;
 
@@ -1271,7 +1276,8 @@ int export_rm_bins(export_t * e) {
                 continue; // Go to the next storage
             }
 
-            if ((stor = lookup_cnx(&connexions, entry->current_dist_set[i])) == NULL) {
+            if ((stor = lookup_cnx(&connexions, entry->cid,
+                    entry->current_dist_set[i])) == NULL) {
                 // lookup_cnx failed !!! 
                 continue; // Go to the next storage
             }
@@ -1284,10 +1290,11 @@ int export_rm_bins(export_t * e) {
 
             if (mclient_remove(stor, e->layout, entry->initial_dist_set, entry->fid) != 0) {
                 // Problem with request
-                warning("mclient_remove failed: (sid: %u) %s", stor->sid, strerror(errno));
+                warning("mclient_remove failed: (cid: %u; sid: %u) %s",
+                        stor->cid, stor->sid, strerror(errno));
                 continue; // Go to the next storage
             }
-            
+
             // The bins file has been deleted successfully
             entry->current_dist_set[i] = 0;
             rm_bins_file_nb++;

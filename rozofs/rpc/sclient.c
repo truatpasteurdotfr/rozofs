@@ -57,7 +57,7 @@ void sclient_release(sclient_t * clt) {
         rpcclt_release(&clt->rpcclt);
 }
 
-int sclient_write(sclient_t * clt, sid_t sid, uint8_t layout, uint8_t spare,
+int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, tid_t proj_id, bid_t bid,
         uint32_t nb_proj, const bin_t * bins) {
     int status = -1;
@@ -67,6 +67,7 @@ int sclient_write(sclient_t * clt, sid_t sid, uint8_t layout, uint8_t spare,
     DEBUG_FUNCTION;
 
     // Fill request
+    args.cid = cid;
     args.sid = sid;
     args.layout = layout;
     args.spare = spare;
@@ -100,7 +101,7 @@ out:
     return status;
 }
 
-int sclient_read(sclient_t * clt, sid_t sid, uint8_t layout, uint8_t spare,
+int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, tid_t proj_id, bid_t bid,
         uint32_t nb_proj, bin_t * bins) {
     int status = -1;
@@ -110,6 +111,7 @@ int sclient_read(sclient_t * clt, sid_t sid, uint8_t layout, uint8_t spare,
     DEBUG_FUNCTION;
 
     // Fill request
+    args.cid = cid;
     args.sid = sid;
     args.layout = layout;
     args.spare = spare;
@@ -148,7 +150,7 @@ out:
 
 // XXX Never used yet
 
-int storageclt_truncate(sclient_t * clt, sid_t sid, uint8_t layout,
+int storageclt_truncate(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
         uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
         tid_t proj_id, bid_t bid) {
     int status = -1;
@@ -158,6 +160,7 @@ int storageclt_truncate(sclient_t * clt, sid_t sid, uint8_t layout,
     DEBUG_FUNCTION;
 
     // Fill request
+    args.cid = cid;
     args.sid = sid;
     args.layout = layout;
     args.spare = spare;

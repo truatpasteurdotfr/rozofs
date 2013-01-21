@@ -78,7 +78,7 @@ build ()
 }
 
 # $1 -> LAYOUT
-# $2 -> storages by node
+# $2 -> storages by cluster
 gen_storage_conf ()
 {
     ROZOFS_LAYOUT=$1
@@ -97,19 +97,30 @@ gen_storage_conf ()
     fi
 
     touch $FILE
-    echo ${NAME_LABEL} >> $FILE
-    echo ${DATE_LABEL} >> $FILE
-    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "#${NAME_LABEL}" >> $FILE
+    echo "#${DATE_LABEL}" >> $FILE
+    echo "ports = [ 40000, 40001, 40002, 40003 ] ;" >> $FILE
     echo 'storages = (' >> $FILE
-    let nb_storages=$((${STORAGES_BY_CLUSTER}*${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
-    for j in $(seq ${nb_storages}); do
-        if [[ ${j} == ${nb_storages} ]]
-        then
-            echo "  {sid = $j; root =\"${STORAGES_ROOT}_$j\";}" >> $FILE
-        else
-            echo "  {sid = $j; root =\"${STORAGES_ROOT}_$j\";}," >> $FILE
-        fi
-    done;
+
+    let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+
+
+	for i in $(seq ${nb_clusters}); do
+
+		for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+		    if [[ ${i} == ${nb_clusters} && ${j} == ${STORAGES_BY_CLUSTER} ]]
+		    then
+		        echo "  {cid = $i; sid = $j; root =\"${STORAGES_ROOT}_$i-$j\";}" >> $FILE
+		    else
+		        echo "  {cid = $i; sid = $j; root =\"${STORAGES_ROOT}_$i-$j\";}," >> $FILE
+		    fi
+
+		done;
+
+	done;
+
+
     echo ');' >> $FILE
 }
 
@@ -135,11 +146,11 @@ gen_export_conf ()
     fi
 
     touch $FILE
-    echo ${NAME_LABEL} >> $FILE
-    echo ${DATE_LABEL} >> $FILE
+    echo "#${NAME_LABEL}" >> $FILE
+    echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo 'volumes =' >> $FILE
-    echo '    (' >> $FILE
+    echo '      (' >> $FILE
 
         for v in $(seq ${NB_VOLUMES}); do
             echo '        {' >> $FILE
@@ -157,12 +168,11 @@ gen_export_conf ()
                     let idx=${k}-1;
                      idx_tmp_1=$(((${v}-1)*${NB_CLUSTERS_BY_VOLUME}*${STORAGES_BY_CLUSTER}))
                      idx_tmp_2=$((${STORAGES_BY_CLUSTER}*(${c}-1)))
-                     idx_storage=$((${idx_tmp_1}+${idx_tmp_2}+${k}))
                     if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
                     then
-                        echo "                           {sid = ${idx_storage}; host = \"${STORAGE_NAME_BASE}\";}" >> $FILE
+                        echo "                           {sid = ${k}; host = \"${STORAGE_NAME_BASE}\";}" >> $FILE
                     else
-                        echo "                           {sid = ${idx_storage}; host = \"${STORAGE_NAME_BASE}\";}," >> $FILE
+                        echo "                           {sid = ${k}; host = \"${STORAGE_NAME_BASE}\";}," >> $FILE
                     fi
                 done;
                 echo '                       );' >> $FILE
@@ -204,7 +214,7 @@ start_storaged ()
     if [ "$PID" == "" ]
     then
         echo "Start ${STORAGE_DAEMON}"
-    ${DAEMONS_LOCAL_DIR}${STORAGE_DAEMON} -c ${LOCAL_CONF}${STORAGE_CONF_FILE}
+    ${DAEMONS_LOCAL_DIR}storaged/${STORAGE_DAEMON} -c ${LOCAL_CONF}${STORAGE_CONF_FILE}
     else
         echo "Unable to start ${STORAGE_DAEMON} (already running as PID: ${PID})"
         exit 0;
@@ -240,18 +250,24 @@ create_storages ()
     then
         echo "Unable to remove storage directories (configuration file doesn't exist)"
     else
-        STORAGES_BY_CLUSTER=`grep sid ${LOCAL_CONF}${STORAGE_CONF_FILE} | wc -l`
 
-        for j in $(seq ${STORAGES_BY_CLUSTER}); do
+    	let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
-            if [ -e "${STORAGES_ROOT}_${j}" ]
-            then
-                rm -rf ${STORAGES_ROOT}_${j}/*.bins
-            else
-                mkdir -p ${STORAGES_ROOT}_${j}
-            fi
+		for i in $(seq ${nb_clusters}); do
 
-        done;
+			for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+		        if [ -e "${STORAGES_ROOT}_${i}-${j}" ]
+		        then
+		            rm -rf ${STORAGES_ROOT}_${i}-${j}/*.bins
+		        else
+		            mkdir -p ${STORAGES_ROOT}_${i}-${j}
+		        fi
+
+			done;
+
+		done;
+
     fi
 }
 
@@ -262,16 +278,22 @@ remove_storages ()
     then
         echo "Unable to remove storage directories (configuration file doesn't exist)"
     else
-        STORAGES_BY_CLUSTER=`grep sid ${LOCAL_CONF}${STORAGE_CONF_FILE} | wc -l`
 
-        for j in $(seq ${STORAGES_BY_CLUSTER}); do
+		let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
-            if [ -e "${STORAGES_ROOT}_${j}" ]
-            then
-                rm -rf ${STORAGES_ROOT}_${j}
-            fi
+		for i in $(seq ${nb_clusters}); do
 
-        done;
+			for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+		        if [ -e "${STORAGES_ROOT}_${i}-${j}" ]
+		        then
+		            rm -rf ${STORAGES_ROOT}_${i}-${j}
+		        fi
+
+			done;
+
+		done;
+
     fi
 }
 
@@ -310,7 +332,7 @@ deploy_clients_local ()
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
 
-                ${DAEMONS_LOCAL_DIR}${ROZOFS_CLIENT} -H ${EXPORT_NAME_BASE} -E ${EXPORTS_ROOT}_${j} -o exportpasswd=${PASSWORD} ${LOCAL_MNT_ROOT}${j}
+                ${DAEMONS_LOCAL_DIR}rozofsmount/${ROZOFS_CLIENT} -H ${EXPORT_NAME_BASE} -E ${EXPORTS_ROOT}_${j} -o exportpasswd=${PASSWORD} ${LOCAL_MNT_ROOT}${j}
             else
                 echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j} already mounted)"
             fi
@@ -342,7 +364,7 @@ start_exportd ()
     if [ "$PID" == "" ]
     then
         echo "Start ${EXPORT_DAEMON}"
-        ${DAEMONS_LOCAL_DIR}${EXPORT_DAEMON} -c ${LOCAL_CONF}${EXPORT_CONF_FILE}
+        ${DAEMONS_LOCAL_DIR}exportd/${EXPORT_DAEMON} -c ${LOCAL_CONF}${EXPORT_CONF_FILE}
     else
         echo "Unable to start ${EXPORT_DAEMON} (already running as PID: ${PID})"
         exit 0;
@@ -532,7 +554,7 @@ run_fs_test ()
 {
         NB_EXPORTS=2
         NB_VOLUMES=2;
-        NB_CLUSTERS_BY_VOLUME=2;
+        NB_CLUSTERS_BY_VOLUME=1;
 
         gen_storage_conf 0 4
         gen_export_conf 0 4 ${MD5_GENERATED}
@@ -546,6 +568,7 @@ run_fs_test ()
         create_exports
         start_storaged
         start_exportd
+        sleep 1
         deploy_clients_local
         fs_test_1
         fs_test_2
@@ -560,6 +583,7 @@ run_fs_test ()
         create_exports
         start_storaged
         start_exportd
+        sleep 1
         deploy_clients_local
         fs_test_1
         fs_test_2
@@ -574,6 +598,7 @@ run_fs_test ()
         create_exports
         start_storaged
         start_exportd
+        sleep 1
         deploy_clients_local
         fs_test_1
         fs_test_2
@@ -639,7 +664,7 @@ run_reload_test ()
 
         fs_test_1
 
-        sleep 1
+        sleep 3
 
         undeploy_clients_local
 
@@ -681,9 +706,9 @@ main ()
         check_build
         check_no_run
 
-        NB_EXPORTS=2
-        NB_VOLUMES=2;
-        NB_CLUSTERS_BY_VOLUME=2;
+        NB_EXPORTS=1
+        NB_VOLUMES=1;
+        NB_CLUSTERS_BY_VOLUME=1;
 
         gen_storage_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}

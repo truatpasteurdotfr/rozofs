@@ -42,7 +42,8 @@
 
 /** Directory used to store bins files for a specific storage ID*/
 typedef struct storage {
-    sid_t sid; ///< unique id of this storage.
+    sid_t sid; ///< unique id of this storage for one cluster
+    cid_t cid; //< unique id of cluster that owns this storage
     char root[FILENAME_MAX]; ///< absolute path.
 } storage_t;
 
@@ -74,12 +75,13 @@ typedef struct rozofs_stor_bins_file_hdr {
 /** Initialize a storage
  *
  * @param st: the storage to be initialized.
+ * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for this storage.
  * @param root: the absolute path.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_initialize(storage_t *st, sid_t sid, const char *root);
+int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root);
 
 /** Release a storage
  *

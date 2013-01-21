@@ -3,9 +3,8 @@
  * It was generated using rpcgen.
  */
 
-#include <rozofs/rozofs.h>
-
 #include "eproto.h"
+#include <rozofs/rozofs.h>
 
 bool_t
 xdr_ep_uuid_t (XDR *xdrs, ep_uuid_t objp)
@@ -139,8 +138,11 @@ xdr_ep_storage_node_t (XDR *xdrs, ep_storage_node_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sids_nb))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->sids, STORAGE_NODE_SIDS_MAX,
+	 if (!xdr_vector (xdrs, (char *)objp->sids, STORAGES_MAX_BY_STORAGE_NODE,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->cids, STORAGES_MAX_BY_STORAGE_NODE,
+		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
 		 return FALSE;
 	return TRUE;
 }

@@ -3,9 +3,8 @@
  * It was generated using rpcgen.
  */
 
-#include <rozofs/rozofs.h>
-
 #include "sproto.h"
+#include <rozofs/rozofs.h>
 
 bool_t
 xdr_sp_uuid_t (XDR *xdrs, sp_uuid_t objp)
@@ -52,11 +51,11 @@ xdr_sp_write_arg_t (XDR *xdrs, sp_write_arg_t *objp)
 	//register int32_t *buf;
 
 	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
-		 return FALSE;
-	 if (!xdr_uint16_t (xdrs, &objp->effective_len))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
@@ -82,6 +81,8 @@ xdr_sp_read_arg_t (XDR *xdrs, sp_read_arg_t *objp)
 	//register int32_t *buf;
 
 	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
@@ -108,6 +109,8 @@ xdr_sp_truncate_arg_t (XDR *xdrs, sp_truncate_arg_t *objp)
 	//register int32_t *buf;
 
 	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))

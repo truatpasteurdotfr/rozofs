@@ -50,8 +50,8 @@ sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
 
     ret.status = SP_FAILURE;
 
-    // Get the root path for this SID
-    if ((st = storaged_lookup(args->sid)) == 0) {
+    // Get the storage for the couple (cid;sid)
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }
@@ -85,8 +85,8 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
 
     ret.status = SP_FAILURE;
 
-    // Get the root path for this SID
-    if ((st = storaged_lookup(args->sid)) == 0) {
+    // Get the storage for the couple (cid;sid)
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }
@@ -102,7 +102,7 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     if (storage_read(st, args->layout, args->dist_set, args->spare, args->fid,
             args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.bins.bins_val,
-            (size_t *) &ret.sp_read_ret_t_u.bins.bins_len) != 0) {
+            (size_t *) & ret.sp_read_ret_t_u.bins.bins_len) != 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }
@@ -122,8 +122,8 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
 
     ret.status = SP_FAILURE;
 
-    // Get the root path for this SID
-    if ((st = storaged_lookup(args->sid)) == 0) {
+    // Get the storage for the couple (cid;sid)
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }

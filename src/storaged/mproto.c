@@ -41,7 +41,8 @@ mp_status_ret_t *mp_remove_1_svc(mp_remove_arg_t * args, struct svc_req * req) {
     DEBUG_FUNCTION;
 
     ret.status = MP_FAILURE;
-    if ((st = storaged_lookup(args->sid)) == 0) {
+
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
         ret.mp_status_ret_t_u.error = errno;
         goto out;
     }
@@ -55,7 +56,7 @@ out:
     return &ret;
 }
 
-mp_stat_ret_t *mp_stat_1_svc(sid_t * sid, struct svc_req * req) {
+mp_stat_ret_t *mp_stat_1_svc(mp_stat_arg_t * args, struct svc_req * req) {
     static mp_stat_ret_t ret;
     storage_t *st = 0;
     sstat_t sstat;
@@ -64,7 +65,7 @@ mp_stat_ret_t *mp_stat_1_svc(sid_t * sid, struct svc_req * req) {
     START_PROFILING(stat);
 
     ret.status = MP_FAILURE;
-    if ((st = storaged_lookup(*sid)) == 0) {
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
         ret.mp_stat_ret_t_u.error = errno;
         goto out;
     }

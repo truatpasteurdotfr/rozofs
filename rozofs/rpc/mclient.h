@@ -28,6 +28,7 @@
 
 typedef struct mclient {
     char host[ROZOFS_HOSTNAME_MAX];
+    cid_t cid;
     sid_t sid;
     int status;
     rpcclt_t rpcclt;

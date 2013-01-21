@@ -3,9 +3,8 @@
  * It was generated using rpcgen.
  */
 
-#include <rozofs/rozofs.h>
-
 #include "mproto.h"
+#include <rozofs/rozofs.h>
 
 bool_t
 xdr_mp_uuid_t (XDR *xdrs, mp_uuid_t objp)
@@ -52,6 +51,8 @@ xdr_mp_remove_arg_t (XDR *xdrs, mp_remove_arg_t *objp)
 	//register int32_t *buf;
 
 	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
@@ -60,6 +61,18 @@ xdr_mp_remove_arg_t (XDR *xdrs, mp_remove_arg_t *objp)
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
 	 if (!xdr_mp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_mp_stat_arg_t (XDR *xdrs, mp_stat_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	return TRUE;
 }

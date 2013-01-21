@@ -17,7 +17,7 @@
   <http://www.gnu.org/licenses/>.
 */
 
-%#include "rozofs.h"
+%#include <rozofs/rozofs.h>
 
 typedef unsigned char mp_uuid_t[ROZOFS_UUID_SIZE];
 
@@ -32,10 +32,16 @@ union mp_status_ret_t switch (mp_status_t status) {
 };
 
 struct mp_remove_arg_t {
+    uint16_t    cid;
     uint8_t     sid;
     uint8_t     layout;
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
     mp_uuid_t   fid;
+};
+
+struct mp_stat_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
 };
 
 struct mp_sstat_t {
@@ -61,7 +67,7 @@ program MONITOR_PROGRAM {
         MP_NULL(void)                   = 0;
 
         mp_stat_ret_t
-        MP_STAT(uint8_t)                = 1;
+        MP_STAT(mp_stat_arg_t)          = 1;
 
         mp_status_ret_t
         MP_REMOVE(mp_remove_arg_t)      = 2;

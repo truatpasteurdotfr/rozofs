@@ -31,7 +31,8 @@
 typedef struct mstorage {
     char host[ROZOFS_HOSTNAME_MAX];
     sclient_t sclients[STORAGE_NODE_PORTS_MAX];
-    sid_t sids[STORAGE_NODE_SIDS_MAX];
+    sid_t sids[STORAGES_MAX_BY_STORAGE_NODE];
+    cid_t cids[STORAGES_MAX_BY_STORAGE_NODE];
     uint8_t sclients_nb;
     sid_t sids_nb;
     list_t list;

@@ -58,7 +58,9 @@ static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
 static sconfig_t storaged_config;
 
-static storage_t storaged_storages[ROZOFS_STORAGES_MAX] = {{0}};
+static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
+    {0}
+};
 
 static uint16_t storaged_nrstorages = 0;
 
@@ -107,9 +109,9 @@ static int storaged_initialize() {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
-                sc->sid, sc->root) != 0) {
-            severe("can't initialize storage (sid:%d) with path %s",
-                    sc->sid, sc->root);
+                sc->cid, sc->sid, sc->root) != 0) {
+            severe("can't initialize storage (cid:%d : sid:%d) with path %s",
+                    sc->cid, sc->sid, sc->root);
             goto out;
         }
     }
@@ -129,13 +131,13 @@ static void storaged_release() {
     storaged_nrstorages = 0;
 }
 
-storage_t *storaged_lookup(sid_t sid) {
+storage_t *storaged_lookup(cid_t cid, sid_t sid) {
     storage_t *st = 0;
     DEBUG_FUNCTION;
 
     st = storaged_storages;
     do {
-        if (st->sid == sid)
+        if ((st->cid == cid) && (st->sid == sid))
             goto out;
     } while (st++ != storaged_storages + storaged_nrstorages);
     errno = EINVAL;
@@ -356,20 +358,19 @@ int main(int argc, char *argv[]) {
     }
     /* Initialize the list of storage config */
     if (sconfig_initialize(&storaged_config) != 0) {
-        fprintf(stderr, "can't initialize storaged config: %s.\n",
+        fprintf(stderr, "Can't initialize storaged config: %s.\n",
                 strerror(errno));
         goto error;
     }
-
     /* Read the configuration file */
     if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
-        fprintf(stderr, "failed to parse configuration file: %s.\n",
+        fprintf(stderr, "Failed to parse storage configuration file: %s.\n",
                 strerror(errno));
         goto error;
     }
     /* Check the configuration */
     if (sconfig_validate(&storaged_config) != 0) {
-        fprintf(stderr, "inconsistent configuration file: %s.\n",
+        fprintf(stderr, "Inconsistent storage configuration file: %s.\n",
                 strerror(errno));
         goto error;
     }
@@ -378,6 +379,6 @@ int main(int argc, char *argv[]) {
     daemon_start(STORAGED_PID_FILE, on_start, on_stop, NULL);
     exit(0);
 error:
-    fprintf(stderr, "see log for more details.\n");
+    fprintf(stderr, "See logs for more details.\n");
     exit(EXIT_FAILURE);
 }

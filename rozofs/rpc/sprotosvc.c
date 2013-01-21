@@ -3,6 +3,7 @@
  * It was generated using rpcgen.
  */
 
+#include "sproto.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <rpc/pmap_clnt.h>
@@ -11,12 +12,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "sproto.h"
-
 #ifndef SIG_PF
 #define SIG_PF void(*)(int)
 #endif
-
 #include <rozofs/rozofs.h>
 
 void

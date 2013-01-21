@@ -81,7 +81,7 @@ static char *storage_map_projection(fid_t fid, char *path) {
     return path;
 }
 
-int storage_initialize(storage_t *st, sid_t sid, const char *root) {
+int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root) {
     int status = -1;
     uint8_t layout = 0;
     char path[FILENAME_MAX];
@@ -138,6 +138,7 @@ int storage_initialize(storage_t *st, sid_t sid, const char *root) {
     }
 
     st->sid = sid;
+    st->cid = cid;
 
     status = 0;
 out:
@@ -149,6 +150,7 @@ void storage_release(storage_t * st) {
     DEBUG_FUNCTION;
 
     st->sid = 0;
+    st->cid = 0;
     st->root[0] = 0;
 }
 
@@ -291,6 +293,7 @@ out:
     return status;
 }
 // XXX Not used
+
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid) {
     int status = -1;

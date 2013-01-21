@@ -28,15 +28,17 @@
 // For compute the timestamp
 #define MICROLONG(time) ((uint64_t )time.tv_sec * 1000000 + time.tv_usec)
 
-/** Get one storage connection for a given sid and given random value
+/** Get one storage connection for a given couple (cid;sid) and given 
+ *  random value
  *
  * @param *e: pointer to exportclt_t
+ * @param cid: cluster ID for this storage
  * @param sid: storage ID
  * @param rand_value: random value
  *
  * @return: storage connection on success, NULL otherwise (errno: EINVAL is set)
  */
-static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid,
+static sclient_t *get_storage_cnt(exportclt_t * e, cid_t cid, sid_t sid,
         uint8_t rand_value) {
     list_t *iterator;
     int i = 0;
@@ -48,7 +50,7 @@ static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid,
 
         for (i = 0; i < entry->sids_nb; i++) {
 
-            if (sid == entry->sids[i]) {
+            if ((sid == entry->sids[i]) && (cid == entry->cids[i])) {
                 // The good storage node is find
                 // modulo between all connections for this node
                 if (entry->sclients_nb > 0) {
@@ -61,14 +63,16 @@ static sclient_t *get_storage_cnt(exportclt_t * e, sid_t sid,
                     // node are down when we mount the filesystem or we don't
                     // have get ports for this storage when we mount the
                     // the filesystem
-                    severe("No connection found for storage with sid: %u", sid);
+                    severe("No connection found for storage (cid: %u, sid: %u)",
+                            cid, sid);
                     return NULL;
                 }
             }
         }
     }
-    severe("Storage point (sid: %u) is unknow, the volume has been modified",
-            sid);
+    severe("Storage point (cid: %u ; sid: %u) is unknow,"
+            " the volume has been modified",
+            cid, sid);
     // XXX: We must send a request to the export server
     // for reload the configuration
     return NULL;
@@ -111,8 +115,8 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
         if (dist_p == NULL) {
 
             // Get connection for this storage
-            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.sids[i],
-                    rand_value)) != NULL) {
+            if ((f->storages[i] = get_storage_cnt(f->export, f->attrs.cid,
+                    f->attrs.sids[i], rand_value)) != NULL) {
 
                 // Check connection status
                 if (f->storages[i]->status == 1 &&
@@ -125,7 +129,7 @@ static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
             if (dist_is_set(*dist_p, i)) {
                 // Get connection for this storage
                 if ((f->storages[i] = get_storage_cnt(f->export,
-                        f->attrs.sids[i], rand_value)) != NULL) {
+                        f->attrs.cid, f->attrs.sids[i], rand_value)) != NULL) {
 
                     // Check connection status
                     if (f->storages[i]->status == 1 &&
@@ -257,7 +261,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data,
 
                 b = xmalloc(nb_blocks_identical_dist * ((rozofs_get_max_psize(rozofs_layout) * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t)));
 
-                if (sclient_read(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid + i, nb_blocks_identical_dist, b) != 0) {
+                if (sclient_read(f->storages[proj_stor_idx], f->attrs.cid, f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid + i, nb_blocks_identical_dist, b) != 0) {
                     free(b);
                     continue; // Try with the next projection
                 }
@@ -481,7 +485,7 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks,
                 spare = 0;
             }
 
-            if (sclient_write(f->storages[proj_stor_idx], f->attrs.sids[proj_stor_idx], rozofs_layout, spare, f->attrs.sids, f->fid, proj_id, bid,
+            if (sclient_write(f->storages[proj_stor_idx], f->attrs.cid, f->attrs.sids[proj_stor_idx], rozofs_layout, spare, f->attrs.sids, f->fid, proj_id, bid,
                     nb_blocks, bins[proj_id]) != 0) {
                 proj_id++;
                 continue;

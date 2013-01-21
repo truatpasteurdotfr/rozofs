@@ -34,8 +34,6 @@
 #define ROZOFS_XATTR_VALUE_MAX 65536
 #define ROZOFS_XATTR_LIST_MAX 65536
 #define ROZOFS_FILENAME_MAX 255
-#define ROZOFS_CLUSTERS_MAX 16
-#define ROZOFS_STORAGES_MAX 64
 
 /* Value max for a SID */
 #define SID_MAX 255
@@ -45,8 +43,8 @@
 #define STORAGE_NODES_MAX 64
 /* Nb. max of storaged ports on the same storage node */
 #define STORAGE_NODE_PORTS_MAX 32
-/* Nb. max of SIDs on the same storage node */
-#define STORAGE_NODE_SIDS_MAX 32
+/* Nb. max of storages (couple cid:sid) on the same storage node */
+#define STORAGES_MAX_BY_STORAGE_NODE 32
 /* First TCP port used */
 #define STORAGE_PORT_NUM_BEGIN 40000
 

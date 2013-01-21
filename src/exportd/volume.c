@@ -211,15 +211,16 @@ void volume_balance(volume_t *volume) {
 
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
-            mclient_t sclt;
-            strcpy(sclt.host, vs->host);
-            sclt.sid = vs->sid;
+            mclient_t mclt;
+            strcpy(mclt.host, vs->host);
+            mclt.sid = vs->sid;
+            mclt.cid = cluster->cid;
 
-            if (mclient_initialize(&sclt) != 0) {
+            if (mclient_initialize(&mclt) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
                 vs->status = 0;
             } else {
-                if (mclient_stat(&sclt, &vs->stat) != 0) {
+                if (mclient_stat(&mclt, &vs->stat) != 0) {
                     warning("failed to stat (sid: %d, host: %s)", vs->sid, vs->host);
                     vs->status = 0;
                 } else {
@@ -230,7 +231,7 @@ void volume_balance(volume_t *volume) {
             cluster->free += vs->stat.free;
             cluster->size += vs->stat.size;
 
-            mclient_release(&sclt);
+            mclient_release(&mclt);
         }
     }
 

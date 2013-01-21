@@ -3,6 +3,7 @@
  * It was generated using rpcgen.
  */
 
+#include "mproto.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <rpc/pmap_clnt.h>
@@ -10,8 +11,6 @@
 #include <memory.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
-#include "mproto.h"
 
 #ifndef SIG_PF
 #define SIG_PF void(*)(int)
@@ -22,7 +21,7 @@ void
 monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 {
 	union {
-		uint8_t mp_stat_1_arg;
+		mp_stat_arg_t mp_stat_1_arg;
 		mp_remove_arg_t mp_remove_1_arg;
 	} argument;
 	char *result;
@@ -37,7 +36,7 @@ monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		break;
 
 	case MP_STAT:
-		_xdr_argument = (xdrproc_t) xdr_uint8_t;
+		_xdr_argument = (xdrproc_t) xdr_mp_stat_arg_t;
 		_xdr_result = (xdrproc_t) xdr_mp_stat_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) mp_stat_1_svc;
 		break;

@@ -27,6 +27,7 @@
 
 typedef struct storage_config {
     sid_t sid;
+    cid_t cid;
     char root[PATH_MAX];
     list_t list;
 } storage_config_t;

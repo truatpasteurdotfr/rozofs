@@ -10,7 +10,8 @@
 
 int main(int argc, char **argv) {
     storage_t st;
-    sid_t sid = 0;
+    sid_t sid = 1;
+    cid_t cid = 1;
     sstat_t sst;
     bin_t *bins_write_1;
     bin_t *bins_write_2;
@@ -34,7 +35,7 @@ int main(int argc, char **argv) {
 
     // Initialize the storage root ditectory
     fprintf(stdout, "Initialize storage with SID: %u\n", sid);
-    if (storage_initialize(&st, sid, "/tmp") != 0) {
+    if (storage_initialize(&st, cid, sid, "/tmp") != 0) {
         perror("failed to initialize storage");
         exit(-1);
     }

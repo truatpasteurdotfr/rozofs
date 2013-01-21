@@ -50,7 +50,8 @@ typedef struct ep_status_ret_t ep_status_ret_t;
 struct ep_storage_node_t {
 	ep_host_t host;
 	uint8_t sids_nb;
-	uint8_t sids[STORAGE_NODE_SIDS_MAX];
+	uint8_t sids[STORAGES_MAX_BY_STORAGE_NODE];
+	uint16_t cids[STORAGES_MAX_BY_STORAGE_NODE];
 };
 typedef struct ep_storage_node_t ep_storage_node_t;
 

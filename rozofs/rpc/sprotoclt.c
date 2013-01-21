@@ -4,10 +4,8 @@
  */
 
 #include <memory.h> /* for memset */
-
-#include <rozofs/rozofs.h>
-
 #include "sproto.h"
+#include <rozofs/rozofs.h>
 
 /* Default timeout can be changed using clnt_control() */
 static struct timeval TIMEOUT = { 25, 0 };
