@@ -25,15 +25,15 @@ sp_null_1(void *argp, CLIENT *clnt)
 	return ((void *)&clnt_res);
 }
 
-sp_status_ret_t *
+sp_write_ret_t *
 sp_write_1(sp_write_arg_t *argp, CLIENT *clnt)
 {
-	static sp_status_ret_t clnt_res;
+	static sp_write_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, SP_WRITE,
 		(xdrproc_t) xdr_sp_write_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_sp_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_sp_write_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}

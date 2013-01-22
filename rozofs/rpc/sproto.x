@@ -67,9 +67,20 @@ struct sp_truncate_arg_t {
     uint64_t    bid; 
 };
 
+struct sp_read_t {
+    opaque      bins<>;
+    uint64_t    file_size;
+};
+
 union sp_read_ret_t switch (sp_status_t status) {
-    case SP_SUCCESS:    opaque  bins<>;
+    case SP_SUCCESS:    sp_read_t  rsp;
     case SP_FAILURE:    int     error;
+    default:            void;
+};
+
+union sp_write_ret_t switch (sp_status_t status) {
+    case SP_SUCCESS:    uint64_t    file_size;
+    case SP_FAILURE:    int         error;
     default:            void;
 };
 
@@ -78,7 +89,7 @@ program STORAGE_PROGRAM {
         void
         SP_NULL(void)                   = 0;
 
-        sp_status_ret_t
+        sp_write_ret_t
         SP_WRITE(sp_write_arg_t)        = 1;
 
         sp_read_ret_t

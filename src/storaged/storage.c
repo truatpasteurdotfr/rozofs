@@ -156,7 +156,7 @@ void storage_release(storage_t * st) {
 
 int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
-        const bin_t * bins) {
+        uint64_t *file_size, const bin_t * bins) {
     int status = -1;
     char path[FILENAME_MAX];
     int fd = -1;
@@ -165,6 +165,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
     off_t bins_file_offset = 0;
     uint16_t rozofs_max_psize = 0;
     uint8_t write_file_hdr = 0;
+    struct stat sb;
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -228,6 +229,15 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         goto out;
     }
 
+    // Stat file for return the size of bins file after the write operation
+    if (fstat(fd, &sb) == -1) {
+        severe("fstat failed: %s", strerror(errno));
+        goto out;
+    }
+
+    *file_size = sb.st_size;
+
+
     // Write is successful
     status = 0;
 
@@ -238,7 +248,7 @@ out:
 
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins, size_t * len_read) {
+        bin_t * bins, size_t * len_read, uint64_t *file_size) {
 
     int status = -1;
     char path[FILENAME_MAX];
@@ -247,6 +257,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     size_t length_to_read = 0;
     off_t bins_file_offset = 0;
     uint16_t rozofs_max_psize = 0;
+    struct stat sb;
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -284,6 +295,14 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
 
     // Update the length read
     *len_read = nb_read;
+
+    // Stat file for return the size of bins file after the read operation
+    if (fstat(fd, &sb) == -1) {
+        severe("fstat failed: %s", strerror(errno));
+        goto out;
+    }
+
+    *file_size = sb.st_size;
 
     // Read is successful
     status = 0;

@@ -38,7 +38,7 @@ storage_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 
 	case SP_WRITE:
 		_xdr_argument = (xdrproc_t) xdr_sp_write_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
+		_xdr_result = (xdrproc_t) xdr_sp_write_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) sp_write_1_svc;
 		break;
 

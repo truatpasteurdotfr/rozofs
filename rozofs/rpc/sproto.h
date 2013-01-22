@@ -73,17 +73,32 @@ struct sp_truncate_arg_t {
 };
 typedef struct sp_truncate_arg_t sp_truncate_arg_t;
 
+struct sp_read_t {
+	struct {
+		u_int bins_len;
+		char *bins_val;
+	} bins;
+	uint64_t file_size;
+};
+typedef struct sp_read_t sp_read_t;
+
 struct sp_read_ret_t {
 	sp_status_t status;
 	union {
-		struct {
-			u_int bins_len;
-			char *bins_val;
-		} bins;
+		sp_read_t rsp;
 		int error;
 	} sp_read_ret_t_u;
 };
 typedef struct sp_read_ret_t sp_read_ret_t;
+
+struct sp_write_ret_t {
+	sp_status_t status;
+	union {
+		uint64_t file_size;
+		int error;
+	} sp_write_ret_t_u;
+};
+typedef struct sp_write_ret_t sp_write_ret_t;
 
 #define STORAGE_PROGRAM 0x20000002
 #define STORAGE_VERSION 1
@@ -93,8 +108,8 @@ typedef struct sp_read_ret_t sp_read_ret_t;
 extern  void * sp_null_1(void *, CLIENT *);
 extern  void * sp_null_1_svc(void *, struct svc_req *);
 #define SP_WRITE 1
-extern  sp_status_ret_t * sp_write_1(sp_write_arg_t *, CLIENT *);
-extern  sp_status_ret_t * sp_write_1_svc(sp_write_arg_t *, struct svc_req *);
+extern  sp_write_ret_t * sp_write_1(sp_write_arg_t *, CLIENT *);
+extern  sp_write_ret_t * sp_write_1_svc(sp_write_arg_t *, struct svc_req *);
 #define SP_READ 2
 extern  sp_read_ret_t * sp_read_1(sp_read_arg_t *, CLIENT *);
 extern  sp_read_ret_t * sp_read_1_svc(sp_read_arg_t *, struct svc_req *);
@@ -108,8 +123,8 @@ extern int storage_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 extern  void * sp_null_1();
 extern  void * sp_null_1_svc();
 #define SP_WRITE 1
-extern  sp_status_ret_t * sp_write_1();
-extern  sp_status_ret_t * sp_write_1_svc();
+extern  sp_write_ret_t * sp_write_1();
+extern  sp_write_ret_t * sp_write_1_svc();
 #define SP_READ 2
 extern  sp_read_ret_t * sp_read_1();
 extern  sp_read_ret_t * sp_read_1_svc();
@@ -128,7 +143,9 @@ extern  bool_t xdr_sp_status_ret_t (XDR *, sp_status_ret_t*);
 extern  bool_t xdr_sp_write_arg_t (XDR *, sp_write_arg_t*);
 extern  bool_t xdr_sp_read_arg_t (XDR *, sp_read_arg_t*);
 extern  bool_t xdr_sp_truncate_arg_t (XDR *, sp_truncate_arg_t*);
+extern  bool_t xdr_sp_read_t (XDR *, sp_read_t*);
 extern  bool_t xdr_sp_read_ret_t (XDR *, sp_read_ret_t*);
+extern  bool_t xdr_sp_write_ret_t (XDR *, sp_write_ret_t*);
 
 #else /* K&R C */
 extern bool_t xdr_sp_uuid_t ();
@@ -137,7 +154,9 @@ extern bool_t xdr_sp_status_ret_t ();
 extern bool_t xdr_sp_write_arg_t ();
 extern bool_t xdr_sp_read_arg_t ();
 extern bool_t xdr_sp_truncate_arg_t ();
+extern bool_t xdr_sp_read_t ();
 extern bool_t xdr_sp_read_ret_t ();
+extern bool_t xdr_sp_write_ret_t ();
 
 #endif /* K&R C */
 

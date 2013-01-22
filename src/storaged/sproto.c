@@ -36,8 +36,8 @@ void *sp_null_1_svc(void *args, struct svc_req *req) {
     return 0;
 }
 
-sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
-    static sp_status_ret_t ret;
+sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
+    static sp_write_ret_t ret;
     storage_t *st = 0;
     // Variable to be used in a later version.
     uint8_t version = 0;
@@ -52,15 +52,15 @@ sp_status_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
 
     // Get the storage for the couple (cid;sid)
     if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
-        ret.sp_status_ret_t_u.error = errno;
+        ret.sp_write_ret_t_u.error = errno;
         goto out;
     }
 
     // Write projections
     if (storage_write(st, args->layout, args->dist_set, args->spare, args->fid,
-            args->bid, args->nb_proj, version,
+            args->bid, args->nb_proj, version, &ret.sp_write_ret_t_u.file_size,
             (bin_t *) args->bins.bins_val) != 0) {
-        ret.sp_status_ret_t_u.error = errno;
+        ret.sp_write_ret_t_u.error = errno;
         goto out;
     }
 
@@ -94,15 +94,16 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     psize = rozofs_get_max_psize(args->layout);
 
     // Allocate memory
-    ret.sp_read_ret_t_u.bins.bins_val =
+    ret.sp_read_ret_t_u.rsp.bins.bins_val =
             (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
             sizeof (rozofs_stor_bins_hdr_t)));
 
     // Read projections
     if (storage_read(st, args->layout, args->dist_set, args->spare, args->fid,
             args->bid, args->nb_proj,
-            (bin_t *) ret.sp_read_ret_t_u.bins.bins_val,
-            (size_t *) & ret.sp_read_ret_t_u.bins.bins_len) != 0) {
+            (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
+            (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
+            &ret.sp_read_ret_t_u.rsp.file_size) != 0) {
         ret.sp_read_ret_t_u.error = errno;
         goto out;
     }

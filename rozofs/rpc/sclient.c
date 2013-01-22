@@ -61,7 +61,7 @@ int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, tid_t proj_id, bid_t bid,
         uint32_t nb_proj, const bin_t * bins) {
     int status = -1;
-    sp_status_ret_t *ret = 0;
+    sp_write_ret_t *ret = 0;
     sp_write_arg_t args;
 
     DEBUG_FUNCTION;
@@ -91,13 +91,13 @@ int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t
     if (ret->status != 0) {
         severe("sclient_write failed: storage write response failure (%s)",
                 strerror(errno));
-        errno = ret->sp_status_ret_t_u.error;
+        errno = ret->sp_write_ret_t_u.error;
         goto out;
     }
     status = 0;
 out:
     if (ret)
-        xdr_free((xdrproc_t) xdr_sp_status_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_sp_write_ret_t, (char *) ret);
     return status;
 }
 
@@ -137,8 +137,8 @@ int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t 
     }
     // XXX ret->sp_read_ret_t_u.bins.bins_len is coherent
     // XXX could we avoid memcpy ??
-    memcpy(bins, ret->sp_read_ret_t_u.bins.bins_val,
-            ret->sp_read_ret_t_u.bins.bins_len);
+    memcpy(bins, ret->sp_read_ret_t_u.rsp.bins.bins_val,
+            ret->sp_read_ret_t_u.rsp.bins.bins_len);
 
     status = 0;
 out:

@@ -84,13 +84,14 @@ void storage_release(storage_t * st);
  * @param bid: first block idx (offset).
  * @param nb_proj: nb of projections to write.
  * @param version: version of rozofs used by the client. (not used yet)
+ * @param *file_size: size of file after the write operation.
  * @param *bins: bins to store.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
-        const bin_t * bins);
+        uint64_t *file_size, const bin_t * bins);
 
 /** Read nb_proj projections
  *
@@ -103,12 +104,13 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
  * @param nb_proj: nb of projections to read.
  * @param *bins: bins to store.
  * @param *len_read: the length read.
+ * @param *file_size: size of file after the read operation.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins, size_t * len_read);
+        bin_t * bins, size_t * len_read, uint64_t *file_size);
 
 /** Truncate a bins file (not used yet)
  *
