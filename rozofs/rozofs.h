@@ -94,6 +94,21 @@ typedef struct estat {
     uint16_t namemax;
 } estat_t;
 
+/**
+ *  Header structure for one projection
+ */
+typedef union {
+    uint64_t u64[2];
+
+    struct {
+        uint64_t timestamp : 64; ///<  time stamp.
+        uint64_t effective_length : 16; ///<  effective length of the rebuilt block size: MAX is 64K.
+        uint64_t projection_id : 8; ///<  index of the projection -> needed to find out angles/sizes: MAX is 255.
+        uint64_t version : 8; ///<  version of rozofs. (not used yet)
+        uint64_t filler : 32; ///<  for future usage.
+    } s;
+} rozofs_stor_bins_hdr_t;
+
 typedef struct child {
     char *name;
     fid_t fid;
@@ -101,14 +116,5 @@ typedef struct child {
 } child_t;
 
 #include "common/transform.h"
-//extern uint8_t rozofs_safe;
-//extern uint8_t rozofs_forward;
-//extern uint8_t rozofs_inverse;
-//extern angle_t *rozofs_angles;
-//extern uint16_t *rozofs_psizes;
-//
-//int rozofs_initialize(rozofs_layout_t layout);
-//
-//void rozofs_release();
 
 #endif

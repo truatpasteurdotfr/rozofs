@@ -48,21 +48,6 @@ typedef struct storage {
 } storage_t;
 
 /**
- *  Header structure for one projection
- */
-typedef union {
-    uint64_t u64[2];
-
-    struct {
-        uint64_t timestamp : 64; ///<  time stamp. (not used yet)
-        uint64_t effective_length : 16; ///<  effective length of the rebuilt block size: MAX is 64K.
-        uint64_t projection_id : 8; ///<  index of the projection -> needed to find out angles/sizes: MAX is 255.
-        uint64_t version : 8; ///<  version of rozofs. (not used yet)
-        uint64_t filler : 32; ///<  for future usage.
-    } s;
-} rozofs_stor_bins_hdr_t;
-
-/**
  *  Header structure for one file bins
  */
 typedef struct rozofs_stor_bins_file_hdr {
