@@ -353,16 +353,13 @@ struct ep_listxattr_arg_t {
 };
 typedef struct ep_listxattr_arg_t ep_listxattr_arg_t;
 
-struct ep_listxattr_t {
-	ep_xattr_list_t list;
-	uint64_t size;
-};
-typedef struct ep_listxattr_t ep_listxattr_t;
-
 struct ep_listxattr_ret_t {
 	ep_status_t status;
 	union {
-		ep_listxattr_t ret;
+		struct {
+			u_int list_len;
+			char *list_val;
+		} list;
 		int error;
 	} ep_listxattr_ret_t_u;
 };
@@ -560,7 +557,6 @@ extern  bool_t xdr_ep_getxattr_t (XDR *, ep_getxattr_t*);
 extern  bool_t xdr_ep_getxattr_ret_t (XDR *, ep_getxattr_ret_t*);
 extern  bool_t xdr_ep_removexattr_arg_t (XDR *, ep_removexattr_arg_t*);
 extern  bool_t xdr_ep_listxattr_arg_t (XDR *, ep_listxattr_arg_t*);
-extern  bool_t xdr_ep_listxattr_t (XDR *, ep_listxattr_t*);
 extern  bool_t xdr_ep_listxattr_ret_t (XDR *, ep_listxattr_ret_t*);
 
 #else /* K&R C */
@@ -611,7 +607,6 @@ extern bool_t xdr_ep_getxattr_t ();
 extern bool_t xdr_ep_getxattr_ret_t ();
 extern bool_t xdr_ep_removexattr_arg_t ();
 extern bool_t xdr_ep_listxattr_arg_t ();
-extern bool_t xdr_ep_listxattr_t ();
 extern bool_t xdr_ep_listxattr_ret_t ();
 
 #endif /* K&R C */

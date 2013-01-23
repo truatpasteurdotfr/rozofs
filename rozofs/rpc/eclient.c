@@ -1160,11 +1160,11 @@ int exportclt_listxattr(exportclt_t * clt, fid_t fid, char * list,
         goto out;
     }
 
-    if (ret->ep_listxattr_ret_t_u.ret.size != 0)
-        memcpy(list, ret->ep_listxattr_ret_t_u.ret.list,
-            ret->ep_listxattr_ret_t_u.ret.size);
+    if (ret->ep_listxattr_ret_t_u.list.list_len != 0)
+        memcpy(list, ret->ep_listxattr_ret_t_u.list.list_val,
+            ret->ep_listxattr_ret_t_u.list.list_len);
 
-    *list_size = ret->ep_listxattr_ret_t_u.ret.size;
+    *list_size = ret->ep_listxattr_ret_t_u.list.list_len;
 
     status = 0;
 out:

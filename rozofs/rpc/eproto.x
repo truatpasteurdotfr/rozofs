@@ -285,13 +285,8 @@ struct ep_listxattr_arg_t {
     uint64_t          size;
 };
 
-struct ep_listxattr_t {
-    ep_xattr_list_t   list;
-    uint64_t          size;
-};
-
 union ep_listxattr_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    ep_listxattr_t   ret;
+    case EP_SUCCESS:    opaque          list<>;
     case EP_FAILURE:    int             error;
     default:            void;
 };

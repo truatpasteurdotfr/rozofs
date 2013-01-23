@@ -249,14 +249,21 @@ ep_readlink_ret_t *ep_readlink_1_svc(ep_mfile_arg_t * arg,
     DEBUG_FUNCTION;
     START_PROFILING(ep_readlink);
 
+    xdr_free((xdrproc_t) xdr_ep_readlink_ret_t, (char *) &ret);
+
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
+
     ret.ep_readlink_ret_t_u.link = xmalloc(ROZOFS_PATH_MAX);
+
     if (export_readlink(exp, arg->fid, ret.ep_readlink_ret_t_u.link) != 0)
         goto error;
+
     ret.status = EP_SUCCESS;
     goto out;
 error:
+    if (ret.ep_readlink_ret_t_u.link != NULL)
+        free(ret.ep_readlink_ret_t_u.link);
     ret.status = EP_FAILURE;
     ret.ep_readlink_ret_t_u.error = errno;
 out:
@@ -618,6 +625,8 @@ ep_getxattr_ret_t *ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * r
     ret.status = EP_SUCCESS;
     goto out;
 error:
+    if (ret.ep_getxattr_ret_t_u.value.value_val != NULL)
+        free(ret.ep_getxattr_ret_t_u.value.value_val);
     ret.status = EP_FAILURE;
     ret.ep_getxattr_ret_t_u.error = errno;
 out:
@@ -657,18 +666,26 @@ ep_listxattr_ret_t *ep_listxattr_1_svc(ep_listxattr_arg_t * arg, struct svc_req 
 
     START_PROFILING(ep_listxattr);
 
+    xdr_free((xdrproc_t) xdr_ep_listxattr_ret_t, (char *) &ret);
+
     if (!(exp = exports_lookup_export(arg->eid)))
         goto error;
 
-    if ((size = export_listxattr(exp, arg->fid, ret.ep_listxattr_ret_t_u.ret.list, arg->size)) == -1) {
+    // Allocate memory
+    ret.ep_listxattr_ret_t_u.list.list_val =
+            (char *) xmalloc(arg->size * sizeof (char));
+
+    if ((size = export_listxattr(exp, arg->fid, ret.ep_listxattr_ret_t_u.list.list_val, arg->size)) == -1) {
         goto error;
     }
 
-    ret.ep_listxattr_ret_t_u.ret.size = size;
+    ret.ep_listxattr_ret_t_u.list.list_len = size;
 
     ret.status = EP_SUCCESS;
     goto out;
 error:
+    if (ret.ep_listxattr_ret_t_u.list.list_val != NULL)
+        free(ret.ep_listxattr_ret_t_u.list.list_val);
     ret.status = EP_FAILURE;
     ret.ep_listxattr_ret_t_u.error = errno;
 out:

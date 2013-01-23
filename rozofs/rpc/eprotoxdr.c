@@ -777,18 +777,6 @@ xdr_ep_listxattr_arg_t (XDR *xdrs, ep_listxattr_arg_t *objp)
 }
 
 bool_t
-xdr_ep_listxattr_t (XDR *xdrs, ep_listxattr_t *objp)
-{
-	//register int32_t *buf;
-
-	 if (!xdr_ep_xattr_list_t (xdrs, objp->list))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->size))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
 xdr_ep_listxattr_ret_t (XDR *xdrs, ep_listxattr_ret_t *objp)
 {
 	//register int32_t *buf;
@@ -797,7 +785,7 @@ xdr_ep_listxattr_ret_t (XDR *xdrs, ep_listxattr_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case EP_SUCCESS:
-		 if (!xdr_ep_listxattr_t (xdrs, &objp->ep_listxattr_ret_t_u.ret))
+		 if (!xdr_bytes (xdrs, (char **)&objp->ep_listxattr_ret_t_u.list.list_val, (u_int *) &objp->ep_listxattr_ret_t_u.list.list_len, ~0))
 			 return FALSE;
 		break;
 	case EP_FAILURE:

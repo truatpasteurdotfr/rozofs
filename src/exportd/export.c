@@ -1212,6 +1212,8 @@ static void release_storages_cnx(list_t *list) {
 
         cnxentry_t *cnx_entry = list_entry(p, cnxentry_t, list);
         mclient_release(cnx_entry->cnx);
+        if (cnx_entry->cnx != NULL)
+            free(cnx_entry->cnx);
         list_remove(p);
         free(cnx_entry);
     }
