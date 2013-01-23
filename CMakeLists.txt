@@ -105,6 +105,10 @@ if(NOT CMAKE_BUILD_TYPE)
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
+set(CMAKE_C_FLAGS "-D_GNU_SOURCE" CACHE STRING
+    "Flags used by the compiler during all build types."
+    FORCE)
+
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
