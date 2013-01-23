@@ -60,4 +60,5 @@ set (librozofs_sources
 
 add_library(rozofs STATIC ${librozofs_sources})
 target_link_libraries(rozofs ${UUID_LIBRARY})
+set_target_properties(rozofs PROPERTIES COMPILE_FLAGS "-fPIC")
 

@@ -34,6 +34,8 @@ find_package(CONFIG REQUIRED)
 find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
+find_package(SWIG REQUIRED)
+find_package(PythonInterp 2.7 REQUIRED)
 find_package(Doxygen QUIET)
 find_program(DEBUILD NAMES debuild)
 
@@ -76,6 +78,7 @@ add_subdirectory(doc)
 add_subdirectory(tests)
 add_subdirectory(tests/fs_ops/fileop)
 add_subdirectory(tests/fs_ops/pjd-fstest)
+add_subdirectory(manager)
 
 set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
@@ -95,6 +98,9 @@ configure_file("${PROJECT_SOURCE_DIR}/doc/storage.conf.5" "${PROJECT_BINARY_DIR}
 configure_file("${PROJECT_SOURCE_DIR}/doc/exportd.8" "${PROJECT_BINARY_DIR}/doc/exportd.8")
 configure_file("${PROJECT_SOURCE_DIR}/doc/export.conf.5" "${PROJECT_BINARY_DIR}/doc/export.conf.5")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/manager/setup.py" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/platform.conf.in" "${PROJECT_BINARY_DIR}/manager/platform.conf")
+configure_file("${PROJECT_SOURCE_DIR}/cmake/sharing.conf.in" "${PROJECT_BINARY_DIR}/manager/sharing.conf")
 
 #
 # Build settings
@@ -120,7 +126,6 @@ add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/u
 add_custom_target(package_squeeze "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/squeeze.cmake")
 add_custom_target(package_wheezy "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/wheezy.cmake")
 add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/ubuntu.cmake")
-
 
 #
 # Packing

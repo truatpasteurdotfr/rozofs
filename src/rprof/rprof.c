@@ -464,7 +464,7 @@ static void profile_exportd_display() {
     ep_display_probe(ep, export_symlink);
     ep_display_probe(ep, export_readlink);
     ep_display_probe(ep, export_rename);
-    ep_display_probe(ep, export_read);
+    ep_display_io_probe(ep, export_read);
     ep_display_probe(ep, export_read_block);
     ep_display_probe(ep, export_write_block);
     ep_display_probe(ep, export_readdir);
