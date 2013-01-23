@@ -38,7 +38,6 @@ struct sp_write_arg_t {
 	uint8_t spare;
 	uint8_t dist_set[ROZOFS_SAFE_MAX];
 	sp_uuid_t fid;
-	uint8_t proj_id;
 	uint64_t bid;
 	uint32_t nb_proj;
 	struct {
@@ -55,7 +54,6 @@ struct sp_read_arg_t {
 	uint8_t spare;
 	uint8_t dist_set[ROZOFS_SAFE_MAX];
 	sp_uuid_t fid;
-	uint8_t proj_id;
 	uint64_t bid;
 	uint32_t nb_proj;
 };

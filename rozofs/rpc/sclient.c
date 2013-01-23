@@ -58,7 +58,7 @@ void sclient_release(sclient_t * clt) {
 }
 
 int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
-        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, tid_t proj_id, bid_t bid,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, const bin_t * bins) {
     int status = -1;
     sp_write_ret_t *ret = 0;
@@ -73,7 +73,6 @@ int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t
     args.spare = spare;
     memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (uuid_t));
-    args.proj_id = proj_id;
     args.bid = bid;
     args.nb_proj = nb_proj;
     args.bins.bins_len = nb_proj * (rozofs_get_max_psize(layout)
@@ -102,7 +101,7 @@ out:
 }
 
 int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
-        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, tid_t proj_id, bid_t bid,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, bin_t * bins) {
     int status = -1;
     sp_read_ret_t *ret = 0;
@@ -117,7 +116,6 @@ int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t 
     args.spare = spare;
     memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (fid_t));
-    args.proj_id = proj_id;
     args.bid = bid;
     args.nb_proj = nb_proj;
 

@@ -44,8 +44,7 @@ sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
 
     DEBUG_FUNCTION;
 
-    START_PROFILING_IO(write,
-            args->nb_proj * rozofs_get_psizes(args->layout, args->proj_id)
+    START_PROFILING_IO(write, args->nb_proj * rozofs_get_max_psize(args->layout)
             * sizeof (bin_t));
 
     ret.status = SP_FAILURE;
@@ -77,8 +76,7 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
 
     DEBUG_FUNCTION;
 
-    START_PROFILING_IO(read,
-            args->nb_proj * rozofs_get_psizes(args->layout, args->proj_id)
+    START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
             * sizeof (bin_t));
 
     xdr_free((xdrproc_t) xdr_sp_read_ret_t, (char *) &ret);

@@ -261,7 +261,7 @@ static int read_blocks(file_t * f, bid_t bid, uint32_t nb_blocks, char *data,
 
                 b = xmalloc(nb_blocks_identical_dist * ((rozofs_get_max_psize(rozofs_layout) * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t)));
 
-                if (sclient_read(f->storages[proj_stor_idx], f->attrs.cid, f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, proj_id, bid + i, nb_blocks_identical_dist, b) != 0) {
+                if (sclient_read(f->storages[proj_stor_idx], f->attrs.cid, f->attrs.sids[proj_stor_idx], f->export->layout, spare, f->attrs.sids, f->fid, bid + i, nb_blocks_identical_dist, b) != 0) {
                     free(b);
                     continue; // Try with the next projection
                 }
@@ -485,7 +485,7 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks,
                 spare = 0;
             }
 
-            if (sclient_write(f->storages[proj_stor_idx], f->attrs.cid, f->attrs.sids[proj_stor_idx], rozofs_layout, spare, f->attrs.sids, f->fid, proj_id, bid,
+            if (sclient_write(f->storages[proj_stor_idx], f->attrs.cid, f->attrs.sids[proj_stor_idx], rozofs_layout, spare, f->attrs.sids, f->fid, bid,
                     nb_blocks, bins[proj_id]) != 0) {
                 proj_id++;
                 continue;

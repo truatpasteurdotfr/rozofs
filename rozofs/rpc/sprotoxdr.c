@@ -64,8 +64,6 @@ xdr_sp_write_arg_t (XDR *xdrs, sp_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->proj_id))
-		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bid))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_proj))
@@ -93,8 +91,6 @@ xdr_sp_read_arg_t (XDR *xdrs, sp_read_arg_t *objp)
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
-		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->proj_id))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bid))
 		 return FALSE;
