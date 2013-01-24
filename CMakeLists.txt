@@ -35,7 +35,7 @@ find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
 find_package(SWIG REQUIRED)
-find_package(PythonInterp 2.7 REQUIRED)
+find_package(PythonInterp REQUIRED)
 find_package(Doxygen QUIET)
 find_program(DEBUILD NAMES debuild)
 
