@@ -1847,13 +1847,13 @@ int main(int argc, char *argv[]) {
     }
     if (conf.buf_size < 128) {
         fprintf(stderr,
-                "write cache size to low (%u KiB) - increased to 128 KiB\n",
+                "write cache size too low (%u KiB) - increased to 128 KiB\n",
                 conf.buf_size);
         conf.buf_size = 128;
     }
     if (conf.buf_size > 8192) {
         fprintf(stderr,
-                "write cache size to big (%u KiB) - decreased to 8192 KiB\n",
+                "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
                 conf.buf_size);
         conf.buf_size = 8192;
     }
