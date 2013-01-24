@@ -15,7 +15,7 @@ extern "C" {
 
 #include <rozofs/rozofs.h>
 
-typedef u_char ep_uuid_t[ROZOFS_UUID_SIZE];
+typedef uint32_t ep_uuid_t[ROZOFS_UUID_SIZE_NET];
 
 typedef char *ep_name_t;
 

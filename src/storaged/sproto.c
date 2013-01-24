@@ -56,8 +56,9 @@ sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     }
 
     // Write projections
-    if (storage_write(st, args->layout, args->dist_set, args->spare, args->fid,
-            args->bid, args->nb_proj, version, &ret.sp_write_ret_t_u.file_size,
+    if (storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
+            (unsigned char *) args->fid, args->bid, args->nb_proj, version,
+            &ret.sp_write_ret_t_u.file_size,
             (bin_t *) args->bins.bins_val) != 0) {
         ret.sp_write_ret_t_u.error = errno;
         goto out;
@@ -97,8 +98,8 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
             sizeof (rozofs_stor_bins_hdr_t)));
 
     // Read projections
-    if (storage_read(st, args->layout, args->dist_set, args->spare, args->fid,
-            args->bid, args->nb_proj,
+    if (storage_read(st, args->layout, (sid_t *) args->dist_set, args->spare,
+            (unsigned char *) args->fid, args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
             (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
             &ret.sp_read_ret_t_u.rsp.file_size) != 0) {
@@ -128,8 +129,9 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
     }
 
     // Truncate bins file
-    if (storage_truncate(st, args->layout, args->dist_set, args->spare,
-            args->fid, args->proj_id, args->bid) != 0) {
+    if (storage_truncate(st, args->layout, (sid_t *) args->dist_set,
+            args->spare, (unsigned char *) args->fid, args->proj_id,
+            args->bid) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }

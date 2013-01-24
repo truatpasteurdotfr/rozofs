@@ -572,6 +572,7 @@ run_fs_test ()
         deploy_clients_local
         fs_test_1
         fs_test_2
+        sleep 1
         undeploy_clients_local
         stop_storaged
         stop_exportd
@@ -587,6 +588,7 @@ run_fs_test ()
         deploy_clients_local
         fs_test_1
         fs_test_2
+        sleep 1
         undeploy_clients_local
         stop_storaged
         stop_exportd
@@ -602,6 +604,7 @@ run_fs_test ()
         deploy_clients_local
         fs_test_1
         fs_test_2
+        sleep 1
         undeploy_clients_local
         stop_storaged
         stop_exportd

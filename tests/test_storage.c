@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
             bid = 0;
 
             // Write projections
-            fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
+            fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
 
             if (storage_write(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, &file_size, bins_write_1) != 0) {
                 perror("failed to write bins");
@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
 
             bid = bid + nrb;
 
-            fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
+            fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
 
             if (storage_write(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, &file_size, bins_write_2) != 0) {
                 perror("failed to write bins");
@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 
             bid = bid - nrb;
 
-            fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
+            fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_1, rozofs_get_psizes(layout, tid_1), bid);
 
             if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_1, &len_read, &file_size) != 0) {
                 perror("failed to read bins");
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 
             bid = bid + nrb;
 
-            fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%lu\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
+            fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_2, rozofs_get_psizes(layout, tid_2), bid);
 
             if (storage_read(&st, layout, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_2, &len_read, &file_size) != 0) {
                 perror("failed to read bins");

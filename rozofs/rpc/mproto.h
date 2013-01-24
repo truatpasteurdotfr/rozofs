@@ -15,7 +15,7 @@ extern "C" {
 
 #include <rozofs/rozofs.h>
 
-typedef u_char mp_uuid_t[ROZOFS_UUID_SIZE];
+typedef uint32_t mp_uuid_t[ROZOFS_UUID_SIZE_NET];
 
 enum mp_status_t {
 	MP_SUCCESS = 0,
@@ -35,7 +35,7 @@ struct mp_remove_arg_t {
 	uint16_t cid;
 	uint8_t sid;
 	uint8_t layout;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_NET];
 	mp_uuid_t fid;
 };
 typedef struct mp_remove_arg_t mp_remove_arg_t;

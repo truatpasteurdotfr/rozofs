@@ -15,7 +15,7 @@ extern "C" {
 
 #include <rozofs/rozofs.h>
 
-typedef u_char sp_uuid_t[ROZOFS_UUID_SIZE];
+typedef uint32_t sp_uuid_t[ROZOFS_UUID_SIZE_NET];
 
 enum sp_status_t {
 	SP_SUCCESS = 0,
@@ -36,7 +36,7 @@ struct sp_write_arg_t {
 	uint8_t sid;
 	uint8_t layout;
 	uint8_t spare;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_NET];
 	sp_uuid_t fid;
 	uint64_t bid;
 	uint32_t nb_proj;
@@ -52,7 +52,7 @@ struct sp_read_arg_t {
 	uint8_t sid;
 	uint8_t layout;
 	uint8_t spare;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_NET];
 	sp_uuid_t fid;
 	uint64_t bid;
 	uint32_t nb_proj;
@@ -64,7 +64,7 @@ struct sp_truncate_arg_t {
 	uint8_t sid;
 	uint8_t layout;
 	uint8_t spare;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_NET];
 	sp_uuid_t fid;
 	uint8_t proj_id;
 	uint64_t bid;

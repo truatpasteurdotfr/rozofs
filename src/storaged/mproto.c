@@ -46,7 +46,8 @@ mp_status_ret_t *mp_remove_1_svc(mp_remove_arg_t * args, struct svc_req * req) {
         ret.mp_status_ret_t_u.error = errno;
         goto out;
     }
-    if (storage_rm_file(st, args->layout, args->dist_set, args->fid) != 0) {
+    if (storage_rm_file(st, args->layout, (sid_t *) args->dist_set,
+            (unsigned char *) args->fid) != 0) {
         ret.mp_status_ret_t_u.error = errno;
         goto out;
     }
@@ -89,7 +90,8 @@ mp_ports_ret_t *mp_ports_1_svc(void *args, struct svc_req * req) {
     START_PROFILING(ports);
     ret.status = MP_FAILURE;
 
-    memset(&ret.mp_ports_ret_t_u.ports, 0, STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
+    memset(&ret.mp_ports_ret_t_u.ports, 0,
+            STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
 
     if (!memcpy(&ret.mp_ports_ret_t_u.ports, storaged_storage_ports,
             storaged_nb_io_processes * sizeof (uint32_t))) {

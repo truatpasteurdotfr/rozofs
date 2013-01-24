@@ -25,9 +25,15 @@
 #include <config.h>
 
 #define ROZOFS_UUID_SIZE 16
+/* Instead of using an array of unsigned char for store the UUID, we use an
+ * array of uint32_t in the RPC protocol to use less space (see XDR). */
+#define ROZOFS_UUID_SIZE_NET 4
 #define ROZOFS_HOSTNAME_MAX 128
 #define ROZOFS_BSIZE 8192       // could it be export specific ?
 #define ROZOFS_SAFE_MAX 36
+/* Instead of using an array of sid_t for store the dist_set, we use an
+ * array of uint32_t in the RPC protocol to use less space (see XDR). */
+#define ROZOFS_SAFE_MAX_NET 9
 #define ROZOFS_DIR_SIZE 4096
 #define ROZOFS_PATH_MAX 1024
 #define ROZOFS_XATTR_NAME_MAX 255
@@ -70,13 +76,13 @@ typedef enum {
     LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16
 } rozofs_layout_t;
 
-typedef uint8_t tid_t;          /**< projection id */
-typedef uint64_t bid_t;         /**< block id */
-typedef uuid_t fid_t;           /**< file id */
-typedef uint8_t sid_t;         /**< storage id */
-typedef uint16_t cid_t;         /**< cluster id */
-typedef uint16_t vid_t;         /**< volume id */
-typedef uint32_t eid_t;         /**< export id */
+typedef uint8_t tid_t; /**< projection id */
+typedef uint64_t bid_t; /**< block id */
+typedef uuid_t fid_t; /**< file id */
+typedef uint8_t sid_t; /**< storage id */
+typedef uint16_t cid_t; /**< cluster id */
+typedef uint16_t vid_t; /**< volume id */
+typedef uint32_t eid_t; /**< export id */
 
 // storage stat
 

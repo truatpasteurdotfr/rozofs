@@ -11,8 +11,8 @@ xdr_sp_uuid_t (XDR *xdrs, sp_uuid_t objp)
 {
 	//register int32_t *buf;
 
-	 if (!xdr_vector (xdrs, (char *)objp, ROZOFS_UUID_SIZE,
-		sizeof (u_char), (xdrproc_t) xdr_u_char))
+	 if (!xdr_vector (xdrs, (char *)objp, ROZOFS_UUID_SIZE_NET,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
 	return TRUE;
 }
@@ -59,8 +59,8 @@ xdr_sp_write_arg_t (XDR *xdrs, sp_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX_NET,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
@@ -87,8 +87,8 @@ xdr_sp_read_arg_t (XDR *xdrs, sp_read_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX_NET,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
@@ -113,8 +113,8 @@ xdr_sp_truncate_arg_t (XDR *xdrs, sp_truncate_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX_NET,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
