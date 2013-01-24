@@ -32,11 +32,12 @@ extern uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX];
 /* public API */
 
 /**
- *  Get a storage with the given sid
+ *  Get a storage with the given cid and sid
  *
- *  @param sid: the searched sid
+ *  @param cid: the cid for the searched storage
+ *  @param sid: the sid for the searched storage
  *  @return : the wanted storage_t or 0 if not found (errno is set to EINVAL)
  */
-storage_t *storaged_lookup(sid_t sid);
+storage_t *storaged_lookup(cid_t cid, sid_t sid);
 
 #endif

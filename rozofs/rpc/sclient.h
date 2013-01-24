@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 
 #ifndef _SCLIENT_H
@@ -38,10 +38,12 @@ int sclient_initialize(sclient_t * clt);
 
 void sclient_release(sclient_t * clt);
 
-int sclient_write(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
-                     uint32_t nrb, const bin_t * bins);
+int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
+        uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
+        bid_t bid, uint32_t nb_proj, const bin_t * bins);
 
-int sclient_read(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
-                    uint32_t nrb, bin_t * bins);
+int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
+        uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
+        bid_t bid, uint32_t nb_proj, bin_t * bins);
 
 #endif

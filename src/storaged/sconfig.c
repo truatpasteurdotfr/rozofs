@@ -30,16 +30,18 @@
 #include "sconfig.h"
 
 /* Settings names for storage configuration file */
-#define SLAYOUT	    "layout"
 #define SSTORAGES   "storages"
 #define SSID	    "sid"
+#define SCID	    "cid"
 #define SROOT	    "root"
 #define SPORTS      "ports"
 
-int storage_config_initialize(storage_config_t *s, sid_t sid, const char *root) {
+int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
+        const char *root) {
     DEBUG_FUNCTION;
 
     s->sid = sid;
+    s->cid = cid;
     strcpy(s->root, root);
     list_init(&s->list);
     return 0;
@@ -71,7 +73,6 @@ void sconfig_release(sconfig_t *config) {
 int sconfig_read(sconfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
-    long int layout;
     struct config_setting_t *stor_settings = 0;
     struct config_setting_t *ports_settings = 0;
     int i;
@@ -84,13 +85,6 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         severe("can't read %s : %s.", fname, config_error_text(&cfg));
         goto out;
     }
-
-    if (!config_lookup_int(&cfg, SLAYOUT, &layout)) {
-        errno = ENOKEY;
-        severe("can't fetch layout setting.");
-        goto out;
-    }
-    config->layout = (int)layout;
 
     if (!(ports_settings = config_lookup(&cfg, SPORTS))) {
         errno = ENOKEY;
@@ -120,6 +114,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         storage_config_t *new = 0;
         struct config_setting_t *ms = 0;
         long int sid;
+        long int cid;
         const char *root = 0;
 
         if (!(ms = config_setting_get_elem(stor_settings, i))) {
@@ -134,6 +129,11 @@ int sconfig_read(sconfig_t *config, const char *fname) {
             goto out;
         }
 
+        if (config_setting_lookup_int(ms, SCID, &cid) == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("cant't lookup cid for storage %d.", i);
+            goto out;
+        }
 
         if (config_setting_lookup_string(ms, SROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;
@@ -142,7 +142,8 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         }
 
         new = xmalloc(sizeof (storage_config_t));
-        if (storage_config_initialize(new, (sid_t)sid, root) != 0) {
+        if (storage_config_initialize(new, (cid_t) cid, (sid_t) sid,
+                root) != 0) {
             goto out;
         }
         list_push_back(&config->storages, &new->list);
@@ -157,19 +158,14 @@ out:
 int sconfig_validate(sconfig_t *config) {
     int status = -1;
     list_t *p;
+    int storages_nb = 0;
     DEBUG_FUNCTION;
-
-    if (config->layout < LAYOUT_2_3_4 || config->layout > LAYOUT_8_12_16) {
-        severe("unknown layout: %d.", config->layout);
-        errno = EINVAL;
-        goto out;
-    }
 
     /* Checking the number of process */
     if (config->sproto_svc_nb < 1 ||
             config->sproto_svc_nb > STORAGE_NODE_PORTS_MAX) {
         severe("invalid number of process: %u. (minimum: 1, maximum: %d)",
-                config->sproto_svc_nb,STORAGE_NODE_PORTS_MAX);
+                config->sproto_svc_nb, STORAGE_NODE_PORTS_MAX);
         errno = EINVAL;
         goto out;
     }
@@ -178,7 +174,8 @@ int sconfig_validate(sconfig_t *config) {
         list_t *q;
         storage_config_t *e1 = list_entry(p, storage_config_t, list);
         if (access(e1->root, F_OK) != 0) {
-            severe("invalid root %s: %s.", e1->root, strerror(errno));
+            severe("invalid root for storage (cid: %u ; sid: %u) %s: %s.",
+                    e1->cid, e1->sid, e1->root, strerror(errno));
             errno = EINVAL;
             goto out;
         }
@@ -187,8 +184,9 @@ int sconfig_validate(sconfig_t *config) {
             storage_config_t *e2 = list_entry(q, storage_config_t, list);
             if (e1 == e2)
                 continue;
-            if (e1->sid == e2->sid) {
-                severe("duplicated sid: %d", e1->sid);
+            if ((e1->sid == e2->sid) && (e1->cid == e2->cid)) {
+                severe("duplicated couple (cid: %u ; sid: %u)", e1->cid,
+                        e1->sid);
                 errno = EINVAL;
                 goto out;
             }
@@ -199,6 +197,18 @@ int sconfig_validate(sconfig_t *config) {
                 goto out;
             }
         }
+
+        // Compute the nb. of storage(s) for this storage node
+        storages_nb++;
+    }
+
+    // Check the nb. of storage(s) for this storage node
+    if (storages_nb > STORAGES_MAX_BY_STORAGE_NODE) {
+        severe("too many number of storages for this storage node: %d"
+                " storages register (maximum is %d)",
+                storages_nb, STORAGES_MAX_BY_STORAGE_NODE);
+        errno = EINVAL;
+        goto out;
     }
 
     status = 0;

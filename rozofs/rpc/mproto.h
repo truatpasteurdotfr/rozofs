@@ -15,7 +15,7 @@ extern "C" {
 
 #include <rozofs/rozofs.h>
 
-typedef u_char mp_uuid_t[ROZOFS_UUID_SIZE];
+typedef uint32_t mp_uuid_t[ROZOFS_UUID_SIZE_NET];
 
 enum mp_status_t {
 	MP_SUCCESS = 0,
@@ -32,10 +32,19 @@ struct mp_status_ret_t {
 typedef struct mp_status_ret_t mp_status_ret_t;
 
 struct mp_remove_arg_t {
-	uint16_t sid;
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t layout;
+	uint32_t dist_set[ROZOFS_SAFE_MAX_NET];
 	mp_uuid_t fid;
 };
 typedef struct mp_remove_arg_t mp_remove_arg_t;
+
+struct mp_stat_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+};
+typedef struct mp_stat_arg_t mp_stat_arg_t;
 
 struct mp_sstat_t {
 	uint64_t size;
@@ -69,8 +78,8 @@ typedef struct mp_ports_ret_t mp_ports_ret_t;
 extern  void * mp_null_1(void *, CLIENT *);
 extern  void * mp_null_1_svc(void *, struct svc_req *);
 #define MP_STAT 1
-extern  mp_stat_ret_t * mp_stat_1(uint16_t *, CLIENT *);
-extern  mp_stat_ret_t * mp_stat_1_svc(uint16_t *, struct svc_req *);
+extern  mp_stat_ret_t * mp_stat_1(mp_stat_arg_t *, CLIENT *);
+extern  mp_stat_ret_t * mp_stat_1_svc(mp_stat_arg_t *, struct svc_req *);
 #define MP_REMOVE 2
 extern  mp_status_ret_t * mp_remove_1(mp_remove_arg_t *, CLIENT *);
 extern  mp_status_ret_t * mp_remove_1_svc(mp_remove_arg_t *, struct svc_req *);
@@ -102,6 +111,7 @@ extern  bool_t xdr_mp_uuid_t (XDR *, mp_uuid_t);
 extern  bool_t xdr_mp_status_t (XDR *, mp_status_t*);
 extern  bool_t xdr_mp_status_ret_t (XDR *, mp_status_ret_t*);
 extern  bool_t xdr_mp_remove_arg_t (XDR *, mp_remove_arg_t*);
+extern  bool_t xdr_mp_stat_arg_t (XDR *, mp_stat_arg_t*);
 extern  bool_t xdr_mp_sstat_t (XDR *, mp_sstat_t*);
 extern  bool_t xdr_mp_stat_ret_t (XDR *, mp_stat_ret_t*);
 extern  bool_t xdr_mp_ports_ret_t (XDR *, mp_ports_ret_t*);
@@ -111,6 +121,7 @@ extern bool_t xdr_mp_uuid_t ();
 extern bool_t xdr_mp_status_t ();
 extern bool_t xdr_mp_status_ret_t ();
 extern bool_t xdr_mp_remove_arg_t ();
+extern bool_t xdr_mp_stat_arg_t ();
 extern bool_t xdr_mp_sstat_t ();
 extern bool_t xdr_mp_stat_ret_t ();
 extern bool_t xdr_mp_ports_ret_t ();

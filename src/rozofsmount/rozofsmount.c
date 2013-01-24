@@ -1299,7 +1299,7 @@ void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
         size_t size) {
 
     START_PROFILING(rozofs_ll_getxattr);
-    
+
     DEBUG("getxattr (inode: %lu, name: %s, size: %llu) \n",
             (unsigned long int) ino, name, (unsigned long long int) size);
 
@@ -1315,6 +1315,7 @@ void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
     ientry_t *ie = 0;
     uint64_t value_size = 0;
     char value[ROZOFS_XATTR_VALUE_MAX];
+    memset(value, 0, ROZOFS_XATTR_VALUE_MAX * sizeof (char));
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
@@ -1344,7 +1345,7 @@ void rozofs_ll_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
     ientry_t *ie = 0;
 
     START_PROFILING(rozofs_ll_setxattr);
-    
+
     DEBUG("setxattr (inode: %lu, name: %s, value: %s, size: %llu)\n",
             (unsigned long int) ino, name, value,
             (unsigned long long int) size);
@@ -1371,7 +1372,7 @@ void rozofs_ll_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
     ientry_t *ie = 0;
     uint64_t list_size = 0;
     char list[ROZOFS_XATTR_LIST_MAX];
-    
+
     START_PROFILING(rozofs_ll_listxattr);
 
     DEBUG("listxattr (inode: %lu, size: %llu)\n", (unsigned long int) ino,
@@ -1395,15 +1396,15 @@ void rozofs_ll_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
 error:
     fuse_reply_err(req, errno);
 out:
-   STOP_PROFILING(rozofs_ll_listxattr); 
-   return;
+    STOP_PROFILING(rozofs_ll_listxattr);
+    return;
 }
 
 void rozofs_ll_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name) {
     ientry_t *ie = 0;
 
     START_PROFILING(rozofs_ll_removexattr);
-    
+
     DEBUG("removexattr (inode: %lu, name: %s)\n", (unsigned long int) ino,
             name);
 
@@ -1420,7 +1421,7 @@ void rozofs_ll_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name) {
 error:
     fuse_reply_err(req, errno);
 out:
-    STOP_PROFILING(rozofs_ll_removexattr); 
+    STOP_PROFILING(rozofs_ll_removexattr);
     return;
 }
 
@@ -1428,6 +1429,7 @@ out:
  * All below are implemented for monitoring purpose.
  */
 #warning fake untested function.
+
 void rozofs_ll_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
         struct flock *lock) {
     START_PROFILING(rozofs_ll_getlk);
@@ -1436,6 +1438,7 @@ void rozofs_ll_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 }
 
 #warning fake untested function.
+
 void rozofs_ll_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
         struct flock *lock, int sleep) {
     START_PROFILING(rozofs_ll_getlk);
@@ -1444,6 +1447,7 @@ void rozofs_ll_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 }
 
 #warning fake untested function.
+
 void rozofs_ll_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
     START_PROFILING(rozofs_ll_releasedir);
     fuse_reply_err(req, 0);
@@ -1451,6 +1455,7 @@ void rozofs_ll_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info 
 }
 
 #warning fake untested function.
+
 void rozofs_ll_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
         struct fuse_file_info *fi) {
     START_PROFILING(rozofs_ll_fsyncdir);
@@ -1459,6 +1464,7 @@ void rozofs_ll_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
 }
 
 #warning fake untested function.
+
 void rozofs_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd, void *arg,
         struct fuse_file_info *fi, unsigned flags,
         const void *in_buf, size_t in_bufsz, size_t out_bufsz) {
@@ -1485,12 +1491,12 @@ static SVCXPRT *rozofsmount_create_rpc_service(int port) {
     }
 
     /* Set socket options */
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof(int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof(int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof(int));
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
+    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
+    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
 
     /* Bind the socket */
-    if (bind(sock, (struct sockaddr *) &sin, sizeof(struct sockaddr)) < 0) {
+    if (bind(sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) < 0) {
         severe("Couldn't bind to tcp port %d", port);
         return NULL;
     }
@@ -1647,6 +1653,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     /* Put the root inode entry*/
     ientry_t *root = xmalloc(sizeof (ientry_t));
+    memset(root, 0, sizeof (ientry_t));
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
     root->inode = next_inode_idx();
     root->db.size = 0;
@@ -1804,7 +1811,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     fuse_unmount(mountpoint, ch);
     exportclt_release(&exportclt);
     ientries_release();
-    rozofs_release();
 
     return err ? 1 : 0;
 }
@@ -1841,13 +1847,13 @@ int main(int argc, char *argv[]) {
     }
     if (conf.buf_size < 128) {
         fprintf(stderr,
-                "write cache size to low (%u KiB) - increased to 128 KiB\n",
+                "write cache size too low (%u KiB) - increased to 128 KiB\n",
                 conf.buf_size);
         conf.buf_size = 128;
     }
     if (conf.buf_size > 8192) {
         fprintf(stderr,
-                "write cache size to big (%u KiB) - decreased to 8192 KiB\n",
+                "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
                 conf.buf_size);
         conf.buf_size = 8192;
     }

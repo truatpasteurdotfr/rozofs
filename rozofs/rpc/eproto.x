@@ -1,28 +1,27 @@
 /*
-  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
-  This file is part of Rozofs.
+ Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
+ This file is part of Rozofs.
 
-  Rozofs is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published
-  by the Free Software Foundation; either version 3 of the License,
-  or (at your option) any later version.
+ Rozofs is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published
+ by the Free Software Foundation, version 2.
 
-  Rozofs is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
+ Rozofs is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see
-  <http://www.gnu.org/licenses/>.
-*/
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see
+ <http://www.gnu.org/licenses/>.
+ */
 
-%#include "rozofs.h"
+%#include <rozofs/rozofs.h>
 
 /*
  * Common types
  */
-typedef unsigned char   ep_uuid_t[ROZOFS_UUID_SIZE];
+typedef uint32_t        ep_uuid_t[ROZOFS_UUID_SIZE_NET];
 typedef string          ep_name_t<ROZOFS_FILENAME_MAX>;
 typedef string          ep_xattr_name_t<ROZOFS_XATTR_NAME_MAX>;
 typedef string          ep_xattr_value_t<ROZOFS_XATTR_VALUE_MAX>;
@@ -45,14 +44,15 @@ union ep_status_ret_t switch (ep_status_t status) {
 struct ep_storage_node_t {
     ep_host_t       host;
     uint8_t         sids_nb;
-    uint16_t        sids[STORAGE_NODE_SIDS_MAX];
+    uint8_t         sids[STORAGES_MAX_BY_STORAGE_NODE];
+    uint16_t        cids[STORAGES_MAX_BY_STORAGE_NODE];
 };
 
 struct ep_export_t {
     uint32_t            eid;
     ep_md5_t            md5;
     ep_uuid_t           rfid;   /*root fid*/
-    int                 rl;     /* rozofs layout */
+    uint8_t             rl;     /* rozofs layout */
     uint8_t             storage_nodes_nb;
     ep_storage_node_t   storage_nodes[STORAGE_NODES_MAX];
 };
@@ -66,7 +66,7 @@ union ep_mount_ret_t switch (ep_status_t status) {
 struct ep_mattr_t {
     ep_uuid_t   fid;
     uint16_t    cid;
-    uint16_t    sids[ROZOFS_SAFE_MAX];
+    uint8_t     sids[ROZOFS_SAFE_MAX];
     uint32_t    mode;
     uint32_t    uid;
     uint32_t    gid;
@@ -250,8 +250,7 @@ struct ep_setxattr_arg_t {
     uint32_t          eid;
     ep_uuid_t         fid;
     ep_xattr_name_t   name;
-    ep_xattr_value_t  value;
-    uint64_t          size;
+    opaque            value<>;
     uint8_t           flags;
 };
 
@@ -268,7 +267,7 @@ struct ep_getxattr_t {
 };
 
 union ep_getxattr_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    ep_getxattr_t   ret;
+    case EP_SUCCESS:    opaque          value<>;
     case EP_FAILURE:    int             error;
     default:            void;
 };
@@ -285,13 +284,8 @@ struct ep_listxattr_arg_t {
     uint64_t          size;
 };
 
-struct ep_listxattr_t {
-    ep_xattr_list_t   list;
-    uint64_t          size;
-};
-
 union ep_listxattr_ret_t switch (ep_status_t status) {
-    case EP_SUCCESS:    ep_listxattr_t   ret;
+    case EP_SUCCESS:    opaque          list<>;
     case EP_FAILURE:    int             error;
     default:            void;
 };

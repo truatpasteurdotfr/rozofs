@@ -70,6 +70,7 @@ typedef struct export {
     volume_t *volume; ///< the volume export relies on
     char root[PATH_MAX]; ///< absolute path of the storage root
     char md5[ROZOFS_MD5_SIZE]; ///< passwd
+    uint8_t layout; ///< layout
     uint64_t squota; ///< soft quota in blocks
     uint64_t hquota; ///< hard quota in blocks
     export_fstat_t fstat; ///< fstat value
@@ -108,6 +109,7 @@ int export_create(const char *root);
  *
  * @param export: pointer to the export
  * @param volume: pointer to the volume the export relies on
+ * @param layout: rozofs layout used for this export
  * @param lv2_cache: pointer to the cache to use
  * @param eid: id of this export
  * @param root: path to root directory
@@ -117,9 +119,9 @@ int export_create(const char *root);
  *
  * @return 0 on success -1 otherwise (errno is set)
  */
-int export_initialize(export_t * e, volume_t *volume, lv2_cache_t *lv2_cache,
-        eid_t eid, const char *root, const char *md5, uint64_t squota,
-        uint64_t hquota);
+int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
+        lv2_cache_t *lv2_cache, eid_t eid, const char *root, const char *md5,
+        uint64_t squota, uint64_t hquota);
 
 /** initialize an export.
  *

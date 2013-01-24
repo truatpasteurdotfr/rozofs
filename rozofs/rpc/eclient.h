@@ -23,6 +23,7 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/dist.h>
 #include <rozofs/common/mattr.h>
+#include <rozofs/rozofs_srv.h>
 
 #include "rpcclt.h"
 #include "sclient.h"
@@ -30,9 +31,10 @@
 typedef struct mstorage {
     char host[ROZOFS_HOSTNAME_MAX];
     sclient_t sclients[STORAGE_NODE_PORTS_MAX];
-    uint16_t sids[STORAGE_NODE_SIDS_MAX];
+    sid_t sids[STORAGES_MAX_BY_STORAGE_NODE];
+    cid_t cids[STORAGES_MAX_BY_STORAGE_NODE];
     uint8_t sclients_nb;
-    uint8_t sids_nb;
+    sid_t sids_nb;
     list_t list;
 } mstorage_t;
 
@@ -42,7 +44,7 @@ typedef struct exportclt {
     char *passwd;
     eid_t eid;
     list_t storages; // XXX: Need a lock?
-    rozofs_layout_t rl;
+    uint8_t layout; // Layout for this export
     fid_t rfid;
     uint32_t bufsize;
     uint32_t retries;
@@ -102,10 +104,10 @@ int64_t exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t 
 
 int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t * cookie, child_t ** children, uint8_t * eof);
 
-int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, char* value,
+int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, void * value,
         uint64_t size, uint8_t flags);
 
-int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, char * value,
+int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, void * value,
         uint64_t size, uint64_t * size2);
 
 int exportclt_removexattr(exportclt_t * clt, fid_t fid, char * name);
@@ -117,6 +119,6 @@ int exportclt_listxattr(exportclt_t * clt, fid_t fid, char * list,
 int exportclt_open(exportclt_t * clt, fid_t fid);
 
 int exportclt_close(exportclt_t * clt, fid_t fid);
-*/
+ */
 
 #endif

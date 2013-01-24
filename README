@@ -12,7 +12,7 @@ INSTALLATION
 
 Requirements
 ------------
-    - Cmake
+    - cmake
     - libattr
     - libuuid
     - libconfig

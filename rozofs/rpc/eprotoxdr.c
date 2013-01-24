@@ -3,17 +3,16 @@
  * It was generated using rpcgen.
  */
 
-#include <rozofs/rozofs.h>
-
 #include "eproto.h"
+#include <rozofs/rozofs.h>
 
 bool_t
 xdr_ep_uuid_t (XDR *xdrs, ep_uuid_t objp)
 {
 	//register int32_t *buf;
 
-	 if (!xdr_vector (xdrs, (char *)objp, ROZOFS_UUID_SIZE,
-		sizeof (u_char), (xdrproc_t) xdr_u_char))
+	 if (!xdr_vector (xdrs, (char *)objp, ROZOFS_UUID_SIZE_NET,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
 	return TRUE;
 }
@@ -139,7 +138,10 @@ xdr_ep_storage_node_t (XDR *xdrs, ep_storage_node_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sids_nb))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->sids, STORAGE_NODE_SIDS_MAX,
+	 if (!xdr_vector (xdrs, (char *)objp->sids, STORAGES_MAX_BY_STORAGE_NODE,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->cids, STORAGES_MAX_BY_STORAGE_NODE,
 		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
 		 return FALSE;
 	return TRUE;
@@ -157,7 +159,7 @@ xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
 		 return FALSE;
 	 if (!xdr_ep_uuid_t (xdrs, objp->rfid))
 		 return FALSE;
-	 if (!xdr_int (xdrs, &objp->rl))
+	 if (!xdr_uint8_t (xdrs, &objp->rl))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->storage_nodes_nb))
 		 return FALSE;
@@ -200,7 +202,7 @@ xdr_ep_mattr_t (XDR *xdrs, ep_mattr_t *objp)
 	 if (!xdr_uint16_t (xdrs, &objp->cid))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->sids, ROZOFS_SAFE_MAX,
-		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->mode))
 		 return FALSE;
@@ -689,9 +691,7 @@ xdr_ep_setxattr_arg_t (XDR *xdrs, ep_setxattr_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_ep_xattr_name_t (xdrs, &objp->name))
 		 return FALSE;
-	 if (!xdr_ep_xattr_value_t (xdrs, &objp->value))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->size))
+	 if (!xdr_bytes (xdrs, (char **)&objp->value.value_val, (u_int *) &objp->value.value_len, ~0))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->flags))
 		 return FALSE;
@@ -735,7 +735,7 @@ xdr_ep_getxattr_ret_t (XDR *xdrs, ep_getxattr_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case EP_SUCCESS:
-		 if (!xdr_ep_getxattr_t (xdrs, &objp->ep_getxattr_ret_t_u.ret))
+		 if (!xdr_bytes (xdrs, (char **)&objp->ep_getxattr_ret_t_u.value.value_val, (u_int *) &objp->ep_getxattr_ret_t_u.value.value_len, ~0))
 			 return FALSE;
 		break;
 	case EP_FAILURE:
@@ -777,18 +777,6 @@ xdr_ep_listxattr_arg_t (XDR *xdrs, ep_listxattr_arg_t *objp)
 }
 
 bool_t
-xdr_ep_listxattr_t (XDR *xdrs, ep_listxattr_t *objp)
-{
-	//register int32_t *buf;
-
-	 if (!xdr_ep_xattr_list_t (xdrs, objp->list))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->size))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
 xdr_ep_listxattr_ret_t (XDR *xdrs, ep_listxattr_ret_t *objp)
 {
 	//register int32_t *buf;
@@ -797,7 +785,7 @@ xdr_ep_listxattr_ret_t (XDR *xdrs, ep_listxattr_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case EP_SUCCESS:
-		 if (!xdr_ep_listxattr_t (xdrs, &objp->ep_listxattr_ret_t_u.ret))
+		 if (!xdr_bytes (xdrs, (char **)&objp->ep_listxattr_ret_t_u.list.list_val, (u_int *) &objp->ep_listxattr_ret_t_u.list.list_len, ~0))
 			 return FALSE;
 		break;
 	case EP_FAILURE:

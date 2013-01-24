@@ -19,8 +19,8 @@
 #
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
-set(MAJOR "0")
-set(MINOR "13")
+set(MAJOR "1")
+set(MINOR "0")
 set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
@@ -82,7 +82,8 @@ set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOS
 set(ROZOFS_SOURCE_PACKAGE_FILE_NAME "rozofs-${VERSION}")
 
 configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/squeeze.in" "${PROJECT_BINARY_DIR}/squeeze.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/wheezy.in" "${PROJECT_BINARY_DIR}/wheezy.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/ubuntu.in" "${PROJECT_BINARY_DIR}/ubuntu.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/export.conf.in" "${PROJECT_BINARY_DIR}/src/exportd/export.conf.sample")
@@ -104,6 +105,10 @@ if(NOT CMAKE_BUILD_TYPE)
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
+set(CMAKE_C_FLAGS "-D_GNU_SOURCE" CACHE STRING
+    "Flags used by the compiler during all build types."
+    FORCE)
+
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
@@ -116,7 +121,8 @@ set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
 # uninstall target
 #
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake")
-add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/debian.cmake")
+add_custom_target(package_squeeze "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/squeeze.cmake")
+add_custom_target(package_wheezy "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/wheezy.cmake")
 add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/ubuntu.cmake")
 
 

@@ -44,11 +44,10 @@ build ()
 }
 
 # $1 -> LAYOUT
-# $2 -> storages by node
+# $2 -> storages by cluster
 gen_storage_conf ()
 {
-    ROZOFS_LAYOUT=$1
-    STORAGES_BY_CLUSTER=$2
+    STORAGES_BY_CLUSTER=$1
 
     FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'.conf'
 
@@ -65,18 +64,28 @@ gen_storage_conf ()
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
-    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo "ports = [ 40000, 40001, 40002, 40003 ] ;" >> $FILE
     echo 'storages = (' >> $FILE
-    let nb_storages=$((${STORAGES_BY_CLUSTER}*${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
-    for j in $(seq ${nb_storages}); do
-        if [[ ${j} == ${nb_storages} ]]
-        then
-            echo "  {sid = $j; root =\"${LOCAL_STORAGES_ROOT}_$j\";}" >> $FILE
-        else
-            echo "  {sid = $j; root =\"${LOCAL_STORAGES_ROOT}_$j\";}," >> $FILE
-        fi
-    done;
+
+    let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+
+
+	for i in $(seq ${nb_clusters}); do
+
+		for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+		    if [[ ${i} == ${nb_clusters} && ${j} == ${STORAGES_BY_CLUSTER} ]]
+		    then
+		        echo "  {cid = $i; sid = $j; root =\"${LOCAL_STORAGES_ROOT}_$i-$j\";}" >> $FILE
+		    else
+		        echo "  {cid = $i; sid = $j; root =\"${LOCAL_STORAGES_ROOT}_$i-$j\";}," >> $FILE
+		    fi
+
+		done;
+
+	done;
+
+
     echo ');' >> $FILE
 }
 
@@ -124,12 +133,11 @@ gen_export_conf ()
                     let idx=${k}-1;
                      idx_tmp_1=$(((${v}-1)*${NB_CLUSTERS_BY_VOLUME}*${STORAGES_BY_CLUSTER}))
                      idx_tmp_2=$((${STORAGES_BY_CLUSTER}*(${c}-1)))
-                     idx_storage=$((${idx_tmp_1}+${idx_tmp_2}+${k}))
                     if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
                     then
-                        echo "                           {sid = ${idx_storage}; host = \"${LOCAL_STORAGE_NAME_BASE}\";}" >> $FILE
+                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}\";}" >> $FILE
                     else
-                        echo "                           {sid = ${idx_storage}; host = \"${LOCAL_STORAGE_NAME_BASE}\";}," >> $FILE
+                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}\";}," >> $FILE
                     fi
                 done;
                 echo '                       );' >> $FILE
@@ -207,18 +215,24 @@ create_storages ()
     then
         echo "Unable to remove storage directories (configuration file doesn't exist)"
     else
-        STORAGES_BY_CLUSTER=`grep sid ${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE} | wc -l`
 
-        for j in $(seq ${STORAGES_BY_CLUSTER}); do
+    	let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
-            if [ -e "${LOCAL_STORAGES_ROOT}_${j}" ]
-            then
-                rm -rf ${LOCAL_STORAGES_ROOT}_${j}/*.bins
-            else
-                mkdir -p ${LOCAL_STORAGES_ROOT}_${j}
-            fi
+		for i in $(seq ${nb_clusters}); do
 
-        done;
+			for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+		        if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${j}" ]
+		        then
+		            rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${j}/*.bins
+		        else
+		            mkdir -p ${LOCAL_STORAGES_ROOT}_${i}-${j}
+		        fi
+
+			done;
+
+		done;
+
     fi
 }
 
@@ -229,16 +243,22 @@ remove_storages ()
     then
         echo "Unable to remove storage directories (configuration file doesn't exist)"
     else
-        STORAGES_BY_CLUSTER=`grep sid ${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE} | wc -l`
 
-        for j in $(seq ${STORAGES_BY_CLUSTER}); do
+		let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
-            if [ -e "${LOCAL_STORAGES_ROOT}_${j}" ]
-            then
-                rm -rf ${LOCAL_STORAGES_ROOT}_${j}
-            fi
+		for i in $(seq ${nb_clusters}); do
 
-        done;
+			for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+		        if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${j}" ]
+		        then
+		            rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${j}
+		        fi
+
+			done;
+
+		done;
+
     fi
 }
 
@@ -543,9 +563,9 @@ main ()
 
         NB_EXPORTS=2
         NB_VOLUMES=2;
-        NB_CLUSTERS_BY_VOLUME=2;
+        NB_CLUSTERS_BY_VOLUME=1;
 
-        gen_storage_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
+        gen_storage_conf ${STORAGES_BY_CLUSTER}
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT}

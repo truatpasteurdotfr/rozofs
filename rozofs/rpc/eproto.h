@@ -15,7 +15,7 @@ extern "C" {
 
 #include <rozofs/rozofs.h>
 
-typedef u_char ep_uuid_t[ROZOFS_UUID_SIZE];
+typedef uint32_t ep_uuid_t[ROZOFS_UUID_SIZE_NET];
 
 typedef char *ep_name_t;
 
@@ -50,7 +50,8 @@ typedef struct ep_status_ret_t ep_status_ret_t;
 struct ep_storage_node_t {
 	ep_host_t host;
 	uint8_t sids_nb;
-	uint16_t sids[STORAGE_NODE_SIDS_MAX];
+	uint8_t sids[STORAGES_MAX_BY_STORAGE_NODE];
+	uint16_t cids[STORAGES_MAX_BY_STORAGE_NODE];
 };
 typedef struct ep_storage_node_t ep_storage_node_t;
 
@@ -58,7 +59,7 @@ struct ep_export_t {
 	uint32_t eid;
 	ep_md5_t md5;
 	ep_uuid_t rfid;
-	int rl;
+	uint8_t rl;
 	uint8_t storage_nodes_nb;
 	ep_storage_node_t storage_nodes[STORAGE_NODES_MAX];
 };
@@ -76,7 +77,7 @@ typedef struct ep_mount_ret_t ep_mount_ret_t;
 struct ep_mattr_t {
 	ep_uuid_t fid;
 	uint16_t cid;
-	uint16_t sids[ROZOFS_SAFE_MAX];
+	uint8_t sids[ROZOFS_SAFE_MAX];
 	uint32_t mode;
 	uint32_t uid;
 	uint32_t gid;
@@ -304,8 +305,10 @@ struct ep_setxattr_arg_t {
 	uint32_t eid;
 	ep_uuid_t fid;
 	ep_xattr_name_t name;
-	ep_xattr_value_t value;
-	uint64_t size;
+	struct {
+		u_int value_len;
+		char *value_val;
+	} value;
 	uint8_t flags;
 };
 typedef struct ep_setxattr_arg_t ep_setxattr_arg_t;
@@ -327,7 +330,10 @@ typedef struct ep_getxattr_t ep_getxattr_t;
 struct ep_getxattr_ret_t {
 	ep_status_t status;
 	union {
-		ep_getxattr_t ret;
+		struct {
+			u_int value_len;
+			char *value_val;
+		} value;
 		int error;
 	} ep_getxattr_ret_t_u;
 };
@@ -347,16 +353,13 @@ struct ep_listxattr_arg_t {
 };
 typedef struct ep_listxattr_arg_t ep_listxattr_arg_t;
 
-struct ep_listxattr_t {
-	ep_xattr_list_t list;
-	uint64_t size;
-};
-typedef struct ep_listxattr_t ep_listxattr_t;
-
 struct ep_listxattr_ret_t {
 	ep_status_t status;
 	union {
-		ep_listxattr_t ret;
+		struct {
+			u_int list_len;
+			char *list_val;
+		} list;
 		int error;
 	} ep_listxattr_ret_t_u;
 };
@@ -554,7 +557,6 @@ extern  bool_t xdr_ep_getxattr_t (XDR *, ep_getxattr_t*);
 extern  bool_t xdr_ep_getxattr_ret_t (XDR *, ep_getxattr_ret_t*);
 extern  bool_t xdr_ep_removexattr_arg_t (XDR *, ep_removexattr_arg_t*);
 extern  bool_t xdr_ep_listxattr_arg_t (XDR *, ep_listxattr_arg_t*);
-extern  bool_t xdr_ep_listxattr_t (XDR *, ep_listxattr_t*);
 extern  bool_t xdr_ep_listxattr_ret_t (XDR *, ep_listxattr_ret_t*);
 
 #else /* K&R C */
@@ -605,7 +607,6 @@ extern bool_t xdr_ep_getxattr_t ();
 extern bool_t xdr_ep_getxattr_ret_t ();
 extern bool_t xdr_ep_removexattr_arg_t ();
 extern bool_t xdr_ep_listxattr_arg_t ();
-extern bool_t xdr_ep_listxattr_t ();
 extern bool_t xdr_ep_listxattr_ret_t ();
 
 #endif /* K&R C */
