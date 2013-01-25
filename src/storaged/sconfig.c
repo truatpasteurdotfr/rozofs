@@ -113,8 +113,16 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     for (i = 0; i < config_setting_length(stor_settings); i++) {
         storage_config_t *new = 0;
         struct config_setting_t *ms = 0;
+
+        // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+        int sid;
+        int cid;
+#else
         long int sid;
         long int cid;
+#endif
         const char *root = 0;
 
         if (!(ms = config_setting_get_elem(stor_settings, i))) {
