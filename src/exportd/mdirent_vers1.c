@@ -473,14 +473,14 @@ static inline int put_mdirentry_in_mdirents_file(int dirfd, mdirents_file_t *mdi
  */
 static inline int del_mdirentry_in_mdirents_file(int dirfd, mdirents_file_t *mdirents_file_p, int entry_idx) {
 
-    mdirents_entry_t *entry_p = NULL;
+    //mdirents_entry_t *entry_p = NULL;
 
     if ((entry_idx < 0) || (entry_idx > (MDIRENTS_FILE_MAX_ENTRY - 1))) {
         // Index is out of range
         return -1;
     }
 
-    entry_p = &(mdirents_file_p->mdirentry[entry_idx]);
+    //entry_p = &(mdirents_file_p->mdirentry[entry_idx]);
 
     // OK now, assert the corresponding bit in the bitmap
     mdirents_file_p->header.bitmap &= ~(1 << entry_idx);

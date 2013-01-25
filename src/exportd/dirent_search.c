@@ -129,13 +129,13 @@ mdirents_cache_entry_t *dirent_cache_search_hash_entry (  int dir_fd,
                                                          mdirents_hash_entry_t **user_hash_entry_p)
 {
    mdirents_hash_ptr_t           *hash_bucket_p;
-   mdirents_hash_ptr_t           *hash_bucket_coll_p = NULL;
-   mdirents_hash_ptr_t           *hash_bucket_prev_p;
+   //mdirents_hash_ptr_t           *hash_bucket_coll_p = NULL;
+   //mdirents_hash_ptr_t           *hash_bucket_prev_p;
    mdirents_hash_entry_t         *hash_entry_cur_p;
    mdirents_cache_entry_t        *cache_entry_cur;
-   mdirents_cache_entry_t        *cache_entry_prev;
+   //mdirents_cache_entry_t        *cache_entry_prev;
    uint32_t                       coll_cnt = 0;
-   int                            hash_entry_bucket_idx = bucket_idx ;
+   //int                            hash_entry_bucket_idx = bucket_idx ;
    int                            repair = 0;
    dirent_file_repair_cause_e    cause;
 
@@ -152,9 +152,9 @@ mdirents_cache_entry_t *dirent_cache_search_hash_entry (  int dir_fd,
      */
 reloop:
      cache_entry_cur  = root;
-     cache_entry_prev = root;
+     //cache_entry_prev = root;
      hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_cur,bucket_idx);
-     hash_bucket_prev_p = hash_bucket_p;
+     //hash_bucket_prev_p = hash_bucket_p;
 #ifdef DIRENT_LKUP_TRACKING
     /*
     ** When tracking is enabled, we stored the information related to the linked list
@@ -274,7 +274,7 @@ reloop:
         /*
         ** get the index of the bucket for tracing purpose only
         */
-        hash_entry_bucket_idx = DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_cur_p);
+        //hash_entry_bucket_idx = DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_cur_p);
         /*
         ** Check if there is a match with that value
         */
@@ -309,7 +309,7 @@ reloop:
                /*
                ** try the next entry
                */
-               hash_bucket_prev_p = hash_bucket_p;
+               //hash_bucket_prev_p = hash_bucket_p;
                hash_bucket_p      = &hash_entry_cur_p->next;
                continue;
              }
@@ -342,7 +342,7 @@ reloop:
                 /*
                 ** try the next entry
                 */
-                hash_bucket_prev_p = hash_bucket_p;
+                //hash_bucket_prev_p = hash_bucket_p;
                 hash_bucket_p = &hash_entry_cur_p->next;
                 continue;
              }
@@ -373,7 +373,7 @@ reloop:
         /*
         ** try the next entry
         */
-        hash_bucket_prev_p = hash_bucket_p;
+        //hash_bucket_prev_p = hash_bucket_p;
         hash_bucket_p = &hash_entry_cur_p->next;
         continue;
       }
@@ -401,8 +401,8 @@ reloop:
       ** set the pointer to the bitmap of the next collision file
       */
       hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_cur,bucket_idx);
-      hash_bucket_prev_p = hash_bucket_p;
-      hash_bucket_coll_p = hash_bucket_p;
+      //hash_bucket_prev_p = hash_bucket_p;
+      //hash_bucket_coll_p = hash_bucket_p;
       continue;
     }
   }
