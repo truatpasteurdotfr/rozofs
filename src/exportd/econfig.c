@@ -45,7 +45,7 @@
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
 
-int storage_node_config_initialize(storage_node_config_t *s, long int sid,
+int storage_node_config_initialize(storage_node_config_t *s, uint8_t sid,
         const char *host) {
     int status = -1;
 
@@ -172,7 +172,14 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
 
     // For each volume
     for (v = 0; v < config_setting_length(volumes_set); v++) {
+
+        // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+        int vid; // Volume identifier
+#else
         long int vid; // Volume identifier
+#endif
         struct config_setting_t *vol_set = NULL; // Settings for one volume
         /* Settings of list of clusters for one volume */
         struct config_setting_t *clu_list_set = NULL;
@@ -209,7 +216,13 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
         // For each cluster of this volume
         for (c = 0; c < config_setting_length(clu_list_set); c++) {
 
+            // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+            int cid;
+#else
             long int cid;
+#endif
             struct config_setting_t *stor_set;
             struct config_setting_t *clu_set;
             cluster_config_t *cconfig;
@@ -244,7 +257,13 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
             for (s = 0; s < config_setting_length(stor_set); s++) {
 
                 struct config_setting_t *mstor_set = NULL;
+                // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+                int sid;
+#else
                 long int sid;
+#endif
                 const char *host;
                 storage_node_config_t *snconfig = NULL;
 
@@ -274,7 +293,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
 
                 // Allocate a new storage_config
                 snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
-                if (storage_node_config_initialize(snconfig, sid, host) != 0) {
+                if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
                     severe("can't initialize storage node config.");
                 }
 
@@ -355,11 +374,18 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
         struct config_setting_t *mfs_setting = NULL;
         const char *root;
         const char *md5;
+        // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+        int eid; // Export identifier
+        int vid; // Volume identifier
+#else
         long int eid; // Export identifier
+        long int vid; // Volume identifier
+#endif
         const char *str;
         uint64_t squota;
         uint64_t hquota;
-        long int vid; // Volume identifier
         export_config_t *econfig = NULL;
 
         if ((mfs_setting = config_setting_get_elem(export_set, i)) == NULL) {
@@ -434,7 +460,15 @@ out:
 int econfig_read(econfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
+    // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+    int layout;
+#else
+
     long int layout;
+#endif
+
     DEBUG_FUNCTION;
 
     config_init(&cfg);
