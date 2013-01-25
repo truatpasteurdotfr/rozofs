@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
 
     int i;
     htable_t h;
-    void *ptr;
+    //void *ptr;
 
     static char *keys[] = { "a", "b", "c", "d", "e",
         "f", "g", "h", "i", "j", "k", "l",
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
 
     htable_initialize(&h, 10, string_hash, string_cmp);
 
-    ptr = htable_get(&h, "z");
+    htable_get(&h, "z");
 
     for (i = 0; i < 26; i++)
         htable_put(&h, keys[i], vals[i]);

@@ -25,9 +25,7 @@ int main(int argc, char **argv) {
     uint32_t nrb;
     tid_t tid_1;
     tid_t tid_2;
-    uint64_t write_ts;
     uint64_t file_size;
-    uint16_t write_effective_len;
     uint8_t write_version;
     uint8_t i = 0;
 
@@ -57,8 +55,6 @@ int main(int argc, char **argv) {
     tid_1 = 0;
     tid_2 = 2;
     layout = 0;
-    write_ts = 0;
-    write_effective_len = ROZOFS_BSIZE;
     write_version = 0;
 
     // Write some bins (nrb. projections with projection = tid)

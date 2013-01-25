@@ -1277,7 +1277,7 @@ static inline int dirent_getnext_chunk(int first_chunk, uint8_t *p,
     uint8_t chunk_u8_idx;
     int chunk_idx = first_chunk;
     int next_chunk_idx = 0;
-    int start_idx = -1;
+    //int start_idx = -1;
     int loop_cnt = 0;
 //    int  loop_while_cnt  = 0;
     int bit_idx;
@@ -1295,7 +1295,7 @@ static inline int dirent_getnext_chunk(int first_chunk, uint8_t *p,
             /*
              ** no the expected value so restart from the begin (relative)
              */
-            start_idx = -1;
+            //start_idx = -1;
             /*
              ** if we start on a byte boundary, we call check_bytes_val to try to skip
              ** up to a maximun of 64 bits to speed up the search. The value to skip is
@@ -2708,7 +2708,7 @@ static inline int dirent_cache_del_entry_name(
         uint32_t nb_chunks) {
 
     uint8_t *mem_p;
-    int ret;
+    //int ret;
     mdirent_cache_ptr_t virt_ptr;
     int first_chunk_of_array;
     uint64_t val;
@@ -2726,7 +2726,7 @@ static inline int dirent_cache_del_entry_name(
     /*
      ** release the chunk allocated for the name entry
      */
-    ret =
+    /*ret =*/
             DIRENT_CACHE_RELEASE_NAME_ENTRY_CHUNKS(mem_p,start_chunk_idx,nb_chunks)
     ;
     if (mem_p == NULL ) {
