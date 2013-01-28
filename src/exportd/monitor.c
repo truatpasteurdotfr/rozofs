@@ -29,6 +29,7 @@
 
 #include "config.h"
 #include "monitor.h"
+#include "econfig.h"
 
 DECLARE_PROFILING(epp_profiler_t);
 
@@ -84,7 +85,8 @@ int monitor_volume(volume_t *volume) {
     dprintf(fd, HEADER, VERSION);
     dprintf(fd, "volume: %u\n", clone.vid);
 
-    volume_stat(&clone, &vstat);
+    //XXX TO CHANGE
+    volume_stat(&clone, 0, &vstat);
     gprofiler.vstats[gprofiler.nb_volumes].bsize = vstat.bsize;
     gprofiler.vstats[gprofiler.nb_volumes].bfree = vstat.bfree;
 

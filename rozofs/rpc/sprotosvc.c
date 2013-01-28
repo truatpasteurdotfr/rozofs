@@ -3,6 +3,7 @@
  * It was generated using rpcgen.
  */
 
+#include "sproto.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <rpc/pmap_clnt.h>
@@ -11,12 +12,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "sproto.h"
-
 #ifndef SIG_PF
 #define SIG_PF void(*)(int)
 #endif
-
 #include <rozofs/rozofs.h>
 
 void
@@ -40,7 +38,7 @@ storage_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 
 	case SP_WRITE:
 		_xdr_argument = (xdrproc_t) xdr_sp_write_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
+		_xdr_result = (xdrproc_t) xdr_sp_write_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) sp_write_1_svc;
 		break;
 

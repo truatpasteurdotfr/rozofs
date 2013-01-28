@@ -328,7 +328,7 @@ int dirent_cache_release_entry(mdirents_cache_entry_t *dirent_entry_p) {
     uint8_t chunk_u8_idx;
     int bit_idx;
     mdirent_sector0_not_aligned_t *sect0_p;
-    uint8_t *hash_bitmap_p;
+    //uint8_t *hash_bitmap_p;
     uint8_t *coll_bitmap_p;
     int loop_cnt = 0;
     mdirents_cache_entry_t *dirent_coll_entry_p = NULL;
@@ -344,7 +344,7 @@ int dirent_cache_release_entry(mdirents_cache_entry_t *dirent_entry_p) {
         ;
         return -1;
     }
-    hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
+    //hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
     coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
     /*
      ** check if there is some collision dirent cache entry associated with the current entry
@@ -508,12 +508,12 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
     uint8_t chunk_u8_idx;
     int coll_idx = 0;
     int next_coll_idx = 0;
-    int start_idx = -1;
+    //int start_idx = -1;
     int loop_cnt = 0;
     int free_coll_idx = -1;
     int bit_idx;
     int i;
-    uint8_t *hash_bitmap_p;
+    //uint8_t *hash_bitmap_p;
     uint8_t *coll_bitmap_p;
     uint8_t *coll_bitmap_hash_full_p;
     mdirents_hash_entry_t *hash_entry_p;
@@ -542,7 +542,7 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
     if (coll_bitmap_hash_full_p == (uint8_t*) NULL ) {
         return NULL ;
     }
-    hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
+    //hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
     coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
     /*
      ** Check if the parent is not full
@@ -701,7 +701,7 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
         // hash_p->level = parent->header.level_index;
         hash_p->idx = coll_idx;
         *local_idx_p = hash_entry_bit_idx;
-        start_idx = coll_idx;
+        //start_idx = coll_idx;
         /*
          ** assert full for the collision file if hash_entry_bit_idx is the last allocatable index
          */
@@ -795,7 +795,7 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
         if (sect0_p == (mdirent_sector0_not_aligned_t*) NULL ) {
             return NULL ;
         }
-        hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
+        //hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
         coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap; // not used since only one level is handled
         /*
          ** Try to allocate the free entry from the parent dirent
@@ -1078,7 +1078,7 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
     mdirent_cache_ptr_t *hash_prev_virt_p = NULL;
 
     int cur_hash_entry_idx = -1;
-    int prev_hash_entry_idx = -1;
+    //int prev_hash_entry_idx = -1;
     cache_entry_cur = root;
     cache_entry_prev = root;
     hash_bucket_p =
@@ -1203,7 +1203,7 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
                          ** the hash bucket pointer is a pointer to a hash entry at that level
                          */
                         hash_bucket_prev_p = hash_bucket_p;
-                        prev_hash_entry_idx = cur_hash_entry_idx;
+                        //prev_hash_entry_idx = cur_hash_entry_idx;
                         /*
                          ** store the current hash entry virtual pointer reference in case the next is the good one
                          */
@@ -1237,7 +1237,7 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
                          */
                         hash_bucket_prev_p = hash_bucket_p;
 
-                        prev_hash_entry_idx = cur_hash_entry_idx;
+                        //prev_hash_entry_idx = cur_hash_entry_idx;
                         hash_prev_virt_p = hash_virt_p;
 
                         bucket_idx_used = 0;
@@ -1394,7 +1394,7 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
              ** try the next entry
              */
             hash_bucket_prev_p = hash_bucket_p;
-            prev_hash_entry_idx = cur_hash_entry_idx;
+            //prev_hash_entry_idx = cur_hash_entry_idx;
             hash_prev_virt_p = hash_virt_p;
 
             bucket_idx_used = 0;
@@ -2786,4 +2786,3 @@ int dirent_read_name_array_from_disk(int dirfd,
         close(fd);
     return -1;
 }
-

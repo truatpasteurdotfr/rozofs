@@ -20,6 +20,7 @@
 #include <errno.h>
 
 #include <rozofs/common/log.h>
+#include <rozofs/rozofs_srv.h>
 
 #include "sproto.h"
 #include "rpcclt.h"
@@ -31,7 +32,9 @@ int sclient_initialize(sclient_t * sclt) {
 
     sclt->status = 0;
 
-    if (rpcclt_initialize(&sclt->rpcclt, sclt->host, STORAGE_PROGRAM, STORAGE_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, sclt->port) != 0) {
+    if (rpcclt_initialize(&sclt->rpcclt, sclt->host, STORAGE_PROGRAM,
+            STORAGE_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
+            sclt->port) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);
@@ -47,73 +50,93 @@ out:
 }
 
 // XXX Useless
+
 void sclient_release(sclient_t * clt) {
     DEBUG_FUNCTION;
     if (clt && clt->rpcclt.client)
         rpcclt_release(&clt->rpcclt);
 }
 
-int sclient_write(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
-        uint32_t nrb, const bin_t * bins) {
+int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
+        uint32_t nb_proj, const bin_t * bins) {
     int status = -1;
-    sp_status_ret_t *ret = 0;
+    sp_write_ret_t *ret = 0;
     sp_write_arg_t args;
+
     DEBUG_FUNCTION;
 
+    // Fill request
+    args.cid = cid;
     args.sid = sid;
+    args.layout = layout;
+    args.spare = spare;
+    memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (uuid_t));
-    args.tid = tid;
     args.bid = bid;
-    args.nrb = nrb;
-    args.bins.bins_len = nrb * rozofs_psizes[tid] * sizeof (bin_t);
+    args.nb_proj = nb_proj;
+    args.bins.bins_len = nb_proj * (rozofs_get_max_psize(layout)
+            * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
     args.bins.bins_val = (char *) bins;
 
-    if (!(clt->rpcclt.client) || !(ret = sp_write_1(&args, clt->rpcclt.client))) {
+    if (!(clt->rpcclt.client) ||
+            !(ret = sp_write_1(&args, clt->rpcclt.client))) {
         clt->status = 0;
-        warning("sclient_write failed: no response from storage server (%s, %u, %u)", clt->host, clt->port, sid);
+        warning("sclient_write failed: no response from storage server"
+                " (%s, %u, %u)", clt->host, clt->port, sid);
         errno = EPROTO;
         goto out;
     }
     if (ret->status != 0) {
         severe("sclient_write failed: storage write response failure (%s)",
                 strerror(errno));
-        errno = ret->sp_status_ret_t_u.error;
+        errno = ret->sp_write_ret_t_u.error;
         goto out;
     }
     status = 0;
 out:
     if (ret)
-        xdr_free((xdrproc_t) xdr_sp_status_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_sp_write_ret_t, (char *) ret);
     return status;
 }
 
-int sclient_read(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid,
-        uint32_t nrb, bin_t * bins) {
+int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
+        uint32_t nb_proj, bin_t * bins) {
     int status = -1;
     sp_read_ret_t *ret = 0;
     sp_read_arg_t args;
+
     DEBUG_FUNCTION;
 
+    // Fill request
+    args.cid = cid;
     args.sid = sid;
+    args.layout = layout;
+    args.spare = spare;
+    memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (fid_t));
-    args.tid = tid;
     args.bid = bid;
-    args.nrb = nrb;
-    if (!(clt->rpcclt.client) || !(ret = sp_read_1(&args, clt->rpcclt.client))) {
+    args.nb_proj = nb_proj;
+
+    if (!(clt->rpcclt.client) ||
+            !(ret = sp_read_1(&args, clt->rpcclt.client))) {
         clt->status = 0;
-        warning("sclient_read failed: storage read failed (no response from storage server: %s)", clt->host);
+        warning("sclient_read failed: storage read failed "
+                "(no response from storage server: %s)", clt->host);
         errno = EPROTO;
         goto out;
     }
     if (ret->status != 0) {
         errno = ret->sp_read_ret_t_u.error;
-        severe("sclient_read failed: storage read response failure (%s)", strerror(errno));
+        severe("sclient_read failed: storage read response failure (%s)",
+                strerror(errno));
         goto out;
     }
     // XXX ret->sp_read_ret_t_u.bins.bins_len is coherent
     // XXX could we avoid memcpy ??
-    memcpy(bins, ret->sp_read_ret_t_u.bins.bins_val,
-            ret->sp_read_ret_t_u.bins.bins_len);
+    memcpy(bins, ret->sp_read_ret_t_u.rsp.bins.bins_val,
+            ret->sp_read_ret_t_u.rsp.bins.bins_len);
 
     status = 0;
 out:
@@ -123,17 +146,27 @@ out:
 }
 
 
-// XXX Never used
-int storageclt_truncate(sclient_t * clt, sid_t sid, fid_t fid, tid_t tid, bid_t bid) {
+// XXX Never used yet
+
+int storageclt_truncate(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
+        uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
+        tid_t proj_id, bid_t bid) {
     int status = -1;
     sp_status_ret_t *ret = 0;
     sp_truncate_arg_t args;
+
     DEBUG_FUNCTION;
 
+    // Fill request
+    args.cid = cid;
     args.sid = sid;
+    args.layout = layout;
+    args.spare = spare;
+    memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (fid_t));
-    args.tid = tid;
     args.bid = bid;
+    args.proj_id = proj_id;
+
     ret = sp_truncate_1(&args, clt->rpcclt.client);
     if (ret == 0) {
         errno = EPROTO;

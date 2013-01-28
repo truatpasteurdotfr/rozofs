@@ -47,6 +47,7 @@ out:
 }
 
 // XXX Useless
+
 void mclient_release(mclient_t * clt) {
     DEBUG_FUNCTION;
     if (clt && clt->rpcclt.client)
@@ -56,9 +57,13 @@ void mclient_release(mclient_t * clt) {
 int mclient_stat(mclient_t * clt, sstat_t * st) {
     int status = -1;
     mp_stat_ret_t *ret = 0;
+    mp_stat_arg_t args;
     DEBUG_FUNCTION;
 
-    if (!(clt->rpcclt.client) || !(ret = mp_stat_1(&clt->sid, clt->rpcclt.client))) {
+    args.cid = clt->cid;
+    args.sid = clt->sid;
+
+    if (!(clt->rpcclt.client) || !(ret = mp_stat_1(&args, clt->rpcclt.client))) {
         errno = EPROTO;
         goto out;
     }
@@ -75,14 +80,19 @@ out:
     return status;
 }
 
-int mclient_remove(mclient_t * clt, fid_t fid) {
+int mclient_remove(mclient_t * clt, uint8_t layout,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid) {
     int status = -1;
     mp_status_ret_t *ret = 0;
     mp_remove_arg_t args;
     DEBUG_FUNCTION;
 
+    args.cid = clt->cid;
     args.sid = clt->sid;
+    args.layout = layout;
+    memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (fid_t));
+
     if (!(clt->rpcclt.client) || !(ret = mp_remove_1(&args, clt->rpcclt.client))) {
         errno = EPROTO;
         goto out;
@@ -103,7 +113,7 @@ int mclient_ports(mclient_t * mclt, uint32_t * ports_p) {
     mp_ports_ret_t *ret = 0;
     DEBUG_FUNCTION;
 
-    if (!(mclt->rpcclt.client) || !(ret = mp_ports_1(NULL,mclt->rpcclt.client))) {
+    if (!(mclt->rpcclt.client) || !(ret = mp_ports_1(NULL, mclt->rpcclt.client))) {
         errno = EPROTO;
         goto out;
     }

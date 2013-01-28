@@ -494,6 +494,7 @@ typedef struct _dirent_alloc_t {
     mdirents_cache_entry_t *returned_entry; /**< pointer to the dirent entry   */
 } dirent_alloc_t;
 
+#if 0
 void dirent_cache_alloc_name_entry_idx_test2(char *dir_path) {
     mdirents_header_new_t header;
     header.level_index = 0;
@@ -1157,6 +1158,7 @@ remove_entries:
 
     if (fd_dir != -1) close(fd_dir);
 }
+#endif
 
 /**
  *__________________________________________________________________
@@ -1166,7 +1168,7 @@ remove_entries:
  *
  */
 
-
+#if 0
 void dirent_cache_alloc_name_entry_idx_test3(char *dir_path) {
     mdirents_header_new_t header;
     header.level_index = 0;
@@ -1887,6 +1889,7 @@ remove_entries:
 
     if (fd_dir != -1) close(fd_dir);
 }
+#endif
 
 
 
@@ -2682,7 +2685,6 @@ void readdir_test(char *dir_path) {
     uint64_t cookie = 0;
     uint8_t eof = 0;
     memset(fid_parent, 0, sizeof (fid_t));
-    int ret;
     int loop_count = 0;
     int root_cnt = 1;
 
@@ -2696,7 +2698,7 @@ void readdir_test(char *dir_path) {
     printf("      --->READDIR test start\n");
     gettimeofday(&tv_start, NULL);
     while (eof == 0) {
-        ret = list_mdirentries(fd_dir, fid_parent, &children, &cookie, &eof);
+        list_mdirentries(fd_dir, fid_parent, &children, &cookie, &eof);
         if (eof == 0) loop_count += MAX_DIR_ENTRIES;
     }
     if (loop_count == 0) loop_count = 1;

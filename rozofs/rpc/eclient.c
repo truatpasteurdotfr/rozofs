@@ -76,7 +76,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
 
     /* Copy eid, layout, root fid */
     clt->eid = ret->ep_mount_ret_t_u.export.eid;
-    clt->rl = ret->ep_mount_ret_t_u.export.rl;
+    clt->layout = ret->ep_mount_ret_t_u.export.rl;
     memcpy(clt->rfid, ret->ep_mount_ret_t_u.export.rfid, sizeof (fid_t));
 
     /* Initialize the list of physical storage nodes */
@@ -92,17 +92,22 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         memset(mstor, 0, sizeof (mstorage_t));
         strcpy(mstor->host, stor_node.host);
         mstor->sids_nb = stor_node.sids_nb;
-        memcpy(mstor->sids, stor_node.sids, sizeof (uint16_t) * stor_node.sids_nb);
+        memcpy(mstor->sids, stor_node.sids, sizeof (sid_t) * stor_node.sids_nb);
+        memcpy(mstor->cids, stor_node.cids, sizeof (cid_t) * stor_node.sids_nb);
 
         /* Add to the list */
         list_push_back(&clt->storages, &mstor->list);
     }
 
     /* Initialize rozofs */
-    if (rozofs_initialize(clt->rl) != 0) {
-        fatal("can't initialise rozofs %s", strerror(errno));
-        goto out;
-    }
+    rozofs_layout_initialize();
+
+    /*
+        if (rozofs_initialize(clt->layout) != 0) {
+            fatal("can't initialise rozofs %s", strerror(errno));
+            goto out;
+        }
+     */
 
     status = 0;
 out:
@@ -1155,12 +1160,12 @@ int exportclt_listxattr(exportclt_t * clt, fid_t fid, char * list,
         goto out;
     }
 
-    if (ret->ep_listxattr_ret_t_u.ret.size != 0)
-        memcpy(list, ret->ep_listxattr_ret_t_u.ret.list,
-                ret->ep_listxattr_ret_t_u.ret.size);
-        
-    *list_size = ret->ep_listxattr_ret_t_u.ret.size;
-    
+    if (ret->ep_listxattr_ret_t_u.list.list_len != 0)
+        memcpy(list, ret->ep_listxattr_ret_t_u.list.list_val,
+            ret->ep_listxattr_ret_t_u.list.list_len);
+
+    *list_size = ret->ep_listxattr_ret_t_u.list.list_len;
+
     status = 0;
 out:
     if (ret)

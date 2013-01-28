@@ -277,8 +277,8 @@ void dirent_cache_repair_printf_cache_entry_for_bucket_idx(
 void dirent_file_check(int dir_fd, mdirents_cache_entry_t *root_entry_p,
         int bucket_idx) {
     mdirents_cache_entry_t *cache_entry_p;
-    int hash_entry_idx = 0;
-    int cache_entry_tb_idx = 0;
+    //int hash_entry_idx = 0;
+    //int cache_entry_tb_idx = 0;
     int coll_idx;
     int loop_cnt = 0;
     int next_coll_idx = 0;
@@ -290,8 +290,8 @@ void dirent_file_check(int dir_fd, mdirents_cache_entry_t *root_entry_p,
     /*
      ** set the different parameters
      */
-    cache_entry_tb_idx = 0;
-    hash_entry_idx = 0;
+    //cache_entry_tb_idx = 0;
+    //hash_entry_idx = 0;
     coll_idx = 0;
     /*
      ** get the pointer to the collision file bitmap
@@ -334,7 +334,7 @@ void dirent_file_check(int dir_fd, mdirents_cache_entry_t *root_entry_p,
             /*
              ** next chunk
              */
-            hash_entry_idx = 0;
+            //hash_entry_idx = 0;
             coll_idx++;
             continue;
         }
@@ -385,7 +385,7 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
     mdirents_cache_entry_t *cache_entry_p;
     mdirents_cache_entry_t *cache_entry_p_next;
     mdirents_hash_entry_t *hash_entry_p = NULL;
-    int hash_entry_idx = 0;
+    //int hash_entry_idx = 0;
     int cache_entry_tb_idx = 0;
     int coll_idx;
     int loop_cnt = 0;
@@ -408,7 +408,7 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
      ** set the different parameters
      */
     cache_entry_tb_idx = 0;
-    hash_entry_idx = 0;
+    //hash_entry_idx = 0;
     coll_idx = 0;
     /*
      ** get the pointer to the collision file bitmap
@@ -466,7 +466,7 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
             /*
              ** next chunk
              */
-            hash_entry_idx = 0;
+            //hash_entry_idx = 0;
             coll_idx++;
             continue;
         }

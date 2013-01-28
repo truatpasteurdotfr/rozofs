@@ -57,7 +57,7 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
             goto out;
         }
         server.sin_port = htons(port);
-    }else{
+    } else {
         server.sin_port = htons(port_num);
     }
 

@@ -1656,6 +1656,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     /* Put the root inode entry*/
     ientry_t *root = xmalloc(sizeof (ientry_t));
+    memset(root, 0, sizeof (ientry_t));
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
     root->inode = next_inode_idx();
     root->db.size = 0;
@@ -1828,7 +1829,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     exportclt_release(&exportclt);
     ientries_release();
     unlink(ppfile); // best effort
-    rozofs_release();
 
     return err ? 1 : 0;
 }
@@ -1865,13 +1865,13 @@ int main(int argc, char *argv[]) {
     }
     if (conf.buf_size < 128) {
         fprintf(stderr,
-                "write cache size to low (%u KiB) - increased to 128 KiB\n",
+                "write cache size too low (%u KiB) - increased to 128 KiB\n",
                 conf.buf_size);
         conf.buf_size = 128;
     }
     if (conf.buf_size > 8192) {
         fprintf(stderr,
-                "write cache size to big (%u KiB) - decreased to 8192 KiB\n",
+                "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
                 conf.buf_size);
         conf.buf_size = 8192;
     }

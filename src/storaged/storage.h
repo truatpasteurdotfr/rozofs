@@ -28,34 +28,124 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/htable.h>
 
-/** directory used to store  projections files. */
+/** Maximum size in bytes for the header of file bins */
+#define ROZOFS_ST_BINS_FILE_HDR_SIZE 524288
+
+/** Default open flags to use for open bins files */
+#define ROZOFS_ST_BINS_FILE_FLAG O_RDWR | O_CREAT | O_NOATIME
+
+/** Default mode to use for open bins files */
+#define ROZOFS_ST_BINS_FILE_MODE S_IFREG | S_IRUSR | S_IWUSR
+
+/** Default mode to use for create subdirectories */
+#define ROZOFS_ST_DIR_MODE S_IRUSR | S_IWUSR | S_IXUSR
+
+/** Directory used to store bins files for a specific storage ID*/
 typedef struct storage {
-    sid_t sid;                  ///< the unique id of this storage.
-    char root[FILENAME_MAX];    ///< absolute path.
+    sid_t sid; ///< unique id of this storage for one cluster
+    cid_t cid; //< unique id of cluster that owns this storage
+    char root[FILENAME_MAX]; ///< absolute path.
 } storage_t;
 
-/** initialize a storage
+/**
+ *  Header structure for one file bins
+ */
+typedef struct rozofs_stor_bins_file_hdr {
+    uint8_t layout; ///< layout used for this file.
+    sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
+    sid_t dist_set_next[ROZOFS_SAFE_MAX]; ///< next sids of storage nodes target for this. file (not used yet)
+    uint8_t version; ///<  version of rozofs. (not used yet)
+} rozofs_stor_bins_file_hdr_t;
+
+/** Initialize a storage
  *
  * @param st: the storage to be initialized.
- * @param sid: the unique id.
+ * @param cid: unique id of cluster that owns this storage.
+ * @param sid: the unique id for this storage.
  * @param root: the absolute path.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_initialize(storage_t *st, sid_t sid, const char *root);
+int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root);
 
+/** Release a storage
+ *
+ * @param st: the storage to be released.
+ */
 void storage_release(storage_t * st);
 
-int storage_write(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
-                  size_t len, const bin_t * bins);
+/** Write nb_proj projections
+ *
+ * @param st: the storage to use.
+ * @param layout: layout used for store this file.
+ * @param dist_set: storages nodes used for store this file.
+ * @param spare: indicator on the status of the projection.
+ * @param fid: unique file id.
+ * @param bid: first block idx (offset).
+ * @param nb_proj: nb of projections to write.
+ * @param version: version of rozofs used by the client. (not used yet)
+ * @param *file_size: size of file after the write operation.
+ * @param *bins: bins to store.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
+        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
+        uint64_t *file_size, const bin_t * bins);
 
-int storage_read(storage_t * st, fid_t fid, tid_t pid, bid_t bid, uint32_t n,
-                 bin_t * bins);
+/** Read nb_proj projections
+ *
+ * @param st: the storage to use.
+ * @param layout: layout used by this file.
+ * @param dist_set: storages nodes used for store this file.
+ * @param spare: indicator on the status of the projection.
+ * @param fid: unique file id.
+ * @param bid: first block idx (offset).
+ * @param nb_proj: nb of projections to read.
+ * @param *bins: bins to store.
+ * @param *len_read: the length read.
+ * @param *file_size: size of file after the read operation.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
+        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
+        bin_t * bins, size_t * len_read, uint64_t *file_size);
 
-int storage_truncate(storage_t * st, fid_t fid, tid_t pid, bid_t bid);
+/** Truncate a bins file (not used yet)
+ *
+ * @param st: the storage to use.
+ * @param layout: layout used by this file.
+ * @param dist_set: storages nodes used for store this file.
+ * @param spare: indicator on the status of the projection.
+ * @param fid: unique file id.
+ * @param proj_id: the projection id.
+ * @param bid: first block idx (offset).
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
+        uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid);
 
-int storage_rm_file(storage_t * st, fid_t fid);
+/** Remove a bins file
+ *
+ * @param st: the storage to use.
+ * @param layout: layout used by this file.
+ * @param dist_set: storages nodes used for store this file.
+ * @param fid: unique file id.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
+        fid_t fid);
 
+/** Stat a storage
+ *
+ * @param st: the storage to use.
+ * @param sstat: structure to use for store stats about this storage.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int storage_stat(storage_t * st, sstat_t * sstat);
 
 #endif

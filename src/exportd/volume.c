@@ -31,6 +31,7 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 
@@ -56,7 +57,7 @@ static int cluster_compare_capacity(list_t *l1, list_t *l2) {
     return e1->free < e2->free;
 }
 
-void volume_storage_initialize(volume_storage_t * vs, uint16_t sid,
+void volume_storage_initialize(volume_storage_t * vs, sid_t sid,
         const char *hostname) {
     DEBUG_FUNCTION;
 
@@ -83,6 +84,7 @@ void cluster_initialize(cluster_t *cluster, cid_t cid, uint64_t size,
 }
 
 // assume volume_storage had been properly allocated
+
 void cluster_release(cluster_t *cluster) {
     DEBUG_FUNCTION;
     list_t *p, *q;
@@ -144,14 +146,16 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
     }
 
     to->vid = from->vid;
+
     list_for_each_forward(p, &from->clusters) {
-        cluster_t *to_cluster = xmalloc(sizeof(cluster_t));
+        cluster_t *to_cluster = xmalloc(sizeof (cluster_t));
         cluster_t *from_cluster = list_entry(p, cluster_t, list);
         cluster_initialize(to_cluster, from_cluster->cid, from_cluster->size,
                 from_cluster->free);
+
         list_for_each_forward(q, &from_cluster->storages) {
             volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
-            volume_storage_t *to_storage = xmalloc(sizeof(volume_storage_t));
+            volume_storage_t *to_storage = xmalloc(sizeof (volume_storage_t));
             volume_storage_initialize(to_storage, from_storage->sid, from_storage->host);
             to_storage->stat = from_storage->stat;
             to_storage->status = from_storage->status;
@@ -197,7 +201,7 @@ void volume_balance(volume_t *volume) {
     }
 
     // work on the clone
-    // try to join each storage server & stats it
+    // try to join each storage server & stat it
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 
@@ -206,15 +210,16 @@ void volume_balance(volume_t *volume) {
 
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
-            mclient_t sclt;
-            strcpy(sclt.host, vs->host);
-            sclt.sid = vs->sid;
+            mclient_t mclt;
+            strcpy(mclt.host, vs->host);
+            mclt.sid = vs->sid;
+            mclt.cid = cluster->cid;
 
-            if (mclient_initialize(&sclt) != 0) {
+            if (mclient_initialize(&mclt) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
                 vs->status = 0;
             } else {
-                if (mclient_stat(&sclt, &vs->stat) != 0) {
+                if (mclient_stat(&mclt, &vs->stat) != 0) {
                     warning("failed to stat (sid: %d, host: %s)", vs->sid, vs->host);
                     vs->status = 0;
                 } else {
@@ -225,7 +230,7 @@ void volume_balance(volume_t *volume) {
             cluster->free += vs->stat.free;
             cluster->size += vs->stat.size;
 
-            mclient_release(&sclt);
+            mclient_release(&mclt);
         }
     }
 
@@ -289,12 +294,15 @@ out:
 
 // what if a cluster is < rozofs safe
 
-static int cluster_distribute(cluster_t *cluster, uint16_t *sids) {
+static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
     list_t *p;
     int status = -1;
-    int ms_found = 0;
-    int ms_ok = 0;
+    uint8_t ms_found = 0;
+    uint8_t ms_ok = 0;
     DEBUG_FUNCTION;
+
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
 
     list_for_each_forward(p, &cluster->storages) {
         volume_storage_t *vs = list_entry(p, volume_storage_t, list);
@@ -312,7 +320,7 @@ static int cluster_distribute(cluster_t *cluster, uint16_t *sids) {
     return status;
 }
 
-int volume_distribute(volume_t *volume, uint16_t *cid, uint16_t *sids) {
+int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids) {
     list_t *p;
     DEBUG_FUNCTION;
     START_PROFILING(volume_distribute);
@@ -325,7 +333,7 @@ int volume_distribute(volume_t *volume, uint16_t *cid, uint16_t *sids) {
 
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        if (cluster_distribute(cluster, sids) == 0) {
+        if (cluster_distribute(layout, cluster, sids) == 0) {
             *cid = cluster->cid;
             errno = 0;
             break;
@@ -340,13 +348,15 @@ out:
     return errno == 0 ? 0 : -1;
 }
 
-void volume_stat(volume_t *volume, volume_stat_t *stat) {
+void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
     list_t *p;
     DEBUG_FUNCTION;
     START_PROFILING(volume_stat);
 
     stat->bsize = ROZOFS_BSIZE;
     stat->bfree = 0;
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
+    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         warning("can't lock volume %d.", volume->vid);

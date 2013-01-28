@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #ifndef SCONFIG_H
 #define SCONFIG_H
@@ -26,16 +26,17 @@
 #include <rozofs/common/list.h>
 
 typedef struct storage_config {
-	sid_t sid;
-	char root[PATH_MAX];
-	list_t list;
+    sid_t sid;
+    cid_t cid;
+    char root[PATH_MAX];
+    list_t list;
 } storage_config_t;
 
 typedef struct sconfig {
-	int layout;
+    //int layout;
     uint32_t sproto_svc_nb;
     uint32_t ports[STORAGE_NODE_PORTS_MAX];
-	list_t storages;
+    list_t storages;
 } sconfig_t;
 
 int sconfig_initialize(sconfig_t *config);

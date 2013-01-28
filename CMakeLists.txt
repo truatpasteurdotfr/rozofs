@@ -19,9 +19,9 @@
 #
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
-set(MAJOR "0")
-set(MINOR "13")
-set(REVISION "0")
+set(MAJOR "1")
+set(MINOR "0")
+set(REVISION "1")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -110,6 +110,10 @@ if(NOT CMAKE_BUILD_TYPE)
   "Choose the type of build, options are: None Debug Release Profile RelWithDebInfo MinSizeRel."
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
+
+set(CMAKE_C_FLAGS "-D_GNU_SOURCE" CACHE STRING
+    "Flags used by the compiler during all build types."
+    FORCE)
 
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE" CACHE STRING
     "Flags used by the C compiler during maintainer builds."

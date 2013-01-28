@@ -35,6 +35,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
@@ -328,25 +329,12 @@ void volumes_release() {
     }
 }
 
-static int load_layout_conf() {
-    int status = -1;
-    DEBUG_FUNCTION;
-
-    if (rozofs_initialize(exportd_config.layout) != 0) {
-        severe("can't initialise rozofs layout: %s\n",
-                strerror(errno));
-        goto out;
-    }
-    status = 0;
-out:
-    return status;
-}
-
 static int load_volumes_conf() {
     list_t *p, *q, *r;
     DEBUG_FUNCTION;
 
     // For each volume
+
     list_for_each_forward(p, &exportd_config.volumes) {
         volume_config_t *vconfig = list_entry(p, volume_config_t, list);
         volume_entry_t *ventry = 0;
@@ -358,6 +346,7 @@ static int load_volumes_conf() {
         volume_initialize(&ventry->volume, vconfig->vid);
 
         // For each cluster of this volume
+
         list_for_each_forward(q, &vconfig->clusters) {
             cluster_config_t *cconfig = list_entry(q, cluster_config_t, list);
 
@@ -410,7 +399,7 @@ static int load_exports_conf() {
         }
 
         // Initialize export
-        if (export_initialize(&entry->export, volume, &cache, econfig->eid,
+        if (export_initialize(&entry->export, volume, exportd_config.layout, &cache, econfig->eid,
                 econfig->root, econfig->md5, econfig->squota,
                 econfig->hquota) != 0) {
             severe("can't initialize export with path %s: %s\n",
@@ -448,9 +437,8 @@ static int exportd_initialize() {
     if (monitor_initialize() != 0)
         fatal("can't initialize monitoring: %s", strerror(errno));
 
-    // Load configuration
-    if (load_layout_conf() != 0)
-        fatal("can't load layout");
+    // Load rozofs parameters
+    rozofs_layout_initialize();
 
     if (load_volumes_conf() != 0)
         fatal("can't load volume");
@@ -486,7 +474,6 @@ static void exportd_release() {
     volumes_release();
     econfig_release(&exportd_config);
     lv2_cache_release(&cache);
-    rozofs_release();
 }
 
 static void on_start() {
@@ -552,7 +539,7 @@ static void on_start() {
     /*
      * Profiling service
      */
-    if ((exportd_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL ) {
+    if ((exportd_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL) {
         severe("can't create profiling service.");
     }
     pmap_unset(EXPORTD_PROFILE_PROGRAM, EXPORTD_PROFILE_VERSION); // in case !
@@ -563,7 +550,7 @@ static void on_start() {
     }
 
     SET_PROBE_VALUE(uptime, time(0));
-    strcpy((char *)gprofiler.vers, VERSION);
+    strcpy((char *) gprofiler.vers, VERSION);
 
     info("running.");
     svc_run();
@@ -599,7 +586,9 @@ static void on_hup() {
     list_t *p, *q;
 
     info("hup signal received.");
-    // sanity check
+
+    // Check if the new exportd configuration file is valid
+
     if (econfig_initialize(&new) != 0) {
         severe("can't initialize exportd config: %s.", strerror(errno));
         goto error;
@@ -617,16 +606,21 @@ static void on_hup() {
 
     econfig_release(&new);
 
-    // do the job
+    // Reload the exportd_config structure
+
     if ((errno = pthread_rwlock_wrlock(&config_lock)) != 0) {
         severe("can't lock config: %s", strerror(errno));
         goto error;
     }
 
+    econfig_release(&exportd_config);
+
     if (econfig_read(&exportd_config, exportd_config_file) != 0) {
         severe("failed to parse configuration file: %s.", strerror(errno));
         goto error;
     }
+
+    // Reload the list of volumes
 
     if ((errno = pthread_rwlock_wrlock(&volumes_lock)) != 0) {
         severe("can't lock volumes: %s", strerror(errno));
@@ -653,6 +647,8 @@ static void on_hup() {
     list_for_each_forward(p, &volumes) {
         volume_balance(&list_entry(p, volume_entry_t, list)->volume);
     }
+
+    // Reload the list of exports
 
     if ((errno = pthread_rwlock_wrlock(&exports_lock)) != 0) {
         severe("can't lock exports: %s", strerror(errno));

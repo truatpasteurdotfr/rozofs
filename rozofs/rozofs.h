@@ -25,24 +25,32 @@
 #include <config.h>
 
 #define ROZOFS_UUID_SIZE 16
+/* Instead of using an array of unsigned char for store the UUID, we use an
+ * array of uint32_t in the RPC protocol to use less space (see XDR). */
+#define ROZOFS_UUID_SIZE_NET 4
 #define ROZOFS_HOSTNAME_MAX 128
 #define ROZOFS_BSIZE 8192       // could it be export specific ?
-#define ROZOFS_SAFE_MAX 16
+#define ROZOFS_SAFE_MAX 36
+/* Instead of using an array of sid_t for store the dist_set, we use an
+ * array of uint32_t in the RPC protocol to use less space (see XDR). */
+#define ROZOFS_SAFE_MAX_NET 9
 #define ROZOFS_DIR_SIZE 4096
 #define ROZOFS_PATH_MAX 1024
 #define ROZOFS_XATTR_NAME_MAX 255
 #define ROZOFS_XATTR_VALUE_MAX 65536
 #define ROZOFS_XATTR_LIST_MAX 65536
 #define ROZOFS_FILENAME_MAX 255
-#define ROZOFS_CLUSTERS_MAX 16
-#define ROZOFS_STORAGES_MAX 64
 
+/* Value max for a SID */
+#define SID_MAX 255
+/* Value min for a SID */
+#define SID_MIN 1
 /* Nb. max of storage node for one volume */
 #define STORAGE_NODES_MAX 64
 /* Nb. max of storaged ports on the same storage node */
 #define STORAGE_NODE_PORTS_MAX 32
-/* Nb. max of SIDs on the same storage node */
-#define STORAGE_NODE_SIDS_MAX 32
+/* Nb. max of storages (couple cid:sid) on the same storage node */
+#define STORAGES_MAX_BY_STORAGE_NODE 32
 /* First TCP port used */
 #define STORAGE_PORT_NUM_BEGIN 40000
 
@@ -68,13 +76,13 @@ typedef enum {
     LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16
 } rozofs_layout_t;
 
-typedef uint8_t tid_t;          /**< projection id */
-typedef uint64_t bid_t;         /**< block id */
-typedef uuid_t fid_t;           /**< file id */
-typedef uint16_t sid_t;         /**< storage id */
-typedef uint16_t cid_t;         /**< cluster id */
-typedef uint16_t vid_t;         /**< volume id */
-typedef uint32_t eid_t;         /**< export id */
+typedef uint8_t tid_t; /**< projection id */
+typedef uint64_t bid_t; /**< block id */
+typedef uuid_t fid_t; /**< file id */
+typedef uint8_t sid_t; /**< storage id */
+typedef uint16_t cid_t; /**< cluster id */
+typedef uint16_t vid_t; /**< volume id */
+typedef uint32_t eid_t; /**< export id */
 
 // storage stat
 
@@ -92,6 +100,21 @@ typedef struct estat {
     uint16_t namemax;
 } estat_t;
 
+/**
+ *  Header structure for one projection
+ */
+typedef union {
+    uint64_t u64[2];
+
+    struct {
+        uint64_t timestamp : 64; ///<  time stamp.
+        uint64_t effective_length : 16; ///<  effective length of the rebuilt block size: MAX is 64K.
+        uint64_t projection_id : 8; ///<  index of the projection -> needed to find out angles/sizes: MAX is 255.
+        uint64_t version : 8; ///<  version of rozofs. (not used yet)
+        uint64_t filler : 32; ///<  for future usage.
+    } s;
+} rozofs_stor_bins_hdr_t;
+
 typedef struct child {
     char *name;
     fid_t fid;
@@ -99,14 +122,5 @@ typedef struct child {
 } child_t;
 
 #include "common/transform.h"
-extern uint8_t rozofs_safe;
-extern uint8_t rozofs_forward;
-extern uint8_t rozofs_inverse;
-extern angle_t *rozofs_angles;
-extern uint16_t *rozofs_psizes;
-
-int rozofs_initialize(rozofs_layout_t layout);
-
-void rozofs_release();
 
 #endif

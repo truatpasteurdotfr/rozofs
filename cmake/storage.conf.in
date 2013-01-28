@@ -1,21 +1,34 @@
 #
-# storaged configuration file sample
+# rozofs storage daemon configuration file.
 #
 
-# storage layout
-# 0 : safe =  4, forward =  3, inverse = 2
-# 1 : safe =  8, forward =  6, inverse = 4
-# 2 : safe = 16, forward = 12, inverse = 8 
-layout = 0;
+# ports: 
+#   It's a list of TCP ports used for receive write and read requests
+#   from clients (rozofsmount).
 
-# TCP ports used for receive write and read requests from clients.
 ports = [40001, 40002, 40003, 40004 ];
 
-# sid : - must be an unsigned 16 bytes int.
-#       - should exist in exportd config file
+# storages:
+#   It's the list of local storage managed by this storaged.
+#   Each storage is identified by the cluster to which belongs the storage (cid)
+#   and by it's identifier in the cluster (sid). Each pair (cid,sid) must be
+#   unique. The root is the path where will be stored data for this storage.
+#
+#       cid: (cluster identifier)
+#               - must be an integer.
+#               - should exist in exportd configuration file.
+#
+#       sid: (storage identifier)
+#               - must be an integer (between 1 and 255).
+#               - should exist in exportd configuration file.
+#
+#       root: (directory path where data will be stored)
+#               - must be an existing directory.
+#               - must be unique for each storage managed by this storaged.
+
 storages = (
-    {sid = 1; root = "/path/to/foo";},
-    {sid = 2; root = "/path/to/bar";}
+    {cid = 1; sid = 1; root = "/path/to/foo";}, # Storage 1 of cluster 1
+    {cid = 1; sid = 2; root = "/path/to/bar";},  # Storage 2 of cluster 1
+    {cid = 2; sid = 1; root = "/path/to/baz";}  # Storage 1 of cluster 2
     #...
 );
-

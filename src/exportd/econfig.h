@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #ifndef _ECONFIG_H
 #define _ECONFIG_H
@@ -46,19 +46,19 @@ typedef struct volume_config {
 } volume_config_t;
 
 typedef struct export_config {
-	eid_t eid;
-	vid_t vid;
-	char root[FILENAME_MAX];
-	char md5[MD5_LEN];
-	uint64_t squota;
-	uint64_t hquota;
-	list_t list;
+    eid_t eid;
+    vid_t vid;
+    char root[FILENAME_MAX];
+    char md5[MD5_LEN];
+    uint64_t squota;
+    uint64_t hquota;
+    list_t list;
 } export_config_t;
 
 typedef struct econfig {
-	int layout;
-	list_t volumes;
-	list_t exports;
+    uint8_t layout; ///< layout used for this exportd
+    list_t volumes;
+    list_t exports;
 } econfig_t;
 
 int econfig_initialize(econfig_t *config);
