@@ -642,20 +642,20 @@ class Platform(object):
     def get_hostname(self):
         return self._hostname
 
-    # XXX unused !!
     def set_hostname(self, hostname):
         self._hostname = hostname
         self._proxy.getProxy()._release()
         self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
         self._config = self._proxy.get_service_config()
-        self._config.hostname = hostname
-        self._proxy.set_service_config(self._config)
         self._nodes = self._get_nodes()
 
-#    def set_exportd_standalone(self, standalone):
-#        self._config.exportd_standalone = standalone
-#        self._proxy.set_service_config(self._config)
-#        # XXX todo managed shares if needed
+    def get_exportd_hostname(self):
+        return self._config.exportd_hostname
+
+    def set_exportd_hostname(self, hostname):
+        self._config.exportd_hostname = hostname
+        self._proxy.set_service_config(self._config)
+        self._nodes = self._get_nodes()
 
     def list_nodes(self, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
         """ Get all nodes managed by this platform
@@ -707,7 +707,7 @@ class Platform(object):
 
             roles : for which roles statuses should be retrieved
                     if a given host doesn't have this role the return statuses
-                    will not contain key for this role.
+                    will not contain key for this role (and might be empty).
 
         Return:
             A dict: keys are host names, values are dicts {Role: ServiceStatus}
@@ -746,8 +746,12 @@ class Platform(object):
         for role in [r for r in Role.ROLES if r & roles == r]:
             statuses_to_set[role] = status
         statuses = {}
-        for host in self._nodes.keys():
-            statuses[host] = statuses_to_set
+        if hosts is None:
+            for host in self._nodes.keys():
+                statuses[host] = statuses_to_set
+        else:
+            for host in hosts:
+                statuses[host] = statuses_to_set
 
         self.set_statuses(statuses)
 
@@ -1008,7 +1012,8 @@ class Platform(object):
             # every storaged become a share node
             if n.has_one_of_roles(Role.SHARE):
                 sconfig = n.get_configurations(Role.SHARE)
-                sconfig[Role.SHARE].shares.append(Share(self._hostname , "/srv/rozofs/%s" % name, -1))
+                sconfig[Role.SHARE].shares.append(Share(self._config.export_hostname ,
+                                                        "/srv/rozofs/%s" % name, -1))
                 n.set_configurations(sconfig)
 
     def update_export(self, eid, passwd=None, squota=None, hquota=None):

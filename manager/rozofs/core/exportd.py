@@ -211,7 +211,7 @@ class ExportdConfigurationParser(ConfigurationParser):
 
 class ExportdAgent(Agent):
 
-    def __init__(self, config='/etc/rozofs/export.conf', daemon='/usr/bin/exportd'):
+    def __init__(self, config='/etc/rozofs/export.conf', daemon='exportd'):
         Agent.__init__(self, EXPORTD_MANAGER)
         self._daemon_manager = DaemonManager(daemon, ["-c", config])
         self._reader = ConfigurationReader(config, ExportdConfigurationParser())
@@ -234,7 +234,7 @@ class ExportdAgent(Agent):
                 raise Exception('%s: not absolute.' % r)
 
             if not os.path.exists(r):
-                os.mkdir(r)
+                os.makedirs(r)
 
             if not os.path.isdir(r):
                 raise Exception('%s: not a directory.' % r)

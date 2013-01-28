@@ -10,8 +10,8 @@ class DaemonManager(object):
         Constructor
         @param daemon: the daemon
         '''
-        if not os.path.exists(daemon) :
-            raise Exception(daemon + ": no such daemon.")
+        # if not os.path.exists(daemon) :
+        #    raise Exception(daemon + ": no such daemon.")
         self._daemon = daemon
         self._args = args
 

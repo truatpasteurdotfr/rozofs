@@ -84,7 +84,7 @@ class StoragedConfigurationParser(ConfigurationParser):
 
 class StoragedAgent(Agent):
 
-    def __init__(self, config='/etc/rozofs/storage.conf', daemon='/usr/bin/storaged'):
+    def __init__(self, config='/etc/rozofs/storage.conf', daemon='storaged'):
         Agent.__init__(self, STORAGED_MANAGER)
         self._daemon_manager = DaemonManager(daemon, ["-c", config])
         self._reader = ConfigurationReader(config, StoragedConfigurationParser())

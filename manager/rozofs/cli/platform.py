@@ -43,8 +43,6 @@ def nodes(platform, args):
     for h, r in nodes.items():
         print >> sys.stdout, "%-20s %-20s" % (h, __roles_to_strings(r))
 
-# def sharing(platform, args):
-#    print >> sys.stdout, "configured sharing protocol(s): %s" % (platform.get_sharing_protocols())
 
 def set_sharing(platform, args):
     if "none" in args.protocols:
@@ -59,6 +57,9 @@ def __service_status_string(service_status):
     return "running" if service_status else "not running"
 
 def __print_host_statuses(host, statuses):
+    if statuses is not None and not statuses:
+        return
+
     if statuses is None:
         print >> sys.stdout, "NODE: %s - %s" % (host, 'DOWN')
         return
@@ -77,12 +78,12 @@ def status(platform, args):
 
 def start(platform, args):
     platform.set_status(args.nodes, __args_to_roles(args), ServiceStatus.STARTED)
-    print >> sys.stdout, "platform started."
+    print >> sys.stdout, "platform: %s started." % args.roles
 
 
 def stop(platform, args):
     platform.set_status(args.nodes, __args_to_roles(args), ServiceStatus.STOPPED)
-    print >> sys.stdout, "platform stopped."
+    print >> sys.stdout, "platform: %s stopped." % args.roles
 
 #
 # profilers related functions
@@ -290,6 +291,9 @@ def __mount_profiler_to_string(mp):
 #    return s
 
 def __print_host_profilers(host, profilers):
+    if profilers is not None and not profilers:
+        return
+
     if profilers is None:
         print >> sys.stdout, "NODE: %s - %s" % (host, 'DOWN')
         return
@@ -347,6 +351,9 @@ def __share_config_to_string(config):
     return s
 
 def __print_host_configs(host, configurations):
+    if configurations is not None and not configurations:
+        return
+
     if configurations is None:
         print >> sys.stdout, "NODE: %s - %s" % (host, 'DOWN')
         return

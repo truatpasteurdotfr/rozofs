@@ -217,11 +217,14 @@ class ShareAgent(Agent):
             if p.wait() is not 0 :
                 raise Exception(p.communicate()[1])
 
-        cmds = ['umount', '-a', '-t', 'rozofs']
-        with open('/dev/null', 'w') as devnull:
-            p = subprocess.Popen(cmds, stdout=devnull, stderr=subprocess.PIPE)
-            if p.wait() is not 0 :
-                raise Exception(p.communicate()[1])
+        # umount -at doesn't work with unprivileged mount
+#        cmds = ['umount', '-a', '-t', 'rozofs']
+#        with open('/dev/null', 'w') as devnull:
+#            p = subprocess.Popen(cmds, stdout=devnull, stderr=subprocess.PIPE)
+#            if p.wait() is not 0 :
+#                raise Exception(p.communicate()[1])
+        for share in self._list_shares():
+            self._umount(share)
 
     def get_service_config(self):
         configuration = ShareConfig()
