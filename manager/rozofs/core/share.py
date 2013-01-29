@@ -174,7 +174,7 @@ class ShareAgent(Agent):
             o = l.get_rozofs_options()
             try:
                 f = open("/var/run/rozofsmount%s" % (l.directory.replace('/', '.')))
-                port = f.read()
+                port = int(f.read())
                 f.close()
             except:
                 port = -1  # if not mount port is set to -1

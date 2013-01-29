@@ -18,7 +18,6 @@ LAYOUT_SAFE = 2
 LAYOUT_VALUES = [[2, 3, 4], [4, 6, 8], [8, 12, 16]]
 
 EXPORTD_HOSTNAME = "exportd_hostname"
-EXPORTD_STANDALONE = "exportd_standalone"
 PROTOCOLS = "protocols"
 # PROTOCOLS_VALUES = ["nfs", "cifs", "afp"]
 # only NFS for now
@@ -27,8 +26,10 @@ PROTOCOLS_VALUES = ["nfs"]
 LAYOUT = "layout"
 PORTS = "ports"
 STORAGES = "storages"
+STORAGE_CID = "cid"
 STORAGE_SID = "sid"
 STORAGE_ROOT = "root"
+SID_MAX = 255
 
 VOLUMES = "volumes"
 VOLUME_VID = "vid"

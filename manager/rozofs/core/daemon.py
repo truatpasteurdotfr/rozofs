@@ -2,10 +2,11 @@
 
 import subprocess
 import os
+import time
 
 class DaemonManager(object):
     """ Manage rozofs daemons """
-    def __init__(self, daemon, args=[]):
+    def __init__(self, daemon, args=[], wait=0):
         '''
         Constructor
         @param daemon: the daemon
@@ -14,6 +15,7 @@ class DaemonManager(object):
         #    raise Exception(daemon + ": no such daemon.")
         self._daemon = daemon
         self._args = args
+        self._wait = wait
 
     def status(self):
         '''
@@ -56,6 +58,7 @@ class DaemonManager(object):
         Restart the underlying daemon
         '''
         self.stop()
+        time.sleep(self._wait)
         self.start()
 
     def reload(self):

@@ -36,6 +36,9 @@ __parent.add_argument('-H', '--host', default='localhost', help='running platfor
 #
 # platform
 #
+__parser = __add_command_parser('set-exportd', 'set exportd hostname.', platform_dispatch, [__parent])
+__parser.add_argument('hosts', nargs=1, help='the exportd hostname to be set.')
+
 __parser = __add_command_parser('nodes', 'display nodes and associated roles.', platform_dispatch, [__parent])
 __parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be shown on nodes. If not set all roles will be shown')
 

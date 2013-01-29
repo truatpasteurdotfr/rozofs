@@ -2,19 +2,17 @@
 
 from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     PLATFORM_MANAGER, EXPORTD_HOSTNAME, PROTOCOLS, SHARE_MANAGER, AGENT_PORT, \
-    LAYOUT_VALUES, LAYOUT_SAFE, EXPORTD_STANDALONE, PROTOCOLS_VALUES
+    LAYOUT_VALUES, LAYOUT_SAFE, PROTOCOLS_VALUES, SID_MAX
 import Pyro.core
 from rozofs.core.agent import Agent, ServiceStatus
 from rozofs.core.configuration import ConfigurationReader, ConfigurationWriter, \
     ConfigurationParser
 from rozofs.core.libconfig import config_setting_add, CONFIG_TYPE_STRING, \
     config_setting_set_string, CONFIG_TYPE_LIST, config_lookup, \
-    config_setting_get_string, config_setting_length, config_setting_get_elem, \
-    CONFIG_TYPE_BOOL, config_setting_set_bool, config_setting_get_bool
+    config_setting_get_string, config_setting_length, config_setting_get_elem
 import subprocess
 from rozofs.core.exportd import VolumeConfig, ClusterConfig, ExportConfig
 from rozofs.core.storaged import StorageConfig
-import syslog
 from rozofs.core.profile import ep_client_t, ep_client_initialize, sp_client_t, \
     sp_client_initialize, mp_client_t, mp_client_initialize, ep_client_release, \
     epp_profiler_t, ep_client_get_profiler, sp_client_release, spp_profiler_t, \
@@ -22,6 +20,7 @@ from rozofs.core.profile import ep_client_t, ep_client_initialize, sp_client_t, 
     EppVstatArray_getitem, EppSstatArray_getitem, EppEstatArray_getitem, \
     Uint64Array_getitem, mp_client_get_profiler, Uint16Array_getitem
 from rozofs.core.share import ShareConfig, Share
+import time
 
 def get_proxy(host, manager):
     try:
@@ -80,6 +79,9 @@ class PlatformAgent(Agent):
         Agent.__init__(self, PLATFORM_MANAGER)
         self._reader = ConfigurationReader(config, PlatformConfigurationParser())
         self._writer = ConfigurationWriter(config, PlatformConfigurationParser())
+
+    def ping(self):
+        return True
 
     def get_service_config(self):
         configuration = PlatformConfig()
@@ -406,12 +408,12 @@ class MountRpcProxy(RpcProxy):
         mp.now = p.now
         mp.vers = p.vers
 
-        mp.rozofs_ll_read = [Uint64Array_getitem(p.ep_rozofs_ll_read, 0),
-                               Uint64Array_getitem(p.ep_rozofs_ll_read, 1),
-                               Uint64Array_getitem(p.ep_rozofs_ll_read, 2)]
-        mp.rozofs_ll_write = [Uint64Array_getitem(p.ep_rozofs_ll_write, 0),
-                               Uint64Array_getitem(p.ep_rozofs_ll_write, 1),
-                               Uint64Array_getitem(p.ep_rozofs_ll_write, 2)]
+        mp.rozofs_ll_read = [Uint64Array_getitem(p.rozofs_ll_read, 0),
+                               Uint64Array_getitem(p.rozofs_ll_read, 1),
+                               Uint64Array_getitem(p.rozofs_ll_read, 2)]
+        mp.rozofs_ll_write = [Uint64Array_getitem(p.rozofs_ll_write, 0),
+                               Uint64Array_getitem(p.rozofs_ll_write, 1),
+                               Uint64Array_getitem(p.rozofs_ll_write, 2)]
         for op in ["rozofs_ll_lookup", "rozofs_ll_forget", "rozofs_ll_getattr",
                    "rozofs_ll_setattr", "rozofs_ll_readlink", "rozofs_ll_mknod",
                    "rozofs_ll_mkdir", "rozofs_ll_unlink", "rozofs_ll_rmdir",
@@ -432,6 +434,7 @@ class Node(object):
     def __init__(self, host, roles=0):
         self._host = host
         self._roles = roles
+        self._platform_proxy = None
         # for all below key is Role
         self._proxies = {}
         self._rpcproxies = {}  # storaged and shares ares arrays dues to multi processes
@@ -444,6 +447,7 @@ class Node(object):
 
     def _initialize_proxies(self):
         try:
+            self._platform_proxy = get_proxy(self._host, PLATFORM_MANAGER)
             if self.has_roles(Role.EXPORTD) and Role.EXPORTD not in self._proxies:
                 self._proxies[Role.EXPORTD] = get_proxy(self._host, EXPORTD_MANAGER)
             if self.has_roles(Role.STORAGED) and Role.STORAGED not in self._proxies:
@@ -455,6 +459,7 @@ class Node(object):
             raise e
 
     def _release_proxies(self):
+        self._platform_proxy.getProxy()._release()
         for p in self._proxies.values():
             p.getProxy()._release()
         self._up = False
@@ -481,7 +486,7 @@ class Node(object):
                 else:
                     self._rpcproxies[Role.SHARE] = []
                     sc = self._proxies[Role.SHARE].get_service_config()
-                    for port in [s.profiling_port for s in sc]:
+                    for port in [s.profiling_port for s in sc.shares]:
                         self._rpcproxies[Role.SHARE].append(MountRpcProxy(self._host, port))
         except Exception as e:
             self._disconnect_rpc()
@@ -546,6 +551,24 @@ class Node(object):
                 return True
         return False
 
+    def check_platform_manager(self):
+        if not self._try_up():
+            return False
+
+        return self._platform_proxy.ping()
+
+    def get_platform_config(self):
+        if not self._try_up():
+            return None
+
+        return self._platform_proxy.get_service_config()
+
+    def set_platform_config(self, configuration):
+        if not self._try_up():
+            return
+
+        self._platform_proxy.set_service_config(configuration)
+
     def get_configurations(self, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
         if not self._try_up():
             return None
@@ -605,30 +628,35 @@ class Node(object):
 class Platform(object):
     """ A rozofs platform."""
 
-    def __init__(self, hostname):
+    def __init__(self, hostname="localhost"):
         """
         Args:
-            hostname: exportd host.
+            hostname: platform manager host (should be part of the platform !).
         """
-        self._hostname = hostname
-        self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
-        self._config = self._proxy.get_service_config()
-        self._nodes = self._get_nodes()
+        # self._hostname = hostname
+        # self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
+        # self._config = self._proxy.get_service_config()
+        self._nodes = self._get_nodes(hostname)
 
-    def __del__(self):
-        self._proxy.getProxy()._release()
+#    def __del__(self):
+#        self._proxy.getProxy()._release()
 
-    def _get_nodes(self):
+    def _get_nodes(self, hostname):
+        # get a proxy on the given platform host
+        # should be used only once before
+        # after setup we always used a node from nodes e.g. nodes[O]
+        proxy = get_proxy(hostname, PLATFORM_MANAGER)
+        config = proxy.get_service_config()
         nodes = {}
-        exportd_node = Node(self._config.exportd_hostname, Role.EXPORTD)
-        nodes[self._config.exportd_hostname] = exportd_node
+        exportd_node = Node(config.exportd_hostname, Role.EXPORTD)
+        nodes[config.exportd_hostname] = exportd_node
         econfig = exportd_node.get_configurations(Role.EXPORTD)[Role.EXPORTD]
 
         if econfig is None:
             raise "Exportd node is off line."
 
         # if platform is sharing all storaged node share !!!
-        roles = Role.STORAGED if not self._config.protocols else Role.STORAGED | Role.SHARE
+        roles = Role.STORAGED if not config.protocols else Role.STORAGED | Role.SHARE
         for h in [s for v in econfig.volumes.values()
                             for c in v.clusters.values()
                             for s in c.storages.values()]:
@@ -639,23 +667,40 @@ class Platform(object):
 
         return nodes
 
-    def get_hostname(self):
-        return self._hostname
+    def _check_nodes(self):
+        """ Check if all nodes have a platform agent running """
+        for n in self._nodes:
+            if not n.check_platform_manager():
+                raise Exception("%s: check platform failed." % n._host)
 
-    def set_hostname(self, hostname):
-        self._hostname = hostname
-        self._proxy.getProxy()._release()
-        self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
-        self._config = self._proxy.get_service_config()
-        self._nodes = self._get_nodes()
+#    def get_hostname(self):
+#        return self._hostname
+#
+#    def set_hostname(self, hostname):
+#        self._hostname = hostname
+# #        self._proxy.getProxy()._release()
+# #        self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
+# #        self._config = self._proxy.get_service_config()
+#        self._nodes = self._get_nodes()
 
     def get_exportd_hostname(self):
-        return self._config.exportd_hostname
+        return self._nodes.values()[0].get_platform_config().exportd_hostname
 
     def set_exportd_hostname(self, hostname):
-        self._config.exportd_hostname = hostname
-        self._proxy.set_service_config(self._config)
-        self._nodes = self._get_nodes()
+#        self._config.exportd_hostname = hostname
+#        self._proxy.set_service_config(self._config)
+#        self._nodes = self._get_nodes()
+        # each node is a platform manager check if reachable
+        # before make changes
+        for n in self._nodes.values():
+            n.check_platform_manager()
+
+        # the appli change (best effort)
+        for n in self._nodes.values():
+            configuration = n.get_platform_config()
+            configuration.exportd_hostname = hostname
+            n.set_platform_config(configuration)
+
 
     def list_nodes(self, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
         """ Get all nodes managed by this platform
@@ -673,7 +718,7 @@ class Platform(object):
         return nodes
 
     def get_sharing_protocols(self):
-        return self._config.protocols
+        self._nodes.values()[0].get_platform_config().protocols
 
     def set_sharing_protocols(self, protocols=PROTOCOLS_VALUES):
         """ Set protocols used for sharing on this platform """
@@ -681,18 +726,26 @@ class Platform(object):
             if protocol not in PROTOCOLS_VALUES:
                 raise Exception("Unknown protocol: %s" % protocol)
 
-        self._config.protocols = protocols
-        self._proxy.set_service_config(self._config)
+        # check if all nodes are reachable
+        for n in self._nodes.values():
+            n.check_platform_manager()
+
+        # get exportd hostname
+        exportd_hostname = self.get_exportd_hostname()
 
         # build config to send to every sharing nodes.
         sconfig = ShareConfig(protocols)
         if protocols:
-            enode = Node(self._config.exportd_hostname, Role.EXPORTD)
+            enode = Node(exportd_hostname, Role.EXPORTD)
             econfig = enode.get_configurations(Role.EXPORTD)
             for export in econfig[Role.EXPORTD].exports.values():
-                sconfig.shares.append(Share(self._config.exportd_hostname,
-                                            export.root, 0))
+                sconfig.shares.append(Share(exportd_hostname, export.root, 0))
+
         for n in self._nodes.values():
+            configuration = n.get_platform_config()
+            configuration.protocols = protocols
+            n.set_platform_config(configuration)
+
             # every storaged become a share node
             if n.has_one_of_roles(Role.STORAGED):
                 n.set_roles(n.get_roles() | Role.SHARE)
@@ -728,6 +781,10 @@ class Platform(object):
         Args:
             statuses : A dict where keys are host names,
                        values are dicts {Role: ServiceStatus}
+
+        Warning:
+            assuming user knows what he is doing start share before
+            exportd or storaged will lead to errors
         """
         for h, s in statuses.items():
             self._nodes[h].set_statuses(s)
@@ -736,9 +793,12 @@ class Platform(object):
         """ Convenient method to set the same status to hosts.
 
         Args:
-            hosts : list of hosts to set status , if None all host are set
+            hosts: list of hosts to set status , if None all host are set
 
-            roles : for which roles status should be set
+            roles: for which roles status should be set
+
+        Warning:
+            see set_statuses
         """
         # while Node set statuses is applied only if a node has this role
         # we just need to call set statuses on all nodes
@@ -755,19 +815,39 @@ class Platform(object):
 
         self.set_statuses(statuses)
 
-    def start(self, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
+    def start(self, hosts=None, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
         """ Convenient method to start all nodes with a role
         Args:
             the roles to be started
         """
-        self.set_status(self._nodes.keys(), roles, ServiceStatus.STARTED)
 
-    def stop(self, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
+        if hosts is None:
+            hosts = self._nodes.keys()
+
+        # take care of the starting order
+        if roles & Role.STORAGED == Role.STORAGED:
+            self.set_status(hosts, Role.STORAGED, ServiceStatus.STARTED)
+        if roles & Role.EXPORTD == Role.EXPORTD:
+            self.set_status(hosts, Role.EXPORTD, ServiceStatus.STARTED)
+        if roles & Role.SHARE == Role.SHARE:
+            time.sleep(1)
+            self.set_status(hosts, Role.SHARE, ServiceStatus.STARTED)
+
+    def stop(self, hosts=None, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
         """ Convenient method to stop all nodes with a role
         Args:
             the roles to be stopped
         """
-        self.set_status(self._nodes.keys(), roles, ServiceStatus.STOPPED)
+        if hosts is None:
+            hosts = self._nodes.keys()
+
+        # take care of the stopping order
+        if roles & Role.SHARE == Role.SHARE:
+            self.set_status(hosts, Role.SHARE, ServiceStatus.STOPPED)
+        if roles & Role.EXPORTD == Role.EXPORTD:
+            self.set_status(hosts, Role.EXPORTD, ServiceStatus.STOPPED)
+        if roles & Role.STORAGED == Role.STORAGED:
+            self.set_status(hosts, Role.STORAGED, ServiceStatus.STOPPED)
 
     def get_profilers(self, hosts=None, roles=Role.EXPORTD | Role.STORAGED | Role.SHARE):
         """ Get profilers for named nodes and roles
@@ -824,7 +904,7 @@ class Platform(object):
         if not layout in [0, 1, 2]:
             raise Exception("Invalid layout: %d" % layout)
 
-        node = Node(self._config.exportd_hostname, Role.EXPORTD)
+        node = Node(self.get_exportd_hostname(), Role.EXPORTD)
         configuration = node.get_configurations(Role.EXPORTD)
 
         if configuration is None:
@@ -843,7 +923,10 @@ class Platform(object):
             vid: volume to use, if none a new one will be created
             hosts: hosts to be added
         """
-        enode = Node(self._config.exportd_hostname, Role.EXPORTD)
+        exportd_hostname = self.get_exportd_hostname()
+        sharing_protocols = self.get_sharing_protocols()
+
+        enode = Node(exportd_hostname, Role.EXPORTD)
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
@@ -875,34 +958,32 @@ class Platform(object):
         else:
             cid = 1
 
-        # find a storage id
-        sids = [s for v in econfig[Role.EXPORTD].volumes.values()
-                  for c in v.clusters.values()
-                  for s in c.storages.keys()]
-        if len(sids) != 0:
-            sid = max(sids) + 1
-        else:
-            sid = 1
+        # as we create a new cluster sids always starts at 1
+        sid = 1
 
         cconfig = ClusterConfig(cid)
-
-        roles = Role.STORAGED if not self._config.protocols else Role.STORAGED | Role.SHARE
-        shconfig = ShareConfig(self._config.protocols)
-        if self._config.protocols:
+        roles = Role.STORAGED if not sharing_protocols else Role.STORAGED | Role.SHARE
+        shconfig = ShareConfig(sharing_protocols)
+        if sharing_protocols:
             for export in econfig[Role.EXPORTD].exports.values():
-                shconfig.shares.append(Share(self._config.exportd_hostname,
-                                            export.root, 0))
+                shconfig.shares.append(Share(exportd_hostname, export.root, 0))
+
         for h in hosts:
-            # if it's a new node register it else just update its role
+            # if it's a new node register it (and duplicate platform config)
+            # else just update its role
             if h not in self._nodes:
+                pconfig = self._nodes.values()[0].get_platform_config()
                 self._nodes[h] = Node(h, roles)
+                self._nodes[h].set_platform_config(pconfig)
             else:
                 # maybe overkill since the node could already have this role
                 self._nodes[h].set_roles(self._nodes[h].get_roles() | roles)
 
             # configure the storaged
             sconfig = self._nodes[h].get_configurations(Role.STORAGED)
-            sconfig[Role.STORAGED].storages[sid] = StorageConfig(sid, "/srv/rozofs/storage_%d" % sid)
+            # XXX root could (should ?) be compute on storaged module
+            sconfig[Role.STORAGED].storages[(cid, sid)] = StorageConfig(cid, sid,
+                                                                 "/srv/rozofs/storage_%d_%d" % (cid, sid))
             sconfig[Role.SHARE] = shconfig
             self._nodes[h].set_configurations(sconfig)
 
@@ -922,7 +1003,7 @@ class Platform(object):
         Args:
             vid: the volume to be removed
         """
-        enode = Node(self._config.exportd_hostname, Role.EXPORTD)
+        enode = Node(self.get_exportd_hostname(), Role.EXPORTD)
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
@@ -938,7 +1019,7 @@ class Platform(object):
             for c in vconfig.clusters.values():
                 for sid, host in c.storages.items():
                     sconfig = self._nodes[host].get_configurations(Role.STORAGED)
-                    sconfig[Role.STORAGED].storages.pop(sid)
+                    sconfig[Role.STORAGED].storages.pop((c.cid, sid))
                     self._nodes[host].set_configurations(sconfig)
             enode.set_configurations(econfig)
 
@@ -948,7 +1029,8 @@ class Platform(object):
         Args:
             vid: the volume id to use the file system relies on
         """
-        enode = Node(self._config.exportd_hostname, Role.EXPORTD)
+        exportd_hostname = self.get_exportd_hostname()
+        enode = Node(exportd_hostname, Role.EXPORTD)
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
@@ -1012,7 +1094,7 @@ class Platform(object):
             # every storaged become a share node
             if n.has_one_of_roles(Role.SHARE):
                 sconfig = n.get_configurations(Role.SHARE)
-                sconfig[Role.SHARE].shares.append(Share(self._config.export_hostname ,
+                sconfig[Role.SHARE].shares.append(Share(exportd_hostname ,
                                                         "/srv/rozofs/%s" % name, -1))
                 n.set_configurations(sconfig)
 
@@ -1025,7 +1107,7 @@ class Platform(object):
             squota: soft quota to set if None no modification is done
             hquota: hard quota to set if None no modification is done
         """
-        enode = Node(self._config.exportd_hostname, Role.EXPORTD)
+        enode = Node(self.get_exportd_hostname(), Role.EXPORTD)
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
@@ -1083,7 +1165,8 @@ class Platform(object):
             eid: the export id to remove
             force: force removing of non empty exportd
         """
-        enode = Node(self._config.exportd_hostname, Role.EXPORTD)
+        exportd_hostname = self.get_exportd_hostname()
+        enode = Node(exportd_hostname, Role.EXPORTD)
         econfig = enode.get_configurations(Role.EXPORTD)
         eprofiler = enode.get_profilers(Role.EXPORTD)
 
@@ -1099,7 +1182,7 @@ class Platform(object):
 
         expconfig = econfig[Role.EXPORTD].exports.pop(eid)
         # if sharing is enable unshare this export
-        share = Share(self._hostname , expconfig.root, -1)
+        share = Share(exportd_hostname , expconfig.root, -1)
         for n in self._nodes.values():
             if n.has_one_of_roles(Role.SHARE):
                 sconfig = n.get_configurations(Role.SHARE)

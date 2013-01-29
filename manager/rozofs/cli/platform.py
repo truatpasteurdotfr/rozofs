@@ -37,6 +37,10 @@ def __args_to_roles(args):
 #
 # general functions
 #
+def set_exportd(platform, args):
+    platform.set_exportd_hostname(args.host)
+    print >> sys.stdout, "exportd hostname set to: %s" % (args.host)
+
 def nodes(platform, args):
     nodes = platform.list_nodes(__args_to_roles(args))
     print >> sys.stdout, "%-20s %-20s" % ("NODE", "ROLES")
@@ -77,14 +81,19 @@ def status(platform, args):
         __print_host_statuses(h, s)
 
 def start(platform, args):
-    platform.set_status(args.nodes, __args_to_roles(args), ServiceStatus.STARTED)
-    print >> sys.stdout, "platform: %s started." % args.roles
+    platform.start(args.nodes, __args_to_roles(args))
+    if args.roles:
+        print >> sys.stdout, "platform: %s started." % args.roles
+    else:
+        print >> sys.stdout, "platform: started."
 
 
 def stop(platform, args):
-    platform.set_status(args.nodes, __args_to_roles(args), ServiceStatus.STOPPED)
-    print >> sys.stdout, "platform: %s stopped." % args.roles
-
+    platform.set_stop(args.nodes, __args_to_roles(args))
+    if args.roles:
+        print >> sys.stdout, "platform: %s stopped." % args.roles
+    else:
+        print >> sys.stdout, "platform: stopped."
 #
 # profilers related functions
 #
@@ -308,13 +317,13 @@ def __print_host_profilers(host, profilers):
         if (r & Role.STORAGED == Role.STORAGED):
             print >> sys.stdout, "%s" % __storaged_profiler_to_string(p)
         if (r & Role.SHARE == Role.SHARE):
-            print >> sys.stdout, "%s" % __mount_profiler_to_string(p)
+            for mp in p:
+                print >> sys.stdout, "%s" % __mount_profiler_to_string(mp)
 
 def profile(platform, args):
     profilers = platform.get_profilers(args.nodes, __args_to_roles(args))
     for h, p in profilers.items():
         __print_host_profilers(h, p)
-
 
 #
 # configuration related functions
@@ -336,11 +345,14 @@ def __exportd_config_to_string(config):
     return s
 
 def __storaged_config_to_string(config):
-    s = "\t\tLAYOUT: %d\n" % config.layout
-    s += "\t\tPORTS: %s\n" % config.ports
-    s += "\t\t%-10s %-30s\n" % ('SID', 'ROOT')
-    for st in config.storages.values():
-        s += "\t\t%-10d %-30s\n" % (st.sid, st.root)
+    # s = "\t\tLAYOUT: %d\n" % config.layout
+    s = "\t\tPORTS: %s\n" % config.ports
+    s += "\t\t%-10s %-10s %-30s\n" % ('CID', 'SID', 'ROOT')
+    keylist = config.storages.keys()
+    keylist.sort()
+    for key in keylist:
+        st = config.storages[key]
+        s += "\t\t%-10d %-10d %-30s\n" % (st.cid, st.sid, st.root)
     return s
 
 def __share_config_to_string(config):
@@ -371,7 +383,7 @@ def __print_host_configs(host, configurations):
             print >> sys.stdout, "%s" % __share_config_to_string(c)
 
 def configuration(platform, args):
-    print >> sys.stdout, "EXPORTD HOST: %s, PROTOCOL(S): %s" % (platform.get_hostname(), platform.get_sharing_protocols())
+    print >> sys.stdout, "EXPORTD HOST: %s, PROTOCOL(S): %s" % (platform.get_exportd_hostname(), platform.get_sharing_protocols())
     configurations = platform.get_configurations(args.nodes, __args_to_roles(args))
     for h, c in configurations.items():
         __print_host_configs(h, c)
