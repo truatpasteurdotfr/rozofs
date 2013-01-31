@@ -5,10 +5,9 @@
 # Required-Stop:     $remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: <Enter a short description of the sortware>
-# Description:       <Enter a long description of the software>
-#                    <...>
-#                    <...>
+# Short-Description: RozoFS storaged server
+# Description:       RozoFS is a scale-out NAS file system. This service
+#                    provides the rozofs-storaged server functionality.
 ### END INIT INFO
 
 # Author: Fizians S.A.S. <rd@fizians.org>
@@ -54,7 +53,7 @@ do_stop()
     # Return
     #   0 if daemon has been stopped
     #   1 if daemon could not be stopped
-    start-stop-daemon -K -q -o -p $PIDFILE -n $NAME -R TERM/30/KILL/5 -a $DAEMON
+    start-stop-daemon -K -q -o -n $NAME -R TERM/30/KILL/5 -a $DAEMON
     RETVAL="$?"
     # Many daemons don't delete their pidfiles when they exit.
     rm -f $PIDFILE
@@ -120,7 +119,7 @@ case "$1" in
     esac
     ;;
   *)
-    echo "Usage: $SCRIPTNAME {start|stop|status|restart|reload}" >&2
+    echo "Usage: $SCRIPTNAME {start|stop|status|restart}" >&2
     exit 3
     ;;
 esac

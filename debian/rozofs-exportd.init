@@ -5,10 +5,9 @@
 # Required-Stop:     $remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: <Enter a short description of the sortware>
-# Description:       <Enter a long description of the software>
-#                    <...>
-#                    <...>
+# Short-Description: RozoFS exportd server
+# Description:       RozoFS is a scale-out NAS file system. This service
+#                    provides the rozofs-exportd server functionality.
 ### END INIT INFO
 
 # Author: Fizians S.A.S. <rd@fizians.org>
