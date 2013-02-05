@@ -648,7 +648,13 @@ class Platform(object):
         proxy = get_proxy(hostname, PLATFORM_MANAGER)
         config = proxy.get_service_config()
         nodes = {}
+
+        # first set
+        if not config.exportd_hostname:
+            config.exportd_hostname = hostname
+
         exportd_node = Node(config.exportd_hostname, Role.EXPORTD)
+
         nodes[config.exportd_hostname] = exportd_node
         econfig = exportd_node.get_configurations(Role.EXPORTD)[Role.EXPORTD]
 
@@ -658,8 +664,8 @@ class Platform(object):
         # if platform is sharing all storaged node share !!!
         roles = Role.STORAGED if not config.protocols else Role.STORAGED | Role.SHARE
         for h in [s for v in econfig.volumes.values()
-                            for c in v.clusters.values()
-                            for s in c.storages.values()]:
+                        for c in v.clusters.values()
+                        for s in c.storages.values()]:
             if h in nodes:  # the exportd node !
                 nodes[h].set_roles(nodes[h].get_roles() | roles)
             else:
@@ -673,25 +679,14 @@ class Platform(object):
             if not n.check_platform_manager():
                 raise Exception("%s: check platform failed." % n._host)
 
-#    def get_hostname(self):
-#        return self._hostname
-#
-#    def set_hostname(self, hostname):
-#        self._hostname = hostname
-# #        self._proxy.getProxy()._release()
-# #        self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
-# #        self._config = self._proxy.get_service_config()
-#        self._nodes = self._get_nodes()
 
     def get_exportd_hostname(self):
         return self._nodes.values()[0].get_platform_config().exportd_hostname
 
     def set_exportd_hostname(self, hostname):
-#        self._config.exportd_hostname = hostname
-#        self._proxy.set_service_config(self._config)
-#        self._nodes = self._get_nodes()
         # each node is a platform manager check if reachable
         # before make changes
+
         for n in self._nodes.values():
             n.check_platform_manager()
 

@@ -38,8 +38,8 @@ def __args_to_roles(args):
 # general functions
 #
 def set_exportd(platform, args):
-    platform.set_exportd_hostname(args.host)
-    print >> sys.stdout, "exportd hostname set to: %s" % (args.host)
+    platform.set_exportd_hostname(args.exportd[0])
+    print >> sys.stdout, "exportd hostname set to: %s" % (args.exportd)
 
 def nodes(platform, args):
     nodes = platform.list_nodes(__args_to_roles(args))
