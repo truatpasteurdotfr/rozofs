@@ -1,0 +1,7 @@
+swig2.0 -python -I/usr/include libconfig.i
+gcc -O2 -fPIC -shared -o _libconfig.so libconfig_wrap.c -I/usr/include/python2.7 -lconfig
+
+
+swig2.0 -python -I../../../rozofs/ profile.i
+gcc -O2 -fPIC -shared -o _profile.so profile_wrap.c -I../../../rozofs -I../../.. -I../../../build/debug -I/usr/include/python2.7 -L../../../build/debug/rozofs -lrozofs
+

@@ -20,21 +20,54 @@
  */
 %#include <rozofs/rozofs.h>
 
+
+#define EPP_MAX_VOLUMES     16
+#define EPP_MAX_STORAGES    2048
+#define EPP_MAX_EXPORTS     2048
+
 enum epp_status_t {
     EPP_SUCCESS = 0,
     EPP_FAILURE = 1
 };
 
 union epp_status_ret_t switch (epp_status_t status) {
-    case EPP_FAILURE:    int error;
+    case EPP_FAILURE:   int error;
     default:            void;
 };
 
+struct epp_estat_t {
+    uint32_t    eid;
+    uint32_t    vid;
+    uint16_t    bsize;
+    uint64_t    blocks;
+    uint64_t    bfree;
+    uint64_t    files;
+    uint64_t    ffree;
+};
+
+struct epp_sstat_t {
+    uint16_t    sid;
+    uint8_t     status;
+    uint64_t    size;
+    uint64_t    free;
+};
+
+struct epp_vstat_t {
+    uint16_t    vid;
+    uint16_t    bsize;
+    uint64_t    bfree;
+    uint32_t    nb_storages;
+    epp_sstat_t sstats[EPP_MAX_STORAGES];
+};
 
 struct epp_profiler_t {
     uint64_t    uptime;
     uint64_t    now;
     uint8_t     vers[20];
+    uint32_t    nb_volumes;
+    epp_vstat_t vstats[EPP_MAX_VOLUMES];
+    uint32_t    nb_exports;
+    epp_estat_t estats[EPP_MAX_EXPORTS];
     uint64_t    ep_mount[2];
     uint64_t    ep_umount[2];
     uint64_t    ep_statfs[2];
@@ -121,5 +154,6 @@ program EXPORTD_PROFILE_PROGRAM {
 
         epp_status_ret_t
         EPP_CLEAR(void)         = 2;
+
     }=1;
 } = 0x20000005;

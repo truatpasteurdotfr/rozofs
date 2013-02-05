@@ -29,10 +29,42 @@ struct epp_status_ret_t {
 };
 typedef struct epp_status_ret_t epp_status_ret_t;
 
+struct epp_estat_t {
+	uint32_t eid;
+	uint32_t vid;
+	uint16_t bsize;
+	uint64_t blocks;
+	uint64_t bfree;
+	uint64_t files;
+	uint64_t ffree;
+};
+typedef struct epp_estat_t epp_estat_t;
+
+struct epp_sstat_t {
+	uint16_t sid;
+	uint8_t status;
+	uint64_t size;
+	uint64_t free;
+};
+typedef struct epp_sstat_t epp_sstat_t;
+
+struct epp_vstat_t {
+	uint16_t vid;
+	uint16_t bsize;
+	uint64_t bfree;
+	uint32_t nb_storages;
+	epp_sstat_t sstats[2048];
+};
+typedef struct epp_vstat_t epp_vstat_t;
+
 struct epp_profiler_t {
 	uint64_t uptime;
 	uint64_t now;
 	uint8_t vers[20];
+	uint32_t nb_volumes;
+	epp_vstat_t vstats[16];
+	uint32_t nb_exports;
+	epp_estat_t estats[2048];
 	uint64_t ep_mount[2];
 	uint64_t ep_umount[2];
 	uint64_t ep_statfs[2];
@@ -146,12 +178,18 @@ extern int exportd_profile_program_1_freeresult ();
 #if defined(__STDC__) || defined(__cplusplus)
 extern  bool_t xdr_epp_status_t (XDR *, epp_status_t*);
 extern  bool_t xdr_epp_status_ret_t (XDR *, epp_status_ret_t*);
+extern  bool_t xdr_epp_estat_t (XDR *, epp_estat_t*);
+extern  bool_t xdr_epp_sstat_t (XDR *, epp_sstat_t*);
+extern  bool_t xdr_epp_vstat_t (XDR *, epp_vstat_t*);
 extern  bool_t xdr_epp_profiler_t (XDR *, epp_profiler_t*);
 extern  bool_t xdr_epp_profiler_ret_t (XDR *, epp_profiler_ret_t*);
 
 #else /* K&R C */
 extern bool_t xdr_epp_status_t ();
 extern bool_t xdr_epp_status_ret_t ();
+extern bool_t xdr_epp_estat_t ();
+extern bool_t xdr_epp_sstat_t ();
+extern bool_t xdr_epp_vstat_t ();
 extern bool_t xdr_epp_profiler_t ();
 extern bool_t xdr_epp_profiler_ret_t ();
 
