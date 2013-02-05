@@ -713,7 +713,7 @@ class Platform(object):
         return nodes
 
     def get_sharing_protocols(self):
-        self._nodes.values()[0].get_platform_config().protocols
+        return self._nodes.values()[0].get_platform_config().protocols
 
     def set_sharing_protocols(self, protocols=PROTOCOLS_VALUES):
         """ Set protocols used for sharing on this platform """
