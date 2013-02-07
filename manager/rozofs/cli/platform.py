@@ -89,7 +89,7 @@ def start(platform, args):
 
 
 def stop(platform, args):
-    platform.set_stop(args.nodes, __args_to_roles(args))
+    platform.stop(args.nodes, __args_to_roles(args))
     if args.roles:
         print >> sys.stdout, "platform: %s stopped." % args.roles
     else:
