@@ -14,12 +14,12 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rozofs.7 DESTINATION share/man/man7 COMPONENT client)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/rozofsmount.8 DESTINATION share/man/man8 COMPONENT client)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/storaged.8 DESTINATION share/man/man8 COMPONENT storage)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/storage.conf.5 DESTINATION share/man/man5 COMPONENT storage)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/exportd.8 DESTINATION share/man/man8 COMPONENT export)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/export.conf.5 DESTINATION share/man/man5 COMPONENT export)
+install(FILES rozofs.7 DESTINATION share/man/man7 COMPONENT client)
+install(FILES rozofsmount.8 DESTINATION share/man/man8 COMPONENT client)
+install(FILES storaged.8 DESTINATION share/man/man8 COMPONENT storage)
+install(FILES storage.conf.5 DESTINATION share/man/man5 COMPONENT storage)
+install(FILES exportd.8 DESTINATION share/man/man8 COMPONENT export)
+install(FILES export.conf.5 DESTINATION share/man/man5 COMPONENT export)
 
 #
 # add doxygen target
