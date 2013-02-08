@@ -67,4 +67,5 @@ install(TARGETS exportd
     COMPONENT export
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT exportd)
+install(FILES export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT exportd)
+install(FILES export.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT exportd)
