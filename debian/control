@@ -2,26 +2,26 @@ Source: rozofs
 Section: admin
 Priority: optional
 Maintainer: Fizians S.A.S. <rd@fizians.org>
-Build-Depends: cdbs, debhelper (>= 9.20120909), cmake (>= 2.8.9-1), libc6-dev (>= 2.13-37), libfuse-dev (>= 2.9.0-2), libattr1-dev (>= 1:2.4.46-8) , uuid-dev (>= 2.20.1-5.2), libconfig-dev  (>= 1.4.8-5), python-all
+Build-Depends: debhelper, dh-make, cmake, make, libc6-dev, libfuse-dev, libattr1-dev, uuid-dev, libconfig-dev, python-all
 Standards-Version: 3.8.4
-X-Python-Version: >= 2.6
-Homepage: http://www.fizians.org
+X-Python-Version: = 2.6 << 2.7
+Homepage: http://www.rozofs.org
 
 Package: rozofs-exportd
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, rpcbind(>= 0.2.0-8), libattr1 (>= 1:2.4.46-8), libuuid1 (>= 2.20.1-5.2), libconfig9 (>= 1.4.8-5)
+Depends: ${shlibs:Depends}, ${misc:Depends}, portmap | rpcbind, libattr1, libuuid1, libconfig8 | libconfig9
 Description: Rozofs filesystem (export package).
  Rozofs is a scale-out NAS using erasure coding.
 
 Package: rozofs-storaged
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, rpcbind(>= 0.2.0-8), libuuid1 (>= 2.20.1-5.2), libconfig9 (>= 1.4.8-5)
+Depends: ${shlibs:Depends}, ${misc:Depends}, portmap | rpcbind, libuuid1, libconfig8 | libconfig9
 Description: Rozofs filesystem (storage package).
  Rozofs is a scale-out NAS using erasure coding.
 
 Package: rozofs-rozofsmount
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0-2), fuse-utils (>=2.9.0-2)
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2, fuse-utils
 Description: Rozofs filesystem (rozofsmount package).
  Rozofs is a scale-out NAS using erasure coding.
 
@@ -33,7 +33,7 @@ Description: Rozofs filesystem (monitoring package).
 
 Package: rozofs-manager-lib
 Architecture: any
-Depends: ${misc:Depends}, libconfig9 (>= 1.4.8-5), pyro (>= 1:3.9.1-2), python-argparse (>= 1.1-1)
+Depends: ${misc:Depends}, libconfig8 | libconfig9, pyro, python-argparse
 Description: Rozofs filesystem (management library package).
  Rozofs is a scale-out NAS using erasure coding.
 

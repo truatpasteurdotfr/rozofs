@@ -1,11 +1,17 @@
 #!/usr/bin/make -f
 
-include /usr/share/cdbs/1/rules/debhelper.mk
-include /usr/share/cdbs/1/class/cmake.mk
+DPKG_EXPORT_BUILDFLAGS = 1
+-include /usr/share/dpkg/buildflags.mk
+CFLAGS   += $(CPPFLAGS) -D_GNU_SOURCE
+CXXFLAGS += $(CPPFLAGS) -D_GNU_SOURCE
 
+CMAKE_EXTRA_FLAGS += -DCMAKE_SKIP_RPATH=ON \
+                     -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo\
+                     -DCMAKE_INSTALL_PREFIX:STRING=/usr\
+                     -DSYSCONFDIR:STRING=/etc
 
-# Add here any variable or target overrides you need.
-CFLAGS := -O3 -DNDEBUG -D_GNU_SOURCE
-CXXFLAGS :=
-DEB_CMAKE_INSTALL_PREFIX := /usr
-DEB_CMAKE_EXTRA_FLAGS := -DCMAKE_BUILD_TYPE=None -DSYSCONFDIR=/etc
+%:
+	dh $@ --buildsystem=cmake 
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(CMAKE_EXTRA_FLAGS)

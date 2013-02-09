@@ -35,8 +35,8 @@ find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
 find_package(SWIG REQUIRED)
-find_package(PythonInterp REQUIRED)
 find_package(Doxygen QUIET)
+find_program(PYTHON NAMES python2.6)
 find_program(DEBUILD NAMES debuild)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
@@ -84,11 +84,10 @@ set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOS
 
 set(ROZOFS_SOURCE_PACKAGE_FILE_NAME "rozofs-${VERSION}")
 
-configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/squeeze.in" "${PROJECT_BINARY_DIR}/squeeze.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/wheezy.in" "${PROJECT_BINARY_DIR}/wheezy.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/ubuntu.in" "${PROJECT_BINARY_DIR}/ubuntu.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
+
+configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/manager/setup.py" @ONLY)
 
@@ -117,9 +116,7 @@ set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
 # uninstall target
 #
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake")
-add_custom_target(package_squeeze "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/squeeze.cmake")
-add_custom_target(package_wheezy "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/wheezy.cmake")
-add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/ubuntu.cmake")
+add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/debian.cmake")
 
 #
 # Packing
