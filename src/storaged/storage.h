@@ -29,7 +29,7 @@
 #include <rozofs/common/htable.h>
 
 /** Maximum size in bytes for the header of file bins */
-#define ROZOFS_ST_BINS_FILE_HDR_SIZE 524288
+#define ROZOFS_ST_BINS_FILE_HDR_SIZE 8192
 
 /** Default open flags to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_FLAG O_RDWR | O_CREAT | O_NOATIME
