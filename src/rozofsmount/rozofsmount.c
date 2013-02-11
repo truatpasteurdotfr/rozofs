@@ -1571,6 +1571,7 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
 int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int i = 0;
     int err;
+    char *c;
     int piped[2];
     piped[0] = piped[1] = -1;
     char s;
@@ -1581,6 +1582,8 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int sock;
     pthread_t profiling_thread;
     uint16_t profiling_port;
+    char ppfile[NAME_MAX];
+    int ppfd = -1;
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
@@ -1795,6 +1798,20 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     }
     info("monitoring port: %d", profiling_port);
 
+    /* try to create a flag file with port number */
+    sprintf(ppfile, "%s%s%s", DAEMON_PID_DIRECTORY, "rozofsmount", mountpoint);
+    c = ppfile + strlen(DAEMON_PID_DIRECTORY);
+    while(*c++) {if (*c == '/') *c = '.';}
+    if ((ppfd = open(ppfile, O_RDWR | O_CREAT, 0640)) < 0) {
+        severe("can't open profiling port file");
+    } else {
+        char str[10];
+        sprintf(str, "%d\n", profiling_port);
+        write(ppfd, str, strlen(str));
+        close(ppfd);
+    }
+
+
     err = fuse_session_loop(se);
 
     if (err) {
@@ -1811,6 +1828,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     fuse_unmount(mountpoint, ch);
     exportclt_release(&exportclt);
     ientries_release();
+    unlink(ppfile); // best effort
 
     return err ? 1 : 0;
 }

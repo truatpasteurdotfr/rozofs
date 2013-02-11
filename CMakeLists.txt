@@ -34,6 +34,8 @@ find_package(CONFIG REQUIRED)
 find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
+find_package(SWIG REQUIRED)
+find_package(PythonInterp REQUIRED)
 find_package(Doxygen QUIET)
 find_program(DEBUILD NAMES debuild)
 
@@ -76,6 +78,7 @@ add_subdirectory(doc)
 add_subdirectory(tests)
 add_subdirectory(tests/fs_ops/fileop)
 add_subdirectory(tests/fs_ops/pjd-fstest)
+add_subdirectory(manager)
 
 set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
@@ -86,15 +89,8 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/squeeze.in" "${PROJECT_BINARY_DIR}/s
 configure_file("${PROJECT_SOURCE_DIR}/cmake/wheezy.in" "${PROJECT_BINARY_DIR}/wheezy.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/ubuntu.in" "${PROJECT_BINARY_DIR}/ubuntu.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/export.conf.in" "${PROJECT_BINARY_DIR}/src/exportd/export.conf.sample")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/storage.conf.in" "${PROJECT_BINARY_DIR}/src/storaged/storage.conf.sample")
-configure_file("${PROJECT_SOURCE_DIR}/doc/rozofs.7" "${PROJECT_BINARY_DIR}/doc/rozofs.7")
-configure_file("${PROJECT_SOURCE_DIR}/doc/rozofsmount.8" "${PROJECT_BINARY_DIR}/doc/rozofsmount.8")
-configure_file("${PROJECT_SOURCE_DIR}/doc/storaged.8" "${PROJECT_BINARY_DIR}/doc/storaged.8")
-configure_file("${PROJECT_SOURCE_DIR}/doc/storage.conf.5" "${PROJECT_BINARY_DIR}/doc/storage.conf.5")
-configure_file("${PROJECT_SOURCE_DIR}/doc/exportd.8" "${PROJECT_BINARY_DIR}/doc/exportd.8")
-configure_file("${PROJECT_SOURCE_DIR}/doc/export.conf.5" "${PROJECT_BINARY_DIR}/doc/export.conf.5")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/manager/setup.py" @ONLY)
 
 #
 # Build settings
@@ -125,7 +121,6 @@ add_custom_target(package_squeeze "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_
 add_custom_target(package_wheezy "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/wheezy.cmake")
 add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/ubuntu.cmake")
 
-
 #
 # Packing
 #
@@ -153,5 +148,5 @@ set(CPACK_COMPONENT_HEADERS_DESCRIPTION "storaged")
 # Sources
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${ROZOFS_SOURCE_PACKAGE_FILE_NAME}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
-set(CPACK_SOURCE_IGNORE_FILES "exportd$;/config.h$;rozofsmount$;sample$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;ubuntu.cmake;debian.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git;/\\\\.project;/\\\\.cproject")
+set(CPACK_SOURCE_IGNORE_FILES "exportd$;/config.h$;rozofsmount$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;ubuntu.cmake;debian.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git;/\\\\.project;/\\\\.cproject")
 include(CPack)
