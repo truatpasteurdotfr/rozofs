@@ -208,7 +208,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         file_hdr.version = version;
 
         // Write the header for this bins file
-        nb_write = pwrite(fd, &file_hdr, sizeof (rozofs_stor_bins_hdr_t), 0);
+        nb_write = pwrite(fd, &file_hdr, sizeof (file_hdr), 0);
         if (nb_write != sizeof (rozofs_stor_bins_hdr_t)) {
             severe("pwrite failed: %s", strerror(errno));
             goto out;
