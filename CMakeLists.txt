@@ -38,6 +38,7 @@ find_package(SWIG REQUIRED)
 find_package(Doxygen QUIET)
 find_program(PYTHON NAMES python2.6)
 find_program(DEBUILD NAMES debuild)
+find_program(RPMBUILD NAMES rpmbuild)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fmessage-length=0")
@@ -72,6 +73,10 @@ if(NOT TRAILING_SLASH)
     set(DAEMON_PID_DIRECTORY "${DAEMON_PID_DIRECTORY}/")
 endif(NOT TRAILING_SLASH)
 
+if(NOT DEBIAN_LAYOUT)
+    set(DEBIAN_LAYOUT OFF)
+endif(NOT DEBIAN_LAYOUT)
+
 add_subdirectory(rozofs)
 add_subdirectory(src)
 add_subdirectory(doc)
@@ -88,6 +93,8 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/
 
 configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/redhat.in" "${PROJECT_BINARY_DIR}/redhat.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/rozofs.spec.in" "${PROJECT_BINARY_DIR}/rozofs.spec" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/manager/setup.py" @ONLY)
 
@@ -117,6 +124,7 @@ set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
 #
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake")
 add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/debian.cmake")
+add_custom_target(package_redhat "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/redhat.cmake")
 
 #
 # Packing
@@ -124,7 +132,7 @@ add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_D
 include(InstallRequiredSystemLibraries)
 
 # Binaries
-set(CPACK_GENERATOR "STGZ;TGZ")
+set(CPACK_GENERATOR "")
 set(CPACK_STGZ_COMPONENT_INSTALL ON)
 set(CPACK_TGZ_COMPONENT_INSTALL ON)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Rozofs filesystem")
