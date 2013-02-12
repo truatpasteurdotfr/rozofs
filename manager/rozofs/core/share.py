@@ -109,7 +109,7 @@ class ShareAgent(Agent):
         fstab.read(self.__FSTAB)
         mount_path = self._share_path(share)
         if os.path.exists(mount_path):
-            os.removedirs(mount_path)
+            os.rmdir(mount_path)
         # remove the line from fstab
         newlines = [l for l in fstab.lines if l.directory != mount_path]
         fstab.lines = newlines

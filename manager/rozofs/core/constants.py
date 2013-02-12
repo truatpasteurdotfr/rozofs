@@ -46,3 +46,5 @@ EXPORT_MD5 = "md5"
 EXPORT_HQUOTA = "hquota"
 EXPORT_SQUOTA = "squota"
 
+STORAGES_ROOT = "/srv/rozofs/storages"
+EXPORTS_ROOT = "/srv/rozofs/exports"

@@ -2,7 +2,8 @@
 
 from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     PLATFORM_MANAGER, EXPORTD_HOSTNAME, PROTOCOLS, SHARE_MANAGER, AGENT_PORT, \
-    LAYOUT_VALUES, LAYOUT_SAFE, PROTOCOLS_VALUES, SID_MAX
+    LAYOUT_VALUES, LAYOUT_SAFE, PROTOCOLS_VALUES, SID_MAX, EXPORTS_ROOT, \
+    STORAGES_ROOT
 import Pyro.core
 from rozofs.core.agent import Agent, ServiceStatus
 from rozofs.core.configuration import ConfigurationReader, ConfigurationWriter, \
@@ -978,7 +979,7 @@ class Platform(object):
             sconfig = self._nodes[h].get_configurations(Role.STORAGED)
             # XXX root could (should ?) be compute on storaged module
             sconfig[Role.STORAGED].storages[(cid, sid)] = StorageConfig(cid, sid,
-                                                                 "/srv/rozofs/storage_%d_%d" % (cid, sid))
+                                                                 "%s/storage_%d_%d" % (STORAGES_ROOT, cid, sid))
             sconfig[Role.SHARE] = shconfig
             self._nodes[h].set_configurations(sconfig)
 
@@ -1069,7 +1070,7 @@ class Platform(object):
         if name is None:
             name = "export_%d" % eid
         else:
-            if "/srv/rozofs/%s" % name in [e.root for e in econfig[Role.EXPORTD].exports.values()]:
+            if "%s/%s" % (EXPORTS_ROOT, name) in [e.root for e in econfig[Role.EXPORTD].exports.values()]:
                 raise Exception("Duplicate export name: %s" % name)
 
         # compute md5
@@ -1081,7 +1082,7 @@ class Platform(object):
                                    stderr=devnull)[11:].rstrip()
 
         # add this new export
-        econfig[Role.EXPORTD].exports[eid] = ExportConfig(eid, vid, "/srv/rozofs/%s" % name, md5, squota, hquota)
+        econfig[Role.EXPORTD].exports[eid] = ExportConfig(eid, vid, "%s/%s" % (EXPORTS_ROOT, name), md5, squota, hquota)
         enode.set_configurations(econfig)
 
         # if sharing is enable share this new export
@@ -1090,7 +1091,7 @@ class Platform(object):
             if n.has_one_of_roles(Role.SHARE):
                 sconfig = n.get_configurations(Role.SHARE)
                 sconfig[Role.SHARE].shares.append(Share(exportd_hostname ,
-                                                        "/srv/rozofs/%s" % name, -1))
+                                                        "%s/%s" % (EXPORTS_ROOT, name), -1))
                 n.set_configurations(sconfig)
 
     def update_export(self, eid, passwd=None, squota=None, hquota=None):
