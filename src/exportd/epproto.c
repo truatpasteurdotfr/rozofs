@@ -24,6 +24,10 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 
+#include "export.h"
+#include "volume.h"
+#include "exportd.h"
+
 DECLARE_PROFILING(epp_profiler_t);
 
 void *epp_null_1_svc(void *args, struct svc_req *req) {
@@ -33,8 +37,10 @@ void *epp_null_1_svc(void *args, struct svc_req *req) {
 
 epp_profiler_ret_t *epp_get_profiler_1_svc(void * args,struct svc_req * req) {
     static epp_profiler_ret_t ret;
+    volume_t clone;
     DEBUG_FUNCTION;
 
+    /*XXX should acquire lock on monitor thread ! */
     SET_PROBE_VALUE(now, time(0))
     memcpy(&ret.epp_profiler_ret_t_u.profiler, &gprofiler, sizeof(gprofiler));
     ret.status = EPP_SUCCESS;

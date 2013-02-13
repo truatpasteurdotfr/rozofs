@@ -29,3 +29,21 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Rozofs filesystem (monitoring package).
  Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-manager-lib
+Architecture: any
+Depends: ${misc:Depends}, libconfig8 (>= 1.3.2-2), pyro (>= 1:3.9.1-2), python-argparse (>= 1.1-1)
+Description: Rozofs filesystem (management library package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-manager-cli
+Architecture: any
+Depends: ${misc:Depends}, rozofs-manager-lib
+Description: Rozofs filesystem (management cli package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-manager-agent
+Architecture: any
+Depends: ${misc:Depends}, rozofs-manager-lib, rozofs-manager-cli
+Description: Rozofs filesystem (management agent package).
+ Rozofs is a scale-out NAS using erasure coding.

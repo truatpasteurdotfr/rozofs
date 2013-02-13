@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# rozofs-storaged       This shell script takes care of starting and stopping
+#                       the storaged services.
+#
+#chkconfig: 35 20 80
+#description: rozofs-storaged
+#
+
+DAEMON=/usr/bin/storaged
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# See how we were called.
+case "$1" in
+  start)
+        [ -x ${DAEMON} ] || exit 5
+
+        # Start daemons.
+        echo -n $"Starting storaged daemon: "
+        daemon ${DAEMON}
+        RETVAL=$?
+        echo
+        [ $RETVAL -ne 0 ] && exit $RETVAL
+        ;;
+  stop)
+        # Stop daemons.
+        echo -n $"Shutting down storaged: "
+        killall $DAEMON
+        echo
+        ;;
+  status)
+        status storaged
+        RETVAL=$?
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  *)
+        echo $"Usage: exportd {start|stop|status|restart}"
+        RETVAL=1
+        ;;
+esac
+
+exit $RETVAL

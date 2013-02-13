@@ -154,34 +154,38 @@ static void *monitoring_thread(void *v) {
 
     for (;;) {
         if ((errno = pthread_rwlock_tryrdlock(&volumes_lock)) != 0) {
-            warning("can lock volumes, monitoring_thread deferred.");
+            warning("can't lock volumes, monitoring_thread deferred.");
             continue;
         }
 
+        gprofiler.nb_volumes = 0;
         list_for_each_forward(p, &volumes) {
             if (monitor_volume(&list_entry(p, volume_entry_t, list)->volume) != 0) {
                 severe("monitor thread failed: %s", strerror(errno));
             }
+            gprofiler.nb_volumes++;
         }
 
         if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
-            severe("can unlock volumes, potential dead lock.");
+            severe("can't unlock volumes, potential dead lock.");
             continue;
         }
 
         if ((errno = pthread_rwlock_tryrdlock(&exports_lock)) != 0) {
-            warning("can lock exports, monitoring_thread deferred.");
+            warning("can't lock exports, monitoring_thread deferred.");
             continue;
         }
 
+        gprofiler.nb_exports = 0;
         list_for_each_forward(p, &exports) {
             if (monitor_export(&list_entry(p, export_entry_t, list)->export) != 0) {
                 severe("monitor thread failed: %s", strerror(errno));
             }
+            gprofiler.nb_exports++;
         }
 
         if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
-            severe("can unlock exports, potential dead lock.");
+            severe("can't unlock exports, potential dead lock.");
             continue;
         }
 

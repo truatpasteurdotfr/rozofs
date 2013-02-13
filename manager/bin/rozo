@@ -1,0 +1,17 @@
+#!/usr/bin/python2.6
+# -*- coding: utf-8 -*-
+
+from rozofs.cli.parser import parse
+import sys
+import traceback
+
+try:
+    parsed = parse(sys.argv[1:])
+    parsed.dispatch(parsed)
+except Exception as e:
+    if parsed.debug is True:
+        traceback.print_exc(file=sys.stderr)
+    print >> sys.stderr, '%s failed: %s' % (parsed.command, e)
+    sys.exit(2)
+
+sys.exit(0)
