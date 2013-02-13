@@ -24,8 +24,8 @@ Rozofs is a scale-out NAS using erasure coding.
 Summary: Rozofs filesystem (export package).
 License: GPLv2
 Group: System Environment/Daemons
-#BuildRequires: libattr1-devel e2fsprogs-devel libconfig-devel
-Requires: rpcbind, libattr1, e2fsprogs, libconfig
+BuildRequires: libattr-devel libconfig-devel
+Requires: rpcbind, libattr, libconfig
 
 %description exportd
 Rozofs is a scale-out NAS using erasure coding.
@@ -34,7 +34,7 @@ Rozofs is a scale-out NAS using erasure coding.
 Summary: Rozofs filesystem (storage package).
 License: GPLv2
 Group: System Environment/Daemons
-#BuildRequires: libconfig-devel
+BuildRequires: libconfig-devel
 Requires: rpcbind libconfig
 
 %description storaged
@@ -44,8 +44,8 @@ Rozofs is a scale-out NAS using erasure coding.
 Summary: Rozofs filesystem (rozofsmount package).
 License: GPLv2
 Group: System Environment/File
-#BuildRequires: libfuse2-devel
-Requires: libfuse2 fuse-utils
+BuildRequires: fuse-devel
+Requires: fuse-libs
 
 %description rozofsmount
 Rozofs is a scale-out NAS using erasure coding.
@@ -54,7 +54,7 @@ Rozofs is a scale-out NAS using erasure coding.
 Summary: Rozofs filesystem (profiling package).
 License: GPLv2
 Group: System Environment/File
-#BuildRequires: libfuse2-devel
+#BuildRequires:
 #Requires:
 
 %description rprof
