@@ -1291,6 +1291,8 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
     }
 
     STOP_PROFILING(rozofs_ll_forget);
+
+    fuse_reply_none(req);
 }
 
 #define XATTR_CAPABILITY_NAME "security.capability"
