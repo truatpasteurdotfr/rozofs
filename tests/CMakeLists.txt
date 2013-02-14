@@ -126,29 +126,20 @@ add_executable(test_econfig
 )
 target_link_libraries(test_econfig ${CONFIG_LIBRARY})
 
-add_executable(test_mdirent_vers2
+add_executable(test_mdirent
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_journal.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent_vers2.h
+    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent.h
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file_repair.c
     ${CMAKE_SOURCE_DIR}/src/exportd/writeback_cache.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_cache.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_search.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_insert.c
-    test_mdirent_vers2.c
+    test_mdirent.c
 )
-target_link_libraries(test_mdirent_vers2 ${UUID_LIBRARY})
-
-add_executable(test_mdirent_vers1
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent_vers1.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent_vers1.c
-    test_mdirent_vers1.c
-)
-target_link_libraries(test_mdirent_vers1 ${UUID_LIBRARY})
+target_link_libraries(test_mdirent ${UUID_LIBRARY})
 
 add_executable(test_export
     ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h

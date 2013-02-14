@@ -35,7 +35,7 @@
 #include <rozofs/common/xmalloc.h>
 
 #include "mdir.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 /**< Max number of hash entry that can be scanned in a list before asserting a loop detection */
 #define DIRENT_MAX_SUPPORTED_COLL  900

@@ -13,7 +13,7 @@
 
 #include <rozofs/common/mattr.h>
 
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 uint64_t my_global;
 

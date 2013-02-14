@@ -45,7 +45,7 @@
 #include "config.h"
 #include "export.h"
 #include "cache.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 /** max entries of lv1 directory structure */
 #define MAX_LV1_BUCKETS 256
