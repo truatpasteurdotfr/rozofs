@@ -1,0 +1,55 @@
+#!/bin/sh
+#
+# rozofs-manager-agent  This shell script takes care of starting and stopping
+#                       the storaged services.
+#
+#chkconfig: 35 20 80
+#description: rozofs-manager-agent
+#
+
+DAEMON=/usr/bin/rozo
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# Read configuration variable file if it is present
+[ -r /etc/default/rozofs-manager-agent ] && . /etc/default/rozofs-manager-agent
+
+
+# See how we were called.
+case "$1" in
+  start)
+        [ -x ${DAEMON} ] || exit 5
+
+        # Start daemons.
+        echo -n $"Starting rozofs manager agent: "
+        if $PACEMAKER; then
+            $DAEMON agent-start -p $AGENTS
+        else
+            $DAEMON agent-start $AGENTS
+        fi
+        RETVAL=$?
+        echo
+        [ $RETVAL -ne 0 ] && exit $RETVAL
+        ;;
+  stop)
+        # Stop daemons.
+        echo -n $"Shutting down storaged: "
+        $DAEMON agent-stop
+        echo
+        ;;
+  status)
+        $DAEMON agent-status
+        RETVAL=$?
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  *)
+        echo $"Usage: rozofs-manager-agent {start|stop|status|restart}"
+        RETVAL=1
+        ;;
+esac
+
+exit $RETVAL

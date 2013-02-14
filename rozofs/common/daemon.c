@@ -32,6 +32,9 @@
 #include "log.h"
 #include "daemon.h"
 
+/* pid file */
+static char pid_file[255];
+
 /* manage only one daemon at a time */
 static void (*daemon_on_stop) (void) = NULL;
 
@@ -87,6 +90,7 @@ static void daemon_handle_signal(int sig) {
         case SIGTERM:
             if (daemon_on_stop) {
                 daemon_on_stop();
+                unlink(pid_file);
                 signal(SIGTERM, SIG_DFL);
                 raise(SIGTERM);
             }
@@ -94,6 +98,7 @@ static void daemon_handle_signal(int sig) {
         case SIGKILL:
             if (daemon_on_stop) {
                 daemon_on_stop();
+                unlink(pid_file);
                 signal(SIGKILL, SIG_DFL);
                 raise(SIGKILL);
             }
@@ -109,6 +114,8 @@ void daemon_start(const char *name, void (*on_start) (void),
         void (*on_stop) (void), void (*on_hup) (void)) {
     int pid;
     DEBUG_FUNCTION;
+
+    sprintf(pid_file, "%s%s", DAEMON_PID_DIRECTORY, name);
 
     // check if running
     if (read_pid(name, &pid) == 0 && kill(pid, 0) == 0) {

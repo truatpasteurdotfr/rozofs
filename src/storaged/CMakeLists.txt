@@ -35,7 +35,7 @@ target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFI
 
 
 # Install
-install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT storaged)
+install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT storage)
 
 install(TARGETS storaged
     RUNTIME DESTINATION bin
@@ -44,4 +44,5 @@ install(TARGETS storaged
     COMPONENT storage
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/storage.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)
+install(FILES storage.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)
+install(FILES storage.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)

@@ -58,7 +58,7 @@ target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG
 
 
 # Install
-install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT exportd)
+install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT export)
 
 install(TARGETS exportd
     RUNTIME DESTINATION bin
@@ -67,4 +67,5 @@ install(TARGETS exportd
     COMPONENT export
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT exportd)
+install(FILES export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
+install(FILES export.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
