@@ -42,6 +42,7 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		ep_getxattr_arg_t ep_getxattr_1_arg;
 		ep_removexattr_arg_t ep_removexattr_1_arg;
 		ep_listxattr_arg_t ep_listxattr_1_arg;
+		uint16_t ep_list_cluster_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -178,6 +179,12 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_ep_listxattr_arg_t;
 		_xdr_result = (xdrproc_t) xdr_ep_listxattr_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_listxattr_1_svc;
+		break;
+
+	case EP_LIST_CLUSTER:
+		_xdr_argument = (xdrproc_t) xdr_uint16_t;
+		_xdr_result = (xdrproc_t) xdr_ep_cluster_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_list_cluster_1_svc;
 		break;
 
 	default:

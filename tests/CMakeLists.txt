@@ -185,3 +185,43 @@ add_executable(test_export
     test_export.c
 )
 target_link_libraries(test_export ${UUID_LIBRARY} ${PTHREAD_LIBRARY})
+
+add_executable(test_rbs
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
+    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
+    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
+    ${CMAKE_SOURCE_DIR}/rozofs/common/transform.h
+    ${CMAKE_SOURCE_DIR}/rozofs/common/transform.c
+    ${CMAKE_SOURCE_DIR}/rozofs/common/htable.h
+    ${CMAKE_SOURCE_DIR}/rozofs/common/htable.c
+    ${CMAKE_SOURCE_DIR}/rozofs/common/list.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/eproto.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/eprotoxdr.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/eprotoclt.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mproto.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoxdr.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoclt.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mclient.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mclient.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/sproto.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/sprotoxdr.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/sprotoclt.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/sclient.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rpc/sclient.c
+    ${CMAKE_SOURCE_DIR}/src/storaged/storage.h
+    ${CMAKE_SOURCE_DIR}/src/storaged/storage.c
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs.h
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs_transform.h
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs_transform.c
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs_sclient.h
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs_sclient.c
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs_eclient.h
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs_eclient.c
+    ${CMAKE_SOURCE_DIR}/src/storaged/rbs.c
+    test_rbs.c
+)
+target_link_libraries(test_rbs ${UUID_LIBRARY})

@@ -14,32 +14,26 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
-#ifndef _TRANSFORM_H
-#define	_TRANSFORM_H
+#ifndef RBS_ECLIENT_H
+#define RBS_ECLIENT_H
 
+#include <string.h>
+#include <stdlib.h>
+#include <stddef.h>
 #include <stdint.h>
 
-typedef uint64_t bin_t;         // bin
-typedef uint64_t pxl_t;         // pixel
-
-typedef struct angle {
-    int p;
-    int q;
-} angle_t;
-
-typedef struct projection {
-    angle_t angle;
-    int size;
-    bin_t *bins;
-} projection_t;
-
-void transform_forward(const pxl_t * support, int rows, int cols, int np,
-                       projection_t * projections);
-void transform_inverse(pxl_t * support, int rows, int cols, int np,
-                       projection_t * projections);
-void transform_forward_one_proj(const bin_t * support, int rows, int cols,
-        uint8_t proj_id, projection_t * projections);
+/** Send a request to get the list of storages for this cluster 
+ *
+ * @param clt: rpc client for the exportd server.
+ * @param export_host: exportd server hostname.
+ * @param cid: the unique id for this cluster.
+ * @param cluster_entries: the list of clusters.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
+        list_t * cluster_entries);
 
 #endif

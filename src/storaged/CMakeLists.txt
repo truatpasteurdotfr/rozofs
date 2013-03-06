@@ -28,6 +28,14 @@ add_executable(storaged
     sconfig.c
     storage.h
     storage.c
+    rbs.h
+    rbs_transform.h
+    rbs_transform.c
+    rbs_sclient.h
+    rbs_sclient.c
+    rbs_eclient.h
+    rbs_eclient.c
+    rbs.c
     storaged.h
     storaged.c
 )

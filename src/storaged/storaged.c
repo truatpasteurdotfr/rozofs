@@ -51,6 +51,7 @@
 #include "sconfig.h"
 #include "storage.h"
 #include "storaged.h"
+#include "rbs.h"
 
 #define STORAGED_PID_FILE "storaged.pid"
 
@@ -83,6 +84,14 @@ uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
 uint8_t storaged_nb_io_processes = 0;
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
+
+/* Rebuild storage variables */
+/* Need to start rebuild storage process */
+uint8_t rbs_start_process = 0;
+/* Export hostname */
+static char rbs_export_hostname[ROZOFS_HOSTNAME_MAX];
+/* Time in seconds between two attemps of rebuild */
+#define TIME_BETWEEN_2_RB_ATTEMPS 30
 
 /*
 sm_monitor_t storaged_monitor = {0};
@@ -119,6 +128,66 @@ static int storaged_initialize() {
     status = 0;
 out:
     return status;
+}
+
+/** Check each storage to rebuild
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+static int rbs_check() {
+    list_t *p = NULL;
+    int status = -1;
+    DEBUG_FUNCTION;
+
+    // For each storage present on configuration file
+
+    list_for_each_forward(p, &storaged_config.storages) {
+        storage_config_t *sc = list_entry(p, storage_config_t, list);
+
+        // Sanity check for rebuild this storage
+        if (rbs_sanity_check(rbs_export_hostname, sc->cid, sc->sid,
+                sc->root) != 0)
+            goto out;
+    }
+    status = 0;
+out:
+    return status;
+}
+
+/** Start one rebuild process for each storage to rebuild
+ */
+static void rbs_process_initialize() {
+    list_t *p = NULL;
+    DEBUG_FUNCTION;
+
+    // For each storage on configuration file
+
+    list_for_each_forward(p, &storaged_config.storages) {
+        storage_config_t *sc = list_entry(p, storage_config_t, list);
+        int pid = -1;
+
+        // Create child process
+        if (!(pid = fork())) {
+
+            info("Start rebuild process (pid=%d) for storage (cid=%u;sid=%u).",
+                    getpid(), sc->cid, sc->sid);
+
+            while (rbs_rebuild_storage(rbs_export_hostname, sc->cid, sc->sid,
+                    sc->root) != 0) {
+                // Probably a problem when connecting with other members
+                // of this cluster
+                severe("can't rebuild storage (cid:%d;sid:%d) with path %s,"
+                        " next attempt in %d seconds",
+                        sc->cid, sc->sid, sc->root, TIME_BETWEEN_2_RB_ATTEMPS);
+                sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+            }
+
+            info("The rebuild process for storage (cid=%u;sid=%u) was completed"
+                    " successfully.", sc->cid, sc->sid);
+
+            exit(EXIT_SUCCESS);
+        }
+    }
 }
 
 static void storaged_release() {
@@ -191,6 +260,9 @@ static void on_start() {
         fatal("can't initialize storaged: %s.", strerror(errno));
         return;
     }
+
+    if (rbs_start_process == 1)
+        rbs_process_initialize();
 
     SET_PROBE_VALUE(uptime, time(0));
     strcpy((char*) gprofiler.vers, VERSION);
@@ -313,22 +385,22 @@ void usage() {
     printf("\t-h, --help\tprint this message.\n");
     printf("\t-c, --config\tconfig file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
+    printf("\t-r, --rebuild\t export hostname.\n");
 }
 
 int main(int argc, char *argv[]) {
     int c;
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
-        {
-            "config", required_argument, 0, 'c'
-        },
+        {"config", required_argument, 0, 'c'},
+        {"rebuild", required_argument, 0, 'r'},
         { 0, 0, 0, 0}
     };
 
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:r:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -346,6 +418,15 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 'r':
+                if (strncpy(rbs_export_hostname, optarg, ROZOFS_HOSTNAME_MAX)
+                        == NULL) {
+                    fprintf(stderr, "storaged failed: %s %s\n", optarg,
+                            strerror(errno));
+                    exit(EXIT_FAILURE);
+                }
+                rbs_start_process = 1;
+                break;
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);
@@ -356,29 +437,34 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-    /* Initialize the list of storage config */
+    // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
         fprintf(stderr, "Can't initialize storaged config: %s.\n",
                 strerror(errno));
         goto error;
     }
-    /* Read the configuration file */
+    // Read the configuration file
     if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
         fprintf(stderr, "Failed to parse storage configuration file: %s.\n",
                 strerror(errno));
         goto error;
     }
-    /* Check the configuration */
+    // Check the configuration
     if (sconfig_validate(&storaged_config) != 0) {
         fprintf(stderr, "Inconsistent storage configuration file: %s.\n",
                 strerror(errno));
         goto error;
+    }
+    // Check rebuild storage configuration if necessary
+    if (rbs_start_process == 1) {
+        if (rbs_check() != 0)
+            goto error;
     }
 
     openlog("storaged", LOG_PID, LOG_DAEMON);
     daemon_start(STORAGED_PID_FILE, on_start, on_stop, NULL);
     exit(0);
 error:
-    fprintf(stderr, "See logs for more details.\n");
+    fprintf(stderr, "Can't start storaged. See logs for more details.\n");
     exit(EXIT_FAILURE);
 }

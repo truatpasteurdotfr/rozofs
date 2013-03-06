@@ -133,3 +133,99 @@ xdr_mp_ports_ret_t (XDR *xdrs, mp_ports_ret_t *objp)
 	}
 	return TRUE;
 }
+
+bool_t
+xdr_mp_children_t (XDR *xdrs, mp_children_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_pointer (xdrs, (char **)objp, sizeof (struct mp_child_t), (xdrproc_t) xdr_mp_child_t))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_mp_child_t (XDR *xdrs, mp_child_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_mp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_mp_children_t (xdrs, &objp->next))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_bins_files_list_t (XDR *xdrs, bins_files_list_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_mp_children_t (xdrs, &objp->children))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->eof))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->cookie))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_mp_list_bins_files_ret_t (XDR *xdrs, mp_list_bins_files_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_mp_status_t (xdrs, &objp->status))
+		 return FALSE;
+	switch (objp->status) {
+	case MP_SUCCESS:
+		 if (!xdr_bins_files_list_t (xdrs, &objp->mp_list_bins_files_ret_t_u.reply))
+			 return FALSE;
+		break;
+	case MP_FAILURE:
+		 if (!xdr_int (xdrs, &objp->mp_list_bins_files_ret_t_u.error))
+			 return FALSE;
+		break;
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+bool_t
+xdr_mp_list_bins_files_arg_t (XDR *xdrs, mp_list_bins_files_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->rebuild_sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->cookie))
+		 return FALSE;
+	return TRUE;
+}

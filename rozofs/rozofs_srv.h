@@ -4,7 +4,7 @@
 
  Rozofs is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published
- by the Free Software Foundation; either version 3 of the License,
+ by the Free Software Foundation; either version 2 of the License,
  or (at your option) any later version.
 
  Rozofs is distributed in the hope that it will be useful, but
@@ -50,6 +50,15 @@ extern rozofs_conf_layout_t rozofs_conf_layout_table[];
  @retval none
  */
 void rozofs_layout_initialize();
+
+
+/**
+ * Release the layout table
+
+ @param none
+ @retval none
+ */
+void rozofs_layout_release();
 
 /**
   Get the rozofs_inverse for a given layout

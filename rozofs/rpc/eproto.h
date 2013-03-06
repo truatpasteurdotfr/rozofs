@@ -47,6 +47,28 @@ struct ep_status_ret_t {
 };
 typedef struct ep_status_ret_t ep_status_ret_t;
 
+struct ep_storage_t {
+	ep_host_t host;
+	uint8_t sid;
+};
+typedef struct ep_storage_t ep_storage_t;
+
+struct ep_cluster_t {
+	uint16_t cid;
+	uint8_t storages_nb;
+	ep_storage_t storages[SID_MAX];
+};
+typedef struct ep_cluster_t ep_cluster_t;
+
+struct ep_cluster_ret_t {
+	ep_status_t status;
+	union {
+		ep_cluster_t cluster;
+		int error;
+	} ep_cluster_ret_t_u;
+};
+typedef struct ep_cluster_ret_t ep_cluster_ret_t;
+
 struct ep_storage_node_t {
 	ep_host_t host;
 	uint8_t sids_nb;
@@ -435,6 +457,9 @@ extern  ep_status_ret_t * ep_removexattr_1_svc(ep_removexattr_arg_t *, struct sv
 #define EP_LISTXATTR 22
 extern  ep_listxattr_ret_t * ep_listxattr_1(ep_listxattr_arg_t *, CLIENT *);
 extern  ep_listxattr_ret_t * ep_listxattr_1_svc(ep_listxattr_arg_t *, struct svc_req *);
+#define EP_LIST_CLUSTER 23
+extern  ep_cluster_ret_t * ep_list_cluster_1(uint16_t *, CLIENT *);
+extern  ep_cluster_ret_t * ep_list_cluster_1_svc(uint16_t *, struct svc_req *);
 extern int export_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -504,6 +529,9 @@ extern  ep_status_ret_t * ep_removexattr_1_svc();
 #define EP_LISTXATTR 22
 extern  ep_listxattr_ret_t * ep_listxattr_1();
 extern  ep_listxattr_ret_t * ep_listxattr_1_svc();
+#define EP_LIST_CLUSTER 23
+extern  ep_cluster_ret_t * ep_list_cluster_1();
+extern  ep_cluster_ret_t * ep_list_cluster_1_svc();
 extern int export_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -521,6 +549,9 @@ extern  bool_t xdr_ep_host_t (XDR *, ep_host_t);
 extern  bool_t xdr_ep_md5_t (XDR *, ep_md5_t);
 extern  bool_t xdr_ep_status_t (XDR *, ep_status_t*);
 extern  bool_t xdr_ep_status_ret_t (XDR *, ep_status_ret_t*);
+extern  bool_t xdr_ep_storage_t (XDR *, ep_storage_t*);
+extern  bool_t xdr_ep_cluster_t (XDR *, ep_cluster_t*);
+extern  bool_t xdr_ep_cluster_ret_t (XDR *, ep_cluster_ret_t*);
 extern  bool_t xdr_ep_storage_node_t (XDR *, ep_storage_node_t*);
 extern  bool_t xdr_ep_export_t (XDR *, ep_export_t*);
 extern  bool_t xdr_ep_mount_ret_t (XDR *, ep_mount_ret_t*);
@@ -571,6 +602,9 @@ extern bool_t xdr_ep_host_t ();
 extern bool_t xdr_ep_md5_t ();
 extern bool_t xdr_ep_status_t ();
 extern bool_t xdr_ep_status_ret_t ();
+extern bool_t xdr_ep_storage_t ();
+extern bool_t xdr_ep_cluster_t ();
+extern bool_t xdr_ep_cluster_ret_t ();
 extern bool_t xdr_ep_storage_node_t ();
 extern bool_t xdr_ep_export_t ();
 extern bool_t xdr_ep_mount_ret_t ();

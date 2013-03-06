@@ -69,3 +69,18 @@ mp_ports_1(void *argp, CLIENT *clnt)
 	}
 	return (&clnt_res);
 }
+
+mp_list_bins_files_ret_t *
+mp_list_bins_files_1(mp_list_bins_files_arg_t *argp, CLIENT *clnt)
+{
+	static mp_list_bins_files_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, MP_LIST_BINS_FILES,
+		(xdrproc_t) xdr_mp_list_bins_files_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_mp_list_bins_files_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
