@@ -104,7 +104,7 @@ class StoragedAgent(Agent):
             if not os.path.isabs(r):
                 raise Exception('%s: not absolute.' % r)
             if not os.path.exists(r):
-                os.mkdir(r)
+                os.makedirs(r)
             if not os.path.isdir(r):
                 raise Exception('%s: not a directory.' % r)
 

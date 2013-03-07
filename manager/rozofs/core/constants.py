@@ -5,7 +5,8 @@ AGENT_PORT = 9999
 PLATFORM_MANAGER = "platform"
 EXPORTD_MANAGER = "exportd"
 STORAGED_MANAGER = "storaged"
-SHARE_MANAGER = "share"
+ROZOFSMOUNT_MANAGER = "rozofsmount"
+# SHARE_MANAGER = "share"
 
 LAYOUT_NONE = -1
 LAYOUT_2_3_4 = 0
@@ -18,10 +19,10 @@ LAYOUT_SAFE = 2
 LAYOUT_VALUES = [[2, 3, 4], [4, 6, 8], [8, 12, 16]]
 
 EXPORTD_HOSTNAME = "exportd_hostname"
-PROTOCOLS = "protocols"
+# PROTOCOLS = "protocols"
 # PROTOCOLS_VALUES = ["nfs", "cifs", "afp"]
 # only NFS for now
-PROTOCOLS_VALUES = ["nfs"]
+# PROTOCOLS_VALUES = ["nfs"]
 
 LAYOUT = "layout"
 PORTS = "ports"

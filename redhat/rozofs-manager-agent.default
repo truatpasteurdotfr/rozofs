@@ -9,7 +9,7 @@
 # Additional options that are passed to the Daemon.
 
 # Agents to be started
-AGENTS="platform exportd storaged share"
+AGENTS="exportd storaged rozofsmount"
 
 # Does this agent manage exportd through pacemaker (default false)
 PACEMAKER=false

@@ -26,5 +26,4 @@ setup(name='rozofs-manager',
                              library_dirs=['@CMAKE_CURRENT_BINARY_DIR@/rozofs'])
                    ],
       scripts=['@CMAKE_CURRENT_SOURCE_DIR@/manager/bin/rozo'],
-      data_files=[('@ROZOFS_CONFIG_DIR@', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/platform.conf', '@CMAKE_CURRENT_SOURCE_DIR@/manager/sharing.conf'])],
 )

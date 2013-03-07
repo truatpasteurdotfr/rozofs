@@ -197,8 +197,6 @@ mkdir -p %{buildroot}/etc/default
 %files manager-agent
 %defattr(-,root,root)
 %{_sysconfdir}/default/rozofs-manager-agent
-%{_sysconfdir}/rozofs/platform.conf
-%{_sysconfdir}/rozofs/sharing.conf
 %{_initrddir}/rozofs-manager-agent
 
 %post exportd

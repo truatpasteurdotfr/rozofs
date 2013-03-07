@@ -5,8 +5,8 @@ import subprocess
 from rozofs.core.agent import Agent, ServiceStatus
 from rozofs.core.constants import SHARE_MANAGER, PROTOCOLS
 import shutil
-from rozofs.core.configuration import ConfigurationParser, ConfigurationReader, \
-    ConfigurationWriter
+from rozofs.core.configuration import ConfigurationParser, \
+        ConfigurationReader, ConfigurationWriter
 from rozofs.core.libconfig import config_setting_add, CONFIG_TYPE_LIST, \
     CONFIG_TYPE_STRING, config_setting_set_string, config_lookup, \
     config_setting_length, config_setting_get_elem, config_setting_get_string
@@ -64,7 +64,7 @@ class ShareAgent(Agent):
         self._reader = ConfigurationReader(config, PlatformConfigurationParser())
         self._writer = ConfigurationWriter(config, PlatformConfigurationParser())
 
-    def _share_path(self, share):
+    def _mount_path(self, share):
         return os.path.join(self._mountdir, "rozofs@%s" %
                             share.export_host,
                              share.export_path.split('/')[-1])
@@ -73,14 +73,14 @@ class ShareAgent(Agent):
     # mount points management
     #
     def _mount(self, share):
-        cmds = ['mount', self._share_path(share)]
+        cmds = ['mount', self._mount_path(share)]
         with open('/dev/null', 'w') as devnull:
             p = subprocess.Popen(cmds, stdout=devnull, stderr=subprocess.PIPE)
             if p.wait() is not 0 :
                 raise Exception(p.communicate()[1])
 
     def _umount(self, share):
-        cmds = ['umount', self._share_path(share)]
+        cmds = ['umount', self._mount_path(share)]
         with open('/dev/null', 'w') as devnull:
             p = subprocess.Popen(cmds, stdout=devnull, stderr=subprocess.PIPE)
             if p.wait() is not 0 :
@@ -92,12 +92,12 @@ class ShareAgent(Agent):
         return mount
 
     def _is_mount(self, share):
-        return self._share_path(share) in self._list_mount()
+        return self._mount_path(share) in self._list_mount()
 
     def _add_share_mountpoint(self, share):
         fstab = Fstab()
         fstab.read(self.__FSTAB)
-        mount_path = self._share_path(share)
+        mount_path = self._mount_path(share)
         if not os.path.exists(mount_path):
             os.makedirs(mount_path)
         # add a line to fstab
@@ -107,7 +107,7 @@ class ShareAgent(Agent):
     def _remove_share_mountpoint(self, share):
         fstab = Fstab()
         fstab.read(self.__FSTAB)
-        mount_path = self._share_path(share)
+        mount_path = self._mount_path(share)
         if os.path.exists(mount_path):
             os.rmdir(mount_path)
         # remove the line from fstab
@@ -148,10 +148,10 @@ class ShareAgent(Agent):
 
     def _add_nfs_share(self, share):
         with open(self.__EXPORTS, 'a') as exports:
-            exports.write('%s *(rw,all_squash,fsid=10,no_subtree_check,anonuid=1000,anongid=1000,sync)\n' % self._share_path(share))
+            exports.write('%s *(rw,all_squash,fsid=10,no_subtree_check,anonuid=1000,anongid=1000,sync)\n' % self._mount_path(share))
 
     def _remove_nfs_share(self, share):
-        path = self._share_path(share)
+        path = self._mount_path(share)
         with open("/tmp/exports", 'w') as tmp:
             with open(self.__EXPORTS, 'r') as exports:
                 tmp.writelines([l for l in exports.readlines() if not l.startswith(path)])
@@ -242,7 +242,7 @@ class ShareAgent(Agent):
 
     # return True for each share if mounted and shared (nfs only for now)
     def get_service_status(self):
-        shares = [self._share_path(s) for s in self._list_shares()]
+        shares = [self._mount_path(s) for s in self._list_shares()]
         mounts = self._list_mount()
         shared = self._list_nfs_shared()
         return not False in [s in mounts and s in shared for s in shares]

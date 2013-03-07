@@ -3,8 +3,8 @@ import sys
 from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
 
-ROLES_STR = {Role.EXPORTD: "exportd", Role.STORAGED: "storaged", Role.SHARE: "share"}
-STR_ROLES = {"exportd": Role.EXPORTD, "storaged": Role.STORAGED, "share": Role.SHARE}
+ROLES_STR = {Role.EXPORTD: "exportd", Role.STORAGED: "storaged", Role.ROZOFSMOUNT: "rozofsmount"}
+STR_ROLES = {"exportd": Role.EXPORTD, "storaged": Role.STORAGED, "rozofsmount": Role.ROZOFSMOUNT}
 
 def __roles_to_strings(roles):
     strs = []
@@ -12,8 +12,8 @@ def __roles_to_strings(roles):
         strs.append("exportd")
     if roles & Role.STORAGED == Role.STORAGED:
         strs.append("storaged")
-    if roles & Role.SHARE == Role.SHARE:
-        strs.append("share")
+    if roles & Role.ROZOFSMOUNT == Role.ROZOFSMOUNT:
+        strs.append("rozofsmount")
     return strs
 
 #
@@ -31,15 +31,15 @@ def __args_to_roles(args):
         for r in args.roles:
             roles |= STR_ROLES[r]
     else:
-        roles = Role.EXPORTD | Role.STORAGED | Role.SHARE
+        roles = Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT
     return roles
 
 #
 # general functions
 #
-def set_exportd(platform, args):
-    platform.set_exportd_hostname(args.exportd[0])
-    print >> sys.stdout, "exportd hostname set to: %s" % (args.exportd)
+# def set_exportd(platform, args):
+#    platform.set_exportd_hostname(args.exportd[0])
+#    print >> sys.stdout, "exportd hostname set to: %s" % (args.exportd)
 
 def nodes(platform, args):
     nodes = platform.list_nodes(__args_to_roles(args))
@@ -48,11 +48,11 @@ def nodes(platform, args):
         print >> sys.stdout, "%-20s %-20s" % (h, __roles_to_strings(r))
 
 
-def set_sharing(platform, args):
-    if "none" in args.protocols:
-        args.protocols = []
-    platform.set_sharing_protocols(args.protocols)
-    print >> sys.stdout, "protocol(s): %s  set" % (args.protocols)
+# def set_sharing(platform, args):
+#    if "none" in args.protocols:
+#        args.protocols = []
+#    platform.set_sharing_protocols(args.protocols)
+#    print >> sys.stdout, "protocol(s): %s  set" % (args.protocols)
 
 #
 # status related functions
@@ -82,18 +82,18 @@ def status(platform, args):
 
 def start(platform, args):
     platform.start(args.nodes, __args_to_roles(args))
-    if args.roles:
-        print >> sys.stdout, "platform: %s started." % args.roles
-    else:
-        print >> sys.stdout, "platform: started."
+#    if args.roles:
+#        print >> sys.stdout, "platform: %s started." % args.roles
+#    else:
+#        print >> sys.stdout, "platform: started."
 
 
 def stop(platform, args):
     platform.stop(args.nodes, __args_to_roles(args))
-    if args.roles:
-        print >> sys.stdout, "platform: %s stopped." % args.roles
-    else:
-        print >> sys.stdout, "platform: stopped."
+#    if args.roles:
+#        print >> sys.stdout, "platform: %s stopped." % args.roles
+#    else:
+#        print >> sys.stdout, "platform: stopped."
 #
 # profilers related functions
 #
@@ -120,7 +120,7 @@ def __io_probe_to_string(ep, name):
         throughput = probe[2] / 1024 / 1024 * 1000000 / probe[1]
     return "%-25s %-12d %-12d %-12d %-12s %-12s\n" % (name, probe[0], rate, cpu, probe[1], throughput)
 
-def __exportd_profiler_to_string(ep):
+def __exportd_profiler_to_string(args, ep):
     if ep is None:
         return "\t\t NOT RUNNING"
 
@@ -130,8 +130,11 @@ def __exportd_profiler_to_string(ep):
     mins = (elapse / 60) - (days * 1440) - (hours * 60)
     secs = elapse % 60
     s = "\t\texportd: %s - uptime: %d days, %d:%d:%d\n" % (ep.vers, days, hours, mins, secs)
-    s += "\n\t\tSTATS:\n"
-    s += "\t\t------\n"
+
+    if not args.stats:
+        s += "\n\t\tSTATS:\n"
+        s += "\t\t------\n"
+
     for vstat in ep.vstats:
         s += "\t\tVOLUME: %d - BSIZE: %d, BFREE: %d\n" % (vstat.vid, vstat.bsize, vstat.bfree)
         s += "\n\t\t\t%-6s %-6s %-20s %-20s\n" % ("SID", "STATUS", "CAPACITY(B)", "FREE(B)")
@@ -144,6 +147,10 @@ def __exportd_profiler_to_string(ep):
                     estat.bsize, estat.blocks, estat.bfree,
                     estat.files, estat.ffree)
         s += "\n";
+
+    # if only stats are requiered return
+    if args.stats:
+        return s
 
     s += "\t\tPROFILING:\n"
     s += "\t\t----------\n"
@@ -219,7 +226,7 @@ def __exportd_profiler_to_string(ep):
     s += "\t\t" + __probe_to_string(ep, "mslnk_write_link")
     return s
 
-def __storaged_profiler_to_string(sps):
+def __storaged_profiler_to_string(args, sps):
     if sps is None:
         return "\t\t NOT RUNNING"
 
@@ -230,6 +237,10 @@ def __storaged_profiler_to_string(sps):
     secs = elapse % 60
     s = "\t\tstoraged: %s - %d process(es), uptime: %d days, %d:%d:%d\n" % (
             sps[0].vers, len(sps) - 1, days, hours, mins, secs)
+
+    # if only stats are requiered return
+    if args.stats:
+        return s
 
     s += "\t\t%-12s %-25s %-12s %-12s %-12s %-12s %-12s\n" % ("PORT", "OP",
             "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MB/s)")
@@ -248,7 +259,7 @@ def __storaged_profiler_to_string(sps):
     return s
 
 
-def __mount_profiler_to_string(mp):
+def __mount_profiler_to_string(args, mp):
     if mp is None:
         return "\t\t NOT RUNNING"
 
@@ -258,6 +269,11 @@ def __mount_profiler_to_string(mp):
     mins = (elapse / 60) - (days * 1440) - (hours * 60)
     secs = elapse % 60
     s = "\t\trozofsmount: %s - uptime: %d days, %d:%d:%d\n" % (mp.vers, days, hours, mins, secs)
+
+    # if only stats are requiered return
+    if args.stats:
+        return s
+
     s += "\t\t%-25s %-12s %-12s %-12s %-12s %-12s\n" % ("OP", "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MBps)")
     s += "\t\t" + __probe_to_string(mp, "rozofs_ll_lookup")
     s += "\t\t" + __probe_to_string(mp, "rozofs_ll_forget")
@@ -299,7 +315,7 @@ def __mount_profiler_to_string(mp):
 #        s += "\t%-20s %-20s\n" % (sh.export_host, sh.export_path)
 #    return s
 
-def __print_host_profilers(host, profilers):
+def __print_host_profilers(args, host, profilers):
     if profilers is not None and not profilers:
         return
 
@@ -313,17 +329,17 @@ def __print_host_profilers(host, profilers):
         # __single_line()
         print >> sys.stdout, "\tROLE: %s" % ROLES_STR[r]
         if (r & Role.EXPORTD == Role.EXPORTD):
-            print >> sys.stdout, "%s" % __exportd_profiler_to_string(p)
+            print >> sys.stdout, "%s" % __exportd_profiler_to_string(args, p)
         if (r & Role.STORAGED == Role.STORAGED):
-            print >> sys.stdout, "%s" % __storaged_profiler_to_string(p)
-        if (r & Role.SHARE == Role.SHARE):
+            print >> sys.stdout, "%s" % __storaged_profiler_to_string(args, p)
+        if (r & Role.ROZOFSMOUNT == Role.ROZOFSMOUNT):
             for mp in p:
-                print >> sys.stdout, "%s" % __mount_profiler_to_string(mp)
+                print >> sys.stdout, "%s" % __mount_profiler_to_string(args, mp)
 
 def profile(platform, args):
     profilers = platform.get_profilers(args.nodes, __args_to_roles(args))
     for h, p in profilers.items():
-        __print_host_profilers(h, p)
+        __print_host_profilers(args, h, p)
 
 #
 # configuration related functions
@@ -355,11 +371,11 @@ def __storaged_config_to_string(config):
         s += "\t\t%-10d %-10d %-30s\n" % (st.cid, st.sid, st.root)
     return s
 
-def __share_config_to_string(config):
-    s = "\t\tPROTOCOLS: %s\n" % config.protocols
-    s += "\t\t%-20s %-20s\n" % ('NODE', 'EXPORT')
-    for sh in config.shares:
-        s += "\t\t%-20s %-20s\n" % (sh.export_host, sh.export_path)
+def __rozofsmount_config_to_string(config):
+    # s = "\t\tPROTOCOLS: %s\n" % config.protocols
+    s = "\t\t%-20s %-20s\n" % ('NODE', 'EXPORT')
+    for c in config:
+        s += "\t\t%-20s %-20s\n" % (c.export_host, c.export_path)
     return s
 
 def __print_host_configs(host, configurations):
@@ -379,42 +395,57 @@ def __print_host_configs(host, configurations):
             print >> sys.stdout, "%s" % __exportd_config_to_string(c)
         if (r & Role.STORAGED == Role.STORAGED):
             print >> sys.stdout, "%s" % __storaged_config_to_string(c)
-        if (r & Role.SHARE == Role.SHARE):
-            print >> sys.stdout, "%s" % __share_config_to_string(c)
+        if (r & Role.ROZOFSMOUNT == Role.ROZOFSMOUNT):
+            print >> sys.stdout, "%s" % __rozofsmount_config_to_string(c)
 
-def configuration(platform, args):
-    print >> sys.stdout, "EXPORTD HOST: %s, PROTOCOL(S): %s" % (platform.get_exportd_hostname(), platform.get_sharing_protocols())
+def show(platform, args):
+#    print >> sys.stdout, "EXPORTD HOST: %s, PROTOCOL(S): %s" % (platform.get_exportd_hostname(), platform.get_sharing_protocols())
     configurations = platform.get_configurations(args.nodes, __args_to_roles(args))
     for h, c in configurations.items():
         __print_host_configs(h, c)
 
-def set_layout(platform, args):
+def layout(platform, args):
     platform.set_layout(args.layout[0])
 
-def add_nodes(platform, args):
+def expand(platform, args):
     platform.add_nodes(args.hosts, args.vid)
-    print >> sys.stdout, "nodes added."
+#    print >> sys.stdout, "nodes added."
 
-def remove_volume(platform, args):
+def shrink(platform, args):
     for vid in args.vids:
         platform.remove_volume(vid)
-        print >> sys.stdout, "volume vid:%d removed." % vid
+#        print >> sys.stdout, "volume vid: %d removed." % vid
 
-def add_export(platform, args):
-    platform.add_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
-    print >> sys.stdout, "export added."
+def export(platform, args):
+    platform.create_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
+#    print >> sys.stdout, "export added."
 
-def update_export(platform, args):
+def update(platform, args):
     platform.update_export(args.eid[0], args.passwd, args.squota, args.hquota)
-    print >> sys.stdout, "export updated."
+#    print >> sys.stdout, "export eid: %d updated." % args.eid[0]
 
-def remove_export(platform, args):
-    for eid in args.eids:
-        platform.remove_export(eid, args.force)
-        print >> sys.stdout, "export eid:%d removed." % eid
+def unexport(platform, args):
+    if not args.eids:
+        args.eids = None
+
+    platform.remove_export(args.eids, args.force)
+#    print >> sys.stdout, "export(s) eid: %s removed." % args.eids
+
+def mount(platform, args):
+    if not args.eids:
+        args.eids = None
+
+    platform.mount_export(args.eids, args.nodes)
+#    print >> sys.stdout, "export eid(s): %s mount on host(s): %s." % (args.eids, args.hosts)
+
+def umount(platform, args):
+    if not args.eids:
+        args.eids = None
+
+    platform.umount_export(args.eids, args.nodes)
+#    print >> sys.stdout, "export eid(s): %s umount from host(s): %s." % (args.eids, args.hosts)
 
 def platform_dispatch(args):
-    p = Platform(args.host)
+    p = Platform(args.exportd)
     globals()[args.command.replace('-', '_')](p, args)
-
 

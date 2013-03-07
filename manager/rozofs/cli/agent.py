@@ -8,9 +8,8 @@ from rozofs.core.agent import AgentServer
 from rozofs.core.storaged import StoragedAgent
 from rozofs.core.exportd import ExportdAgent, ExportdPacemakerAgent
 from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
-    PLATFORM_MANAGER, SHARE_MANAGER
-from rozofs.core.platform import PlatformAgent
-from rozofs.core.share import ShareAgent
+    ROZOFSMOUNT_MANAGER
+from rozofs.core.rozofsmount import RozofsMountAgent
 
 def agent_status(args):
     (pid, listeners) = AgentServer().status()
@@ -32,8 +31,8 @@ def agent_start(args):
     syslog.openlog('rozo-agent')
 
     managers = []
-    if PLATFORM_MANAGER in args.listeners:
-        managers.append(PlatformAgent())
+#    if PLATFORM_MANAGER in args.listeners:
+#        managers.append(PlatformAgent())
     if STORAGED_MANAGER in args.listeners:
         managers.append(StoragedAgent())
     if EXPORTD_MANAGER in args.listeners:
@@ -41,8 +40,8 @@ def agent_start(args):
             managers.append(ExportdPacemakerAgent())
         else:
             managers.append(ExportdAgent())
-    if SHARE_MANAGER in args.listeners:
-        managers.append(ShareAgent())
+    if ROZOFSMOUNT_MANAGER in args.listeners:
+        managers.append(RozofsMountAgent())
 
     if len(managers) is 0:
         raise "no suitable manager."
@@ -54,6 +53,11 @@ def agent_start(args):
 def agent_stop(args):
     AgentServer().stop()
     print >> sys.stdout, "Agent stopped."
+
+
+def agent_restart(args):
+    agent_stop(args)
+    agent_start(args)
 
 
 def agent_dispatch(args):

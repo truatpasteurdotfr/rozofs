@@ -210,6 +210,7 @@ class ExportdConfigurationParser(ConfigurationParser):
                 configuration.exports[eid] = ExportConfig(eid, vid, root, md5, sqt, hqt)
 
 class ExportdAgent(Agent):
+    """ exportd agent """
 
     def __init__(self, config='/etc/rozofs/export.conf', daemon='exportd'):
         Agent.__init__(self, EXPORTD_MANAGER)
