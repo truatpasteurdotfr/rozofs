@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
 set(MINOR "1")
-set(REVISION "0")
+set(REVISION "alpha1")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -103,7 +103,7 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/
 #
 if(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release CACHE STRING
-  "Choose the type of build, options are: None Debug Release Profile RelWithDebInfo MinSizeRel."
+  "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
