@@ -2397,8 +2397,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
             if (hash_entry_p != (mdirents_hash_entry_t*) NULL )
                 hash_entry_last_sector_idx++;
         }
-//#warning All Management sector are re-written on disk
-//      hash_entry_last_sector_idx = MDIRENTS_HASH_CACHE_MAX_IDX;
+        //#warning All Management sector are re-written on disk
+        hash_entry_last_sector_idx = MDIRENTS_HASH_CACHE_MAX_IDX;
         for (i = 0; i < hash_entry_last_sector_idx; i++) {
 #if DIRENT_WRITE_DEBUG
             printf("hash_entry_p[%d]: rd:%d dirty:%d val:%llx\n",i,dirent_cache_p->hash_entry_p[i].s.rd,
