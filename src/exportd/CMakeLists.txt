@@ -30,18 +30,14 @@ add_executable(exportd
     mdir.c
     mslnk.h
     mslnk.c
-#    # New mdirent version
     dirent_journal.h
-    mdirent_vers2.h
+    mdirent.h
     dirent_file_repair.c
     writeback_cache.c
     dirent_file.c
     dirent_cache.c
     dirent_search.c
     dirent_insert.c
-    # Old mdirent version
-    #mdirent.h
-    #mdirent.c
     cache.h
     cache.c
     export.h
@@ -58,7 +54,7 @@ target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG
 
 
 # Install
-install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT exportd)
+install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT export)
 
 install(TARGETS exportd
     RUNTIME DESTINATION bin
@@ -67,4 +63,5 @@ install(TARGETS exportd
     COMPONENT export
 )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT exportd)
+install(FILES export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
+install(FILES export.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)

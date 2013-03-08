@@ -29,7 +29,7 @@
 #include <rozofs/common/htable.h>
 
 #include "mdir.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 typedef enum _dirent_journal_type_e
 {

@@ -35,7 +35,7 @@
 #include <rozofs/common/xmalloc.h>
 
 #include "mdir.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 
 

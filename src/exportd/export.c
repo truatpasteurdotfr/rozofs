@@ -45,7 +45,7 @@
 #include "config.h"
 #include "export.h"
 #include "cache.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 /** max entries of lv1 directory structure */
 #define MAX_LV1_BUCKETS 256
@@ -192,7 +192,7 @@ static int export_lv2_write_attributes(lv2_entry_t *entry) {
  * @param size: the size of a buffer to hold the value associated
  *  with this extended attribute.
  * @param flags: parameter can be used to refine the semantics of the operation.
- * 
+ *
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
 static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void *value, size_t size, int flags) {
@@ -216,7 +216,7 @@ static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void
  * @param value: the value of this extended attribute.
  * @param size: the size of a buffer to hold the value associated
  *  with this extended attribute.
- * 
+ *
  * @return: On success, the size of the extended attribute value.
  * On failure, -1 is returned and errno is set appropriately.
  */
@@ -238,7 +238,7 @@ static ssize_t export_lv2_get_xattr(lv2_entry_t *entry, const char *name, void *
  *
  * @param entry: the entry used
  * @param name: the extended attribute name.
- * 
+ *
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
 static int export_lv2_remove_xattr(lv2_entry_t *entry, const char *name) {
@@ -260,7 +260,7 @@ static int export_lv2_remove_xattr(lv2_entry_t *entry, const char *name) {
  * @param entry: the entry used
  * @param list: list of extended attribute names associated with this directory.
  * @param size: the size of a buffer to hold the list of extended attributes.
- * 
+ *
  * @return: On success, the size of the extended attribute name list.
  * On failure, -1 is returned and errno is set appropriately.
  */

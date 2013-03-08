@@ -202,7 +202,6 @@ void volume_balance(volume_t *volume) {
 
     // work on the clone
     // try to join each storage server & stat it
-
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 
