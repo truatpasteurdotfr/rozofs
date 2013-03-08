@@ -67,8 +67,23 @@ xdr_spp_profiler_t (XDR *xdrs, spp_profiler_t *objp)
 		 return FALSE;
 	 if (!xdr_uint16_t (xdrs, &objp->nb_io_processes))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->io_process_ports, 32,
+	 if (!xdr_vector (xdrs, (char *)objp->io_process_ports, STORAGE_NODE_PORTS_MAX,
 		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		 return FALSE;
+	 if (!xdr_uint16_t (xdrs, &objp->nb_rb_processes))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rb_process_ports, STORAGES_MAX_BY_STORAGE_NODE,
+		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rbs_cids, STORAGES_MAX_BY_STORAGE_NODE,
+		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rbs_sids, STORAGES_MAX_BY_STORAGE_NODE,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->rb_files_current))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->rb_files_total))
 		 return FALSE;
 	return TRUE;
 }

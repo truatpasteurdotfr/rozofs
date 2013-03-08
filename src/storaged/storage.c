@@ -289,9 +289,20 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     // Read nb_proj * (projection + header)
     nb_read = pread(fd, bins, length_to_read, bins_file_offset);
 
-    // Check the length read
-    if ((nb_read % (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t))) != 0) {
+    // Check error
+    if (nb_read == -1) {
         severe("pread failed: %s", strerror(errno));
+        goto out;
+    }
+
+    // Check the length read
+    if ((nb_read % (rozofs_max_psize * sizeof (bin_t) +
+            sizeof (rozofs_stor_bins_hdr_t))) != 0) {
+        char fid_str[37];
+        uuid_unparse(fid, fid_str);
+        severe("storage_read failed (FID: %s): read inconsistent length",
+                fid_str);
+        errno = EIO;
         goto out;
     }
 

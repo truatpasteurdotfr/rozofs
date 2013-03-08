@@ -40,7 +40,13 @@ struct spp_profiler_t {
 	uint64_t write[3];
 	uint64_t truncate[3];
 	uint16_t nb_io_processes;
-	uint16_t io_process_ports[32];
+	uint16_t io_process_ports[STORAGE_NODE_PORTS_MAX];
+	uint16_t nb_rb_processes;
+	uint16_t rb_process_ports[STORAGES_MAX_BY_STORAGE_NODE];
+	uint16_t rbs_cids[STORAGES_MAX_BY_STORAGE_NODE];
+	uint8_t rbs_sids[STORAGES_MAX_BY_STORAGE_NODE];
+	uint64_t rb_files_current;
+	uint64_t rb_files_total;
 };
 typedef struct spp_profiler_t spp_profiler_t;
 

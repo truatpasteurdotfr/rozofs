@@ -32,11 +32,15 @@
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/rpc/rpcclt.h>
 #include <rozofs/rpc/mclient.h>
+#include <rozofs/common/profile.h>
+#include <rozofs/rpc/spproto.h>
 
 #include "storage.h"
 #include "rbs_sclient.h"
 #include "rbs_eclient.h"
 #include "rbs.h"
+
+DECLARE_PROFILING(spp_profiler_t);
 
 /* Size of htable for bins files to rebuild  */
 #define REBUILD_HSIZE 16384
@@ -279,9 +283,11 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
 
             // Free projections generated
             free(working_ctx.prj_ctx[proj_id_to_rebuild].bins);
+            working_ctx.prj_ctx[proj_id_to_rebuild].bins = NULL;
 
             // Free data read
             free(working_ctx.data_read_p);
+            working_ctx.data_read_p = NULL;
 
             // Update the next first block to read
             first_block_idx += nb_blocks_read_distant;
@@ -407,15 +413,18 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
 
                 // Free projections generated
                 free(working_ctx.prj_ctx[proj_id_to_rebuild].bins);
+                working_ctx.prj_ctx[proj_id_to_rebuild].bins = NULL;
             }
             // Free local bins read
             free(loc_read_bins_p);
+            loc_read_bins_p = NULL;
         }
 
         // Update the first block to read
         first_block_idx += nb_blocks_read_distant;
 
         free(working_ctx.data_read_p);
+        working_ctx.data_read_p = NULL;
     }
 
     // OK, clear pointers
@@ -547,7 +556,7 @@ out:
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid, 
+int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
         sid_t sid) {
     int status = -1;
     uint8_t layout = 0;
@@ -839,9 +848,14 @@ out:
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         const char *root) {
     list_t *p, *q;
+    uint64_t current_nb_rb_files = 0;
     int status = -1;
 
     DEBUG_FUNCTION;
+
+    // Set monitor values to 0
+    SET_PROBE_VALUE(rb_files_current, 0);
+    SET_PROBE_VALUE(rb_files_total, 0);
 
     // Initialize the storage to rebuild
     if (rbs_initialize(cid, sid, root) != 0) {
@@ -868,6 +882,9 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     // Get the list of bins files to rebuild for this storage
     if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid) != 0)
         goto out;
+
+    // Set for monitoring, the nb. of files to rebuild
+    SET_PROBE_VALUE(rb_files_total, list_size(&rebuild_entries));
 
     // Rebuild each bins file
 
@@ -904,6 +921,10 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
             del_rb_entry(re);
             free(re->storages);
             free(re);
+
+            // Update for monitoring, the current nb. of files rebuild
+            current_nb_rb_files++;
+            SET_PROBE_VALUE(rb_files_current, current_nb_rb_files);
         }
 
         // End of list
@@ -911,7 +932,8 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         // The list is not empty
         if (list_size(&rebuild_entries) != 0) {
 
-            severe("All bins files are not rebuilt");
+            severe("All bins files are not rebuilt for storage (cid:%u;sid:%u)",
+                    cid, sid);
 
             // Release connections to storages
             rbs_release_cluster_cnts(&cluster_entries);

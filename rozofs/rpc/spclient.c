@@ -53,8 +53,8 @@ int sp_client_get_profiler(sp_client_t *clt, spp_profiler_t *p) {
 
     if (!(clt->rpcclt.client) ||
             !(ret = spp_get_profiler_1(0, clt->rpcclt.client))) {
-        warning("sp_client_get_storaged_profiler failed:\
-                 no response from storage server (%s, %u)",
+        warning("sp_client_get_storaged_profiler failed: "
+                 "no response from storage server (%s, %u)",
                  clt->host, clt->port);
         errno = EPROTO;
         goto out;

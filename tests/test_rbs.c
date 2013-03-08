@@ -23,8 +23,11 @@
 #include <errno.h>
 
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/common/profile.h>
 
 #include "rbs.h"
+
+DEFINE_PROFILING(spp_profiler_t) = {0};
 
 int main(int argc, char *argv[]) {
     char storage_root[FILENAME_MAX];
@@ -61,6 +64,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "rbs_rebuild_storage failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    rozofs_layout_release();
 
     status = 0;
 
