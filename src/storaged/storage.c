@@ -30,6 +30,8 @@
 #include <sys/statfs.h>
 #include <inttypes.h>
 #include <glob.h>
+#include <fnmatch.h>
+#include <dirent.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -39,7 +41,7 @@
 
 #include "storage.h"
 
-static char *storage_map_distribution(storage_t * st, uint8_t layout,
+char *storage_map_distribution(storage_t * st, uint8_t layout,
         sid_t dist_set[ROZOFS_SAFE_MAX], uint8_t spare, char *path) {
     int i = 0;
     char build_path[FILENAME_MAX];
@@ -71,7 +73,7 @@ static char *storage_map_distribution(storage_t * st, uint8_t layout,
   @retval pointer to the beginning of the path
   
  */
-static char *storage_map_projection(fid_t fid, char *path) {
+char *storage_map_projection(fid_t fid, char *path) {
     char str[37];
 
     uuid_unparse(fid, str);
@@ -287,9 +289,20 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     // Read nb_proj * (projection + header)
     nb_read = pread(fd, bins, length_to_read, bins_file_offset);
 
-    // Check the length read
-    if ((nb_read % (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t))) != 0) {
+    // Check error
+    if (nb_read == -1) {
         severe("pread failed: %s", strerror(errno));
+        goto out;
+    }
+
+    // Check the length read
+    if ((nb_read % (rozofs_max_psize * sizeof (bin_t) +
+            sizeof (rozofs_stor_bins_hdr_t))) != 0) {
+        char fid_str[37];
+        uuid_unparse(fid, fid_str);
+        severe("storage_read failed (FID: %s): read inconsistent length",
+                fid_str);
+        errno = EIO;
         goto out;
     }
 
@@ -398,3 +411,228 @@ int storage_stat(storage_t * st, sstat_t * sstat) {
 out:
     return status;
 }
+<<<<<<< HEAD
+=======
+
+bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t layout,
+        sid_t * dist_set, uint8_t spare, uint64_t * cookie,
+        bins_file_rebuild_t ** children, uint8_t * eof,
+        uint64_t * current_files_nb) {
+    int status = -1, i, j;
+    char path[FILENAME_MAX];
+    DIR *dp = NULL;
+    struct dirent *ep = NULL;
+    bins_file_rebuild_t **iterator;
+
+    DEBUG_FUNCTION;
+
+    // Build the full path of directory that contains the bins file
+    storage_map_distribution(st, layout, dist_set, spare, path);
+
+    // Open directory
+    if (!(dp = opendir(path)))
+        goto out;
+
+    // Readdir first time
+    ep = readdir(dp);
+
+    // Go to cookie index in this dir
+    for (j = 0; j < *cookie; j++) {
+        if (ep)
+            ep = readdir(dp);
+    }
+
+    // Use iterator
+    iterator = children;
+
+    // The current nb. of bins files in the list
+    i = *current_files_nb;
+
+    // Readdir the next entries
+    while (ep && i < MAX_REBUILD_ENTRIES) {
+
+        // Pattern matching
+        if (fnmatch("*.bins", ep->d_name, 0) == 0) {
+
+            // Get the FID for this bins file
+            char fid_str[37];
+            if (sscanf(ep->d_name, "%36s.bins", fid_str) != 1)
+                continue;
+
+            // Alloc a new bins_file_rebuild_t
+            *iterator = xmalloc(sizeof (bins_file_rebuild_t)); // XXX FREE ?
+            // Copy FID
+            uuid_parse(fid_str, (*iterator)->fid);
+            // Copy current dist_set
+            memcpy((*iterator)->dist_set_current, dist_set,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            // Copy layout
+            (*iterator)->layout = layout;
+
+            // Go to next entry
+            iterator = &(*iterator)->next;
+
+            // Increment the current nb. of bins files in the list
+            i++;
+        }
+
+        j++;
+
+        // Readdir for next entry
+        ep = readdir(dp);
+    }
+
+    // Update current nb. of bins files in the list
+    *current_files_nb = i;
+
+    // Close directory
+    if (closedir(dp) == -1)
+        goto out;
+
+    if (ep) {
+        // It's not the EOF
+        *eof = 0;
+        *cookie = j;
+    } else {
+        *eof = 1;
+    }
+
+    *iterator = NULL;
+    status = 0;
+out:
+
+    return iterator;
+}
+
+int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,
+        uint8_t * layout, sid_t *dist_set, uint8_t * spare, uint64_t * cookie,
+        bins_file_rebuild_t ** children, uint8_t * eof) {
+
+    int status = -1;
+    char **p;
+    size_t cnt;
+    glob_t glob_results;
+    uint8_t layout_it = 0;
+    uint8_t spare_it = 0;
+    uint64_t current_files_nb = 0;
+    bins_file_rebuild_t **iterator = NULL;
+    uint8_t check_dist_set = 0;
+
+    DEBUG_FUNCTION;
+
+    // Use iterator
+    iterator = children;
+
+    sid_t current_dist_set[ROZOFS_SAFE_MAX];
+    sid_t empty_dist_set[ROZOFS_SAFE_MAX];
+    memset(empty_dist_set, 0, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+    memcpy(current_dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+
+    if (memcmp(current_dist_set, empty_dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX) != 0)
+        check_dist_set = 1;
+
+
+    // For each possible layout
+    for (layout_it = *layout; layout_it < LAYOUT_MAX; layout_it++) {
+
+        // For spare and no spare
+        for (spare_it = *spare; spare_it < 2; spare_it++) {
+
+            // Build path directory for this layout and this spare type
+            char path[FILENAME_MAX];
+            sprintf(path, "%s/layout_%u/spare_%u/", st->root, layout_it,
+                    spare_it);
+
+            // Go to this directory
+            if (chdir(path) != 0)
+                continue;
+
+            // Build pattern for globbing
+            char pattern[FILENAME_MAX];
+            sprintf(pattern, "*%.3u*", sid);
+
+            // Globbing function
+            if (glob(pattern, GLOB_ONLYDIR, 0, &glob_results) == 0) {
+
+                // For all the directories matching pattern
+                for (p = glob_results.gl_pathv, cnt = glob_results.gl_pathc;
+                        cnt; p++, cnt--) {
+
+                    // Get the dist_set for this directory
+                    switch (layout_it) {
+                        case LAYOUT_2_3_4:
+                            if (sscanf(*p, "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "",
+                                    &dist_set[0], &dist_set[1],
+                                    &dist_set[2], &dist_set[3]) != 4) {
+                                continue;
+                            }
+                            break;
+                        case LAYOUT_4_6_8:
+                            if (sscanf(*p, "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "-%" SCNu8 "",
+                                    &dist_set[0], &dist_set[1], &dist_set[2],
+                                    &dist_set[3], &dist_set[4], &dist_set[5],
+                                    &dist_set[6], &dist_set[7]) != 8) {
+                                continue;
+                            }
+                            break;
+                        case LAYOUT_8_12_16:
+                            if (sscanf(*p, "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
+                                    "%" SCNu8 "",
+                                    &dist_set[0], &dist_set[1], &dist_set[2],
+                                    &dist_set[3], &dist_set[4], &dist_set[5],
+                                    &dist_set[6], &dist_set[7], &dist_set[8],
+                                    &dist_set[9], &dist_set[10], &dist_set[11],
+                                    &dist_set[12], &dist_set[13], &dist_set[14],
+                                    &dist_set[15]) != 16) {
+                                continue;
+                            }
+                            break;
+                    }
+
+                    // Check dist_set
+                    if (check_dist_set) {
+                        if (memcmp(current_dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX) != 0)
+                            continue;
+                    }
+
+                    check_dist_set = 0;
+
+                    // List the bins files for this specific directory
+                    if ((iterator = storage_list_bins_file(st, layout_it,
+                            dist_set, spare_it, cookie, iterator, eof,
+                            &current_files_nb)) == NULL) {
+                        severe("storage_list_bins_file failed: %s\n",
+                                strerror(errno));
+                        continue;
+                    }
+
+                    // Check if EOF
+                    if (0 == *eof) {
+                        status = 0;
+                        *spare = spare_it;
+                        *layout = layout_it;
+                        goto out;
+                    } else {
+                        *cookie = 0;
+                    }
+
+                }
+                globfree(&glob_results);
+            }
+        }
+    }
+
+    *eof = 1;
+    status = 0;
+
+out:
+    return status;
+}
+>>>>>>> feature/rebuild_storage

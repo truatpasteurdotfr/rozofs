@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #include <assert.h>
 #include <stdlib.h>
@@ -27,7 +27,7 @@
 #include "transform.h"
 
 void transform_forward(const bin_t * support, int rows, int cols, int np,
-                       projection_t * projections) {
+        projection_t * projections) {
     int *offsets;
     int i, l, k;
     DEBUG_FUNCTION;
@@ -35,8 +35,8 @@ void transform_forward(const bin_t * support, int rows, int cols, int np,
     offsets = xcalloc(np, sizeof (int));
     for (i = 0; i < np; i++) {
         offsets[i] =
-            projections[i].angle.p <
-            0 ? (rows - 1) * projections[i].angle.p : 0;
+                projections[i].angle.p <
+                0 ? (rows - 1) * projections[i].angle.p : 0;
         memset(projections[i].bins, 0, projections[i].size * sizeof (bin_t));
     }
 
@@ -79,7 +79,7 @@ static inline int max(int a, int b) {
 }
 
 void transform_inverse(pxl_t * support, int rows, int cols, int np,
-                       projection_t * projections) {
+        projection_t * projections) {
     int s_minus, s_plus, s, i, rdv, k, l;
     //double tmp;
     int *k_offsets, *offsets;
@@ -90,8 +90,8 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
     qsort((void *) projections, np, sizeof (projection_t), compare_slope);
     for (i = 0; i < np; i++) {
         offsets[i] =
-            projections[i].angle.p <
-            0 ? (rows - 1) * projections[i].angle.p : 0;
+                projections[i].angle.p <
+                0 ? (rows - 1) * projections[i].angle.p : 0;
     }
 
     // compute s_minus, s_plus, and finally s
@@ -110,7 +110,7 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
 
     // Determine the initial image column offset for each projection
     k_offsets[rdv] =
-        max(max(0, -projections[rdv].angle.p) + s_minus,
+            max(max(0, -projections[rdv].angle.p) + s_minus,
             max(0, projections[rdv].angle.p) + s_plus);
     for (i = rdv + 1; i < rows; i++) {
         k_offsets[i] = k_offsets[i - 1] + projections[i - 1].angle.p;
@@ -126,13 +126,13 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
             if (k + k_offsets[l] >= 0) {
                 projection_t *p = projections + l;
                 bin_t bin =
-                    projections[l].bins[(k + k_offsets[l]) * p->angle.q +
-                                        l * p->angle.p - offsets[l]];
+                        projections[l].bins[(k + k_offsets[l]) * p->angle.q +
+                        l * p->angle.p - offsets[l]];
                 support[l * cols + k + k_offsets[l]] = bin;
                 for (i = 0; i < rows; i++) {
                     projection_t *updated = projections + i;
                     updated->bins[(k + k_offsets[l]) * updated->angle.q +
-                                  l * updated->angle.p - offsets[i]] ^= bin;
+                            l * updated->angle.p - offsets[i]] ^= bin;
                 }
             }
         }
@@ -140,13 +140,13 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
             if (k + k_offsets[l] >= 0) {
                 projection_t *p = projections + l;
                 bin_t bin =
-                    projections[l].bins[(k + k_offsets[l]) * p->angle.q +
-                                        l * p->angle.p - offsets[l]];
+                        projections[l].bins[(k + k_offsets[l]) * p->angle.q +
+                        l * p->angle.p - offsets[l]];
                 support[l * cols + k + k_offsets[l]] = bin;
                 for (i = 0; i < rows; i++) {
                     projection_t *updated = projections + i;
                     updated->bins[(k + k_offsets[l]) * updated->angle.q +
-                                  l * updated->angle.p - offsets[i]] ^= bin;
+                            l * updated->angle.p - offsets[i]] ^= bin;
                 }
             }
         }
@@ -157,25 +157,25 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
         for (l = 0; l < rdv; l++) {
             projection_t *p = projections + l;
             bin_t bin =
-                projections[l].bins[(k + k_offsets[l]) * p->angle.q +
-                                    l * p->angle.p - offsets[l]];
+                    projections[l].bins[(k + k_offsets[l]) * p->angle.q +
+                    l * p->angle.p - offsets[l]];
             support[l * cols + k + k_offsets[l]] = bin;
             for (i = 0; i < rows; i++) {
                 projection_t *updated = projections + i;
                 updated->bins[(k + k_offsets[l]) * updated->angle.q +
-                              l * updated->angle.p - offsets[i]] ^= bin;
+                        l * updated->angle.p - offsets[i]] ^= bin;
             }
         }
         for (l = rows - 1; l >= rdv; l--) {
             projection_t *p = projections + l;
             bin_t bin =
-                projections[l].bins[(k + k_offsets[l]) * p->angle.q +
-                                    l * p->angle.p - offsets[l]];
+                    projections[l].bins[(k + k_offsets[l]) * p->angle.q +
+                    l * p->angle.p - offsets[l]];
             support[l * cols + k + k_offsets[l]] = bin;
             for (i = 0; i < rows; i++) {
                 projection_t *updated = projections + i;
                 updated->bins[(k + k_offsets[l]) * updated->angle.q +
-                              l * updated->angle.p - offsets[i]] ^= bin;
+                        l * updated->angle.p - offsets[i]] ^= bin;
             }
         }
     }
@@ -186,13 +186,13 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
             if (k + k_offsets[l] < cols) {
                 projection_t *p = projections + l;
                 bin_t bin =
-                    projections[l].bins[(k + k_offsets[l]) * p->angle.q +
-                                        l * p->angle.p - offsets[l]];
+                        projections[l].bins[(k + k_offsets[l]) * p->angle.q +
+                        l * p->angle.p - offsets[l]];
                 support[l * cols + k + k_offsets[l]] = bin;
                 for (i = 0; i < rows; i++) {
                     projection_t *updated = projections + i;
                     updated->bins[(k + k_offsets[l]) * updated->angle.q +
-                                  l * updated->angle.p - offsets[i]] ^= bin;
+                            l * updated->angle.p - offsets[i]] ^= bin;
                 }
             }
         }
@@ -200,13 +200,13 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
             if (k + k_offsets[l] < cols) {
                 projection_t *p = projections + l;
                 bin_t bin =
-                    projections[l].bins[(k + k_offsets[l]) * p->angle.q +
-                                        l * p->angle.p - offsets[l]];
+                        projections[l].bins[(k + k_offsets[l]) * p->angle.q +
+                        l * p->angle.p - offsets[l]];
                 support[l * cols + k + k_offsets[l]] = bin;
                 for (i = 0; i < rows; i++) {
                     projection_t *updated = projections + i;
                     updated->bins[(k + k_offsets[l]) * updated->angle.q +
-                                  l * updated->angle.p - offsets[i]] ^= bin;
+                            l * updated->angle.p - offsets[i]] ^= bin;
                 }
             }
         }
@@ -216,4 +216,37 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
         free(offsets);
     if (k_offsets)
         free(k_offsets);
+}
+
+void transform_forward_one_proj(const bin_t * support, int rows, int cols,
+        uint8_t proj_id, projection_t * projections) {
+    int offset;
+    int l, k;
+    DEBUG_FUNCTION;
+
+    offset = projections[proj_id].angle.p < 0 ? (rows - 1) * 
+            projections[proj_id].angle.p : 0;
+    memset(projections[proj_id].bins, 0, projections[proj_id].size
+            * sizeof (bin_t));
+
+    assert(cols % 8 == 0);
+
+    projection_t *p = projections + proj_id;
+    const pxl_t *ppix = support;
+    bin_t *pbin;
+    for (l = 0; l < rows; l++) {
+        pbin = p->bins + l * p->angle.p - offset;
+        for (k = cols / 8; k > 0; k--) {
+            pbin[0] ^= ppix[0];
+            pbin[1] ^= ppix[1];
+            pbin[2] ^= ppix[2];
+            pbin[3] ^= ppix[3];
+            pbin[4] ^= ppix[4];
+            pbin[5] ^= ppix[5];
+            pbin[6] ^= ppix[6];
+            pbin[7] ^= ppix[7];
+            pbin += 8;
+            ppix += 8;
+        }
+    }
 }

@@ -70,6 +70,46 @@ struct mp_ports_ret_t {
 };
 typedef struct mp_ports_ret_t mp_ports_ret_t;
 
+typedef struct mp_child_t *mp_children_t;
+
+struct mp_child_t {
+	mp_uuid_t fid;
+	uint8_t layout;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	mp_children_t next;
+};
+typedef struct mp_child_t mp_child_t;
+
+struct bins_files_list_t {
+	mp_children_t children;
+	uint8_t eof;
+	uint8_t layout;
+	uint8_t spare;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint64_t cookie;
+};
+typedef struct bins_files_list_t bins_files_list_t;
+
+struct mp_list_bins_files_ret_t {
+	mp_status_t status;
+	union {
+		bins_files_list_t reply;
+		int error;
+	} mp_list_bins_files_ret_t_u;
+};
+typedef struct mp_list_bins_files_ret_t mp_list_bins_files_ret_t;
+
+struct mp_list_bins_files_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t rebuild_sid;
+	uint8_t layout;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint8_t spare;
+	uint64_t cookie;
+};
+typedef struct mp_list_bins_files_arg_t mp_list_bins_files_arg_t;
+
 #define MONITOR_PROGRAM 0x20000003
 #define MONITOR_VERSION 1
 
@@ -86,6 +126,9 @@ extern  mp_status_ret_t * mp_remove_1_svc(mp_remove_arg_t *, struct svc_req *);
 #define MP_PORTS 3
 extern  mp_ports_ret_t * mp_ports_1(void *, CLIENT *);
 extern  mp_ports_ret_t * mp_ports_1_svc(void *, struct svc_req *);
+#define MP_LIST_BINS_FILES 4
+extern  mp_list_bins_files_ret_t * mp_list_bins_files_1(mp_list_bins_files_arg_t *, CLIENT *);
+extern  mp_list_bins_files_ret_t * mp_list_bins_files_1_svc(mp_list_bins_files_arg_t *, struct svc_req *);
 extern int monitor_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -101,6 +144,9 @@ extern  mp_status_ret_t * mp_remove_1_svc();
 #define MP_PORTS 3
 extern  mp_ports_ret_t * mp_ports_1();
 extern  mp_ports_ret_t * mp_ports_1_svc();
+#define MP_LIST_BINS_FILES 4
+extern  mp_list_bins_files_ret_t * mp_list_bins_files_1();
+extern  mp_list_bins_files_ret_t * mp_list_bins_files_1_svc();
 extern int monitor_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -115,6 +161,11 @@ extern  bool_t xdr_mp_stat_arg_t (XDR *, mp_stat_arg_t*);
 extern  bool_t xdr_mp_sstat_t (XDR *, mp_sstat_t*);
 extern  bool_t xdr_mp_stat_ret_t (XDR *, mp_stat_ret_t*);
 extern  bool_t xdr_mp_ports_ret_t (XDR *, mp_ports_ret_t*);
+extern  bool_t xdr_mp_children_t (XDR *, mp_children_t*);
+extern  bool_t xdr_mp_child_t (XDR *, mp_child_t*);
+extern  bool_t xdr_bins_files_list_t (XDR *, bins_files_list_t*);
+extern  bool_t xdr_mp_list_bins_files_ret_t (XDR *, mp_list_bins_files_ret_t*);
+extern  bool_t xdr_mp_list_bins_files_arg_t (XDR *, mp_list_bins_files_arg_t*);
 
 #else /* K&R C */
 extern bool_t xdr_mp_uuid_t ();
@@ -125,6 +176,11 @@ extern bool_t xdr_mp_stat_arg_t ();
 extern bool_t xdr_mp_sstat_t ();
 extern bool_t xdr_mp_stat_ret_t ();
 extern bool_t xdr_mp_ports_ret_t ();
+extern bool_t xdr_mp_children_t ();
+extern bool_t xdr_mp_child_t ();
+extern bool_t xdr_bins_files_list_t ();
+extern bool_t xdr_mp_list_bins_files_ret_t ();
+extern bool_t xdr_mp_list_bins_files_arg_t ();
 
 #endif /* K&R C */
 

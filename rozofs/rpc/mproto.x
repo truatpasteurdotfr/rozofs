@@ -60,20 +60,56 @@ union mp_ports_ret_t switch (mp_status_t status) {
     default:            void;
 };
 
+typedef struct mp_child_t *mp_children_t;
+
+struct mp_child_t { 
+    mp_uuid_t       fid;
+    uint8_t         layout;
+    uint8_t         dist_set[ROZOFS_SAFE_MAX];    
+    mp_children_t   next;
+};
+
+struct bins_files_list_t {
+    mp_children_t   children;
+    uint8_t         eof;
+    uint8_t         layout;
+    uint8_t         spare;
+    uint8_t         dist_set[ROZOFS_SAFE_MAX];
+    uint64_t        cookie;
+};
+
+union mp_list_bins_files_ret_t switch (mp_status_t status) {
+    case MP_SUCCESS:    bins_files_list_t       reply;
+    case MP_FAILURE:    int                     error;
+    default:            void;
+};
+
+struct mp_list_bins_files_arg_t {
+    uint16_t   cid;
+    uint8_t    sid;
+    uint8_t    rebuild_sid;
+    uint8_t    layout;
+    uint8_t    dist_set[ROZOFS_SAFE_MAX];
+    uint8_t    spare;
+    uint64_t   cookie;
+};
+
 program MONITOR_PROGRAM {
     version MONITOR_VERSION {
         void
-        MP_NULL(void)                   = 0;
+        MP_NULL(void)                                   = 0;
 
         mp_stat_ret_t
-        MP_STAT(mp_stat_arg_t)          = 1;
+        MP_STAT(mp_stat_arg_t)                          = 1;
 
         mp_status_ret_t
-        MP_REMOVE(mp_remove_arg_t)      = 2;
+        MP_REMOVE(mp_remove_arg_t)                      = 2;
 
         mp_ports_ret_t
-        MP_PORTS(void)                  = 3;
+        MP_PORTS(void)                                  = 3;
+
+        mp_list_bins_files_ret_t
+        MP_LIST_BINS_FILES(mp_list_bins_files_arg_t)    = 4;
 
     }=1;
 } = 0x20000003;
-
