@@ -411,8 +411,6 @@ int storage_stat(storage_t * st, sstat_t * sstat) {
 out:
     return status;
 }
-<<<<<<< HEAD
-=======
 
 bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t layout,
         sid_t * dist_set, uint8_t spare, uint64_t * cookie,
@@ -635,4 +633,3 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,
 out:
     return status;
 }
->>>>>>> feature/rebuild_storage

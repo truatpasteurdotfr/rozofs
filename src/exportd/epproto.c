@@ -37,7 +37,6 @@ void *epp_null_1_svc(void *args, struct svc_req *req) {
 
 epp_profiler_ret_t *epp_get_profiler_1_svc(void * args,struct svc_req * req) {
     static epp_profiler_ret_t ret;
-    volume_t clone;
     DEBUG_FUNCTION;
 
     /*XXX should acquire lock on monitor thread ! */
