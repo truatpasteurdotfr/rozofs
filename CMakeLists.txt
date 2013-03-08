@@ -20,8 +20,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
-set(MINOR "0")
-set(REVISION "6")
+set(MINOR "1")
+set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -34,8 +34,11 @@ find_package(CONFIG REQUIRED)
 find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
+find_package(SWIG REQUIRED)
 find_package(Doxygen QUIET)
+find_program(PYTHON NAMES python2.6)
 find_program(DEBUILD NAMES debuild)
+find_program(RPMBUILD NAMES rpmbuild)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fmessage-length=0")
@@ -70,31 +73,30 @@ if(NOT TRAILING_SLASH)
     set(DAEMON_PID_DIRECTORY "${DAEMON_PID_DIRECTORY}/")
 endif(NOT TRAILING_SLASH)
 
+if(NOT DEBIAN_LAYOUT)
+    set(DEBIAN_LAYOUT OFF)
+endif(NOT DEBIAN_LAYOUT)
+
 add_subdirectory(rozofs)
 add_subdirectory(src)
 add_subdirectory(doc)
 add_subdirectory(tests)
 add_subdirectory(tests/fs_ops/fileop)
 add_subdirectory(tests/fs_ops/pjd-fstest)
+add_subdirectory(manager)
 
 set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
 set(ROZOFS_SOURCE_PACKAGE_FILE_NAME "rozofs-${VERSION}")
 
-configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/squeeze.in" "${PROJECT_BINARY_DIR}/squeeze.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/wheezy.in" "${PROJECT_BINARY_DIR}/wheezy.cmake" @ONLY)
-configure_file("${PROJECT_SOURCE_DIR}/cmake/ubuntu.in" "${PROJECT_BINARY_DIR}/ubuntu.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/export.conf.in" "${PROJECT_BINARY_DIR}/src/exportd/export.conf.sample")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/storage.conf.in" "${PROJECT_BINARY_DIR}/src/storaged/storage.conf.sample")
-configure_file("${PROJECT_SOURCE_DIR}/doc/rozofs.7" "${PROJECT_BINARY_DIR}/doc/rozofs.7")
-configure_file("${PROJECT_SOURCE_DIR}/doc/rozofsmount.8" "${PROJECT_BINARY_DIR}/doc/rozofsmount.8")
-configure_file("${PROJECT_SOURCE_DIR}/doc/storaged.8" "${PROJECT_BINARY_DIR}/doc/storaged.8")
-configure_file("${PROJECT_SOURCE_DIR}/doc/storage.conf.5" "${PROJECT_BINARY_DIR}/doc/storage.conf.5")
-configure_file("${PROJECT_SOURCE_DIR}/doc/exportd.8" "${PROJECT_BINARY_DIR}/doc/exportd.8")
-configure_file("${PROJECT_SOURCE_DIR}/doc/export.conf.5" "${PROJECT_BINARY_DIR}/doc/export.conf.5")
+
+configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/redhat.in" "${PROJECT_BINARY_DIR}/redhat.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/rozofs.spec.in" "${PROJECT_BINARY_DIR}/rozofs.spec" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/manager/setup.py" @ONLY)
 
 #
 # Build settings
@@ -121,10 +123,8 @@ set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
 # uninstall target
 #
 add_custom_target(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/uninstall.cmake")
-add_custom_target(package_squeeze "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/squeeze.cmake")
-add_custom_target(package_wheezy "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/wheezy.cmake")
-add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/ubuntu.cmake")
-
+add_custom_target(package_debian "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/debian.cmake")
+add_custom_target(package_redhat "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/redhat.cmake")
 
 #
 # Packing
@@ -132,7 +132,7 @@ add_custom_target(package_ubuntu "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_D
 include(InstallRequiredSystemLibraries)
 
 # Binaries
-set(CPACK_GENERATOR "STGZ;TGZ")
+set(CPACK_GENERATOR "")
 set(CPACK_STGZ_COMPONENT_INSTALL ON)
 set(CPACK_TGZ_COMPONENT_INSTALL ON)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Rozofs filesystem")
@@ -153,5 +153,5 @@ set(CPACK_COMPONENT_HEADERS_DESCRIPTION "storaged")
 # Sources
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${ROZOFS_SOURCE_PACKAGE_FILE_NAME}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
-set(CPACK_SOURCE_IGNORE_FILES "exportd$;/config.h$;rozofsmount$;sample$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;ubuntu.cmake;debian.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git;/\\\\.project;/\\\\.cproject")
+set(CPACK_SOURCE_IGNORE_FILES "exportd$;/config.h$;rozofsmount$;storaged$;.mk$;throughput_server$;throughput$;test_list$;test_storage$;transform_file$;test_htable$;test_transform$;test_volume$;test_dist$;install_manifest.txt;package.cmake;ubuntu.cmake;debian.cmake;/build/;tags;/CMakeFiles/;/_CPack_Packages/;/\\\\.hg/;CMakeCache.txt;Makefile$;\\\\.vim$;\\\\.swp$;uninstall.cmake$;cmake_install.cmake;CPackConfig.cmake;CPackSourceConfig.cmake;~$;tags;/nbproject/;.hgignore;.dep.inc;/\\\\.settings;/\\\\.git;/\\\\.project;/\\\\.cproject")
 include(CPack)

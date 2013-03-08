@@ -23,6 +23,7 @@ monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 	union {
 		mp_stat_arg_t mp_stat_1_arg;
 		mp_remove_arg_t mp_remove_1_arg;
+		mp_list_bins_files_arg_t mp_list_bins_files_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -51,6 +52,12 @@ monitor_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_void;
 		_xdr_result = (xdrproc_t) xdr_mp_ports_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) mp_ports_1_svc;
+		break;
+
+	case MP_LIST_BINS_FILES:
+		_xdr_argument = (xdrproc_t) xdr_mp_list_bins_files_arg_t;
+		_xdr_result = (xdrproc_t) xdr_mp_list_bins_files_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) mp_list_bins_files_1_svc;
 		break;
 
 	default:
