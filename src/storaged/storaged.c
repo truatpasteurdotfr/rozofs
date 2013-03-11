@@ -92,7 +92,7 @@ static char rbs_export_hostname[ROZOFS_HOSTNAME_MAX];
 /* Time in seconds between two attemps of rebuild */
 #define TIME_BETWEEN_2_RB_ATTEMPS 30
 /* First port to use for monitoring rebuild process */
-uint16_t start_mon_port_for_rbs = 30000;
+uint16_t start_profil_port_for_rbs = 30000;
 
 static int storaged_initialize() {
     int status = -1;
@@ -229,7 +229,7 @@ static void *rebuild_storage_thread(void *v) {
 static void rbs_process_initialize() {
     list_t *p = NULL;
     int i = 0;
-    uint16_t mon_rbs_port = 0;
+    uint16_t profil_rbs_port = 0;
 
     DEBUG_FUNCTION;
 
@@ -239,7 +239,7 @@ static void rbs_process_initialize() {
 
         storage_config_t *sc = list_entry(p, storage_config_t, list);
         int pid = -1;
-        mon_rbs_port = start_mon_port_for_rbs + i;
+        profil_rbs_port = start_profil_port_for_rbs + i;
 
         // Create child process
         if (!(pid = fork())) {
@@ -269,9 +269,9 @@ static void rbs_process_initialize() {
             // the portmap service
 
             if ((storaged_profile_svc =
-                    storaged_create_rpc_service(mon_rbs_port)) == NULL) {
+                    storaged_create_rpc_service(profil_rbs_port)) == NULL) {
                 fatal("can't create rebuild monitoring service on port: %d",
-                        mon_rbs_port);
+                        profil_rbs_port);
             }
 
             if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
@@ -279,14 +279,15 @@ static void rbs_process_initialize() {
                 fatal("can't register service : %s", strerror(errno));
             }
 
-            info("create rebuild monitoring service on port: %d", mon_rbs_port);
+            info("create rebuild monitoring service on port: %d",
+                    profil_rbs_port);
 
             // Waits for RPC requests to arrive!
             svc_run();
             // NOT REACHED
         } else {
             // Set monitoring values just for the master process
-            SET_PROBE_VALUE(rb_process_ports[i], mon_rbs_port);
+            SET_PROBE_VALUE(rb_process_ports[i], profil_rbs_port);
             SET_PROBE_VALUE(rbs_cids[i], sc->cid);
             SET_PROBE_VALUE(rbs_sids[i], sc->sid);
             i++;
@@ -297,11 +298,20 @@ static void rbs_process_initialize() {
 static void storaged_release() {
     DEBUG_FUNCTION;
     int i;
+    list_t *p, *q;
 
     for (i = 0; i < storaged_nrstorages; i++) {
         storage_release(&storaged_storages[i]);
     }
     storaged_nrstorages = 0;
+
+    // Free config
+
+    list_for_each_forward_safe(p, q, &storaged_config.storages) {
+
+        storage_config_t *s = list_entry(p, storage_config_t, list);
+        free(s);
+    }
 }
 
 storage_t *storaged_lookup(cid_t cid, sid_t sid) {
@@ -317,6 +327,40 @@ storage_t *storaged_lookup(cid_t cid, sid_t sid) {
     st = 0;
 out:
     return st;
+}
+
+static void on_stop() {
+    DEBUG_FUNCTION;
+
+    svc_exit();
+
+    if (storaged_monitoring_svc) {
+        svc_unregister(MONITOR_PROGRAM, MONITOR_VERSION);
+        pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION);
+        svc_destroy(storaged_monitoring_svc);
+        storaged_monitoring_svc = NULL;
+    }
+
+    if (storaged_profile_svc) {
+        svc_unregister(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION);
+        pmap_unset(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION);
+        svc_destroy(storaged_profile_svc);
+        storaged_profile_svc = NULL;
+    }
+
+    if (storaged_svc && !storaged_monitoring_svc) {
+        svc_unregister(STORAGE_PROGRAM, STORAGE_VERSION);
+        pmap_unset(STORAGE_PROGRAM, STORAGE_VERSION);
+        svc_destroy(storaged_svc);
+        storaged_svc = NULL;
+    }
+
+    rozofs_layout_release();
+
+    storaged_release();
+
+    info("stopped.");
+    closelog();
 }
 
 static void on_start() {
@@ -435,25 +479,6 @@ static void on_start() {
     info("running.");
     svc_run();
     // NOT REACHED
-}
-
-static void on_stop() {
-    DEBUG_FUNCTION;
-
-    svc_exit();
-    svc_unregister(MONITOR_PROGRAM, MONITOR_VERSION);
-    pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION);
-
-    if (storaged_monitoring_svc)
-        svc_destroy(storaged_monitoring_svc);
-
-    if (storaged_profile_svc)
-        svc_destroy(storaged_profile_svc);
-
-    storaged_release();
-
-    info("stopped.");
-    closelog();
 }
 
 void usage() {

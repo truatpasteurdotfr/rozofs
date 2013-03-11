@@ -152,6 +152,8 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         new = xmalloc(sizeof (storage_config_t));
         if (storage_config_initialize(new, (cid_t) cid, (sid_t) sid,
                 root) != 0) {
+            if (new)
+                free(new);
             goto out;
         }
         list_push_back(&config->storages, &new->list);

@@ -79,7 +79,7 @@ void usage() {
 static void connect_to_storaged_profil() {
     int i, j;
     spp_profiler_t profiler;
-    strcpy(profiler_client.sp[0].host, profiled_host);
+    strncpy(profiler_client.sp[0].host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.sp[0].port = profiling_port;
 
     // Connect to master process
@@ -99,7 +99,7 @@ static void connect_to_storaged_profil() {
 
     // Establishing a connection for each io process
     for (i = 0; i < profiler.nb_io_processes; i++) {
-        strcpy(profiler_client.sp[i + 1].host, profiled_host);
+        strncpy(profiler_client.sp[i + 1].host, profiled_host, ROZOFS_HOSTNAME_MAX);
         profiler_client.sp[i + 1].port = profiler.io_process_ports[i];
 
         if (sp_client_initialize(&profiler_client.sp[i + 1]) != 0) {
@@ -115,7 +115,7 @@ static void connect_to_storaged_profil() {
 
         j = profiler.nb_io_processes + i + 1;
 
-        strcpy(profiler_client.sp[j].host, profiled_host);
+        strncpy(profiler_client.sp[j].host, profiled_host, ROZOFS_HOSTNAME_MAX);
         profiler_client.sp[j].port = profiler.rb_process_ports[i];
 
         if (sp_client_initialize(&profiler_client.sp[j]) != 0) {
@@ -314,7 +314,7 @@ static void profile_storaged() {
  * rozofsmount profiling
  */
 static void connect_to_rozofsmount_profil() {
-    strcpy(profiler_client.mp.host, profiled_host);
+    strncpy(profiler_client.mp.host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.mp.port = profiling_port;
     if (mp_client_initialize(&profiler_client.mp) != 0) {
         fprintf(stderr, "failed to connect to %s: %s\n", profiled_host,
@@ -443,7 +443,7 @@ static void profile_rozofsmount(char *host, char *cmde) {
  * exportd profiling
  */
 static void connect_to_exportd_profil() {
-    strcpy(profiler_client.ep.host, profiled_host);
+    strncpy(profiler_client.ep.host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.ep.port = profiling_port;
     if (ep_client_initialize(&profiler_client.ep) != 0) {
 
@@ -677,6 +677,13 @@ int main(int argc, char **argv) {
 
     profiled_service = strtok(argv[optind], "@");
     profiled_host = strtok(0, "@");
+
+    if (strlen(profiled_host) >= ROZOFS_HOSTNAME_MAX) {
+        fprintf(stderr, "The length of hostname must be lower than %d.\n",
+                ROZOFS_HOSTNAME_MAX);
+        exit(EXIT_FAILURE);
+    }
+
     profiling_port = 0;
     if (index(profiled_host, ':')) {
         profiled_host = strtok(profiled_host, ":");
