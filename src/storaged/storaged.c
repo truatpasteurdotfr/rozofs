@@ -249,10 +249,11 @@ static void rbs_process_initialize() {
             rbs_stor_config_t stor_conf;
 
             // Copy the configuration for the storage to rebuild
-            strcpy(stor_conf.export_hostname, rbs_export_hostname);
+            strncpy(stor_conf.export_hostname, rbs_export_hostname,
+                    ROZOFS_HOSTNAME_MAX);
             stor_conf.cid = sc->cid;
             stor_conf.sid = sc->sid;
-            strcpy(stor_conf.root, sc->root);
+            strncpy(stor_conf.root, sc->root, PATH_MAX);
 
             // Create pthread for start the rebuild task
             if ((errno = pthread_create(&thread, NULL, rebuild_storage_thread,
@@ -385,7 +386,7 @@ static void on_start() {
     }
 
     SET_PROBE_VALUE(uptime, time(0));
-    strcpy((char*) gprofiler.vers, VERSION);
+    strncpy((char*) gprofiler.vers, VERSION, 20);
     SET_PROBE_VALUE(nb_io_processes, storaged_nb_io_processes);
 
     // Create io process(es)

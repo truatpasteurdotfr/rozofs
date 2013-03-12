@@ -57,7 +57,7 @@ int storage_node_config_initialize(storage_node_config_t *s, uint8_t sid,
     }
 
     s->sid = sid;
-    strcpy(s->host, host);
+    strncpy(s->host, host, ROZOFS_HOSTNAME_MAX);
     list_init(&s->list);
 
     status = 0;
@@ -118,8 +118,8 @@ int export_config_initialize(export_config_t *e, eid_t eid, vid_t vid,
 
     e->eid = eid;
     e->vid = vid;
-    strcpy(e->root, root);
-    strcpy(e->md5, md5);
+    strncpy(e->root, root, FILENAME_MAX);
+    strncpy(e->md5, md5, MD5_LEN);
     e->squota = squota;
     e->hquota = hquota;
     list_init(&e->list);
@@ -291,6 +291,15 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
                     goto out;
                 }
 
+                // Check length of storage hostname
+                if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+                    errno = ENAMETOOLONG;
+                    severe("Storage hostname length (volume idx: %d\
+                             , cluster idx: %d, storage idx: %d) must be lower\
+                         than %d.", v, c, s, ROZOFS_HOSTNAME_MAX);
+                    goto out;
+                }
+
                 // Allocate a new storage_config
                 snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
                 if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
@@ -406,9 +415,25 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
+        // Check root path length
+        if (strlen(root) > FILENAME_MAX) {
+            errno = ENAMETOOLONG;
+            severe("root path length for export idx: %d must be lower than %d.",
+                    i, FILENAME_MAX);
+            goto out;
+        }
+
         if (config_setting_lookup_string(mfs_setting, EMD5, &md5) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't look up md5 for export idx: %d", i);
+            goto out;
+        }
+
+        // Check md5 length
+        if (strlen(md5) > MD5_LEN) {
+            errno = EINVAL;
+            severe("md5 crypt length for export idx: %d must be lower than %d.",
+                    i, MD5_LEN);
             goto out;
         }
 

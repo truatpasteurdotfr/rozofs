@@ -170,16 +170,13 @@ add_executable(test_export
     ${CMAKE_SOURCE_DIR}/src/exportd/mdir.c
     # New mdirent version
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_journal.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent_vers1.h
+    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent.h
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file_repair.c
     ${CMAKE_SOURCE_DIR}/src/exportd/writeback_cache.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_cache.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_search.c
     ${CMAKE_SOURCE_DIR}/src/exportd/dirent_insert.c
-    # Old mdirent version
-    #${CMAKE_SOURCE_DIR}/src/exportd/mdirent.h
-    #${CMAKE_SOURCE_DIR}/src/exportd/mdirent.c
     ${CMAKE_SOURCE_DIR}/src/exportd/export.h
     ${CMAKE_SOURCE_DIR}/src/exportd/export.c
     test_export.c

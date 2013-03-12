@@ -48,7 +48,7 @@ char *storage_map_distribution(storage_t * st, uint8_t layout,
 
     DEBUG_FUNCTION;
 
-    strcpy(path, st->root);
+    strncpy(path, st->root, FILENAME_MAX);
     strcat(path, "/");
     sprintf(build_path, "layout_%u/spare_%u/", layout, spare);
     strcat(path, build_path);

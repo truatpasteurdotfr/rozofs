@@ -42,7 +42,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     DEBUG_FUNCTION;
 
     /* Prepare mount request */
-    strcpy(clt->host, host);
+    strncpy(clt->host, host, ROZOFS_HOSTNAME_MAX);
     clt->root = strdup(root);
     clt->passwd = strdup(passwd);
     clt->retries = retries;
@@ -90,7 +90,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         /* Prepare storage node */
         mstorage_t *mstor = (mstorage_t *) xmalloc(sizeof (mstorage_t));
         memset(mstor, 0, sizeof (mstorage_t));
-        strcpy(mstor->host, stor_node.host);
+        strncpy(mstor->host, stor_node.host, ROZOFS_HOSTNAME_MAX);
         mstor->sids_nb = stor_node.sids_nb;
         memcpy(mstor->sids, stor_node.sids, sizeof (sid_t) * stor_node.sids_nb);
         memcpy(mstor->cids, stor_node.cids, sizeof (cid_t) * stor_node.sids_nb);
@@ -408,7 +408,7 @@ int exportclt_readlink(exportclt_t * clt, fid_t fid, char *link) {
         errno = ret->ep_readlink_ret_t_u.error;
         goto out;
     }
-    strcpy(link, ret->ep_readlink_ret_t_u.link);
+    strncpy(link, ret->ep_readlink_ret_t_u.link, PATH_MAX);
     status = 0;
 out:
     if (ret)

@@ -530,7 +530,7 @@ int export_create(const char *root) {
     // create const file.
     memset(&ect, 0, sizeof (export_const_t));
     uuid_copy(ect.rfid, root_attrs.fid);
-    strcpy(ect.version, version);
+    strncpy(ect.version, version, 20);
     sprintf(const_path, "%s/%s", path, CONST_FNAME);
     if ((fd = open(const_path, O_RDWR | O_CREAT, S_IRWXU)) < 1) {
         return -1;
@@ -1154,7 +1154,7 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
             mclient_t * sclt = (mclient_t *) xmalloc(sizeof (mclient_t));
 
-            strcpy(sclt->host, vs->host);
+            strncpy(sclt->host, vs->host, ROZOFS_HOSTNAME_MAX);
             sclt->cid = cluster->cid;
             sclt->sid = vs->sid;
 

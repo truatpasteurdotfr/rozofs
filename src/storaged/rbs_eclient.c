@@ -46,7 +46,7 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
     int status = -1;
     ep_cluster_ret_t *ret = 0;
     int i = 0;
-    
+
     DEBUG_FUNCTION;
 
     // Initialize connection with exportd server
@@ -82,7 +82,8 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
         // Init storage
         rb_stor_t *stor = (rb_stor_t *) xmalloc(sizeof (rb_stor_t));
         memset(stor, 0, sizeof (rb_stor_t));
-        strcpy(stor->host, ret->ep_cluster_ret_t_u.cluster.storages[i].host);
+        strncpy(stor->host, ret->ep_cluster_ret_t_u.cluster.storages[i].host,
+                ROZOFS_HOSTNAME_MAX);
         stor->sid = ret->ep_cluster_ret_t_u.cluster.storages[i].sid;
 
         // Add this storage to the list of storages for this cluster

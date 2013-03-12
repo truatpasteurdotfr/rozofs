@@ -254,7 +254,7 @@ static int get_storage_ports(mstorage_t *s) {
 
     uint32_t ports[STORAGE_NODE_PORTS_MAX];
     memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
-    strcpy(mclt.host, s->host);
+    strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
 
     /* Initialize connection with storage (by mproto) */
     if (mclient_initialize(&mclt) != 0) {
@@ -273,7 +273,7 @@ static int get_storage_ports(mstorage_t *s) {
     /* Copy each TCP ports */
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
         if (ports[i] != 0) {
-            strcpy(s->sclients[i].host, s->host);
+            strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
             s->sclients[i].port = ports[i];
             s->sclients[i].status = 0;
             s->sclients_nb++;
@@ -1614,7 +1614,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         mstorage_t *s = list_entry(iterator, mstorage_t, list);
 
         mclient_t mclt;
-        strcpy(mclt.host, s->host);
+        strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
         uint32_t ports[STORAGE_NODE_PORTS_MAX];
         memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
 
@@ -1635,7 +1635,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
          *  (by sproto) */
         for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
             if (ports[i] != 0) {
-                strcpy(s->sclients[i].host, s->host);
+                strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
                 s->sclients[i].port = ports[i];
                 s->sclients[i].status = 0;
                 if (sclient_initialize(&s->sclients[i]) != 0) {
@@ -1764,7 +1764,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      * Start profiling server
      */
     gprofiler.uptime = time(0);
-    strcpy((char *) gprofiler.vers, VERSION);
+    strncpy((char *) gprofiler.vers, VERSION, 20);
     /* Find a free port */
     for (profiling_port = 50000; profiling_port < 60000; profiling_port++) {
         if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -1803,7 +1803,9 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     /* try to create a flag file with port number */
     sprintf(ppfile, "%s%s%s", DAEMON_PID_DIRECTORY, "rozofsmount", mountpoint);
     c = ppfile + strlen(DAEMON_PID_DIRECTORY);
-    while(*c++) {if (*c == '/') *c = '.';}
+    while (*c++) {
+        if (*c == '/') *c = '.';
+    }
     if ((ppfd = open(ppfile, O_RDWR | O_CREAT, 0640)) < 0) {
         severe("can't open profiling port file");
     } else {
@@ -1852,6 +1854,12 @@ int main(int argc, char *argv[]) {
 
     if (conf.host == NULL) {
         conf.host = strdup("rozofsexport");
+    }
+
+    if (strlen(conf.host) >= ROZOFS_HOSTNAME_MAX) {
+        fprintf(stderr,
+                "The length of export host must be lower than %d\n",
+                ROZOFS_HOSTNAME_MAX);
     }
 
     if (conf.export == NULL) {

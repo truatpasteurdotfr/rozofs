@@ -42,7 +42,7 @@ int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
 
     s->sid = sid;
     s->cid = cid;
-    strcpy(s->root, root);
+    strncpy(s->root, root, PATH_MAX);
     list_init(&s->list);
     return 0;
 }
@@ -146,6 +146,14 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         if (config_setting_lookup_string(ms, SROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("cant't lookup root path for storage %d.", i);
+            goto out;
+        }
+
+        // Check root path length
+        if (strlen(root) > PATH_MAX) {
+            errno = ENAMETOOLONG;
+            severe("root path for storage %d must be lower than %d.", i,
+                    PATH_MAX);
             goto out;
         }
 

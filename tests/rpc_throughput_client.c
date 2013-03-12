@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    strcpy(host, argv[1]);
+    strncpy(host, argv[1], 255);
 
     // Initialize the RPC client
     if (rpcclt_initialize

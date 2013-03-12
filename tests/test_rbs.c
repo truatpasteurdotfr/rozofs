@@ -45,10 +45,10 @@ int main(int argc, char *argv[]) {
     }
 
     // Copy args
-    strcpy(export_host, argv[1]);
+    strncpy(export_host, argv[1], ROZOFS_HOSTNAME_MAX);
     cid = atoi(argv[2]);
     sid = atoi(argv[3]);
-    strcpy(storage_root, argv[4]);
+    strncpy(storage_root, argv[4], FILENAME_MAX);
 
     // Initialize rozofs constants
     rozofs_layout_initialize();

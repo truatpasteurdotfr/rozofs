@@ -108,7 +108,7 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
                     if (exist == 0) {
 
                         /* Add this storage node to the list */
-                        strcpy(ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].host, s->host);
+                        strncpy(ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].host, s->host, ROZOFS_HOSTNAME_MAX);
                         /* Add this sid */
                         ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].sids[0] = s->sid;
                         ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].cids[0] = cc->cid;
@@ -186,7 +186,7 @@ ep_cluster_ret_t *ep_list_cluster_1_svc(uint16_t * cid, struct svc_req * req) {
                     storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
 
                     // Add the storage to response
-                    strcpy(ret.ep_cluster_ret_t_u.cluster.storages[stor_idx].host, s->host);
+                    strncpy(ret.ep_cluster_ret_t_u.cluster.storages[stor_idx].host, s->host, ROZOFS_HOSTNAME_MAX);
                     ret.ep_cluster_ret_t_u.cluster.storages[stor_idx].sid = s->sid;
                     stor_idx++;
                 }

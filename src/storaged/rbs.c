@@ -510,7 +510,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
     DEBUG_FUNCTION;
 
     // Copy hostname for this storage
-    strcpy(rb_stor->mclient.host, rb_stor->host);
+    strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
     memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
 
     // Initialize connection with this storage (by mproto)
@@ -530,7 +530,8 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
     // Initialize each TCP ports connection with this storage (by sproto)
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
         if (ports[i] != 0) {
-            strcpy(rb_stor->sclients[i].host, rb_stor->host);
+            strncpy(rb_stor->sclients[i].host, rb_stor->host,
+                    ROZOFS_HOSTNAME_MAX);
             rb_stor->sclients[i].port = ports[i];
             rb_stor->sclients[i].status = 0;
             if (sclient_initialize(&rb_stor->sclients[i]) != 0) {
