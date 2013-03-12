@@ -581,6 +581,88 @@ out:
     return status;
 }
 
+/** Checks if maximum storage limits is exceeded for a given volume
+ *
+ * @param config: volume configuration
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+static int econfig_validate_storage_nb(volume_config_t *config) {
+    int status = -1;
+    list_t *q, *r;
+    int curr_stor_idx = 0;
+    int i = 0;
+    int exist = 0;
+
+    DEBUG_FUNCTION;
+
+    // Internal structure for store storage node
+
+    typedef struct stor_node_check {
+        char host[ROZOFS_HOSTNAME_MAX];
+        uint8_t sids_nb;
+    } stor_node_check_t;
+
+    stor_node_check_t stor_nodes[STORAGE_NODES_MAX];
+    memset(stor_nodes, 0, STORAGE_NODES_MAX * sizeof (stor_node_check_t));
+
+    // For each cluster
+
+    list_for_each_forward(q, &config->clusters) {
+        cluster_config_t *c = list_entry(q, cluster_config_t, list);
+
+        // For each storage
+
+        list_for_each_forward(r, &c->storages) {
+            storage_node_config_t *s = list_entry(r, storage_node_config_t,
+                    list);
+
+            exist = 0;
+
+            // Check if the storage hostname already exists
+            for (i = 0; i < curr_stor_idx; i++) {
+
+                if (strcmp(s->host, stor_nodes[i].host) == 0) {
+                    // This physical storage node exist
+                    stor_nodes[i].sids_nb++;
+                    // Check nb. of storages with this hostname
+                    if (stor_nodes[i].sids_nb > STORAGES_MAX_BY_STORAGE_NODE) {
+                        severe("Too many storages with the hostname=%s"
+                                " in volume with vid=%u (number max is %d)",
+                                s->host, config->vid,
+                                STORAGES_MAX_BY_STORAGE_NODE);
+                        errno = EINVAL;
+                        goto out;
+                    }
+                    exist = 1;
+                    break;
+                }
+            }
+
+            // This physical storage node doesn't exist
+            if (exist == 0) {
+
+                if ((curr_stor_idx + 1) > STORAGE_NODES_MAX) {
+                    severe("Too many storages in volume with vid=%u"
+                            " (number max is %d)",
+                            config->vid, STORAGE_NODES_MAX);
+                    errno = EINVAL;
+                    goto out;
+                }
+                // Add this storage node
+                strncpy(stor_nodes[curr_stor_idx].host, s->host,
+                        ROZOFS_HOSTNAME_MAX);
+                stor_nodes[curr_stor_idx].sids_nb++;
+                // Increments the nb. of physical storage nodes
+                curr_stor_idx++;
+            }
+        }
+    }
+    status = 0;
+out:
+    return status;
+}
+
 static int econfig_validate_volumes(econfig_t *config) {
     int status = -1;
     list_t *p, *q;
@@ -599,6 +681,11 @@ static int econfig_validate_volumes(econfig_t *config) {
                 goto out;
             }
         }
+
+        if (econfig_validate_storage_nb(e1)) {
+            goto out;
+        }
+
         if (econfig_validate_clusters(e1) != 0) {
             severe("invalid cluster.");
             goto out;
