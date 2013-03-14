@@ -99,16 +99,6 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         list_push_back(&clt->storages, &mstor->list);
     }
 
-    /* Initialize rozofs */
-    rozofs_layout_initialize();
-
-    /*
-        if (rozofs_initialize(clt->layout) != 0) {
-            fatal("can't initialise rozofs %s", strerror(errno));
-            goto out;
-        }
-     */
-
     status = 0;
 out:
     if (md5pass)

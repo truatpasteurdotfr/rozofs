@@ -209,6 +209,10 @@ static void ientries_release() {
     list_for_each_forward_safe(p, q, &inode_entries) {
         ientry_t *entry = list_entry(p, ientry_t, list);
         list_remove(p);
+        if (entry->db.p != NULL) {
+            free(entry->db.p);
+            entry->db.p = NULL;
+        }
         free(entry);
     }
 }
@@ -1286,6 +1290,10 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
         if ((ie->nlookup -= nlookup) == 0) {
             DEBUG("del entry for %lu", ino);
             del_ientry(ie);
+            if (ie->db.p != NULL) {
+                free(ie->db.p);
+                ie->db.p = NULL;
+            }
             free(ie);
         }
     }
@@ -1589,6 +1597,9 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
+    /* Initialize rozofs */
+    rozofs_layout_initialize();
+
     /* Initiate the connection to the export and get informations
      * about exported filesystem */
     if (exportclt_initialize(
@@ -1832,6 +1843,13 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     fuse_unmount(mountpoint, ch);
     exportclt_release(&exportclt);
     ientries_release();
+    rozofs_layout_release();
+    if (conf.export != NULL)
+        free(conf.export);
+    if (conf.host != NULL)
+        free(conf.host);
+    if (conf.passwd != NULL)
+        free(conf.passwd);
     unlink(ppfile); // best effort
 
     return err ? 1 : 0;

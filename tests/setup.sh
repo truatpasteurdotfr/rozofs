@@ -305,6 +305,34 @@ deploy_clients_local ()
     fi
 }
 
+deploy_clients_local_check () #mount with valgrind
+{
+    echo "------------------------------------------------------"
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+        then
+        echo "Unable to mount RozoFS (configuration file doesn't exist)"
+    else
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+
+        for j in $(seq ${NB_EXPORTS}); do
+            mountpoint -q ${LOCAL_MNT_ROOT}${j}
+            if [ "$?" -ne 0 ]
+            then
+                echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${LOCAL_MNT_PREFIX}${j}"
+
+                if [ ! -e "${LOCAL_MNT_ROOT}${j}" ]
+                then
+                    mkdir -p ${LOCAL_MNT_ROOT}${j}
+                fi
+
+                ${VALGRIND_BINARY} --leak-check=full --show-reachable=yes ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} -f ${LOCAL_MNT_ROOT}${j}
+            else
+                echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j} already mounted)"
+            fi
+        done;
+    fi
+}
+
 undeploy_clients_local ()
 {
     echo "------------------------------------------------------"
@@ -610,6 +638,11 @@ main ()
     then
         check_build
         deploy_clients_local
+
+    elif [ "$1" == "mount_check" ] # mount with valgrind
+    then
+        check_build
+        deploy_clients_local_check
 
     elif [ "$1" == "umount" ]
     then
