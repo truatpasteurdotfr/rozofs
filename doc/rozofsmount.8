@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZOFSMOUNT 8 "JANUARY 2013" Rozofs "User Manuals"
+.TH ROZOFSMOUNT 8 "MARCH 2013" Rozofs "User Manuals"
 .SH NAME
 rozofsmount \- rozofs fuse mount
 .SH SYNOPSIS
@@ -39,7 +39,7 @@ FUSE options:
 \fB\-f\fP
 foreground operation
 .PP
-Rozofs options:
+RozoFS options:
 .TP
 \fB\-H\fP \fIEXPORT_HOST\fP, \fB\-o exporthost=\fP\fIEXPORT_HOST\fP
 Address (or dns name) where exportd deamon is running (default is rozofsexport).
@@ -58,7 +58,13 @@ Address (or dns name) where exportd deamon is running (default is empty).
 specify size of I/O buffer in KiB (in range: 128..8192 - default: 256)
 .TP
 \fB\-o rozofsmaxretry=\fP\fIN\fP
-specify number of retries before I/O error is returned (default: 5)
+specify number of retries before I/O error is returned (default: 50)
+.TP
+\fB\-o rozofsexporttimeout=\fP\fIN\fP
+specify timeout in seconds for exportd requests (default: 25)
+.TP
+\fB\-o rozofsstoragetimeout=\fP\fIN\fP
+specify timeout in seconds for IO storaged requests (default: 3)
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.

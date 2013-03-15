@@ -33,7 +33,7 @@ typedef struct sp_client {
     rpcclt_t rpcclt;
 } sp_client_t;
 
-int sp_client_initialize(sp_client_t *clt);
+int sp_client_initialize(sp_client_t *clt, struct timeval timeout);
 
 void sp_client_release(sp_client_t *clt);
 

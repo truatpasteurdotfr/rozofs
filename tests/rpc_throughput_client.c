@@ -47,11 +47,14 @@ int main(int argc, char *argv[]) {
     }
 
     strncpy(host, argv[1], 255);
+    struct timeval timeo;
+    timeo.tv_sec = 10;
+    timeo.tv_usec = 0;
 
     // Initialize the RPC client
     if (rpcclt_initialize
             (&rpcclt, host, RPC_THROUGHPUT_PROGRAM, RPC_THROUGHPUT_VERSION, 0,
-            0, 0) != 0) {
+            0, 0, timeo) != 0) {
         perror("rpcclt_initialize failed");
         exit(EXIT_FAILURE);
     }

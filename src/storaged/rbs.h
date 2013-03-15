@@ -29,6 +29,13 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/rpc/mclient.h>
 
+/* Timeout in seconds for exportd requests */
+#define RBS_TIMEOUT_EPROTO_REQUESTS 25
+/* Timeout in seconds for storaged requests with mproto */
+#define RBS_TIMEOUT_MPROTO_REQUESTS 15
+/* Timeout in seconds for storaged requests with sproto */
+#define RBS_TIMEOUT_SPROTO_REQUESTS 10
+
 typedef struct rb_entry {
     fid_t fid; ///< unique file identifier associated with the file
     uint8_t layout; ///< layout used for this file.

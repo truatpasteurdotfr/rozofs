@@ -30,7 +30,7 @@
 
 int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
         unsigned long vers, unsigned int sendsz,
-        unsigned int recvsz, uint32_t port_num) {
+        unsigned int recvsz, uint32_t port_num, struct timeval timeout) {
     int status = -1;
     struct sockaddr_in server;
     struct hostent *hp;
@@ -72,36 +72,9 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
         goto out;
     }
     // Set a timeout value for output operations
-
-    struct timeval timeo;
-    timeo.tv_usec = 0;
-    switch (prog) {
-        case EPROTO_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_EPROTO_TIMEOUT_SEC;
-            break;
-        case SPROTO_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_SPROTO_TIMEOUT_SEC;
-            break;
-        case MPROTO_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
-            break;
-        case SMPROTO_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_SMPROTO_TIMEOUT_SEC;
-            break;
-        case SIMPROTO_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_SIMPROTO_TIMEOUT_SEC;
-            break;
-        case RFMMPROTO_PROGRAM_CHECK:
-            timeo.tv_sec = ROZOFS_RFMMPROTO_TIMEOUT_SEC;
-            break;
-        default:
-            fatal("Check version of program failed");
-            goto out;
-    }
-
     if (setsockopt
-            (client->sock, SOL_SOCKET, SO_SNDTIMEO, (char *) &timeo,
-            sizeof (timeo)) < 0) {
+            (client->sock, SOL_SOCKET, SO_SNDTIMEO, (char *) &timeout,
+            sizeof (timeout)) < 0) {
         goto out;
     }
     // This option specifies what should happen when the socket
@@ -136,32 +109,7 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
         goto out;
     }
     // Set TIMEOUT for this connection
-    struct timeval timeout_set;
-    timeout_set.tv_usec = 0;
-    switch (prog) {
-        case EPROTO_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_EPROTO_TIMEOUT_SEC;
-            break;
-        case SPROTO_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_SPROTO_TIMEOUT_SEC;
-            break;
-        case MPROTO_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
-            break;
-        case SMPROTO_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_SMPROTO_TIMEOUT_SEC;
-            break;
-        case SIMPROTO_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_SIMPROTO_TIMEOUT_SEC;
-            break;
-        case RFMMPROTO_PROGRAM_CHECK:
-            timeout_set.tv_sec = ROZOFS_RFMMPROTO_TIMEOUT_SEC;
-            break;
-        default:
-            fatal("Check version of program failed");
-            goto out;
-    }
-    clnt_control(client->client, CLSET_TIMEOUT, (char *) &timeout_set);
+    clnt_control(client->client, CLSET_TIMEOUT, (char *) &timeout);
 
     status = 0;
 out:

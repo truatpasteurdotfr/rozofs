@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 
 #ifndef _MPCLIENT_H
@@ -33,7 +33,7 @@ typedef struct mp_client {
     rpcclt_t rpcclt;
 } mp_client_t;
 
-int mp_client_initialize(mp_client_t *clt);
+int mp_client_initialize(mp_client_t *clt, struct timeval timeout);
 
 void mp_client_release(mp_client_t *clt);
 

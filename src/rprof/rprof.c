@@ -51,6 +51,9 @@
 
 #include "config.h"
 
+/* Timeout in seconds for exportd requests */
+#define RPROF_TIMEOUT_REQUESTS 10
+
 static char *profiled_host;
 
 static int profiling_port = 0;
@@ -60,6 +63,8 @@ static char *profiled_service;
 static char *profiling_cmde;
 
 static int profiling_watch = 0;
+
+static struct timeval timeo;
 
 static union {
     sp_client_t sp[STORAGE_NODE_PORTS_MAX + 1 + STORAGES_MAX_BY_STORAGE_NODE];
@@ -83,7 +88,7 @@ static void connect_to_storaged_profil() {
     profiler_client.sp[0].port = profiling_port;
 
     // Connect to master process
-    if (sp_client_initialize(&profiler_client.sp[0]) != 0) {
+    if (sp_client_initialize(&profiler_client.sp[0], timeo) != 0) {
         fprintf(stderr,
                 "failed to connect (master service profiling) to %s: %s\n",
                 profiled_host, strerror(errno));
@@ -101,8 +106,7 @@ static void connect_to_storaged_profil() {
     for (i = 0; i < profiler.nb_io_processes; i++) {
         strncpy(profiler_client.sp[i + 1].host, profiled_host, ROZOFS_HOSTNAME_MAX);
         profiler_client.sp[i + 1].port = profiler.io_process_ports[i];
-
-        if (sp_client_initialize(&profiler_client.sp[i + 1]) != 0) {
+        if (sp_client_initialize(&profiler_client.sp[i + 1], timeo) != 0) {
             fprintf(stderr,
                     "failed to connect (rbs service profiling) to %s: %s\n",
                     profiled_host, strerror(errno));
@@ -117,8 +121,7 @@ static void connect_to_storaged_profil() {
 
         strncpy(profiler_client.sp[j].host, profiled_host, ROZOFS_HOSTNAME_MAX);
         profiler_client.sp[j].port = profiler.rb_process_ports[i];
-
-        if (sp_client_initialize(&profiler_client.sp[j]) != 0) {
+        if (sp_client_initialize(&profiler_client.sp[j], timeo) != 0) {
             // Here error is considered normal because it's possible that the
             // rebuild process is completed the rebuild
             profiler_client.sp[j].port = 0;
@@ -316,7 +319,7 @@ static void profile_storaged() {
 static void connect_to_rozofsmount_profil() {
     strncpy(profiler_client.mp.host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.mp.port = profiling_port;
-    if (mp_client_initialize(&profiler_client.mp) != 0) {
+    if (mp_client_initialize(&profiler_client.mp, timeo) != 0) {
         fprintf(stderr, "failed to connect to %s: %s\n", profiled_host,
                 strerror(errno));
         exit(EXIT_FAILURE);
@@ -445,8 +448,7 @@ static void profile_rozofsmount(char *host, char *cmde) {
 static void connect_to_exportd_profil() {
     strncpy(profiler_client.ep.host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.ep.port = profiling_port;
-    if (ep_client_initialize(&profiler_client.ep) != 0) {
-
+    if (ep_client_initialize(&profiler_client.ep, timeo) != 0) {
         fprintf(stderr, "failed to connect to %s: %s\n", profiled_host, strerror(errno));
         exit(EXIT_FAILURE);
     }
@@ -630,6 +632,10 @@ static void profile_exportd(char *host, char *cmde) {
 
 int main(int argc, char **argv) {
     int c;
+    
+    // Set timeout for RPC requests
+    timeo.tv_sec = RPROF_TIMEOUT_REQUESTS;
+    timeo.tv_usec = 0;
 
     while (1) {
         static struct option long_options[] = {

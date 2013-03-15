@@ -25,12 +25,12 @@
 #include "rpcclt.h"
 #include "mpclient.h"
 
-int mp_client_initialize(mp_client_t *clt) {
+int mp_client_initialize(mp_client_t *clt, struct timeval timeout) {
     int status = -1;
     DEBUG_FUNCTION;
 
     if (rpcclt_initialize(&clt->rpcclt, clt->host, ROZOFSMOUNT_PROFILE_PROGRAM,
-            ROZOFSMOUNT_PROFILE_VERSION, 0, 0, clt->port) != 0) {
+            ROZOFSMOUNT_PROFILE_VERSION, 0, 0, clt->port, timeout) != 0) {
         goto out;
     }
 

@@ -2673,12 +2673,13 @@ SWIG_Python_MustGetPtr(PyObject *obj, swig_type_info *ty, int argnum, int flags)
 #define SWIGTYPE_p_signed_char swig_types[12]
 #define SWIGTYPE_p_sp_client swig_types[13]
 #define SWIGTYPE_p_spp_profiler_t swig_types[14]
-#define SWIGTYPE_p_unsigned_char swig_types[15]
-#define SWIGTYPE_p_unsigned_int swig_types[16]
-#define SWIGTYPE_p_unsigned_long_long swig_types[17]
-#define SWIGTYPE_p_unsigned_short swig_types[18]
-static swig_type_info *swig_types[20];
-static swig_module_info swig_module = {swig_types, 19, 0, 0, 0, 0};
+#define SWIGTYPE_p_timeval swig_types[15]
+#define SWIGTYPE_p_unsigned_char swig_types[16]
+#define SWIGTYPE_p_unsigned_int swig_types[17]
+#define SWIGTYPE_p_unsigned_long_long swig_types[18]
+#define SWIGTYPE_p_unsigned_short swig_types[19]
+static swig_type_info *swig_types[21];
+static swig_module_info swig_module = {swig_types, 20, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -11533,18 +11534,33 @@ SWIGINTERN PyObject *ep_client_t_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
 SWIGINTERN PyObject *_wrap_ep_client_initialize(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   ep_client_t *arg1 = (ep_client_t *) 0 ;
+  struct timeval arg2 ;
   void *argp1 = 0 ;
   int res1 = 0 ;
+  void *argp2 ;
+  int res2 = 0 ;
   PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
   int result;
   
-  if (!PyArg_ParseTuple(args,(char *)"O:ep_client_initialize",&obj0)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"OO:ep_client_initialize",&obj0,&obj1)) SWIG_fail;
   res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_ep_client, 0 |  0 );
   if (!SWIG_IsOK(res1)) {
     SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "ep_client_initialize" "', argument " "1"" of type '" "ep_client_t *""'"); 
   }
   arg1 = (ep_client_t *)(argp1);
-  result = (int)ep_client_initialize(arg1);
+  {
+    res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_timeval,  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "ep_client_initialize" "', argument " "2"" of type '" "struct timeval""'"); 
+    }  
+    if (!argp2) {
+      SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "ep_client_initialize" "', argument " "2"" of type '" "struct timeval""'");
+    } else {
+      arg2 = *((struct timeval *)(argp2));
+    }
+  }
+  result = (int)ep_client_initialize(arg1,arg2);
   resultobj = SWIG_From_int((int)(result));
   return resultobj;
 fail:
@@ -11839,18 +11855,33 @@ SWIGINTERN PyObject *sp_client_t_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
 SWIGINTERN PyObject *_wrap_sp_client_initialize(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   sp_client_t *arg1 = (sp_client_t *) 0 ;
+  struct timeval arg2 ;
   void *argp1 = 0 ;
   int res1 = 0 ;
+  void *argp2 ;
+  int res2 = 0 ;
   PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
   int result;
   
-  if (!PyArg_ParseTuple(args,(char *)"O:sp_client_initialize",&obj0)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"OO:sp_client_initialize",&obj0,&obj1)) SWIG_fail;
   res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_sp_client, 0 |  0 );
   if (!SWIG_IsOK(res1)) {
     SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "sp_client_initialize" "', argument " "1"" of type '" "sp_client_t *""'"); 
   }
   arg1 = (sp_client_t *)(argp1);
-  result = (int)sp_client_initialize(arg1);
+  {
+    res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_timeval,  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "sp_client_initialize" "', argument " "2"" of type '" "struct timeval""'"); 
+    }  
+    if (!argp2) {
+      SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "sp_client_initialize" "', argument " "2"" of type '" "struct timeval""'");
+    } else {
+      arg2 = *((struct timeval *)(argp2));
+    }
+  }
+  result = (int)sp_client_initialize(arg1,arg2);
   resultobj = SWIG_From_int((int)(result));
   return resultobj;
 fail:
@@ -12145,18 +12176,33 @@ SWIGINTERN PyObject *mp_client_t_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
 SWIGINTERN PyObject *_wrap_mp_client_initialize(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   mp_client_t *arg1 = (mp_client_t *) 0 ;
+  struct timeval arg2 ;
   void *argp1 = 0 ;
   int res1 = 0 ;
+  void *argp2 ;
+  int res2 = 0 ;
   PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
   int result;
   
-  if (!PyArg_ParseTuple(args,(char *)"O:mp_client_initialize",&obj0)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"OO:mp_client_initialize",&obj0,&obj1)) SWIG_fail;
   res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_mp_client, 0 |  0 );
   if (!SWIG_IsOK(res1)) {
     SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "mp_client_initialize" "', argument " "1"" of type '" "mp_client_t *""'"); 
   }
   arg1 = (mp_client_t *)(argp1);
-  result = (int)mp_client_initialize(arg1);
+  {
+    res2 = SWIG_ConvertPtr(obj1, &argp2, SWIGTYPE_p_timeval,  0 );
+    if (!SWIG_IsOK(res2)) {
+      SWIG_exception_fail(SWIG_ArgError(res2), "in method '" "mp_client_initialize" "', argument " "2"" of type '" "struct timeval""'"); 
+    }  
+    if (!argp2) {
+      SWIG_exception_fail(SWIG_ValueError, "invalid null reference " "in method '" "mp_client_initialize" "', argument " "2"" of type '" "struct timeval""'");
+    } else {
+      arg2 = *((struct timeval *)(argp2));
+    }
+  }
+  result = (int)mp_client_initialize(arg1,arg2);
   resultobj = SWIG_From_int((int)(result));
   return resultobj;
 fail:
@@ -13193,6 +13239,7 @@ static swig_type_info _swigt__p_short = {"_p_short", "short *|int_least16_t *|in
 static swig_type_info _swigt__p_signed_char = {"_p_signed_char", "signed char *|int_least8_t *|int_fast8_t *|int8_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_sp_client = {"_p_sp_client", "sp_client_t *|struct sp_client *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_spp_profiler_t = {"_p_spp_profiler_t", "struct spp_profiler_t *|spp_profiler_t *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_timeval = {"_p_timeval", "struct timeval *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_char = {"_p_unsigned_char", "unsigned char *|uint_least8_t *|uint_fast8_t *|uint8_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_int = {"_p_unsigned_int", "uintptr_t *|uint_least32_t *|uint_fast32_t *|uint32_t *|unsigned int *|uint_fast16_t *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_unsigned_long_long = {"_p_unsigned_long_long", "uint_least64_t *|uint_fast64_t *|uint64_t *|unsigned long long *|uintmax_t *", 0, 0, (void*)0, 0};
@@ -13214,6 +13261,7 @@ static swig_type_info *swig_type_initial[] = {
   &_swigt__p_signed_char,
   &_swigt__p_sp_client,
   &_swigt__p_spp_profiler_t,
+  &_swigt__p_timeval,
   &_swigt__p_unsigned_char,
   &_swigt__p_unsigned_int,
   &_swigt__p_unsigned_long_long,
@@ -13235,6 +13283,7 @@ static swig_cast_info _swigc__p_short[] = {  {&_swigt__p_short, 0, 0, 0},{0, 0, 
 static swig_cast_info _swigc__p_signed_char[] = {  {&_swigt__p_signed_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_sp_client[] = {  {&_swigt__p_sp_client, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_spp_profiler_t[] = {  {&_swigt__p_spp_profiler_t, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_timeval[] = {  {&_swigt__p_timeval, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_char[] = {  {&_swigt__p_unsigned_char, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_int[] = {  {&_swigt__p_unsigned_int, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_unsigned_long_long[] = {  {&_swigt__p_unsigned_long_long, 0, 0, 0},{0, 0, 0, 0}};
@@ -13256,6 +13305,7 @@ static swig_cast_info *swig_cast_initial[] = {
   _swigc__p_signed_char,
   _swigc__p_sp_client,
   _swigc__p_spp_profiler_t,
+  _swigc__p_timeval,
   _swigc__p_unsigned_char,
   _swigc__p_unsigned_int,
   _swigc__p_unsigned_long_long,

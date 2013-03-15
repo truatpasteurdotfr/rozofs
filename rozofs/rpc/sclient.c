@@ -26,7 +26,7 @@
 #include "rpcclt.h"
 #include "sclient.h"
 
-int sclient_initialize(sclient_t * sclt) {
+int sclient_initialize(sclient_t * sclt, struct timeval timeout) {
     int status = -1;
     DEBUG_FUNCTION;
 
@@ -34,7 +34,7 @@ int sclient_initialize(sclient_t * sclt) {
 
     if (rpcclt_initialize(&sclt->rpcclt, sclt->host, STORAGE_PROGRAM,
             STORAGE_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
-            sclt->port) != 0) {
+            sclt->port, timeout) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);

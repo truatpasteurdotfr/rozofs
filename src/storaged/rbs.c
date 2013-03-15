@@ -513,8 +513,12 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
     strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
     memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
 
+    struct timeval timeo;
+    timeo.tv_sec = RBS_TIMEOUT_MPROTO_REQUESTS;
+    timeo.tv_usec = 0;
+
     // Initialize connection with this storage (by mproto)
-    if (mclient_initialize(&rb_stor->mclient) != 0) {
+    if (mclient_initialize(&rb_stor->mclient, timeo) != 0) {
         severe("failed to join storage (host: %s), %s.",
                 rb_stor->host, strerror(errno));
         goto out;
@@ -530,11 +534,16 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
     // Initialize each TCP ports connection with this storage (by sproto)
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
         if (ports[i] != 0) {
+
+            struct timeval timeo;
+            timeo.tv_sec = RBS_TIMEOUT_SPROTO_REQUESTS;
+            timeo.tv_usec = 0;
+
             strncpy(rb_stor->sclients[i].host, rb_stor->host,
                     ROZOFS_HOSTNAME_MAX);
             rb_stor->sclients[i].port = ports[i];
             rb_stor->sclients[i].status = 0;
-            if (sclient_initialize(&rb_stor->sclients[i]) != 0) {
+            if (sclient_initialize(&rb_stor->sclients[i], timeo) != 0) {
                 severe("failed to join storage (host: %s, port: %u), %s.",
                         rb_stor->host, rb_stor->sclients[i].port,
                         strerror(errno));

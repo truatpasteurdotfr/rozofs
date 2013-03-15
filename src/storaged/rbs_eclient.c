@@ -49,10 +49,14 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
 
     DEBUG_FUNCTION;
 
+    struct timeval timeo;
+    timeo.tv_sec = RBS_TIMEOUT_EPROTO_REQUESTS;
+    timeo.tv_usec = 0;
+
     // Initialize connection with exportd server
     if (rpcclt_initialize
             (clt, export_host, EXPORT_PROGRAM, EXPORT_VERSION,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0) != 0)
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, timeo) != 0)
         goto out;
 
     // Send request
