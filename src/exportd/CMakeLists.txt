@@ -38,6 +38,7 @@ add_executable(exportd
     dirent_cache.c
     dirent_search.c
     dirent_insert.c
+    dirent_enum2String_file_repair_cause_e.h
     cache.h
     cache.c
     export.h

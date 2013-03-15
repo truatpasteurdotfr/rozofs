@@ -36,9 +36,8 @@
 
 #include "mdir.h"
 #include "mdirent.h"
-
-/**< Max number of hash entry that can be scanned in a list before asserting a loop detection */
-#define DIRENT_MAX_SUPPORTED_COLL  900
+//#define DIRENT_LKUP_TRACKING 1
+//#warning DIRENT_LKUP_TRACKING activated
 
 /**
  * Dirent search tracing buffer structure
@@ -135,13 +134,20 @@ mdirents_cache_entry_t *dirent_cache_search_hash_entry (  int dir_fd,
    mdirents_cache_entry_t        *cache_entry_cur;
    //mdirents_cache_entry_t        *cache_entry_prev;
    uint32_t                       coll_cnt = 0;
-   //int                            hash_entry_bucket_idx = bucket_idx ;
+#ifdef DIRENT_LKUP_TRACKING
+   int                            hash_entry_bucket_idx = bucket_idx ;
+#endif
    int                            repair = 0;
    dirent_file_repair_cause_e    cause;
 
    *hash_entry_match_idx_p = -1;
    if (user_name_entry_p!= NULL)*user_name_entry_p = NULL;
    if (user_hash_entry_p!= NULL)*user_hash_entry_p = NULL;
+   
+   /*
+   ** check if bucket list is safe, if unsafe rebuild the list
+   */
+   dirent_cache_is_bucket_idx_safe(dir_fd,root,bucket_idx);
    /*
    ** Big Loop for searching starts here
    */
@@ -195,6 +201,7 @@ reloop:
         */
         if (repair == 0)
         {
+	  coll_cnt = 0;
           dirent_file_repair(dir_fd,root,bucket_idx,DIRENT_REPAIR_LOOP);
           repair = 1;
           goto reloop;
@@ -202,8 +209,8 @@ reloop:
         /*
         ** repair has already been done, so exit
         */
-        DIRENT_SEVERE("dirent_cache_search_hash_entry: collision counter exhausted for bucket_idx %d dirent[%d.%d]\n",
-                     bucket_idx,cache_entry_cur->header.dirent_idx[0],cache_entry_cur->header.dirent_idx[1]);
+        DIRENT_SEVERE("dirent_cache_search_hash_entry: collision counter exhausted for bucket_idx %d dirent[%d.%d],%s",
+                     bucket_idx,cache_entry_cur->header.dirent_idx[0],cache_entry_cur->header.dirent_idx[1],name);
         return NULL;
       }
 
@@ -274,7 +281,9 @@ reloop:
         /*
         ** get the index of the bucket for tracing purpose only
         */
-        //hash_entry_bucket_idx = DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_cur_p);
+#ifdef DIRENT_LKUP_TRACKING
+        hash_entry_bucket_idx = DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_cur_p);
+#endif
         /*
         ** Check if there is a match with that value
         */

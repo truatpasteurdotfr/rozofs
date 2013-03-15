@@ -37,6 +37,22 @@ add_executable(test_dist
     test_dist.c
 )
 
+add_executable(test_xattr
+    test_xattr.c
+)
+
+add_executable(test_truncate
+    test_truncate.c
+)
+
+add_executable(test_write_all_offset
+    test_write_all_offset.c
+)
+
+add_executable(read_dirent_file
+    read_dirent_file.c
+)
+
 add_executable(test_transform
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c

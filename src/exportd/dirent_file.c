@@ -64,8 +64,8 @@ collisions Max level0/level1 1/0
  */
 #define DIRENT_BUCKET_DEPTH_IN_BIT   16
 
-#define DIRENT_BUCKET_MAX_ROOT_DIRENT (2560000*2)
-
+#define DIRENT_BUCKET_MAX_ROOT_DIRENT (256000)
+//#define DIRENT_BUCKET_MAX_ROOT_DIRENT (4)
 
 #define DIRENT_BUCKET_MAX_COLLISIONS  256  /**< number of collisions that can be supported by a bucket  */
 #define DIRENT_BUCKET_MAX_COLLISIONS_BYTES  (DIRENT_BUCKET_MAX_COLLISIONS/8)  /**< number of collisions that can be supported by a bucket  */
@@ -81,7 +81,7 @@ typedef struct _dirent_cache_bucket_entry_t {
  *  dirent cache structure
  */
 typedef struct _dirent_cache_bucket_t {
-    list_t cache_link; /**< linked list of the cahe bucket   */
+    list_t bucket_lru_link; /**< link list for bucket LRU  */
     uint8_t bucket_free_bitmap[DIRENT_BUCKET_MAX_COLLISIONS_BYTES]; /**< bitmap of the free entries  */
     dirent_cache_bucket_entry_t * entry_tb[DIRENT_BUCKET_ENTRY_MAX_ARRAY]; /**< pointer to the memory array that contains the entries */
 
@@ -90,9 +90,11 @@ typedef struct _dirent_cache_bucket_t {
 typedef struct _dirent_cache_main_t {
     uint32_t max; /**< maximum number of entries in the cache */
     uint32_t size; /**< current number of entries in the cache */
-    list_t entries; /**< entries cached: used for LRU           */
+    list_t global_lru_link; /**< entries cached: used for LRU           */
     dirent_cache_bucket_t *htable; /**< pointer to the bucket array of the cache */
 } dirent_cache_main_t;
+
+int dirent_cache_bucket_remove_entry(dirent_cache_main_t *cache, fid_t fid, uint16_t index);
 
 /*
  ** Dirent level 0 cache
@@ -100,14 +102,28 @@ typedef struct _dirent_cache_main_t {
 dirent_cache_main_t dirent_cache_level0;
 
 uint32_t dirent_buckect_cache_initialized = 0; /**< assert to 1 once cache is initialized */
-uint32_t dirent_bucket_cache_enable = 1;
 uint32_t dirent_bucket_cache_append_counter = 0;
 uint64_t dirent_bucket_cache_hit_counter = 0;
 uint64_t dirent_bucket_cache_miss_counter = 0;
 uint64_t dirent_bucket_cache_collision_counter = 0;
+uint64_t dirent_bucket_cache_lru_counter_global = 0;
+uint64_t dirent_bucket_cache_lru_counter_coll = 0;
+uint64_t dirent_bucket_cache_lru_global_error = 0;
+uint64_t dirent_bucket_cache_lru_coll_error = 0;
 uint64_t dirent_bucket_cache_collision_level0_counter = 0;
 int dirent_bucket_cache_max_level0_collisions = 0; /**< max number of collision at level 0  */
 int dirent_bucket_cache_max_level1_collisions = 0; /**< max number of collision at level 1  */
+
+int dirent_root_read_only = 0;
+
+
+#if 1
+uint32_t dirent_bucket_cache_enable = 1;
+#else
+#warning dirent cache is disable
+uint32_t dirent_bucket_cache_enable = 0;
+#endif
+uint8_t dirent_cache_safe_enable = 1;
 
 /*
  **______________________________________________________________________________
@@ -169,7 +185,7 @@ void dirent_cache_level0_initialize() {
     dirent_cache_main_t *cache = &dirent_cache_level0;
     cache->max = DIRENT_BUCKET_MAX_ROOT_DIRENT;
     cache->size = 0;
-    list_init(&cache->entries);
+    list_init(&cache->global_lru_link);
     /*
      ** Allocate the memory to handle the buckets
      */
@@ -185,7 +201,7 @@ void dirent_cache_level0_initialize() {
     int i;
     p = cache->htable;
     for (i = 0; i < (1 << DIRENT_BUCKET_DEPTH_IN_BIT); i++, p++) {
-        list_init(&p->cache_link);
+        list_init(&p->bucket_lru_link);
         memset(&p->bucket_free_bitmap, 0xff, DIRENT_BUCKET_MAX_COLLISIONS_BYTES);
         memset(&p->entry_tb, 0, DIRENT_BUCKET_ENTRY_MAX_ARRAY * sizeof (void*));
     }
@@ -222,6 +238,7 @@ int dirent_cache_bucket_insert_entry(dirent_cache_main_t *cache, fid_t fid, uint
     uint32_t hash_value;
     uint16_t hash_bucket;
     uint16_t hash_bucket_entry;
+    
 
     /*
      ** compute the hash value for the bucket and the bucket_entry
@@ -230,12 +247,38 @@ int dirent_cache_bucket_insert_entry(dirent_cache_main_t *cache, fid_t fid, uint
     hash_bucket = (hash_value >> 16) ^ (hash_value & 0xffff);
 
     hash_bucket_entry = (uint16_t) (hash_value & 0xffff);
-
+    
+    /*
+    ** LRU handling: check for cache full condition: release one entry from the global link
+    */
+    if (cache->size >= cache->max)
+    {
+      int ret;
+      mdirents_cache_entry_t *cache_entry_lru_p = list_entry(cache->global_lru_link.prev, mdirents_cache_entry_t, cache_link);
+      ret = dirent_cache_bucket_remove_entry(cache,cache_entry_lru_p->key.dir_fid,cache_entry_lru_p->key.dirent_root_idx);
+      if (ret == -1) 
+      {
+        /*
+        ** not really normal
+        */
+        dirent_bucket_cache_lru_global_error++;
+        severe("Debug fail to Remove %p index %d ",cache_entry_lru_p,-1 );
+        return -1;      
+      }
+      /*
+      ** release the memory allocated for storing the dirent file
+      */
+      dirent_bucket_cache_lru_counter_global++;
+      dirent_cache_release_entry(cache_entry_lru_p);
+    }
     /*
      ** set the pointer to the bucket and load up the pointer to the bitmap
      */
+reloop:
     bucket_p = &cache->htable[hash_bucket];
     bitmap_p = bucket_p->bucket_free_bitmap;
+    coll_idx = 0;
+    next_coll_idx = 0;
 
     while (coll_idx < DIRENT_BUCKET_MAX_COLLISIONS) {
         if (coll_idx % 8 == 0) {
@@ -292,12 +335,39 @@ int dirent_cache_bucket_insert_entry(dirent_cache_main_t *cache, fid_t fid, uint
         local_idx = coll_idx % DIRENT_BUCKET_NB_ENTRY_PER_ARRAY;
         cache_bucket_entry_p->hash_value_table[local_idx] = hash_bucket_entry;
         cache_bucket_entry_p->entry_ptr_table[local_idx] = entry;
+        /*
+        ** do the job for LRU
+        */
+        {
+          mdirents_cache_entry_t *dirent_cache_p = (mdirents_cache_entry_t*)entry;
+          list_push_front(&cache->global_lru_link, &dirent_cache_p->cache_link);
+          list_push_front(&bucket_p->bucket_lru_link, &dirent_cache_p->coll_link);
+          cache->size++;
+        }
         return 0;
     }
     /*
-     ** Out of entries-> need to go through LRU-> TODO
-     */
-    return -1;
+    ** Out of entries-> need to go through bucket LRU-> remove the oldest one
+    */
+    {
+      int ret;
+      mdirents_cache_entry_t *cache_entry_lru_p = list_entry(bucket_p->bucket_lru_link.prev, mdirents_cache_entry_t, coll_link);
+      ret = dirent_cache_bucket_remove_entry(cache,cache_entry_lru_p->key.dir_fid,cache_entry_lru_p->key.dirent_root_idx);
+      if (ret == -1) 
+      {
+        /*
+        ** not really normal
+        */
+        dirent_bucket_cache_lru_coll_error++;
+        return -1;      
+      }
+      /*
+      ** release the memory allocated for storing the dirent file
+      */
+      dirent_bucket_cache_lru_counter_coll++;
+      dirent_cache_release_entry(cache_entry_lru_p);
+    }
+    goto reloop;
 }
 
 /**
@@ -422,6 +492,15 @@ mdirents_cache_entry_t *dirent_cache_bucket_search_entry(dirent_cache_main_t *ca
         }
 #endif
         dirent_bucket_cache_hit_counter++;
+        /*
+        ** do the job for LRU
+        */
+        {
+          list_remove(&cache_entry_p->cache_link);
+          list_remove(&cache_entry_p->coll_link);
+          list_push_front(&cache->global_lru_link, &cache_entry_p->cache_link);
+          list_push_front(&bucket_p->bucket_lru_link, &cache_entry_p->coll_link);
+        }
         return cache_entry_p;
 
     }
@@ -538,6 +617,14 @@ int dirent_cache_bucket_remove_entry(dirent_cache_main_t *cache, fid_t fid, uint
             continue;
         }
         /*
+        ** do the job for LRU
+        */
+        {
+          list_remove(&cache_entry_p->cache_link);
+          list_remove(&cache_entry_p->coll_link);          
+          cache->size--;
+        }
+        /*
          **________________________________________________
          ** OK, we got the match, remove it from cache
          **________________________________________________
@@ -563,6 +650,7 @@ int dirent_cache_bucket_remove_entry(dirent_cache_main_t *cache, fid_t fid, uint
             bucket_p->entry_tb[bucket_entry_arrray_idx] = NULL;
         }
         dirent_bucket_cache_hit_counter++;
+
         return 0;
     }
     /*
@@ -614,7 +702,51 @@ static inline uint32_t filename_uuid_hash_fnv(uint32_t h, void *key1, void *key2
     return h;
 }
 
+
+
+
+/**
+ *   Compute the hash values for the name and fid: called from listdir
+
+ @param key1 : pointer to a string 
+ @param key2 : pointer to a fid (16 bytes)
+ @param hash2 : pointer to the second hash value that is returned
+ @param len : len of the key 1(trailing \0 must not be included)
+
+ @retval primary hash value
+ */
+static inline uint32_t filename_uuid_hash_fnv_with_len(uint32_t h, void *key1, void *key2, uint32_t *hash2, int len) {
+
+    unsigned char *d = (unsigned char *) key1;
+    int i = 0;
+
+    if (h == 0) h = 2166136261U;
+    /*
+     ** hash on name
+     */
+    d = key1;
+    for (i = 0; i <len ; d++, i++) {
+        h = (h * 16777619)^ *d;
+
+    }
+
+    *hash2 = h;
+    /*
+     ** hash on fid
+     */
+    d = (unsigned char *) key2;
+    for (d = key2; d != key2 + 16; d++) {
+        h = (h * 16777619)^ *d;
+
+    }
+    return h;
+}
+
+
+//#define DIRENT_ROOT_FILE_IDX_SHIFT 0
+//#warning DIRENT_ROOT_FILE_IDX_SHIFT is 0 
 #define DIRENT_ROOT_FILE_IDX_SHIFT 12
+
 //#define DIRENT_ROOT_FILE_IDX_SHIFT 10
 #define DIRENT_ROOT_FILE_IDX_MASK ((1<<DIRENT_ROOT_FILE_IDX_SHIFT)-1)
 #define DIRENT_ROOT_FILE_IDX_MAX   (1 << DIRENT_ROOT_FILE_IDX_SHIFT)
@@ -736,6 +868,14 @@ int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_hash_entry_t *hash_entry_p = NULL;
     mdirents_hash_ptr_t mdirents_hash_ptr;
 
+
+    /*
+    ** Allow a priori to read and write on the root cache entry
+    ** In case of some error while reading the dirent files from 
+    ** disk, the rigths may be downgraded to read only.
+    */
+    DIRENT_ROOT_SET_READ_WRITE();
+    
     /*
      ** dirfd is the file descriptor associated with the parent directory
      */
@@ -824,9 +964,20 @@ int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     /*
      ** The entry does not exist, we need to allocate a free hash entry from on of the dirent file
      ** associated with the root dirent file. If all the current dirent file (collision) are full
-     ** a new dirent collision file (an a cache entry) will be created
+     ** a new dirent collision file (an a cache entry) will be created.
+     **
+     ** The creation is forbidden where the read_only flag is asserted.
      */
     if (root_entry_p == NULL) {
+        if (DIRENT_ROOT_IS_READ_ONLY())
+	{
+	   /*
+	   ** cannot write
+	   */
+	   errno = EIO;
+	   goto out;
+	
+	}
         root_entry_p = dirent_cache_create_entry(&dirent_hdr);
         if (root_entry_p == NULL) {
             DIRENT_SEVERE("put_mdirentry at line %d\n", __LINE__);
@@ -973,7 +1124,19 @@ out:
     /*
      ** do not release the entry if it is already in the cache
      */
-    if (cached == 1) return status;
+    if (cached == 1) 
+    {
+      /*
+      ** the content of the dirent file (root+ collision) is in the cache
+      ** need to remove from cache if read only is asserted
+      */
+      if (DIRENT_ROOT_IS_READ_ONLY())
+      {
+        dirent_remove_root_entry_from_cache(fid_parent, root_idx);
+	dirent_cache_release_entry(root_entry_p);
+      }
+      return status;
+    }
 
     if (root_entry_p != NULL) {
         int ret = 0;
@@ -1024,6 +1187,12 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     /*
      ** dirfd is the file descriptor associated with the parent directory
      */
+    /*
+    ** Allow a priori to read and write on the root cache entry
+    ** In case of some error while reading the dirent files from 
+    ** disk, the rigths may be downgraded to read only.
+    */
+    DIRENT_ROOT_SET_READ_WRITE();
 
     /*
      ** build a hash value based on the fid of the parent directory and the name to search
@@ -1075,42 +1244,6 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
             cached = 1;
         }
     }
-#if 0
-    while (fdl_root_count < 2) {
-#warning DEBUG for repair
-
-        if (bucket_idx != 5) break;
-
-        if (fdl_root_idx == -1) {
-            fdl_root_idx = root_idx;
-        } else {
-            if (fdl_root_idx == root_idx) break;
-        }
-        {
-            dirent_repair_print_enable = 1;
-            printf("-------------- FDL DEBUG check file for root_idx %d  --------------\n", root_idx);
-            dirent_file_check(dirfd, root_entry_p, bucket_idx);
-            fdl_root_count++;
-            printf("------------------------------------------------------------------->\n\n\n\n\n");
-            dirent_repair_print_enable = 0;
-
-        }
-        break;
-    }
-#endif
-#if 0
-#warning FDL_DEBUG control the filename
-    {
-
-        if (strcmp(name, "file_test_put_mdirentry_770") == 0) {
-            printf("get_mdirentry---> dirent_file:%d file %s \n", __LINE__, name);
-            dirent_repair_print_enable = 1;
-            dirent_file_check(dirfd, root_entry_p, bucket_idx);
-            dirent_repair_print_enable = 0;
-            printf("\nEnd\n");
-        }
-    }
-#endif
 
     /*
      ** search if the entry exist and if so just replace the content of fid
@@ -1183,12 +1316,24 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
      ** not found
      */
 out:
-    if (cached == 1) return status;
+    if (cached == 1) 
+    {
+      /*
+      ** the content of the dirent file (root+ collision) is in the cache
+      ** need to remove from cache if read only is asserted
+      */
+      if (DIRENT_ROOT_IS_READ_ONLY())
+      {
+        dirent_remove_root_entry_from_cache(fid_parent, root_idx);
+	dirent_cache_release_entry(root_entry_p);
+      }
+      return status;        
+    }
     if (root_entry_p != NULL) {
         int ret = 0;
         ret = dirent_cache_release_entry(root_entry_p);
         if (ret < 0) {
-            DIRENT_SEVERE(" get_mdirentry failed to release cache entry\n");
+            DIRENT_SEVERE(" get_mdirentry failed to release cache entry for %s",name);
         }
     }
     return status;
@@ -1239,7 +1384,12 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_cache_entry_t *root_entry_p;
     mdirents_cache_entry_t *cache_entry_p;
     mdirents_cache_entry_t *returned_prev_entry_p;
-
+    /*
+    ** Allow a priori to read and write on the root cache entry
+    ** In case of some error while reading the dirent files from 
+    ** disk, the rigths may be downgraded to read only.
+    */
+    DIRENT_ROOT_SET_READ_WRITE();
 
     /*
      ** dirfd is the file descriptor associated with the parent directory
@@ -1358,6 +1508,7 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
                 if (dirent_remove_root_entry_from_cache(fid_parent, root_idx) < 0) {
                     DIRENT_WARN("del_mdirentry: Root not found in level0 cache at line %d\n", __LINE__);
                 }
+		cached = 0;
             }
             /*
              ** remove the file
@@ -1434,6 +1585,7 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
                     if (dirent_remove_root_entry_from_cache(fid_parent, root_idx) < 0) {
                         DIRENT_WARN("del_mdirentry: Root not found in level0 cache at line %d\n", __LINE__);
                     }
+		    cached = 0;
                 }
 
                 /*
@@ -1492,7 +1644,19 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     status = 0;
 
 out:
-    if (cached == 1) return status;
+    if (cached == 1) 
+    {
+      /*
+      ** the content of the dirent file (root+ collision) is in the cache
+      ** need to remove from cache if read only is asserted
+      */
+      if (DIRENT_ROOT_IS_READ_ONLY())
+      {
+        dirent_remove_root_entry_from_cache(fid_parent, root_idx);
+	dirent_cache_release_entry(root_entry_p);
+      }
+      return status;        
+    }
     if (root_entry_p != NULL) {
         int ret = 0;
         ret = dirent_cache_release_entry(root_entry_p);
@@ -1556,6 +1720,8 @@ int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t
     uint8_t *coll_bitmap_p;
     int next_hash_entry_idx;
 
+
+
     dirent_readdir_stats_call_count++;
     /*
      ** load up the cookie to figure out where to start the read
@@ -1581,6 +1747,14 @@ int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t
      */
     while (read_file < MAX_DIR_ENTRIES) {
         while (root_idx < DIRENT_ROOT_FILE_IDX_MAX) {
+
+	   /*
+	   ** Allow a priori to read and write on the root cache entry
+	   ** In case of some error while reading the dirent files from 
+	   ** disk, the rigths may be downgraded to read only.
+	   */
+	   DIRENT_ROOT_SET_READ_WRITE();
+
             /*
              ** attempt to get the dirent root file from the cache
              */
@@ -1662,6 +1836,19 @@ int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t
         sect0_p = DIRENT_VIRT_TO_PHY_OFF(root_entry_p, sect0_p);
         if (sect0_p == (mdirent_sector0_not_aligned_t*) NULL) {
             DIRENT_SEVERE("list_mdirentries sector 0 ptr does not exist( line %d\n)", __LINE__);
+	    if (cached == 1) 
+	    {
+	      /*
+	      ** the content of the dirent file (root+ collision) is in the cache
+	      ** need to remove from cache if read only is asserted
+	      */
+	      if (DIRENT_ROOT_IS_READ_ONLY())
+	      {
+        	dirent_remove_root_entry_from_cache(fid_parent, root_idx);
+		dirent_cache_release_entry(root_entry_p);
+	      }
+	      cached = 0;
+	    }
             root_idx++;
             root_entry_p = NULL;
             continue;
@@ -1713,7 +1900,7 @@ get_next_collidx:
                      ** something is rotten in the cache since the pointer to the collision dirent cache
                      ** does not exist
                      */
-                    DIRENT_SEVERE("list_mdirentries error at %d\n", __LINE__);
+                    DIRENT_SEVERE("list_mdirentries not collisiob file %d\n", coll_idx);
                     /*
                      ** OK, do not break the analysis, skip that collision entry and try the next if any
                      */
@@ -1735,6 +1922,19 @@ get_next_collidx:
             coll_idx = 0;
             hash_entry_idx = 0;
             index_level = 0;
+	    if (cached == 1) 
+	    {
+	      /*
+	      ** the content of the dirent file (root+ collision) is in the cache
+	      ** need to remove from cache if read only is asserted
+	      */
+	      if (DIRENT_ROOT_IS_READ_ONLY())
+	      {
+        	dirent_remove_root_entry_from_cache(fid_parent, root_idx);
+		dirent_cache_release_entry(root_entry_p);
+	      }
+	      cached = 0;
+	    }
             root_entry_p = NULL;
             root_idx++;
             continue;
@@ -1811,10 +2011,46 @@ get_next_collidx:
                 hash_entry_idx++;
                 continue;
             }
+
             /**
              *  that's songs good, copy the content of the name in the result buffer
              */
             //        printf("Current Count %llu Hash entry idx %d: %s \n", (long long unsigned int)dirent_readdir_stats_file_count,hash_entry_idx,name_entry_p->name);
+            /*
+	    ** check the length of the filename, if the length is 0, it indicates that we read a truncate dirent file
+	    ** so we skip that entry and goes to the next one
+	    */
+	    if (name_entry_p->len == 0)
+	    {
+	       char fidstr[37];
+	       uuid_unparse(fid_parent, fidstr);
+
+                severe("empty name entry in directory %s at hash_idx %d in file d_%d collision idx %d",
+		        fidstr,hash_entry_idx,root_idx,coll_idx);
+                hash_entry_idx++;
+                continue;	    
+	    
+	    }
+            {
+	      uint32_t hash1;
+	      uint32_t hash2;
+	      int computed_root_idx;
+	      int len = name_entry_p->len;
+	      
+	      
+              hash1 = filename_uuid_hash_fnv_with_len(0, name_entry_p->name, fid_parent, &hash2, len);
+              /*
+              ** attempt to get the root dirent file from cache: check if there is match with the root idx
+	      ** the hash of the hash_entry-> no match: skip the entry	     
+              */
+              computed_root_idx = hash1 & DIRENT_ROOT_FILE_IDX_MASK;	      
+              if ((computed_root_idx != root_idx) ||(hash_entry_p->hash != (hash2 &DIRENT_ENTRY_HASH_MASK)))
+	      {
+                hash_entry_idx++;
+                continue;	   	      	      	      
+	      }
+            }
+
             *iterator = xmalloc(sizeof (child_t));
             memset(*iterator, 0, sizeof (child_t));
             memcpy((*iterator)->fid, name_entry_p->fid, sizeof (fid_t));
@@ -1872,7 +2108,19 @@ get_next_collidx:
     /*
      ** check the cache status to figure out if root entry need to be released
      */
-    if (cached == 1) return 0;
+    if (cached == 1) 
+    {
+      /*
+      ** the content of the dirent file (root+ collision) is in the cache
+      ** need to remove from cache if read only is asserted
+      */
+      if (DIRENT_ROOT_IS_READ_ONLY())
+      {
+        dirent_remove_root_entry_from_cache(fid_parent, root_idx);
+	dirent_cache_release_entry(root_entry_p);
+      }
+      return 0;
+    }
     if (root_entry_p != NULL) {
         int ret = 0;
         ret = dirent_cache_release_entry(root_entry_p);
@@ -1882,6 +2130,5 @@ get_next_collidx:
     }
     return 0;
 }
-
 
 #endif
