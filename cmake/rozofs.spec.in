@@ -169,7 +169,7 @@ mkdir -p %{buildroot}/etc/default
 %{_libdir}/python2.6/site-packages/rozofs/core/constants.py
 %{_libdir}/python2.6/site-packages/rozofs/core/exportd.py
 %{_libdir}/python2.6/site-packages/rozofs/core/profile.py
-%{_libdir}/python2.6/site-packages/rozofs/core/share.py
+%{_libdir}/python2.6/site-packages/rozofs/core/rozofsmount.py
 %exclude %{_libdir}/python2.6/site-packages/rozofs/cli/platform.pyc
 %exclude %{_libdir}/python2.6/site-packages/rozofs/cli/agent.pyc
 %exclude %{_libdir}/python2.6/site-packages/rozofs/cli/__init__.pyc
@@ -187,7 +187,7 @@ mkdir -p %{buildroot}/etc/default
 %exclude %{_libdir}/python2.6/site-packages/rozofs/core/constants.pyc
 %exclude %{_libdir}/python2.6/site-packages/rozofs/core/exportd.pyc
 %exclude %{_libdir}/python2.6/site-packages/rozofs/core/profile.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/share.pyc
+%exclude %{_libdir}/python2.6/site-packages/rozofs/core/rozofsmount.pyc
 %exclude %{_libdir}/python2.6/site-packages/rozofs_manager-@VERSION@-py2.6.egg-info
 
 %files manager-cli

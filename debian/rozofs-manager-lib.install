@@ -17,4 +17,4 @@
 /usr/lib/python2.6/dist-packages/rozofs/core/constants.py
 /usr/lib/python2.6/dist-packages/rozofs/core/exportd.py
 /usr/lib/python2.6/dist-packages/rozofs/core/profile.py
-/usr/lib/python2.6/dist-packages/rozofs/core/share.py
+/usr/lib/python2.6/dist-packages/rozofs/core/rozofsmount.py
