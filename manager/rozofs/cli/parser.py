@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import socket
 from rozofs.cli.agent import agent_dispatch
 from rozofs.core.constants import EXPORTD_MANAGER, STORAGED_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.cli.platform import platform_dispatch, STR_ROLES
-import socket
+from rozofs import __version__
 
 __main_parser = argparse.ArgumentParser(description='Rozofs storage platform management tool.', usage='%(prog)s [options] [command] [options]')
+__main_parser.add_argument('-V', '--version', action='version', version=__version__, help='get version.')
 __main_parser.add_argument('-d', '--debug', action='store_true', help='set debugging on')
 __cmd_parser = __main_parser.add_subparsers(help='commands list')
 
@@ -39,7 +41,7 @@ __parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='run
 
 
 #
-# platform commands
+# platform related commands
 #
 
 
@@ -52,30 +54,38 @@ __parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help
 
 # status management
 __parser = __add_command_parser('status', 'display nodes status.', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be shown. if not set all nodes will be shown')
-__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be shown on nodes. if not set all roles will be shown')
+__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be shown. If not set all nodes will be shown')
+__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be shown on nodes. If not set all roles will be shown')
 
 __parser = __add_command_parser('start', 'start nodes.', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be started. if not set all nodes will be started')
-__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be started on nodes. if not set all roles will be started')
+__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be started. If not set all nodes will be started')
+__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be started on nodes. If not set all roles will be started')
 
 __parser = __add_command_parser('stop', 'stop nodes.', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be stopped. if not set all nodes will be stopped')
-__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be stopped on nodes. if not set all roles will be stopped')
+__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be stopped. If not set all nodes will be stopped')
+__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be stopped on nodes. If not set all roles will be stopped')
 
-# config management
-__parser = __add_command_parser('show', 'display nodes configurations.', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. if not set all nodes will be displayed')
-__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. if not set all roles will be displayed')
+__parser = __add_command_parser('config', 'display nodes configurations.', platform_dispatch, [__parent])
+__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
+__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
+
+__parser = __add_command_parser('profile', 'display nodes profiling.', platform_dispatch, [__parent])
+__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
+__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
 
 __parser = __add_command_parser('layout', 'set platform layout.', platform_dispatch, [__parent])
 __parser.add_argument('layout', nargs=1, type=int, choices=[0, 1, 2], help='the layout to set.')
 
-# __parser = __add_command_parser('set-sharing', 'set sharing protocols.', platform_dispatch, [__parent])
-# __parser.add_argument('protocols' , nargs='+', choices=PROTOCOLS_VALUES + ["none"], help='list of protocols to be set')
+
+#
+# storage related commands
+#
+
+__parser = __add_command_parser('stat', 'display platform stats.', platform_dispatch, [__parent])
+__parser.add_argument('-v', '--vids', nargs='+', type=int, help='volume(s) to stat. If not set all volumes will be displayed')
 
 __parser = __add_command_parser('expand', 'add nodes to the platform.', platform_dispatch, [__parent])
-__parser.add_argument('-v', '--vid', type=int, help='vid of an existing volume.')
+__parser.add_argument('-v', '--vid', type=int, help='vid of an existing volume. If not set a new volume will be created')
 __parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
 
 __parser = __add_command_parser('shrink', 'remove volume(s) from the platform.', platform_dispatch, [__parent])
@@ -103,14 +113,10 @@ __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount o
 __parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
 
 __parser = __add_command_parser('umount', 'umount exported file system(s).', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount on')
+__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to umount from')
 __parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) to be umount.')
 
 # profiler management
-__parser = __add_command_parser('profile', 'display nodes profiling.', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. if not set all nodes will be displayed')
-__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. if not set all roles will be displayed')
-__parser.add_argument('-s', '--stats', action="store_true", default=False, help='display only short stats.')
 
 
 def parse(args):

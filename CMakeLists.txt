@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
 set(MINOR "1")
-set(REVISION "alpha1")
+set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -90,9 +90,9 @@ set(ROZOFS_PACKAGE_FILE_NAME "rozofs-${VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_HOS
 set(ROZOFS_SOURCE_PACKAGE_FILE_NAME "rozofs-${VERSION}")
 
 configure_file("${PROJECT_SOURCE_DIR}/cmake/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
-
 configure_file("${PROJECT_SOURCE_DIR}/cmake/uninstall.in" "${PROJECT_BINARY_DIR}/uninstall.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.in" "${PROJECT_BINARY_DIR}/debian.cmake" @ONLY)
+configure_file("${PROJECT_SOURCE_DIR}/cmake/debian.changelog.in" "${PROJECT_BINARY_DIR}/debian/changelog" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/redhat.in" "${PROJECT_BINARY_DIR}/redhat.cmake" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/rozofs.spec.in" "${PROJECT_BINARY_DIR}/rozofs.spec" @ONLY)
 configure_file("${PROJECT_SOURCE_DIR}/cmake/doxyfile.in" "${PROJECT_BINARY_DIR}/doc/doxyfile" IMMEDIATE @ONLY)

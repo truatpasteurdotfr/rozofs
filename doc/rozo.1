@@ -1,0 +1,285 @@
+.\" Process this file with
+.\" groff -man -Tascii rozofsmount.8
+.\"
+.TH ROZO 1 "MARCH 2013" Rozofs "User Manuals"
+.SH NAME
+rozo \- rozofs management tool
+.SH SYNOPSIS
+.B rozo
+[\fB\-d\fP]
+\fIcommand
+\fP[options]
+.PP
+.B rozo
+\fB\-h\fP | \fB\-\-help\fP
+.PP
+.B rozo
+\fB\-V\fP | \fB\-\-version\fP
+.PP
+.SH DESCRIPTION
+.B rozo
+manage a
+.BR rozofs (7)
+platform.
+.SS
+General options:
+.TP
+\fB\-d\fP, \fB\-\-debug
+set debugging on.
+.TP
+\fB\-h\fP, \fB\-\-help
+display help and exit.
+.TP
+\fB\-V\fP, \fB\-\-version
+display version information and exit.
+.SH COMMANDS
+.SS
+General options:
+.TP
+Theses options are common to all commands
+.TP
+\fB\-h | --help\fP
+print command help and exit.
+.SS
+agent\-status
+\fBrozo \fPagent\-status
+.TP
+Get rozo agent status for this node.
+.SS
+agent\-start
+\fBrozo \fPagent\-start [\fB\-p | \-\-pacemaker\fP] \fIlistener(s)
+.TP
+\fPStart a rozo agent with the given \fIlistener(s)\fP list. \fIListerner(s)\fP should be a subset of {exportd, storaged, rozofsmount} 
+.TP
+\fB\-p\fP, \fB--pacemaker\fP
+whenever
+.BR exportd (8)
+is managed thru pacemaker.
+.SS
+agent\-stop
+\fBrozo \fPagent\-stop
+.TP
+Stop rozo agent for this node.
+.SS
+agent\-restart
+\fBrozo \fPagent\-restart [\fB\-p | \-\-pacemaker\fP] \fIlistener(s)
+.TP
+\fPStop any running rozo agent then start it with the given \fIlistener(s)\fP list. \fIListerner(s)\fP should be a subset of {exportd, storaged, rozofsmount} 
+.TP
+\fB\-p\fP, \fB--pacemaker\fP
+whenever
+.BR exportd (8)
+is managed thru pacemaker.
+.SS
+nodes
+\fBrozo \fPnodes [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-r\fP | \fB--roles \fP\fIrole\fP ...]
+.TP
+Display nodes and associated roles.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-r\fP, \fB--roles\fP\fI role\fP ... 
+List of roles as a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
+.SS
+status
+\fBrozo \fPstatus [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+.TP
+Display nodes statuses.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes\fP\fI host \fP...
+List of hosts (as hostname) to be displayed. If not set all nodes of the platform will be displayed.
+.TP
+\fB\-r\fP, \fB--roles\fP\fI role\fP,... 
+List of roles as a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
+.SS
+start
+\fBrozo \fPstart [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+.TP
+Start nodes services.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes\fP\fI host\fP,... 
+List of hosts (as hostname) to be started. If not set all nodes of the platform will be started.
+.TP
+\fB\-r\fP, \fB--roles\fP\fI role\fP,...
+List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be started on nodes hosting these services. If not set all roles will be started.
+.SS
+stop
+\fBrozo \fPstop [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+.TP
+Stop nodes services.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes\fP\fI host\fP,... 
+List of hosts (as hostname) to be stopped. If not set all nodes of the platform will be stopped.
+.TP
+\fB\-r\fP, \fB--roles\fP\fI role\fP,...
+List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be stopped on nodes hosting these services. If not set all roles will be stopped.
+.SS
+config
+\fBrozo \fPconfig [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+.TP
+Show nodes configuration.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes\fP\fI host\fP,... 
+List of hosts (as hostname) to be displayed. If not set all nodes of the platform will be displayed.
+.TP
+\fB\-r\fP, \fB--roles\fP\fI role\fP,... 
+List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be displayed on nodes hosting these services. If not set all roles will be displayed.
+.SS
+profile
+\fBrozo \fPprofile [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+.TP
+Show nodes profiling informations.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes\fP\fI host\fP,... 
+List of hosts (as hostname) to be displayed. If not set all nodes of the platform will be displayed.
+.TP
+\fB\-r\fP, \fB--roles\fP\fI role\fP,...
+List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be displayed on nodes hosting these services. If not set all roles will be displayed.
+.SS
+layout
+\fBrozo \fPlayout [\fB\-E\fP | \fB--exportd\fP\fI host\fP] \fIlayout\fP 
+.TP
+Set storage layout for this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.SS
+stat
+\fBrozo \fPstat [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vids\fP \fIvid\fP,...] 
+.TP
+Set storage layout for this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-v\fP, \fB--vids \fP\fIvid\fP,...
+List of volume id to be stated. If not set all volumes will be stated.
+.SS
+expand
+\fBrozo \fPexpand [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vid\fP \fIvid\fP] \fIhost\fP,... 
+.TP
+Add storage nodes (according to the given \fIhosts\fP list) to this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-v\fP, \fB--vid \fP\fIvid\fP
+Volume id to be expand. If not set a new volume will be created. In this case the number of nodes should be consistant with the platform layout.
+.SS
+shrink
+\fBrozo \fPshrink [\fB\-E\fP | \fB--exportd\fP\fI host\fP] \fIvid\fP,... 
+.TP
+Remove volume(s) (according to the given \fIvid\fP list) from this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. Volume(s) will be removed if and only if no exports exists on it.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.SS
+export
+\fBrozo \fPexport [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fP\-\-name\fP\fI name\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIvid\fP
+.TP
+Export a new filesytem on the given volume.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--name \fP\fIname
+The name to give to the new export. If not set a name will be generated (export_x).
+.TP
+\fB\-p\fP, \fB--passwd \fP\fIpasswd
+Password to set.
+.TP
+\fB\-s\fP, \fB--squota \fP\fIsquota
+Soft quota to set. (value [K | M | G]) 
+.TP
+\fB\-a\fP, \fB--hquota \fP\fIhquota
+Hard quota to set. (value [K | M | G]) 
+.SS
+update
+\fBrozo \fPupdate [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIeid\fP
+.TP
+Update an export according to \fIeid\fP.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-p\fP, \fB--passwd \fP\fIpasswd
+Password to set.
+.TP
+\fB\-s\fP, \fB--squota \fP\fIsquota
+Soft quota to set. (value [K | M | G]) 
+.TP
+\fB\-a\fP, \fB--hquota \fP\fIhquota
+Hard quota to set. (value [K | M | G]) 
+.SS
+unexport
+\fBrozo \fPunexport [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-f\fP | \fB--force\fP] \fIeid\fP,...
+.TP
+Unexport according to \fIeid\fP,... Only empty exports will be removed. 
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-f\fP, \fB--force 
+Force removing non empty exports.
+.SS
+mount
+\fBrozo \fPmount [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--node\fP \fhost\fP,...] \fIeid\fP,...
+.TP
+Mount export identified by \fIeid\fP,... on nodes. 
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes \fP\fIhost\fP,...
+List of nodes to mount on. If not set exports will be mount on all host.
+.SS
+umount
+\fBrozo \fPumount [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--node\fP \fhost\fP,...] \fIeid\fP,...
+.TP
+Umount export identified by \fIeid\fP,... on nodes. 
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-n\fP, \fB--nodes \fP\fIhost\fP,...
+List of nodes to umount from. If not set exports will be umount from all host.
+.PP
+.SH "REPORTING BUGS"
+Report bugs to <bugs@fizians.org>.
+.SH COPYRIGHT
+Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+
+Rozofs is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published
+by the Free Software Foundation, version 2.
+
+Rozofs is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+.SH AUTHOR
+Fizians <http://www.fizians.org>
+.SH "SEE ALSO"
+.BR rozofs (7),
+.BR exportd (8),
+.BR storaged (8)
+.BR rozofsmount (8)

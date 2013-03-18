@@ -20,6 +20,7 @@ install(FILES storaged.8 DESTINATION share/man/man8 COMPONENT storage)
 install(FILES storage.conf.5 DESTINATION share/man/man5 COMPONENT storage)
 install(FILES exportd.8 DESTINATION share/man/man8 COMPONENT export)
 install(FILES export.conf.5 DESTINATION share/man/man5 COMPONENT export)
+install(FILES rozo.1 DESTINATION share/man/man1 COMPONENT manager)
 
 #
 # add doxygen target

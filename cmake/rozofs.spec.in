@@ -193,6 +193,7 @@ mkdir -p %{buildroot}/etc/default
 %files manager-cli
 %defattr(-,root,root)
 %{_bindir}/rozo
+%{_mandir}/man1/rozo.1.gz
 
 %files manager-agent
 %defattr(-,root,root)

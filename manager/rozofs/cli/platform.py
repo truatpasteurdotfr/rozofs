@@ -90,10 +90,70 @@ def start(platform, args):
 
 def stop(platform, args):
     platform.stop(args.nodes, __args_to_roles(args))
-#    if args.roles:
-#        print >> sys.stdout, "platform: %s stopped." % args.roles
-#    else:
-#        print >> sys.stdout, "platform: stopped."
+
+#
+# configuration related functions
+#
+def __exportd_config_to_string(config):
+    s = "\t\tLAYOUT: %d\n" % config.layout
+    for v in config.volumes.values():
+        s += "\t\tVOLUME: %d\n" % v.vid
+        for c in v.clusters.values():
+            s += "\t\t\tCLUSTER: %d\n" % c.cid
+            s += "\t\t\t\t%-20s %-10s\n" % ('NODE', 'SID')
+            for sid, h in c.storages.items():
+                s += "\t\t\t\t%-20s %-10d\n" % (h, sid)
+    if len(config.exports) != 0:
+        s += "\t\t%-4s %-4s %-25s %-25s %-10s %-10s\n" % ('EID', 'VID', 'ROOT', 'MD5', 'SQUOTA', 'HQUOTA')
+    for e in config.exports.values():
+        s += "\t\t%-4d %-4d %-25s %-25s %-10s %-10s\n" % (e.eid, e.vid, e.root, e.md5, e.squota, e.hquota)
+
+    return s
+
+def __storaged_config_to_string(config):
+    # s = "\t\tLAYOUT: %d\n" % config.layout
+    s = "\t\tPORTS: %s\n" % config.ports
+    s += "\t\t%-10s %-10s %-30s\n" % ('CID', 'SID', 'ROOT')
+    keylist = config.storages.keys()
+    keylist.sort()
+    for key in keylist:
+        st = config.storages[key]
+        s += "\t\t%-10d %-10d %-30s\n" % (st.cid, st.sid, st.root)
+    return s
+
+def __rozofsmount_config_to_string(config):
+    # s = "\t\tPROTOCOLS: %s\n" % config.protocols
+    s = "\t\t%-20s %-20s\n" % ('NODE', 'EXPORT')
+    for c in config:
+        s += "\t\t%-20s %-20s\n" % (c.export_host, c.export_path)
+    return s
+
+def __print_host_configs(host, configurations):
+    if configurations is not None and not configurations:
+        return
+
+    if configurations is None:
+        print >> sys.stdout, "NODE: %s - %s" % (host, 'DOWN')
+        return
+
+    # __double_line()
+    print >> sys.stdout, "NODE: %s - %s" % (host, 'UP')
+    for r, c in configurations.items():
+        # __single_line()
+        print >> sys.stdout, "\tROLE: %s" % ROLES_STR[r]
+        if (r & Role.EXPORTD == Role.EXPORTD):
+            print >> sys.stdout, "%s" % __exportd_config_to_string(c)
+        if (r & Role.STORAGED == Role.STORAGED):
+            print >> sys.stdout, "%s" % __storaged_config_to_string(c)
+        if (r & Role.ROZOFSMOUNT == Role.ROZOFSMOUNT):
+            print >> sys.stdout, "%s" % __rozofsmount_config_to_string(c)
+
+def config(platform, args):
+#    print >> sys.stdout, "EXPORTD HOST: %s, PROTOCOL(S): %s" % (platform.get_exportd_hostname(), platform.get_sharing_protocols())
+    configurations = platform.get_configurations(args.nodes, __args_to_roles(args))
+    for h, c in configurations.items():
+        __print_host_configs(h, c)
+
 #
 # profilers related functions
 #
@@ -131,29 +191,29 @@ def __exportd_profiler_to_string(args, ep):
     secs = elapse % 60
     s = "\t\texportd: %s - uptime: %d days, %d:%d:%d\n" % (ep.vers, days, hours, mins, secs)
 
-    if not args.stats:
-        s += "\n\t\tSTATS:\n"
-        s += "\t\t------\n"
+#    if not args.stats:
+#        s += "\n\t\tSTATS:\n"
+#        s += "\t\t------\n"
+#
+#    for vstat in ep.vstats:
+#        s += "\t\tVOLUME: %d - BSIZE: %d, BFREE: %d\n" % (vstat.vid, vstat.bsize, vstat.bfree)
+#        s += "\n\t\t\t%-6s %-6s %-20s %-20s\n" % ("SID", "STATUS", "CAPACITY(B)", "FREE(B)")
+#        for sstat in vstat.sstats:
+#            s += "\t\t\t%-6d %-6d %-20d %-20d\n" % (sstat.sid, sstat.status, sstat.size, sstat.free)
+#        s += "\n\t\t\t%-6s %-6s %-12s %-12s %-12s %-12s\n" % ("EID", "BSIZE", "BLOCKS", "BFREE", "FILES", "FFREE")
+#        for estat in ep.estats:
+#            if estat.vid == vstat.vid:
+#                s += "\t\t\t%-6d %-6d %-12d %-12d %-12d %-12d\n" % (estat.eid,
+#                    estat.bsize, estat.blocks, estat.bfree,
+#                    estat.files, estat.ffree)
+#        s += "\n";
+#
+#    # if only stats are requiered return
+#    if args.stats:
+#        return s
 
-    for vstat in ep.vstats:
-        s += "\t\tVOLUME: %d - BSIZE: %d, BFREE: %d\n" % (vstat.vid, vstat.bsize, vstat.bfree)
-        s += "\n\t\t\t%-6s %-6s %-20s %-20s\n" % ("SID", "STATUS", "CAPACITY(B)", "FREE(B)")
-        for sstat in vstat.sstats:
-            s += "\t\t\t%-6d %-6d %-20d %-20d\n" % (sstat.sid, sstat.status, sstat.size, sstat.free)
-        s += "\n\t\t\t%-6s %-6s %-12s %-12s %-12s %-12s\n" % ("EID", "BSIZE", "BLOCKS", "BFREE", "FILES", "FFREE")
-        for estat in ep.estats:
-            if estat.vid == vstat.vid:
-                s += "\t\t\t%-6d %-6d %-12d %-12d %-12d %-12d\n" % (estat.eid,
-                    estat.bsize, estat.blocks, estat.bfree,
-                    estat.files, estat.ffree)
-        s += "\n";
-
-    # if only stats are requiered return
-    if args.stats:
-        return s
-
-    s += "\t\tPROFILING:\n"
-    s += "\t\t----------\n"
+#    s += "\t\tPROFILING:\n"
+#    s += "\t\t----------\n"
     s += "\t\t%-25s %-12s %-12s %-12s %-12s %-12s\n" % ("OP", "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MBps)")
 
     s += "\t\t" + __probe_to_string(ep, "ep_mount")
@@ -232,15 +292,12 @@ def __storaged_profiler_to_string(args, sps):
 
     elapse = sps[0].now - sps[0].uptime
     days = elapse / 86400
+
     hours = (elapse / 3600) - (days * 24)
     mins = (elapse / 60) - (days * 1440) - (hours * 60)
     secs = elapse % 60
     s = "\t\tstoraged: %s - %d process(es), uptime: %d days, %d:%d:%d\n" % (
             sps[0].vers, len(sps) - 1, days, hours, mins, secs)
-
-    # if only stats are requiered return
-    if args.stats:
-        return s
 
     s += "\t\t%-12s %-25s %-12s %-12s %-12s %-12s %-12s\n" % ("PORT", "OP",
             "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MB/s)")
@@ -269,10 +326,6 @@ def __mount_profiler_to_string(args, mp):
     mins = (elapse / 60) - (days * 1440) - (hours * 60)
     secs = elapse % 60
     s = "\t\trozofsmount: %s - uptime: %d days, %d:%d:%d\n" % (mp.vers, days, hours, mins, secs)
-
-    # if only stats are requiered return
-    if args.stats:
-        return s
 
     s += "\t\t%-25s %-12s %-12s %-12s %-12s %-12s\n" % ("OP", "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MBps)")
     s += "\t\t" + __probe_to_string(mp, "rozofs_ll_lookup")
@@ -341,71 +394,45 @@ def profile(platform, args):
     for h, p in profilers.items():
         __print_host_profilers(args, h, p)
 
-#
-# configuration related functions
-#
-def __exportd_config_to_string(config):
-    s = "\t\tLAYOUT: %d\n" % config.layout
-    for v in config.volumes.values():
-        s += "\t\tVOLUME: %d\n" % v.vid
-        for c in v.clusters.values():
-            s += "\t\t\tCLUSTER: %d\n" % c.cid
-            s += "\t\t\t\t%-20s %-10s\n" % ('NODE', 'SID')
-            for sid, h in c.storages.items():
-                s += "\t\t\t\t%-20s %-10d\n" % (h, sid)
-    if len(config.exports) != 0:
-        s += "\t\t%-4s %-4s %-25s %-25s %-10s %-10s\n" % ('EID', 'VID', 'ROOT', 'MD5', 'SQUOTA', 'HQUOTA')
-    for e in config.exports.values():
-        s += "\t\t%-4d %-4d %-25s %-25s %-10s %-10s\n" % (e.eid, e.vid, e.root, e.md5, e.squota, e.hquota)
-
-    return s
-
-def __storaged_config_to_string(config):
-    # s = "\t\tLAYOUT: %d\n" % config.layout
-    s = "\t\tPORTS: %s\n" % config.ports
-    s += "\t\t%-10s %-10s %-30s\n" % ('CID', 'SID', 'ROOT')
-    keylist = config.storages.keys()
-    keylist.sort()
-    for key in keylist:
-        st = config.storages[key]
-        s += "\t\t%-10d %-10d %-30s\n" % (st.cid, st.sid, st.root)
-    return s
-
-def __rozofsmount_config_to_string(config):
-    # s = "\t\tPROTOCOLS: %s\n" % config.protocols
-    s = "\t\t%-20s %-20s\n" % ('NODE', 'EXPORT')
-    for c in config:
-        s += "\t\t%-20s %-20s\n" % (c.export_host, c.export_path)
-    return s
-
-def __print_host_configs(host, configurations):
-    if configurations is not None and not configurations:
-        return
-
-    if configurations is None:
-        print >> sys.stdout, "NODE: %s - %s" % (host, 'DOWN')
-        return
-
-    # __double_line()
-    print >> sys.stdout, "NODE: %s - %s" % (host, 'UP')
-    for r, c in configurations.items():
-        # __single_line()
-        print >> sys.stdout, "\tROLE: %s" % ROLES_STR[r]
-        if (r & Role.EXPORTD == Role.EXPORTD):
-            print >> sys.stdout, "%s" % __exportd_config_to_string(c)
-        if (r & Role.STORAGED == Role.STORAGED):
-            print >> sys.stdout, "%s" % __storaged_config_to_string(c)
-        if (r & Role.ROZOFSMOUNT == Role.ROZOFSMOUNT):
-            print >> sys.stdout, "%s" % __rozofsmount_config_to_string(c)
-
-def show(platform, args):
-#    print >> sys.stdout, "EXPORTD HOST: %s, PROTOCOL(S): %s" % (platform.get_exportd_hostname(), platform.get_sharing_protocols())
-    configurations = platform.get_configurations(args.nodes, __args_to_roles(args))
-    for h, c in configurations.items():
-        __print_host_configs(h, c)
-
 def layout(platform, args):
     platform.set_layout(args.layout[0])
+
+
+def stat(platform, args):
+    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
+    profilers = platform.get_profilers([args.exportd], Role.EXPORTD)
+
+    if not args.vids:
+        args.vids = configurations[args.exportd][Role.EXPORTD].volumes.keys()
+
+    for vstat in [vstat for vstat in profilers[args.exportd][Role.EXPORTD].vstats if vstat.vid in args.vids]:
+        print >> sys.stdout, "VOLUME: %d - BSIZE: %d, BFREE: %d" % (vstat.vid, vstat.bsize, vstat.bfree)
+        print >> sys.stdout, "\t%-12s %-12s %-20s %-20s" % ("NODE", "STATUS", "CAPACITY(B)", "FREE(B)")
+        # get storages by host
+        vconfig = configurations[args.exportd][Role.EXPORTD].volumes[vstat.vid]
+        sstats = {}
+        for sstat in vstat.sstats:
+            # find the host with sid
+            for c in vconfig.clusters.values():
+                if sstat.sid in c.storages:
+                    if c.storages[sstat.sid] in sstats:
+                        sstats[c.storages[sstat.sid]][1] += sstat.size
+                        sstats[c.storages[sstat.sid]][2] += sstat.free
+                    else:
+                        sstats[c.storages[sstat.sid]] = [sstat.status, sstat.size, sstat.free]
+        for h, t in sstats.items():
+            print >> sys.stdout, "\t%-12s %-12s %-20d %-20d" % (h, __service_status_string(t[0]), t[1], t[2])
+
+
+        # print exported file systems stats
+        print >> sys.stdout, "\n\t%-6s %-25s %-6s %-12s %-12s %-12s %-12s" % ("EID", "ROOT", "BSIZE", "BLOCKS", "BFREE", "FILES", "FFREE")
+        for estat in [estat for estat in profilers[args.exportd][Role.EXPORTD].estats if estat.vid == vstat.vid]:
+            # find the root
+
+            print >> sys.stdout, "\t%-6d %-25s %-6d %-12d %-12d %-12d %-12d" % (
+                    estat.eid, configurations[args.exportd][Role.EXPORTD].exports[estat.eid].root,
+                    estat.bsize, estat.blocks, estat.bfree,
+                    estat.files, estat.ffree)
 
 def expand(platform, args):
     platform.add_nodes(args.hosts, args.vid)
