@@ -149,10 +149,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         uint32_t first_block_idx, uint32_t number_of_blocks,
         rbs_inverse_block_t *block_ctx_p, char *data) {
 
-    bin_t *bins;
     projection_t *projections = NULL;
-    angle_t *angles = NULL;
-    uint16_t *psizes = NULL;
     int block_idx = 0;
     uint16_t projection_id = 0;
     int prj_ctx_idx = 0;
@@ -161,8 +158,6 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
     projections = rbs_projections;
-    angles = rbs_angles;
-    psizes = rbs_psizes;
 
     // Proceed the inverse data transform for the number_of_blocks blocks.
     for (block_idx = 0; block_idx < number_of_blocks; block_idx++) {
@@ -225,7 +220,6 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
             // Extract the projection_id from the header and fill the table
             // of projections for the block block_idx for each projection
             projection_id = rozofs_bins_hdr_p->s.projection_id;
-            bins = (bin_t*) (rozofs_bins_hdr_p + 1);
             projections[prj_count].angle.p = rozofs_get_angles_p(layout,
                     projection_id);
             projections[prj_count].angle.q = rozofs_get_angles_q(layout,

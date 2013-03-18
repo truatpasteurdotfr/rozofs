@@ -416,7 +416,8 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t layout,
         sid_t * dist_set, uint8_t spare, uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof,
         uint64_t * current_files_nb) {
-    int status = -1, i, j;
+    int i = 0;
+    int j = 0;
     char path[FILENAME_MAX];
     DIR *dp = NULL;
     struct dirent *ep = NULL;
@@ -496,9 +497,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t layout,
     }
 
     *iterator = NULL;
-    status = 0;
 out:
-
     return iterator;
 }
 
