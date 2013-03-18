@@ -215,5 +215,5 @@ ln -sf /sbin/mount.fuse /sbin/mount.rozofs
 
 %changelog
 
-* Tue Feb 05 2013 RozoFS <rd@rozofs.org> - 1.0.2
+* Tue Feb 05 2013 RozoFS <rd@rozofs.org> - @VERSION@
 - Initial spec file
