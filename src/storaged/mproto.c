@@ -104,3 +104,45 @@ out:
     STOP_PROFILING(ports);
     return &ret;
 }
+
+mp_list_bins_files_ret_t *mp_list_bins_files_1_svc(
+        mp_list_bins_files_arg_t * args,
+        struct svc_req * req) {
+    
+    static mp_list_bins_files_ret_t ret;
+    storage_t *st = 0;
+
+    DEBUG_FUNCTION;
+
+    xdr_free((xdrproc_t) xdr_mp_list_bins_files_ret_t, (char *) &ret);
+
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+        ret.mp_list_bins_files_ret_t_u.error = errno;
+        goto out;
+    }
+
+    if (storage_list_bins_files_to_rebuild(st, args->rebuild_sid,
+            &args->layout,
+            (sid_t *) &args->dist_set,
+            &args->spare,
+            &args->cookie,
+            (bins_file_rebuild_t **) 
+            & ret.mp_list_bins_files_ret_t_u.reply.children,
+            (uint8_t *) & ret.mp_list_bins_files_ret_t_u.reply.eof) != 0) {
+        goto error;
+    }
+
+    ret.mp_list_bins_files_ret_t_u.reply.cookie = args->cookie;
+    memcpy(&ret.mp_list_bins_files_ret_t_u.reply.dist_set, &args->dist_set,
+            sizeof (sid_t) * ROZOFS_SAFE_MAX);
+    ret.mp_list_bins_files_ret_t_u.reply.layout = args->layout;
+    ret.mp_list_bins_files_ret_t_u.reply.spare = args->spare;
+
+    ret.status = MP_SUCCESS;
+    goto out;
+error:
+    ret.status = MP_FAILURE;
+    ret.mp_list_bins_files_ret_t_u.error = errno;
+out:
+    return &ret;
+}

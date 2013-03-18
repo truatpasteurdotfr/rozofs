@@ -35,6 +35,7 @@
 #include "mdir.h"
 #include "mdirent.h"
 #include "dirent_journal.h"
+#include "dirent_enum2String_file_repair_cause_e.h"
 
 /**
  *  structure for rescue at cache entry level for a given bucket index:
@@ -63,7 +64,7 @@ typedef struct _dirent_cache_repair_hash_entry_list_t {
 /**
  * buffer to rebuild a linked list of dirent cache entries
  */
-dirent_cache_repair_cache_entry_list_t dirent_cache_repair_cache_entry_list_tab[MDIRENTS_ENTRIES_COUNT
+dirent_cache_repair_cache_entry_list_t dirent_cache_repair_cache_entry_list_tab[MDIRENTS_MAX_COLLS_IDX
         + 1];
 /**
  * buffer to rebuild a linked list of hash_entries within a dirent cache entry
@@ -402,41 +403,47 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
 
     memset(dirent_cache_repair_cache_entry_list_tab, 0,
             sizeof(dirent_cache_repair_cache_entry_list_t)
-                    * MDIRENTS_ENTRIES_COUNT);
+                    * MDIRENTS_MAX_COLLS_IDX+1);
+
+
+
+    info("dirent_file_repair bucket %d cause %s",bucket_idx,dirent_file_repair_cause_e2String(cause));
+
 
     /*
-     ** set the different parameters
-     */
+    ** set the different parameters
+    */
     cache_entry_tb_idx = 0;
-    //hash_entry_idx = 0;
     coll_idx = 0;
     /*
      ** get the pointer to the collision file bitmap
      */
-    sect0_p = DIRENT_VIRT_TO_PHY_OFF(root_entry_p,sect0_p)
-    ;
+    sect0_p = DIRENT_VIRT_TO_PHY_OFF(root_entry_p,sect0_p);
     coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
-
     /*
-     ** First of all do the recovery for the root entry
-     */
+    **_____________________________________________________
+    ** First of all do the recovery for the root entry
+    **_____________________________________________________
+    */
     dirent_cache_repair_cache_entry_for_bucket_idx(dir_fd, root_entry_p,
             root_entry_p, bucket_idx, &hash_entry_p, &first_index);
     /*
-     ** insert the result in the rescue table
-     */
+    ** insert the result in the rescue table: we always inserts the root even if there is
+    ** no hash entry belonging to that least. This is needed it address the case where
+    ** the pointer at the bucket level is the reference of the first collision file
+    ** on which we have hash entries belonging to that list
+    */
     dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].coll_idx = -1; // indicate root
-    dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].first_index =
-            first_index;
-    dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].cache_entry_p =
-            root_entry_p;
-    dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].hash_entry_last_p =
-            hash_entry_p;
+    dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].first_index       = first_index;
+    dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].cache_entry_p     = root_entry_p;
+    dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].hash_entry_last_p = hash_entry_p;
     cache_entry_tb_idx++;
 
     /*
-     ** case of the collision file, so need to go through the bitmap of the
-     ** dirent root file
+    **_______________________________________________________________________
+    ** case of the collision file, so need to go through the bitmap of the
+    ** dirent root file
+    **_______________________________________________________________________
      */
     cache_entry_p = NULL;
     while (coll_idx < MDIRENTS_MAX_COLLS_IDX) {
@@ -466,7 +473,6 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
             /*
              ** next chunk
              */
-            //hash_entry_idx = 0;
             coll_idx++;
             continue;
         }
@@ -477,155 +483,136 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
         cache_entry_p = dirent_cache_get_collision_ptr(root_entry_p, coll_idx);
         if (cache_entry_p == NULL ) {
             /*
-             ** something is rotten in the cache since the pointer to the collision dirent cache
-             ** does not exist
-             */
-//        DIRENT_SEVERE("dirent_file_repair no collision file for index %d error at %d\n",coll_idx,__LINE__);
-            /*
-             ** OK, do not break the analysis, skip that collision entry and try the next if any
-             */
+            ** OK, do not break the analysis, skip that collision entry and try the next if any
+            */
             coll_idx++;
             continue;
         }
         /*
-         ** OK, let's try to repair that current dirent cache entry for that bucket idx
-         */
+        **_______________________________________________________________________
+        ** OK, let's try to repair that current dirent cache entry for that bucket idx
+        **_______________________________________________________________________
+        */
         dirent_cache_repair_cache_entry_for_bucket_idx(dir_fd, root_entry_p,
                 cache_entry_p, bucket_idx, &hash_entry_p, &first_index);
         /*
          ** insert the result in the rescue table if there is at least one valid entry for that bucket idx
          */
-        if (hash_entry_p != NULL ) {
-            dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].coll_idx =
-                    coll_idx;
-            dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].first_index =
-                    first_index;
-            dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].cache_entry_p =
-                    cache_entry_p;
-            dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].hash_entry_last_p =
-                    hash_entry_p;
-            cache_entry_tb_idx++;
-
+        if (hash_entry_p != NULL ) 
+        {
+          dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].coll_idx =  coll_idx;
+          dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].first_index = first_index;
+          dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].cache_entry_p = cache_entry_p;
+          dirent_cache_repair_cache_entry_list_tab[cache_entry_tb_idx].hash_entry_last_p = hash_entry_p;
+          cache_entry_tb_idx++;
         }
         coll_idx++;
-
     }
     /*
-     ** OK now go through that table to find out the order of the cache entries to update each of the
-     ** local hash entries
-     */
-    for (i = 0; i < cache_entry_tb_idx; i++) {
-        cache_entry_p =
-                dirent_cache_repair_cache_entry_list_tab[i].cache_entry_p;
-        hash_entry_p =
-                dirent_cache_repair_cache_entry_list_tab[i].hash_entry_last_p;
-        if (hash_entry_p == NULL ) {
-            if (i == 0) {
-                /*
-                 ** get the pointer to hash bucket table
-                 */
-                hash_bucket_p =
-                        DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx)
-                ;
-                if (hash_bucket_p == NULL ) {
-                    /*
-                     ** That case Must not occur since we have elready scanned the entry
-                     ** One solution, if it happens is to skip that cache entry or to create one memory
-                     ** array for the range of bucket_idx.
-                     */
-                    DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__)
-                    ;
-                    exit(0);
-                }
-                /*
-                 ** check the end of list case
-                 */
-                cache_entry_p_next = dirent_cache_repair_cache_entry_list_tab[i
-                        + 1].cache_entry_p;
-                if (cache_entry_p_next == NULL ) {
-                    /*
-                     ** end of list case
-                     */
-                    break;
-                }
-                hash_bucket_p->type = MDIRENTS_HASH_PTR_COLL;
-                hash_bucket_p->idx = dirent_cache_repair_cache_entry_list_tab[i
-                        + 1].coll_idx;
-                dirent_cache_repair_printf_cache_entry_for_bucket_idx(
-                        cache_entry_p, bucket_idx, -1);
-                write_mdirents_file(dir_fd, cache_entry_p);
-
-                continue;
+    **________________________________________________________________________________________________
+    ** OK now go through that table to find out the order of the cache entries to update each of the
+    ** local end of hash entries
+    **________________________________________________________________________________________________
+    */
+    for (i = 0; i < cache_entry_tb_idx; i++) 
+    {
+        cache_entry_p = dirent_cache_repair_cache_entry_list_tab[i].cache_entry_p;
+        hash_entry_p =  dirent_cache_repair_cache_entry_list_tab[i].hash_entry_last_p;
+        if (hash_entry_p == NULL ) 
+        {
+          if (i == 0) 
+          {
+            /*
+             ** case of the root cache entry :get the pointer to hash bucket table
+             */
+            hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx) ;
+            if (hash_bucket_p == NULL ) 
+            {
+              /*
+               ** That case Must not occur since we have elready scanned the entry
+               ** One solution, if it happens is to skip that cache entry or to create one memory
+               ** array for the range of bucket_idx.
+               */
+              DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d in root dirent file  ",bucket_idx);
+              hash_bucket_p = DIRENT_CACHE_ALLOCATE_BUCKET_ARRAY(cache_entry_p,bucket_idx);
+	      if (hash_bucket_p == NULL)
+	      {            
+        	  fatal("dirent_file_repair: system error, out of memory!!");
+	      }
             }
-            DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__)
-            ;
-            exit(0);
-
+            /*
+             ** check the end of list case
+             */
+            cache_entry_p_next = dirent_cache_repair_cache_entry_list_tab[i+ 1].cache_entry_p;
+            if (cache_entry_p_next == NULL ) 
+            {
+              /*
+              ** end of list case
+              */
+              break;
+            }
+            hash_bucket_p->type = MDIRENTS_HASH_PTR_COLL;
+            hash_bucket_p->idx = dirent_cache_repair_cache_entry_list_tab[i+ 1].coll_idx;
+            dirent_cache_repair_printf_cache_entry_for_bucket_idx(cache_entry_p, bucket_idx, -1);
+            /*
+            ** ____________________________________________________________
+            ** re-write on disk the corresponding image of the dirent file
+            ** ____________________________________________________________
+            */
+            write_mdirents_file(dir_fd, cache_entry_p);
+            continue;
+          }
+          DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__);
+          severe("memory corruption!!");
         }
         /*
-         ** Check if there is a cache entry in the next entry of the rescue table
-         */
-        cache_entry_p_next =
-                dirent_cache_repair_cache_entry_list_tab[i + 1].cache_entry_p;
-        if (cache_entry_p_next == NULL ) {
+        ** Check if there is a cache entry in the next entry of the rescue table: end of list check
+        */
+        cache_entry_p_next = dirent_cache_repair_cache_entry_list_tab[i + 1].cache_entry_p;
+        if (cache_entry_p_next == NULL ) 
+        {
             /*
-             ** end of list case
-             */
+            ** end of list case
+            */
             break;
         }
         /*
-         ** there is an entry so update our current last hash_entry and eventually our bucket entry
-         ** index according to the value of first_index
-         */
+        ** there is an entry so update our current last hash_entry and eventually our bucket entry
+        ** index according to the value of first_index
+        */
         hash_entry_p->next.type = MDIRENTS_HASH_PTR_COLL;
-        hash_entry_p->next.idx =
-                dirent_cache_repair_cache_entry_list_tab[i + 1].coll_idx;
+        hash_entry_p->next.idx = dirent_cache_repair_cache_entry_list_tab[i + 1].coll_idx;
         dirent_cache_repair_printf_cache_entry_for_bucket_idx(cache_entry_p,
-                bucket_idx,
-                dirent_cache_repair_cache_entry_list_tab[i].coll_idx);
+                                                              bucket_idx,
+                                                              dirent_cache_repair_cache_entry_list_tab[i].coll_idx);
+        /*
+        ** ____________________________________________________________
+        ** re-write on disk the corresponding image of the dirent file
+        ** ____________________________________________________________
+        */        
         write_mdirents_file(dir_fd, cache_entry_p);
-
-#if 0 // useless since already done per hash_entry repair->
-        if (dirent_cache_repair_cache_entry_list_tab[i].first_index)
-        {
-            /*
-             ** get the pointer to hash bucket table
-             */
-            hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx);
-            if (hash_bucket_p == NULL)
-            {
-                /*
-                 ** That case Must not occur since we have elready scanned the entry
-                 ** One solution, if it happens is to skip that cache entry or to create one memory
-                 ** array for the range of bucket_idx.
-                 */
-                DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__);
-                exit(0);
-            }
-            hash_bucket_p->type = MDIRENTS_HASH_PTR_LOCAL;
-            hash_bucket_p->idx = dirent_cache_repair_cache_entry_list_tab[i+1].coll_idx;
-        }
-#endif
     }
     /*
-     ** we have the end of list so now, update the last one
+     ** ____________________________________________________________
+     ** All the last hash entries of the dirent files have been updated
+     ** expected the last one so now, update the last one
+     ** ____________________________________________________________
      */
-    if (cache_entry_p == NULL ) {
+    if (cache_entry_p == NULL ) 
+    {
         /*
          ** We must have at least the root !!
          */
-        DIRENT_SEVERE("dirent_file_repair: empty list for bucket %d (line %d)\n",bucket_idx,__LINE__)
-        ;
-        exit(0);
+        DIRENT_SEVERE("dirent_file_repair: empty list for bucket %d (line %d)\n",bucket_idx,__LINE__);
+        severe("memory corruption!!");
     }
     if (hash_entry_p == NULL ) {
         /*
          ** this is possible for the case of the root only
          */
         if (cache_entry_p != root_entry_p) {
-            DIRENT_SEVERE("dirent_file_repair: collision entry empty for bucket %d (line %d)\n",bucket_idx,__LINE__)
-            ;
-            exit(0);
+            DIRENT_SEVERE("dirent_file_repair: collision entry empty for bucket %d (line %d)\n",bucket_idx,__LINE__);
+            severe("memory corruption!!");
         }
         hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx)
         ;
@@ -635,23 +622,36 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
              ** One solution, if it happens is to skip that cache entry or to create one memory
              ** array for the range of bucket_idx.
              */
-            DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__)
-            ;
-            exit(0);
+            DIRENT_SEVERE("dirent_file_repair: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__);
+            severe("memory corruption!!");
         }
         hash_bucket_p->type = MDIRENTS_HASH_PTR_EOF;
         hash_bucket_p->idx = 0;
+        /*
+        ** _______________________________________________________________________________
+        ** re-write dirent root file on disk the corresponding image of the dirent file
+        ** _______________________________________________________________________________
+        */               
         write_mdirents_file(dir_fd, cache_entry_p);
 
     } else {
+        /*
+        ** re-write last file on disk
+        */
         hash_entry_p->next.type = MDIRENTS_HASH_PTR_EOF;
         hash_entry_p->next.idx = 0;
+        write_mdirents_file(dir_fd, cache_entry_p);
+
     }
+    /*
+    ** _______________________________________________________________________________
+    ** re-write last dirent colision file on disk the corresponding image of the dirent file
+    ** _______________________________________________________________________________
+    */ 
     write_mdirents_file(dir_fd, root_entry_p);
 
     dirent_cache_repair_printf_cache_entry_for_bucket_idx(cache_entry_p,
             bucket_idx, dirent_cache_repair_cache_entry_list_tab[i].coll_idx);
-//   exit(0);
 
 }
 
@@ -672,7 +672,8 @@ void dirent_file_repair(int dir_fd, mdirents_cache_entry_t *root_entry_p,
 void dirent_cache_repair_cache_entry_for_bucket_idx(int fd_dir,
         mdirents_cache_entry_t *root, mdirents_cache_entry_t *cache_entry_p,
         int bucket_idx, mdirents_hash_entry_t **hash_entry_last_p,
-        int *first_index) {
+        int *first_index) 
+{
     mdirent_sector0_not_aligned_t *sect0_p;
     int hash_entry_idx = 0;
     int next_hash_entry_idx;
@@ -686,7 +687,6 @@ void dirent_cache_repair_cache_entry_for_bucket_idx(int fd_dir,
      */
     *hash_entry_last_p = NULL;
     *first_index = 0;
-
     /*
      ** clean up the tracking buffer
      */
@@ -702,176 +702,142 @@ void dirent_cache_repair_cache_entry_for_bucket_idx(int fd_dir,
         return;
     }
     /*
-     ** go through the bitmap to find out the entry that belongs to the requested linked list
-     */
-    while (hash_entry_idx < MDIRENTS_ENTRIES_COUNT) {
-        next_hash_entry_idx =
-                DIRENT_CACHE_GETNEXT_ALLOCATED_HASH_ENTRY_IDX(&sect0_p->hash_bitmap,hash_entry_idx)
-        ;
-        if (next_hash_entry_idx < 0) {
-            /*
-             ** all the entry of that dirent cache entry have been scanned,
-             */
-            break;
-
-        }
-        hash_entry_idx = next_hash_entry_idx;
-        /*
-         ** need to get the hash entry context and then the pointer to the name entry. The hash entry context is
-         ** needed since it contains the reference of the starting chunk of the name entry
-         */
-        hash_entry_p =
-                (mdirents_hash_entry_t*) DIRENT_CACHE_GET_HASH_ENTRY_PTR(cache_entry_p,hash_entry_idx)
-        ;
-        if (hash_entry_p == NULL ) {
-            /*
-             ** something wrong!! (either the index is out of range and the memory array has been released
-             */
-            DIRENT_SEVERE("list_mdirentries pointer does not exist at %d\n",__LINE__)
-            ;
-            /*
-             ** ok, let check the next hash_entry
-             */
-            hash_entry_idx++;
-            continue;
-        }
-//     if (hash_entry_idx == 572) printf("hash_entry_bucket_idx%d\n",(int)DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_p));
-        hash_entry_bucket_idx = DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_p);
-        if ((hash_entry_bucket_idx == bucket_idx)
-                && (hash_entry_p->next.type != MDIRENTS_HASH_PTR_FREE)) {
-            /*
-             ** store it since it matches the searched linked list
-             */
-            dirent_cache_repair_hash_entry_list_tab[table_idx].hash_entry_p =
-                    hash_entry_p;
-            dirent_cache_repair_hash_entry_list_tab[table_idx].local_idx =
-                    hash_entry_idx;
-            table_idx++;
-        }
-        /*
-         ** ok, let check the next hash_entry
-         */
-        hash_entry_idx++;
-        continue;
+    **_________________________________________________________________________________________
+    ** go through the bitmap to find out the entry that belongs to the requested linked list
+    **_________________________________________________________________________________________
+    */
+    while (hash_entry_idx < MDIRENTS_ENTRIES_COUNT) 
+    {
+      next_hash_entry_idx =DIRENT_CACHE_GETNEXT_ALLOCATED_HASH_ENTRY_IDX(&sect0_p->hash_bitmap,hash_entry_idx);
+      if (next_hash_entry_idx < 0) 
+      {
+          /*
+           ** all the entry of that dirent cache entry have been scanned,
+           */
+          break;
+      }
+      hash_entry_idx = next_hash_entry_idx;
+      /*
+       ** need to get the hash entry context and then the pointer to the name entry. The hash entry context is
+       ** needed since it contains the reference of the starting chunk of the name entry
+       */
+      hash_entry_p =(mdirents_hash_entry_t*) DIRENT_CACHE_GET_HASH_ENTRY_PTR(cache_entry_p,hash_entry_idx)
+      ;
+      if (hash_entry_p == NULL ) 
+      {
+         /*
+          ** something wrong!! (either the index is out of range and the memory array has been released
+          */
+         DIRENT_SEVERE("list_mdirentries pointer does not exist at %d\n",__LINE__) ;
+         /*
+          ** ok, let check the next hash_entry
+          */
+         hash_entry_idx++;
+         continue;
+      }
+      hash_entry_bucket_idx = DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_p);
+      if ((hash_entry_bucket_idx == bucket_idx)  && (hash_entry_p->next.type != MDIRENTS_HASH_PTR_FREE)) 
+      {
+         /*
+          ** store it since it matches the searched linked list
+          */
+         dirent_cache_repair_hash_entry_list_tab[table_idx].hash_entry_p = hash_entry_p;
+         dirent_cache_repair_hash_entry_list_tab[table_idx].local_idx = hash_entry_idx;
+         table_idx++;
+      }
+      /*
+       ** ok, let check the next hash_entry
+       */
+      hash_entry_idx++;
+      continue;
     }
     dirent_cache_repair_cache_entry_for_bucket_idx_print(bucket_idx, "BEFORE");
     /*
-     ** OK, now repair the current dirent cache entry in memory
-     */
+    **___________________________________________________________________
+    ** OK, now repair the current dirent cache entry in memory
+    **___________________________________________________________________
+    */
     {
+       int i;
+       mdirents_hash_entry_t *hash_entry_p_next = NULL;
 
-        int i;
-        mdirents_hash_entry_t *hash_entry_p_next = NULL;
-        int hash_entry_end_found = 0;
-        mdirents_hash_entry_t hash_entry_end;
-        int type;
-        int eof = 0;
-        hash_entry_end.next.type = 0;
-        hash_entry_end.next.idx = 0;
-        hash_entry_end.next.bucket_idx_low = 0;
+       dirent_repair_file_count += table_idx;
 
-        dirent_repair_file_count += table_idx;
-
-        for (i = 0; i < MDIRENTS_ENTRIES_COUNT; i++) {
-            hash_entry_p =
-                    dirent_cache_repair_hash_entry_list_tab[i].hash_entry_p;
-            if (hash_entry_p == NULL ) {
-                /*
-                 ** end of list
-                 */
-                break;
-            }
-            if (i == 0) {
-                /*
-                 ** update the hash bucket entry
-                 */
-                hash_bucket_p =
-                        DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx)
-                ;
-                if (hash_bucket_p == NULL ) {
-                    /*
-                     ** That case Must not occur since we have elready scanned the entry
-                     ** One solution, if it happens is to skip that cache entry or to create one memory
-                     ** array for the range of bucket_idx.
-                     */
-                    DIRENT_SEVERE("dirent_cache_repair_cache_entry_for_bucket_idx: hash_bucket_p is null for bucket_idx %d (line %d)\n",bucket_idx,__LINE__)
-                    ;
-                    return;
-                }
-                hash_bucket_p->type = MDIRENTS_HASH_PTR_LOCAL;
-                hash_bucket_p->idx =
-                        dirent_cache_repair_hash_entry_list_tab[i].local_idx;
-            }
-            /*
-             ** Update the next pointer
-             */
-            type = hash_entry_p->next.type;
-            switch (type) {
-
-            case MDIRENTS_HASH_PTR_COLL:
-            case MDIRENTS_HASH_PTR_EOF:
-                if (hash_entry_end_found == 0) {
-                    hash_entry_end.next = hash_entry_p->next;
-                    hash_entry_end_found = 1;
-                }
-                break;
-            case MDIRENTS_HASH_PTR_LOCAL:
-                /*
-                 ** Check the next entry
-                 */
-
-                hash_entry_p_next = dirent_cache_repair_hash_entry_list_tab[i
-                        + 1].hash_entry_p;
-                if (hash_entry_p_next == NULL ) {
-                    /*
-                     ** end of list case
-                     */
-                    eof = 1;
-                    break;
-                }
-                hash_entry_p->next.idx =
-                        dirent_cache_repair_hash_entry_list_tab[i + 1].local_idx;
-                hash_entry_p->next.type = MDIRENTS_HASH_PTR_LOCAL;
-                break;
-
-            default:
-                DIRENT_SEVERE("bad type\n")
-                ;
-                exit(0);
-            }
-            if (eof)
-                break;
+      for (i = 0; i < table_idx; i++) 
+      {
+        hash_entry_p = dirent_cache_repair_hash_entry_list_tab[i].hash_entry_p;
+        if (i == 0) 
+        {
+          /*
+          ** update the hash bucket entry
+          */
+          hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx)
+          ;
+          if (hash_bucket_p == NULL ) 
+          {
+             /*
+              ** That case Must not occur since we have elready scanned the entry
+              ** One solution, if it happens is to skip that cache entry or to create one memory
+              ** array for the range of bucket_idx.
+              */
+              hash_bucket_p = DIRENT_CACHE_ALLOCATE_BUCKET_ARRAY(cache_entry_p,bucket_idx);
+              if (hash_bucket_p == NULL ) 
+	      {
+        	DIRENT_SEVERE("hash_bucket_p is null for bucket_idx %d ",bucket_idx);
+        	return;	     
+	      }
+          }
+          hash_bucket_p->type = MDIRENTS_HASH_PTR_LOCAL;
+          hash_bucket_p->idx =  dirent_cache_repair_hash_entry_list_tab[i].local_idx;
         }
-#if 1
         /*
-         ** update the end of list
-         */
-        if (hash_entry_end_found == 1) {
-            hash_entry_p->next = hash_entry_end.next;
+        ** Update the next pointer
+        */
+        hash_entry_p->next.type = MDIRENTS_HASH_PTR_LOCAL;
+        hash_entry_p_next = dirent_cache_repair_hash_entry_list_tab[i+1].hash_entry_p;
+        if (hash_entry_p_next == NULL ) 
+        {
+          /*
+           ** end of list case: 
+           ** we set eof because the system is assumed to check the bucket linked
+           ** list when it loads the file from disk. If there is no check all the file behind
+           ** will be hidden. That situation might happen if the system is reloaded just after
+           ** the re-write of that current file.
+           ** Another approach could be to make it pointed to itself. By the way, when the system
+           ** we goo through the linked list it will detect a loop and it will proceed with we
+           ** the linked list repair (That behaviour is only needed if the checked of the 
+           ** linked list is disabled when the file is read from disk).
+           */
+          hash_entry_p->next.type = MDIRENTS_HASH_PTR_EOF;
+          *hash_entry_last_p = hash_entry_p;
+          break;
         }
-#endif
-//       if (hash_entry_end_found == 0) printf("neither COLL nor EOF!!\n");
-        *hash_entry_last_p = hash_entry_p;
+	hash_entry_p->next.idx = dirent_cache_repair_hash_entry_list_tab[i+1].local_idx; 
+      }            
     }
     /*
-     ** check if there was no entry to be sure that the beginning of the local head of list is EOF
-     ** this is applicable for an entry that is not root only
-     */
-    if (cache_entry_p != root) {
-        if (table_idx == 0) {
-            /*
-             ** check if the current bucket is EOF, if not set it and re-write the file
-             */
-            hash_bucket_p =
-                    DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx)
-            ;
-            if ((hash_bucket_p != NULL )&&(hash_bucket_p->type != MDIRENTS_HASH_PTR_EOF)){
-            hash_bucket_p->type =MDIRENTS_HASH_PTR_EOF;
-            hash_bucket_p->idx =0;
-            write_mdirents_file(fd_dir,cache_entry_p);
-        }
-    }
-}
-
-    dirent_cache_repair_cache_entry_for_bucket_idx_print(bucket_idx, "AFTER");
+    ** check if there was no entry to be sure that the beginning of the local head of list is EOF
+    ** this is applicable for an entry that is not root only
+    */
+   if (cache_entry_p != root) 
+   {
+     if (table_idx == 0) 
+     {
+       /*
+        ** check if the current bucket is EOF, if not set it and re-write the file
+        */
+       hash_bucket_p =DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_p,bucket_idx)
+       ;
+       if ((hash_bucket_p != NULL )&&(hash_bucket_p->type != MDIRENTS_HASH_PTR_EOF))
+       {
+         hash_bucket_p->type =MDIRENTS_HASH_PTR_EOF;
+         hash_bucket_p->idx =0;
+         /*
+         ** re-write the file on disk
+         */
+         write_mdirents_file(fd_dir,cache_entry_p);
+       }
+     }
+   }
+   dirent_cache_repair_cache_entry_for_bucket_idx_print(bucket_idx, "AFTER");
 }

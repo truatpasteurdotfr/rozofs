@@ -39,5 +39,7 @@ void transform_forward(const pxl_t * support, int rows, int cols, int np,
                        projection_t * projections);
 void transform_inverse(pxl_t * support, int rows, int cols, int np,
                        projection_t * projections);
+void transform_forward_one_proj(const bin_t * support, int rows, int cols,
+        uint8_t proj_id, projection_t * projections);
 
 #endif

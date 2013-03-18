@@ -33,7 +33,7 @@ typedef struct ep_client {
     rpcclt_t rpcclt;
 } ep_client_t;
 
-int ep_client_initialize(ep_client_t *clt);
+int ep_client_initialize(ep_client_t *clt, struct timeval timeout);
 
 void ep_client_release(ep_client_t *clt);
 

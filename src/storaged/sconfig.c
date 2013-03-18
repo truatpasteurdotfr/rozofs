@@ -42,7 +42,7 @@ int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
 
     s->sid = sid;
     s->cid = cid;
-    strcpy(s->root, root);
+    strncpy(s->root, root, PATH_MAX);
     list_init(&s->list);
     return 0;
 }
@@ -149,9 +149,19 @@ int sconfig_read(sconfig_t *config, const char *fname) {
             goto out;
         }
 
+        // Check root path length
+        if (strlen(root) > PATH_MAX) {
+            errno = ENAMETOOLONG;
+            severe("root path for storage %d must be lower than %d.", i,
+                    PATH_MAX);
+            goto out;
+        }
+
         new = xmalloc(sizeof (storage_config_t));
         if (storage_config_initialize(new, (cid_t) cid, (sid_t) sid,
                 root) != 0) {
+            if (new)
+                free(new);
             goto out;
         }
         list_push_back(&config->storages, &new->list);

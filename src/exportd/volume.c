@@ -62,7 +62,7 @@ void volume_storage_initialize(volume_storage_t * vs, sid_t sid,
     DEBUG_FUNCTION;
 
     vs->sid = sid;
-    strcpy(vs->host, hostname);
+    strncpy(vs->host, hostname, ROZOFS_HOSTNAME_MAX);
     vs->stat.free = 0;
     vs->stat.size = 0;
     vs->status = 0;
@@ -202,6 +202,7 @@ void volume_balance(volume_t *volume) {
 
     // work on the clone
     // try to join each storage server & stat it
+
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 
@@ -211,11 +212,14 @@ void volume_balance(volume_t *volume) {
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
             mclient_t mclt;
-            strcpy(mclt.host, vs->host);
+            strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
             mclt.sid = vs->sid;
             mclt.cid = cluster->cid;
+            struct timeval timeo;
+            timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+            timeo.tv_usec = 0;
 
-            if (mclient_initialize(&mclt) != 0) {
+            if (mclient_initialize(&mclt, timeo) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
                 vs->status = 0;
             } else {

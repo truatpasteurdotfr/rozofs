@@ -34,7 +34,7 @@ typedef struct sclient {
     rpcclt_t rpcclt;
 } sclient_t;
 
-int sclient_initialize(sclient_t * clt);
+int sclient_initialize(sclient_t * clt, struct timeval timeout);
 
 void sclient_release(sclient_t * clt);
 
@@ -45,5 +45,9 @@ int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
 int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
         uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
         bid_t bid, uint32_t nb_proj, bin_t * bins);
+
+int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
+        uint32_t nb_proj, uint32_t * nb_proj_recv, bin_t * bins);
 
 #endif

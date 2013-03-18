@@ -530,7 +530,7 @@ int export_create(const char *root) {
     // create const file.
     memset(&ect, 0, sizeof (export_const_t));
     uuid_copy(ect.rfid, root_attrs.fid);
-    strcpy(ect.version, version);
+    strncpy(ect.version, version, 20);
     sprintf(const_path, "%s/%s", path, CONST_FNAME);
     if ((fd = open(const_path, O_RDWR | O_CREAT, S_IRWXU)) < 1) {
         return -1;
@@ -686,6 +686,27 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs) {
 
     // get the lv2
     if (!(lv2 = export_lookup_fid(e, child_fid))) {
+        /*
+         ** It might be possible that the file is still referenced in the dirent file but 
+         ** not present on disk: its FID has been released (and the associated file deleted)
+         ** In that case when attempt to read that fid file, we get a ENOENT error.
+         ** So for that particular case, we remove the entry from the dirent file
+         **
+         **  open point : that issue is not related to regular file but also applied to directory
+         ** 
+         */
+        int xerrno;
+        uint32_t type;
+        fid_t fid;
+        if (errno == ENOENT) {
+            /*
+             ** save the initial errno and remove that entry
+             */
+            xerrno = errno;
+            del_mdirentry(plv2->container.mdir.fdp, pfid, name, fid, &type);
+            errno = xerrno;
+        }
+
         goto out;
     }
 
@@ -799,7 +820,14 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
         errno = EEXIST;
         goto out;
     }
-
+    /*
+     ** nothing has been found, need to check the read only flag:
+     ** that flag is asserted if some parts of dirent files are unreadable 
+     */
+    if (DIRENT_ROOT_IS_READ_ONLY()) {
+        errno = EIO;
+        goto out;
+    }
     // Put the new mdirentry
     if (put_mdirentry(plv2->container.mdir.fdp, newparent, newname, target->attributes.fid, target->attributes.mode) != 0)
         goto out;
@@ -850,6 +878,14 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
     if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, &type) == 0) {
         errno = EEXIST;
         goto error;
+    }
+    /*
+     ** nothing has been found, need to check the read only flag:
+     ** that flag is asserted if some parts of dirent files are unreadable 
+     */
+    if (DIRENT_ROOT_IS_READ_ONLY()) {
+        xerrno = EIO;
+        goto error_read_only;
     }
 
     if (!S_ISREG(mode)) {
@@ -911,6 +947,7 @@ error:
     if (xerrno != EEXIST) {
         unlink(node_path);
     }
+error_read_only:
     errno = xerrno;
 
 out:
@@ -939,6 +976,14 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
     }
 
+    /*
+     ** nothing has been found, need to check the read only flag:
+     ** that flag is asserted if some parts of dirent files are unreadable 
+     */
+    if (DIRENT_ROOT_IS_READ_ONLY()) {
+        xerrno = EIO;
+        goto error_read_only;
+    }
     // create the lv2 new file
     uuid_generate(node_fid);
     if (export_lv2_resolve_path(e, node_fid, node_path) != 0)
@@ -1014,7 +1059,9 @@ error:
         rmdir(node_path);
         mdir_close(&node_mdir_del);
     }
+error_read_only:
     errno = xerrno;
+
 out:
     STOP_PROFILING(export_mkdir);
     return status;
@@ -1152,18 +1199,21 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
 
-            mclient_t * sclt = (mclient_t *) xmalloc(sizeof (mclient_t));
+            mclient_t * mclt = (mclient_t *) xmalloc(sizeof (mclient_t));
 
-            strcpy(sclt->host, vs->host);
-            sclt->cid = cluster->cid;
-            sclt->sid = vs->sid;
+            strncpy(mclt->host, vs->host, ROZOFS_HOSTNAME_MAX);
+            mclt->cid = cluster->cid;
+            mclt->sid = vs->sid;
+            struct timeval timeo;
+            timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+            timeo.tv_usec = 0;
 
-            if (mclient_initialize(sclt) != 0) {
+            if (mclient_initialize(mclt, timeo) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
             }
 
             cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
-            cnx_entry->cnx = sclt;
+            cnx_entry->cnx = mclt;
 
             // Add to the list
             list_push_back(list, &cnx_entry->list);
@@ -1381,40 +1431,50 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
         goto out;
     }
 
-    // XXX starting from here, any failure will leads to inconsistent state.
-    if (del_mdirentry(lv2->container.mdir.fdp, fid, ".", dot_fid, &dot_type) != 0)
+    // remove lv2
+    if (export_lv2_resolve_path(e, fid, lv2_path) != 0)
         goto out;
-    if (del_mdirentry(lv2->container.mdir.fdp, fid, "..", dot_dot_fid, &dot_dot_type) != 0)
-        goto out;
+    /*
+     ** once the attributes file has been removed 
+     ** consider that the directory is deleted, all the remaining is best effort
+     */
+    sprintf(lv3_path, "%s/%s", lv2_path, MDIR_ATTRS_FNAME);
+
+    if (unlink(lv3_path) != 0) {
+        if (errno != ENOENT) goto out;
+    }
+
+
+    // XXX starting from here, any failure will leads to inconsistent state: best effort mode
+    del_mdirentry(lv2->container.mdir.fdp, fid, ".", dot_fid, &dot_type);
+    del_mdirentry(lv2->container.mdir.fdp, fid, "..", dot_dot_fid, &dot_dot_type);
 
     // remove from the cache (will be closed and freed)
     lv2_cache_del(e->lv2_cache, fid);
+    /*
+     ** rmdir is best effort since it might possible that some dirent file with empty entries remain
+     */
+    rmdir(lv2_path);
 
-    // update parent
-    if (del_mdirentry(plv2->container.mdir.fdp, pfid, name, fake_fid, &fake_type) != 0)
-        goto out;
 
-    plv2->container.mdir.children--;
+    // update parent:
+    /*
+     ** attributes of the parent must be updated first otherwise we can afce the situation where
+     ** parent directory cannot be removed because the number of children is not 0
+     */
+    if (plv2->container.mdir.children > 0) plv2->container.mdir.children--;
     plv2->attributes.nlink--;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
         goto out;
 
-    // update export nb files
-    if (export_update_files(e, -1) != 0)
-        goto out;
+    // update export nb files: best effort mode
+    export_update_files(e, -1);
 
-    // remove lv2
-    if (export_lv2_resolve_path(e, fid, lv2_path) != 0)
-        goto out;
-
-    sprintf(lv3_path, "%s/%s", lv2_path, MDIR_ATTRS_FNAME);
-
-    if (unlink(lv3_path) != 0)
-        goto out;
-
-    if (rmdir(lv2_path) != 0)
-        goto out;
+    /*
+     ** remove the entry from the parent directory: best effort
+     */
+    del_mdirentry(plv2->container.mdir.fdp, pfid, name, fake_fid, &fake_type);
 
     status = 0;
 out:
@@ -1443,6 +1503,14 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, &attrs->mode) == 0) {
         errno = EEXIST;
         goto error;
+    }
+    /*
+     ** nothing has been found, need to check the read only flag:
+     ** that flag is asserted if some parts of dirent files are unreadable 
+     */
+    if (DIRENT_ROOT_IS_READ_ONLY()) {
+        xerrno = EIO;
+        goto error_read_only;
     }
 
     // create the lv2 new file
@@ -1502,6 +1570,7 @@ error:
     if (xerrno != EEXIST) {
         unlink(node_path);
     }
+error_read_only:
     errno = xerrno;
 
 out:
@@ -1706,6 +1775,15 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                 }
                 lv2_new_parent->container.mdir.children--;
             }
+        }
+    } else {
+        /*
+         ** nothing has been found, need to check the read only flag:
+         ** that flag is asserted if some parts of dirent files are unreadable 
+         */
+        if (DIRENT_ROOT_IS_READ_ONLY()) {
+            errno = EIO;
+            goto out;
         }
     }
 

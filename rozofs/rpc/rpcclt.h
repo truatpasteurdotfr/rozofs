@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 #ifndef _RPCCLT_H
 #define _RPCCLT_H
@@ -28,9 +28,8 @@ typedef struct rpcclt {
 
 
 int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
-                      unsigned long vers, unsigned int sendsz,
-                      unsigned int recvsz,
-                      uint32_t port_num);
+        unsigned long vers, unsigned int sendsz, unsigned int recvsz,
+        uint32_t port_num, struct timeval timeout);
 
 void rpcclt_release(rpcclt_t * client);
 

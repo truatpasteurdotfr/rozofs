@@ -108,7 +108,7 @@ ep_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
                     if (exist == 0) {
 
                         /* Add this storage node to the list */
-                        strcpy(ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].host, s->host);
+                        strncpy(ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].host, s->host, ROZOFS_HOSTNAME_MAX);
                         /* Add this sid */
                         ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].sids[0] = s->sid;
                         ret.ep_mount_ret_t_u.export.storage_nodes[stor_idx].cids[0] = cc->cid;
@@ -143,8 +143,74 @@ out:
     return &ret;
 }
 
+ep_cluster_ret_t *ep_list_cluster_1_svc(uint16_t * cid, struct svc_req * req) {
+    static ep_cluster_ret_t ret;
+    list_t *p, *q, *r;
+    uint8_t stor_idx = 0;
+
+    DEBUG_FUNCTION;
+
+    ret.status = EP_FAILURE;
+
+    // Get lock on config
+    if ((errno = pthread_rwlock_rdlock(&config_lock)) != 0) {
+        ret.ep_cluster_ret_t_u.error = errno;
+        goto out;
+    }
+
+    // For each volume
+
+    list_for_each_forward(p, &exportd_config.volumes) {
+
+        volume_config_t *vc = list_entry(p, volume_config_t, list);
+
+        ret.ep_cluster_ret_t_u.cluster.storages_nb = 0;
+        memset(ret.ep_cluster_ret_t_u.cluster.storages, 0, sizeof (ep_storage_t) * SID_MAX);
+
+        // For each cluster
+
+        list_for_each_forward(q, &vc->clusters) {
+
+            cluster_config_t *cc = list_entry(q, cluster_config_t, list);
+
+            // Check if it's a the good cluster
+            if (cc->cid == *cid) {
+
+                // Copy cid
+                ret.ep_cluster_ret_t_u.cluster.cid = cc->cid;
+
+                // For each storage 
+
+                list_for_each_forward(r, &cc->storages) {
+
+                    storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
+
+                    // Add the storage to response
+                    strncpy(ret.ep_cluster_ret_t_u.cluster.storages[stor_idx].host, s->host, ROZOFS_HOSTNAME_MAX);
+                    ret.ep_cluster_ret_t_u.cluster.storages[stor_idx].sid = s->sid;
+                    stor_idx++;
+                }
+                // OK -> answered
+                ret.ep_cluster_ret_t_u.cluster.storages_nb = stor_idx;
+                ret.status = EP_SUCCESS;
+                goto unlock;
+            }
+        }
+    }
+    // cid not found
+    ret.ep_cluster_ret_t_u.error = EINVAL;
+
+unlock:
+    if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
+        ret.ep_cluster_ret_t_u.error = errno;
+        goto out;
+    }
+out:
+    return &ret;
+}
+
 /* Will do something one day !! */
-ep_status_ret_t *ep_umount_1_svc(uint32_t * arg, struct svc_req * req) {
+ep_status_ret_t * ep_umount_1_svc(uint32_t * arg, struct svc_req * req) {
     static ep_status_ret_t ret;
     DEBUG_FUNCTION;
     START_PROFILING(ep_umount);
@@ -155,7 +221,7 @@ ep_status_ret_t *ep_umount_1_svc(uint32_t * arg, struct svc_req * req) {
     return &ret;
 }
 
-ep_statfs_ret_t *ep_statfs_1_svc(uint32_t * arg, struct svc_req * req) {
+ep_statfs_ret_t * ep_statfs_1_svc(uint32_t * arg, struct svc_req * req) {
     static ep_statfs_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -175,7 +241,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_lookup_1_svc(ep_lookup_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_lookup_1_svc(ep_lookup_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -197,7 +263,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_getattr_1_svc(ep_mfile_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_getattr_1_svc(ep_mfile_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -219,7 +285,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_setattr_1_svc(ep_setattr_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_setattr_1_svc(ep_setattr_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -243,7 +309,7 @@ out:
     return &ret;
 }
 
-ep_readlink_ret_t *ep_readlink_1_svc(ep_mfile_arg_t * arg,
+ep_readlink_ret_t * ep_readlink_1_svc(ep_mfile_arg_t * arg,
         struct svc_req * req) {
     static ep_readlink_ret_t ret;
     export_t *exp;
@@ -273,7 +339,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_link_1_svc(ep_link_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_link_1_svc(ep_link_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -295,7 +361,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_mknod_1_svc(ep_mknod_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_mknod_1_svc(ep_mknod_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -317,7 +383,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_mkdir_1_svc(ep_mkdir_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_mkdir_1_svc(ep_mkdir_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -339,7 +405,7 @@ out:
     return &ret;
 }
 
-ep_fid_ret_t *ep_unlink_1_svc(ep_unlink_arg_t * arg, struct svc_req * req) {
+ep_fid_ret_t * ep_unlink_1_svc(ep_unlink_arg_t * arg, struct svc_req * req) {
     static ep_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -360,7 +426,7 @@ out:
     return &ret;
 }
 
-ep_fid_ret_t *ep_rmdir_1_svc(ep_rmdir_arg_t * arg, struct svc_req * req) {
+ep_fid_ret_t * ep_rmdir_1_svc(ep_rmdir_arg_t * arg, struct svc_req * req) {
     static ep_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -381,7 +447,7 @@ out:
     return &ret;
 }
 
-ep_mattr_ret_t *ep_symlink_1_svc(ep_symlink_arg_t * arg, struct svc_req * req) {
+ep_mattr_ret_t * ep_symlink_1_svc(ep_symlink_arg_t * arg, struct svc_req * req) {
     static ep_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -404,7 +470,7 @@ out:
     return &ret;
 }
 
-ep_fid_ret_t *ep_rename_1_svc(ep_rename_arg_t * arg, struct svc_req * req) {
+ep_fid_ret_t * ep_rename_1_svc(ep_rename_arg_t * arg, struct svc_req * req) {
     static ep_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -426,7 +492,7 @@ out:
     return &ret;
 }
 
-ep_readdir_ret_t *ep_readdir_1_svc(ep_readdir_arg_t * arg,
+ep_readdir_ret_t * ep_readdir_1_svc(ep_readdir_arg_t * arg,
         struct svc_req * req) {
     static ep_readdir_ret_t ret;
     export_t *exp;
@@ -476,7 +542,7 @@ out:
 }
  */
 
-ep_read_block_ret_t *ep_read_block_1_svc(ep_io_arg_t * arg, struct svc_req * req) {
+ep_read_block_ret_t * ep_read_block_1_svc(ep_io_arg_t * arg, struct svc_req * req) {
     static ep_read_block_ret_t ret;
     export_t *exp = NULL;
     int64_t length = -1;
@@ -519,7 +585,7 @@ out:
     return &ret;
 }
 
-ep_io_ret_t *ep_write_block_1_svc(ep_write_block_arg_t * arg,
+ep_io_ret_t * ep_write_block_1_svc(ep_write_block_arg_t * arg,
         struct svc_req * req) {
     static ep_io_ret_t ret;
     export_t *exp;
@@ -590,7 +656,7 @@ out:
 }
  */
 
-ep_status_ret_t *ep_setxattr_1_svc(ep_setxattr_arg_t * arg, struct svc_req * req) {
+ep_status_ret_t * ep_setxattr_1_svc(ep_setxattr_arg_t * arg, struct svc_req * req) {
     static ep_status_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -615,7 +681,7 @@ out:
     return &ret;
 }
 
-ep_getxattr_ret_t *ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * req) {
+ep_getxattr_ret_t * ep_getxattr_1_svc(ep_getxattr_arg_t * arg, struct svc_req * req) {
     static ep_getxattr_ret_t ret;
     export_t *exp;
     ssize_t size = -1;
@@ -649,7 +715,7 @@ out:
     return &ret;
 }
 
-ep_status_ret_t *ep_removexattr_1_svc(ep_removexattr_arg_t * arg, struct svc_req * req) {
+ep_status_ret_t * ep_removexattr_1_svc(ep_removexattr_arg_t * arg, struct svc_req * req) {
     static ep_status_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
@@ -673,7 +739,7 @@ out:
     return &ret;
 }
 
-ep_listxattr_ret_t *ep_listxattr_1_svc(ep_listxattr_arg_t * arg, struct svc_req * req) {
+ep_listxattr_ret_t * ep_listxattr_1_svc(ep_listxattr_arg_t * arg, struct svc_req * req) {
     static ep_listxattr_ret_t ret;
     export_t *exp;
     ssize_t size = -1;

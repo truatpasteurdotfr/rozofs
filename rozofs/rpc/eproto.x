@@ -41,6 +41,23 @@ union ep_status_ret_t switch (ep_status_t status) {
     default:            void;
 };
 
+struct ep_storage_t {
+    ep_host_t       host;
+    uint8_t         sid;
+};
+
+struct ep_cluster_t {
+    uint16_t            cid;
+    uint8_t             storages_nb;
+    ep_storage_t        storages[SID_MAX];
+};
+
+union ep_cluster_ret_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_cluster_t    cluster;
+    case EP_FAILURE:    int             error;
+    default:            void;
+};
+
 struct ep_storage_node_t {
     ep_host_t       host;
     uint8_t         sids_nb;
@@ -358,6 +375,9 @@ program EXPORT_PROGRAM {
 
         ep_listxattr_ret_t
         EP_LISTXATTR(ep_listxattr_arg_t)        = 22;
+
+        ep_cluster_ret_t
+        EP_LIST_CLUSTER(uint16_t)               = 23;
 
     } = 1;
 } = 0x20000001;

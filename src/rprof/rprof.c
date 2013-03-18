@@ -51,6 +51,9 @@
 
 #include "config.h"
 
+/* Timeout in seconds for exportd requests */
+#define RPROF_TIMEOUT_REQUESTS 10
+
 static char *profiled_host;
 
 static int profiling_port = 0;
@@ -61,8 +64,10 @@ static char *profiling_cmde;
 
 static int profiling_watch = 0;
 
+static struct timeval timeo;
+
 static union {
-    sp_client_t sp[STORAGE_NODE_PORTS_MAX + 1];
+    sp_client_t sp[STORAGE_NODE_PORTS_MAX + 1 + STORAGES_MAX_BY_STORAGE_NODE];
     mp_client_t mp;
     ep_client_t ep;
 } profiler_client;
@@ -77,28 +82,69 @@ void usage() {
  * storaged profiling
  */
 static void connect_to_storaged_profil() {
-    int i;
+    int i, j;
     spp_profiler_t profiler;
-    strcpy(profiler_client.sp[0].host, profiled_host);
+    strncpy(profiler_client.sp[0].host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.sp[0].port = profiling_port;
-    if (sp_client_initialize(&profiler_client.sp[0]) != 0) {
-        fprintf(stderr, "failed to connect to %s: %s\n", profiled_host, strerror(errno));
+
+    // Connect to master process
+    if (sp_client_initialize(&profiler_client.sp[0], timeo) != 0) {
+        fprintf(stderr,
+                "failed to connect (master service profiling) to %s: %s\n",
+                profiled_host, strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    // Need to get monitor values (nb_io_processes and nb_rb_processes)
     if (sp_client_get_profiler(&profiler_client.sp[0], &profiler) != 0) {
-        fprintf(stderr, "failed to connect to %s: %s\n", profiled_host, strerror(errno));
+        fprintf(stderr, "failed to get master profiler from %s: %s\n",
+                profiled_host, strerror(errno));
         exit(EXIT_FAILURE);
     }
+
+    // Establishing a connection for each io process
     for (i = 0; i < profiler.nb_io_processes; i++) {
-        strcpy(profiler_client.sp[i+1].host, profiled_host);
-        profiler_client.sp[i+1].port = profiler.io_process_ports[i];
-        if (sp_client_initialize(&profiler_client.sp[i+1]) != 0) {
-            fprintf(stderr, "failed to connect to %s: %s\n", profiled_host, strerror(errno));
+        strncpy(profiler_client.sp[i + 1].host, profiled_host, ROZOFS_HOSTNAME_MAX);
+        profiler_client.sp[i + 1].port = profiler.io_process_ports[i];
+        if (sp_client_initialize(&profiler_client.sp[i + 1], timeo) != 0) {
+            fprintf(stderr,
+                    "failed to connect (rbs service profiling) to %s: %s\n",
+                    profiled_host, strerror(errno));
             exit(EXIT_FAILURE);
         }
     }
 
+    // Establishing a connection for each rebuild process
+    for (i = 0; i < profiler.nb_rb_processes; i++) {
+
+        j = profiler.nb_io_processes + i + 1;
+
+        strncpy(profiler_client.sp[j].host, profiled_host, ROZOFS_HOSTNAME_MAX);
+        profiler_client.sp[j].port = profiler.rb_process_ports[i];
+        if (sp_client_initialize(&profiler_client.sp[j], timeo) != 0) {
+            // Here error is considered normal because it's possible that the
+            // rebuild process is completed the rebuild
+            profiler_client.sp[j].port = 0;
+        }
+    }
 }
+
+#define sp_display_rbs_finish_probe(the_port, the_cid, the_sid)\
+    {\
+        fprintf(stdout,\
+                "%-12"PRIu16" %-12"PRIu16" %-12"PRIu8" %-16s %s/%-12s\n",\
+                the_port, the_cid, the_sid, "completed", "---", "---");\
+    }
+
+#define sp_display_rbs_progress_probe(the_port, the_cid, the_sid, the_profiler,\
+                                        the_probe_1, the_probe_2)\
+    {\
+        fprintf(stdout,\
+                "%-12"PRIu16" %-12"PRIu16" %-12"PRIu8" %-16s"\
+                "%"PRIu64"/%-12"PRIu64"\n",\
+                the_port, the_cid, the_sid, "in progress",\
+                the_profiler.the_probe_2, the_profiler.the_probe_1);\
+    }
 
 #define sp_display_probe(the_profiler, the_probe)\
     {\
@@ -134,39 +180,90 @@ static void connect_to_storaged_profil() {
 
 static void profile_storaged_display() {
     time_t elapse;
-    int i, days, hours, mins, secs;
+    int i, j, days, hours, mins, secs;
     spp_profiler_t profiler;
 
+    // Get profiler from master storaged process
     if (sp_client_get_profiler(&profiler_client.sp[0], &profiler) != 0) {
         perror("failed to to get profiler");
         exit(EXIT_FAILURE);
     }
 
+    // Compute uptime for storaged process
     elapse = (int) (profiler.now - profiler.uptime);
     days = (int) (elapse / 86400);
-    hours = (int)((elapse / 3600) - (days * 24));
-    mins = (int)((elapse / 60) - (days * 1440) - (hours * 60));
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
-    fprintf(stdout, "storaged: %s - %"PRIu16" process(es), uptime: %d days, %d:%d:%d\n",
+
+    // Print general profiling values for storaged
+    fprintf(stdout, "storaged: %s - %"PRIu16" IO process(es),"
+            " uptime: %d days, %d:%d:%d\n",
             profiler.vers, profiler.nb_io_processes, days, hours, mins, secs);
 
+    // Print header for operations profiling values for storaged
     fprintf(stdout, "%-12s %-16s %-12s %-12s %-12s %-12s %-12s\n", "PORT", "OP",
             "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MB/s)");
 
+    // Print master storaged process profiling values
     sp_display_probe(profiler, stat);
     sp_display_probe(profiler, ports);
     sp_display_probe(profiler, remove);
 
+    // Print IO storaged process profiling values
     for (i = 0; i < profiler.nb_io_processes; i++) {
         spp_profiler_t sp;
 
-        if (sp_client_get_profiler(&profiler_client.sp[i+1], &sp) != 0) {
+        if (sp_client_get_profiler(&profiler_client.sp[i + 1], &sp) != 0) {
             perror("failed to get profile");
             exit(EXIT_FAILURE);
         }
         sp_display_io_probe(profiler.io_process_ports[i], sp, read);
         sp_display_io_probe(profiler.io_process_ports[i], sp, write);
         sp_display_io_probe(profiler.io_process_ports[i], sp, truncate);
+    }
+
+    // Print RBS storaged process profiling values
+    if (profiler.nb_rb_processes != 0) {
+        fprintf(stdout, "Nb. of storage(s) to rebuild at startup: %"PRIu16"\n",
+                profiler.nb_rb_processes);
+
+        fprintf(stdout, "%-12s %-12s %-12s %-16s %-16s\n", "PORT", "CID", "SID",
+                "STATUS", "FILES REBUILD");
+
+        // Print RBS storaged process profiling values
+        // for each storage to rebuild
+        for (i = 0; i < profiler.nb_rb_processes; i++) {
+            spp_profiler_t sp;
+
+            j = profiler.nb_io_processes + i + 1;
+
+            // If port == 0
+            // The rebuild process is completed
+            if (profiler_client.sp[j].port == 0) {
+                sp_display_rbs_finish_probe(profiler.rb_process_ports[i],
+                        profiler.rbs_cids[i], profiler.rbs_sids[i]);
+                continue;
+            }
+
+            // The rebuild process is not completed
+            if (sp_client_get_profiler(&profiler_client.sp[j], &sp) != 0) {
+
+                if (profiling_watch) {
+                    sp_display_rbs_finish_probe(profiler.rb_process_ports[i],
+                            profiler.rbs_cids[i], profiler.rbs_sids[i]);
+                    continue;
+                } else {
+                    fprintf(stderr,
+                            "failed to get master profiler: %s\n",
+                            strerror(errno));
+                }
+            }
+
+            sp_display_rbs_progress_probe(profiler.rb_process_ports[i],
+                    profiler.rbs_cids[i], profiler.rbs_sids[i], sp,
+                    rb_files_total, rb_files_current);
+        }
     }
 }
 
@@ -186,12 +283,13 @@ static void profile_storaged_clear() {
 
     for (i = 0; i < sp.nb_io_processes; i++) {
 
-        if (sp_client_clear(&profiler_client.sp[i+1]) != 0) {
+        if (sp_client_clear(&profiler_client.sp[i + 1]) != 0) {
+
             perror("failed to clear monitor");
             exit(EXIT_FAILURE);
         }
-
     }
+    // Here no sense to clear rbs process profiling values
 }
 
 static void profile_storaged() {
@@ -205,9 +303,11 @@ static void profile_storaged() {
     if (strcmp(profiling_cmde, "display") == 0) {
         do {
             profile_storaged_display();
-            sleep(1);
-        } while(profiling_watch);
-    } else if (strcmp(profiling_cmde, "clear") == 0 ){
+            if (profiling_watch)
+                sleep(1);
+        } while (profiling_watch);
+    } else if (strcmp(profiling_cmde, "clear") == 0) {
+
         profile_storaged_clear();
         profile_storaged_display();
     }
@@ -217,10 +317,11 @@ static void profile_storaged() {
  * rozofsmount profiling
  */
 static void connect_to_rozofsmount_profil() {
-    strcpy(profiler_client.mp.host, profiled_host);
+    strncpy(profiler_client.mp.host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.mp.port = profiling_port;
-    if (mp_client_initialize(&profiler_client.mp) != 0)  {
-        fprintf(stderr, "failed to connect to %s: %s\n", profiled_host, strerror(errno));
+    if (mp_client_initialize(&profiler_client.mp, timeo) != 0) {
+        fprintf(stderr, "failed to connect to %s: %s\n", profiled_host,
+                strerror(errno));
         exit(EXIT_FAILURE);
     }
 }
@@ -263,14 +364,15 @@ static void profile_rozofsmount_display() {
     mpp_profiler_t mp;
 
     if (mp_client_get_profiler(&profiler_client.mp, &mp) != 0) {
+
         perror("failed to to get monitor");
         exit(EXIT_FAILURE);
     }
 
     elapse = (int) (mp.now - mp.uptime);
     days = (int) (elapse / 86400);
-    hours = (int)((elapse / 3600) - (days * 24));
-    mins = (int)((elapse / 60) - (days * 1440) - (hours * 60));
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
     fprintf(stdout, "rozofsmount: %s - uptime: %d days, %d:%d:%d\n",
             mp.vers, days, hours, mins, secs);
@@ -314,6 +416,7 @@ static void profile_rozofsmount_display() {
 static void profile_rozofsmount_clear() {
 
     if (mp_client_clear(&profiler_client.mp) != 0) {
+
         perror("failed to clear profil");
         exit(EXIT_FAILURE);
     }
@@ -331,8 +434,9 @@ static void profile_rozofsmount(char *host, char *cmde) {
         do {
             profile_rozofsmount_display();
             sleep(1);
-        } while(profiling_watch);
-    } else if (strcmp(profiling_cmde, "clear") == 0 ){
+        } while (profiling_watch);
+    } else if (strcmp(profiling_cmde, "clear") == 0) {
+
         profile_rozofsmount_clear();
         profile_rozofsmount_display();
     }
@@ -342,9 +446,9 @@ static void profile_rozofsmount(char *host, char *cmde) {
  * exportd profiling
  */
 static void connect_to_exportd_profil() {
-    strcpy(profiler_client.ep.host, profiled_host);
+    strncpy(profiler_client.ep.host, profiled_host, ROZOFS_HOSTNAME_MAX);
     profiler_client.ep.port = profiling_port;
-    if (ep_client_initialize(&profiler_client.ep) != 0)  {
+    if (ep_client_initialize(&profiler_client.ep, timeo) != 0) {
         fprintf(stderr, "failed to connect to %s: %s\n", profiled_host, strerror(errno));
         exit(EXIT_FAILURE);
     }
@@ -393,8 +497,8 @@ static void profile_exportd_display() {
     }
     elapse = (int) (ep.now - ep.uptime);
     days = (int) (elapse / 86400);
-    hours = (int)((elapse / 3600) - (days * 24));
-    mins = (int)((elapse / 60) - (days * 1440) - (hours * 60));
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
     fprintf(stdout, "exportd: %s - uptime: %d days, %d:%d:%d\n",
             ep.vers, days, hours, mins, secs);
@@ -413,8 +517,9 @@ static void profile_exportd_display() {
         fprintf(stdout, "\n\t%-6s %-6s %-12s %-12s %-12s %-12s\n", "EID", "BSIZE",
                 "BLOCKS", "BFREE", "FILES", "FFREE");
         for (j = 0; j < ep.nb_exports; j++) {
+
             if (ep.estats[j].vid == ep.vstats[i].vid)
-            fprintf(stdout, "\t%-6d %-6d %-12"PRIu64" %-12"PRIu64" %-12"PRIu64" %-12"PRIu64"\n", ep.estats[j].eid,
+                fprintf(stdout, "\t%-6d %-6d %-12"PRIu64" %-12"PRIu64" %-12"PRIu64" %-12"PRIu64"\n", ep.estats[j].eid,
                     ep.estats[j].bsize, ep.estats[j].blocks, ep.estats[j].bfree,
                     ep.estats[j].files, ep.estats[j].ffree);
         }
@@ -499,6 +604,7 @@ static void profile_exportd_display() {
 static void profile_exportd_clear() {
 
     if (ep_client_clear(&profiler_client.ep) != 0) {
+
         perror("failed to clear profil");
         exit(EXIT_FAILURE);
     }
@@ -516,23 +622,26 @@ static void profile_exportd(char *host, char *cmde) {
         do {
             profile_exportd_display();
             sleep(1);
-        } while(profiling_watch);
-    } else if (strcmp(profiling_cmde, "clear") == 0 ){
+        } while (profiling_watch);
+    } else if (strcmp(profiling_cmde, "clear") == 0) {
+
         profile_exportd_clear();
         profile_exportd_display();
     }
 }
 
-
-
 int main(int argc, char **argv) {
     int c;
+    
+    // Set timeout for RPC requests
+    timeo.tv_sec = RPROF_TIMEOUT_REQUESTS;
+    timeo.tv_usec = 0;
 
     while (1) {
         static struct option long_options[] = {
-                {"help", no_argument, 0, 'h'},
-                {"watch", no_argument, 0, 'w'},
-                {0, 0, 0, 0 }
+            {"help", no_argument, 0, 'h'},
+            {"watch", no_argument, 0, 'w'},
+            {0, 0, 0, 0}
         };
         /* getopt_long stores the option index here. */
         int option_index = 0;
@@ -544,21 +653,21 @@ int main(int argc, char **argv) {
             break;
 
         switch (c) {
-        case 'h':
-            usage();
-            exit(EXIT_SUCCESS);
-            break;
-        case 'w':
-            profiling_watch = 1;
-            break;
-        case '?':
-            usage();
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            usage();
-            exit(EXIT_FAILURE);
-            break;
+            case 'h':
+                usage();
+                exit(EXIT_SUCCESS);
+                break;
+            case 'w':
+                profiling_watch = 1;
+                break;
+            case '?':
+                usage();
+                exit(EXIT_SUCCESS);
+                break;
+            default:
+                usage();
+                exit(EXIT_FAILURE);
+                break;
         }
     }
 
@@ -567,13 +676,20 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (! strchr(argv[optind], '@')) {
+    if (!strchr(argv[optind], '@')) {
         usage();
         exit(EXIT_FAILURE);
     };
 
     profiled_service = strtok(argv[optind], "@");
     profiled_host = strtok(0, "@");
+
+    if (strlen(profiled_host) >= ROZOFS_HOSTNAME_MAX) {
+        fprintf(stderr, "The length of hostname must be lower than %d.\n",
+                ROZOFS_HOSTNAME_MAX);
+        exit(EXIT_FAILURE);
+    }
+
     profiling_port = 0;
     if (index(profiled_host, ':')) {
         profiled_host = strtok(profiled_host, ":");

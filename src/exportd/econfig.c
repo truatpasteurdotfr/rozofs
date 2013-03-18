@@ -57,7 +57,7 @@ int storage_node_config_initialize(storage_node_config_t *s, uint8_t sid,
     }
 
     s->sid = sid;
-    strcpy(s->host, host);
+    strncpy(s->host, host, ROZOFS_HOSTNAME_MAX);
     list_init(&s->list);
 
     status = 0;
@@ -118,8 +118,8 @@ int export_config_initialize(export_config_t *e, eid_t eid, vid_t vid,
 
     e->eid = eid;
     e->vid = vid;
-    strcpy(e->root, root);
-    strcpy(e->md5, md5);
+    strncpy(e->root, root, FILENAME_MAX);
+    strncpy(e->md5, md5, MD5_LEN);
     e->squota = squota;
     e->hquota = hquota;
     list_init(&e->list);
@@ -291,6 +291,15 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
                     goto out;
                 }
 
+                // Check length of storage hostname
+                if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+                    errno = ENAMETOOLONG;
+                    severe("Storage hostname length (volume idx: %d\
+                             , cluster idx: %d, storage idx: %d) must be lower\
+                         than %d.", v, c, s, ROZOFS_HOSTNAME_MAX);
+                    goto out;
+                }
+
                 // Allocate a new storage_config
                 snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
                 if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
@@ -406,9 +415,25 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
+        // Check root path length
+        if (strlen(root) > FILENAME_MAX) {
+            errno = ENAMETOOLONG;
+            severe("root path length for export idx: %d must be lower than %d.",
+                    i, FILENAME_MAX);
+            goto out;
+        }
+
         if (config_setting_lookup_string(mfs_setting, EMD5, &md5) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't look up md5 for export idx: %d", i);
+            goto out;
+        }
+
+        // Check md5 length
+        if (strlen(md5) > MD5_LEN) {
+            errno = EINVAL;
+            severe("md5 crypt length for export idx: %d must be lower than %d.",
+                    i, MD5_LEN);
             goto out;
         }
 
@@ -556,6 +581,88 @@ out:
     return status;
 }
 
+/** Checks if maximum storage limits is exceeded for a given volume
+ *
+ * @param config: volume configuration
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+static int econfig_validate_storage_nb(volume_config_t *config) {
+    int status = -1;
+    list_t *q, *r;
+    int curr_stor_idx = 0;
+    int i = 0;
+    int exist = 0;
+
+    DEBUG_FUNCTION;
+
+    // Internal structure for store storage node
+
+    typedef struct stor_node_check {
+        char host[ROZOFS_HOSTNAME_MAX];
+        uint8_t sids_nb;
+    } stor_node_check_t;
+
+    stor_node_check_t stor_nodes[STORAGE_NODES_MAX];
+    memset(stor_nodes, 0, STORAGE_NODES_MAX * sizeof (stor_node_check_t));
+
+    // For each cluster
+
+    list_for_each_forward(q, &config->clusters) {
+        cluster_config_t *c = list_entry(q, cluster_config_t, list);
+
+        // For each storage
+
+        list_for_each_forward(r, &c->storages) {
+            storage_node_config_t *s = list_entry(r, storage_node_config_t,
+                    list);
+
+            exist = 0;
+
+            // Check if the storage hostname already exists
+            for (i = 0; i < curr_stor_idx; i++) {
+
+                if (strcmp(s->host, stor_nodes[i].host) == 0) {
+                    // This physical storage node exist
+                    stor_nodes[i].sids_nb++;
+                    // Check nb. of storages with this hostname
+                    if (stor_nodes[i].sids_nb > STORAGES_MAX_BY_STORAGE_NODE) {
+                        severe("Too many storages with the hostname=%s"
+                                " in volume with vid=%u (number max is %d)",
+                                s->host, config->vid,
+                                STORAGES_MAX_BY_STORAGE_NODE);
+                        errno = EINVAL;
+                        goto out;
+                    }
+                    exist = 1;
+                    break;
+                }
+            }
+
+            // This physical storage node doesn't exist
+            if (exist == 0) {
+
+                if ((curr_stor_idx + 1) > STORAGE_NODES_MAX) {
+                    severe("Too many storages in volume with vid=%u"
+                            " (number max is %d)",
+                            config->vid, STORAGE_NODES_MAX);
+                    errno = EINVAL;
+                    goto out;
+                }
+                // Add this storage node
+                strncpy(stor_nodes[curr_stor_idx].host, s->host,
+                        ROZOFS_HOSTNAME_MAX);
+                stor_nodes[curr_stor_idx].sids_nb++;
+                // Increments the nb. of physical storage nodes
+                curr_stor_idx++;
+            }
+        }
+    }
+    status = 0;
+out:
+    return status;
+}
+
 static int econfig_validate_volumes(econfig_t *config) {
     int status = -1;
     list_t *p, *q;
@@ -574,6 +681,11 @@ static int econfig_validate_volumes(econfig_t *config) {
                 goto out;
             }
         }
+
+        if (econfig_validate_storage_nb(e1)) {
+            goto out;
+        }
+
         if (econfig_validate_clusters(e1) != 0) {
             severe("invalid cluster.");
             goto out;

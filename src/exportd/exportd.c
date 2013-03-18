@@ -550,7 +550,7 @@ static void on_start() {
     }
 
     SET_PROBE_VALUE(uptime, time(0));
-    strcpy((char *) gprofiler.vers, VERSION);
+    strncpy((char *) gprofiler.vers, VERSION, 20);
 
     info("running.");
     svc_run();

@@ -403,6 +403,8 @@ static int64_t write_blocks(file_t * f, bid_t bid, uint32_t nb_blocks,
     for (proj_id = 0; proj_id < rozofs_forward; proj_id++) {
         bins[proj_id] = xmalloc((rozofs_max_psize * sizeof (bin_t) +
                 sizeof (rozofs_stor_bins_hdr_t)) * nb_blocks);
+        memset(bins[proj_id], 0, (rozofs_max_psize * sizeof (bin_t) +
+                sizeof (rozofs_stor_bins_hdr_t)) * nb_blocks);
         projections[proj_id].angle.p = rozofs_get_angles_p(rozofs_layout, proj_id);
         projections[proj_id].angle.q = rozofs_get_angles_q(rozofs_layout, proj_id);
         projections[proj_id].size = rozofs_get_psizes(rozofs_layout, proj_id);
