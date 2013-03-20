@@ -163,7 +163,7 @@ A running exportd hostname. If not set the local hostname will be used.
 stat
 \fBrozo \fPstat [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vids\fP \fIvid\fP,...] 
 .TP
-Set storage layout for this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
+Get storage stats for this platform.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname. If not set the local hostname will be used.
@@ -172,7 +172,7 @@ A running exportd hostname. If not set the local hostname will be used.
 List of volume id to be stated. If not set all volumes will be stated.
 .SS
 expand
-\fBrozo \fPexpand [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vid\fP \fIvid\fP] \fIhost\fP,... 
+\fBrozo \fPexpand [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vid\fP \fIvid\fP] \fIhost\fP ... 
 .TP
 Add storage nodes (according to the given \fIhosts\fP list) to this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP.
 .TP
@@ -211,12 +211,15 @@ Soft quota to set. (value [K | M | G])
 Hard quota to set. (value [K | M | G]) 
 .SS
 update
-\fBrozo \fPupdate [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIeid\fP
+\fBrozo \fPupdate [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-c\fP | \fB--current\fP\fI password\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIeid\fP
 .TP
 Update an export according to \fIeid\fP.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname. If not set the local hostname will be used.
+.TP
+\fB\-c\fP, \fB--current \fP\fIpasswd
+Current password (needed with \fB-p\fP).
 .TP
 \fB\-p\fP, \fB--passwd \fP\fIpasswd
 Password to set.
@@ -239,7 +242,7 @@ A running exportd hostname. If not set the local hostname will be used.
 Force removing non empty exports.
 .SS
 mount
-\fBrozo \fPmount [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--node\fP \fhost\fP,...] \fIeid\fP,...
+\fBrozo \fPmount [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--node\fP \fIhost\fP,...] \fIeid\fP,...
 .TP
 Mount export identified by \fIeid\fP,... on nodes. 
 .TP
