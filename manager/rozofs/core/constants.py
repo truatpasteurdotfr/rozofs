@@ -6,6 +6,7 @@ PLATFORM_MANAGER = "platform"
 EXPORTD_MANAGER = "exportd"
 STORAGED_MANAGER = "storaged"
 ROZOFSMOUNT_MANAGER = "rozofsmount"
+NFS_MANAGER = "nfs"
 # SHARE_MANAGER = "share"
 
 LAYOUT_NONE = -1

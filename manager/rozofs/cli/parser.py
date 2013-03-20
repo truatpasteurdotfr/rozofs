@@ -44,11 +44,6 @@ __parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='run
 # platform related commands
 #
 
-
-#
-# __parser = __add_command_parser('set-exportd', 'set exportd hostname.', platform_dispatch, [__parent])
-# __parser.add_argument('exportd', nargs=1, help='the exportd hostname to be set.')
-
 __parser = __add_command_parser('nodes', 'display nodes and associated roles.', platform_dispatch, [__parent])
 __parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be shown on nodes. If not set all roles will be shown')
 
@@ -99,6 +94,7 @@ __parser.add_argument('-a', '--hquota', default="", help='hard quota to set.')
 __parser.add_argument('vid', nargs=1, type=int, help='vid of an existing volume.')
 
 __parser = __add_command_parser('update', 'modify an exported file system.', platform_dispatch, [__parent])
+__parser.add_argument('-c', '--current', default=None, help='current password.')
 __parser.add_argument('-p', '--passwd', default=None, help='password to set.')
 __parser.add_argument('-s', '--squota', default=None, help='soft quota to set.')
 __parser.add_argument('-a', '--hquota', default=None, help='hard quota to set.')
