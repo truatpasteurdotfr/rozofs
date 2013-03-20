@@ -34,7 +34,7 @@ typedef struct mclient {
     rpcclt_t rpcclt;
 } mclient_t;
 
-int mclient_initialize(mclient_t *clt);
+int mclient_initialize(mclient_t *clt, struct timeval timeout);
 
 void mclient_release(mclient_t *clt);
 

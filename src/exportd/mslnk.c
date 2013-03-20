@@ -77,7 +77,7 @@ int mslnk_read_link(mslnk_t *mslnk, char *link) {
     if (pread(mslnk->fdattrs, link_name, ROZOFS_PATH_MAX, sizeof(mattr_t))
             != ROZOFS_PATH_MAX)
         return -1;
-    strcpy(link, link_name);
+    strncpy(link, link_name, ROZOFS_PATH_MAX);
 
     STOP_PROFILING(mslnk_read_link);
     return 0;
@@ -90,7 +90,7 @@ int mslnk_write_link(mslnk_t *mslnk, char *link) {
     START_PROFILING(mslnk_write_link);
 
     memset(link_name, 0, ROZOFS_PATH_MAX);
-    strcpy(link_name, link);
+    strncpy(link_name, link, ROZOFS_PATH_MAX);
 
     status = pwrite(mslnk->fdattrs, link_name, ROZOFS_PATH_MAX,
             sizeof(mattr_t))

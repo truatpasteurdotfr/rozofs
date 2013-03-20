@@ -1,7 +1,7 @@
 #! /bin/sh
 ### BEGIN INIT INFO
 # Provides:          rozofs-rozofsmount
-# Required-Start:    $network $local_fs 
+# Required-Start:    $network $local_fs
 # Required-Stop:
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
@@ -43,22 +43,31 @@ SCRIPTNAME=/etc/init.d/$NAME
 do_start()
 {
         [ -f /etc/fstab ] || return
+        mount -a -t rozofs
+}
+
+do_stop()
+{
+        [ -f /etc/fstab ] || return
         #
         # Read through fstab line by line. If it is ROZOFS, mount it
         #
 
-        #exec 9<&0 </etc/fstab
+        exec 9<&0 </etc/fstab
 
-        #while read DEV MTPT FSTYPE OPTS REST
-        #do
-                #if [[ "$DEV" == "rozofsmount" ]]; then
-                #       mount $MTPT
-                #fi
-        #done
+        while read DEV MTPT FSTYPE OPTS REST
+        do
+        case "$DEV" in
+            ""|\#*)
+                continue;
+                ;;
+            "rozofsmount")
+                umount $MTPT
+                ;;
+        esac
+        done
 
-        #exec 0<&9 9<&-
-
-        mount -a -t rozofs
+        exec 0<&9 9<&-
 }
 
 case "$1" in
@@ -67,6 +76,7 @@ case "$1" in
     do_start
   ;;
   stop)
+    do_stop
   ;;
   status|reload|restart|force-reload)
        echo "Error: argument '$1' not supported" >&2

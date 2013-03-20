@@ -30,6 +30,7 @@
 typedef struct sp_client {
     char host[ROZOFS_HOSTNAME_MAX];
     uint32_t port;
+    uint16_t timeout;
     rpcclt_t rpcclt;
 } sp_client_t;
 

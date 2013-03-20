@@ -27,10 +27,11 @@
 
 int ep_client_initialize(ep_client_t *clt) {
     int status = -1;
+    struct timeval tv = {clt->timeout, 0};
     DEBUG_FUNCTION;
 
     if (rpcclt_initialize(&clt->rpcclt, clt->host, EXPORTD_PROFILE_PROGRAM,
-            EXPORTD_PROFILE_VERSION, 0, 0, clt->port) != 0) {
+            EXPORTD_PROFILE_VERSION, 0, 0, clt->port, tv) != 0) {
         goto out;
     }
 
@@ -40,6 +41,7 @@ out:
 }
 
 // XXX Useless
+
 void ep_client_release(ep_client_t *clt) {
     DEBUG_FUNCTION;
     if (clt && clt->rpcclt.client)
@@ -55,7 +57,7 @@ int ep_client_get_profiler(ep_client_t *clt, epp_profiler_t *p) {
             !(ret = epp_get_profiler_1(0, clt->rpcclt.client))) {
         warning("rfsm_get_rozofrfsmount_profiler failed:\
                  no response from storage server (%s, %u)",
-                 clt->host, clt->port);
+                clt->host, clt->port);
         errno = EPROTO;
         goto out;
     }
@@ -64,11 +66,11 @@ int ep_client_get_profiler(ep_client_t *clt, epp_profiler_t *p) {
         severe("rfsm_get_profiler failed: %s", strerror(errno));
         goto out;
     }
-    memcpy(p, &ret->epp_profiler_ret_t_u.profiler, sizeof(epp_profiler_t));
+    memcpy(p, &ret->epp_profiler_ret_t_u.profiler, sizeof (epp_profiler_t));
     status = 0;
 out:
     if (ret)
-       xdr_free((xdrproc_t)xdr_epp_profiler_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_epp_profiler_ret_t, (char *) ret);
     return status;
 }
 
@@ -79,7 +81,7 @@ int ep_client_clear(ep_client_t *clt) {
     if (!(clt->rpcclt.client) || !(ret = epp_clear_1(0, clt->rpcclt.client))) {
         warning("ep_client_clear failed:\
                  no response from storage server (%s, %u)",
-                 clt->host, clt->port);
+                clt->host, clt->port);
         errno = EPROTO;
         goto out;
     }
@@ -91,6 +93,6 @@ int ep_client_clear(ep_client_t *clt) {
     status = 0;
 out:
     if (ret)
-       xdr_free((xdrproc_t)xdr_epp_status_ret_t, (char *) ret);
+        xdr_free((xdrproc_t) xdr_epp_status_ret_t, (char *) ret);
     return status;
 }

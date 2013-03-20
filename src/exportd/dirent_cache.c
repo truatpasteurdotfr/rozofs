@@ -33,7 +33,7 @@
 #include <rozofs/common/xmalloc.h>
 
 #include "mdir.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 /**
  *  debug flags
@@ -224,7 +224,7 @@ mdirents_cache_entry_t *dirent_cache_allocate_entry(
  */
 mdirents_cache_entry_t *dirent_cache_create_entry(
         mdirents_header_new_t *dirent_hdr_p) {
-    mdirents_cache_entry_t *p;
+    mdirents_cache_entry_t *p = NULL;
     uint64_t val;
 
     /*
@@ -242,6 +242,17 @@ mdirents_cache_entry_t *dirent_cache_create_entry(
         return (mdirents_cache_entry_t*) NULL ;
     }
     /*
+    ** allocate the save bitmap for root entry only
+    */
+    p->bucket_safe_bitmap_p = DIRENT_MALLOC(MDIRENTS_HASH_TB_INT_SZ/8);
+    if (p->bucket_safe_bitmap_p == NULL ) {
+        /*
+         ** out of memory
+         */
+	 goto error;
+    }
+    memset( p->bucket_safe_bitmap_p,0,MDIRENTS_HASH_TB_INT_SZ/8);
+     /*
      ** Init of the various bitmap
      */
     /*
@@ -306,7 +317,7 @@ mdirents_cache_entry_t *dirent_cache_create_entry(
     /*
      ** Release the dirent entry
      */
-    printf("need to Release the dirent entry elements\n");
+    if (p != NULL) dirent_cache_release_entry(p);
     return NULL ;
 
 }
@@ -333,87 +344,100 @@ int dirent_cache_release_entry(mdirents_cache_entry_t *dirent_entry_p) {
     int loop_cnt = 0;
     mdirents_cache_entry_t *dirent_coll_entry_p = NULL;
     uint8_t *mem_p;
-
+    
+#if 0    
+    if (DIRENT_IS_ROOT_UPDATE_REQ(dirent_entry_p))
+      severe("FDL_DEBUG dirent file has not been updated on disk %s [%d_%d]",
+            (dirent_entry_p->header.level_index==0)?"ROOT":"COLL",
+	    dirent_entry_p->header.dirent_idx[0],
+	    dirent_entry_p->header.dirent_idx[1]);
+#endif
     /*
      ** Get the pointer to the bitmap of the free hash entries of the parent dirent entry
      */
     sect0_p = DIRENT_VIRT_TO_PHY_OFF(dirent_entry_p,sect0_p)
     ;
-    if (sect0_p == (mdirent_sector0_not_aligned_t*) NULL ) {
-        DIRENT_SEVERE(" dirent_cache_release_entry error at line %d\n",__LINE__)
-        ;
-        return -1;
+    if (sect0_p == (mdirent_sector0_not_aligned_t*) NULL ) 
+    {
+        DIRENT_SEVERE(" dirent_cache_release_entry error at line %d\n",__LINE__);
     }
-    //hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
-    coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
+    else
+    {
+
+      coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
+      /*
+       ** check if there is some collision dirent cache entry associated with the current entry
+       */
+      while (coll_idx < MDIRENTS_MAX_COLLS_IDX) {
+  #if 1
+          if (coll_idx % 8 == 0) {
+              next_coll_idx = check_bytes_val(coll_bitmap_p, coll_idx,
+                      MDIRENTS_MAX_COLLS_IDX, &loop_cnt, 1);
+              if (next_coll_idx < 0)
+                  break;
+              coll_idx = next_coll_idx;
+          }
+  #endif
+          chunk_u8_idx = coll_idx / 8;
+          bit_idx = coll_idx % 8;
+
+          /*
+           ** there is collision dirent entry
+           */
+          if ((coll_bitmap_p[chunk_u8_idx] & (1 << bit_idx)) != 0) {
+              /*
+               ** that collision entry is free-> check the next one
+               */
+              coll_idx++;
+              continue;
+          }
+          /*
+           ** the entry exist, so get the associated dirent cache entry pointer
+           */
+          dirent_coll_entry_p = dirent_cache_get_collision_ptr(dirent_entry_p,
+                  (uint32_t) coll_idx);
+          if (dirent_coll_entry_p == NULL ) {
+              /*
+               ** This error is accepted, it addresses the case of a collision file reading error
+	       ** In that case we keep the associated bit in the collision file bitmap of the
+	       ** root entry, but we do not allocated memory for the collision file
+               */
+  //            DIRENT_SEVERE("dirent_cache_release_entry error for collision file  %d",coll_idx);
+
+              coll_idx++;
+              continue;
+          }
+          /*
+           ** delete the pointer associated with the collision entry (not the collision entry itself
+           */
+          if (dirent_cache_del_collision_ptr(dirent_entry_p,
+                  dirent_coll_entry_p) != NULL) {
+              /*
+               ** something wrong in the release
+               */
+              DIRENT_SEVERE("dirent_cache_release_entry error for collision file  %d",coll_idx);
+          }
+          /*
+           ** Release that collision dirent entry
+           */
+          if (dirent_cache_release_entry(dirent_coll_entry_p) < 0) {
+              /*
+               ** something wrong in the release
+               */
+              DIRENT_SEVERE("dirent_cache_release_entry error for collision file  %d",coll_idx);
+          }
+
+          /*
+           ** check next entry
+           */
+          coll_idx++;
+      }
+    }    
     /*
-     ** check if there is some collision dirent cache entry associated with the current entry
-     */
-    while (coll_idx < MDIRENTS_MAX_COLLS_IDX) {
-#if 1
-        if (coll_idx % 8 == 0) {
-            next_coll_idx = check_bytes_val(coll_bitmap_p, coll_idx,
-                    MDIRENTS_MAX_COLLS_IDX, &loop_cnt, 1);
-            if (next_coll_idx < 0)
-                break;
-            coll_idx = next_coll_idx;
-        }
-#endif
-        chunk_u8_idx = coll_idx / 8;
-        bit_idx = coll_idx % 8;
-
-        /*
-         ** there is collision dirent entry
-         */
-        if ((coll_bitmap_p[chunk_u8_idx] & (1 << bit_idx)) != 0) {
-            /*
-             ** that collision entry is free-> check the next one
-             */
-            coll_idx++;
-            continue;
-        }
-        /*
-         ** the entry exist, so get the associated dirent cache entry pointer
-         */
-        dirent_coll_entry_p = dirent_cache_get_collision_ptr(dirent_entry_p,
-                (uint32_t) coll_idx);
-        if (dirent_coll_entry_p == NULL ) {
-            /*
-             ** not normal, the dirent entry is not present in the cache
-             */
-            DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__)
-            ;
-            return -1;
-        }
-        /*
-         ** delete the pointer associated with the collision entry (not the collision entry itself
-         */
-        if (dirent_cache_del_collision_ptr(dirent_entry_p,
-                dirent_coll_entry_p) != NULL) {
-            /*
-             ** something wrong in the release
-             */
-            DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__)
-            ;
-            return -1;
-        }
-        /*
-         ** Release that collision dirent entry
-         */
-        if (dirent_cache_release_entry(dirent_coll_entry_p) < 0) {
-            /*
-             ** something wrong in the release
-             */
-            DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__)
-            ;
-            return -1;
-        }
-
-        /*
-         ** check next entry
-         */
-        coll_idx++;
-    }
+    ** Check for hash backet safe bitmap memory
+    */
+    if (dirent_entry_p->bucket_safe_bitmap_p != NULL)
+          DIRENT_FREE(dirent_entry_p->bucket_safe_bitmap_p); 
 
     /*
      ** all the collision dirent cache entries have been released, start releasing the
@@ -427,7 +451,10 @@ int dirent_cache_release_entry(mdirents_cache_entry_t *dirent_entry_p) {
     /*
      ** release the sector_0 array
      */
-    DIRENT_FREE(sect0_p);
+    if (sect0_p != NULL) 
+    {
+      DIRENT_FREE(sect0_p);
+    }
     DIRENT_CLEAR_VIRT_PTR(dirent_entry_p->sect0_p);
 
     /*
@@ -439,27 +466,28 @@ int dirent_cache_release_entry(mdirents_cache_entry_t *dirent_entry_p) {
         /*
          ** something wrong in the release
          */
-        DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__)
-        ;
-        return -1;
+        DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__);
     }
-    DIRENT_FREE(mem_p);
+    else
+    {
+      DIRENT_FREE(mem_p);
+    }
     DIRENT_CLEAR_VIRT_PTR(dirent_entry_p->coll_bitmap_hash_full_p);
 
     /*
      ** release the memory allocated for name bitmap
      */
-    mem_p = DIRENT_VIRT_TO_PHY(dirent_entry_p->name_bitmap_p)
-    ;
+    mem_p = DIRENT_VIRT_TO_PHY(dirent_entry_p->name_bitmap_p);
     if (mem_p == NULL ) {
         /*
          ** something wrong in the release
          */
-        DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__)
-        ;
-        return -1;
+        DIRENT_SEVERE("dirent_cache_release_entry error at line %d\n",__LINE__);
     }
-    DIRENT_FREE(mem_p);
+    else
+    {
+      DIRENT_FREE(mem_p);
+    }
     DIRENT_CLEAR_VIRT_PTR(dirent_entry_p->name_bitmap_p);
     /*
      ** release the memory allocated for hash buckets
@@ -671,6 +699,7 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
             /*
              ** not normal, the dirent entry is not present in the cache
              */
+	     DIRENT_SEVERE("Collision pointer not found inmemory for collision file %d",coll_idx);
             break;
         }
         sect0_p = DIRENT_VIRT_TO_PHY_OFF(dirent_entry,sect0_p)
@@ -743,7 +772,7 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
         ;
     } else {
         coll_idx = free_coll_idx;
-        DIRENT_CACHE_SET_COLL_ENTRY_FULL(coll_bitmap_p, coll_idx);
+        DIRENT_CACHE_SET_ALLOCATED_COLL_ENTRY_IDX(coll_bitmap_p, coll_idx);
     }
     if (coll_idx < 0) {
         /*
@@ -888,150 +917,6 @@ static inline void dirent_cache_udpate_free_entry(mdirents_cache_entry_t *p,
 //#define SET_LAST_ENTRY(p) { cache_entry_last_p =p; last_entry_idx_in_last = -1; }
 //#define SET_LAST_ENTRY_IDX(idx) { last_entry_idx_in_last = idx;}
 
-/*
- **______________________________________________________________________________
- */
-/**
- *   Search and allocate a hash entry in the linked associated with a bucket entry, the key being the value of the hash
- *
-
- @param root : pointer to the root dirent entry
- @param hash_value : hash value to search
- @param bucket_idx : index of the hash bucket : taken from the lower 8 bits of the hash value applied to the name of the directory/file
- @param hash_entry_match_idx_p : pointer to an array where the local idx of the hash entry will be returned
-
- @retval <> NULL: pointer to the dirent cache entry where hash entry can be found, local idx is found in hash_entry_match_idx_p
- @retval NULL: not found
- */
-
-mdirents_cache_entry_t *dirent_cache_search_and_alloc_hash_entry(
-        mdirents_cache_entry_t *root, int bucket_idx, uint32_t hash_value,
-        int *hash_entry_match_idx_p, dirent_cache_search_alloc_t *cache_alloc_p) {
-    mdirents_hash_ptr_t *hash_bucket_p;
-    mdirents_hash_entry_t *hash_entry_cur_p;
-    mdirents_cache_entry_t *cache_entry_cur;
-    uint32_t coll_cnt = 0;
-    uint8_t *coll_bitmap_hash_full_p;
-
-    *hash_entry_match_idx_p = -1;
-
-    mdirents_cache_entry_t *cache_entry_free_p = NULL;
-    uint16_t last_entry_idx_in_last = -1;
-
-    int cur_hash_entry_idx = -1;
-
-    coll_bitmap_hash_full_p =
-            DIRENT_VIRT_TO_PHY_OFF(root,coll_bitmap_hash_full_p)
-    ;
-    if (coll_bitmap_hash_full_p == (uint8_t*) NULL ) {
-        printf("FDL error at %d collision Bitmap does not exist \n", __LINE__);
-        return NULL ;
-    }
-    if (cache_alloc_p != NULL ) {
-        cache_alloc_p->cache_entry_free_p = cache_entry_free_p;
-        cache_alloc_p->cache_entry_last_p = NULL;
-        cache_alloc_p->last_entry_idx_in_last = last_entry_idx_in_last;
-    }
-
-    cache_entry_cur = root;
-    hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_cur,bucket_idx)
-    ;
-
-    while (1) {
-        coll_cnt += 1;
-        if (hash_bucket_p == NULL ) {
-            /*
-             ** There is no entry for that hash
-             */
-            if (cache_alloc_p != NULL ) {
-                cache_alloc_p->cache_entry_free_p = cache_entry_free_p;
-                cache_alloc_p->cache_entry_last_p = cache_entry_cur;
-                cache_alloc_p->last_entry_idx_in_last = (uint16_t) -1;
-            }
-            DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt);
-            return NULL ;
-        }
-
-        if (hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF) {
-            /*
-             ** This the end of list and not entry match with the requested hash value
-             */
-            if (cache_alloc_p != NULL ) {
-                cache_alloc_p->cache_entry_free_p = cache_entry_free_p;
-                cache_alloc_p->cache_entry_last_p = cache_entry_cur;
-                cache_alloc_p->last_entry_idx_in_last = last_entry_idx_in_last;
-            }
-            DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt);
-            return NULL ;
-        }
-        if (hash_bucket_p->type == MDIRENTS_HASH_PTR_LOCAL) {
-            /*
-             ** the index is local
-             */
-            cur_hash_entry_idx = hash_bucket_p->idx;
-            hash_entry_cur_p =
-                    (mdirents_hash_entry_t*) DIRENT_CACHE_GET_HASH_ENTRY_PTR(cache_entry_cur,cur_hash_entry_idx)
-            ;
-            if (hash_entry_cur_p == NULL ) {
-                /*
-                 ** something wrong!! (either the index is out of range and the memory array has been released
-                 */
-                printf("FDL error at %d cur_hash_entry_idx %d \n", __LINE__,
-                        cur_hash_entry_idx);
-                DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt);
-                return NULL ;
-            }
-            /*
-             ** Check if there is a match with that value
-             */
-            if (hash_entry_cur_p->hash
-                    == (hash_value & DIRENT_ENTRY_HASH_MASK)) {
-                /*
-                 ** entry has been found
-                 */
-                *hash_entry_match_idx_p = cur_hash_entry_idx;
-                DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt);
-                /*
-                 ** the entry is filled but its content is not really needed since the entry has been
-                 ** found-> may be we can keep the initial value and so return an empty structure
-                 */
-                if (cache_alloc_p != NULL ) {
-                    cache_alloc_p->cache_entry_free_p = cache_entry_free_p;
-                    cache_alloc_p->cache_entry_last_p = cache_entry_cur;
-                    cache_alloc_p->last_entry_idx_in_last =
-                            last_entry_idx_in_last;
-                }
-                return cache_entry_cur;
-            }
-            /*
-             ** try the next entry
-             */
-            hash_bucket_p = &hash_entry_cur_p->next;
-            continue;
-        }
-        /*
-         ** The next entry belongs to a dirent collision entry: need to get the pointer to that collision
-         ** entry and to read the content of the hash bucket associated with the bucket idx
-         */
-        cache_entry_cur = dirent_cache_get_collision_ptr(root,
-                hash_bucket_p->idx);
-        if (cache_entry_cur == NULL ) {
-            /*
-             ** something is rotten in the cache since the pointer to the collision dirent cache
-             ** does not exist
-             */
-            printf("FDL error at %d\n", __LINE__);
-            DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt);
-            return NULL ;
-        }
-        UPDATE_FREE_ENTRY(cache_entry_cur);
-        hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_cur,bucket_idx)
-        ;
-        continue;
-    }
-
-    return NULL ;
-}
 
 /*
  **______________________________________________________________________________
@@ -1068,17 +953,20 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
     uint32_t coll_cnt = 0;
     int bucket_idx_used;
     uint8_t *coll_bitmap_hash_full_p;
+    int cur_hash_entry_idx;
+    int repair = 0;
+    dirent_file_repair_cause_e    cause;
 
+
+
+reloop: 
     *hash_entry_match_idx_p = -1;
     *cache_entry_prev_ret = NULL;
-
     mdirent_cache_ptr_t *bucket_virt_p = NULL;
     mdirent_cache_ptr_t *bucket_prev_virt_p;
     mdirent_cache_ptr_t *hash_virt_p = NULL;
     mdirent_cache_ptr_t *hash_prev_virt_p = NULL;
-
-    int cur_hash_entry_idx = -1;
-    //int prev_hash_entry_idx = -1;
+    cur_hash_entry_idx = -1;   
     cache_entry_cur = root;
     cache_entry_prev = root;
     hash_bucket_p =
@@ -1102,7 +990,8 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
     /*
      ** indicate that the index used for getting hash_bucket_p is bucket_idx
      */
-    bucket_idx_used = 1;
+
+     bucket_idx_used = 1;
     /*
      ** some comments:
      **  A) hash_bucket_p corresponds either to an mdirents_hash_ptr_t pointer that points either to
@@ -1122,6 +1011,58 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
             DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt);
             return NULL ;
         }
+	/*
+	**_______________________________________________
+	**        LOOP DETECTION PROCEDURE:
+	**
+	**  attempt to repair if it was not already done.
+	** Then restart from the beginning.
+	**_______________________________________________
+	*/
+	if (coll_cnt >= DIRENT_MAX_SUPPORTED_COLL)
+	{
+          /*
+          ** check if the linked list has already been repaired, because if it was not the case
+          ** we attempt to do it and then we retry from the beginning
+          */
+          if (repair == 0)
+          {
+            dirent_file_repair(dir_fd,root,bucket_idx,DIRENT_REPAIR_LOOP);
+            repair = 1;
+            goto reloop;
+          }
+          /*
+          ** repair has already been done, so exit
+          */
+          DIRENT_SEVERE("dirent_cache_delete_hash_entry: collision counter exhausted for bucket_idx %d dirent[%d.%d]\n",
+                       bucket_idx,cache_entry_cur->header.dirent_idx[0],cache_entry_cur->header.dirent_idx[1]);
+          return NULL;
+	}
+
+
+        /*
+	**_______________________________________________
+	**        HASH ENTRY validity control
+	**
+	**  Check if the current entry is valid
+	*   If it is not the case attempt a repair
+	**  and then reloop
+	** If repair has already been done, exit
+	** with NULL
+	**_______________________________________________
+	*/
+	if (repair == 0)
+	{
+          cause =  dirent_cache_check_repair_needed(root,cache_entry_cur,hash_bucket_p,bucket_idx);
+          if (cause != DIRENT_REPAIR_NONE)
+          {
+            dirent_file_repair(dir_fd,root,bucket_idx,cause);
+            repair = 1;
+            goto reloop;
+          }
+        }
+
+
         if (hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF) {
             /*
              ** This the end of list and not entry match with the requested hash value
@@ -1296,6 +1237,7 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
                     if ((hash_entry_cur_p->next.type == MDIRENTS_HASH_PTR_EOF)
                             || (hash_entry_cur_p->next.type
                                     == MDIRENTS_HASH_PTR_COLL)) {
+
                         /*
                          ** indicates that previous cache entry must be also updated
                          */
@@ -1303,7 +1245,22 @@ mdirents_cache_entry_t *dirent_cache_delete_hash_entry(int dir_fd,
                                 (cache_entry_cur == root) ?
                                         NULL : cache_entry_prev;
                         DIRENT_ROOT_UPDATE_REQ(cache_entry_prev);
-                        *hash_bucket_prev_p = hash_entry_cur_p->next;
+			if (hash_entry_cur_p->next.type == MDIRENTS_HASH_PTR_EOF)
+			{
+                          hash_bucket_prev_p->type = hash_entry_cur_p->next.type;
+			}
+			else
+			{
+                          *hash_bucket_prev_p = hash_entry_cur_p->next;			
+			}
+			/*
+			** it was the last entry for that bucket the collision file, so set EOF in the 
+			** current bucket: this applies to collision files only
+			*/
+			if (cache_entry_cur != root)
+			{
+			  hash_bucket_p->type = MDIRENTS_HASH_PTR_EOF;
+			}
                         /*
                          ** assert the dirty bit for the memory array associated with the bucket index
                          */
@@ -1550,7 +1507,12 @@ mdirents_cache_entry_t *dirent_cache_print_bucket_list(
  F I L E    S E R V I C E S
  *_________________________________________________________________________________
  */
-
+/**
+*   SET  -2  ->FOR ROOT FILE	
+*   SET -1 -> INACTIVE
+*   any other value is the index of the collision file
+*/
+int fdl_debug_coll_idx = -1;
 /*
  **______________________________________________________________________________
  */
@@ -1574,6 +1536,11 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
     uint64_t val;
     mdirents_file_t *dirent_file_p = NULL;
     mdirent_sector0_not_aligned_t *sect0_p = NULL;
+    int ret;
+    /*
+    ** clear errno
+    */
+    errno = 0;
 
     /*
      ** build the filename of the dirent file to read
@@ -1583,14 +1550,54 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
         /*
          ** something wrong that must not happen
          */
-        DIRENT_SEVERE("Cannot build pathname line %d\n",__LINE__)
-        ;
+        DIRENT_SEVERE("Cannot build pathname line %d\n",__LINE__);
         goto error;
     }
+    
+#if 0
+#warning EIO debugging (collision file reading)
+    if (fdl_debug_coll_idx != -1)
+    {
+       if ((fdl_debug_coll_idx == -2) && (dirent_hdr_p->level_index == 0))
+       {
+	     errno = EIO;
+	     goto error;       
+       
+       }
+       
+        if (dirent_hdr_p->level_index == 1)
+	{
 
+	   if (dirent_hdr_p->dirent_idx[1] == fdl_debug_coll_idx)
+	   {
+	     errno = EIO;
+	     goto error;
+	   }
+
+	}
+    
+    }
+#endif
+    
     if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         //DIRENT_SEVERE("Cannot open the file %s, error %s at line %d\n",path_p,strerror(errno),__LINE__);
-        goto out;
+	/*
+	** check if the file exists. If might be possible that the file does not exist, it can be considered
+	** as a normal error since the exportd might have crashed just after the deletion of the collision dirent
+	** file but before  the update of the dirent root file.
+	*/
+	if (errno == ENOENT)
+	{
+	  goto out;
+	
+	}
+	/*
+	** fatal error on file opening
+	*/
+	
+	DIRENT_SEVERE("Cannot open the file %s, error %s at line %d\n",path_p,strerror(errno),__LINE__);
+	errno = EIO;
+        goto error;
     }
     /*
      ** Allocate a fresh free mdirent cache entry
@@ -1600,6 +1607,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
         /*
          ** the system runs out of memory
          */
+	errno = ENOMEM;
         DIRENT_SEVERE("Out of Memory at line %d", __LINE__)
         ;
         goto error;
@@ -1614,6 +1622,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
         /*
          ** the system runs out of memory
          */
+	errno = ENOMEM;
         DIRENT_SEVERE("Out of Memory at line %d", __LINE__)
         ;
         goto error;
@@ -1622,32 +1631,33 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
      ** read the fixed part of the dirent file
      */
     offset = DIRENT_HEADER_BASE_SECTOR * MDIRENT_SECTOR_SIZE;
-#if 1
-    if (DIRENT_PREAD(fd, dirent_file_p, sizeof(mdirents_file_t), offset)
-            != sizeof(mdirents_file_t)) {
-        DIRENT_SEVERE("pread failed in file %s: %s", pathname, strerror(errno))
-        ;
-//        dirent_cache_release_entry( dirent_p);
-//        dirent_p = NULL;
-        goto error;
-    }
-#else
+    ret = DIRENT_PREAD(fd, dirent_file_p, sizeof(mdirents_file_t), offset);
+    if (ret <  0)
     {
-        int i;
-        uint8_t *p = (uint8_t *)dirent_file_p;
-        for (i = 0; i < 3; i++)
-        {
-            if (DIRENT_PREAD(fd, p, MDIRENT_SECTOR_SIZE, offset) != MDIRENT_SECTOR_SIZE) {
-                DIRENT_SEVERE("pread failed in file %s: %s", pathname, strerror(errno));
-                dirent_cache_release_entry( dirent_p);
-                dirent_p = NULL;
-                goto out;
-            }
-            p +=MDIRENT_SECTOR_SIZE;
-            offset+= MDIRENT_SECTOR_SIZE;
-        }
+      /*
+      ** need to figure out what need to be done since this might block a chunk of file
+      */
+      DIRENT_SEVERE("pread failed in file %s: %s", pathname, strerror(errno));
+      errno = EIO;
+      goto error;   
     }
-#endif
+    if (ret != sizeof(mdirents_file_t)) 
+    {
+       
+	/*
+	** we consider that error as the case of the file that does not exist. By ignoring that file
+	** we just lose potentially one file at amx
+	*/
+        DIRENT_SEVERE("incomplete pread in file %s %d (expected: %d)", pathname,ret,(int)sizeof(mdirents_file_t));
+	errno = ENOENT;
+	/*
+	** release the allocated cache context
+	*/
+        dirent_cache_release_entry(dirent_p);
+	dirent_p = NULL;
+        goto out;
+    }
+
     /*
      ** fill sector 0 in dirent cache entry
      */
@@ -1658,7 +1668,11 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
         sect0_p = DIRENT_MALLOC(sizeof( mdirent_sector0_not_aligned_t))
         ;
         if (sect0_p == NULL )
+	{
+	    severe("out of memroy while reading %s file ",pathname);
+	    errno = ENOMEM;
             goto error;
+	}
 
         memcpy(sect0_p, &dirent_file_p->sect0,
                 sizeof(mdirent_sector0_not_aligned_t));
@@ -1678,7 +1692,11 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
                 DIRENT_MALLOC(sizeof( mdirents_btmap_coll_dirent_t))
         ;
         if (coll_bitmap_hash_full_p == NULL )
+	{
+	    severe("out of memroy while reading %s file ",pathname);
+	    errno = ENOMEM;
             goto error;
+	}
         memset(coll_bitmap_hash_full_p, 0,
                 sizeof(mdirents_btmap_coll_dirent_t));
         /*
@@ -1696,8 +1714,8 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
         name_bitmap_p = DIRENT_MALLOC(sizeof( mdirents_btmap_free_chunk_t))
         ;
         if (name_bitmap_p == NULL ) {
-            DIRENT_SEVERE("Out of Memory at line %d", __LINE__)
-            ;
+	    severe("out of memroy while reading %s file ",pathname);
+	    errno = ENOMEM;
             goto error;
         }
         memcpy(name_bitmap_p, &dirent_file_p->sect1,
@@ -1730,16 +1748,15 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
                 /*
                  ** there is a valid entry so need to allocate the memory array to store it
                  */
-                elem_p =
-                        DIRENT_MALLOC(sizeof(mdirents_hash_ptr_t)*MDIRENTS_HASH_TB_CACHE_MAX_ENTRY)
+                elem_p =DIRENT_MALLOC(sizeof(mdirents_hash_ptr_t)*MDIRENTS_HASH_TB_CACHE_MAX_ENTRY)
                 ;
                 if (elem_p == NULL ) {
                     /*
                      ** out of memory
                      */
-                    DIRENT_SEVERE("Out of memory at line %d\n",__LINE__)
-                    ;
-                    goto error;
+		    severe("out of memroy while reading %s file ",pathname);
+		    errno = ENOMEM;
+        	    goto error;                    ;
                 }
                 val = (uint64_t) (uintptr_t) elem_p;
                 hash_tbl_p[i].s.val = val;
@@ -1793,9 +1810,9 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
                 /*
                  ** out of memory
                  */
-                DIRENT_SEVERE("Out of memory at line %d\n",__LINE__)
-                ;
-                goto error;
+		severe("out of memroy while reading %s file ",pathname);
+		errno = ENOMEM;
+        	goto error;
             }
             val = (uint64_t) (uintptr_t) elem_p;
             hash_entry_p[index].s.val = val;
@@ -1825,7 +1842,20 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
         mdirents_cache_entry_t *dirent_coll_entry_p = NULL;
         mdirents_header_new_t dirent_hdr;
         uint8_t *coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
-
+	
+	/*
+	** allocate the save bitmap for root entry only
+	*/
+	dirent_p->bucket_safe_bitmap_p = DIRENT_MALLOC(MDIRENTS_HASH_TB_INT_SZ/8);
+	if (dirent_p->bucket_safe_bitmap_p == NULL ) {
+            /*
+             ** out of memory
+             */
+	     errno = ENOMEM;
+	     goto error;
+	}
+        memset( dirent_p->bucket_safe_bitmap_p,0,MDIRENTS_HASH_TB_INT_SZ/8);
+	
         while (coll_idx < MDIRENTS_MAX_COLLS_IDX) {
 
             chunk_u8_idx = coll_idx / 8;
@@ -1866,13 +1896,50 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
             dirent_hdr.dirent_idx[1] = coll_idx;
 
             dirent_coll_entry_p = read_mdirents_file(dirfd, &dirent_hdr);
-            if (dirent_coll_entry_p == NULL ) {
+            if (dirent_coll_entry_p == NULL ) 
+	    {
+	       /*
+	       ** check the case of the collision  file that does not exist
+	       ** if the collision file does not exist, then we clear the collision bit in the dirent root
+	       ** file
+	       */
+	       if (errno == ENOENT)
+	       {
+	         errno = 0;
+	         coll_bitmap_p[chunk_u8_idx] |=(1 << bit_idx);
+		 /*
+		 ** assert the flag that indicates that dirent root file must be udpate on disk
+		 */
+		 DIRENT_ROOT_UPDATE_REQ(dirent_p);
+                 /*
+                 ** next chunk
+                 */
+                 coll_idx++;
+                 continue;	    	       
+	       }
+	       else if (errno == EIO)
+	       {
+		/*
+		** goal : skip collision file on read disk error
+		*/
+     	         /*
+		 ** keep the collision file in the bitmap of the allocated collision file but 
+		 ** need to assert its associated bit in the hash_collision_bitmap_full set to
+		 ** avoid the allocation of a hash_entry
+		 */
+                 uint8_t *coll_bitmap_hash_full_p = DIRENT_VIRT_TO_PHY_OFF(dirent_p,coll_bitmap_hash_full_p)	       
+                 DIRENT_CACHE_SET_COLL_ENTRY_FULL(coll_bitmap_hash_full_p, coll_idx);
+                 coll_idx++;
+                 continue;
+	       }
+	       else
+	       {
                 /*
                  ** fatal error
                  */
-                DIRENT_SEVERE("error while reading collision file at line %d\n",__LINE__)
-                ;
+                DIRENT_SEVERE("error while reading collision file at line %d\n",__LINE__);
                 goto error;
+	       }
 
             }
             /*
@@ -1880,8 +1947,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
              */
             if (dirent_cache_store_collision_ptr(dirent_p,
                     dirent_coll_entry_p) != NULL) {
-                DIRENT_SEVERE("error while storing collision cache pointer at line %d\n",__LINE__)
-                ;
+                DIRENT_SEVERE("error while storing collision cache pointer at line %d\n",__LINE__);
                 goto error;
             }
             /*
@@ -1927,14 +1993,17 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
             }
         }
     }
-#endif
-    out: if (fd != -1)
+#endif    
+out: 
+    if (fd != -1)
         close(fd);
     if (dirent_file_p != NULL )
         DIRENT_FREE(dirent_file_p);
     return dirent_p;
-
-    error: if (dirent_p != NULL ) {
+    
+error: 
+    DIRENT_ROOT_SET_READ_ONLY();
+    if (dirent_p != NULL ) {
         dirent_cache_release_entry(dirent_p);
     }
     if (dirent_file_p != NULL )
@@ -2229,6 +2298,11 @@ int write_mdirents_file(int dirfd,mdirents_cache_entry_t *dirent_cache_p)
 
 #else
 
+/*
+** Debug 
+*/
+int fdl_debug_first_chunk_of_array_write = -1;
+
 //#warning WRITE_MDIRENTS_FILE  with writeback cache
 
 /*
@@ -2270,10 +2344,10 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
     path_p = dirent_build_filename(&dirent_cache_p->header, pathname);
     if (path_p == NULL ) {
         /*
-         ** something wrong that must not happen
-         */
-        DIRENT_SEVERE("Cannot build filename( line %d\n)",__LINE__)
-        ;
+        ** something wrong that must not happen
+        */
+	errno = EIO;
+        DIRENT_SEVERE("Cannot build filename");
         goto error;
     }
 #if DIRENT_WRITE_DEBUG
@@ -2281,8 +2355,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
 #endif
 
     if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
-        DIRENT_SEVERE("Cannot open file( line %d\n)",__LINE__)
-        ;
+        DIRENT_SEVERE("Cannot open file %s (%s)",path_p,strerror(errno));
+	errno = EIO;
         goto error;
     }
     /*
@@ -2290,15 +2364,14 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
      ** that contains the name/fid and mode-> needed only if the buffer is not provided by the writeback cache
      */
     if (writeback_cache == 0) {
-        dirent_file_p = DIRENT_MALLOC(sizeof(mdirents_file_t))
-        ;
+        dirent_file_p = DIRENT_MALLOC(sizeof(mdirents_file_t));
         if (dirent_file_p == NULL ) {
-            /*
-             ** the system runs out of memory
-             */
-            DIRENT_SEVERE("Out of memory( line %d\n)",__LINE__)
-            ;
-            goto error;
+          /*
+          ** the system runs out of memory
+          */
+	  errno = ENOMEM;
+          DIRENT_SEVERE("Out of memory for file %s current  malloc_size %llu",path_p,(unsigned long long int)malloc_size);
+          goto error;
         }
     }
 //    memset(dirent_file_p,0xbb,sizeof(mdirents_file_t));
@@ -2312,8 +2385,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
         sect0_p = DIRENT_VIRT_TO_PHY_OFF(dirent_cache_p,sect0_p)
         ;
         if (sect0_p == (mdirent_sector0_not_aligned_t*) NULL ) {
-            DIRENT_SEVERE("sector 0 ptr does not exist( line %d\n)",__LINE__)
-            ;
+            DIRENT_SEVERE("sector 0 ptr does not exist( file %s)",path_p);
+	    errno = ENOMEM;
             goto error;
         }
         memcpy(&dirent_file_p->sect0, sect0_p,
@@ -2329,8 +2402,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
         sect1_p = DIRENT_VIRT_TO_PHY_OFF(dirent_cache_p,name_bitmap_p)
         ;
         if (sect1_p == (mdirents_btmap_free_chunk_t*) NULL ) {
-            DIRENT_SEVERE("sector 0 ptr does not exist( line %d\n)",__LINE__)
-            ;
+            DIRENT_SEVERE("sector 1 ptr does not exist( file %s)",path_p);
+	    errno = ENOMEM;
             goto error;
         }
         memcpy(&dirent_file_p->sect1, sect1_p,
@@ -2397,7 +2470,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
             if (hash_entry_p != (mdirents_hash_entry_t*) NULL )
                 hash_entry_last_sector_idx++;
         }
-        //#warning All Management sector are re-written on disk
+//#warning All Management sector are re-written on disk
+        /* issue #33 Dirent rewrite on disk is truncated because of bad length computation */
         hash_entry_last_sector_idx = MDIRENTS_HASH_CACHE_MAX_IDX;
         for (i = 0; i < hash_entry_last_sector_idx; i++) {
 #if DIRENT_WRITE_DEBUG
@@ -2440,8 +2514,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
                 dirent_cache_p->header.dirent_idx[0]);
         if (ret == 1) {
             if (DIRENT_PWRITE(fd, dirent_file_p, write_len, 0) != write_len) {
-                DIRENT_SEVERE("pwrite failed for file %s: %s at line %d", pathname, strerror(errno),__LINE__)
-                ;
+                DIRENT_SEVERE("pwrite (mgt sectors) failed for file %s: %s", pathname, strerror(errno));
+                errno =  EIO;
                 goto error;
             }
         }
@@ -2450,8 +2524,8 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
          ** There is no write backbuffer ->OK now lest's write the mandatory sectors
          */
         if (DIRENT_PWRITE(fd, dirent_file_p, write_len, 0) != write_len) {
-            DIRENT_SEVERE("pwrite failed for file %s: %s at line %d", pathname, strerror(errno),__LINE__)
-            ;
+            DIRENT_SEVERE("pwrite (mgt sectors) failed for file %s: %s", pathname, strerror(errno));
+            errno  = EIO;
             goto error;
         }
     }
@@ -2501,20 +2575,32 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
                 /*
                  ** something wrong that must not occur
                  */
-                DIRENT_SEVERE("write_mdirents_file: out of chunk error at line %d\n",__LINE__)
-                ;
+                DIRENT_SEVERE("data sector pointer (%d) does not exist: file %s",first_chunk_of_array,pathname)
+                errno = ENOMEM;
                 goto error;
             }
             /*
              ** let's write it on disk
              */
+
+	    if (fdl_debug_first_chunk_of_array_write != -1)
+	    {
+
+	      if (first_chunk_of_array > fdl_debug_first_chunk_of_array_write)
+	      {
+		errno = EIO;
+		DIRENT_SEVERE("Debug write error for file %s  data sector %d",pathname,first_chunk_of_array); 
+		goto error;
+	      }    
+	    }
+
 #if 1
             if (DIRENT_PWRITE(fd, mem_p, MDIRENTS_CACHE_CHUNK_ARRAY_SZ,
                     DIRENT_HASH_NAME_BASE_SECTOR * MDIRENT_SECTOR_SIZE
                             + MDIRENTS_CACHE_CHUNK_ARRAY_SZ
                                     * bit_idx) != MDIRENTS_CACHE_CHUNK_ARRAY_SZ) {
-                DIRENT_SEVERE("pwrite failed for file %s: %s, at line %d", pathname, strerror(errno),__LINE__)
-                ;
+                DIRENT_SEVERE("data sector %d write failed for file %s: %s",bit_idx, pathname, strerror(errno));
+                errno = EIO;
                 goto error;
             }
 #else
@@ -2574,13 +2660,17 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
 
     return 0;
 
-    error: if (fd != -1)
+error: 
+    DIRENT_ROOT_SET_READ_ONLY();
+    if (fd != -1)
         close(fd);
     if ((dirent_file_p != NULL )&& (writeback_cache== 0))DIRENT_FREE(dirent_file_p);
     return -1;
 }
 
 #endif
+
+
 
 /*
  **______________________________________________________________________________
@@ -2589,7 +2679,7 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
  * Write a name entry array on disk. That API is intended to be called when
  there no change on the management sector of a dirent file. It is typically
  the case when the entry needs to be updated when the fid of the name entry is
- change. In fact that change does not impact the chunks that have been previously
+ changed. In fact that change does not impact the chunks that have been previously
  allocated for the name entry
  *
  * @param dirfd: file descriptor of the parent directory
@@ -2606,6 +2696,7 @@ int dirent_write_name_array_to_disk(int dirfd,
     char pathname[64];
     char *path_p;
     off_t offset;
+    int ret;
 
     /*
      ** build the filename of the dirent file to read
@@ -2615,14 +2706,14 @@ int dirent_write_name_array_to_disk(int dirfd,
         /*
          ** something wrong that must not happen
          */
-        DIRENT_SEVERE("Cannot build filename( line %d\n)",__LINE__)
-        ;
+        DIRENT_SEVERE("Cannot build filename( line %d\n)",__LINE__);
+	errno = EIO;
         goto error;
     }
 
     if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
-        DIRENT_SEVERE("Cannot open file( line %d\n)",__LINE__)
-        ;
+        DIRENT_SEVERE("Cannot open file:%s error %s)",path_p,strerror(errno));
+	errno = EIO;
         goto error;
     }
 
@@ -2648,10 +2739,13 @@ int dirent_write_name_array_to_disk(int dirfd,
             /*
              ** something wrong that must not occur
              */
+	    errno = ENOMEM;
             DIRENT_SEVERE("write_mdirents_name_entry_sectors: out of chunk error at line %d\n",__LINE__)
             ;
             goto error;
         }
+
+
         /*
          ** let's write it on disk
          */
@@ -2660,11 +2754,29 @@ int dirent_write_name_array_to_disk(int dirfd,
         offset = DIRENT_HASH_NAME_BASE_SECTOR * MDIRENT_SECTOR_SIZE
                 + MDIRENTS_CACHE_CHUNK_ARRAY_SZ * (first_chunk_of_array);
 
-        if (DIRENT_PWRITE(fd, mem_p, MDIRENTS_CACHE_CHUNK_ARRAY_SZ,
-                offset) != MDIRENTS_CACHE_CHUNK_ARRAY_SZ) {
-            DIRENT_SEVERE("pwrite failed for file %s: %s, at line %d", pathname, strerror(errno),__LINE__)
-            ;
-            goto error;
+	if (fdl_debug_first_chunk_of_array_write != -1)
+	{
+
+	  if (first_chunk_of_array > fdl_debug_first_chunk_of_array_write)
+	  {
+	    errno = EIO;
+	    DIRENT_SEVERE("Debug write error for file %s offset %x chunk idx %d",pathname,(unsigned int)offset,first_chunk_of_array); 
+	    goto error;
+	  }    
+	}
+        ret = DIRENT_PWRITE(fd, mem_p, MDIRENTS_CACHE_CHUNK_ARRAY_SZ,offset);
+	if (ret < 0)
+	{
+	  DIRENT_SEVERE("writing error for file %s (%s)", path_p,strerror(errno));
+	  errno = EIO;
+	  goto error;
+	
+	}
+        if (ret != MDIRENTS_CACHE_CHUNK_ARRAY_SZ) 
+	{
+	   DIRENT_SEVERE("writing error for file %s (%s)", path_p,strerror(errno));
+	   errno = EIO;
+           goto error;
         }
 #endif
     }
@@ -2678,7 +2790,9 @@ int dirent_write_name_array_to_disk(int dirfd,
     close(fd);
     return 0;
 
-    error: if (fd != -1)
+error: 
+    DIRENT_ROOT_SET_READ_ONLY();
+    if (fd != -1)
         close(fd);
     return -1;
 }
@@ -2689,6 +2803,11 @@ int dirent_write_name_array_to_disk(int dirfd,
  *______________________________________________________________________________
  */
 
+/*
+** Debug 
+*/
+int fdl_debug_first_chunk_of_array_read = -1;
+int fdl_debug_errno_read = 0;
 /*
  **______________________________________________________________________________
  */
@@ -2713,6 +2832,7 @@ int dirent_read_name_array_from_disk(int dirfd,
     char *path_p;
     off_t offset;
     uint8_t *mem_p;
+    int ret;
 
     /*
      ** build the filename of the dirent file to read
@@ -2722,8 +2842,8 @@ int dirent_read_name_array_from_disk(int dirfd,
         /*
          ** something wrong that must not happen
          */
-        DIRENT_SEVERE("Cannot build pathname line %d\n",__LINE__)
-        ;
+        DIRENT_SEVERE("Cannot build pathname ");
+	errno = EIO;
         goto error;
     }
     /*
@@ -2735,24 +2855,29 @@ int dirent_read_name_array_from_disk(int dirfd,
         /*
          ** fatal error we run out of memory
          */
-        DIRENT_SEVERE("dirent_get_entry_name_ptr: out of memory at line %d\n",__LINE__)
-        ;
+	 errno = ENOMEM;
+        DIRENT_SEVERE("out of memory for file %s",pathname);
         goto error;
     }
+    /*
+    ** clean up the memory array to address the case of a truncated dirent file 
+    */
+    memset(mem_p,0,MDIRENTS_CACHE_CHUNK_ARRAY_SZ);
+    
     if (dirent_cache_store_ptr(&dirent_p->name_entry_lvl0_p[0],
             &mdirent_cache_name_ptr_distrib, first_chunk_of_array,
             (void *) mem_p) != NULL ) {
         /*
-         ** fatal error
-         */
-        DIRENT_SEVERE("dirent_get_entry_name_ptr: out of memory at line %d\n",__LINE__)
-        ;
+        ** fatal error
+        */
+	errno = ENOMEM;
+        DIRENT_SEVERE("out of memory for file %s",pathname);
         goto error;
     }
 
     if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
-        DIRENT_SEVERE("Cannot open the file %s with fd %d, error %s at line %d\n",path_p,dirfd,strerror(errno),__LINE__)
-        ;
+        DIRENT_SEVERE("Cannot open the file %s (%s)",path_p,strerror(errno));
+	errno = EIO;
         goto error;
     }
     /*
@@ -2760,21 +2885,41 @@ int dirent_read_name_array_from_disk(int dirfd,
      */
     offset = DIRENT_HASH_NAME_BASE_SECTOR * MDIRENT_SECTOR_SIZE
             + MDIRENTS_CACHE_CHUNK_ARRAY_SZ * (first_chunk_of_array);
-
-    if (DIRENT_PREAD(fd, mem_p, MDIRENTS_CACHE_CHUNK_ARRAY_SZ,
-            offset) != MDIRENTS_CACHE_CHUNK_ARRAY_SZ) {
-        DIRENT_SEVERE("pread failed in file %s: %s", pathname, strerror(errno))
-        ;
-
-        goto error;
+    ret = DIRENT_PREAD(fd, mem_p, MDIRENTS_CACHE_CHUNK_ARRAY_SZ,offset);
+    if (ret < 0)
+    {
+      DIRENT_SEVERE("pread failed in file %s: %s", pathname, strerror(errno));
+      errno = EIO;
+      goto error;        
+    }
+    if (fdl_debug_first_chunk_of_array_read != -1)
+    {
+    
+      if (first_chunk_of_array > fdl_debug_first_chunk_of_array_read)
+      {
+        memset(mem_p,0,MDIRENTS_CACHE_CHUNK_ARRAY_SZ);
+        if (fdl_debug_errno_read != 0)
+	{
+	  errno = EIO;
+	  DIRENT_SEVERE("Debug read error for file %s offset %x chunk idx %d",pathname,(unsigned int)offset,first_chunk_of_array); 
+	  goto error;
+	}
+	DIRENT_SEVERE("Debug empty chunk array for file %s offset %x chunk idx %d",pathname,(unsigned int)offset,first_chunk_of_array); 
+        ret = 0;
+      }    
     }
     /*
-     ** indicate that the memory array exists
-     */
-
-    dirent_set_chunk_bit(first_chunk_of_array,
-            dirent_p->name_entry_array_btmap_presence);
-
+    ** read is successful, check the length, the file can be truncated because an exportd
+    ** restart before the file system can push the data on disk
+    */
+    if (ret != MDIRENTS_CACHE_CHUNK_ARRAY_SZ)
+    {
+        DIRENT_SEVERE("name array pread failed in file %s at offset %d: len read %d", pathname, (int)offset,ret);    
+    }
+    /*
+    ** indicate that the memory array exists
+    */
+    dirent_set_chunk_bit(first_chunk_of_array,dirent_p->name_entry_array_btmap_presence);
     /*
      ** that's OK
      */
@@ -2782,7 +2927,380 @@ int dirent_read_name_array_from_disk(int dirfd,
         close(fd);
     return 0;
 
-    error: if (fd != -1)
+error: 
+    DIRENT_ROOT_SET_READ_ONLY();
+    if (fd != -1)
         close(fd);
     return -1;
+}
+
+
+
+/*
+ *______________________________________________________________________________
+ 
+    SAFE CONTROL: check the bucket list when the dirent file are loaded from disk
+ *______________________________________________________________________________
+ */
+ dirent_file_repair_cause_e dirent_cache_check_repair_needed_dbg(
+        mdirents_cache_entry_t *root, mdirents_cache_entry_t *cache_entry_p,
+        mdirents_hash_ptr_t *hash_bucket_p, int bucket_idx)
+
+{
+    mdirents_cache_entry_t *cache_coll_entry = NULL;
+    dirent_file_repair_cause_e cause = DIRENT_REPAIR_NONE;
+    mdirent_sector0_not_aligned_t *sect0_p;
+    uint8_t *hash_bitmap_p;
+    mdirents_hash_entry_t *hash_entry_next_p = NULL;
+    int hash_entry_bucket_idx_next;
+    int cur_hash_entry_idx_repair = -1;
+
+    sect0_p = DIRENT_VIRT_TO_PHY_OFF(cache_entry_p,sect0_p)
+    ;
+    hash_bitmap_p = (uint8_t*) &sect0_p->hash_bitmap;
+    /*
+     ** Check if the entry is valid on not by checking the bitmap
+     */
+    switch (hash_bucket_p->type) {
+    case MDIRENTS_HASH_PTR_LOCAL:
+        /*
+         ** need to check the state of the hash entry in the bitmap
+         */
+        cur_hash_entry_idx_repair = hash_bucket_p->idx;
+        if (dirent_test_chunk_bit(cur_hash_entry_idx_repair, hash_bitmap_p)
+                != 0) {
+            cause = DIRENT_REPAIR_FREE;
+            break;
+        }
+        /*
+         ** check if the next belongs to the same list
+         */
+        hash_entry_next_p =
+                (mdirents_hash_entry_t*) DIRENT_CACHE_GET_HASH_ENTRY_PTR(cache_entry_p,cur_hash_entry_idx_repair)
+        ;
+        if (hash_entry_next_p == NULL ) {
+            cause = DIRENT_REPAIR_FREE;
+            break;
+        }
+
+        hash_entry_bucket_idx_next =
+                DIRENT_HASH_ENTRY_GET_BUCKET_IDX(hash_entry_next_p);
+        if (hash_entry_bucket_idx_next != bucket_idx) {
+            cause = DIRENT_REPAIR_BUCKET_IDX_MISMATCH;
+            break;
+        }
+        break;
+
+    case MDIRENTS_HASH_PTR_COLL:
+        /*
+         ** need to check if the collision file exist and then check the state of the hash entry in the
+         ** collision file
+         */
+        cache_coll_entry = dirent_cache_get_collision_ptr(root,
+                hash_bucket_p->idx);
+        if (cache_coll_entry == NULL ) {
+            /*
+             ** something is rotten in the cache since the pointer to the collision dirent cache
+             ** does not exist
+             */
+            DIRENT_WARN("dirent_cache_check_repair_needed(%d) collision entry does not exist %d \n",bucket_idx,hash_bucket_p->idx)
+            ;
+            cause = DIRENT_REPAIR_NO_COLL_FILE;
+            break;
+        }
+
+        /**
+         * all is fine !!!
+         */
+        break;
+
+    case MDIRENTS_HASH_PTR_EOF:
+        /*
+         ** No issue there, nothing to control--> will not OCCUR !!!!!!
+         */
+        break;
+
+    case MDIRENTS_HASH_PTR_FREE:
+         /*
+	 ** this could happen while attempt to insert a hash entry
+         */
+         cause = DIRENT_REPAIR_FREE;
+         break;
+	 
+    default:
+        /*
+         ** force EOF
+         */
+        DIRENT_WARN("dirent_cache_check_repair_needed(%d) wrong type for to EOF %d \n",__LINE__,hash_bucket_p->type)
+        ;
+        hash_bucket_p->type = MDIRENTS_HASH_PTR_EOF;
+        break;
+    }
+    return cause;
+}
+
+/**
+*
+*/
+dirent_file_repair_cause_e dirent_scan_dirent_cache_entry (mdirents_cache_entry_t *root,
+                                                           mdirents_cache_entry_t *cache_entry_cur,
+                                                           int bucket_idx,
+							   int coll_idx,
+							   uint8_t *coll_scanned_list_in_p,
+							   uint8_t *coll_scanned_bitmap_p)
+{
+	mdirents_hash_ptr_t   *hash_bucket_p;
+	mdirent_cache_ptr_t *bucket_virt_p = NULL;
+	mdirent_cache_ptr_t *hash_cur_virt_p= NULL;
+	int cur_hash_entry_idx = -1;
+        dirent_file_repair_cause_e    cause = DIRENT_REPAIR_NONE;
+	int bit_idx;
+	int chunk_u8_idx;
+	int loop_cnt = 0;
+	mdirents_hash_entry_t *hash_entry_cur_p;
+	int bucket_u8_idx;
+	int bucket_bit_idx; 
+	
+        chunk_u8_idx = coll_idx / 8;
+        bit_idx = coll_idx % 8;
+
+	hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR_WITH_VIRT(cache_entry_cur,bucket_idx,&bucket_virt_p);
+	if (hash_bucket_p == NULL) {
+	  /* 
+	  ** We may be processing the 1rst insertion in this bucket
+	  ** and the bucket pointer may not be allocated at this time
+	  */
+	  return cause;
+	}
+	cause =  dirent_cache_check_repair_needed_dbg(root,cache_entry_cur,hash_bucket_p,bucket_idx);
+	if (cause != DIRENT_REPAIR_NONE) return cause;
+	
+	if (cache_entry_cur != root)
+	{
+	  if (hash_bucket_p->type == MDIRENTS_HASH_PTR_LOCAL) 
+	  {
+	    /* 
+	    ** this bucket goes through this collision file
+	    */
+	    coll_scanned_list_in_p[chunk_u8_idx] |= (1<<bit_idx);
+	  }
+	}	
+	/*
+	** Find the next collision file that this files points to
+	*/
+	while(loop_cnt < MDIRENTS_IN_BLOCK_LOOPCNT )
+	{
+          loop_cnt++;
+	  
+	  cause =  dirent_cache_check_repair_needed_dbg(root,cache_entry_cur,hash_bucket_p,bucket_idx);
+	  if (cause != DIRENT_REPAIR_NONE) return cause;
+	  /*
+	  **----------------------------------------------------------------------
+	  ** E O F  We have found an EOF however the hash entry idx MUST be valid
+	  **----------------------------------------------------------------------
+	  */
+	  if (hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF)
+	  {
+	    /*
+	    ** end of list has been found so, exit the while loop
+	    */
+	    return cause;
+	  }
+	  /*
+	  **----------------------------------------------------------------------
+	  **LOCAL index case -> go to the next entry
+	  **----------------------------------------------------------------------
+	  */
+	  if (hash_bucket_p->type == MDIRENTS_HASH_PTR_LOCAL)
+	  {
+	    cur_hash_entry_idx = hash_bucket_p->idx;
+
+	    hash_entry_cur_p = (mdirents_hash_entry_t*)DIRENT_CACHE_GET_HASH_ENTRY_PTR_WITH_VIRT(cache_entry_cur,cur_hash_entry_idx,&hash_cur_virt_p);
+
+	    hash_bucket_p = &hash_entry_cur_p->next;
+	    continue;
+	  }
+	  /*
+	  **----------------------------------------------------------------------
+	  **COLL index case -> check loop
+	  **----------------------------------------------------------------------
+	  */
+	  if ((cache_entry_cur != root) && (hash_bucket_p->idx == coll_idx))
+	  {
+	    cause = DIRENT_REPAIR_LOOP;
+	    return cause;
+	  }
+	  bucket_u8_idx = hash_bucket_p->idx / 8;
+	  bucket_bit_idx = hash_bucket_p->idx % 8;    
+	  if ((coll_scanned_bitmap_p[bucket_u8_idx] & (1 << bucket_bit_idx)) != 0) 
+	  {
+	     /*
+	     ** already scanned
+	     */
+	     cause = DIRENT_REPAIR_LOOP;
+	     return cause;
+	  }
+	  /*
+	  ** assert the corresponding bit 
+	  */
+	  coll_scanned_bitmap_p[bucket_u8_idx] |= (1 << bucket_bit_idx);
+	  return cause;
+
+	}
+	/*
+	** loop detected
+	*/
+	cause = DIRENT_REPAIR_LOOP;
+	return cause;
+
+}
+
+
+/**
+*
+*/
+static uint64_t coll_scanned_list_in[MDIRENTS_MAX_COLLS_IDX/sizeof(uint64_t)];
+static uint64_t coll_scanned_bitmap[MDIRENTS_MAX_COLLS_IDX/sizeof(uint64_t)];
+
+
+int dirent_cache_is_bucket_idx_safe ( int dir_fd,
+                                  mdirents_cache_entry_t *root,
+                                  int       bucket_idx)
+{
+    int coll_idx = 0;
+    int loop_cnt = 0;
+    int next_coll_idx = 0;
+    int bit_idx;
+    int chunk_u8_idx;
+    uint8_t *coll_bitmap_p;
+    uint8_t *bucket_safe_bitmap_p;
+    mdirent_sector0_not_aligned_t *sect0_p;
+    sect0_p = DIRENT_VIRT_TO_PHY_OFF(root,sect0_p)    
+    int bucket_u8_idx;
+    int bucket_bit_idx; 
+    mdirents_cache_entry_t *cache_entry_cur;    
+    dirent_file_repair_cause_e    cause;
+    uint64_t *coll_scanned_list_in_p = coll_scanned_list_in;
+    uint64_t *coll_scanned_bitmap_p = coll_scanned_bitmap;
+    
+    if (dirent_cache_safe_enable == 0) return -1;
+    
+    if (sect0_p == (mdirent_sector0_not_aligned_t*) NULL ) {
+        return -1 ;
+    };
+    bucket_safe_bitmap_p = root->bucket_safe_bitmap_p;
+    if (bucket_safe_bitmap_p == NULL)
+    {
+      /*
+      ** don't care about safe state
+      */
+      return -1;
+    }
+    /*
+    ** check bitmap for that bucket
+    */
+    bucket_u8_idx = bucket_idx / 8;
+    bucket_bit_idx = bucket_idx % 8;    
+    if ((bucket_safe_bitmap_p[bucket_u8_idx] & (1 << bucket_bit_idx)) != 0) 
+    {
+     /*
+     ** safe !!
+     */
+     return 0;
+    }
+    memset(coll_scanned_list_in_p,0,MDIRENTS_MAX_COLLS_IDX/8);
+    memset(coll_scanned_bitmap_p,0,MDIRENTS_MAX_COLLS_IDX/8);
+    
+    bucket_safe_bitmap_p[bucket_u8_idx] |= (1 << bucket_bit_idx);
+    
+    /*
+    ** scan the root
+    */
+    cause = dirent_scan_dirent_cache_entry(root,root,
+	                                   bucket_idx,0,
+					   (uint8_t*) coll_scanned_list_in_p,
+					   (uint8_t*) coll_scanned_bitmap_p);
+    if (cause != DIRENT_REPAIR_NONE) goto repair;
+
+    coll_bitmap_p = (uint8_t*) &sect0_p->coll_bitmap;
+
+    while (coll_idx < MDIRENTS_MAX_COLLS_IDX) 
+    {
+
+        chunk_u8_idx = coll_idx / 8;
+        bit_idx = coll_idx % 8;
+        /*
+         ** there is no collision dirent entry or the collision dirent entry exist and is not full
+         */
+        if ((coll_bitmap_p[chunk_u8_idx] & (1 << bit_idx)) != 0) {
+            /*
+             ** That entry is free, need to find out the next entry that is busy (0: busy, 1:free)
+             */
+            if (coll_idx % 8 == 0) {
+                next_coll_idx = check_bytes_val(coll_bitmap_p, coll_idx,
+                        MDIRENTS_MAX_COLLS_IDX, &loop_cnt, 1);
+                if (next_coll_idx < 0)
+                    break;
+                /*
+                 ** next  chunk
+                 */
+                if (next_coll_idx == coll_idx)
+                    coll_idx++;
+                else
+                    coll_idx = next_coll_idx;
+                continue;
+            }
+            /*
+             ** next chunk
+             */
+            coll_idx++;
+            continue;
+        }
+
+	cache_entry_cur = dirent_cache_get_collision_ptr(root,coll_idx);
+	if (cache_entry_cur == NULL)
+	{
+           /*
+           ** something is rotten in the cache since the pointer to the collision dirent cache
+           ** does not exist (notice that it was there at the time of the control for repair !!!
+           */
+	   //dirent_file_repair(dir_fd,root,bucket_idx,DIRENT_REPAIR_NO_COLL_FILE);	
+           //return 0;
+	   
+          coll_idx++;
+          continue;	   
+	}
+        cause = dirent_scan_dirent_cache_entry(root,cache_entry_cur,
+	                                       bucket_idx,coll_idx,
+					       (uint8_t*) coll_scanned_list_in_p,
+					       (uint8_t*) coll_scanned_bitmap_p);
+	if (cause != DIRENT_REPAIR_NONE) goto repair;
+					       
+	/*
+	** next collision entry
+	*/
+	coll_idx++;
+    }
+    /*
+    ** All the collision files have been scanned without error for that bucket idx
+    */
+    int loop;
+    for (loop = 0; loop < (MDIRENTS_MAX_COLLS_IDX/sizeof(uint64_t)); loop++)
+    {
+      if ( coll_scanned_list_in_p[loop] != coll_scanned_bitmap_p[loop])
+      {
+	 cause = DIRENT_REPAIR_BUCKET_IDX_MISMATCH;
+	 goto repair;
+      }
+    }
+    /*
+    ** no issue
+    */
+    return 0;
+  
+repair:
+
+   dirent_file_repair(dir_fd,root,bucket_idx,cause);
+
+   return 0;
 }

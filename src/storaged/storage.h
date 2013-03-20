@@ -40,6 +40,8 @@
 /** Default mode to use for create subdirectories */
 #define ROZOFS_ST_DIR_MODE S_IRUSR | S_IWUSR | S_IXUSR
 
+#define MAX_REBUILD_ENTRIES 100
+
 /** Directory used to store bins files for a specific storage ID*/
 typedef struct storage {
     sid_t sid; ///< unique id of this storage for one cluster
@@ -56,6 +58,35 @@ typedef struct rozofs_stor_bins_file_hdr {
     sid_t dist_set_next[ROZOFS_SAFE_MAX]; ///< next sids of storage nodes target for this. file (not used yet)
     uint8_t version; ///<  version of rozofs. (not used yet)
 } rozofs_stor_bins_file_hdr_t;
+
+typedef struct bins_file_rebuild {
+    fid_t fid;
+    uint8_t layout; ///< layout used for this file.
+    sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
+    struct bins_file_rebuild *next;
+} bins_file_rebuild_t;
+
+/** Get the directory path for a given [storage, layout, dist_set, spare]
+ *
+ * @param st: the storage to be initialized.
+ * @param layout: layout used for store this file.
+ * @param dist_set: storages nodes used for store this file.
+ * @param spare: indicator on the status of the projection.
+ * @param path: the directory path.
+ *
+ * @return: the directory path
+ */
+char *storage_map_distribution(storage_t * st, uint8_t layout,
+        sid_t dist_set[ROZOFS_SAFE_MAX], uint8_t spare, char *path);
+
+/** Add the fid bins file to a given path
+ *
+ * @param fid: unique file id.
+ * @param path: the directory path.
+ *
+ * @return: the directory path
+ */
+char *storage_map_projection(fid_t fid, char *path);
 
 /** Initialize a storage
  *
@@ -147,5 +178,10 @@ int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_stat(storage_t * st, sstat_t * sstat);
+
+
+int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,
+        uint8_t * layout, sid_t *dist_set, uint8_t * spare, uint64_t * cookie,
+        bins_file_rebuild_t ** children, uint8_t * eof);
 
 #endif

@@ -1,0 +1,50 @@
+Source: rozofs
+Section: admin
+Priority: optional
+Maintainer: Fizians S.A.S. <rd@fizians.org>
+Build-Depends: debhelper, dh-make, cmake, make, libc6-dev, libfuse-dev, libattr1-dev, uuid-dev, libconfig-dev, python-all-dev
+Standards-Version: 3.8.4
+X-Python-Version: = 2.6 << 2.7
+Homepage: http://www.rozofs.org
+
+Package: rozofs-exportd
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, portmap | rpcbind, libattr1, libuuid1, libconfig8 | libconfig9
+Description: Rozofs filesystem (export package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-storaged
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, portmap | rpcbind, libuuid1, libconfig8 | libconfig9
+Description: Rozofs filesystem (storage package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-rozofsmount
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2, fuse-utils
+Description: Rozofs filesystem (rozofsmount package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-rprof
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Rozofs filesystem (monitoring package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-manager-lib
+Architecture: any
+Depends: ${misc:Depends}, libconfig8 | libconfig9, pyro, python-argparse
+Description: Rozofs filesystem (management library package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-manager-cli
+Architecture: any
+Depends: ${misc:Depends}, rozofs-manager-lib
+Description: Rozofs filesystem (management cli package).
+ Rozofs is a scale-out NAS using erasure coding.
+
+Package: rozofs-manager-agent
+Architecture: any
+Depends: ${misc:Depends}, rozofs-manager-lib, rozofs-manager-cli
+Description: Rozofs filesystem (management agent package).
+ Rozofs is a scale-out NAS using erasure coding.

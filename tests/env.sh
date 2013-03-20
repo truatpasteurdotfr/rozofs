@@ -25,6 +25,7 @@ IOZONE_BINARY=`which iozone`
 RSYNC_BINARY=`which rsync`
 BONNIE_BINARY=`which bonnie++`
 GNUPLOT_BINARY=`which gnuplot`
+VALGRIND_BINARY=`which valgrind`
 
 # local env
 LOCAL_SOURCE_DIR=$(dirname ${WORKING_DIR})

@@ -40,9 +40,10 @@ static const int priorities[] = {
 	LOG_DEBUG, LOG_INFO, LOG_WARNING, LOG_ERR, LOG_EMERG
 };
 
-#define log(level, ...) \
+#define log(level, ...) {\
     syslog(priorities[level], "%s - %d - %s", basename(__FILE__), __LINE__, messages[level]); \
-    syslog(priorities[level], __VA_ARGS__)
+    syslog(priorities[level], __VA_ARGS__);\
+    }
 
 #define info(...) log(EINFO, __VA_ARGS__)
 #define warning(...) log(EWARNING, __VA_ARGS__)

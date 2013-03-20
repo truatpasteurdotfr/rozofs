@@ -1,0 +1,45 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+from distutils.core import setup
+from distutils.command.build_py import build_py
+from distutils.extension import Extension
+
+class version_build_py(build_py):
+    """Specialized Python source builder."""
+
+    def run(self):
+        # honor the --dry-run flag
+        if not self.dry_run:
+            with open('@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/__init__.py', 'w') as f:
+                f.write('__version__ = \"@VERSION@\"')
+
+        # distutils uses old-style classes, so no super()
+        build_py.run(self)
+
+
+setup(
+    cmdclass={'build_py': version_build_py},
+    name='rozofs-manager',
+    version='@VERSION@',
+    author='Fizians S.A.S.',
+    author_email='rd@fizians.com',
+    url='http://www.fizians.com/',
+    description='Rozofs platform management tools',
+    license='Copyright Fizians S.A.S.',
+    packages=['rozofs', 'rozofs.ext', 'rozofs.core', 'rozofs.cli'],
+    package_dir={'rozofs': '@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs',
+                 'rozofs.ext': '@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/ext',
+                 'rozofs.core': '@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core',
+                 'rozofs.cli': '@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/cli'},
+    ext_modules=[Extension('rozofs.core._libconfig', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core/libconfig.i'],
+                           swig_opts=['-I/usr/include'],
+                           libraries=['config']),
+                 Extension('rozofs.core._profile', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core/profile.i'],
+                           swig_opts=['-I/usr/include', '-I@CMAKE_CURRENT_SOURCE_DIR@'],
+                           include_dirs=['@CMAKE_CURRENT_SOURCE_DIR@', '@CMAKE_CURRENT_BINARY_DIR@'],
+                           libraries=['rozofs'],
+                           library_dirs=['@CMAKE_CURRENT_BINARY_DIR@/rozofs'])
+                   ],
+    scripts=['@CMAKE_CURRENT_SOURCE_DIR@/manager/bin/rozo'],
+)

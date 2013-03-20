@@ -4,7 +4,7 @@
 
  Rozofs is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published
- by the Free Software Foundation; either version 3 of the License,
+ by the Free Software Foundation; either version 2 of the License,
  or (at your option) any later version.
 
  Rozofs is distributed in the hope that it will be useful, but
@@ -59,7 +59,7 @@ void rozofs_layout_initialize() {
 
         p->rozofs_angles = xmalloc(sizeof (angle_t) * p->rozofs_forward);
         p->rozofs_psizes = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
-        
+
         for (i = 0; i < p->rozofs_forward; i++) {
             p->rozofs_angles[i].p = i - p->rozofs_forward / 2;
             p->rozofs_angles[i].q = 1;
@@ -70,3 +70,17 @@ void rozofs_layout_initialize() {
     }
 }
 
+void rozofs_layout_release() {
+    uint8_t layout;
+    rozofs_conf_layout_t *p;
+
+    p = rozofs_conf_layout_table;
+
+    for (layout = 0; layout < LAYOUT_MAX; layout++, p++) {
+
+        if (p->rozofs_angles)
+            free(p->rozofs_angles);
+        if (p->rozofs_psizes)
+            free(p->rozofs_psizes);
+    }
+}

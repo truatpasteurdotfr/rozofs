@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# rozofs-rozofsmount    This shell script takes care of starting and stopping
+#                       the rozofs-rozofsmount services.
+#
+#chkconfig: 35 80 20
+#description: rozofs-rozofsmount
+#
+
+DAEMON=/bin/mount.rozofs
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# See how we were called.
+case "$1" in
+  start)
+        [ -x ${DAEMON} ] || exit 5
+
+        # Start daemons.
+        echo -n $"Mounting rozofs filesystems: "
+        mount -a -t rozofs
+        RETVAL=$?
+        echo
+        [ $RETVAL -ne 0 ] && exit $RETVAL
+        ;;
+
+  stop)
+        [ -f /etc/fstab ] || return
+        #
+        # Read through fstab line by line. If it is ROZOFS, mount it
+        #
+
+        exec 9<&0 </etc/fstab
+
+        while read DEV MTPT FSTYPE OPTS REST
+        do
+        case "$DEV" in
+            ""|\#*)
+                continue;
+                ;;
+            "rozofsmount")
+                umount $MTPT
+                RETVAL=$?
+                [ $RETVAL -ne 0 ] && exit $RETVAL
+                ;;
+        esac
+        done
+
+        exec 0<&9 9<&-
+  *)
+        echo $"Usage: exportd {start}"
+        RETVAL=1
+        ;;
+esac
+
+exit $RETVAL

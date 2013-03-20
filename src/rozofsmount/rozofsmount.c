@@ -75,7 +75,9 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "\t-P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "\t-o rozofsbufsize=N\tdefine size of I/O buffer in KiB (default: 256)\n");
-    fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 5)\n");
+    fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 50)\n");
+    fprintf(stderr, "\t-o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
+    fprintf(stderr, "\t-o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
 }
 
 typedef struct rozofsmnt_conf {
@@ -84,6 +86,8 @@ typedef struct rozofsmnt_conf {
     char *passwd;
     unsigned buf_size;
     unsigned max_retry;
+    unsigned export_timeout;
+    unsigned storage_timeout;
 } rozofsmnt_conf_t;
 
 static rozofsmnt_conf_t conf;
@@ -108,6 +112,8 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("exportpasswd=%s", passwd, 0),
     MYFS_OPT("rozofsbufsize=%u", buf_size, 0),
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
+    MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
+    MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -209,6 +215,10 @@ static void ientries_release() {
     list_for_each_forward_safe(p, q, &inode_entries) {
         ientry_t *entry = list_entry(p, ientry_t, list);
         list_remove(p);
+        if (entry->db.p != NULL) {
+            free(entry->db.p);
+            entry->db.p = NULL;
+        }
         free(entry);
     }
 }
@@ -254,10 +264,14 @@ static int get_storage_ports(mstorage_t *s) {
 
     uint32_t ports[STORAGE_NODE_PORTS_MAX];
     memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
-    strcpy(mclt.host, s->host);
+    strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
+
+    struct timeval timeo;
+    timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+    timeo.tv_usec = 0;
 
     /* Initialize connection with storage (by mproto) */
-    if (mclient_initialize(&mclt) != 0) {
+    if (mclient_initialize(&mclt, timeo) != 0) {
         severe("Warning: failed to join storage (host: %s), %s.\n",
                 s->host, strerror(errno));
         goto out;
@@ -273,7 +287,7 @@ static int get_storage_ports(mstorage_t *s) {
     /* Copy each TCP ports */
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
         if (ports[i] != 0) {
-            strcpy(s->sclients[i].host, s->host);
+            strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
             s->sclients[i].port = ports[i];
             s->sclients[i].status = 0;
             s->sclients_nb++;
@@ -317,10 +331,14 @@ static void *connect_storage(void *v) {
 
             if (sclt->rpcclt.client == 0 || sclt->status != 1) {
 
+                struct timeval timeo;
+                timeo.tv_sec = conf.storage_timeout;
+                timeo.tv_usec = 0;
+
                 DEBUG("Disconnection (host: %s, port: %u) detected",
                         sclt->host, sclt->port);
 
-                if (sclient_initialize(sclt) != 0) {
+                if (sclient_initialize(sclt, timeo) != 0) {
                     DEBUG("sclient_initialize failed for connection (host: %s, port: %u): %s",
                             sclt->host, sclt->port, strerror(errno));
                 }
@@ -1286,6 +1304,10 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
         if ((ie->nlookup -= nlookup) == 0) {
             DEBUG("del entry for %lu", ino);
             del_ientry(ie);
+            if (ie->db.p != NULL) {
+                free(ie->db.p);
+                ie->db.p = NULL;
+            }
             free(ie);
         }
     }
@@ -1573,6 +1595,7 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
 int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int i = 0;
     int err;
+    char *c;
     int piped[2];
     piped[0] = piped[1] = -1;
     char s;
@@ -1583,8 +1606,17 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int sock;
     pthread_t profiling_thread;
     uint16_t profiling_port;
+    char ppfile[NAME_MAX];
+    int ppfd = -1;
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
+
+    /* Initialize rozofs */
+    rozofs_layout_initialize();
+
+    struct timeval timeout_exportd;
+    timeout_exportd.tv_sec = conf.export_timeout;
+    timeout_exportd.tv_usec = 0;
 
     /* Initiate the connection to the export and get informations
      * about exported filesystem */
@@ -1594,7 +1626,8 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
             conf.export,
             conf.passwd,
             conf.buf_size * 1024,
-            conf.max_retry) != 0) {
+            conf.max_retry,
+            timeout_exportd) != 0) {
         fprintf(stderr,
                 "rozofsmount failed for:\n" "export directory: %s\n"
                 "export hostname: %s\n" "local mountpoint: %s\n" "error: %s\n"
@@ -1611,12 +1644,16 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         mstorage_t *s = list_entry(iterator, mstorage_t, list);
 
         mclient_t mclt;
-        strcpy(mclt.host, s->host);
+        strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
         uint32_t ports[STORAGE_NODE_PORTS_MAX];
         memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
 
+        struct timeval timeout_mproto;
+        timeout_mproto.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+        timeout_mproto.tv_usec = 0;
+
         /* Initialize connection with storage (by mproto) */
-        if (mclient_initialize(&mclt) != 0) {
+        if (mclient_initialize(&mclt, timeout_mproto) != 0) {
             fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
                     s->host, strerror(errno));
         } else {
@@ -1632,12 +1669,17 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
          *  (by sproto) */
         for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
             if (ports[i] != 0) {
-                strcpy(s->sclients[i].host, s->host);
+                strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
                 s->sclients[i].port = ports[i];
                 s->sclients[i].status = 0;
-                if (sclient_initialize(&s->sclients[i]) != 0) {
+                struct timeval timeout_sproto;
+                timeout_sproto.tv_sec = conf.storage_timeout;
+                timeout_sproto.tv_usec = 0;
+
+                if (sclient_initialize(&s->sclients[i], timeout_sproto) != 0) {
                     fprintf(stderr,
-                            "Warning: failed to join storage (host: %s, port: %u), %s.\n",
+                            "Warning: failed to join storage "
+                            "(host: %s, port: %u), %s.\n",
                             s->host, s->sclients[i].port, strerror(errno));
                 }
                 s->sclients_nb++;
@@ -1761,7 +1803,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      * Start profiling server
      */
     gprofiler.uptime = time(0);
-    strcpy((char *) gprofiler.vers, VERSION);
+    strncpy((char *) gprofiler.vers, VERSION, 20);
     /* Find a free port */
     for (profiling_port = 50000; profiling_port < 60000; profiling_port++) {
         if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -1797,6 +1839,22 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     }
     info("monitoring port: %d", profiling_port);
 
+    /* try to create a flag file with port number */
+    sprintf(ppfile, "%s%s%s", DAEMON_PID_DIRECTORY, "rozofsmount", mountpoint);
+    c = ppfile + strlen(DAEMON_PID_DIRECTORY);
+    while (*c++) {
+        if (*c == '/') *c = '.';
+    }
+    if ((ppfd = open(ppfile, O_RDWR | O_CREAT, 0640)) < 0) {
+        severe("can't open profiling port file");
+    } else {
+        char str[10];
+        sprintf(str, "%d\n", profiling_port);
+        write(ppfd, str, strlen(str));
+        close(ppfd);
+    }
+
+
     err = fuse_session_loop(se);
 
     if (err) {
@@ -1813,6 +1871,14 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     fuse_unmount(mountpoint, ch);
     exportclt_release(&exportclt);
     ientries_release();
+    rozofs_layout_release();
+    if (conf.export != NULL)
+        free(conf.export);
+    if (conf.host != NULL)
+        free(conf.host);
+    if (conf.passwd != NULL)
+        free(conf.passwd);
+    unlink(ppfile); // best effort
 
     return err ? 1 : 0;
 }
@@ -1825,7 +1891,7 @@ int main(int argc, char *argv[]) {
 
     memset(&conf, 0, sizeof (conf));
 
-    conf.max_retry = 5;
+    conf.max_retry = 50;
     conf.buf_size = 0;
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
@@ -1834,6 +1900,12 @@ int main(int argc, char *argv[]) {
 
     if (conf.host == NULL) {
         conf.host = strdup("rozofsexport");
+    }
+
+    if (strlen(conf.host) >= ROZOFS_HOSTNAME_MAX) {
+        fprintf(stderr,
+                "The length of export host must be lower than %d\n",
+                ROZOFS_HOSTNAME_MAX);
     }
 
     if (conf.export == NULL) {
@@ -1858,6 +1930,34 @@ int main(int argc, char *argv[]) {
                 "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
                 conf.buf_size);
         conf.buf_size = 8192;
+    }
+
+    // Set timeout for exportd requests
+    if (conf.export_timeout == 0) {
+        conf.export_timeout = 25;
+    }
+
+    // Check timeout for exportd requests
+    if (conf.export_timeout < 10) {
+        fprintf(stderr,
+                "timeout for exportd requests is too low (%u KiB)"
+                " - increased to 10\n",
+                conf.export_timeout);
+        conf.export_timeout = 10;
+    }
+
+    // Set timeout for storaged requests
+    if (conf.storage_timeout == 0) {
+        conf.storage_timeout = 3;
+    }
+
+    // Check timeout for storaged requests
+    if (conf.storage_timeout < 2) {
+        fprintf(stderr,
+                "timeout for storaged requests is too low (%u KiB)"
+                " - increased to 2\n",
+                conf.storage_timeout);
+        conf.storage_timeout = 10;
     }
 
     if (fuse_version() < 28) {

@@ -35,7 +35,7 @@
 #include <rozofs/common/xmalloc.h>
 
 #include "mdir.h"
-#include "mdirent_vers2.h"
+#include "mdirent.h"
 
 
 
@@ -182,7 +182,7 @@ static inline int dirent_cache_search_for_coll_with_bucket_idx ( int dir_fd,
         /*
         ** something is rotten in the cache since the pointer to the collision dirent cache
         ** does not exist (notice that it was there at the time of the control for repair !!!
-        */
+        */	
         DIRENT_SEVERE("dirent_cache_search_for_coll_with_bucket_idx error at %d\n",__LINE__);
         return -1;
      }
@@ -206,7 +206,6 @@ repair:
    return 0;
 
 }
-
 /*
 **______________________________________________________________________________
 */
@@ -225,6 +224,10 @@ repair:
 
   @retval <> NULL: the entry has been inserted: the returned value is the pointer to the last modified cache entry
   @retval NULL: out of entries
+  
+  note: that function has been modified to take into account the case of a file repair while attempting to insert
+        a hash_entry in a brend new collision cache entry. The previous code did not restart from the beginning
+	and the insertiion failed when the bucket_p of the root cache entry is EOF.
 */
 
 mdirents_cache_entry_t *dirent_cache_insert_hash_entry ( int dir_fd,
@@ -234,19 +237,21 @@ mdirents_cache_entry_t *dirent_cache_insert_hash_entry ( int dir_fd,
                                                          mdirents_hash_ptr_t   *hash_p,
                                                          int                   local_idx)
 {
-   mdirents_hash_ptr_t   *hash_bucket_p;
-   mdirents_hash_ptr_t   *hash_bucket_target_p;
-   mdirents_hash_entry_t *hash_entry_p;
+   mdirents_hash_ptr_t   *hash_bucket_p = NULL;
+   mdirents_hash_ptr_t   *hash_bucket_target_p = NULL;
+   mdirents_hash_entry_t *hash_entry_p = NULL;
    mdirents_hash_entry_t *hash_entry_cur_p = NULL;
-   mdirents_cache_entry_t *cache_entry_cur;
    mdirent_cache_ptr_t *bucket_virt_p = NULL;
-   mdirent_cache_ptr_t *bucket_target_virt_p;
-   mdirent_cache_ptr_t *hash_virt_p;
+   mdirent_cache_ptr_t *bucket_target_virt_p = NULL;
+   mdirent_cache_ptr_t *hash_virt_p = NULL;
    mdirent_cache_ptr_t *hash_cur_virt_p= NULL;
    int found = 0;
    dirent_file_repair_cause_e    cause;
-
+   int cur_hash_entry_idx;
+     
    int loop_cnt = 0;
+   
+   
 
    /*
    ** 1- set the reference of the bucket as well as the type to FREE in case of repair
@@ -343,104 +348,100 @@ mdirents_cache_entry_t *dirent_cache_insert_hash_entry ( int dir_fd,
      DIRENT_SEVERE("dirent_cache_insert_hash_entry error at %d\n",__LINE__);
      return NULL;
    }
-    /**
-    *  Create a virtual loop to address the case of a potential repair
-    */
-    loop_cnt = 0;
-    while(loop_cnt < 16)
-    {
-       /*
-       ** Here we address the case where it is no the first element of that list that is inserted in that
-       ** collision file. As for the case of the root, the entry is insert at the top
-       */
-      if ((hash_bucket_p->type == MDIRENTS_HASH_PTR_LOCAL) || ( hash_bucket_p->type == MDIRENTS_HASH_PTR_COLL))
-      {
-        /*
-        ** update the pointer to the next hash entry in the hash entry that is inserted
-        ** (note : do not forget to reload the information related to the bucket index since
-        **  the hash pointer of the bucket might have it empty not handled at hash pointer level)
-        */
-        hash_entry_p->next   =  *hash_bucket_p;
-        DIRENT_HASH_ENTRY_SET_BUCKET_IDX(hash_entry_p,bucket_idx);
+   /**
+   *  Create a virtual loop to address the case of a potential repair
+   */
+   loop_cnt = 0;
+   /*
+   ** Here we address the case where it is no the first element of that list that is inserted in that
+   ** collision file. As for the case of the root, the entry is insert at the top
+   */
+   if ((hash_bucket_p->type == MDIRENTS_HASH_PTR_LOCAL) || ( hash_bucket_p->type == MDIRENTS_HASH_PTR_COLL))
+   {
+     /*
+     ** update the pointer to the next hash entry in the hash entry that is inserted
+     ** (note : do not forget to reload the information related to the bucket index since
+     **  the hash pointer of the bucket might have it empty not handled at hash pointer level)
+     */
+     hash_entry_p->next   =  *hash_bucket_p;
+     DIRENT_HASH_ENTRY_SET_BUCKET_IDX(hash_entry_p,bucket_idx);
 
-        /*
-        ** set the new hash entry as the first of the list for that dirent cache entry
-        */
-        hash_bucket_p->type  = MDIRENTS_HASH_PTR_LOCAL;
-        hash_bucket_p->idx   = local_idx;
-        /*
-        ** assert the dirty bit for hash entry and bucket entry
-        */
-        bucket_virt_p->s.dirty = 1;
-        hash_virt_p->s.dirty   = 1;
-        /*
-        ** Now check if the local link list is safe otherwise we need to go through the
-        ** the full linked link to check if that collision block is reference within some
-        ** other
-        */
-       if (dirent_cache_search_for_coll_with_bucket_idx (dir_fd,root,
-                                                     target_cache_entry,bucket_idx,
-                                                     target_cache_entry->header.dirent_idx[1]) != 0)
-        {
-          /*
-          ** something wrong happens!!
-          */
-          return NULL;
-        }
-        /*
-        ** all is fine
-        */
-        return target_cache_entry;
-      }
-      else
-      {
-        /*
-        **________________________________________________________________________________________
-        *    E O F  C A S E  O N   T H E   T A R G E T    C A C H E   E N T R Y
-        **________________________________________________________________________________________
-        */
-        /*
-        ** EOF case on the target cache entry: so it is the first entry inserted for that bucket in that
-        ** dirent collision file: Need to check if it is also the first one inserted for that bucket
-        ** at root level. In that case we do not need to go though the linked list until finding out
-        ** the entry with EOF
-        */
-        hash_bucket_target_p = hash_bucket_p;
-        bucket_target_virt_p = bucket_virt_p;
-        hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR_WITH_VIRT(root,bucket_idx,&bucket_virt_p);
-        if (hash_bucket_p == NULL)
-        {
-          /*
-          ** something wrong, we run out of memory
-          */
-          DIRENT_SEVERE("dirent_cache_insert_hash_entry error at %d\n",__LINE__);
-          return NULL;
-        }
-        if (hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF)
-        {
-          /*
-          ** it is the fist time that we insert a entry for that bucket idx (from root standpoint
-          ** so we don't need to go to the while loop below
-          */
-          hash_bucket_target_p->type  = MDIRENTS_HASH_PTR_LOCAL;
-          hash_bucket_target_p->idx   = local_idx;
-          hash_entry_p->next.type  = MDIRENTS_HASH_PTR_EOF;
-          /*
-          ** update the head of list on the root entry by setting up the bucket idx pointer
-          */
-          hash_bucket_p->type  = MDIRENTS_HASH_PTR_COLL;
-          hash_bucket_p->idx   = hash_p->idx;
-          /*
-          ** assert the dirty bit for hash entry and bucket entry
-          */
-          bucket_target_virt_p->s.dirty = 1;
-          bucket_virt_p->s.dirty        = 1;
-          hash_virt_p->s.dirty          = 1;
-          return root;
-        }
-      }
-      break;
-    }
+     /*
+     ** set the new hash entry as the first of the list for that dirent cache entry
+     */
+     hash_bucket_p->type  = MDIRENTS_HASH_PTR_LOCAL;
+     hash_bucket_p->idx   = local_idx;
+     /*
+     ** assert the dirty bit for hash entry and bucket entry
+     */
+     bucket_virt_p->s.dirty = 1;
+     hash_virt_p->s.dirty   = 1;
+     /*
+     ** Now check if the local link list is safe otherwise we need to go through the
+     ** the full linked link to check if that collision block is reference within some
+     ** other
+     */
+    if (dirent_cache_search_for_coll_with_bucket_idx (dir_fd,root,
+                                                  target_cache_entry,bucket_idx,
+                                                  target_cache_entry->header.dirent_idx[1]) != 0)
+     {
+       /*
+       ** something wrong happens!!
+       */
+       return NULL;
+     }
+     /*
+     ** all is fine
+     */
+     return target_cache_entry;
+   }
+
+   /*
+   **________________________________________________________________________________________
+   *    E O F  C A S E  O N   T H E   T A R G E T    C A C H E   E N T R Y
+   **________________________________________________________________________________________
+   */
+   /*
+   ** EOF case on the target cache entry: so it is the first entry inserted for that bucket in that
+   ** dirent collision file: Need to check if it is also the first one inserted for that bucket
+   ** at root level. In that case we do not need to go though the linked list until finding out
+   ** the entry with EOF
+   */
+   hash_bucket_target_p = hash_bucket_p;
+   bucket_target_virt_p = bucket_virt_p;
+   hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR_WITH_VIRT(root,bucket_idx,&bucket_virt_p);
+   if (hash_bucket_p == NULL)
+   {
+     /*
+     ** something wrong, we run out of memory
+     */
+     DIRENT_SEVERE("dirent_cache_insert_hash_entry error at %d\n",__LINE__);
+     return NULL;
+   }
+   if (hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF)
+   {
+     /*
+     ** it is the fist time that we insert a entry for that bucket idx (from root standpoint
+     ** so we don't need to go to the while loop below
+     */
+     hash_bucket_target_p->type  = MDIRENTS_HASH_PTR_LOCAL;
+     hash_bucket_target_p->idx   = local_idx;
+     hash_entry_p->next.type  = MDIRENTS_HASH_PTR_EOF;
+     /*
+     ** update the head of list on the root entry by setting up the bucket idx pointer
+     */
+     hash_bucket_p->type  = MDIRENTS_HASH_PTR_COLL;
+     hash_bucket_p->idx   = hash_p->idx;
+     /*
+     ** assert the dirty bit for hash entry and bucket entry
+     */
+     bucket_target_virt_p->s.dirty = 1;
+     bucket_virt_p->s.dirty        = 1;
+     hash_virt_p->s.dirty          = 1;
+     return root;
+   }
+      
+
 
    /*
    **________________________________________________________________________________________
@@ -457,14 +458,11 @@ mdirents_cache_entry_t *dirent_cache_insert_hash_entry ( int dir_fd,
    */
   {
      int repair = 0;
-     int cur_hash_entry_idx;
 
 reloop:
      cur_hash_entry_idx = -1;
-     cache_entry_cur = root;
-     loop_cnt = 0;
-     hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR_WITH_VIRT(cache_entry_cur,bucket_idx,&bucket_virt_p);
-     while(loop_cnt < 512)
+     hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR_WITH_VIRT(root,bucket_idx,&bucket_virt_p);
+     for (loop_cnt = 0; loop_cnt< MDIRENTS_ENTRIES_COUNT;loop_cnt++)
      {
        if (hash_bucket_p == NULL)
        {
@@ -476,7 +474,7 @@ reloop:
        }
        if (repair == 0)
        {
-         cause =  dirent_cache_check_repair_needed(root,cache_entry_cur,hash_bucket_p,bucket_idx);
+         cause =  dirent_cache_check_repair_needed(root,root,hash_bucket_p,bucket_idx);
           if (cause != DIRENT_REPAIR_NONE)
           {
             dirent_file_repair(dir_fd,root,bucket_idx,cause);
@@ -486,26 +484,11 @@ reloop:
         }
        /*
        **----------------------------------------------------------------------
-       ** E O F  We have found an EOF however the hash entry idx MUST be valid
+       ** E O F  or collision -> so it the last element of the local list of the root cache entry 
        **----------------------------------------------------------------------
        */
-       if (hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF)
+       if ((hash_bucket_p->type == MDIRENTS_HASH_PTR_EOF) || (hash_bucket_p->type == MDIRENTS_HASH_PTR_COLL))
        {
-         if (cur_hash_entry_idx == -1)
-         {
-            if (repair == 0)
-            {
-              dirent_file_repair(dir_fd,root,bucket_idx,DIRENT_REPAIR_NO_EOF);
-              repair = 1;
-              goto reloop;
-
-            }
-            /*
-            ** there is something wrong here since no valid entry has been found
-            */
-            DIRENT_SEVERE("dirent_cache_insert_hash_entry error at %d\n",__LINE__);
-            return NULL;
-         }
          /*
          ** end of list has been found so, exit the while loop
          */
@@ -520,24 +503,8 @@ reloop:
        if (hash_bucket_p->type == MDIRENTS_HASH_PTR_LOCAL)
        {
          cur_hash_entry_idx = hash_bucket_p->idx;
-        /*
-         ** Check if the next is not ourself (that might happen in case of failure the way we insert/remove
-         */
-         if ((local_idx == cur_hash_entry_idx) && (cache_entry_cur == target_cache_entry))
-         {
-            if (repair == 0)
-            {
-              dirent_file_repair(dir_fd,root,bucket_idx,DIRENT_REPAIR_LOOP);
-              repair = 1;
-              goto reloop;
 
-            }
-            DIRENT_SEVERE("dirent_cache_insert_hash_entry error at %d loop detected cur_hash_entry_idx %d \n",__LINE__,
-                           cur_hash_entry_idx);
-            return NULL;
-         }
-
-         hash_entry_cur_p = (mdirents_hash_entry_t*)DIRENT_CACHE_GET_HASH_ENTRY_PTR_WITH_VIRT(cache_entry_cur,cur_hash_entry_idx,&hash_cur_virt_p);
+         hash_entry_cur_p = (mdirents_hash_entry_t*)DIRENT_CACHE_GET_HASH_ENTRY_PTR_WITH_VIRT(root,cur_hash_entry_idx,&hash_cur_virt_p);
          if (hash_entry_cur_p == NULL)
          {
            if (repair == 0)
@@ -555,28 +522,12 @@ reloop:
          hash_bucket_p = &hash_entry_cur_p->next;
          continue;
        }
-       /*
-       **----------------------------------------------------------------------
-       **COLL index case -> need to go to the collision file and restart from the bucket index
-       **----------------------------------------------------------------------
-       */
-       cache_entry_cur = dirent_cache_get_collision_ptr(root,hash_bucket_p->idx);
-       if (cache_entry_cur == NULL)
-       {
-          /*
-          ** something is rotten in the cache since the pointer to the collision dirent cache
-          ** does not exist-> (notice that it was find at the time we check if repair was needed !!!
-          */
-          DIRENT_SEVERE("dirent_cache_insert_hash_entry error at %d\n",__LINE__);
-          return NULL;
-       }
-       hash_bucket_p = DIRENT_CACHE_GET_BUCKET_PTR(cache_entry_cur,bucket_idx);
-       continue;
      }
+     
      if (found == 0)
      {
        /*
-       ** check if repair has been called, if not attempt to do it and reloop
+       ** check if repair has been called, if not attempt to do it and reloop: tis address the case of a loop in the list
        */
        if (repair == 0)
        {
@@ -594,10 +545,7 @@ reloop:
    }
 
    /*
-   ** OK, we have all the need information:
-   **   -  the point to the hash entry that has the EOF
-   **   -  and the pointer to the dirent cache entry in cache_entry_cur
-   ** So we can set up the link to the new entry and set the pointer to the next to EOF in that entry
+   **  We have found the last entry in the root cache entry, so we can build the linked list
    */
    /*
    ** update first the new entry by inserting the EOF
@@ -605,18 +553,37 @@ reloop:
    hash_bucket_target_p->type  = MDIRENTS_HASH_PTR_LOCAL;
    hash_bucket_target_p->idx   = local_idx;
 
-   hash_entry_p->next.type  = MDIRENTS_HASH_PTR_EOF;
    /*
    ** Now update the next pointer of the formaer last entry towards the new inserted entry
    */
-   hash_entry_cur_p->next.type  = MDIRENTS_HASH_PTR_COLL;
-   hash_entry_cur_p->next.idx   = hash_p->idx;
-   /*
-   ** assert the dirty bit for hash entry and bucket entry
-   */
-   bucket_target_virt_p->s.dirty   = 1;
-   hash_cur_virt_p->s.dirty        = 1;
-   hash_virt_p->s.dirty            = 1;
+   if (cur_hash_entry_idx == -1)
+   {
+     hash_entry_p->next = *hash_bucket_p;
 
-   return cache_entry_cur;
+     hash_bucket_p->type  = MDIRENTS_HASH_PTR_COLL;
+     hash_bucket_p->idx   = hash_p->idx;   
+     /*
+     ** assert the dirty bit for hash entry and bucket entry
+     */
+     bucket_target_virt_p->s.dirty = 1;
+     bucket_virt_p->s.dirty        = 1;
+     hash_virt_p->s.dirty          = 1;   
+   }
+   else
+   {
+     hash_entry_p->next = hash_entry_cur_p->next;
+     
+     hash_entry_cur_p->next.type  = MDIRENTS_HASH_PTR_COLL;
+     hash_entry_cur_p->next.idx   = hash_p->idx;
+     hash_cur_virt_p->s.dirty     = 1;
+     /*
+     ** assert the dirty bit for hash entry and bucket entry
+     */
+     bucket_target_virt_p->s.dirty   = 1;
+     hash_virt_p->s.dirty            = 1;
+
+   }
+   DIRENT_HASH_ENTRY_SET_BUCKET_IDX(hash_entry_p,bucket_idx);   
+   return root;
 }
+

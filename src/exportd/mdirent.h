@@ -48,6 +48,11 @@
 #define DIRENT_WARN severe    /// just for test purpose
 #define DIRENT_REPAIR(cache_entry_p) severe("Repair need for cache_entry_p(%d.%d)\n",cache_entry_p->header.dirent_idx[0],cache_entry_p->header.dirent_idx[1]);
 
+
+
+/**< Max number of hash entry that can be scanned in a list before asserting a loop detection */
+#define DIRENT_MAX_SUPPORTED_COLL  900
+
 /**
  *__________________________________________________
  *  API RELATED TO THE MEMORY ALLOCATION/STATISTICS
@@ -520,6 +525,8 @@ typedef struct _mdirents_btmap_coll_dirent_t {
 #endif
 #define MDIRENTS_BITMAP_FREE_HASH_SZ (((MDIRENTS_ENTRIES_COUNT-1)/8)+1)
 #define MDIRENTS_BITMAP_FREE_HASH_LAST_BIT_IDX MDIRENTS_ENTRIES_COUNT  //< index of the last valid bit
+#define MDIRENTS_IN_BLOCK_LOOPCNT  (MDIRENTS_ENTRIES_COUNT+4)
+
 /**
  *  bitmap of the free hash entries of a dirent file
  */
@@ -830,7 +837,7 @@ typedef struct _mdirents_cache_entry_t {
     mdirents_cache_key_t key; /**<  primary key */
     uint64_t writeback_ref; /**< reference of the write back buffer */
     mdirents_header_new_t header; ///< header of the dirent file: mainly management information
-
+    uint8_t  *bucket_safe_bitmap_p; /**< only allocated for root entry */
     uint32_t hash_entry_full :1; /**< assert to 1 when all the entries of the parent have been allocated  */
     uint32_t root_updated_requested :1; /**< that bit is assert when root cache entry must be re-written */
     uint32_t filler0 :30; /**< for future usage */
@@ -848,8 +855,8 @@ typedef struct _mdirents_cache_entry_t {
 
 } mdirents_cache_entry_t;
 
-#define DIRENT_ROOT_UPDATE_REQ(root)  root->root_updated_requested = 1;
-#define DIRENT_ROOT_UPDATE_DONE(root) root->root_updated_requested = 0;
+#define DIRENT_ROOT_UPDATE_REQ(root)  if (root != NULL) root->root_updated_requested = 1;
+#define DIRENT_ROOT_UPDATE_DONE(root) if (root != NULL) root->root_updated_requested = 0;
 #define DIRENT_IS_ROOT_UPDATE_REQ(root) (root->root_updated_requested == 1)
 /** dirent cache
  *
@@ -924,6 +931,73 @@ extern uint32_t dirent_skip_16_cnt;
 #define DIRENT_SKIP_STATS_CLEAR { check_bytes_call = 0;\
                                   check_bytes_val_call = 0;dirent_skip_64_cnt =0;dirent_skip_32_cnt=0;dirent_skip_16_cnt=0;}
 
+#if 0
+
+static uint8_t firstBitOfChar[256] = {
+  0,
+  0,
+  1,1,
+  2,2,2,2,
+  3,3,3,3,3,3,3,3,
+  4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
+  5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+  6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+  6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7
+};
+
+/** @ingroup DIRENT_BITMAP
+ * Find the first byte that is set to 1 in the two bit maps
+
+ @param p1    : pointer to the first bitmap 
+ @param p2    : pointer to the second bitmap 
+ @param from  : 1rst bit to start the search from (0 is the very first bit)
+ @param size  : size in of the bitmap in number of 64bits
+
+
+ @retval -1 no bit found
+ @retval index of the bit found
+ */
+static inline int select_collision_index(void *pvAllocated, void *pvNotFull, int * is_allocated) {
+  uint32_t   value;
+  int        idx32, idx8;
+  uint32_t * pAllocated = pvAllocated;
+  uint32_t * pNotFull   = pvNotFull
+  uint8_t  * p8;
+  
+  /* Find 1rst 32 bit valid */
+  for (idx32=0; idx32 < size; idx32++, pAllocated++, pNotFull++) {
+    
+    /* Take the first allocated not full */
+    value = ~*pAllocated & *pNotFull;
+    if (value != 0) {
+      *is_allocated = 1;
+      break;
+    }
+    
+    /* take the first free */
+    value = ~*pAllocated;
+    if (value != 0) {
+      *is_allocated = 0;
+      break;
+    }
+  }  
+  
+  /* Have not found any bit set */
+  if (idx32 == size) return -1;  
+  
+  /* A bit is set */
+  p8 = (uint8_t *) &value;  
+  for (idx8=0; idx8 < 4; idx8++, p8++) {
+    if (*p8 != 0) break;
+  }    
+  return firstBitOfChar[*p8] + (idx8*8) + (idx32*32);
+}
+
+#endif
 /** @ingroup DIRENT_BITMAP
  *  That function go throught the bitmap of free chunk by skipping allocated chunks
  it returns the next chunk to check or -1 if there is no more free chunk
@@ -1953,6 +2027,7 @@ static inline void *dirent_cache_store_ptr(mdirent_cache_ptr_t *virt_head_p,
         /*
          ** the index is out of range
          */
+	errno = EPROTO;
         return ptr;
     }
     p = virt_head_p;
@@ -1974,6 +2049,7 @@ static inline void *dirent_cache_store_ptr(mdirent_cache_ptr_t *virt_head_p,
                 /*
                  ** out of memory
                  */
+		errno = ENOMEM; 
                 return ptr;
             }
             memset(ptr, 0, size);
@@ -3144,22 +3220,7 @@ typedef struct _dirent_cache_search_alloc_t {
 
 } dirent_cache_search_alloc_t;
 
-/**
- *   Search and allocate a hash entry in the linked associated with a bucket entry, the key being the value of the hash
- *
 
- @param root : pointer to the root dirent entry
- @param hash_value : hash value to search
- @param bucket_idx : index of the hash bucket : taken from the lower 8 bits of the hash value applied to the name of the directory/file
- @param hash_entry_match_idx_p : pointer to an array where the local idx of the hash entry will be returned
-
- @retval <> NULL: pointer to the dirent cache entry where hash entry can be found, local idx is found in hash_entry_match_idx_p
- @retval NULL: not found
- */
-
-mdirents_cache_entry_t *dirent_cache_search_and_alloc_hash_entry(
-        mdirents_cache_entry_t *root, int bucket_idx, uint32_t hash_value,
-        int *hash_entry_match_idx_p, dirent_cache_search_alloc_t *cache_alloc_p);
 
 /*
  **______________________________________________________________________________
@@ -3227,9 +3288,10 @@ static inline uint32_t dirent_read_from_disk(mdirents_cache_entry_t *parent,
 
 #define DIRENT_CACHE_ALLOCATE_COLL_ENTRY_IDX(p) dirent_allocate_chunks(1,(uint8_t*)p,MDIRENTS_MAX_COLLS_IDX);
 #define DIRENT_CACHE_RELEASE_COLL_ENTRY_IDX(p,chunk) dirent_release_chunks(chunk,1,(uint8_t*)p,MDIRENTS_MAX_COLLS_IDX);
+#define DIRENT_CACHE_SET_ALLOCATED_COLL_ENTRY_IDX(p,bit) dirent_clear_chunk_bit(bit,(uint8_t*)p);
 
-#define DIRENT_CACHE_SET_COLL_ENTRY_FULL(p,bit) dirent_clear_chunk_bit(bit,(uint8_t*)p);
-#define DIRENT_CACHE_SET_COLL_ENTRY_NOT_FULL(p,bit) dirent_set_chunk_bit(bit,(uint8_t*)p);
+#define DIRENT_CACHE_SET_COLL_ENTRY_FULL(p,bit) dirent_set_chunk_bit(bit,(uint8_t*)p);
+#define DIRENT_CACHE_SET_COLL_ENTRY_NOT_FULL(p,bit) dirent_clear_chunk_bit(bit,(uint8_t*)p);
 
 /**
  *  API to store the reference of a collision dirent entry in the dirent parent cache entry
@@ -3393,6 +3455,17 @@ static inline mdirents_cache_entry_t *dirent_cache_get_collision_ptr(
  - list_mdirentries(): list the entries relative to a parent directory (equivalent of readdir)\n
 
  */
+
+/*
+** flag that is used to indicate read/write permission for the hash associated with a root dirent file 
+**
+** read only asserted : only lookup/replace and deletion are accepted, no new insertion
+*/
+
+extern int dirent_root_read_only;
+#define DIRENT_ROOT_IS_READ_ONLY() (dirent_root_read_only == 1)
+#define DIRENT_ROOT_SET_READ_WRITE() dirent_root_read_only = 0
+#define DIRENT_ROOT_SET_READ_ONLY() dirent_root_read_only = 1
 
 /**
  * Read the mdirents file on disk
@@ -3565,6 +3638,21 @@ typedef enum _dirent_file_repair_cause_e {
     DIRENT_REPAIR_BUCKET_IDX_MISMATCH, /**< mismatch on bucket idx due to a free entry in the linked list       */
     DIRENT_REPAIR_NO_COLL_FILE, DIRENT_REPAIR_NO_EOF, DIRENT_REPAIR_MAX
 } dirent_file_repair_cause_e;
+
+
+
+/*
+ *______________________________________________________________________________
+ 
+    SAFE CONTROL: check the bucket list when the dirent file are loaded from disk
+ *______________________________________________________________________________
+ */
+extern uint8_t dirent_cache_safe_enable ;
+
+ int dirent_cache_is_bucket_idx_safe ( int dir_fd,
+                                  mdirents_cache_entry_t *root,
+                                  int       bucket_idx);
+
 /*
  **______________________________________________________________________________
  */
@@ -3661,7 +3749,7 @@ static inline dirent_file_repair_cause_e dirent_cache_check_repair_needed(
              ** something is rotten in the cache since the pointer to the collision dirent cache
              ** does not exist
              */
-            DIRENT_WARN("dirent_cache_check_repair_needed(%d) collision entry does not exist %d \n",__LINE__,hash_bucket_p->idx)
+            DIRENT_WARN("dirent_cache_check_repair_needed(%d) collision entry does not exist %d \n",bucket_idx,hash_bucket_p->idx)
             ;
             cause = DIRENT_REPAIR_NO_COLL_FILE;
             break;
@@ -3677,6 +3765,14 @@ static inline dirent_file_repair_cause_e dirent_cache_check_repair_needed(
          ** No issue there, nothing to control--> will not OCCUR !!!!!!
          */
         break;
+
+    case MDIRENTS_HASH_PTR_FREE:
+         /*
+	 ** this could happen while attempt to insert a hash entry
+         */
+         cause = DIRENT_REPAIR_FREE;
+         break;
+	 
     default:
         /*
          ** force EOF

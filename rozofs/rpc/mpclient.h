@@ -14,7 +14,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
-*/
+ */
 
 
 #ifndef _MPCLIENT_H
@@ -30,6 +30,7 @@
 typedef struct mp_client {
     char host[ROZOFS_HOSTNAME_MAX];
     uint32_t port;
+    uint16_t timeout;
     rpcclt_t rpcclt;
 } mp_client_t;
 

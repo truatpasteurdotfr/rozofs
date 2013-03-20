@@ -25,13 +25,15 @@
 #include "rpcclt.h"
 #include "mclient.h"
 
-int mclient_initialize(mclient_t * clt) {
+int mclient_initialize(mclient_t * clt, struct timeval timeout) {
     int status = -1;
     DEBUG_FUNCTION;
 
     clt->status = 0;
 
-    if (rpcclt_initialize(&clt->rpcclt, clt->host, MONITOR_PROGRAM, MONITOR_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0) != 0) {
+    if (rpcclt_initialize(&clt->rpcclt, clt->host, MONITOR_PROGRAM,
+            MONITOR_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
+            0, timeout) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);

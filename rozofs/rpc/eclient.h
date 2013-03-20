@@ -49,11 +49,12 @@ typedef struct exportclt {
     uint32_t bufsize;
     uint32_t retries;
     rpcclt_t rpcclt;
+    struct timeval timeout;
 } exportclt_t;
 
 int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
-        const char *passwd, uint32_t bufsize,
-        uint32_t retries);
+        const char *passwd, uint32_t bufsize, uint32_t retries,
+        struct timeval timeout);
 
 int exportclt_reload(exportclt_t * clt);
 

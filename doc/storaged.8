@@ -32,6 +32,17 @@ as configuration file default is
 .I /usr/local/etc/rozofs/storage.conf
 according to install options)
 .RE
+.IP "-r, --rebuild export_host"
+.RS
+With this option the storaged daemon starts processes for rebuild data of each \
+storage declared in the configuration file.
+.RE
+.RS
+Use
+.I export_host
+as address (or dns name) where exportd deamon is running.
+
+.RE
 .SH FILES
 .I /etc/rozofs/storage.conf (/usr/local/etc/rozofs/storage.conf)
 .RS

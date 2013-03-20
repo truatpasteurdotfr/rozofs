@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# rozofs-exportd       This shell script takes care of starting and stopping
+#                      the exportd services.
+#
+#chkconfig: 35 20 80
+#description: rozofs-exportd
+#
+
+DAEMON=/usr/bin/exportd
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+# See how we were called.
+case "$1" in
+  start)
+        [ -x ${DAEMON} ] || exit 5
+
+        # Start daemons.
+        echo -n $"Starting exportd daemon: "
+        daemon ${DAEMON}
+        RETVAL=$?
+        echo
+        [ $RETVAL -ne 0 ] && exit $RETVAL
+        ;;
+  stop)
+        # Stop daemons.
+        echo -n $"Shutting down exportd: "
+        killproc $DAEMON
+        echo
+        ;;
+  status)
+        status exportd
+        RETVAL=$?
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  reload)
+        echo -n $"Reloading exportd: "
+        if [ -n "`pidfileofproc $DAEMON`" ] ; then
+            killproc $DAEMON -HUP
+        else
+            failure $"Reloading $DAEMON"
+        fi
+        RETVAL=$?
+        echo
+        ;;
+  *)
+        echo $"Usage: exportd {start|stop|status|restart|reload}"
+        RETVAL=1
+        ;;
+esac
+
+exit $RETVAL
