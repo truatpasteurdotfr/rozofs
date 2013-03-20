@@ -25,12 +25,13 @@
 #include "rpcclt.h"
 #include "spclient.h"
 
-int sp_client_initialize(sp_client_t *clt, struct timeval timeout) {
+int sp_client_initialize(sp_client_t *clt) {
     int status = -1;
+    struct timeval tv = {clt->timeout, 0};
     DEBUG_FUNCTION;
 
     if (rpcclt_initialize(&clt->rpcclt, clt->host, STORAGED_PROFILE_PROGRAM,
-            STORAGED_PROFILE_VERSION, 0, 0, clt->port, timeout) != 0) {
+            STORAGED_PROFILE_VERSION, 0, 0, clt->port, tv) != 0) {
         goto out;
     }
 

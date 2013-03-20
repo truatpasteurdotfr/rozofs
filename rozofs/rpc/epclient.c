@@ -25,12 +25,13 @@
 #include "rpcclt.h"
 #include "epclient.h"
 
-int ep_client_initialize(ep_client_t *clt, struct timeval timeout) {
+int ep_client_initialize(ep_client_t *clt) {
     int status = -1;
+    struct timeval tv = {clt->timeout, 0};
     DEBUG_FUNCTION;
 
     if (rpcclt_initialize(&clt->rpcclt, clt->host, EXPORTD_PROFILE_PROGRAM,
-            EXPORTD_PROFILE_VERSION, 0, 0, clt->port, timeout) != 0) {
+            EXPORTD_PROFILE_VERSION, 0, 0, clt->port, tv) != 0) {
         goto out;
     }
 

@@ -30,10 +30,11 @@
 typedef struct mp_client {
     char host[ROZOFS_HOSTNAME_MAX];
     uint32_t port;
+    uint16_t timeout;
     rpcclt_t rpcclt;
 } mp_client_t;
 
-int mp_client_initialize(mp_client_t *clt, struct timeval timeout);
+int mp_client_initialize(mp_client_t *clt);
 
 void mp_client_release(mp_client_t *clt);
 

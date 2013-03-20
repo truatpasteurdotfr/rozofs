@@ -30,10 +30,11 @@
 typedef struct ep_client {
     char host[ROZOFS_HOSTNAME_MAX];
     uint32_t port;
+    uint16_t timeout;
     rpcclt_t rpcclt;
 } ep_client_t;
 
-int ep_client_initialize(ep_client_t *clt, struct timeval timeout);
+int ep_client_initialize(ep_client_t *clt);
 
 void ep_client_release(ep_client_t *clt);
 
