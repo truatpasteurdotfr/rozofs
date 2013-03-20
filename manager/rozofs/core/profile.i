@@ -129,6 +129,12 @@ struct spp_profiler_t {
     uint64_t truncate[3];
     uint16_t nb_io_processes;
     uint16_t io_process_ports[32];
+    uint16_t nb_rb_processes;
+    uint16_t rb_process_ports[32];
+    uint16_t rbs_cids[32];
+    uint8_t rbs_sids[32];
+    uint64_t rb_files_current;
+    uint64_t rb_files_total;
 };
 typedef struct spp_profiler_t spp_profiler_t;
 
@@ -179,4 +185,3 @@ typedef struct mpp_profiler_t mpp_profiler_t;
 %array_functions(epp_vstat_t, EppVstatArray);
 %array_functions(epp_estat_t, EppEstatArray);
 %array_functions(epp_sstat_t, EppSstatArray);
-
