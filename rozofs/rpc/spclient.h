@@ -30,10 +30,11 @@
 typedef struct sp_client {
     char host[ROZOFS_HOSTNAME_MAX];
     uint32_t port;
+    uint16_t timeout;
     rpcclt_t rpcclt;
 } sp_client_t;
 
-int sp_client_initialize(sp_client_t *clt, struct timeval timeout);
+int sp_client_initialize(sp_client_t *clt);
 
 void sp_client_release(sp_client_t *clt);
 

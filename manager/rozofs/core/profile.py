@@ -577,6 +577,9 @@ class ep_client_t(_object):
     __swig_setmethods__["port"] = _profile.ep_client_t_port_set
     __swig_getmethods__["port"] = _profile.ep_client_t_port_get
     if _newclass:port = _swig_property(_profile.ep_client_t_port_get, _profile.ep_client_t_port_set)
+    __swig_setmethods__["timeout"] = _profile.ep_client_t_timeout_set
+    __swig_getmethods__["timeout"] = _profile.ep_client_t_timeout_get
+    if _newclass:timeout = _swig_property(_profile.ep_client_t_timeout_get, _profile.ep_client_t_timeout_set)
     __swig_setmethods__["rpcclt"] = _profile.ep_client_t_rpcclt_set
     __swig_getmethods__["rpcclt"] = _profile.ep_client_t_rpcclt_get
     if _newclass:rpcclt = _swig_property(_profile.ep_client_t_rpcclt_get, _profile.ep_client_t_rpcclt_set)
@@ -617,6 +620,9 @@ class sp_client_t(_object):
     __swig_setmethods__["port"] = _profile.sp_client_t_port_set
     __swig_getmethods__["port"] = _profile.sp_client_t_port_get
     if _newclass:port = _swig_property(_profile.sp_client_t_port_get, _profile.sp_client_t_port_set)
+    __swig_setmethods__["timeout"] = _profile.sp_client_t_timeout_set
+    __swig_getmethods__["timeout"] = _profile.sp_client_t_timeout_get
+    if _newclass:timeout = _swig_property(_profile.sp_client_t_timeout_get, _profile.sp_client_t_timeout_set)
     __swig_setmethods__["rpcclt"] = _profile.sp_client_t_rpcclt_set
     __swig_getmethods__["rpcclt"] = _profile.sp_client_t_rpcclt_get
     if _newclass:rpcclt = _swig_property(_profile.sp_client_t_rpcclt_get, _profile.sp_client_t_rpcclt_set)
@@ -657,6 +663,9 @@ class mp_client_t(_object):
     __swig_setmethods__["port"] = _profile.mp_client_t_port_set
     __swig_getmethods__["port"] = _profile.mp_client_t_port_get
     if _newclass:port = _swig_property(_profile.mp_client_t_port_get, _profile.mp_client_t_port_set)
+    __swig_setmethods__["timeout"] = _profile.mp_client_t_timeout_set
+    __swig_getmethods__["timeout"] = _profile.mp_client_t_timeout_get
+    if _newclass:timeout = _swig_property(_profile.mp_client_t_timeout_get, _profile.mp_client_t_timeout_set)
     __swig_setmethods__["rpcclt"] = _profile.mp_client_t_rpcclt_set
     __swig_getmethods__["rpcclt"] = _profile.mp_client_t_rpcclt_get
     if _newclass:rpcclt = _swig_property(_profile.mp_client_t_rpcclt_get, _profile.mp_client_t_rpcclt_set)

@@ -24,6 +24,30 @@ case "$1" in
         echo
         [ $RETVAL -ne 0 ] && exit $RETVAL
         ;;
+
+  stop)
+        [ -f /etc/fstab ] || return
+        #
+        # Read through fstab line by line. If it is ROZOFS, mount it
+        #
+
+        exec 9<&0 </etc/fstab
+
+        while read DEV MTPT FSTYPE OPTS REST
+        do
+        case "$DEV" in
+            ""|\#*)
+                continue;
+                ;;
+            "rozofsmount")
+                umount $MTPT
+                RETVAL=$?
+                [ $RETVAL -ne 0 ] && exit $RETVAL
+                ;;
+        esac
+        done
+
+        exec 0<&9 9<&-
   *)
         echo $"Usage: exportd {start}"
         RETVAL=1

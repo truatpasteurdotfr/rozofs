@@ -190,32 +190,7 @@ def __exportd_profiler_to_string(args, ep):
     mins = (elapse / 60) - (days * 1440) - (hours * 60)
     secs = elapse % 60
     s = "\t\texportd: %s - uptime: %d days, %d:%d:%d\n" % (ep.vers, days, hours, mins, secs)
-
-#    if not args.stats:
-#        s += "\n\t\tSTATS:\n"
-#        s += "\t\t------\n"
-#
-#    for vstat in ep.vstats:
-#        s += "\t\tVOLUME: %d - BSIZE: %d, BFREE: %d\n" % (vstat.vid, vstat.bsize, vstat.bfree)
-#        s += "\n\t\t\t%-6s %-6s %-20s %-20s\n" % ("SID", "STATUS", "CAPACITY(B)", "FREE(B)")
-#        for sstat in vstat.sstats:
-#            s += "\t\t\t%-6d %-6d %-20d %-20d\n" % (sstat.sid, sstat.status, sstat.size, sstat.free)
-#        s += "\n\t\t\t%-6s %-6s %-12s %-12s %-12s %-12s\n" % ("EID", "BSIZE", "BLOCKS", "BFREE", "FILES", "FFREE")
-#        for estat in ep.estats:
-#            if estat.vid == vstat.vid:
-#                s += "\t\t\t%-6d %-6d %-12d %-12d %-12d %-12d\n" % (estat.eid,
-#                    estat.bsize, estat.blocks, estat.bfree,
-#                    estat.files, estat.ffree)
-#        s += "\n";
-#
-#    # if only stats are requiered return
-#    if args.stats:
-#        return s
-
-#    s += "\t\tPROFILING:\n"
-#    s += "\t\t----------\n"
     s += "\t\t%-25s %-12s %-12s %-12s %-12s %-12s\n" % ("OP", "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MBps)")
-
     s += "\t\t" + __probe_to_string(ep, "ep_mount")
     s += "\t\t" + __probe_to_string(ep, "ep_umount")
     s += "\t\t" + __probe_to_string(ep, "ep_statfs")
@@ -306,12 +281,22 @@ def __storaged_profiler_to_string(args, sps):
     s += "\t\t%-12s " % "--" + __probe_to_string(sps[0], "ports")
     s += "\t\t%-12s " % "--" + __probe_to_string(sps[0], "remove")
 
+    # io processes
     i = 0
-    for sp in sps[1:]:
+    for sp in sps[1:len(sps[0].io_process_ports) + 1]:
         s += "\t\t%-12d " % sps[0].io_process_ports[i] + __io_probe_to_string(sp, "read")
         s += "\t\t%-12d " % sps[0].io_process_ports[i] + __io_probe_to_string(sp, "write")
         s += "\t\t%-12d " % sps[0].io_process_ports[i] + __io_probe_to_string(sp, "truncate")
         i += 1
+
+    # rb processes
+    if sps[0].ro_process_ports :
+        s += "\t\t%-12s %-12s %-12s %-16s %-16s\n" % ("PORT", "CID", "SID",
+                "STATUS", "FILES REBUILT")
+        i = 0
+        for sp in sps[len(sps[0].io_process_ports) + 1:]:
+            s += "\t\t%-12d %-12d %-12d %-12d %-16s %d/%-12d" % (sps[0].rb_process_ports[i], sp.cid[i], sp.sid[i], "in progress", sp.rb_files_total, sp.rb_files_current)
+            i += 1
 
     return s
 
@@ -361,13 +346,6 @@ def __mount_profiler_to_string(args, mp):
     s += "\t\t" + __probe_to_string(mp, "rozofs_ll_ioctl")
     return s
 
-
-# def __share_config_to_string(config):
-#    s = "\t%-20s %-20s\n" % ('NODE', 'EXPORT')
-#    for sh in config.shares:
-#        s += "\t%-20s %-20s\n" % (sh.export_host, sh.export_path)
-#    return s
-
 def __print_host_profilers(args, host, profilers):
     if profilers is not None and not profilers:
         return
@@ -400,7 +378,15 @@ def layout(platform, args):
 
 def stat(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
+
+    if not configurations:
+        print >> sys.stdout, "NODE: %s DOWN" % (args.exportd)
+        return
+
     profilers = platform.get_profilers([args.exportd], Role.EXPORTD)
+    if not profilers:
+        print >> sys.stdout, "NODE: %s DOWN" % (args.exportd)
+        return
 
     if not args.vids:
         args.vids = configurations[args.exportd][Role.EXPORTD].volumes.keys()
@@ -436,43 +422,35 @@ def stat(platform, args):
 
 def expand(platform, args):
     platform.add_nodes(args.hosts, args.vid)
-#    print >> sys.stdout, "nodes added."
 
 def shrink(platform, args):
     for vid in args.vids:
         platform.remove_volume(vid)
-#        print >> sys.stdout, "volume vid: %d removed." % vid
 
 def export(platform, args):
     platform.create_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
-#    print >> sys.stdout, "export added."
 
 def update(platform, args):
-    platform.update_export(args.eid[0], args.passwd, args.squota, args.hquota)
-#    print >> sys.stdout, "export eid: %d updated." % args.eid[0]
+    platform.update_export(args.eid[0], args.current, args.passwd, args.squota, args.hquota)
 
 def unexport(platform, args):
     if not args.eids:
         args.eids = None
 
     platform.remove_export(args.eids, args.force)
-#    print >> sys.stdout, "export(s) eid: %s removed." % args.eids
 
 def mount(platform, args):
     if not args.eids:
         args.eids = None
 
     platform.mount_export(args.eids, args.nodes)
-#    print >> sys.stdout, "export eid(s): %s mount on host(s): %s." % (args.eids, args.hosts)
 
 def umount(platform, args):
     if not args.eids:
         args.eids = None
 
     platform.umount_export(args.eids, args.nodes)
-#    print >> sys.stdout, "export eid(s): %s umount from host(s): %s." % (args.eids, args.hosts)
 
 def platform_dispatch(args):
     p = Platform(args.exportd)
     globals()[args.command.replace('-', '_')](p, args)
-

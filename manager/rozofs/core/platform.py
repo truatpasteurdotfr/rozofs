@@ -15,8 +15,10 @@ from rozofs.core.profile import ep_client_t, ep_client_initialize, sp_client_t, 
     epp_profiler_t, ep_client_get_profiler, sp_client_release, spp_profiler_t, \
     sp_client_get_profiler, mp_client_release, mpp_profiler_t, \
     EppVstatArray_getitem, EppSstatArray_getitem, EppEstatArray_getitem, \
-    Uint64Array_getitem, mp_client_get_profiler, Uint16Array_getitem
+    Uint64Array_getitem, mp_client_get_profiler, Uint16Array_getitem, \
+    new_Uint64Array, Uint64Array_setitem, delete_Uint64Array
 from rozofs.core.rozofsmount import RozofsMountConfig
+from socket import socket
 
 def get_proxy(host, manager):
     try:
@@ -222,6 +224,7 @@ class ExportdRpcProxy(RpcProxy):
         self._proxy = ep_client_t()
         self._proxy.host = self._host
         self._proxy.port = self._port
+        self._proxy.timeout = 10
         ep_client_initialize(self._proxy)
 
     def _disconnect(self):
@@ -295,6 +298,11 @@ class StoragedProfiler(object):
         self.write = []
         self.truncate = []
         self.io_process_ports = []
+        self.rb_process_ports = [];
+        self.rbs_cids = [];
+        self.rbs_sids = [];
+        self.rb_files_current = -1
+        self.rb_files_total = -1
 
 
 class StoragedRpcProxy(RpcProxy):
@@ -305,6 +313,7 @@ class StoragedRpcProxy(RpcProxy):
         self._proxy = sp_client_t()
         self._proxy.host = self._host
         self._proxy.port = self._port
+        self._proxy.timeout = 10
         sp_client_initialize(self._proxy)
 
     def _disconnect(self):
@@ -339,6 +348,11 @@ class StoragedRpcProxy(RpcProxy):
         sp.truncate = [Uint64Array_getitem(p.truncate, 0),
                        Uint64Array_getitem(p.truncate, 1),
                        Uint64Array_getitem(p.truncate, 2)]
+        sp.rb_process_ports = []
+        for ports in range(0, p.nb_rb_processes):
+            sp.rb_process_ports.append(Uint16Array_getitem(p.rb_process_ports, ports))
+        sp.rb_files_current = p.rb_files_current
+        sp.rb_files_total = p.rb_files_total
 
         return sp
 
@@ -389,6 +403,7 @@ class MountRpcProxy(RpcProxy):
         self._proxy = mp_client_t()
         self._proxy.host = self._host
         self._proxy.port = self._port
+        self._proxy.timeout = 10
         mp_client_initialize(self._proxy)
 
     def _disconnect(self):
@@ -430,10 +445,9 @@ class Node(object):
     def __init__(self, host, roles=0):
         self._host = host
         self._roles = roles
-        # self._platform_proxy = None
         # for all below key is Role
         self._proxies = {}
-        self._rpcproxies = {}  # storaged and shares ares arrays dues to multi processes
+        self._rpcproxies = {}  # storaged ares arrays dues to io & rb processes
         # does our node is connected and running
         self._up = False
         self._connected = False
@@ -443,7 +457,6 @@ class Node(object):
 
     def _initialize_proxies(self):
         try:
-            # self._platform_proxy = get_proxy(self._host, PLATFORM_MANAGER)
             if self.has_roles(Role.EXPORTD) and Role.EXPORTD not in self._proxies:
                 self._proxies[Role.EXPORTD] = get_proxy(self._host, EXPORTD_MANAGER)
             if self.has_roles(Role.STORAGED) and Role.STORAGED not in self._proxies:
@@ -455,7 +468,6 @@ class Node(object):
             raise e
 
     def _release_proxies(self):
-        # self._platform_proxy.getProxy()._release()
         for p in self._proxies.values():
             p.getProxy()._release()
         self._up = False
@@ -476,6 +488,12 @@ class Node(object):
                     sp = self._rpcproxies[Role.STORAGED][0].get_profiler()
                     for port in sp.io_process_ports:
                         self._rpcproxies[Role.STORAGED].append(StoragedRpcProxy(self._host, port))
+                    for port in sp.rb_process_ports:
+                        try:
+                            # on error rebuild processes might be finished
+                            self._rpcproxies[Role.STORAGED].append(StoragedRpcProxy(self._host, port))
+                        except:
+                            continue
             if self.has_roles(Role.ROZOFSMOUNT) and Role.ROZOFSMOUNT not in self._rpcproxies:
                 if self._proxies[Role.ROZOFSMOUNT].get_service_status() == ServiceStatus.STOPPED:
                     self._rpcproxies[Role.ROZOFSMOUNT] = None
@@ -513,12 +531,9 @@ class Node(object):
     def _try_connect(self):
         """ check if a node has running rpc service and connect to it """
         if not self._try_up():
-            return None
+            return False
 
         if self._connected == False:
-            # for role in [r for r in Role.ROLES if self.has_roles(r)]:
-            #    if self._proxies[role].get_service_status() == ServiceStatus.STOPPED:
-            #        self._proxies[role] = None
             try:
                 self._connect_rpc()
             except:
@@ -546,24 +561,6 @@ class Node(object):
             if self._roles & role == role:
                 return True
         return False
-
-#    def check_platform_manager(self):
-#        if not self._try_up():
-#            return False
-#
-#        return self._platform_proxy.ping()
-#
-#    def get_platform_config(self):
-#        if not self._try_up():
-#            return None
-#
-#        return self._platform_proxy.get_service_config()
-#
-#    def set_platform_config(self, configuration):
-#        if not self._try_up():
-#            return
-#
-#        self._platform_proxy.set_service_config(configuration)
 
     def get_configurations(self, roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         if not self._try_up():
@@ -630,25 +627,15 @@ class Platform(object):
             hostname: platform manager host (should be part of the platform !).
         """
         self._hostname = hostname
-        # self._proxy = get_proxy(hostname, PLATFORM_MANAGER)
-        # self._config = self._proxy.get_service_config()
         self._nodes = self._get_nodes(hostname)
 
-#    def __del__(self):
-#        self._proxy.getProxy()._release()
-
     def _get_nodes(self, hostname):
-#        proxy = get_proxy(hostname, PLATFORM_MANAGER)
-#        config = proxy.get_service_config()
         nodes = {}
-
-        # first set
-#        if not config.exportd_hostname:
-#            config.exportd_hostname = hostname
 
         exportd_node = Node(hostname, Role.EXPORTD)
 
         nodes[hostname] = exportd_node
+
         econfig = exportd_node.get_configurations(Role.EXPORTD)[Role.EXPORTD]
 
         if econfig is None:
@@ -685,23 +672,6 @@ class Platform(object):
             if n.has_roles(Role.EXPORTD):
                 return n
 
-#    def get_exportd_hostname(self):
-#        return self._nodes.values()[0].get_platform_config().exportd_hostname
-#
-#    def set_exportd_hostname(self, hostname):
-#        # each node is a platform manager check if reachable
-#        # before make changes
-#
-#        for n in self._nodes.values():
-#            n.check_platform_manager()
-#
-#        # the appli change (best effort)
-#        for n in self._nodes.values():
-#            configuration = n.get_platform_config()
-#            configuration.exportd_hostname = hostname
-#            n.set_platform_config(configuration)
-
-
     def list_nodes(self, roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         """ Get all nodes managed by this platform
 
@@ -716,40 +686,6 @@ class Platform(object):
             if n.has_one_of_roles(roles):
                 nodes[h] = n.get_roles()
         return nodes
-
-#    def get_sharing_protocols(self):
-#        return self._nodes.values()[0].get_platform_config().protocols
-#
-#    def set_sharing_protocols(self, protocols=PROTOCOLS_VALUES):
-#        """ Set protocols used for sharing on this platform """
-#        for protocol in protocols:
-#            if protocol not in PROTOCOLS_VALUES:
-#                raise Exception("Unknown protocol: %s" % protocol)
-#
-#        # check if all nodes are reachable
-#        for n in self._nodes.values():
-#            n.check_platform_manager()
-#
-#        # get exportd hostname
-#        exportd_hostname = self.get_exportd_hostname()
-#
-#        # build config to send to every sharing nodes.
-#        sconfig = ShareConfig(protocols)
-#        if protocols:
-#            enode = Node(exportd_hostname, Role.EXPORTD)
-#            econfig = enode.get_configurations(Role.EXPORTD)
-#            for export in econfig[Role.EXPORTD].exports.values():
-#                sconfig.shares.append(Share(exportd_hostname, export.root, 0))
-#
-#        for n in self._nodes.values():
-#            configuration = n.get_platform_config()
-#            configuration.protocols = protocols
-#            n.set_platform_config(configuration)
-#
-#            # every storaged become a share node
-#            if n.has_one_of_roles(Role.STORAGED):
-#                n.set_roles(n.get_roles() | Role.ROZOFSMOUNT)
-#                n.set_configurations({Role.ROZOFSMOUNT: sconfig})
 
     def get_statuses(self, hosts=None, roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         """ Get statuses for named nodes and roles
@@ -904,7 +840,6 @@ class Platform(object):
         if not layout in [0, 1, 2]:
             raise Exception("Invalid layout: %d" % layout)
 
-#        node = Node(self.get_exportd_hostname(), Role.EXPORTD)
         node = self._get_exportd_node()
         configuration = node.get_configurations(Role.EXPORTD)
 
@@ -924,9 +859,6 @@ class Platform(object):
             vid: volume to use, if none a new one will be created
             hosts: hosts to be added
         """
-#        exportd_hostname = self.get_exportd_hostname()
-#        sharing_protocols = self.get_sharing_protocols()
-
         enode = self._get_exportd_node()
         econfig = enode.get_configurations(Role.EXPORTD)
 
@@ -964,18 +896,12 @@ class Platform(object):
 
         cconfig = ClusterConfig(cid)
         roles = Role.STORAGED
-#        shconfig = ShareConfig(sharing_protocols)
-#        if sharing_protocols:
-#            for export in econfig[Role.EXPORTD].exports.values():
-#                shconfig.shares.append(Share(exportd_hostname, export.root, 0))
 
         for h in hosts:
             # if it's a new node register it (and duplicate platform config)
             # else just update its role
             if h not in self._nodes:
-                # pconfig = self._nodes.values()[0].get_platform_config()
                 self._nodes[h] = Node(h, roles)
-                # self._nodes[h].set_platform_config(pconfig)
             else:
                 # maybe overkill since the node could already have this role
                 self._nodes[h].set_roles(self._nodes[h].get_roles() | roles)
@@ -983,9 +909,8 @@ class Platform(object):
             # configure the storaged
             sconfig = self._nodes[h].get_configurations(Role.STORAGED)
             # XXX root could (should ?) be compute on storaged module
-            sconfig[Role.STORAGED].storages[(cid, sid)] = StorageConfig(cid, sid,
-                                                                 "%s/storage_%d_%d" % (STORAGES_ROOT, cid, sid))
-#            sconfig[Role.ROZOFSMOUNT] = shconfig
+            sconfig[Role.STORAGED].storages[(cid, sid)] = StorageConfig(cid,
+                 sid, "%s/storage_%d_%d" % (STORAGES_ROOT, cid, sid))
             self._nodes[h].set_configurations(sconfig)
 
             # add the storage to the cluster
@@ -1090,20 +1015,12 @@ class Platform(object):
         econfig[Role.EXPORTD].exports[eid] = ExportConfig(eid, vid, "%s/%s" % (EXPORTS_ROOT, name), md5, squota, hquota)
         enode.set_configurations(econfig)
 
-#        # if sharing is enable share this new export
-#        for n in self._nodes.values():
-#            # every storaged become a share node
-#            if n.has_one_of_roles(Role.ROZOFSMOUNT):
-#                sconfig = n.get_configurations(Role.ROZOFSMOUNT)
-#                sconfig[Role.ROZOFSMOUNT].shares.append(Share(exportd_hostname ,
-#                                                        "%s/%s" % (EXPORTS_ROOT, name), -1))
-#                n.set_configurations(sconfig)
-
-    def update_export(self, eid, passwd=None, squota=None, hquota=None):
+    def update_export(self, eid, current=None, passwd=None, squota=None, hquota=None):
         """ Modify an exported file system
 
         Args:
             eid: the export id to modify
+            current: current password (only need if passwd)
             passwd: password to set if None no modification is done
             squota: soft quota to set if None no modification is done
             hquota: hard quota to set if None no modification is done
@@ -1146,6 +1063,15 @@ class Platform(object):
 
         # compute md5
         if passwd is not None:
+            if current is None:
+                raise "Current password needed."
+
+            # check current passwd
+            with open('/dev/null', 'w') as devnull:
+                    if econfig[Role.EXPORTD].exports[eid].md5 != subprocess.check_output(['md5pass', current, 'rozofs'],
+                                   stderr=devnull)[11:].rstrip():
+                        raise "Permission denied."
+
             if passwd:
                 with open('/dev/null', 'w') as devnull:
                     econfig[Role.EXPORTD].exports[eid].md5 = subprocess.check_output(['md5pass', passwd, 'rozofs'],
@@ -1180,7 +1106,6 @@ class Platform(object):
         # unmount if needed
         self.umount_export(eids)
 
-
         # sanity check
         for eid in eids:
             if eid not in econfig[Role.EXPORTD].exports.keys():
@@ -1189,7 +1114,6 @@ class Platform(object):
             for estat in eprofiler[Role.EXPORTD].estats:
                 if estat.eid == eid and estat.files != 0 and not force:
                     raise Exception("Can't remove non empty export (use  force=True)")
-
 
 
         # delete these exports from exportd configuration
