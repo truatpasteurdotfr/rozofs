@@ -18,8 +18,9 @@
 
 #ifndef _TYPES_H
 #define _TYPES_H
-
+#undef  FALSE
 #define FALSE   0
+#undef  TRUE
 #define TRUE    1
 
 #endif

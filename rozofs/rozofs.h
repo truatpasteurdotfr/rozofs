@@ -27,13 +27,15 @@
 #define ROZOFS_UUID_SIZE 16
 /* Instead of using an array of unsigned char for store the UUID, we use an
  * array of uint32_t in the RPC protocol to use less space (see XDR). */
-#define ROZOFS_UUID_SIZE_NET 4
+#define ROZOFS_UUID_SIZE_RPC (ROZOFS_UUID_SIZE/sizeof(uint32_t))
+#define ROZOFS_UUID_SIZE_NET ROZOFS_UUID_SIZE_RPC
 #define ROZOFS_HOSTNAME_MAX 128
 #define ROZOFS_BSIZE 8192       // could it be export specific ?
 #define ROZOFS_SAFE_MAX 36
+#define ROZOFS_SAFE_MAX_RPC  (ROZOFS_SAFE_MAX/sizeof(uint32_t))
 /* Instead of using an array of sid_t for store the dist_set, we use an
  * array of uint32_t in the RPC protocol to use less space (see XDR). */
-#define ROZOFS_SAFE_MAX_NET 9
+#define ROZOFS_SAFE_MAX_NET ROZOFS_SAFE_MAX_RPC
 #define ROZOFS_DIR_SIZE 4096
 #define ROZOFS_PATH_MAX 1024
 #define ROZOFS_XATTR_NAME_MAX 255
@@ -41,6 +43,7 @@
 #define ROZOFS_XATTR_LIST_MAX 65536
 #define ROZOFS_FILENAME_MAX 255
 
+#define ROZOFS_CLUSTERS_MAX 255 /**< FDL : limit for cluster */
 /* Value max for a SID */
 #define SID_MAX 255
 /* Value min for a SID */
