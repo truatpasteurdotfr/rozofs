@@ -253,6 +253,7 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
  @msg2encode_p     : pointer to the message to encode
  @param recv_cbk   : receive callback function
  @param fuse_ctx_p : pointer to the fuse context
+ @param lbg_id      : identifier of the lbg to sent on
  
  @retval 0 on success;
  @retval -1 on error,, errno contains the cause
@@ -260,7 +261,8 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
 
 int rozofs_storcli_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
-                              sys_recv_pf_t recv_cbk,void *fuse_ctx_p) 
+                              sys_recv_pf_t recv_cbk,void *fuse_ctx_p,
+			      int lbg_id) 			       
 {
     DEBUG_FUNCTION;
    
@@ -378,7 +380,7 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
     /*
     ** now send the message
     */
-    int lbg_id = storcli_lbg_get_load_balancing_reference();
+//    int lbg_id = storcli_lbg_get_load_balancing_reference();
     ret = north_lbg_send(lbg_id,xmit_buf);
     if (ret < 0)
     {

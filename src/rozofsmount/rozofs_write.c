@@ -48,6 +48,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -458,6 +459,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
    storcli_write_arg_t  args;
    int ret;
    fuse_end_tx_recv_pf_t  callback;
+   int lbg_id;
 
     // Fill request
     args.cid = f->attrs.cid;
@@ -477,6 +479,8 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
       args.empty_file = 0;
     }
     
+    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -484,7 +488,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     f->buf_write_pending++;
     ret = rozofs_storcli_send_common(NULL,STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
-                              callback,buffer_p); 
+                              callback,buffer_p,lbg_id); 
     if (ret < 0) goto error;
     
     /*

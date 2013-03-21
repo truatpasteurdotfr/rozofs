@@ -40,7 +40,7 @@
 #include "rpcclt.h"
 #include "storcli_lbg_prototypes.h"
 
-int storcli_lbg_id = -1;  /**< reference of the load balancing group to join storcli processes */
+int storcli_lbg_id[4] = {-1,-1,-1,-1};  /**< reference of the load balancing group to join storcli processes */
 
 
 /**
@@ -50,10 +50,15 @@ int storcli_lbg_id = -1;  /**< reference of the load balancing group to join sto
   @retval >= 0 : reference of the load balancing group
 */
 
-int storcli_lbg_get_load_balancing_reference()
+int storcli_lbg_get_load_balancing_reference(int idx)
 {
-
-  return storcli_lbg_id;
+  if (idx >= STORCLI_PER_FSMOUNT) return -1;
+  return storcli_lbg_id[idx];
+}
+int storcli_lbg_get_lbg_from_fid(fid_t fid)
+{
+  int idx = fid[0] & (STORCLI_PER_FSMOUNT - 1);
+  return storcli_lbg_get_load_balancing_reference(idx);
 }
 
  /**
@@ -87,32 +92,43 @@ static af_unix_socket_conf_t  af_unix_storcli_conf =
 
 int storcli_lbg_initialize(exportclt_t *exportclt,uint16_t rozofsmount_instance ,int first_instance,int nb_instances) 
 {
-    int status = -1;
+    int status = 0;
     int lbg_size;
+    int lbg_idx;
     
     DEBUG_FUNCTION;    
     char sunpath[AF_UNIX_SOCKET_NAME_SIZE];
     
-    sprintf(sunpath,"%s%d.%d",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,exportclt->eid,rozofsmount_instance);
+    for (lbg_idx=0; lbg_idx < STORCLI_PER_FSMOUNT; lbg_idx++) {
+    
+      sprintf(sunpath,"%s%d.%d_lbg%d",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,exportclt->eid,rozofsmount_instance,first_instance+lbg_idx);
 
 
-    /*
-    ** store the IP address and port in the list of the endpoint
-    */
-    lbg_size = nb_instances;
+       /*
+      ** store the IP address and port in the list of the endpoint
+      */
+      //lbg_size = nb_instances;
+     lbg_size = 1;
     
      af_unix_storcli_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_unix_storcli_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
-     storcli_lbg_id =  north_lbg_create_af_unix("STORCLI",sunpath,0, /* not significant */
+     storcli_lbg_id[lbg_idx] = north_lbg_create_af_unix("STORCLI",sunpath,0, /* not significant */
                                                  first_instance,
                                                  lbg_size,&af_unix_storcli_conf);
      
-     if (storcli_lbg_id >= 0)
+     if (storcli_lbg_id[lbg_idx] >= 0)
      {
-       status = 0;
-       return status;    
+       /*
+       ** Configure the LBG to keep message until the LBG comes back up in case of a disconnection
+       ** and the LBG is down
+       */
+       north_lbg_rechain_when_lbg_gets_down(storcli_lbg_id[lbg_idx]);
      }
-     severe("Cannot create Load Balancing Group for Storcli");
-     return  status;
+     else {     
+       status = -1;
+       severe("Cannot create Load Balancing Group %d for Storcli", lbg_idx);
+     }
+   }    
+   return  status;
 }     
 

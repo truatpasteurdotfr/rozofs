@@ -174,7 +174,18 @@ north_lbg_ctx_t *north_lbg_getObjCtx_p(uint32_t north_lbg_ctx_id)
                                        index);
    return ((north_lbg_ctx_t*)p);
 }
+/*
+** Procedures to set rechain_when_lbg_gets_down indicator
+* @param  idx  index of the load balancing group
+*/
+void north_lbg_rechain_when_lbg_gets_down(int idx) {
+  north_lbg_ctx_t * lbg;
 
+  lbg = north_lbg_getObjCtx_p(idx);
+  if (lbg == NULL) return;
+  
+  lbg->rechain_when_lbg_gets_down = 1;
+}
 /*
 **_____________________________________________
 */
@@ -279,6 +290,9 @@ void  north_lbg_ctxInit(north_lbg_ctx_t *p,uint8_t creation)
 
   p->state         = NORTH_LBG_DOWN;
   memset(&p->stats,0,sizeof(north_lbg_stats_t));
+
+  p->rechain_when_lbg_gets_down = 0;
+
   /*
   ** clear the state bitmap
   */

@@ -170,6 +170,24 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
        ** get the retry counter of the buffer
        */
        retry_counter = ruc_buf_get_retryCounter(bufRef);
+       
+       if ((lbg_p->state == NORTH_LBG_DOWN) && (lbg_p->rechain_when_lbg_gets_down == 1)) {
+         /* 
+	 ** The lbg is down but we re-send on it hoping it will comme back up soon 
+	 */
+	 if (retry_counter < lbg_p->nb_entries_conf) {
+           retry_counter +=1;
+           ruc_buf_set_retryCounter(bufRef,retry_counter);
+           /*
+           ** resend by selecting a new destination
+           */
+           lbg_p->stats.totalXmitRetries++;
+	   //info("rechain on LBG %d",lbg_p->index);
+           north_lbg_send(lbg_p->index,bufRef);	   
+	   break;
+	 }
+       }
+       
 //       if ((retry_counter >= NORTH_LBG_MAX_RETRY) || (lbg_p->state == NORTH_LBG_DOWN))
        if ((retry_counter >= lbg_p->nb_entries_conf) || (lbg_p->state == NORTH_LBG_DOWN))
        {       
@@ -219,7 +237,25 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
          ** get the retry counter of the buffer
          */
          retry_counter = ruc_buf_get_retryCounter(bufRef);
-//         if ((retry_counter >= NORTH_LBG_MAX_RETRY) || (lbg_p->state == NORTH_LBG_DOWN))
+         if ((lbg_p->state == NORTH_LBG_DOWN) && (lbg_p->rechain_when_lbg_gets_down == 1)) {
+           /* 
+	   ** The lbg is down but we re-send on it hoping it will comme back up soon 
+	   */
+	   if (retry_counter < lbg_p->nb_entries_conf) {
+             retry_counter +=1;
+             ruc_buf_set_retryCounter(bufRef,retry_counter);
+             /*
+             ** resend by selecting a new destination
+             */
+             lbg_p->stats.totalXmitRetries++;
+	     #
+	    //info("rechain on LBG %d",lbg_p->index);
+             north_lbg_send(lbg_p->index,bufRef);	   
+	     break;
+	   }
+         }
+	 	
+	 //         if ((retry_counter >= NORTH_LBG_MAX_RETRY) || (lbg_p->state == NORTH_LBG_DOWN))
          if ((retry_counter >= lbg_p->nb_entries_conf) || (lbg_p->state == NORTH_LBG_DOWN))
          {
            /*

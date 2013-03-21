@@ -33,11 +33,15 @@
 #include <rozofs/rpc/eclient.h>
 #include "rpcclt.h"
  
+#define STORCLI_PER_FSMOUNT_POWER2 1
+#define STORCLI_PER_FSMOUNT (1<<STORCLI_PER_FSMOUNT_POWER2) 
+  
  
  int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
         unsigned long vers,uint32_t port_num);
         
 int storaged_lbg_initialize(mstorage_t *s);
 int storcli_lbg_initialize(exportclt_t *exportclt ,uint16_t rozofsmount_instance,int first_instance,int nb_instances);
-       
+int storcli_lbg_get_lbg_from_fid(fid_t fid);
+
  #endif

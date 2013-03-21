@@ -54,6 +54,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -83,6 +84,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    uint32_t nb_prj = 0;
    storcli_read_arg_t  args;
    int ret;
+   int lbg_id;
 
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
@@ -103,13 +105,16 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     args.proj_id = 0; // N.S
     args.bid = bid;
     args.nb_proj = nb_prj;
+
+    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+
     /*
     ** now initiates the transaction towards the remote end
     */
     f->buf_read_pending++;
     ret = rozofs_storcli_send_common(NULL,STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_READ,(xdrproc_t) xdr_storcli_read_arg_t,(void *)&args,
-                              rozofs_ll_read_cbk,buffer_p); 
+                              rozofs_ll_read_cbk,buffer_p,lbg_id); 
     if (ret < 0) goto error;
     
     /*

@@ -44,6 +44,7 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include "config.h"
 #include "file.h"
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
 
 #include "rozofs_fuse.h"
 #include <semaphore.h>
@@ -1721,7 +1722,8 @@ void rozofs_start_storcli(const char *mountpoint) {
 
     rozofs_kill_storcli(mountpoint);
 
-    for (i = 1; i < 3; i++) {
+   for (i = 1; i <= STORCLI_PER_FSMOUNT; i++)
+   {
         char *cmd_p = &cmd[0];
         cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
         cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);

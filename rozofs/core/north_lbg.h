@@ -125,8 +125,18 @@ typedef struct _north_lbg_ctx_t
   north_lbg_stats_t stats;                     /**< load balancing group statistics  */
   north_lbg_entry_ctx_t entry_tb[NORTH__LBG_MAX_ENTRY];
   af_unix_socket_conf_t  lbg_conf;
+  /* What occurs to the current message and to the messages already sent but not yet responded in case of a TCP disconnection 
+  ** that set the LBG down ?
+  ** 1) When this indicator is set the buffer is reposted on the same TCP connection waiting for the connection to come back
+  ** 2) When this indicator is not set, the application call back is called 
+  */
+  int                    rechain_when_lbg_gets_down;
 } north_lbg_ctx_t;
 
+/*
+** Procedures to set rechain_when_lbg_gets_down indicator
+*/
+void north_lbg_rechain_when_lbg_gets_down(int idx);
 
 /**
 * Prototypes

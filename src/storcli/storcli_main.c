@@ -730,7 +730,7 @@ int main(int argc, char *argv[]) {
     }
     {
        char name[32];
-       sprintf(name,"storcli %d.%d",conf.rozofsmount_instance,conf.module_index);
+       sprintf(name,"storcli %d of rozofsmount %d",conf.module_index, conf.rozofsmount_instance);
        uma_dbg_set_name(name);
     } 
       
@@ -763,7 +763,7 @@ int main(int argc, char *argv[]) {
  /*
  ** main loop
  */
-  fprintf(stderr, "Entering the main loop of the non blocking entity\n");
+  info("storcli %d of rozofsmount %d on mount point %s started",conf.module_index, conf.rozofsmount_instance,conf.mount);
 
    while(1)
  {

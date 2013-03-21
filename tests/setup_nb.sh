@@ -45,11 +45,11 @@ build ()
 
 
 # $1 -> LAYOUT
-# $2 -> storages by cluster
+# $2 -> Number or serving port per storage host (nb of process)
 gen_storage_conf_nb ()
 {
     STORAGES_BY_CLUSTER=$1
-
+    PORT_PER_STORAGE_HOST=$2
 
 
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
@@ -73,7 +73,12 @@ gen_storage_conf_nb ()
            touch $FILE
            echo "#${NAME_LABEL}" >> $FILE
            echo "#${DATE_LABEL}" >> $FILE
-           echo "ports = [ 51000, 51001] ;" >> $FILE
+           #echo "ports = [ 51000, 51001] ;" >> $FILE
+	   PORT_LIST="51001"
+	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
+	   done
+	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	   
            echo 'storages = (' >> $FILE
 		   for z in $(seq ${STORAGES_BY_CLUSTER}); do
 		    if [[ ${i} == ${nb_clusters} && ${z} == ${STORAGES_BY_CLUSTER} ]]
@@ -717,7 +722,7 @@ main ()
         NB_CLUSTERS_BY_VOLUME=1;
 
         gen_storage_conf ${STORAGES_BY_CLUSTER}
-        gen_storage_conf_nb ${STORAGES_BY_CLUSTER}
+        gen_storage_conf_nb ${STORAGES_BY_CLUSTER} 4
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT}
