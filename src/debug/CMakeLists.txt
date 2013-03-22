@@ -14,9 +14,20 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-add_subdirectory(exportd)
-add_subdirectory(storaged)
-add_subdirectory(rozofsmount)
-add_subdirectory(rprof)
-add_subdirectory(storcli)
-add_subdirectory(debug)
+include_directories(${CMAKE_BINARY_DIR}) # for config.h
+include_directories(${CMAKE_SOURCE_DIR}) # for librozofs headers
+link_directories(${CMAKE_BINARY_DIR}/rozofs)
+
+add_executable(rozodebug
+    debug.c
+)
+target_link_libraries(rozodebug)
+
+# Install
+
+install(TARGETS rozodebug
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT rozodebug
+)
