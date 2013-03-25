@@ -15,6 +15,9 @@ manager/setup.py
 config.h
 rozofs.spec
 
+profile_wrap.c
+libconfig_wrap.c
+
 manager/build/
 manager/timestamp
 src/exportd/exportd

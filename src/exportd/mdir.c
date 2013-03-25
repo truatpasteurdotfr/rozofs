@@ -42,7 +42,8 @@ int mdir_open(mdir_t *mdir, const char *path) {
         goto out;
     }
 
-    if ((mdir->fdattrs = openat(mdir->fdp, MDIR_ATTRS_FNAME, O_RDWR|O_CREAT, S_IRWXU)) < 0) {
+    if ((mdir->fdattrs = openat(mdir->fdp, MDIR_ATTRS_FNAME, O_RDWR | O_CREAT,
+            S_IRWXU)) < 0) {
         int xerrno = errno;
         close(mdir->fdp);
         errno = xerrno;
@@ -67,12 +68,12 @@ int mdir_read_attributes(mdir_t *mdir, mattr_t *attrs) {
     START_PROFILING(mdir_read_attributes);
 
     // read attributes
-    if (pread(mdir->fdattrs, attrs, sizeof(mattr_t), 0) != sizeof(mattr_t)) {
+    if (pread(mdir->fdattrs, attrs, sizeof (mattr_t), 0) != sizeof (mattr_t)) {
         goto out;
     }
     // read children
-    if (pread(mdir->fdattrs, &mdir->children, sizeof(int),
-            sizeof(mattr_t)) != sizeof(int)) {
+    if (pread(mdir->fdattrs, &mdir->children, sizeof (int),
+            sizeof (mattr_t)) != sizeof (int)) {
         goto out;
     }
     status = 0;
@@ -86,32 +87,40 @@ int mdir_write_attributes(mdir_t *mdir, mattr_t *attrs) {
 
     START_PROFILING(mdir_write_attributes);
     // write attributes
-    if (pwrite(mdir->fdattrs, attrs, sizeof(mattr_t), 0) != sizeof(mattr_t)) {
+    if (pwrite(mdir->fdattrs, attrs, sizeof (mattr_t), 0) != sizeof (mattr_t)) {
         return -1;
     }
     // write children
-    if (pwrite(mdir->fdattrs, &mdir->children, sizeof(int),
-            sizeof(mattr_t)) != sizeof(int)) {
+    if (pwrite(mdir->fdattrs, &mdir->children, sizeof (int),
+            sizeof (mattr_t)) != sizeof (int)) {
         return -1;
     }
     status = 0;
-    
+
     STOP_PROFILING(mdir_write_attributes);
     return status;
 }
 
-int mdir_set_xattr(mdir_t *mdir, const char *name, const void *value, size_t size, int flags) {
+/*
+ *  Extended attributes of a directory are placed in the directory itself
+ *  and not in the attributes file because when the filesystem use ACL,
+ *  ACL defaults attributes can not be applied on regular files.
+*/
+
+int mdir_set_xattr(mdir_t *mdir, const char *name, const void *value, 
+        size_t size, int flags) {
     int status;
 
-    status = fsetxattr(mdir->fdattrs, name, value, size, flags);
+    status = fsetxattr(mdir->fdp, name, value, size, flags);
 
     return status;
 }
 
-ssize_t mdir_get_xattr(mdir_t *mdir, const char *name, void *value, size_t size) {
+ssize_t mdir_get_xattr(mdir_t *mdir, const char *name, void *value,
+        size_t size) {
     ssize_t status;
 
-    status = fgetxattr(mdir->fdattrs, name, value, size);
+    status = fgetxattr(mdir->fdp, name, value, size);
 
     return status;
 }
@@ -119,7 +128,7 @@ ssize_t mdir_get_xattr(mdir_t *mdir, const char *name, void *value, size_t size)
 int mdir_remove_xattr(mdir_t *mdir, const char *name) {
     int status;
 
-    status = fremovexattr(mdir->fdattrs, name);
+    status = fremovexattr(mdir->fdp, name);
 
     return status;
 }
@@ -127,7 +136,7 @@ int mdir_remove_xattr(mdir_t *mdir, const char *name) {
 ssize_t mdir_list_xattr(mdir_t *mdir, char *list, size_t size) {
     ssize_t status;
 
-    status = flistxattr(mdir->fdattrs, list, size);
+    status = flistxattr(mdir->fdp, list, size);
 
     return status;
 }
