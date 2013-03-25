@@ -20,8 +20,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
-set(MINOR "1")
-set(REVISION "0")
+set(MINOR "2")
+set(REVISION "alpha1")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -60,17 +60,17 @@ set(EXPORTD_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/export.conf")
 
 set(STORAGED_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/storage.conf")
 
-if(NOT ROZOFS_SHELL_DIR)
-    set(ROZOFS_SHELL_DIR "/usr/local/bin")
-endif(NOT ROZOFS_SHELL_DIR)
-
-if(NOT ROZOFS_BIN_DIR)
-    set(ROZOFS_BIN_DIR "/usr/local/bin")
-endif(NOT ROZOFS_BIN_DIR)
-
-set(STORCLI_STARTER "${ROZOFS_SHELL_DIR}/storcli_starter.sh")
-set(STORCLI_KILLER "${ROZOFS_SHELL_DIR}/storcli_killer.sh")
-set(STORCLI_EXEC "${ROZOFS_BIN_DIR}/storcli")
+#if(NOT ROZOFS_SHELL_DIR)
+#    set(ROZOFS_SHELL_DIR "/usr/local/bin")
+#endif(NOT ROZOFS_SHELL_DIR)
+#
+#if(NOT ROZOFS_BIN_DIR)
+#    set(ROZOFS_BIN_DIR "/usr/local/bin")
+#endif(NOT ROZOFS_BIN_DIR)
+#
+#set(STORCLI_STARTER "${ROZOFS_SHELL_DIR}/storcli_starter.sh")
+#set(STORCLI_KILLER "${ROZOFS_SHELL_DIR}/storcli_killer.sh")
+#set(STORCLI_EXEC "${ROZOFS_BIN_DIR}/storcli")
 
 if(NOT DAEMON_PID_DIRECTORY)
     set(DAEMON_PID_DIRECTORY "/var/run")

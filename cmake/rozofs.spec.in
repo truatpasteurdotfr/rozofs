@@ -141,6 +141,9 @@ mkdir -p %{buildroot}/etc/default
 %files rozofsmount
 %defattr(-,root,root)
 %{_bindir}/rozofsmount
+%{_bindir}/storcli
+%{_bindir}/storcli_starter.sh
+%{_bindir}/storcli_killer.sh
 %{_initrddir}/rozofs-rozofsmount
 %{_mandir}/man8/rozofsmount.8.gz
 

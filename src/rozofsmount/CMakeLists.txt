@@ -59,3 +59,6 @@ install(TARGETS rozofsmount
     ARCHIVE DESTINATION lib
     COMPONENT mount
 )
+
+install(PROGRAMS storcli_starter.sh storcli_killer.sh  DESTINATION bin)
+

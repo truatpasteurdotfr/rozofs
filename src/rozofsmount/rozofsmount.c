@@ -61,6 +61,10 @@
 
 #define CONNECTION_THREAD_TIMESPEC  2
 
+#define STORCLI_STARTER  "storcli_starter.sh"
+#define STORCLI_KILLER  "storcli_killer.sh"
+#define STORCLI_EXEC "storcli"
+
 static SVCXPRT *rozofsmount_profile_svc = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
@@ -68,13 +72,14 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 char localBuf[4096];
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
+
 /*
  *________________________________________________________
  */
 
 /*
  ** API to be called for stopping rozofsmount
- 
+
  @param none
  @retval none
  */
@@ -208,7 +213,7 @@ htable_t htable_inode;
 htable_t htable_fid;
 uint64_t rozofs_ientries_count = 0;
 
-#if 0 // FDL 
+#if 0 // FDL
 
 static inline uint32_t fuse_ino_hash(void *n) {
     return hash_xor8(*(uint32_t *) n);
@@ -268,10 +273,10 @@ static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
 static inline ientry_t *get_ientry_by_fid(fid_t fid) {
     return htable_get(&htable_fid, fid);
 }
-#endif 
+#endif
 fuse_ino_t inode_idx = 1;
 
-#if 0 // FDL 
+#if 0 // FDL
 
 static inline fuse_ino_t next_inode_idx() {
     return inode_idx++;
@@ -359,7 +364,7 @@ static void *connect_storage(void *v) {
             if (sclt->rpcclt.client == 0 || sclt->status != 1) {
 
                 struct timeval timeo;
-                /// XXX to change 
+                /// XXX to change
                 timeo.tv_sec = 3;
                 timeo.tv_usec = 0;
 
@@ -1585,16 +1590,16 @@ void rozofmount_profiling_thread_run(void *args) {
     /* NOT REACHED */
 }
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %12s | %15lu | %9lu | %18lu |\n",\
-					#probe,\
-					gprofiler.rozofs_ll_##probe[P_COUNT],\
-					gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
-					gprofiler.rozofs_ll_##probe[P_ELAPSE]);
+                    #probe,\
+                    gprofiler.rozofs_ll_##probe[P_COUNT],\
+                    gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
+                    gprofiler.rozofs_ll_##probe[P_ELAPSE]);
 
 #define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %12s | %15lu | %9lu | %18lu | %15lu\n",\
-					#probe,\
-					gprofiler.rozofs_ll_##probe[P_COUNT],\
-					gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
-					gprofiler.rozofs_ll_##probe[P_ELAPSE],\
+                    #probe,\
+                    gprofiler.rozofs_ll_##probe[P_COUNT],\
+                    gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
+                    gprofiler.rozofs_ll_##probe[P_ELAPSE],\
                     gprofiler.rozofs_ll_##probe[P_BYTES]);
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
