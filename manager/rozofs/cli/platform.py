@@ -290,11 +290,11 @@ def __storaged_profiler_to_string(args, sps):
         i += 1
 
     # rb processes
-    if sps[0].ro_process_ports :
+    if sps[0].rb_process_ports :
         s += "\t\t%-12s %-12s %-12s %-16s %-16s\n" % ("PORT", "CID", "SID",
                 "STATUS", "FILES REBUILT")
         i = 0
-        for sp in sps[len(sps[0].io_process_ports) + 1:]:
+        for sp in sps[len(sps[0].ro_process_ports) + 1:]:
             s += "\t\t%-12d %-12d %-12d %-12d %-16s %d/%-12d" % (sps[0].rb_process_ports[i], sp.cid[i], sp.sid[i], "in progress", sp.rb_files_total, sp.rb_files_current)
             i += 1
 
