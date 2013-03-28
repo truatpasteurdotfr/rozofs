@@ -37,8 +37,11 @@ build ()
 
     cd ${LOCAL_BUILD_DIR}
     rm -f ${LOCAL_SOURCE_DIR}/CMakeCache.txt
-    cmake -G "Unix Makefiles" -DROZOFS_BIN_DIR=${ROZOFS_BIN_DIR} -DROZOFS_SHELL_DIR=${ROZOFS_SHELL_DIR}  -DDAEMON_PID_DIRECTORY=${BUILD_DIR} -DCMAKE_BUILD_TYPE=${LOCAL_CMAKE_BUILD_TYPE} ${LOCAL_SOURCE_DIR}
+    cmake -G "Unix Makefiles"  -DDAEMON_PID_DIRECTORY=${BUILD_DIR} -DCMAKE_BUILD_TYPE=${LOCAL_CMAKE_BUILD_TYPE} ${LOCAL_SOURCE_DIR}
     make
+    cp -f ${WORKING_DIR}/../src/rozofsmount/storcli_killer.sh /usr/local/bin/storcli_killer.sh
+    cp -f ${WORKING_DIR}/../src/rozofsmount/storcli_starter.sh /usr/local/bin/storcli_starter.sh
+    cp -f ${LOCAL_BUILD_DIR}/src/storcli/storcli /usr/local/bin/storcli
     cd ..
     cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
 }
