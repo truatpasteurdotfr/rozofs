@@ -47,11 +47,14 @@
 #include "cache.h"
 #include "mdirent.h"
 
-/** max entries of lv1 directory structure */
-#define MAX_LV1_BUCKETS 256
+/** Max entries of lv1 directory structure (nb. of buckets) */
+#define MAX_LV1_BUCKETS 1024
 #define LV1_NOCREATE 0
 #define LV1_CREATE 1
-#define RM_FILES_MAX 2500
+/** Nb. max of entries to delete during one call of export_rm_bins function */
+#define RM_FILES_MAX 500
+/** Max directory entries under trash directory (nb. of buckets) */
+#define MAX_RM_BUCKETS 1024
 
 /** Default mode for export root directory */
 #define EXPORT_DEFAULT_ROOT_MODE S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
@@ -97,7 +100,7 @@ static int export_lv1_resolve_entry(export_t *export, fid_t fid, int create) {
     for (c = fid; c != fid + 16; c++)
         hash = *c + (hash << 6) + (hash << 16) - hash;
     hash %= MAX_LV1_BUCKETS;
-    sprintf(path, "%s/%"PRId32"", export->root, hash);
+    sprintf(path, "%s/%"PRIu32"", export->root, hash);
     if (access(path, F_OK) == -1) {
         if (errno == ENOENT && create) {
             if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0)
@@ -368,9 +371,10 @@ int export_is_valid(const char *root) {
 static int export_load_rmfentry(export_t * e) {
     int status = -1;
     DIR *dd = NULL;
-    struct dirent *dp;
+    struct dirent *dirent_sub_trash = NULL;
     rmfentry_t *rmfe = NULL;
     char trash_path[PATH_MAX];
+    int i = 0;
 
     sprintf(trash_path, "%s/%s", e->root, TRASH_DNAME);
 
@@ -379,56 +383,106 @@ static int export_load_rmfentry(export_t * e) {
         goto out;
     }
 
-    while ((dp = readdir(dd)) != NULL) {
+    while ((dirent_sub_trash = readdir(dd)) != NULL) {
 
-        if ((strcmp(dp->d_name, ".") == 0) || (strcmp(dp->d_name, "..") == 0)) {
+        // Check . and ..
+        if ((strcmp(dirent_sub_trash->d_name, ".") == 0) ||
+                (strcmp(dirent_sub_trash->d_name, "..") == 0)) {
             continue;
         }
 
-        char rm_path[PATH_MAX];
-        int fd = -1;
-        mattr_t attrs;
+        char bucket_path[PATH_MAX];
+        DIR *bucket_dir = NULL;
+        struct dirent *dirent_sub_bucket = NULL;
+        struct stat s;
 
-        sprintf(rm_path, "%s/%s/%s", e->root, TRASH_DNAME, dp->d_name);
+        // Build bucket directory path
+        sprintf(bucket_path, "%s/%s", trash_path, dirent_sub_trash->d_name);
 
-        // Open file to delete
-        if ((fd = open(rm_path, O_RDWR, S_IRWXU)) == -1) {
-            severe("open (file under trash directory) failed: %s", strerror(errno));
-            goto out;
+        // Check if is a directory
+        if (stat(bucket_path, &s) != 0)
+            continue;
+        if (S_ISDIR(s.st_mode) == 0)
+            continue;
+
+        // Check if is a valid number
+        i = atoi(dirent_sub_trash->d_name);
+        if (i > MAX_RM_BUCKETS)
+            continue;
+
+        // Open bucket directory
+        if ((bucket_dir = opendir(bucket_path)) == NULL) {
+            severe("opendir (trash bucket directory: %s) failed: %s"
+                    , bucket_path, strerror(errno));
+            continue;
         }
 
-        // Read file to delete
-        if ((pread(fd, &attrs, sizeof (mattr_t), 0)) != (sizeof (mattr_t))) {
-            severe("pread (file under trash directory) failed: %s", strerror(errno));
-            goto out;
+        // Scan bucket directory
+        while ((dirent_sub_bucket = readdir(bucket_dir)) != NULL) {
+
+            char rm_file_path[PATH_MAX];
+            int fd = -1;
+            mattr_t attrs;
+
+            // Check . and ..
+            if ((strcmp(dirent_sub_bucket->d_name, ".") == 0) ||
+                    (strcmp(dirent_sub_bucket->d_name, "..") == 0)) {
+                continue;
+            }
+
+            // Build file to delete path
+            sprintf(rm_file_path, "%s/%s/%s/%s", e->root, TRASH_DNAME,
+                    dirent_sub_trash->d_name, dirent_sub_bucket->d_name);
+
+            // Open file to delete
+            if ((fd = open(rm_file_path, O_RDWR, S_IRWXU)) == -1) {
+                severe("open (file under trash directory) failed: %s",
+                        strerror(errno));
+                continue;
+            }
+
+            // Read file to delete
+            if ((pread(fd, &attrs, sizeof (mattr_t), 0))
+                    != (sizeof (mattr_t))) {
+                severe("pread (file under trash directory) failed: %s",
+                        strerror(errno));
+                continue;
+            }
+
+            // Build the rmfentry_t
+            rmfe = xmalloc(sizeof (rmfentry_t));
+            memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
+            rmfe->cid = attrs.cid;
+            memcpy(rmfe->initial_dist_set, attrs.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->current_dist_set, attrs.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            list_init(&rmfe->list);
+
+            // Add to the list
+            if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
+                goto out;
+
+            list_push_front(&e->rmfiles, &rmfe->list);
+
+            if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
+                goto out;
+
+            // Close file
+            if (fd != -1)
+                close(fd);
         }
 
-        rmfe = xmalloc(sizeof (rmfentry_t));
-        memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
-        rmfe->cid = attrs.cid;
-        memcpy(rmfe->initial_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-        memcpy(rmfe->current_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-
-        list_init(&rmfe->list);
-
-        if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
-            goto out;
-
-        list_push_front(&e->rmfiles, &rmfe->list);
-
-        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
-            goto out;
-
-        if (fd != -1) {
-            close(fd);
-        }
-
+        // Close bucket directory
+        if (bucket_dir != NULL)
+            closedir(bucket_dir);
     }
     status = 0;
 out:
-    if (dd != NULL) {
+    // Close trash directory
+    if (dd != NULL)
         closedir(dd);
-    }
+
     return status;
 }
 
@@ -1114,13 +1168,47 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
 
         if (lv2->attributes.size > 0 && S_ISREG(lv2->attributes.mode)) {
 
-            char rm_path[PATH_MAX];
+            char trash_file_path[PATH_MAX];
+            char trash_bucket_path[PATH_MAX];
+
+            // Compute hash value for this fid
+            uint32_t hash = 0;
+            uint8_t *c = 0;
+            for (c = lv2->attributes.fid; c != lv2->attributes.fid + 16; c++)
+                hash = *c + (hash << 6) + (hash << 16) - hash;
+            hash %= MAX_RM_BUCKETS;
+
+            // Build trash_bucket_path
+            sprintf(trash_bucket_path, "%s/%s/%"PRIu32"",
+                    e->root, TRASH_DNAME, hash);
+
+            // Check existence of trash bucket directory
+            if (access(trash_bucket_path, F_OK) == -1) {
+                if (errno == ENOENT) {
+                    if (mkdir(trash_bucket_path,
+                            S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+                        severe("mkdir for trash bucket (%s) failed: %s",
+                                trash_bucket_path, strerror(errno));
+                        goto out;
+                    }
+                } else {
+                    severe("access for trash bucket (%s) failed: %s",
+                            trash_bucket_path, strerror(errno));
+                    goto out;
+                }
+            }
+
+            // Unparse fid
             char fid_str[37];
             uuid_unparse(lv2->attributes.fid, fid_str);
-            sprintf(rm_path, "%s/%s/%s", e->root, TRASH_DNAME, fid_str);
 
-            if (rename(child_path, rm_path) == -1) {
-                severe("rename for trash (%s to %s) failed: %s", child_path, rm_path, strerror(errno));
+            // Build path for the file
+            sprintf(trash_file_path, "%s/%s", trash_bucket_path, fid_str);
+
+            // Move the file in trash directoory
+            if (rename(child_path, trash_file_path) == -1) {
+                severe("rename for trash (%s to %s) failed: %s",
+                        child_path, trash_file_path, strerror(errno));
                 goto out;
             }
 
@@ -1128,8 +1216,10 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
             rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
             memcpy(rmfe->fid, lv2->attributes.fid, sizeof (fid_t));
             rmfe->cid = lv2->attributes.cid;
-            memcpy(rmfe->initial_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            memcpy(rmfe->current_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->initial_dist_set, lv2->attributes.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->current_dist_set, lv2->attributes.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
             list_init(&rmfe->list);
 
             // Adding the rmfentry to the list of files to delete
@@ -1359,10 +1449,21 @@ int export_rm_bins(export_t * e) {
             // In case of rename it's not neccessary to remove trash file
             char fid_str[37];
             uuid_unparse(entry->fid, fid_str);
-            sprintf(path, "%s/%s/%s", e->root, TRASH_DNAME, fid_str);
 
+            // Compute hash value for this fid
+            uint32_t hash = 0;
+            uint8_t *c = 0;
+            for (c = entry->fid; c != entry->fid + 16; c++)
+                hash = *c + (hash << 6) + (hash << 16) - hash;
+            hash %= MAX_RM_BUCKETS;
+
+            // Build path file
+            sprintf(path, "%s/%s/%"PRIu32"/%s",
+                    e->root, TRASH_DNAME, hash, fid_str);
+
+            // Unlink file
             if (unlink(path) == -1) {
-                severe("unlink failed: unlink file %s failed: %s", path, strerror(errno));
+                severe("unlink failed (%s): %s", path, strerror(errno));
                 goto out;
             }
             free(entry);

@@ -483,7 +483,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf)
     
     struct timeval timeout_exportd;
     
-    #warning SYLVAIN NEED TO CHANGE TIMEOUT
+    #warning NEED TO CHANGE TIMEOUT
     //timeout_exportd.tv_sec = conf.export_timeout;
     timeout_exportd.tv_usec = 0;
 
