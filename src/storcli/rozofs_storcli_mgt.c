@@ -410,6 +410,7 @@ void  rozofs_storcli_ctxInit(rozofs_storcli_ctx_t *p,uint8_t creation)
   p->read_seqnum    = 0;
   p->write_ctx_lock = 0;
   p->read_ctx_lock  = 0;
+  memset(p->fid_key,0, sizeof (sp_uuid_t));
   
   p->opcode_key = STORCLI_NULL;
 
