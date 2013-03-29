@@ -837,7 +837,50 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
   return (lbg_p->index);
 
 }
+ 
+/*__________________________________________________________________________
+*/ 
+ /**
+*  API to re-configure the destination ports of a load balancing group.
+   The load balancing group must have been configured previously with north_lbg_configure_af_inet() 
+  
+ @param lbg_idx index of the load balancing group
+ @param remote_ip_p table of new destination ports
+ @param nb_instances number of instances in remote_ip_p table
+ 
+  @retval -1 when LBG reference does not exist
+  @retval 0 else
+*/
+int north_lbg_re_configure_af_inet_destination_port(int lbg_idx,north_remote_ip_list_t *remote_ip_p, int  nb_instances)
+{
+  north_lbg_ctx_t  *lbg_p;
+  int    i;
+  north_lbg_entry_ctx_t *entry_p;
+    
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    severe("north_lbg_re_configure_af_inet_destination_port bad lbg idx %d", lbg_idx);
+    return -1;
+  }
+  /* Do not change the number of instance */  
+  if (nb_instances != lbg_p->nb_entries_conf)
+  {
+    /*
+    ** no instances!!
+    */
+    severe("north_lbg_re_configure_af_inet_destination_port %d instances while waiting for %d",
+                    nb_instances, lbg_p->nb_entries_conf);
+    return -1;   
+  }
 
+  /* Modify the destination ports of each entrie */
+  entry_p = lbg_p->entry_tb;
+  for (i = 0; i < nb_instances ; i++,entry_p++) {
+    af_inet_sock_client_modify_destination_port(entry_p->sock_ctx_ref, remote_ip_p[i].remote_port_host); 
+  }
+  return 0;
+}
 
 
 /*__________________________________________________________________________

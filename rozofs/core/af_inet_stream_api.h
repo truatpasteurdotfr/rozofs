@@ -148,4 +148,19 @@ int af_inet_sock_client_create(char *nickname,
                                 uint32_t src_ipaddr_host,uint16_t src_port_host,
                                 uint32_t remote_ipaddr_host,uint16_t remote_port_host,
                                 af_unix_socket_conf_t *conf_p);
+
+/*
+**__________________________________________________________________________
+*/
+/**
+   Modify the destination port of a client AF_INET socket
+   
+   @param sockRef : socket reference 
+   @param remote_port_host : port in host format
+
+    retval: 0 when done
+    retval < 0 :if socket do not exist
+
+*/
+int af_inet_sock_client_modify_destination_port(int sockRef, uint16_t remote_port_host);
 #endif

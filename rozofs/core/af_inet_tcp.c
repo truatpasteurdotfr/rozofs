@@ -779,3 +779,47 @@ int af_inet_sock_client_create(char *nickname,
    return -1;
 
 }
+/*
+**__________________________________________________________________________
+*/
+/**
+   Modify the destination port of a client AF_INET socket
+   
+   @param sockRef : socket reference 
+   @param remote_port_host : port in host format
+
+    retval: 0 when done
+    retval < 0 :if socket do not exist
+
+*/
+int af_inet_sock_client_modify_destination_port(int sockRef, uint16_t remote_port_host)
+{
+  af_unix_ctx_generic_t *sock_p;
+  char *buf_nickname_p;
+
+   /*
+   ** Retrieve the socket context from its reference
+   */
+   sock_p = af_unix_getObjCtx_p(sockRef);
+   if (sock_p == NULL)
+   {
+     return -1;
+   }
+
+   sock_p->remote_port_host = remote_port_host;
+
+   /*
+   ** Copy the name of the remote socket
+   */
+   buf_nickname_p = sock_p->nickname;
+   while ((*buf_nickname_p != 0)&&(*buf_nickname_p != '/')) buf_nickname_p++;
+   if (*buf_nickname_p == 0) return 0;   
+   buf_nickname_p++;
+   while ((*buf_nickname_p != 0)&&(*buf_nickname_p != ':')) buf_nickname_p++;
+   if (*buf_nickname_p == 0) return 0;  
+   buf_nickname_p++;
+   
+   sprintf(buf_nickname_p,"%u",remote_port_host);
+   return 0;
+
+}

@@ -37,6 +37,7 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/rpc/eclient.h>
+#include <rozofs/rpc/eproto.h>
 #include "rpcclt.h"
 #include "storcli_lbg_prototypes.h"
 
@@ -70,6 +71,86 @@ static af_unix_socket_conf_t  af_inet_exportd_conf =
   NULL,  //    *xmitPool; /* user pool reference or -1 */
   NULL   //    *recvPool; /* user pool reference or -1 */
 };
+/*
+**____________________________________________________
+*/
+/*
+  Request port mapper to give the port number of a TCP rpc service on a remote host
+  @param host  The remote host name
+  @param prog  The program number
+  @param vers  The version number of the program
+*/
+int get_service_tcp_port(char *host ,unsigned long prog, unsigned long vers) {
+  struct sockaddr_in server;
+  struct hostent *hp;
+  int port = 0;
+
+  server.sin_family = AF_INET;
+
+  if ((hp = gethostbyname(host)) == 0) {
+      severe("gethostbyname failed for host : %s, %s", host,strerror(errno));
+      return 0;
+  }
+
+  bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
+  if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
+    warning("pmap_getport failed %s (%x:%d) %s",  host, (unsigned int)prog, (int)vers, clnt_spcreateerror(""));
+    errno = EPROTO;
+    return 0;
+  }
+  
+  info("rpc service %s (%x:%d) available on port %d",  host, (unsigned int)prog, (int)vers, port);
+  return port;
+}     
+/*
+**____________________________________________________
+*/
+/*
+  Periodic timer expiration
+*/
+void export_lbg_periodic_ticker(void * param) {
+  int status;
+  uint16_t port;
+  exportclt_t *exportclt = (exportclt_t *) param;
+   
+  /* Check whether the export LBG is up ,*/
+  status = north_lbg_get_state(exportclt->rpcclt.lbg_id);
+//  info("export_lbg_periodic_ticker status %d\n", status);
+  
+  if (status == NORTH_LBG_UP) return;
+
+  /* Try to find out whether the export service is up again */
+  port = get_service_tcp_port(exportclt->host,EXPORT_PROGRAM, EXPORT_VERSION);
+  if (port == 0) {
+    return; /* Still unavailable */
+  }
+ 
+  /* The service is back again on a new port */
+  my_list[0].remote_port_host = port;
+  north_lbg_re_configure_af_inet_destination_port(exportclt->rpcclt.lbg_id, my_list, 1); 
+}
+/*
+**____________________________________________________
+*/
+/*
+  start a periodic timer to chech wether the export LBG is down
+  When the export is restarted its port may change, and so
+  the previous configuration of the LBG is not valid any more
+*/
+void export_lbg_start_timer(exportclt_t *exportclt) {
+  struct timer_cell * export_lbg_periodic_timer;
+
+  export_lbg_periodic_timer = ruc_timer_alloc(0,0);
+  if (export_lbg_periodic_timer == NULL) {
+    severe("export_lbg_start_timer");
+    return;
+  }
+  ruc_periodic_timer_start (export_lbg_periodic_timer, 
+                            4000,
+ 	                    export_lbg_periodic_ticker,
+ 			    exportclt);
+
+}
 
 int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
         unsigned long vers,uint32_t port_num) {
@@ -83,6 +164,7 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
     rpcclt_t * client = &exportclt->rpcclt;
 
     server.sin_family = AF_INET;
+
 
     if ((hp = gethostbyname(exportclt->host)) == 0) {
         severe("gethostbyname failed for host : %s, %s", exportclt->host,
@@ -115,6 +197,7 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
      if (client->lbg_id >= 0)
      {
        status = 0;
+       export_lbg_start_timer (exportclt);      
        return status;    
      }
      severe("Cannot create Load Balancing Group for Exportd");

@@ -154,6 +154,20 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
                                 int family,int  nb_instances,af_unix_socket_conf_t *conf_p);
 
 /*__________________________________________________________________________
+*/ 
+ /**
+*  API to re-configure the destination ports of a load balancing group.
+   The load balancing group must have been configured previously with north_lbg_configure_af_inet() 
+  
+ @param lbg_idx index of the load balancing group
+ @param remote_ip_p table of new destination ports
+ @param nb_instances number of instances in remote_ip_p table
+ 
+  @retval >= reference of the load balancer object
+  @retval < 0 error (out of context ??)
+*/
+int north_lbg_re_configure_af_inet_destination_port(int lbg_idx,north_remote_ip_list_t *remote_ip_p, int  nb_instances);
+/*__________________________________________________________________________
 */
 /**
 *  create a north load balancing object with AF_INET
