@@ -30,8 +30,6 @@
 typedef struct mdir {
     int fdp;        ///< directory file descriptor
     int fdattrs;    ///< attributes file descriptor
-    int children;   ///< number of children (excluding . and ..)
-    //uint8_t dir_vers;     ///< format version of mdirentries
 } mdir_t;
 
 /** open the mdir

@@ -559,8 +559,8 @@ int export_create(const char *root) {
         return -1;
     }
 
-    // set children count to 0
-    root_mdir.children = 0;
+    // Set children count to 0
+    root_attrs.children = 0;
 
     if (mdir_write_attributes(&root_mdir, &root_attrs) != 0) {
         mdir_close(&root_mdir);
@@ -895,7 +895,7 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
         goto out;
 
     // Update parent
-    plv2->container.mdir.children++;
+    plv2->attributes.children++;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
 
     // Write attributes of parents
@@ -981,9 +981,9 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
     if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0) {
         goto error;
     }
-    plv2->container.mdir.children++;
 
-    // update times of parent
+    // Update children nb. and times of parent
+    plv2->attributes.children++;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0) {
         goto error;
@@ -1057,7 +1057,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     if ((attrs->ctime = attrs->atime = attrs->mtime = time(NULL)) == -1)
         goto error;
     attrs->size = ROZOFS_DIR_SIZE;
-    node_mdir.children = 0;
+    attrs->children = 0;
 
     // write attributes to mdir file
     if (mdir_open(&node_mdir, node_path) < 0)
@@ -1083,7 +1083,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
     }
 
-    plv2->container.mdir.children++;
+    plv2->attributes.children++;
     plv2->attributes.nlink++;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1257,7 +1257,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
 
     // Update parent
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
-    plv2->container.mdir.children--;
+    plv2->attributes.children--;
 
     // Write attributes of parents
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1526,7 +1526,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
         goto out;
     }
 
-    if (lv2->container.mdir.children != 0) {
+    if (lv2->attributes.children != 0) {
         errno = ENOTEMPTY;
         goto out;
     }
@@ -1562,7 +1562,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
      ** attributes of the parent must be updated first otherwise we can afce the situation where
      ** parent directory cannot be removed because the number of children is not 0
      */
-    if (plv2->container.mdir.children > 0) plv2->container.mdir.children--;
+    if (plv2->attributes.children > 0) plv2->attributes.children--;
     plv2->attributes.nlink--;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1652,7 +1652,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     // add the new child to the parent
     if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0)
         goto error;
-    plv2->container.mdir.children++;
+    plv2->attributes.children++;
     // update times of parent
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1756,8 +1756,8 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                 goto out;
             }
 
-            // The entry to replace must be a enpty directory
-            if (lv2_to_replace->container.mdir.children != 0) {
+            // The entry to replace must be a empty directory
+            if (lv2_to_replace->attributes.children != 0) {
                 errno = ENOTEMPTY;
                 goto out;
             }
@@ -1773,7 +1773,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
             // Update parent directory
             lv2_new_parent->attributes.nlink--;
-            lv2_new_parent->container.mdir.children--;
+            lv2_new_parent->attributes.children--;
 
             // We'll write attributes of parents after
 
@@ -1873,7 +1873,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                     // Return a empty fid because no inode has been deleted
                     memset(fid, 0, sizeof (fid_t));
                 }
-                lv2_new_parent->container.mdir.children--;
+                lv2_new_parent->attributes.children--;
             }
         }
     } else {
@@ -1898,8 +1898,8 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
     if (memcmp(pfid, npfid, sizeof (fid_t)) != 0) {
 
-        lv2_new_parent->container.mdir.children++;
-        lv2_old_parent->container.mdir.children--;
+        lv2_new_parent->attributes.children++;
+        lv2_old_parent->attributes.children--;
 
         if (S_ISDIR(lv2_to_rename->attributes.mode)) {
             lv2_new_parent->attributes.nlink++;

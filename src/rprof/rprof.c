@@ -602,6 +602,10 @@ static void profile_exportd_display() {
     ep_display_probe(ep, mslnk_read_attributes);
     ep_display_probe(ep, mslnk_read_link);
     ep_display_probe(ep, mslnk_write_link);
+    ep_display_probe(ep, get_mdirentry);
+    ep_display_probe(ep, put_mdirentry);
+    ep_display_probe(ep, del_mdirentry);
+    ep_display_probe(ep, list_mdirentries);
 }
 
 static void profile_exportd_clear() {

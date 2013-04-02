@@ -270,6 +270,8 @@ xdr_ep_mattr_t (XDR *xdrs, ep_mattr_t *objp)
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->size))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->children))
+		 return FALSE;
 	return TRUE;
 }
 

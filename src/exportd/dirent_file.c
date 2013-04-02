@@ -31,11 +31,14 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/common/profile.h>
+#include <rozofs/rpc/epproto.h>
 
 #include "mdir.h"
 #include "mdirent.h"
 #include "dirent_journal.h"
 
+DECLARE_PROFILING(epp_profiler_t);
 
 /** @defgroup DIRENT_CACHE_LVL0 Level 0 cache
  *  This module provides services related to level 0 cache\n
@@ -867,7 +870,8 @@ int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_name_entry_t *name_entry_p = NULL;
     mdirents_hash_entry_t *hash_entry_p = NULL;
     mdirents_hash_ptr_t mdirents_hash_ptr;
-
+    
+    START_PROFILING(put_mdirentry);
 
     /*
     ** Allow a priori to read and write on the root cache entry
@@ -1135,6 +1139,7 @@ out:
         dirent_remove_root_entry_from_cache(fid_parent, root_idx);
 	dirent_cache_release_entry(root_entry_p);
       }
+      STOP_PROFILING(put_mdirentry);
       return status;
     }
 
@@ -1145,6 +1150,7 @@ out:
             DIRENT_WARN(" get_mdirentry failed to release cache entry\n");
         }
     }
+    STOP_PROFILING(put_mdirentry);
     return status;
 }
 
@@ -1183,6 +1189,8 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_cache_entry_t *cache_entry_p;
     mdirents_name_entry_t *name_entry_p = NULL;
     mdirents_hash_entry_t *hash_entry_p = NULL;
+    
+    START_PROFILING(get_mdirentry);
 
     /*
      ** dirfd is the file descriptor associated with the parent directory
@@ -1327,6 +1335,7 @@ out:
         dirent_remove_root_entry_from_cache(fid_parent, root_idx);
 	dirent_cache_release_entry(root_entry_p);
       }
+      STOP_PROFILING(get_mdirentry);
       return status;        
     }
     if (root_entry_p != NULL) {
@@ -1336,6 +1345,7 @@ out:
             DIRENT_SEVERE(" get_mdirentry failed to release cache entry for %s",name);
         }
     }
+    STOP_PROFILING(get_mdirentry);
     return status;
 }
 
@@ -1384,6 +1394,9 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_cache_entry_t *root_entry_p;
     mdirents_cache_entry_t *cache_entry_p;
     mdirents_cache_entry_t *returned_prev_entry_p;
+    
+    START_PROFILING(del_mdirentry);
+    
     /*
     ** Allow a priori to read and write on the root cache entry
     ** In case of some error while reading the dirent files from 
@@ -1655,6 +1668,7 @@ out:
         dirent_remove_root_entry_from_cache(fid_parent, root_idx);
 	dirent_cache_release_entry(root_entry_p);
       }
+      STOP_PROFILING(del_mdirentry);
       return status;        
     }
     if (root_entry_p != NULL) {
@@ -1664,6 +1678,7 @@ out:
             DIRENT_SEVERE(" get_mdirentry failed to release cache entry\n");
         }
     }
+    STOP_PROFILING(del_mdirentry);
     return status;
 }
 
@@ -1720,7 +1735,7 @@ int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t
     uint8_t *coll_bitmap_p;
     int next_hash_entry_idx;
 
-
+    START_PROFILING(list_mdirentries);
 
     dirent_readdir_stats_call_count++;
     /*
@@ -2119,6 +2134,7 @@ get_next_collidx:
         dirent_remove_root_entry_from_cache(fid_parent, root_idx);
 	dirent_cache_release_entry(root_entry_p);
       }
+      STOP_PROFILING(list_mdirentries);
       return 0;
     }
     if (root_entry_p != NULL) {
@@ -2128,6 +2144,7 @@ get_next_collidx:
             DIRENT_SEVERE(" get_mdirentry failed to release cache entry\n");
         }
     }
+    STOP_PROFILING(list_mdirentries);
     return 0;
 }
 
