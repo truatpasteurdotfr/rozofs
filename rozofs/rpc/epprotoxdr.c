@@ -319,6 +319,18 @@ xdr_epp_profiler_t (XDR *xdrs, epp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->mslnk_write_link, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->get_mdirentry, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->put_mdirentry, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->del_mdirentry, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->list_mdirentries, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	return TRUE;
 }
 
