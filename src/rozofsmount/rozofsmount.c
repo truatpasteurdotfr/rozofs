@@ -1695,10 +1695,10 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .write = rozofs_ll_write_nb, /**non blocking */
     .flush = rozofs_ll_flush_nb, /**non blocking */
     .release = rozofs_ll_release_nb, /**non blocking */
-    .opendir = rozofs_ll_opendir, /** non blocking by construction */
+    //.opendir = rozofs_ll_opendir, /** non blocking by construction */
     .readdir = rozofs_ll_readdir_nb, /** non blocking */
-    .releasedir = rozofs_ll_releasedir, /** non blocking by construction */
-    .fsyncdir = rozofs_ll_fsyncdir, /** non blocking by construction */
+    //.releasedir = rozofs_ll_releasedir, /** non blocking by construction */
+    //.fsyncdir = rozofs_ll_fsyncdir, /** non blocking by construction */
     .statfs = rozofs_ll_statfs_nb, /** non blocking */
     .setxattr = rozofs_ll_setxattr_nb, /** non blocking */
     .getxattr = rozofs_ll_getxattr_nb, /** non blocking */
@@ -1706,10 +1706,10 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .removexattr = rozofs_ll_removexattr_nb, /** non blocking */
     .access = rozofs_ll_access, /** non blocking by construction */
     .create = rozofs_ll_create_nb, /** non blocking */
-    .getlk = rozofs_ll_getlk,
-    .setlk = rozofs_ll_setlk,
+    //.getlk = rozofs_ll_getlk,
+    //.setlk = rozofs_ll_setlk,
     //.bmap = rozofs_ll_bmap,
-    .ioctl = rozofs_ll_ioctl,
+    //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,
 };
 

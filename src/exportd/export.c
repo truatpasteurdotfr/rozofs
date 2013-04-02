@@ -1209,7 +1209,6 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
             if (rename(child_path, trash_file_path) == -1) {
                 severe("rename for trash (%s to %s) failed: %s",
                         child_path, trash_file_path, strerror(errno));
-                goto out;
             }
 
             // Preparation of the rmfentry
