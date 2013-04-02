@@ -79,6 +79,7 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
     north_lbg_ctx_t *lbg_p;
     ruc_obj_desc_t        *pnext;
     int i;
+
     
     pnext = (ruc_obj_desc_t*)NULL;
     while ((lbg_p = (north_lbg_ctx_t*)ruc_objGetNext((ruc_obj_desc_t*)&north_lbg_context_activeListHead,
@@ -95,15 +96,23 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
       pChar += sprintf(pChar,"      Main Queue               : %s\n",ruc_objIsEmptyList((ruc_obj_desc_t*)&lbg_p->xmitList[0])?"EMPTY":"NON EMPTY");       
       for (i = 0; i < lbg_p->nb_entries_conf; i++,entry_p++)
       {
-        pChar += sprintf(pChar,"       Queue_entry[%d]          : %s\n",i,ruc_objIsEmptyList((ruc_obj_desc_t*)&entry_p->xmitList)?"EMPTY":"NON EMPTY");      
-      }      pChar += sprintf(pChar,"      total Xmit messages      : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmit); 
-      pChar += sprintf(pChar,"      Main Xmit Queue Len      : %12llu\n",(unsigned long long int)lbg_p->stats.xmitQueuelen); 
-      pChar += sprintf(pChar,"      total Xmit retries       : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitRetries); 
-      pChar += sprintf(pChar,"      total Xmit aborted       : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitAborts); 
-      pChar += sprintf(pChar,"      total Xmit error         : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitError); 
-      pChar += sprintf(pChar,"      total Recv messages      : %12llu\n",(unsigned long long int)lbg_p->stats.totalRecv); 
-//      pChar += sprintf(pChar,"      total Xmit Bytes         : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitBytes); 
+        pChar += sprintf(pChar,"   Entry[%d]\n",i);
+        pChar += sprintf(pChar,"       state                    : %s\n",lbg_north_state2String(entry_p->state));
+        pChar += sprintf(pChar,"       Queue_entry              : %s\n",ruc_objIsEmptyList((ruc_obj_desc_t*)&entry_p->xmitList)?"EMPTY":"NON EMPTY");      
+        pChar += sprintf(pChar,"       Cnx  Attempts            : %12llu\n",(unsigned long long int)entry_p->stats.totalConnectAttempts);      
+        pChar += sprintf(pChar,"       Xmit messages            : %12llu\n",(unsigned long long int)entry_p->stats.totalXmit);      
+        pChar += sprintf(pChar,"       Recv messages            : %12llu\n",(unsigned long long int)entry_p->stats.totalRecv);      
+      }      
+        pChar += sprintf(pChar,"  Cumulated\n");
 
+      pChar += sprintf(pChar,"       total Xmit messages      : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmit); 
+      pChar += sprintf(pChar,"       Main Xmit Queue Len      : %12llu\n",(unsigned long long int)lbg_p->stats.xmitQueuelen); 
+      pChar += sprintf(pChar,"       total Xmit retries       : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitRetries); 
+      pChar += sprintf(pChar,"       total Xmit aborted       : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitAborts); 
+      pChar += sprintf(pChar,"       total Xmit error         : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitError); 
+      pChar += sprintf(pChar,"       total Recv messages      : %12llu\n",(unsigned long long int)lbg_p->stats.totalRecv); 
+//      pChar += sprintf(pChar,"      total Xmit Bytes         : %12llu\n",(unsigned long long int)lbg_p->stats.totalXmitBytes); 
+      pChar += sprintf(pChar,"\n");
     }
 }
   uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);

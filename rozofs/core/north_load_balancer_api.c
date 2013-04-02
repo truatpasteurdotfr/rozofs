@@ -76,6 +76,7 @@ void north_lbg_poll_xmit_queue(north_lbg_ctx_t  *lbg_p, north_lbg_entry_ctx_t  *
      if (ret ==  0)
      {
        lbg_p->stats.totalXmit++;
+       entry_p->stats.totalXmit++; 
        continue;
      } 
      /*
@@ -113,6 +114,7 @@ void  north_lbg_userRecvCallBack(void *userRef,uint32_t  socket_ctx_idx, void *b
    ** update the statistics
    */
    lbg_p->stats.totalRecv++;
+   entry_p->stats.totalXmit++;     
    /*
    ** check if there is some message to pull out from the global queue
    */
@@ -959,6 +961,7 @@ reloop:
   if (ret == 0)
   {
     lbg_p->stats.totalXmit++; 
+    entry_p->stats.totalXmit++;     
     return 0; 
   } 
   /*
