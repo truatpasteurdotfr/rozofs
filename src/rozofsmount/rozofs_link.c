@@ -489,6 +489,11 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
         errno = ENAMETOOLONG;
         goto error;
     }
+    
+    if (strlen(link) > ROZOFS_PATH_MAX) {
+        errno = ENAMETOOLONG;
+        goto error;
+    }
 
     if (!(ie = get_ientry_by_inode(parent))) {
         errno = ENOENT;

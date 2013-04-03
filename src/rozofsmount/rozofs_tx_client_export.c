@@ -214,7 +214,7 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
     /*
     ** OK, so now finish by starting the guard timer
     */
-    rozofs_tx_start_timer(rozofs_tx_ctx_p,10);  
+    rozofs_tx_start_timer(rozofs_tx_ctx_p, 25);
 //    if (*tx_ptr != NULL) *tx_ptr = rozofs_tx_ctx_p;
     return 0;  
     
