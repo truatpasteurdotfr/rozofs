@@ -1955,6 +1955,15 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("main() sem_init() problem : %s", strerror(errno));
     }
 
+
+    /*
+    ** Register these topics befora start the rozofs_stat_start that will
+    ** register other topic. Topic registration is not safe in multi thread
+    ** case
+    */
+    uma_dbg_addTopic("profiler", show_profiler);
+    uma_dbg_addTopic("xmalloc", show_xmalloc);
+    
     //    uint16_t debug_port = 60000;
     rozofs_fuse_conf.debug_port = (uint16_t) conf.dbg_port;
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
@@ -2009,8 +2018,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
             break;
         }
     }
-    uma_dbg_addTopic("profiler", show_profiler);
-    uma_dbg_addTopic("xmalloc", show_xmalloc);
+
 
 
     if (profiling_port >= 60000) {
