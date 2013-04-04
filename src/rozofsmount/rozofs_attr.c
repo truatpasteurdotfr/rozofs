@@ -150,6 +150,7 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
    fuse_req_t req; 
    ep_mattr_ret_t ret ;
    int status;
+   ientry_t *ie = 0;
    xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
    
    uint8_t  *payload;
@@ -229,14 +230,27 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
     /*
     ** end of the the decoding part
     */
-
     /*
     ** store the decoded information in the array that will be
     ** returned to the caller
     */
     mattr_to_stat(&attr, &stbuf);
     stbuf.st_ino = ino;
+    /*
+    ** get the ientry associated with the fuse_inode
+    */
 
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+    /*
+    ** check the length of the file, and update the ientry if the file size returned
+    ** by the export is greater than the one found in ientry
+    */
+    if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
+    stbuf.st_size = ie->size;
+    
     fuse_reply_attr(req, &stbuf, attr_cache_timeo);
     goto out;
 error:
@@ -320,6 +334,16 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     */
     stat_to_mattr(stbuf, &attr,to_set);
     /*
+    ** address the case of the file truncate: update the size of the ientry
+    ** when the file is truncated
+    */
+    if (to_set & FUSE_SET_ATTR_SIZE)
+    {
+      if (attr.size < 0x20000000000LL) {
+        ie->size = attr.size;
+      }    
+    }
+    /*
     ** set the argument to encode
     */
     arg.eid = exportclt.eid;
@@ -359,6 +383,7 @@ error:
 void rozofs_ll_setattr_cbk(void *this,void *param) 
 {
     fuse_ino_t ino;
+    ientry_t *ie = 0;
     struct stat o_stbuf;
     fuse_req_t req; 
     ep_mattr_ret_t ret ;
@@ -448,6 +473,21 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 
     mattr_to_stat(&attr, &o_stbuf);
     o_stbuf.st_ino = ino;
+    /*
+    ** get the ientry associated with the fuse_inode
+    */
+
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+    /*
+    ** check the length of the file, and update the ientry if the file size returned
+    ** by the export is greater than the one found in ientry
+    */
+    if (ie->size < o_stbuf.st_size) ie->size = o_stbuf.st_size;
+    o_stbuf.st_size = ie->size;
+
     fuse_reply_attr(req, &o_stbuf, attr_cache_timeo);
 
     goto out;

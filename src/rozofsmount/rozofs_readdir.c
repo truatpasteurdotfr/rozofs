@@ -384,16 +384,7 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
       // May be already cached
       if (!(ie2 = get_ientry_by_fid((unsigned char *)iterator->fid))) {
         // If not, cache it
-        ie2 = xmalloc(sizeof (ientry_t));
-        memcpy(ie2->fid, iterator->fid, sizeof (fid_t));
-        ie2->inode = next_inode_idx();
-        list_init(&ie2->list);
-        ie2->db.size = 0;
-        ie2->db.cookie = 0;
-        ie2->db.eof = 0;
-        ie2->db.p = NULL;
-        ie2->nlookup = 1;
-        put_ientry(ie2);
+        ie2 =  alloc_ientry((unsigned char *)iterator->fid); 
       }
       
       memcpy(attrs.fid, iterator->fid, sizeof (fid_t));

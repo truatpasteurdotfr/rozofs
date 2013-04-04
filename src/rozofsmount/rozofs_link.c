@@ -239,20 +239,19 @@ void rozofs_ll_link_cbk(void *this,void *param)
     ** end of decoding
     */
     if (!(ie = get_ientry_by_fid(attrs.fid))) {
-        ie = xmalloc(sizeof (ientry_t));
-        memcpy(ie->fid, attrs.fid, sizeof (fid_t));
-        ie->inode = next_inode_idx();
-        list_init(&ie->list);
-        ie->db.size = 0;
-        ie->db.eof = 0;
-        ie->db.p = NULL;
-        ie->nlookup = 1;
-        put_ientry(ie);
+        ie = alloc_ientry(attrs.fid);
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = ie->inode;
     mattr_to_stat(&attrs, &stbuf);
     stbuf.st_ino = ie->inode;
+    /*
+    ** check the length of the file, and update the ientry if the file size returned
+    ** by the export is greater than the one found in ientry
+    */
+    if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
+    stbuf.st_size = ie->size;
+    
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
@@ -627,21 +626,19 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     */
 
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
-        nie = xmalloc(sizeof (ientry_t));
-        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
-        nie->inode = next_inode_idx();
-        list_init(&nie->list);
-        nie->db.size = 0;
-        nie->db.p = NULL;
-        nie->db.eof = 0;
-        nie->db.cookie = 0;
-        nie->nlookup = 1;
-        put_ientry(nie);
+        nie = alloc_ientry(attrs.fid);
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
     mattr_to_stat(&attrs, &stbuf);
     stbuf.st_ino = nie->inode;
+    /*
+    ** check the length of the file, and update the ientry if the file size returned
+    ** by the export is greater than the one found in ientry
+    */
+    if (nie->size < stbuf.st_size) nie->size = stbuf.st_size;
+    stbuf.st_size = nie->size;
+        
     fep.attr_timeout = attr_cache_timeo;
     fep.entry_timeout = entry_cache_timeo;
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));

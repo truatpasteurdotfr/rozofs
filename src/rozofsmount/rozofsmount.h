@@ -94,6 +94,7 @@ typedef struct dirbuf {
 typedef struct ientry {
     fuse_ino_t inode; ///< value of the inode allocated by rozofs
     fid_t fid; ///< unique file identifier associated with the file or directory
+    uint64_t size;   /**< size of the file */
     dirbuf_t db; ///< buffer used for directory listing
     unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
     list_t list;
@@ -171,6 +172,25 @@ static inline fuse_ino_t next_inode_idx() {
     return inode_idx++;
 }
 
+
+static inline ientry_t *alloc_ientry(fid_t fid)
+{
+  ientry_t *ie;
+
+  ie = xmalloc(sizeof (ientry_t));
+  memcpy(ie->fid, fid, sizeof (fid_t));
+  ie->inode = next_inode_idx();
+  ie->size = 0;
+  list_init(&ie->list);
+  ie->db.size = 0;
+  ie->db.eof = 0;
+  ie->db.cookie = 0;
+  ie->db.p = NULL;
+  ie->nlookup = 1;
+  put_ientry(ie);
+  
+  return ie;
+}
 
 static inline struct stat *mattr_to_stat(mattr_t * attr, struct stat *st) {
     memset(st, 0, sizeof (struct stat));

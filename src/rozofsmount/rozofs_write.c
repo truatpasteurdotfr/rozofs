@@ -562,6 +562,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         errno = ENOENT;
         goto error;
     }
+    
+    if (ie->size < (off+size)) ie->size = (off+size);
 
     file_t *file = (file_t *) (unsigned long) fi->fh;
     /*
