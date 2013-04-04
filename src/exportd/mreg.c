@@ -139,3 +139,4 @@ ssize_t mreg_list_xattr(mreg_t *mreg, char *list, size_t size) {
 
     return status;
 }
+

@@ -594,9 +594,6 @@ int export_create(const char *root) {
     export_fstat_t est;
     export_const_t ect;
     int fd = -1;
-    uint32_t lv1 = 0;
-    uint8_t *c = 0;
-    char fidstr[37];
     mattr_t root_attrs;
     mdir_t root_mdir;
 

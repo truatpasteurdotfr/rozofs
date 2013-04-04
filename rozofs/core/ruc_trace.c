@@ -213,7 +213,6 @@ ruc_warning(char *source, uint32_t line,uint32_t errCode)
         erevd_event(EREVD_TYPE_SW_ERROR,source,line,"error=%d",(int)errCode);
 
 #endif
-#warning Put a hook here for a syslog!!
        severe("$W$ File: %s:%d (%d) $E$\n",(char*)source,(int) line,(int)errCode);
 
         if (ruc_tracePrintFlag == TRUE)

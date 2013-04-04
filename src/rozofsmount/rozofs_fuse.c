@@ -299,7 +299,6 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     ** When there is no enough contexts, then the system stops looking at the 
     ** fuse "socket". 
     */
-#warning check must be done on the fuse transaction context buffer pool
     buffer_count = ruc_buf_getFreeBufferCount(ctx_p->fuseReqPoolRef);
     if (buffer_count == 0) return FALSE;
 
@@ -481,7 +480,7 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     /*
     ** attempt to xmit the pending message
     */
-#warning put code to restart the transmission
+//#warning put code to restart the transmission
 
     
     return TRUE;
@@ -533,7 +532,6 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      */
      int bufsize = fuse_chan_bufsize(ch);
      rozofs_fuse_ctx_p->bufsize = bufsize;
-#warning the creation of the pool must be removed in the future
      /*
      ** create the pool
      */

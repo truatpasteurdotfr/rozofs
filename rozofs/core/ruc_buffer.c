@@ -165,7 +165,7 @@ void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key)
   return poolRef;
 }
 
-#warning all the services of ruc_buffer are inline (see include file)
+//#warning all the services of ruc_buffer are inline (see include file)
 #if 0
 
 // 64BITS uint32_t ruc_buf_poolRecover(uint32 poolRef)

@@ -1670,7 +1670,7 @@ void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
         if (p->size == 0) {
             break;
         }
-        pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, p->count);
+        pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, (long long unsigned int) p->count);
     }
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 

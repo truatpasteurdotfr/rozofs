@@ -770,7 +770,7 @@ int af_inet_sock_client_create(char *nickname,
    if (release_req)
    {
       if (sock_p->socketRef != -1) close(sock_p->socketRef);
-#warning unlink(sock_p->sockname) because of the connected mode --> need to double check for datagram or define an other service for it
+//#warning unlink(sock_p->sockname) because of the connected mode --> need to double check for datagram or define an other service for it
       /*
       ** release the context
       */

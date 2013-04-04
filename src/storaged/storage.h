@@ -185,3 +185,4 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,
         bins_file_rebuild_t ** children, uint8_t * eof);
 
 #endif
+

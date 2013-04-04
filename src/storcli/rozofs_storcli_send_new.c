@@ -321,7 +321,7 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
     }
     
 error:
-    #warning need to consider the case of a local read triggers by a write request. Without a guard time the write working can be lost!!
+//    #warning need to consider the case of a local read triggers by a write request. Without a guard time the write working can be lost!!
     return;
 } 
 /*

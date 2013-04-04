@@ -78,7 +78,7 @@ uint32_t ruc_init(uint32_t test,uint16_t debug_port)
   uint32_t        mx_af_unix_ctx = 8;
   uint32_t        mx_lbg_north_ctx = 8;
 
-#warning TCP configuration ressources is hardcoded!!
+//#warning TCP configuration ressources is hardcoded!!
   /*
   ** trace buffer initialization
   */
@@ -115,7 +115,7 @@ uint32_t ruc_init(uint32_t test,uint16_t debug_port)
    **   4 connections per Relc and 32
    **   for: NPS, Timer, Debug, etc...
    */
-#warning set the number of contexts for socketCtrl to 100
+//#warning set the number of contexts for socketCtrl to 100
    ret = ruc_sockctl_init(100);
    if (ret != RUC_OK)
    {
@@ -207,7 +207,6 @@ uint32_t ruc_init(uint32_t test,uint16_t debug_port)
      **   D E B U G   M O D U L E
      **--------------------------------------
      */
-#warning DEBUG port is hardcoded : UMA_DBG_SERVER_PORT_UNCPS -> 41235
      uma_dbg_init(10,INADDR_ANY,debug_port);
 
      /*

@@ -93,7 +93,6 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    {
      severe("bad nb_prj %d bid %llu off %llu len %u",nb_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
    }
-//   severe("FDL DEBUG nb_prj %d bid %llu off %llu len %u",nb_prj,bid,off,len);   
 
     // Fill request
     args.cid = f->attrs.cid;
@@ -123,7 +122,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     if (f->buf_read_pending > 1)
     {
     
-//      severe("FDL Readahead detected %d", f->buf_read_pending);
+//      severe("FDL Read ahead detected %d", f->buf_read_pending);
     }
     return ret;    
 error:
@@ -159,7 +158,7 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
          /*
          ** send a write request
          */
-         #warning TODO: put code to trigger a write request
+//         #warning TODO: put code to trigger a write request
          f->buf_write_wait = 0;
          f->write_from = 0; 
          f->write_pos  = 0;         

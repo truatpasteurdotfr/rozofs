@@ -206,7 +206,7 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
          /*
          ** release the buffer
          */
-#warning Need to check the in_use counter of the buffer before the release
+//#warning Need to check the in_use counter of the buffer before the release
          ruc_buf_freeBuffer(bufRef); 
          break;               
        }
@@ -332,8 +332,8 @@ void  north_lbg_userXmiDoneCallBack(void *userRef,uint32_t socket_context_ref,vo
     inuse = ruc_buf_inuse_get(bufRef);
     if (inuse < 0)
     {
-#warning  inuse MUST never be negative so EXIT !!!!!
-     exit(0);          
+//#warning  inuse MUST never be negative so EXIT !!!!!
+     fatal("fatal error on buffer management: inuse counter %d",inuse );          
     }
     if (inuse == 1) 
     {
