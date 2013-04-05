@@ -108,6 +108,7 @@ struct ep_mattr_t {
 	uint64_t atime;
 	uint64_t mtime;
 	uint64_t size;
+	uint32_t children;
 };
 typedef struct ep_mattr_t ep_mattr_t;
 

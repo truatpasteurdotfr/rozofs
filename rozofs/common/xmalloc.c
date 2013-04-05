@@ -19,14 +19,55 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 #include "xmalloc.h"
 #include "log.h"
 
+
+typedef struct _xmalloc_stats_t
+{
+   uint64_t  count;
+   int       size;
+} xmalloc_stats_t;
+
+#define XMALLOC_MAX_SIZE  512
+
+
+xmalloc_stats_t *xmalloc_size_table_p = NULL;
+
+void xmalloc_stats_insert(int n)
+{
+   int i;
+   xmalloc_stats_t *p;
+   
+   for (i = 0; i < XMALLOC_MAX_SIZE; i++)
+   {
+      p= &xmalloc_size_table_p[i];
+      if (p->size == n)
+      {
+         p->count++;
+         return;      
+      } 
+      if (p->size == 0)
+      {
+         p->size = n;
+         p->count = 1; 
+         return;              
+      }
+   }   
+}
+
+
 void *xmalloc(size_t n) {
     void *p = 0;
-
+    if (xmalloc_size_table_p == NULL)
+    {
+      xmalloc_size_table_p = malloc(sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);
+      memset(xmalloc_size_table_p,0,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);    
+    }
+    xmalloc_stats_insert((int)n);
     p = malloc(n);
     check_memory(p);
     return p;

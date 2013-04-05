@@ -133,6 +133,10 @@ struct epp_profiler_t {
 	uint64_t mslnk_write_attributes[2];
 	uint64_t mslnk_read_link[2];
 	uint64_t mslnk_write_link[2];
+	uint64_t get_mdirentry[2];
+	uint64_t put_mdirentry[2];
+	uint64_t del_mdirentry[2];
+	uint64_t list_mdirentries[2];
 };
 typedef struct epp_profiler_t epp_profiler_t;
 

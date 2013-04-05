@@ -24,6 +24,8 @@ src/exportd/exportd
 src/rozofsmount/rozofsmount
 src/rprof/rprof
 src/storaged/storaged
+src/storcli/storcli
+src/debug/rozodebug
 tests/fs_ops/fileop/fileop
 tests/fs_ops/pjd-fstest/fstest
 tests/rpc_throughput

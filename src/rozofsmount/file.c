@@ -25,6 +25,13 @@
 
 #include "file.h"
 
+
+void buf_file_write(rozo_buf_rw_status_t *status_p,
+                   file_t * p,
+                   uint64_t off, 
+                   const char *buf, 
+                   uint32_t len) ;
+
 // For compute the timestamp
 #define MICROLONG(time) ((uint64_t )time.tv_sec * 1000000 + time.tv_usec)
 
@@ -96,7 +103,7 @@ static sclient_t *get_storage_cnt(exportclt_t * e, cid_t cid, sid_t sid,
  *
  * @return: 0 on success -1 otherwise (errno: EIO is set)
  */
-static int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
+int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p) {
     int i = 0;
     int connected = 0;
     struct timespec ts = {2, 0}; /// XXX static
@@ -787,8 +794,10 @@ file_t * file_open(exportclt_t * e, fid_t fid, mode_t mode) {
     if (file_get_cnts(f, rozofs_forward, NULL) != 0)
         goto error;
 
-    f->buf_from = 0;
-    f->buf_pos = 0;
+    f->read_from  = 0;
+    f->read_pos   = 0;
+    f->write_from = 0;
+    f->write_pos  = 0;
     f->buf_write_wait = 0;
     f->buf_read_wait = 0;
 
@@ -804,7 +813,7 @@ out:
 
     return f;
 }
-
+#if 0 // FDL
 int64_t file_write(file_t * f, uint64_t off, const char *buf, uint32_t len) {
     int done = 1;
     int64_t len_write = -1;
@@ -841,6 +850,29 @@ out:
 
     return len_write;
 }
+#endif
+
+/**
+*  FDL new read/write function
+*/
+
+int64_t file_write(file_t * f, uint64_t off, const char *buf, uint32_t len) 
+{
+    int64_t len_write = -1;
+    
+    rozo_buf_rw_status_t status;
+
+    DEBUG_FUNCTION;
+    buf_file_write(&status,f,off,buf,len);
+    if (status.status != BUF_STATUS_DONE)
+    {
+      goto out;
+    }
+    len_write = (int64_t)len;
+out:
+    return len_write;
+}
+
 
 int file_flush(file_t * f) {
     int status = -1;
@@ -849,11 +881,13 @@ int file_flush(file_t * f) {
 
     if (f->buf_write_wait != 0) {
 
-        if ((length = write_buf(f, f->buf_from, f->buffer, f->buf_pos)) < 0)
+        if ((length = write_buf(f, f->write_from, f->buffer, (uint32_t)(f->write_pos -f->write_from))) < 0)
             goto out;
 
-        f->buf_from = 0;
-        f->buf_pos = 0;
+        f->read_from  = 0;
+        f->read_pos   = 0;
+        f->write_from = 0;
+        f->write_pos  = 0;
         f->buf_write_wait = 0;
     }
     status = 0;
@@ -868,9 +902,12 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
     uint16_t last_block_size = 0;
     DEBUG_FUNCTION;
 
-    if ((off < f->buf_from) || (off >= (f->buf_from + f->buf_pos)) ||
-            (len > (f->buf_from + f->buf_pos - off))) {
-
+    if ((off < f->read_from) || (off > f->read_pos) ||
+            ((off+len) >  f->read_pos )) {
+        /*
+        ** Check for pending write
+        */
+        
         if ((len_rec = read_buf(f, off, f->buffer, f->export->bufsize,
                 &last_block_size)) <= 0) {
             length = len_rec;
@@ -880,15 +917,14 @@ int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len) {
         length = (len_rec > len) ? len : len_rec;
         *buf = f->buffer;
 
-        f->buf_from = off;
-        f->buf_pos = len_rec;
+        f->read_from = off;
+        f->read_pos = f->read_from+ len_rec;
         f->buf_read_wait = 1;
     } else {
         length =
                 (len <=
-                (f->buf_pos - (off - f->buf_from))) ? len : (f->buf_pos - (off -
-                f->buf_from));
-        *buf = f->buffer + (off - f->buf_from);
+                (f->read_pos - off )) ? len : (f->read_pos - off);
+        *buf = f->buffer + (off - f->read_from);
     }
 
 out:
@@ -899,10 +935,16 @@ out:
 int file_close(exportclt_t * e, file_t * f) {
 
     if (f) {
-        f->buf_from = 0;
-        f->buf_pos = 0;
+        f->read_from  = 0;
+        f->read_pos   = 0;
+        f->write_from = 0;
+        f->write_pos  = 0;
         f->buf_write_wait = 0;
         f->buf_read_wait = 0;
+        if (f->buf_write_pending)
+        {
+           severe("file_close:buf_write_pending is not null %d",f->buf_write_pending);
+        }
 
         // Close the file descriptor in the export server
         /* no need anymore
@@ -919,3 +961,327 @@ int file_close(exportclt_t * e, file_t * f) {
     }
     return 0;
 }
+
+
+
+
+
+
+#define CLEAR_WRITE(p) \
+{ \
+  p->write_pos = 0;\
+  p->write_from = 0;\
+  p->buf_write_wait = 0;\
+}
+
+
+#define CLEAR_READ(p) \
+{ \
+  p->read_pos = 0;\
+  p->read_from = 0;\
+  p->buf_read_wait = 0;\
+}
+
+/*
+**______________________________________
+*/
+static inline int read_section_empty(file_t *p)
+{
+   return (p->read_from == p->read_pos)?1:0;
+}
+/*
+**______________________________________
+*/
+static inline int write_section_empty(file_t *p)
+{
+   return (p->write_from == p->write_pos)?1:0;
+}
+
+/*
+**______________________________________
+*/
+static inline int check_empty(file_t *p)
+{
+ 
+ if (read_section_empty(p)!= 1)
+ {
+   return 0;
+ }
+ return write_section_empty(p);
+}
+
+/**
+*  flush the content of the buffer to the disk
+*/
+static inline int buf_flush(file_t *p)
+{
+  int64_t len_write = -1;
+  if (p->buf_write_wait == 0) return 0;
+  
+  uint64_t flush_off = p->write_from;
+  uint32_t flush_len = (uint32_t)(p->write_pos - p->write_from);
+  uint32_t flush_off_buf = (uint32_t)(p->write_from - p->read_from);
+  char *buffer;
+  
+  buffer = p->buffer+flush_off_buf;
+  /*
+  ** trigger the write
+  */
+  if ((len_write = write_buf(p, flush_off, buffer, flush_len)) < 0) {
+    return -1;
+  }
+  return 0;
+
+}
+static inline void buf_align_write_from(file_t *p)
+{
+   uint64_t off2start_w;
+   uint64_t off2start;
+
+   off2start_w = (p->write_from/ROZOFS_BSIZE);
+   off2start = off2start_w*ROZOFS_BSIZE;
+   if ( off2start >= p->read_from)
+   {
+     p->write_from = off2start;
+   }      
+}
+
+/*
+**______________________________________
+*/
+void buf_file_write(rozo_buf_rw_status_t *status_p,
+                   file_t * p,
+                   uint64_t off, 
+                   const char *buf, 
+                   uint32_t len) 
+{
+
+uint64_t off_requested = off;
+uint64_t pos_requested = off+len;
+int state;
+int action;
+uint64_t off2end;
+uint32_t buf_off;
+int ret;
+char *dest_p;
+
+/*
+** check the start point 
+*/
+  while(1)
+  {
+    if (!read_section_empty(p))
+    {
+      /*
+      ** we have either a read or write section, need to check read section first
+      */
+      if (off_requested >= p->read_from) 
+      {
+         if (off_requested <= p->read_pos)
+         {
+           state = BUF_ST_READ_INSIDE;  
+           break;   
+         } 
+         state = BUF_ST_READ_AFTER;
+         break;    
+      }
+      /*
+      ** the write start off is out side of the cache buffer
+      */
+      state = BUF_ST_READ_BEFORE;
+      break;
+    }
+    /*
+    ** the buffer is empty (neither read nor write occurs
+    */
+    state = BUF_ST_EMPTY;
+    break;
+  }
+  /*
+  ** ok, now check the end
+  */
+//  printf("state %s\n",rozofs_buf_read_write_state_e2String(state));
+  switch (state)
+  {
+    case BUF_ST_EMPTY:
+      action = BUF_ACT_COPY_EMPTY;
+      break;
+    case BUF_ST_READ_BEFORE:
+        action = BUF_ACT_FLUSH_THEN_COPY_NEW;
+        break;    
+
+    case BUF_ST_READ_INSIDE:
+      /*
+      ** the start is inside the write buffer check if the len does not exceed the buffer length
+      */
+      if ((pos_requested - p->read_from) >= p->export->bufsize) 
+      {
+        if (write_section_empty(p)== 0)
+        {        
+          action = BUF_ACT_FLUSH_ALIGN_THEN_COPY_NEW;
+          break;      
+        }
+      }
+      action = BUF_ACT_COPY;
+      break;
+      
+    case BUF_ST_READ_AFTER:
+        action = BUF_ACT_FLUSH_THEN_COPY_NEW;
+        break;      
+  }
+//  printf("action %s\n",rozofs_buf_read_write_action_e2String(action));
+  /*
+  ** OK now perform the required action
+  */
+  switch (action)
+  {
+    case BUF_ACT_COPY_EMPTY:
+      p->write_from = off_requested; 
+      p->write_pos  = pos_requested; 
+      p->buf_write_wait = 1;
+      p->read_from = off_requested; 
+      p->read_pos  = pos_requested; 
+      /*
+      ** copy the buffer
+      */
+      memcpy(p->buffer,buf,len);
+      /*
+      ** fill the status section
+      */
+      status_p->status = BUF_STATUS_DONE;
+      status_p->errcode = 0;
+      break;
+
+    case BUF_ACT_COPY:
+      if (write_section_empty(p))
+      {
+        p->write_from = off_requested; 
+        p->write_pos  = pos_requested; 
+      }
+      else
+      {
+        if (p->write_from > off_requested) p->write_from = off_requested;      
+        if (p->write_pos  < pos_requested) p->write_pos  = pos_requested;      
+      }
+      buf_align_write_from(p);
+      if (p->write_pos > p->read_pos) p->read_pos = p->write_pos;
+      else
+      {
+        /*
+        ** attempt to align write_pos on a block boundary
+        */
+        if (p->write_pos%ROZOFS_BSIZE)
+        {
+           /*
+           ** not on a block boundary
+           */
+           off2end = (p->read_pos/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+           if (off2end > p->write_pos)
+           {
+             /*
+             ** align on block boundary
+             */
+             p->write_pos = (p->write_pos/ROZOFS_BSIZE)*ROZOFS_BSIZE;           
+           }
+        }
+      }
+      p->buf_write_wait = 1;
+      /*
+      ** copy the buffer
+      */
+      dest_p = p->buffer + (off_requested - p->read_from);
+      memcpy(dest_p,buf,len);
+      /*
+      ** fill the status section
+      */
+      status_p->status = BUF_STATUS_DONE;
+      status_p->errcode = 0;
+      break;  
+  
+    case BUF_ACT_FLUSH_THEN_COPY_NEW:
+      /*
+      ** flush
+      */
+      ret = buf_flush(p);
+      if (ret < 0)
+      {
+        status_p->status = BUF_STATUS_FAILURE;
+        status_p->errcode = errno;
+        break;                  
+      }
+      p->write_from = off_requested; 
+      p->write_pos  = pos_requested; 
+      p->read_from = off_requested; 
+      p->read_pos  = pos_requested; 
+      p->buf_write_wait = 1;
+      /*
+      ** copy the buffer
+      */
+      memcpy(p->buffer,buf,len);
+      /*
+      ** fill the status section
+      */
+      status_p->status = BUF_STATUS_DONE;
+      status_p->errcode = 0;
+      break;    
+  
+    case BUF_ACT_FLUSH_ALIGN_THEN_COPY_NEW:
+      /*
+      ** partial flush
+      */
+      if (write_section_empty(p))
+      {
+        p->write_from = off_requested; 
+      }
+      else
+      {
+        if (p->write_from > off_requested) p->write_from = off_requested;      
+      }
+      buf_align_write_from(p);
+      off2end = p->read_from + p->export->bufsize;
+      
+      if (off2end < p->write_from)
+      {
+       severe ("Bug!!!! off2start %llu off2end: %llu\n",(long long unsigned int)p->write_from,
+                                                        (long long unsigned int)off2end);      
+      }
+      else
+      {
+//        printf("offset start %llu len %u\n",p->write_from,(off2end-p->write_from));            
+      }
+      /*
+      ** partial copy of the buffer in the cache
+      */
+      buf_off = (uint32_t)(off_requested - p->read_from);
+      memcpy(p->buffer+buf_off,buf,(size_t)(off2end - off_requested));
+            
+      p->write_pos  = off2end; 
+      ret = buf_flush(p);
+      if (ret < 0)
+      {
+        status_p->status = BUF_STATUS_FAILURE;
+        status_p->errcode = errno;
+        break;                  
+      }      
+      /*
+      ** copy the buffer
+      */
+      buf_off = (uint32_t)(p->write_pos - off_requested);
+      memcpy(p->buffer,buf+buf_off,(len-buf_off));
+
+      p->write_from = off2end; 
+      p->write_pos  = pos_requested; 
+      p->read_from = off2end; 
+      p->read_pos  = pos_requested; 
+      if (write_section_empty(p) == 0) p->buf_write_wait = 1;      
+      /*
+      ** fill the status section
+      */
+      status_p->status = BUF_STATUS_DONE;
+      status_p->errcode = 0;
+      break;      
+  
+  }
+
+} 
+

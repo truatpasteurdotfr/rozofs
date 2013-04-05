@@ -92,6 +92,7 @@ struct ep_mattr_t {
     uint64_t    atime;
     uint64_t    mtime;
     uint64_t    size;
+    uint32_t    children;
 };
 
 union ep_mattr_ret_t switch (ep_status_t status) {

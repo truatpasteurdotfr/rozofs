@@ -177,8 +177,12 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         if (errno == ENOENT) {
             // If the directory doesn't exist, create it
             if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
+	      if (errno != EEXIST) { 
+	        // The directory is not created !!!
                 severe("mkdir failed (%s) : %s", path, strerror(errno));
                 goto out;
+	      }	
+	      // Well someone else has created the directory in the meantime
             }
         } else {
             goto out;

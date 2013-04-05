@@ -180,34 +180,6 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                 + sizeof (rozofs_stor_bins_hdr_t));
     }
 
-    // Open local bins file
-    fd = open(path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-    if (fd < 0) {
-        severe("open failed (%s) : %s", path, strerror(errno));
-        goto out;
-    }
-
-    // If we write the bins file for the first time, we must write the header
-    if (!loc_file_exist) {
-        // Prepare file header
-        rozofs_stor_bins_file_hdr_t file_hdr;
-        memcpy(file_hdr.dist_set_current, re->dist_set_current,
-                ROZOFS_SAFE_MAX * sizeof (sid_t));
-        memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
-        file_hdr.layout = layout;
-        file_hdr.version = version;
-
-        // Write the header for this bins file
-        nb_write = pwrite(fd, &file_hdr, sizeof (file_hdr), 0);
-        if (nb_write != sizeof (file_hdr)) {
-            severe("pwrite failed: %s", strerror(errno));
-            goto out;
-        }
-    }
-
-    if (stat(path, &loc_file_stat) != 0)
-        goto out;
-
     // While we can read in the bins file
     while (nb_blocks_read_distant == ROZOFS_BLOCKS_MAX) {
 
@@ -228,6 +200,38 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
 
         if (nb_blocks_read_distant == 0)
             continue; // End of file
+
+
+        if (first_block_idx == 0) {
+            // Open local bins file for the first write
+            fd = open(path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+            if (fd < 0) {
+                severe("open failed (%s) : %s", path, strerror(errno));
+                goto out;
+            }
+        }
+
+        // If we write the bins file for the first time,
+        // we must write the header
+        if (!loc_file_exist && first_block_idx == 0) {
+            // Prepare file header
+            rozofs_stor_bins_file_hdr_t file_hdr;
+            memcpy(file_hdr.dist_set_current, re->dist_set_current,
+                    ROZOFS_SAFE_MAX * sizeof (sid_t));
+            memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
+            file_hdr.layout = layout;
+            file_hdr.version = version;
+
+            // Write the header for this bins file
+            nb_write = pwrite(fd, &file_hdr, sizeof (file_hdr), 0);
+            if (nb_write != sizeof (file_hdr)) {
+                severe("pwrite failed: %s", strerror(errno));
+                goto out;
+            }
+        }
+
+        if (stat(path, &loc_file_stat) != 0)
+            goto out;
 
         // If projections to rebuild are not present on local file
         // - generate the projections to rebuild

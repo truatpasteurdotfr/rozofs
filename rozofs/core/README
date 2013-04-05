@@ -1,0 +1,4 @@
+Ruc Timer real time clock enable/disable
+----------------------------------------
+
+  assert "timer_lock_for_debug" to lock the realtime clock.
