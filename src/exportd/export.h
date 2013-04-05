@@ -54,10 +54,20 @@
 #define EXPORT_SET_ATTR_GID   (1 << 2)
 #define EXPORT_SET_ATTR_SIZE  (1 << 3)
 
+/** Variables specific to the removal of the bins files */
+/** Max nb. of subdirectories under trash directory (nb. of buckets) */
+#define RM_MAX_BUCKETS 1024
+/** Nb. max of entries to delete during one call of export_rm_bins function */
+#define RM_FILES_MAX 500
+/* Frequency calls of export_rm_bins function */
+#define RM_BINS_PTHREAD_FREQUENCY_SEC 2
+/** File size treshold: if a removed file is bigger than or equel to this size
+ *  it will be push in front of list */
+#define RM_FILE_SIZE_TRESHOLD 0x40000000LL
 
 /**
-*  By default the system uses 256 slices with 4096 subslices per slice
-*/
+ *  By default the system uses 256 slices with 4096 subslices per slice
+ */
 #define MAX_SLICE_BIT 8
 #define MAX_SLICE_NB (1<<MAX_SLICE_BIT)
 #define MAX_SUBSLICE_BIT 12
@@ -70,6 +80,14 @@ typedef struct export_fstat {
     uint64_t blocks;
     uint64_t files;
 } export_fstat_t;
+
+/** structure for store the list of files to remove
+ * for one trash bucket.
+ */
+typedef struct trash_bucket {
+    list_t rmfiles; ///< List of files to delete
+    pthread_rwlock_t rm_lock; ///< Lock for the list of files to delete
+} trash_bucket_t;
 
 /** export stucture
  *
@@ -86,28 +104,35 @@ typedef struct export {
     int fdstat; ///< open file descriptor on stat file
     fid_t rfid; ///< root fid
     lv2_cache_t *lv2_cache; ///< cache of lv2 entries
-    list_t rmfiles; ///< List of files to delete
-    pthread_rwlock_t rm_lock; ///< Lock for the list of files to delete
+    trash_bucket_t trash_buckets[RM_MAX_BUCKETS]; ///< table for store the list
+    // of files to delete for each bucket trash
+    pthread_t load_trash_thread; ///< pthread for load the list of trash files
+    // to delete when we start or reload this export
 } export_t;
 
 /*
-**__________________________________________________________________
-*/
-static inline void mstor_get_slice_and_subslice(fid_t fid,uint32_t *slice,uint32_t *subslice) 
-{
+ **__________________________________________________________________
+ */
+static inline void mstor_get_slice_and_subslice(fid_t fid, uint32_t *slice, uint32_t *subslice) {
     uint32_t hash = 0;
     uint8_t *c = 0;
-    
+
     for (c = fid; c != fid + 16; c++)
         hash = *c + (hash << 6) + (hash << 16) - hash;
-    
-    *slice = hash & ((1<<MAX_SLICE_BIT) -1);
+
+    *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
     hash = hash >> MAX_SLICE_BIT;
-    *subslice = hash & ((1<<MAX_SUBSLICE_BIT) -1);
+    *subslice = hash & ((1 << MAX_SUBSLICE_BIT) - 1);
 }
 
-
-int export_rm_bins(export_t * e);
+/** Remove bins files from trash 
+ *
+ * @param export: pointer to the export
+ * @param first_bucket_idx: pointer for the first index bucket to remove
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int export_rm_bins(export_t * e, uint16_t * first_bucket_idx);
 
 
 /** check if export directory is valid
