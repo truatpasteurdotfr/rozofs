@@ -930,16 +930,7 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
         if (lv2->attributes.size > attrs->size) {
             if (ftruncate(lv2->container.mreg.fdattrs, sizeof (mattr_t) + nrb_new * sizeof (dist_t)) != 0)
                 goto out;
-        } else {
-            dist_t *empty;
-            empty = xmalloc((nrb_new - nrb_old) * sizeof (dist_t));
-            memset(empty, 0, (nrb_new - nrb_old) * sizeof (dist_t));
-            if (mreg_write_dist(&lv2->container.mreg, nrb_old, nrb_new - nrb_old, empty) != 0) {
-                free(empty);
-                goto out;
-            }
-            free(empty);
-        }
+        } 
         if (export_update_blocks(e, ((int32_t) nrb_new - (int32_t) nrb_old))
                 != 0)
             goto out;
@@ -2253,7 +2244,7 @@ out:
 }
 
 int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d) {
-    int status = -1;
+    int status = 0;
     lv2_entry_t *lv2 = NULL;
 
     START_PROFILING(export_read_block);
@@ -2300,8 +2291,6 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
         dist_t d, uint64_t off, uint32_t len) {
     int64_t length = -1;
     lv2_entry_t *lv2 = NULL;
-    dist_t *dist = NULL;
-    int i = 0;
 
     START_PROFILING(export_write_block);
 
@@ -2309,16 +2298,6 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     if (!(lv2 = export_lookup_fid(e, fid)))
         goto out;
 
-    /// Write distribution
-    dist = xmalloc(n * sizeof (dist_t));
-    for (i = 0; i < n; i++) {
-        memcpy(dist + i, &d, sizeof (dist_t));
-    }
-    if (mreg_write_dist(&lv2->container.mreg, bid, n, dist) != 0) {
-        free(dist);
-        goto out;
-    }
-    free(dist);
 
     // Update size of file
     if (off + len > lv2->attributes.size) {
