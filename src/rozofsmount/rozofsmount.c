@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <inttypes.h>
 #include <assert.h>
 #include <semaphore.h>
 #include <netinet/tcp.h>
@@ -347,13 +348,13 @@ void rozofmount_profiling_thread_run(void *args) {
     DEBUG("REACHED !!!!");
     /* NOT REACHED */
 }
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %12s | %15lu | %9lu | %18lu |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
                     gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
                     gprofiler.rozofs_ll_##probe[P_ELAPSE]);
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %12s | %15lu | %9lu | %18lu | %15lu\n",\
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64"\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
                     gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
@@ -407,7 +408,6 @@ typedef struct _xmalloc_stats_t {
 } xmalloc_stats_t;
 
 #define XMALLOC_MAX_SIZE  512
-
 
 extern xmalloc_stats_t *xmalloc_size_table_p;
 

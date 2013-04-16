@@ -157,7 +157,6 @@ void rozofs_ll_link_cbk(void *this,void *param)
    ientry_t *ie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   fuse_ino_t parent;
    ep_mattr_ret_t ret ;
    int status;
    uint8_t  *payload;
@@ -171,7 +170,6 @@ void rozofs_ll_link_cbk(void *this,void *param)
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
    RESTORE_FUSE_PARAM(param,req);
-   RESTORE_FUSE_PARAM(param,parent);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -542,7 +540,6 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
    ientry_t *nie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   fuse_ino_t parent;
    ep_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
@@ -557,7 +554,6 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
-   RESTORE_FUSE_PARAM(param,parent);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -750,7 +746,6 @@ error:
 void rozofs_ll_unlink_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   fuse_ino_t parent;
    ep_fid_ret_t ret ;
    int status;
    uint8_t  *payload;
@@ -764,7 +759,6 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
-   RESTORE_FUSE_PARAM(param,parent);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer

@@ -23,11 +23,11 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+
 #include <rozofs/rozofs.h>
 #include <rozofs/rozofs_srv.h>
+
 #include "rozofs_storcli_transform.h"
-
-
 
 /**
 * Local variables
@@ -396,10 +396,7 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
                                        uint32_t *number_of_blocks_p) 
  {
 
-    bin_t *bins;
     projection_t *projections = NULL;
-    angle_t *angles = NULL;
-    uint16_t *psizes = NULL;
     int block_idx;
     uint16_t projection_id = 0;
     int prj_ctx_idx;
@@ -411,8 +408,6 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     
     projections = rozofs_storcli_projections;
-    angles      = rozofs_storcli_angles;
-    psizes      = rozofs_storcli_psizes;
     
     /*
     ** Proceed the inverse data transform for the nb_projections2read blocks.
@@ -496,7 +491,6 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
            **   For each meta-projection
            */
            projection_id = rozofs_bins_hdr_p->s.projection_id;
-           bins = (bin_t*)(rozofs_bins_hdr_p+1);
            projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
            projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
            projections[prj_count].size = rozofs_get_psizes(layout,projection_id);
@@ -569,7 +563,6 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
-
     projections = rozofs_storcli_projections;
 
     // For each projection
@@ -625,4 +618,3 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
 
     return 0;
 }
-

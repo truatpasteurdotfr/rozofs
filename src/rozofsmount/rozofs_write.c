@@ -626,12 +626,9 @@ out:
  */
 void rozofs_ll_write_cbk(void *this,void *param) 
 {
-   fuse_req_t req; 
    struct rpc_msg  rpc_reply;
    struct fuse_file_info  file_info;
    struct fuse_file_info  *fi = &file_info;
-   size_t size;
-   uint64_t off;
    
    int status;
    uint8_t  *payload;
@@ -643,9 +640,7 @@ void rozofs_ll_write_cbk(void *this,void *param)
    file_t *file = NULL;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-   RESTORE_FUSE_PARAM(param,req);
-   RESTORE_FUSE_PARAM(param,size);
-   RESTORE_FUSE_PARAM(param,off);
+
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
    file = (file_t *) (unsigned long)  fi->fh;   

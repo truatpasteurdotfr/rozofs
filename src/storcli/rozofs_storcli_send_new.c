@@ -255,12 +255,9 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
    XDR xdrs;
    int len;
    storcli_status_t status = STORCLI_SUCCESS;
-   storcli_read_arg_t *storcli_read_rq_p;
    int data_len;
    uint8_t eof_flag = 0;
    
-
-   storcli_read_rq_p = (storcli_read_arg_t*)&p->storcli_read_arg;
     /*
     ** create xdr structure on top of the buffer that will be used for sending the response
     */

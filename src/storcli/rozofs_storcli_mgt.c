@@ -17,13 +17,11 @@
  */
 #include <stdlib.h>
 #include <stddef.h>
-//#include "ppu_trace.h"
-//#include "com_tx_timer_api.h"
-#include "rozofs_storcli.h"
+
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_buffer_api.h>
 
-
+#include "rozofs_storcli.h"
 
 rozofs_storcli_ctx_t *rozofs_storcli_ctx_freeListHead;  /**< head of list of the free context  */
 rozofs_storcli_ctx_t rozofs_storcli_ctx_activeListHead;  /**< list of the active context     */
@@ -675,7 +673,7 @@ void rozofs_storcli_start_timer(rozofs_storcli_ctx_t *tx_p,uint32_t time_ms)
 uint32_t rozofs_storcli_module_init()
 {
    rozofs_storcli_ctx_t *p;
-   uint32_t idxCur,xRefCur;
+   uint32_t idxCur;
    ruc_obj_desc_t *pnext;
    uint32_t ret = RUC_OK;
    
@@ -722,7 +720,6 @@ uint32_t rozofs_storcli_module_init()
    **  initialize each entry of the free list
    */
    idxCur = 0;
-   xRefCur = 0;
    pnext = (ruc_obj_desc_t*)NULL;
    while ((p = (rozofs_storcli_ctx_t*)ruc_objGetNext((ruc_obj_desc_t*)rozofs_storcli_ctx_freeListHead,
                                         &pnext))

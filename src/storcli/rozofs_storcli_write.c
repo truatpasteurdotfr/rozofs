@@ -184,7 +184,6 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
     uint64_t first = 0;
     uint64_t last = 0;
     int fread = 0;
-    int lread = 0;
     uint16_t foffset = 0;
     uint16_t loffset = 0;
     int i;
@@ -228,11 +227,6 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
     */
     if (foffset != 0)
         fread = 1;
-    /*
-    ** Is it necesary to read the last block ?
-    */
-    if (loffset != ROZOFS_BSIZE)
-        lread = 1;
 
     /*
     ** The 1rst block do not start on a BSIZE boundary, so we need to pad at beginning

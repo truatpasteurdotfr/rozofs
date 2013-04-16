@@ -414,7 +414,6 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   rozofs_forward;
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
-  uint8_t   layout;
   int       error;
   int i;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
@@ -432,7 +431,6 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   rozofs_safe    = rozofs_get_rozofs_safe(storcli_read_rq_p->layout);
   bid            = storcli_read_rq_p->bid;
   nmbs           = storcli_read_rq_p->nb_proj;
-  layout         = storcli_read_rq_p->layout;
 
   nb_projections2read = nmbs;
   /*

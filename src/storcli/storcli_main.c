@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <netinet/tcp.h>
@@ -75,13 +76,13 @@ typedef struct storcli_conf {
 static char localBuf[4096];
 
 
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %14s | %15lu | %9lu | %18lu |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
 					gprofiler.probe[P_ELAPSE]);
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %14s | %15lu | %9lu | %18lu | %15lu\n",\
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" \n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
@@ -339,8 +340,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
 
     struct timeval timeout_exportd;
 
-#warning NEED TO CHANGE TIMEOUT
-    //timeout_exportd.tv_sec = conf.export_timeout;
+    //XXX Static timeout
+    timeout_exportd.tv_sec = 25;
     timeout_exportd.tv_usec = 0;
 
     /* Initiate the connection to the export and get informations

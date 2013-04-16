@@ -158,7 +158,6 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
    ientry_t *nie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   fuse_ino_t parent;
    ep_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
    xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
@@ -173,7 +172,6 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
-   RESTORE_FUSE_PARAM(param,parent);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
