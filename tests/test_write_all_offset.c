@@ -154,7 +154,7 @@ int do_offset(int idx) {
     size = pread(f, pBuff, buffSize, 0);
     if (size != (idx + blockSize)) {
         printf("pread only %"PRIu64" while expecting %d\n",
-                (unsigned long long) size, (idx + blockSize));
+                (uint64_t) size, (idx + blockSize));
         perror("pread");
         close(f);
         return 0;
