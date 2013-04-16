@@ -21,6 +21,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -193,7 +194,7 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                 &working_ctx);
 
         if (ret != 0) {
-            severe("rbs_read_blocks failed for block %lu: %s",
+            severe("rbs_read_blocks failed for block %"PRIu64": %s",
                     first_block_idx, strerror(errno));
             goto out;
         }
@@ -348,7 +349,7 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                         // The timestamp is the same on local
                         // Not need to generate a projection
                         if (DEBUG_RBS == 1) {
-                            severe("SAME TS FOR BLOCK: %lu",
+                            severe("SAME TS FOR BLOCK: %"PRIu64"",
                                     (first_block_idx + i));
                         }
                         continue; // Check next block
