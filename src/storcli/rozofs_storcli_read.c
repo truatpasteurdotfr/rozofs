@@ -42,6 +42,7 @@
 #include "rozofs_storcli.h"
 #include "storage_proto.h"
 #include <rozofs/core/af_unix_socket_generic_api.h>
+#include <rozofs/core/ruc_timer_api.h>
 #include <rozofs/rozofs_srv.h>
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/sproto.h>
@@ -90,14 +91,13 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p);
 **__________________________________________________________________________
 */
 /**
-* The purpose of that function is to return TRUE if there are enough projection received for
+* The purpose of that function is to return the number of projection received
   rebuilding the associated initial message
   
   @param layout : layout association with the file
   @param prj_cxt_p: pointer to the projection context (working array)
   
-  @retval 1 if there are enough received projection
-  @retval 0 when there is enough projection
+  @retval number of received projection
 */
 static inline int rozofs_storcli_rebuild_check(uint8_t layout,rozofs_storcli_projection_ctx_t *prj_cxt_p)
 {
@@ -105,16 +105,45 @@ static inline int rozofs_storcli_rebuild_check(uint8_t layout,rozofs_storcli_pro
   ** Get the rozofs_inverse and rozofs_forward value for the layout
   */
   uint8_t   rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+  uint8_t   rozofs_safe = rozofs_get_rozofs_safe(layout);
   int i;
   int received = 0;
   
-  for (i = 0; i <rozofs_inverse; i++,prj_cxt_p++)
+  for (i = 0; i <rozofs_safe; i++,prj_cxt_p++)
   {
     if (prj_cxt_p->prj_state == ROZOFS_PRJ_READ_DONE) received++;
-    if (received == rozofs_inverse) return 1;   
+    if (received == rozofs_inverse) return received;   
+  }
+  return received;
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+* The purpose of that function is to return TRUE if there is at least one projection
+   for which we expect a response from a storage
+  
+  @param layout : layout association with the file
+  @param prj_cxt_p: pointer to the projection context (working array)
+  
+  @retval number of received projection
+*/
+static inline int rozofs_storcli_check_read_in_progress_projections(uint8_t layout,rozofs_storcli_projection_ctx_t *prj_cxt_p)
+{
+  /*
+  ** Get the rozofs_inverse and rozofs_forward value for the layout
+  */
+  uint8_t   rozofs_safe = rozofs_get_rozofs_safe(layout);
+  int i;
+  
+  for (i = 0; i <rozofs_safe; i++,prj_cxt_p++)
+  {
+    if (prj_cxt_p->prj_state == ROZOFS_PRJ_READ_IN_PRG) return 1;
   }
   return 0;
 }
+
 
 
 /*
@@ -693,11 +722,11 @@ end:
   @param  projection_id : index of the projection
   @param same_storage_retry_acceptable : assert to 1 if retry on the same storage is acceptable
   
-  @retval >= 0 : success, it indicates the reference of the projection id
-  @retval< < 0 error
+  @retval  0 : show must go on!!
+  @retval < 0 : context has been released
 */
 
-void rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uint8_t projection_id,int same_storage_retry_acceptable)
+int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uint8_t projection_id,int same_storage_retry_acceptable)
 {
     uint8_t   rozofs_safe;
     uint8_t   layout;
@@ -853,7 +882,7 @@ void rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,ui
     */
     prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_READ_IN_PRG;
 
-    return;
+    return 0;
     /*
     **_____________________________________________
     **  Exception cases
@@ -862,15 +891,24 @@ void rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,ui
     
 reject:  
      /*
-     ** we fall in that case when we run out of  storage
+     ** Check it there is projection for which we expect a response from storage
+     ** that situation can occur because of some anticipation introduced by the read
+     ** guard timer mechanism
      */
-     rozofs_storcli_read_reply_error(working_ctx_p,error);
-     /*
-     ** release the root transaction context
-     */
-      STORCLI_STOP_NORTH_PROF(working_ctx_p,read,0);
-     rozofs_storcli_release_context(working_ctx_p);  
-     return; 
+     if (rozofs_storcli_check_read_in_progress_projections(layout,working_ctx_p->prj_ctx) == 0)
+     {
+       /*
+       ** we fall in that case when we run out of  storage
+       */
+       rozofs_storcli_read_reply_error(working_ctx_p,error);
+       /*
+       ** release the root transaction context
+       */
+        STORCLI_STOP_NORTH_PROF(working_ctx_p,read,0);
+       rozofs_storcli_release_context(working_ctx_p);  
+       return -1;
+     }
+     return 0; 
       
 fatal:
      /*
@@ -882,7 +920,7 @@ fatal:
      */
       STORCLI_STOP_NORTH_PROF(working_ctx_p,read,0);
      rozofs_storcli_release_context(working_ctx_p);  
-     return; 
+     return -1; 
 
 }
 /*
@@ -1122,13 +1160,25 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     ** OK now check if we have enough projection to rebuild the initial message
     */
     ret = rozofs_storcli_rebuild_check(layout,working_ctx_p->prj_ctx);
-    if (ret == 0)
+    if (ret <rozofs_inverse)
     {
+      /*
+      ** start the timer on the first received projection
+      */
+      if (ret == 1) 
+      {
+        rozofs_storcli_start_read_guard_timer(working_ctx_p);
+      }
        /*
        ** no enough projection 
        */
        goto wait_more_projection;
     }
+    /*
+    ** stop the guard timer since enough projection have been received
+    */
+    rozofs_storcli_stop_read_guard_timer(working_ctx_p);
+    
     /*
     ** That's fine, all the projections have been received start rebuild the initial message
     */
@@ -1163,7 +1213,8 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
         * do not forget to release the context of the transaction
        */
        rozofs_tx_free_from_ptr(this);
-       return rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,0);        
+       rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,0);   
+       return;     
     }
 
     /*
@@ -1171,9 +1222,11 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     ** rebuild
     */
     read_prj_work_p = working_ctx_p->prj_ctx;
-    for (projection_id = 0; projection_id < rozofs_inverse; projection_id++)
+    for (projection_id = 0; projection_id < rozofs_safe; projection_id++)
     {
-      ruc_buf_freeBuffer(read_prj_work_p[projection_id].prj_buf);
+      if  (read_prj_work_p[projection_id].prj_buf != NULL) {
+        ruc_buf_freeBuffer(read_prj_work_p[projection_id].prj_buf);
+      }	
       read_prj_work_p[projection_id].prj_buf = NULL;
       read_prj_work_p[projection_id].prj_state = ROZOFS_PRJ_READ_IDLE;
     }
@@ -1244,7 +1297,8 @@ retry_attempt:
     */
     if (working_ctx_p->read_ctx_lock != 0) return;
 
-    return rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,same_storage_retry_acceptable);
+    rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,same_storage_retry_acceptable);
+    return;
 
 io_error:
     /*
@@ -1271,3 +1325,172 @@ wait_more_projection:
 
 
 }
+
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+
+void rozofs_storcli_read_timeout(rozofs_storcli_ctx_t *working_ctx_p) 
+{
+    uint8_t   rozofs_safe;
+    uint8_t   layout;
+    uint8_t   rozofs_inverse;
+    storcli_read_arg_t *storcli_read_rq_p;
+    uint32_t   projection_id;
+    int missing;
+    int ret;
+    int i;
+    int nb_received;
+
+    storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
+
+    layout         = storcli_read_rq_p->layout;
+    rozofs_safe    = rozofs_get_rozofs_safe(layout);
+    rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+
+    nb_received = rozofs_storcli_rebuild_check(layout,working_ctx_p->prj_ctx);
+    
+    missing = rozofs_inverse - nb_received;
+    
+    for (i = 0; i < missing; i++)
+    {
+
+      /*
+      ** Check if it is possible to read from another storage
+      ** if we cannot, we just leave without raising an error since the system may already
+      ** ask to spare and is waiting for its response
+      */
+      if( working_ctx_p->redundancyStorageIdxCur + rozofs_inverse >= rozofs_safe)
+      {
+        return;
+      }         
+      /*
+      ** we can take a new entry for a projection on a another storage
+      */   
+      projection_id = rozofs_inverse+ working_ctx_p->redundancyStorageIdxCur;
+      working_ctx_p->redundancyStorageIdxCur++;    
+
+      ret = rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,0);
+      if (ret < 0)
+      {
+        /*
+        ** the read context has been release, so give up
+        */
+        break;
+      }
+    }    
+    return;    
+}        
+
+
+#define ROZOFS_STORCLI_TIMER_BUCKET 2
+typedef struct _rozofs_storcli_read_clk_t
+{
+  uint32_t        bucket_cur;
+  ruc_obj_desc_t  bucket[ROZOFS_STORCLI_TIMER_BUCKET];  /**< link list of the context waiting on timer */
+} rozofs_storcli_read_clk_t;
+
+
+rozofs_storcli_read_clk_t  rozofs_storcli_read_clk;
+
+/*
+**____________________________________________________
+*/
+/**
+* start the read guard timer: must be called upon the reception of the first projection
+
+  @param p: read main context
+  
+ @retval none
+*/
+void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p)
+{
+   ruc_objRemove((ruc_obj_desc_t*) p);
+   ruc_objInsertTail((ruc_obj_desc_t*)&rozofs_storcli_read_clk.bucket[rozofs_storcli_read_clk.bucket_cur],
+                    (ruc_obj_desc_t*) p);
+   
+
+}
+/*
+**____________________________________________________
+*/
+/**
+* stop the read guard timer
+
+  @param p: read main context
+  
+ @retval none
+*/
+void rozofs_storcli_stop_read_guard_timer(rozofs_storcli_ctx_t  *p)
+{
+   ruc_objRemove((ruc_obj_desc_t*) p);
+}
+
+/*
+**____________________________________________________
+*/
+/*
+  Periodic timer expiration
+  
+   @param param: Not significant
+*/
+void rozofs_storcli_periodic_ticker(void * param) 
+{
+   ruc_obj_desc_t   *bucket_head_p;
+   rozofs_storcli_ctx_t   *read_ctx_p;
+   int bucket_idx;
+   
+   bucket_idx = rozofs_storcli_read_clk.bucket_cur;
+   bucket_idx = (bucket_idx+1)%ROZOFS_STORCLI_TIMER_BUCKET;
+   bucket_head_p = &rozofs_storcli_read_clk.bucket[bucket_idx];
+   rozofs_storcli_read_clk.bucket_cur = bucket_idx;
+
+
+    while  ((read_ctx_p =(rozofs_storcli_ctx_t *)ruc_objGetFirst(bucket_head_p)) !=NULL) 
+    {
+       ruc_objRemove((ruc_obj_desc_t*) read_ctx_p);       
+       rozofs_storcli_read_timeout(read_ctx_p);    
+    }          
+}
+/*
+**____________________________________________________
+*/
+/*
+  start a periodic timer to chech wether the export LBG is down
+  When the export is restarted its port may change, and so
+  the previous configuration of the LBG is not valid any more
+*/
+void rozofs_storcli_read_init_timer_module() {
+  struct timer_cell * periodic_timer;
+  int i;
+  
+  for (i = 0; i < ROZOFS_STORCLI_TIMER_BUCKET; i++)
+  {
+    ruc_listHdrInit(&rozofs_storcli_read_clk.bucket[i]);   
+  }
+  rozofs_storcli_read_clk.bucket_cur = 0;
+  
+  periodic_timer = ruc_timer_alloc(0,0);
+  if (periodic_timer == NULL) {
+    severe("no timer");
+    return;
+  }
+  ruc_periodic_timer_start (periodic_timer, 
+                            100,
+ 	                        rozofs_storcli_periodic_ticker,
+ 			                0);
+
+}
+
+
+
