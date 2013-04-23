@@ -49,6 +49,7 @@
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/expgw_common.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -1396,7 +1397,7 @@ void export_write_block_cbk(void *this,void *param);
 
 void export_write_block_nb(void *fuse_ctx_p, file_t *file_p) 
 {
-    ep_write_block_arg_t arg;
+    epgw_write_block_arg_t arg;
     int    ret;        
     uint64_t buf_flush_offset ;
     uint32_t buf_flush_len ;
@@ -1410,19 +1411,27 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid, file_p->fid, sizeof (fid_t));
-    arg.bid = 0;
-    arg.nrb = 1;
-    arg.length = buf_flush_len;
-    arg.offset = buf_flush_offset;
-    arg.dist = 0;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid, file_p->fid, sizeof (fid_t));
+    arg.arg_gw.bid = 0;
+    arg.arg_gw.nrb = 1;
+    arg.arg_gw.length = buf_flush_len;
+    arg.arg_gw.offset = buf_flush_offset;
+    arg.arg_gw.dist = 0;
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_WRITE_BLOCK,(xdrproc_t) xdr_ep_write_block_arg_t,(void *)&arg,
+
+    int lbg_id = expgw_get_export_gateway_lbg(arg.arg_gw.eid,arg.arg_gw.fid);
+#if 1
+    ret = rozofs_expgateway_send_common(lbg_id,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
                               export_write_block_cbk,fuse_ctx_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
+                              export_write_block_cbk,fuse_ctx_p); 
+#endif
     if (ret < 0) goto error;    
     /*
     ** no error just waiting for the answer
@@ -1451,7 +1460,7 @@ error:
 
 void export_write_block_cbk(void *this,void *param) 
 {
-   ep_io_ret_t ret ;
+   epgw_io_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -1460,7 +1469,7 @@ void export_write_block_cbk(void *this,void *param)
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_io_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
     /*
@@ -1519,8 +1528,8 @@ void export_write_block_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_io_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_io_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }

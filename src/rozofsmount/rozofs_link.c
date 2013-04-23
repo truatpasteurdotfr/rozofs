@@ -52,6 +52,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/core/expgw_common.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -77,7 +78,7 @@ void rozofs_ll_link_nb(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
 {
     ientry_t *npie = 0;
     ientry_t *ie = 0;
-    ep_link_arg_t arg;
+    epgw_link_arg_t arg;
 
     int    ret;        
     void *buffer_p = NULL;
@@ -115,16 +116,23 @@ void rozofs_ll_link_nb(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.inode,  ie->fid, sizeof (uuid_t));
-    memcpy(arg.newparent, npie->fid, sizeof (uuid_t));
-    arg.newname = (char*)newname;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.inode,  ie->fid, sizeof (uuid_t));
+    memcpy(arg.arg_gw.newparent, npie->fid, sizeof (uuid_t));
+    arg.arg_gw.newname = (char*)newname;
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_LINK,(xdrproc_t) xdr_ep_link_arg_t,(void *)&arg,
+    int lbg_id = expgw_get_export_gateway_lbg(arg.arg_gw.eid,npie->fid);
+#if 1
+    ret = rozofs_expgateway_send_common(lbg_id,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_LINK,(xdrproc_t) xdr_epgw_link_arg_t,(void *)&arg,
                               rozofs_ll_link_cbk,buffer_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_LINK,(xdrproc_t) xdr_epgw_link_arg_t,(void *)&arg,
+                              rozofs_ll_link_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*
@@ -157,7 +165,7 @@ void rozofs_ll_link_cbk(void *this,void *param)
    ientry_t *ie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
@@ -165,7 +173,7 @@ void rozofs_ll_link_cbk(void *this,void *param)
    int      bufsize;
    mattr_t  attrs;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
@@ -226,12 +234,12 @@ void rozofs_ll_link_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attrs, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding
@@ -286,7 +294,7 @@ void rozofs_ll_readlink_cbk(void *this,void *param);
 
 void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     ientry_t *ie = NULL;
-    ep_mfile_arg_t arg;
+    epgw_mfile_arg_t arg;
 
     int    ret;
     void *buffer_p = NULL;
@@ -314,13 +322,13 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid,ie->fid, sizeof (uuid_t));
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid,ie->fid, sizeof (uuid_t));
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_READLINK,(xdrproc_t) xdr_ep_mfile_arg_t,(void *)&arg,
+                              EP_READLINK,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
                               rozofs_ll_readlink_cbk,buffer_p); 
     if (ret < 0) goto error;
     
@@ -352,9 +360,9 @@ void rozofs_ll_readlink_cbk(void *this,void *param)
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   ep_readlink_ret_t  ret;
+   epgw_readlink_ret_t  ret;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_readlink_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_readlink_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -414,12 +422,12 @@ void rozofs_ll_readlink_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_readlink_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_readlink_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    strcpy(target, ret.ep_readlink_ret_t_u.link);
+    strcpy(target, ret.status_gw.ep_readlink_ret_t_u.link);
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding
@@ -461,7 +469,7 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
         const char *name) 
 {
     ientry_t *ie = 0;
-    ep_symlink_arg_t arg;
+    epgw_symlink_arg_t arg;
 
     int    ret;        
     void *buffer_p = NULL;
@@ -499,16 +507,23 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.parent,ie->fid, sizeof (uuid_t));
-    arg.link = (char*)link;
-    arg.name = (char*)name;    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.parent,ie->fid, sizeof (uuid_t));
+    arg.arg_gw.link = (char*)link;
+    arg.arg_gw.name = (char*)name;    
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_SYMLINK,(xdrproc_t) xdr_ep_symlink_arg_t,(void *)&arg,
+    int lbg_id = expgw_get_export_gateway_lbg(arg.arg_gw.eid,ie->fid);
+#if 1
+    ret = rozofs_expgateway_send_common(lbg_id,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SYMLINK,(xdrproc_t) xdr_epgw_symlink_arg_t,(void *)&arg,
                               rozofs_ll_symlink_cbk,buffer_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SYMLINK,(xdrproc_t) xdr_epgw_symlink_arg_t,(void *)&arg,
+                              rozofs_ll_symlink_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*
@@ -540,7 +555,7 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
    ientry_t *nie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -550,7 +565,7 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attrs;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -610,12 +625,12 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attrs, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of message decoding
@@ -675,7 +690,7 @@ void rozofs_ll_unlink_cbk(void *this,void *param);
 
 void rozofs_ll_unlink_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     ientry_t *ie = 0;
-    ep_unlink_arg_t arg;    
+    epgw_unlink_arg_t arg;    
     void *buffer_p = NULL;
     int    ret;        
     
@@ -706,16 +721,23 @@ void rozofs_ll_unlink_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
         goto error;
     }    
         
-    arg.eid = exportclt.eid;
-    memcpy(arg.pfid, ie->fid, sizeof (uuid_t));
-    arg.name = (char*)name;    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.pfid, ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char*)name;    
         
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_UNLINK,(xdrproc_t) xdr_ep_unlink_arg_t,(void *)&arg,
+    int lbg_id = expgw_get_export_gateway_lbg(arg.arg_gw.eid,ie->fid);
+#if 1
+    ret = rozofs_expgateway_send_common(lbg_id,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_UNLINK,(xdrproc_t) xdr_epgw_unlink_arg_t,(void *)&arg,
                               rozofs_ll_unlink_cbk,buffer_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_UNLINK,(xdrproc_t) xdr_epgw_unlink_arg_t,(void *)&arg,
+                              rozofs_ll_unlink_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*
@@ -746,7 +768,7 @@ error:
 void rozofs_ll_unlink_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   ep_fid_ret_t ret ;
+   epgw_fid_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
@@ -755,7 +777,7 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
    struct rpc_msg  rpc_reply;
    ientry_t *ie = 0;
    fid_t     fid;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_fid_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -815,12 +837,12 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
        xdr_free(decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_fid_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_fid_ret_t_u.error;
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(fid, &ret.ep_fid_ret_t_u.fid, sizeof (fid_t));
+    memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (fid_t));
     xdr_free(decode_proc, (char *) &ret);    
     /*
     ** end of decoding

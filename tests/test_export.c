@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
     /* FAKE FOR TESTING ONLY */
     volume_t volume;
     mattr_t mattrs;
+    mattr_t pmattrs; 
     //fid_t fid;
     //char link_name[PATH_MAX];
 
@@ -119,7 +120,7 @@ int main(int argc, char **argv) {
         print_mattr(&mattrs);
      */
     printf("export_mknod (/node1):\n");
-    if (export_mknod(&export, export.rfid, "node1", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs) != 0) {
+    if (export_mknod(&export, export.rfid, "node1", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -130,7 +131,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node2):\n");
-    if (export_mknod(&export, export.rfid, "node2", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs) != 0) {
+    if (export_mknod(&export, export.rfid, "node2", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -141,7 +142,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node3):\n");
-    if (export_mknod(&export, export.rfid, "node3", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs) != 0) {
+    if (export_mknod(&export, export.rfid, "node3", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -152,7 +153,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node4):\n");
-    if (export_mknod(&export, export.rfid, "node4", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs) != 0) {
+    if (export_mknod(&export, export.rfid, "node4", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -163,7 +164,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node5):\n");
-    if (export_mknod(&export, export.rfid, "node5", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs) != 0) {
+    if (export_mknod(&export, export.rfid, "node5", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }

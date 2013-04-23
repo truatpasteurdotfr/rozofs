@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <rozofs/rozofs.h>
+
  
 extern uint32_t  *rozofs_storcli_cid_table[];
  

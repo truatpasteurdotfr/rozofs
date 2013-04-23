@@ -226,6 +226,149 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
 
 
 
+int rozofs_expgateway_send_common(int lbg_id,uint32_t prog,uint32_t vers,
+                              int opcode,xdrproc_t encode_fct,void *msg2encode_p,
+                              sys_recv_pf_t recv_cbk,void *fuse_ctx_p) 
+{
+    DEBUG_FUNCTION;
+   
+    uint8_t           *arg_p;
+    uint32_t          *header_size_p;
+    rozofs_tx_ctx_t   *rozofs_tx_ctx_p = NULL;
+    void              *xmit_buf = NULL;
+    int               bufsize;
+    int               ret;
+    int               position;
+    XDR               xdrs;    
+	struct rpc_msg   call_msg;
+    uint32_t         null_val = 0;
+
+    /*
+    ** allocate a transaction context
+    */
+    rozofs_tx_ctx_p = rozofs_tx_alloc();  
+    if (rozofs_tx_ctx_p == NULL) 
+    {
+       /*
+       ** out of context
+       ** --> put a pending list for the future to avoid repluing ENOMEM
+       */
+       TX_STATS(ROZOFS_TX_NO_CTX_ERROR);
+       errno = ENOMEM;
+       goto error;
+    }    
+    /*
+    ** allocate an xmit buffer
+    */  
+    xmit_buf = ruc_buf_getBuffer(ROZOFS_TX_SMALL_TX_POOL);
+    if (xmit_buf == NULL)
+    {
+      /*
+      ** something rotten here, we exit we an error
+      ** without activating the FSM
+      */
+      TX_STATS(ROZOFS_TX_NO_BUFFER_ERROR);
+      errno = ENOMEM;
+      goto error;
+    } 
+    /*
+    ** store the reference of the xmit buffer in the transaction context: might be useful
+    ** in case we want to remove it from a transmit list of the underlying network stacks
+    */
+    rozofs_tx_save_xmitBuf(rozofs_tx_ctx_p,xmit_buf);
+    /*
+    ** get the pointer to the payload of the buffer
+    */
+    header_size_p  = (uint32_t*) ruc_buf_getPayload(xmit_buf);
+    arg_p = (uint8_t*)(header_size_p+1);  
+    /*
+    ** create the xdr_mem structure for encoding the message
+    */
+    bufsize = rozofs_tx_get_small_buffer_size();
+    xdrmem_create(&xdrs,(char*)arg_p,bufsize,XDR_ENCODE);
+    /*
+    ** fill in the rpc header
+    */
+    call_msg.rm_direction = CALL;
+    /*
+    ** allocate a xid for the transaction 
+    */
+	call_msg.rm_xid             = rozofs_tx_alloc_xid(rozofs_tx_ctx_p); 
+	call_msg.rm_call.cb_rpcvers = RPC_MSG_VERSION;
+	/* XXX: prog and vers have been long historically :-( */
+	call_msg.rm_call.cb_prog = (uint32_t)prog;
+	call_msg.rm_call.cb_vers = (uint32_t)vers;
+	if (! xdr_callhdr(&xdrs, &call_msg))
+    {
+       /*
+       ** THIS MUST NOT HAPPEN
+       */
+       TX_STATS(ROZOFS_TX_ENCODING_ERROR);
+       errno = EPROTO;
+       goto error;	
+    }
+    /*
+    ** insert the procedure number, NULL credential and verifier
+    */
+    XDR_PUTINT32(&xdrs, (int32_t *)&opcode);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+        
+    /*
+    ** ok now call the procedure to encode the message
+    */
+    if ((*encode_fct)(&xdrs,msg2encode_p) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_ENCODING_ERROR);
+       errno = EPROTO;
+       goto error;
+    }
+    /*
+    ** Now get the current length and fill the header of the message
+    */
+    position = XDR_GETPOS(&xdrs);
+    /*
+    ** update the length of the message : must be in network order
+    */
+    *header_size_p = htonl(0x80000000 | position);
+    /*
+    ** set the payload length in the xmit buffer
+    */
+    int total_len = sizeof(*header_size_p)+ position;
+    ruc_buf_setPayloadLen(xmit_buf,total_len);
+    /*
+    ** store the receive call back and its associated parameter
+    */
+    rozofs_tx_ctx_p->recv_cbk   = recv_cbk;
+    rozofs_tx_ctx_p->user_param = fuse_ctx_p;    
+    /*
+    ** now send the message
+    */
+    ret = north_lbg_send(lbg_id,xmit_buf);
+    if (ret < 0)
+    {
+       TX_STATS(ROZOFS_TX_SEND_ERROR);
+       errno = EFAULT;
+      goto error;  
+    }
+    TX_STATS(ROZOFS_TX_SEND);
+
+    /*
+    ** OK, so now finish by starting the guard timer
+    */
+    rozofs_tx_start_timer(rozofs_tx_ctx_p, 25);
+//    if (*tx_ptr != NULL) *tx_ptr = rozofs_tx_ctx_p;
+    return 0;  
+    
+  error:
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);
+//    if (xmit_buf != NULL) ruc_buf_freeBuffer(xmit_buf);    
+    return -1;    
+}
+
+
 
 
 

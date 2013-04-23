@@ -88,7 +88,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     ientry_t *ie = 0;
     int    ret;        
     void *buffer_p = NULL;
-    ep_mfile_arg_t arg;
+    epgw_mfile_arg_t arg;
 
     /*
     ** allocate a context for saving the fuse parameters
@@ -115,13 +115,13 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     /*
     ** get the attributes of the file
     */
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid, ie->fid, sizeof (uuid_t));
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid, ie->fid, sizeof (uuid_t));
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_GETATTR,(xdrproc_t) xdr_ep_mfile_arg_t,(void *)&arg,
+                              EP_GETATTR,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
                               rozofs_ll_open_cbk,buffer_p); 
     if (ret < 0) goto error;    
     /*
@@ -154,7 +154,7 @@ void rozofs_ll_open_cbk(void *this,void *param)
   fuse_ino_t ino;
    fuse_req_t req; 
    struct fuse_file_info *fi ;  
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    int status;
    struct rpc_msg  rpc_reply;
    
@@ -163,7 +163,7 @@ void rozofs_ll_open_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attr;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -225,12 +225,12 @@ void rozofs_ll_open_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attr, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of the the decoding part

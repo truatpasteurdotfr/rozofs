@@ -65,13 +65,7 @@
  *  it will be push in front of list */
 #define RM_FILE_SIZE_TRESHOLD 0x40000000LL
 
-/**
- *  By default the system uses 256 slices with 4096 subslices per slice
- */
-#define MAX_SLICE_BIT 8
-#define MAX_SLICE_NB (1<<MAX_SLICE_BIT)
-#define MAX_SUBSLICE_BIT 12
-#define MAX_SUBSLICE_NB (1<<MAX_SUBSLICE_BIT)
+
 
 /** stat of an export
  * these values are independent of volume
@@ -110,20 +104,7 @@ typedef struct export {
     // to delete when we start or reload this export
 } export_t;
 
-/*
- **__________________________________________________________________
- */
-static inline void mstor_get_slice_and_subslice(fid_t fid, uint32_t *slice, uint32_t *subslice) {
-    uint32_t hash = 0;
-    uint8_t *c = 0;
 
-    for (c = fid; c != fid + 16; c++)
-        hash = *c + (hash << 6) + (hash << 16) - hash;
-
-    *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
-    hash = hash >> MAX_SLICE_BIT;
-    *subslice = hash & ((1 << MAX_SUBSLICE_BIT) - 1);
-}
 
 /** Remove bins files from trash 
  *
@@ -198,11 +179,12 @@ int export_stat(export_t * e, estat_t * st);
  * @param export: pointer to the export
  * @param pfid: fid of the parent of the searched file
  * @param name: pointer to the name of the searched file
- * @param attrs: mattr_t to fill
- *
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes) 
+ 
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t * attrs);
+int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t * attrs, mattr_t * pattrs);
 
 /** get attributes of a managed file
  *
@@ -231,12 +213,13 @@ int export_setattr(export_t *e, fid_t fid, mattr_t * attrs, int to_set);
  * @param inode: the id of the file we want to be link on
  * @param newparent: parent od the new file (the link)
  * @param newname: the name of the new file
- * @param attrs: mattr_t to fill (used by upper level functions)
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname,
-        mattr_t *attrs);
+        mattr_t *attrs,mattr_t *pattrs);
 
 /** create a new file
  *
@@ -246,12 +229,13 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname,
  * @param uid: the user id
  * @param gid: the group id
  * @param mode: mode of this file
- * @param attrs: mattr_t to fill (used by upper level functions)
- *
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+  
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t *attrs);
+        uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs);
 
 /** create a new directory
  *
@@ -261,23 +245,25 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
  * @param uid: the user id
  * @param gid: the group id
  * @param mode: mode of this file
- * @param attrs: mattr_t to fill (used by upper level functions)
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t *attrs);
+        uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs);
 
 /** remove a file
  *
  * @param e: the export managing the file
  * @param pfid: the id of the parent
  * @param name: the name of this file.
- * @param fid: the fid of the removed file
- *
+ * @param[out] fid: the fid of the removed file
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ * 
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_unlink(export_t * e, fid_t pfid, char *name, fid_t fid);
+int export_unlink(export_t * e, fid_t pfid, char *name, fid_t fid, mattr_t * pattrs);
 
 /*
 int export_rm_bins(export_t * e);
@@ -288,11 +274,12 @@ int export_rm_bins(export_t * e);
  * @param e: the export managing the file
  * @param pfid: the id of the parent
  * @param name: the name of directory to remove.
- * @param fid: fid_t of the removed directory to fill (used by upper level functions)
- *
+ * @param[out] fid: the fid of the removed file
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ * 
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid);
+int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid, mattr_t * pattrs);
 
 /** create a symlink
  *
@@ -300,14 +287,15 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid);
  * @param link: target name
  * @param pfid: the id of the parent
  * @param name: the name of the file to link.
- * @param attrs: mattr_t to fill (used by upper level functions)
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_symlink(export_t *e, char *link, fid_t pfid, char *name,
-        mattr_t * attrs);
+        mattr_t * attrs,mattr_t * pattrs);
 
-/** create a symlink
+/** read a symbolic link
  *
  * @param e: the export managing the file
  * @param fid: file id
@@ -360,7 +348,7 @@ int64_t export_read(export_t * e, fid_t fid, uint64_t offset, uint32_t len, uint
  */
 int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d);
 
-/** Set distribution for n blocks and update the file size, mtime and ctime
+/** update the file size, mtime and ctime
  *
  * dist is the same for all blocks
  *
@@ -371,10 +359,11 @@ int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d)
  * @param d: distribution to set
  * @param off: offset to write from
  * @param len: length written
+ * @param[out] attrs: updated attributes of the file
  *
  * @return: the written length on success or -1 otherwise (errno is set)
  */
-int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n, dist_t d, uint64_t off, uint32_t len);
+int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n, dist_t d, uint64_t off, uint32_t len,mattr_t *attrs);
 
 /** read a directory
  *

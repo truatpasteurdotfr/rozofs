@@ -41,6 +41,7 @@ add_executable(exportd
     dirent_enum2String_file_repair_cause_e.h
     cache.h
     cache.c
+
     export.h
     export.c
     eproto.c
@@ -50,8 +51,34 @@ add_executable(exportd
     econfig.c
     epproto.c
     exportd.c
+    exp_cache_dirty_mgt.c
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+
+add_executable(expgateway
+
+expgw_attr_cache.c
+expgw_attr_cache.h
+expgw_eprotosvc.c
+expgw_export.h
+expgw_fid_cache.c
+expgw_fid_cache.h
+expgw_lookup.c
+expgw_attr.c
+expgw_create_dir_file.c
+expgw_delete_dir_file.c
+expgw_mgt.c
+expgw_rozofs_north_intf.c
+expgw_send.c
+expgw_proto.h
+expgw_exportd_north_intf.c
+expgw_main.c
+expgw_main.h
+expgw_nblock_init.c
+
+)
+target_link_libraries(expgateway rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 
 # Install

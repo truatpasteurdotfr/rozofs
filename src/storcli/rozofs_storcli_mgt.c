@@ -677,6 +677,7 @@ uint32_t rozofs_storcli_module_init()
    ruc_obj_desc_t *pnext;
    uint32_t ret = RUC_OK;
    
+    rozofs_storcli_read_init_timer_module();
 
     rozofs_storcli_north_small_buf_count  = STORCLI_NORTH_MOD_INTERNAL_READ_BUF_CNT ;
     rozofs_storcli_north_small_buf_sz     = STORCLI_NORTH_MOD_INTERNAL_READ_BUF_SZ    ;

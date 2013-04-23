@@ -79,7 +79,7 @@ void rozofs_ll_rename_cbk(void *this,void *param) ;
 void rozofs_ll_rename_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
         fuse_ino_t newparent, const char *newname) 
 {
-    ep_rename_arg_t arg;
+    epgw_rename_arg_t arg;
     ientry_t *pie = 0;
     ientry_t *npie = 0;
     int    ret;        
@@ -118,16 +118,16 @@ void rozofs_ll_rename_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.pfid,pie->fid, sizeof (uuid_t));
-    arg.name = (char*)name;    
-    memcpy(arg.npfid, npie->fid, sizeof (fid_t));
-    arg.newname = (char*)newname;    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.pfid,pie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char*)name;    
+    memcpy(arg.arg_gw.npfid, npie->fid, sizeof (fid_t));
+    arg.arg_gw.newname = (char*)newname;    
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_RENAME,(xdrproc_t) xdr_ep_rename_arg_t,(void *)&arg,
+                              EP_RENAME,(xdrproc_t) xdr_epgw_rename_arg_t,(void *)&arg,
                               rozofs_ll_rename_cbk,buffer_p); 
     if (ret < 0) goto error;
     
@@ -158,14 +158,14 @@ void rozofs_ll_rename_cbk(void *this,void *param)
    ientry_t *old_ie = 0;
    fid_t fid;
    fuse_req_t req; 
-   ep_fid_ret_t ret;
+   epgw_fid_ret_t ret;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_fid_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -225,12 +225,12 @@ void rozofs_ll_rename_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_fid_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_fid_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(fid, &ret.ep_fid_ret_t_u.fid, sizeof (fid_t));
+    memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (fid_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding section

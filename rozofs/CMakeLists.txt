@@ -141,6 +141,14 @@ set (librozofs_sources
     core/rozofs_tx_common.h
     core/rozofs_tx_engine.c
     core/com_tx_timer.c
+    core/com_cache.c
+    core/com_cache.h
+    rpc/gwprotoclt.c
+    rpc/gwproto.h
+    rpc/gwprotosvc.c
+    rpc/gwprotoxdr.c
+    core/expgw_common.h
+    core/expgw_common.c
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

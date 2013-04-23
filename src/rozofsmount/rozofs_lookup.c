@@ -53,6 +53,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/core/expgw_common.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -73,7 +74,7 @@ void rozofs_ll_lookup_cbk(void *this,void *param);
 void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name) 
 {
     ientry_t *ie = 0;
-    ep_lookup_arg_t arg;
+    epgw_lookup_arg_t arg;
     int    ret;        
     void *buffer_p = NULL;
     /*
@@ -106,15 +107,23 @@ void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name)
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.parent,ie->fid, sizeof (uuid_t));
-    arg.name = (char*)name;    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.parent,ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char*)name;    
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_LOOKUP,(xdrproc_t) xdr_ep_lookup_arg_t,(void *)&arg,
+    int lbg_id = expgw_get_export_gateway_lbg(arg.arg_gw.eid,ie->fid);
+#if 1
+    ret = rozofs_expgateway_send_common(lbg_id,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_LOOKUP,(xdrproc_t) xdr_epgw_lookup_arg_t,(void *)&arg,
                               rozofs_ll_lookup_cbk,buffer_p); 
+    
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_LOOKUP,(xdrproc_t) xdr_epgw_lookup_arg_t,(void *)&arg,
+                              rozofs_ll_lookup_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*
@@ -148,7 +157,7 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
    ientry_t *nie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -158,7 +167,7 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attrs;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -218,12 +227,12 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attrs, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     
     if (!(nie = get_ientry_by_fid(attrs.fid))) {

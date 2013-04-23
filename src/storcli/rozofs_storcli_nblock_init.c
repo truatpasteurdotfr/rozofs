@@ -56,8 +56,6 @@
 #include "rozofs_storcli_rpc.h"
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "storcli_main.h"
-
-
 /*
 **_________________________________________________________________________
 *      PUBLIC FUNCTIONS
@@ -218,9 +216,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t rozofsmount_instance)
      /*
      ** init of the storage client structure
      */
-     ret = rozofs_storcli_module_init(STORCLI_CTX_CNT,
-                                      
-                                      2048,(1024*258),2048,(1024*258));
+     ret = rozofs_storcli_module_init();
      if (ret != RUC_OK) break; 
     
      ret = storcli_sup_moduleInit();

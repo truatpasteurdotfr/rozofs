@@ -48,6 +48,7 @@
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/expgw_common.h>
 
 #include "rozofs_fuse.h"
 
@@ -61,6 +62,44 @@ pthread_t heartbeat_thrdId;
 
 int module_test_id = 0;
 
+/**
+*  Init of the exportd gateway
+*/
+#warning rozofs_expgateway_init  test with localhost 1 and 2
+int rozofs_expgateway_init()
+{
+    int ret;
+    
+    expgw_export_tableInit();
+
+    ret = expgw_export_add_eid(1,   // exportd id
+                               1,   // eid
+                               "localhost",  // hostname of the Master exportd
+                               0,  // port
+                               2,  // nb Gateway
+                               0   // gateway rank: not significant for an rozofsmount
+                               );
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
+        goto error;
+    }
+    ret = expgw_add_export_gateway(1, "localhost1",60000,0);  
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        goto error;
+    }    
+    ret = expgw_add_export_gateway(1, "localhost2",60000,1);  
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        goto error;
+    }  
+
+    return RUC_OK;
+error: 
+   return RUC_NOK;
+
+}
+
 uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     int ret;
 
@@ -68,8 +107,8 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     uint32_t mx_tcp_client = 10;
     uint32_t mx_tcp_server = 10;
     uint32_t mx_tcp_server_cnx = 10;
-    uint32_t mx_af_unix_ctx = 8;
-    uint32_t mx_lbg_north_ctx = 8;
+    uint32_t mx_af_unix_ctx = 32;
+    uint32_t mx_lbg_north_ctx = 32;
 
     //#warning TCP configuration ressources is hardcoded!!
     /*
@@ -179,6 +218,10 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
 
         if (ret != RUC_OK) break;
 #endif    
+        ret = rozofs_expgateway_init();
+        if (ret != RUC_OK) break;
+
+
         break;
 
     }

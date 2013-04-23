@@ -1,0 +1,28 @@
+
+For tests with setup_nb.sh
+
+ifconfig file:
+
+ifconfig eth0:1 192.168.2.1 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:2 192.168.2.2 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:3 192.168.2.3 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:4 192.168.2.4 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:5 192.168.2.5 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:6 192.168.2.6 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:7 192.168.2.7 netmask 255.255.255.0 broadcast 192.168.2.255
+ifconfig eth0:8 192.168.2.8 netmask 255.255.255.0 broadcast 192.168.2.255
+
+
+etc/hosts
+# Do not remove the following line, or various programs
+# that require network functionality will fail.
+127.0.0.1		localhost.localdomain localhost    
+::1		localhost6.localdomain6 localhost6
+192.168.2.1 localhost1
+192.168.2.2 localhost2
+192.168.2.3 localhost3
+192.168.2.4 localhost4
+192.168.2.5 localhost5
+192.168.2.6 localhost6
+192.168.2.7 localhost7
+192.168.2.8 localhost8

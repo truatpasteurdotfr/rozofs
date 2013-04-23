@@ -508,6 +508,38 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p);
 */
 void rozofs_storcli_read_reply_error(rozofs_storcli_ctx_t *p,int error);
 /*
+**____________________________________________________
+*/
+/*
+  start a periodic timer to chech wether the export LBG is down
+  When the export is restarted its port may change, and so
+  the previous configuration of the LBG is not valid any more
+*/
+void rozofs_storcli_read_init_timer_module();
+
+/*
+**____________________________________________________
+*/
+/**
+* stop the read guard timer
+
+  @param p: read main context
+  
+ @retval none
+*/
+void rozofs_storcli_stop_read_guard_timer(rozofs_storcli_ctx_t  *p);
+/*
+**____________________________________________________
+*/
+/**
+* start the read guard timer: must be called upon the reception of the first projection
+
+  @param p: read main context
+  
+ @retval none
+*/
+void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p);
+/*
 **__________________________________________________________________________
 */
 /**
