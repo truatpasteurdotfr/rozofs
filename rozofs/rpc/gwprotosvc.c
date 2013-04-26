@@ -16,6 +16,9 @@
 #define SIG_PF void(*)(int)
 #endif
 #include <rozofs/rozofs.h>
+#define GW_NAME_LEN (ROZOFS_HOSTNAME_MAX/4)
+//  uint32_t           eid[EXPGW_EID_MAX_IDX];  
+//  gw_host_conf_t     gateway_host[EXPGW_EXPGW_MAX_IDX];
 
 void
 gw_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
@@ -24,6 +27,7 @@ gw_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		gw_invalidate_sections_t gw_invalidate_sections_1_arg;
 		gw_header_t gw_invalidate_all_1_arg;
 		gw_configuration_t gw_configuration_1_arg;
+		gw_header_t gw_poll_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -52,6 +56,12 @@ gw_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_gw_configuration_t;
 		_xdr_result = (xdrproc_t) xdr_gw_status_t;
 		local = (char *(*)(char *, struct svc_req *)) gw_configuration_1_svc;
+		break;
+
+	case GW_POLL:
+		_xdr_argument = (xdrproc_t) xdr_gw_header_t;
+		_xdr_result = (xdrproc_t) xdr_gw_status_t;
+		local = (char *(*)(char *, struct svc_req *)) gw_poll_1_svc;
 		break;
 
 	default:

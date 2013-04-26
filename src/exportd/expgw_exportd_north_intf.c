@@ -64,6 +64,7 @@ void expgw_exportd_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *rec
 {
  #warning fake expgw_exportd_req_rcv_cbk()   
     ruc_buf_freeBuffer(recv_buf);
+    info ("Message received on Config. Channel");
     
 }
 

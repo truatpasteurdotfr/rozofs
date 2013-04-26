@@ -77,7 +77,6 @@ static inline void expgw_fid_build_key(expgw_fid_key_t *Pkey,unsigned char * pfi
 void expgw_mknod_1_svc(epgw_mknod_arg_t * arg, expgw_ctx_t *req_ctx_p) 
 {
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
     
@@ -87,8 +86,9 @@ void expgw_mknod_1_svc(epgw_mknod_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -98,16 +98,10 @@ void expgw_mknod_1_svc(epgw_mknod_arg_t * arg, expgw_ctx_t *req_ctx_p)
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -155,7 +149,6 @@ out:
 void expgw_symlink_1_svc(epgw_symlink_arg_t * arg, expgw_ctx_t *req_ctx_p) 
 {
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
     
@@ -165,8 +158,9 @@ void expgw_symlink_1_svc(epgw_symlink_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -176,16 +170,10 @@ void expgw_symlink_1_svc(epgw_symlink_arg_t * arg, expgw_ctx_t *req_ctx_p)
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -233,7 +221,6 @@ out:
 void expgw_link_1_svc(epgw_link_arg_t * arg, expgw_ctx_t *req_ctx_p) 
 {
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
     
@@ -243,8 +230,9 @@ void expgw_link_1_svc(epgw_link_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -254,16 +242,10 @@ void expgw_link_1_svc(epgw_link_arg_t * arg, expgw_ctx_t *req_ctx_p)
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.newparent);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.newparent);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.newparent,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -310,7 +292,6 @@ out:
 void expgw_mkdir_1_svc(epgw_mkdir_arg_t * arg, expgw_ctx_t *req_ctx_p) 
 {
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
     
@@ -320,8 +301,9 @@ void expgw_mkdir_1_svc(epgw_mkdir_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -331,16 +313,10 @@ void expgw_mkdir_1_svc(epgw_mkdir_arg_t * arg, expgw_ctx_t *req_ctx_p)
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent,0,0,expgw_mkdir_mknod_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -448,7 +424,7 @@ void expgw_mkdir_mknod_cbk(void *this,void *buffer)
        if (com_cache_bucket_insert_entry(expgw_attr_cache_p, cache_entry) < 0)
        {
          severe("error on fid insertion"); 
-         expgw_attr_release_entry(cache_attr_entry_p);
+         expgw_attr_release_entry(cache_entry->usr_entry_p);
        }
        break;     
      }
@@ -508,7 +484,7 @@ void expgw_mkdir_mknod_cbk(void *this,void *buffer)
       if (com_cache_bucket_insert_entry(expgw_attr_cache_p, cache_entry) < 0)
       {
         severe("error on fid insertion"); 
-        expgw_attr_release_entry(cache_attr_entry_p);
+        expgw_attr_release_entry(cache_entry->usr_entry_p);
       }
       break;
    }

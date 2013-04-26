@@ -71,18 +71,21 @@ int rozofs_expgateway_init()
     int ret;
     
     expgw_export_tableInit();
+//#warning only 1 gateway: localhost1
 
     ret = expgw_export_add_eid(1,   // exportd id
                                1,   // eid
                                "localhost",  // hostname of the Master exportd
                                0,  // port
                                2,  // nb Gateway
-                               0   // gateway rank: not significant for an rozofsmount
+                               2   // gateway rank: not significant for an rozofsmount
                                );
     if (ret < 0) {
         fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
+        fatal("Fatal error on expgw_export_add_eid()");
         goto error;
     }
+    
     ret = expgw_add_export_gateway(1, "localhost1",60000,0);  
     if (ret < 0) {
         fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
@@ -146,7 +149,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      **   for: NPS, Timer, Debug, etc...
      */
     //#warning set the number of contexts for socketCtrl to 100
-    ret = ruc_sockctl_init(100);
+    ret = ruc_sockctl_init(256);
     if (ret != RUC_OK) {
         ERRFAT " socket controller init failed" ENDERRFAT
     }

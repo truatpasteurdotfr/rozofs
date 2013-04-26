@@ -181,7 +181,7 @@ typedef struct _com_cache_main_t {
 } com_cache_main_t;
 
 
-#define SHOW_STAT_CACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10.10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
+#define SHOW_STAT_CACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
 
 /**
 *  API for displaying the statistics of a cache

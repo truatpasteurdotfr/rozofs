@@ -39,18 +39,45 @@ extern "C" {
 #include <rozofs/core/north_lbg_api.h>
 #include <rpc/pmap_clnt.h>
 
+/**
+*   The reference of the load balancing group are set to -1 if the destination is not reachable
+*   For the case of the master exportd it corresponds to the case where the lbg is down 
+*   for the case of the export gateway it correspond to the case of lbg down and also to the case where is eid is not reachable
+*/
+#define EXPGW_MAX_ROUTING_LBG 2
+typedef struct _expgw_tx_routing_ctx_t
+{
+   int gw_rank;             /**<index of the gateway in the eid/fid routing table                           */
+   int eid;                 /**<index of the gateway in the eid/fid routing table                           */
+   int cur_lbg;             /**< current lbg idx in the table                                               */
+   int nb_lbg;              /**< number of lbg in the table                                                 */
+   int lbg_id[EXPGW_MAX_ROUTING_LBG];           /**< reference of the load balancing group of the master Exportd : default route */
+   int lbg_type[EXPGW_MAX_ROUTING_LBG];           /**< reference of the load balancing group of the master Exportd : default route */
+   int keep_xmit_buf_flag;  /**< assert to one if the requester wants to keep the rpc xmit buffer            */
+   void *xmit_buf;          /**< pointer to xmit_buffer when keep_xmit_buf_flag is asserted                  */
+} expgw_tx_routing_ctx_t;
 
-#define EXPGW_EID_MAX_IDX 1024
-
+//#define EXPGW_EID_MAX_IDX 1024
+/**
+* note about exp_gateway_status field usage:
+* The corresponding bit of an export gateways is cleared for the following cases:
+   - the associated load balancing group is down (??)
+   - the eid is not handled by the gateway (EP_FAILURE_EID_NOT_SUPPORTED)
+   by default all the bits are asserted indicating that the gateway supports the eid. For the
+   status of the lbg, it uses the corresponding lbg API 
+*/
 typedef struct _expgw_eid_ctx_t
 {
    uint16_t  eid;      /**< eid value  */ 
    uint16_t  exportd_id ; /**< index of the parent exportd  */   
+   uint32_t  exp_gateway_bitmap_status; /**< a 1 indicates that the gateway cannot provide the service this eid  */
+   uint64_t  gateway_send_counters[EXPGW_EXPGW_MAX_IDX+1];
+
 }  expgw_eid_ctx_t;
 /**
 *  lbg connection towards the EXPORT gateways associated with and exportd_id
 */
-#define EXPGW_EXPGW_MAX_IDX 32
+//#define EXPGW_EXPGW_MAX_IDX 32
 
 typedef struct _expgw_expgw_ctx_t
 {
@@ -60,7 +87,7 @@ typedef struct _expgw_expgw_ctx_t
    int       gateway_lbg_id;        /**< reference of the load balancing group for reach the master exportd (default route) */
 } expgw_expgw_ctx_t;
 
-#define EXPGW_EXPORTD_MAX_IDX 64
+//#define EXPGW_EXPORTD_MAX_IDX 64
 
 typedef struct _expgw_exportd_ctx_t
 {
@@ -77,7 +104,209 @@ typedef struct _expgw_exportd_ctx_t
 
 extern expgw_eid_ctx_t      expgw_eid_table[];
 extern expgw_exportd_ctx_t  expgw_exportd_table[];
+/*
+**______________________________________________________________________________
+*/
+/**
+* init of the routing context for export gateway and rozofsmount
 
+  @param p: pointer to the routing context
+  
+  @retval none
+*/
+static inline void expgw_routing_ctx_init(expgw_tx_routing_ctx_t *p)
+{
+   int i;
+   for (i = 0; i < EXPGW_MAX_ROUTING_LBG; i++) 
+   {
+     p->lbg_id[i] = -1;  
+     p->lbg_type[i] = -1;  
+   }
+   p->eid       = 0;
+   p->nb_lbg    = 0;       
+   p->cur_lbg   = 0;       
+   p->keep_xmit_buf_flag = 0; 
+   p->xmit_buf = NULL; 
+   p->gw_rank = -1;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+* Update the gateways statistics
+
+
+  @param eid : index of the export
+  @param lbg_type : 0 for an export gateway and 1 for the deault gateway (master exportd)
+  @param gateway_rank: index of the server
+  
+  @retval none
+*/
+static inline void expgw_routing_update_stats(int eid,int lbg_type,int gateway_rank)
+{
+  if (eid >= EXPGW_EID_MAX_IDX) return;
+  if ( gateway_rank >= EXPGW_EXPGW_MAX_IDX) return;
+  
+  if (lbg_type == 0) expgw_eid_table[eid].gateway_send_counters[gateway_rank]++;
+  else expgw_eid_table[eid].gateway_send_counters[EXPGW_EXPGW_MAX_IDX]++;
+
+}
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*   Get the next lbg_id available
+
+  @param p: exportd lbg routing table
+  @param xmit_buffer : buffer used for transmission
+  
+  @retval >=  0 reference of the load balancing group
+  @retval < O no available load balancing group
+*/
+static inline int expgw_routing_get_next(expgw_tx_routing_ctx_t *p,void *xmit_buf)
+{
+    int lbg_id;
+    if (p->nb_lbg == 0)
+    {
+      return -1;    
+    }
+    if (p->nb_lbg == p->cur_lbg)
+    {
+      return -1;    
+    }
+    if ((p->cur_lbg == 0) && (p->nb_lbg > 1))
+    {
+      /*
+      ** save the xmit_buffer and assert the inuse flag in the routing context
+      */
+      p->xmit_buf = xmit_buf;
+      ruc_buf_inuse_increment(p->xmit_buf);      
+      p->keep_xmit_buf_flag = 1;   
+    }
+    lbg_id = p->lbg_id[p->cur_lbg];
+    /*
+    ** update the satistics
+    */
+    expgw_routing_update_stats(p->eid,p->lbg_type[p->cur_lbg],p->gw_rank);
+    p->cur_lbg++;
+    /*
+    ** return the next available load balancing group reference
+    */
+    return lbg_id;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   Invalidate the usage of an export gateway for a given eid
+
+  @param p: exportd lbg routing table
+  @param eid: eid to validate/invalidate
+  @param action : EXPGW_SUPPORTS_EID/EXPGW_DOES_NOT_SUPPORT_EID
+    
+  @retval >=  0 reference of the load balancing group
+  @retval < O no available load balancing group
+*/
+#define EXPGW_SUPPORTS_EID 1
+#define EXPGW_DOES_NOT_SUPPORT_EID 0
+static inline int expgw_routing_expgw_for_eid(expgw_tx_routing_ctx_t *p, int eid, int action)
+{
+    int srv_rank;
+    /*
+    ** Bad gateway rank is saved in this routing context
+    */
+    srv_rank = p->gw_rank ;
+    if ((srv_rank < -1) || (srv_rank >= EXPGW_EXPGW_MAX_IDX))
+    {
+      errno = EINVAL;
+      return -1;    
+    }
+    /*
+    ** Bad eid value
+    */
+    if (eid >= EXPGW_EXPORTD_MAX_IDX)
+    {
+      errno = EINVAL;
+      return -1;
+    }
+    
+    /*
+    ** Set bit to one for this gateway
+    */
+    if (action == EXPGW_SUPPORTS_EID) {
+      /*
+      ** Validate the gateway by clearing bit
+      */
+      expgw_eid_table[eid].exp_gateway_bitmap_status &= ~(1<<srv_rank);
+    }
+    else {
+      /*
+      ** Invalidate the gateway by setting bit to 1
+      */
+      expgw_eid_table[eid].exp_gateway_bitmap_status |= (1<<srv_rank);
+    }  
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   Insert the reference of a load balancing group in the routing context
+
+  @param p: exportd lbg routing table
+  @param lbg_id : reference of the load balancing group
+  @param eid : reference of export
+  @param lbg_type : type of the gateway (exportd is 1)
+  
+  @retval 0 success
+  @retval < 0 error
+*/
+static inline int expgw_routing_insert_lbg(expgw_tx_routing_ctx_t *p,int lbg_id,int eid,int lbg_type)
+{
+
+    if (p->nb_lbg >= EXPGW_MAX_ROUTING_LBG)
+    {
+      return -1;    
+    }
+    p->eid = eid;
+    p->lbg_id[p->nb_lbg] = lbg_id;
+    p->lbg_type[p->nb_lbg] = lbg_type;
+    p->nb_lbg++;
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*  API to attempt releasing an xmit buffer that might have been saved
+   when there is more that one available load balancing group
+   
+   @param p : load balancing group routing table
+   
+   @retval none
+*/
+static inline void expgw_routing_release_buffer(expgw_tx_routing_ctx_t *p)
+{
+  /*
+  ** attempt to release the saved buffer, there is saved buffer when
+  * keep_xmit_buf_flag is asserted
+  */
+  if (p->keep_xmit_buf_flag == 0) return;
+  if (p->xmit_buf == NULL) return;
+  /*
+  ** decrement the inuse counter
+  */
+  int inuse = ruc_buf_inuse_decrement(p->xmit_buf);
+  if(inuse == 1) 
+  {
+    ruc_objRemove((ruc_obj_desc_t*)p->xmit_buf);
+    ruc_buf_freeBuffer(p->xmit_buf);
+  } 
+  p->xmit_buf           = NULL; 
+  p->keep_xmit_buf_flag = 0; 
+ 
+}
 /*
 **______________________________________________________________________________
 */
@@ -295,17 +524,121 @@ static inline char *expgw_display_all_exportd_routing_table(char *buffer)
 
 static inline char *expgw_display_all_eid(char *buffer)
 {
-   int i;
+   int i,j;
    expgw_eid_ctx_t *p = expgw_eid_table;
+   expgw_exportd_ctx_t *q = expgw_exportd_table;
+   int nb_gateways;
+   int lbg_id;
    
    for (i = 0; i < EXPGW_EID_MAX_IDX; i++,p++)
    {
       if (p->eid == 0) continue;
+      q = &expgw_exportd_table[p->exportd_id];
+      nb_gateways = q->nb_gateways;
+      
       buffer += sprintf(buffer,"eid %4.4d  exportd %d\n",p->eid,p->exportd_id);
+      if (nb_gateways == 0) continue;
+      for (j= 0; j < nb_gateways; j++)
+      {
+        buffer += sprintf(buffer," rank %3d : %8llu ",j,(long long unsigned int)p->gateway_send_counters[j]);              
+        if (q->expgw_list[j].hostname[0] == 0) 
+        {
+         buffer += sprintf(buffer,"\n");
+         continue;
+        }
+        if (q->gateway_rank == j)
+        {
+           buffer += sprintf(buffer," *%15s:%5.5d\n",q->expgw_list[j].hostname,q->expgw_list[j].port);  
+           continue;              
+        }
+        buffer += sprintf(buffer," %16s:%5.5d ",q->expgw_list[j].hostname,q->expgw_list[j].port);
+        lbg_id = q->expgw_list[j].gateway_lbg_id;
+        if (lbg_id== -1)
+        {
+           buffer += sprintf(buffer," lbg_id ??? state DOWN ");     
+        }
+        else
+        {
+           int lbg_state = north_lbg_get_state(lbg_id);
+           switch (lbg_state)
+           {
+             case NORTH_LBG_UP:
+              buffer += sprintf(buffer," lbg_id %3d state UP   ",lbg_id);  
+              break; 
+              default:
+             case NORTH_LBG_DOWN:
+              buffer += sprintf(buffer," lbg_id %3d state DOWN ",lbg_id);  
+              break;          
+           }
+        }
+        /*
+        ** provide the lock state
+        */
+        if ((p->exp_gateway_bitmap_status & (1<<i)) == 0)
+        {
+          buffer += sprintf(buffer," unblocked ");        
+        }
+        else
+        {
+          buffer += sprintf(buffer," blocked ");        
+        }
+        buffer += sprintf(buffer,"\n");
+      }
+      buffer += sprintf(buffer," default  : %8llu ",(long long unsigned int)p->gateway_send_counters[EXPGW_EXPGW_MAX_IDX]);
+      buffer += sprintf(buffer," %16s:%5.5d ",q->hostname,q->port);
+      lbg_id = q->export_lbg_id;
+      if (lbg_id== -1)
+      {
+         buffer += sprintf(buffer," lbg_id ??? state DOWN ");     
+      }
+      else
+      {
+         int lbg_state = north_lbg_get_state(lbg_id);
+         switch (lbg_state)
+         {
+           case NORTH_LBG_UP:
+            buffer += sprintf(buffer," lbg_id %3d state UP   ",lbg_id);  
+            break; 
+            default:
+           case NORTH_LBG_DOWN:
+            buffer += sprintf(buffer," lbg_id %3d state DOWN ",lbg_id);  
+            break;          
+         }
+         if (north_lbg_get_state(lbg_id) != NORTH_LBG_UP)
+         buffer += sprintf(buffer," lbg_id ??? state DOWN ");     
+      }
    }
 
    return buffer;
 }   
+
+
+/*
+**______________________________________________________________________________
+*/
+/**
+  That function is inteneded to be called to get the references of the egress
+  load balancing group:
+
+  That API might return up to 2 load balancing group references
+  When there are 2 references the first is the one associated with the exportd gateway
+  and the second is the one associated with the master exportd (default route).
+  
+  Note: for the case of the default route the state of the load balancing group
+  is not tested. This might avoid a reject of a request while the system attempts
+  to reconnect. This will permit the offer a system which is less sensitive to
+  the network failures.
+   
+   
+  @param eid: eid within the exportd
+  @param fid : fid of the incoming response or request
+  @param routing_ctx_p : load balancing routing context result
+  
+  @retval >= 0 : reference of the lood balancing group 
+  @retval <  0 no load balancing group 
+  
+*/
+int expgw_get_export_routing_lbg_info(uint16_t eid,fid_t fid,expgw_tx_routing_ctx_t *routing_ctx_p);
 
 
 #ifdef __cplusplus

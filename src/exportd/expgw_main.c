@@ -312,12 +312,12 @@ int main(int argc, char *argv[]) {
      */
     ret = expgw_non_blocking_init(conf.listening_port_base+(100*conf.module_index)+EXPGW_PORT_DEBUG_IDX, conf.rozofsmount_instance);
     if (ret < 0) {
-        fprintf(stderr, "Fatal error while initializing non blocking entity\n");
+        severe("Fatal error while initializing non blocking entity\n");
         goto error;
     }
     {
         char name[32];
-        sprintf(name, "expgw %d instance %d", conf.module_index, conf.rozofsmount_instance);
+        sprintf(name, "expgw %d ", conf.module_index);
         uma_dbg_set_name(name);
     }
 
@@ -328,7 +328,7 @@ int main(int argc, char *argv[]) {
     {
        if (expgw_host2ip(conf.localhost,&expgw_local_ipaddr) < 0)
        {
-        fprintf(stderr, "Cannot get local IP address: %s\n",conf.localhost);
+        severe("Cannot get local IP address: %s\n",conf.localhost);
         goto error;       
        
        }
@@ -340,21 +340,36 @@ int main(int argc, char *argv[]) {
             expgw_local_ipaddr, conf.listening_port_base+EXPGW_PORT_ROZOFSMOUNT_IDX,
             EXPGW_NORTH_LBG_BUF_RECV_CNT, EXPGW_NORTH_LBG_BUF_RECV_SZ);
     if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_rozofs_north_interface_init()\n");
+        severe("Fatal error on expgw_rozofs_north_interface_init()\n");
         goto error;
     }
+
+    /*
+     ** Init of the north interface (interface with exportd for configuration and cache consistency)
+     */
+    ret = expgw_exportd_north_interface_init(
+            expgw_local_ipaddr, conf.listening_port_base+EXPGW_PORT_EXPORTD_IDX,
+            EXPGW_NORTH_LBG_BUF_RECV_CNT, EXPGW_NORTH_LBG_BUF_RECV_SZ);
+    if (ret < 0) {
+        severe("Fatal error on expgw_exportd_north_interface_init()\n");
+        goto error;
+    }
+
+
+
+
     /*
     ** init of fid and attribute cache
     */
     ret = expgw_fid_cache_init();
     if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_fid_cache_init()\n");
+        severe("Fatal error on expgw_fid_cache_init()\n");
         goto error;
     }
 
     ret = expgw_attr_cache_init();
     if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_fid_cache_init()\n");
+        severe("Fatal error on expgw_fid_cache_init()\n");
         goto error;
     } 
     /*
@@ -363,6 +378,8 @@ int main(int argc, char *argv[]) {
     expgw_export_tableInit();
     int idx = -1;
     sscanf(conf.localhost,"localhost%d",&idx);
+//#warning only 1 gateway: localhost1 see alo line 381
+ 
     ret = expgw_export_add_eid(1,   // exportd id
                                1,   // eid
                                conf.host,  // hostname of the Master exportd
@@ -371,21 +388,19 @@ int main(int argc, char *argv[]) {
                                idx-1   // gateway rank
                                );
     if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
+        severe("Fatal error on expgw_export_add_eid()\n");
         goto error;
     } 
-    if (strcmp(conf.localhost,"localhost1") == 0)
+    while (1)
     {
-      ret = expgw_add_export_gateway(1, "localhost2",conf.listening_port_base+EXPGW_PORT_ROZOFSMOUNT_IDX,1);  
-    }
-    else
-    {
-    
+      ret = expgw_add_export_gateway(1, "localhost2",conf.listening_port_base+EXPGW_PORT_ROZOFSMOUNT_IDX,1); 
+      if (ret < 0) break;
       ret = expgw_add_export_gateway(1, "localhost1",conf.listening_port_base+EXPGW_PORT_ROZOFSMOUNT_IDX,0);  
-    
-    }                     
+      if (ret < 0) break;
+      break;    
+    }      
     if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        severe("Fatal error on expgw_add_export_gateway()\n");
         goto error;
     } 
  
@@ -404,13 +419,14 @@ int main(int argc, char *argv[]) {
     /*
      ** main loop
      */
-    info("expgw %d of rozofsmount %d on mount point %s started", conf.module_index, conf.rozofsmount_instance, conf.mount);
+    info("Export Gateway %d non blocking thread started: debug port %d",conf.module_index,
+                                conf.listening_port_base+(100*conf.module_index)+EXPGW_PORT_DEBUG_IDX);
 
     while (1) {
         ruc_sockCtrl_selectWait();
     }
 
 error:
-    fprintf(stderr, "see log for more details.\n");
+    severe("see log for more details.\n");
     exit(EXIT_FAILURE);
 }

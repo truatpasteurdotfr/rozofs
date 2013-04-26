@@ -271,6 +271,7 @@ com_cache_main_t *com_cache_create(uint32_t level0_sz, uint32_t max,com_cache_us
         list_init(&p->bucket_lru_link);
         memset(&p->bucket_free_bitmap, 0xff, COM_BUCKET_MAX_COLLISIONS_BYTES);
         memset(&p->entry_tb, 0, COM_BUCKET_ENTRY_MAX_ARRAY * sizeof (void*));
+        p->dirty_bucket_counter = 0;
     }
     return cache;
 }
@@ -336,7 +337,7 @@ int com_cache_bucket_insert_entry(com_cache_main_t *cache, com_cache_entry_t *en
       ** release the memory allocated for storing the dirent file
       */
       cache->stats.com_bucket_cache_lru_counter_global++;
-      (*cache->usr_delete_fct)(cache_entry_lru_p->usr_entry_p);
+// FDL      (*cache->usr_delete_fct)(cache_entry_lru_p->usr_entry_p);
     }
     /*
      ** set the pointer to the bucket and load up the pointer to the bitmap
@@ -436,7 +437,7 @@ reloop:
       ** release the memory allocated for storing the dirent file
       */
       cache->stats.com_bucket_cache_lru_counter_coll++;
-      (*cache->usr_delete_fct)(cache_entry_lru_p->usr_entry_p);
+// FDL      (*cache->usr_delete_fct)(cache_entry_lru_p->usr_entry_p);
     }
     goto reloop;
 }
@@ -583,7 +584,7 @@ void *com_cache_bucket_search_entry(com_cache_main_t *cache, void *key_p) {
         /*
         ** delete the entry
         */
-        (*cache->usr_delete_fct)(cache_entry_p->usr_entry_p);
+// FDL        (*cache->usr_delete_fct)(cache_entry_p->usr_entry_p);
         cache->stats.com_bucket_cache_dirty_counter++;
     }
     cache->stats.com_bucket_cache_miss_counter++;
@@ -696,7 +697,11 @@ int com_cache_bucket_remove_entry(com_cache_main_t *cache, void *key_p) {
         */
         {
           list_remove(&cache_entry_p->global_lru_link);
-          list_remove(&cache_entry_p->bucket_lru_link);          
+          list_remove(&cache_entry_p->bucket_lru_link);  
+          /*
+          ** delete the entry
+          */
+          (*cache->usr_delete_fct)(cache_entry_p->usr_entry_p);        
           cache->size--;
         }
         /*

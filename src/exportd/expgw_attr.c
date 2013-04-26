@@ -56,7 +56,6 @@ void expgw_getattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
     static epgw_mattr_ret_t ret;
     expgw_attr_cache_t *cache_attr_entry_p;
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
 
@@ -67,8 +66,9 @@ void expgw_getattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -78,16 +78,10 @@ void expgw_getattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_getattr_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid,0,0,expgw_getattr_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -123,6 +117,9 @@ void expgw_getattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
     */
     req_ctx_p->xmitBuf = req_ctx_p->recv_buf;
     req_ctx_p->recv_buf = NULL;
+#warning STOP_PROFILING_EXPGW anticipation
+       STOP_PROFILING_EXPGW(req_ctx_p);
+
     expgw_forward_reply(req_ctx_p,(char*)&ret);
     /*
     ** release the context
@@ -258,8 +255,9 @@ void expgw_setattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -278,7 +276,7 @@ void expgw_setattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_getattr_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid,0,0,expgw_getattr_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -326,7 +324,6 @@ out:
 void expgw_write_block_1_svc(epgw_write_block_arg_t * arg, expgw_ctx_t *req_ctx_p) 
 {
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
     
@@ -336,8 +333,9 @@ void expgw_write_block_1_svc(epgw_write_block_arg_t * arg, expgw_ctx_t *req_ctx_
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -347,16 +345,10 @@ void expgw_write_block_1_svc(epgw_write_block_arg_t * arg, expgw_ctx_t *req_ctx_
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_getattr_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.fid,0,0,expgw_getattr_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;

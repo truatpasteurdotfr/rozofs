@@ -17,6 +17,9 @@
  */
 
 %#include <rozofs/rozofs.h>
+%#define GW_NAME_LEN  (ROZOFS_HOSTNAME_MAX/4)
+
+typedef string          epgw_host_t<ROZOFS_PATH_MAX>;
 
 
  
@@ -28,8 +31,9 @@ enum gw_status_e {
 
 struct gw_header_t {
   uint32_t export_id;
-  uint32_t nb_srv;
-  uint32_t srv_rank;
+  uint32_t nb_gateways;
+  uint32_t gateway_rank;
+  uint32_t configuration_indice;
 };
 
 
@@ -50,13 +54,21 @@ struct gw_invalidate_sections_t {
   gw_header_t        hdr;
   gw_dirty_section_t section<>;
 };  
-  
+
+struct gw_host_conf_t  
+{
+  epgw_host_t   host;
+};
   
 struct gw_configuration_t {
   gw_header_t        hdr;
-  uint32_t           ipAddr;
-  uint16_t           port;
+  epgw_host_t          exportd_host;
+  uint16_t           exportd_port;
+  uint16_t           gateway_port;
+%//  uint32_t           eid[EXPGW_EID_MAX_IDX];  
   uint32_t           eid<>;  
+  gw_host_conf_t     gateway_host<>;
+%//  gw_host_conf_t     gateway_host[EXPGW_EXPGW_MAX_IDX];
 } ; 
   
 program GW_PROGRAM {
@@ -73,6 +85,9 @@ program GW_PROGRAM {
 
         gw_status_t
         GW_CONFIGURATION(gw_configuration_t)                       = 3;
+
+        gw_status_t
+        GW_POLL(gw_header_t)                                       = 4;
 
     } = 1;
 } = 0x20000009;

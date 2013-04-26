@@ -49,6 +49,9 @@
 #include "monitor.h"
 #include "econfig.h"
 #include "volume.h"
+#include "export_expgw_conf.h"
+#include <rozofs/rpc/gwproto.h>
+#include "export_internal_channel.h"
 
 #define EXPORTD_PID_FILE "exportd.pid"
 /* Maximum open file descriptor number for exportd daemon */
@@ -90,6 +93,157 @@ static SVCXPRT *exportd_profile_svc = 0;
 extern void exportd_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 DEFINE_PROFILING(epp_profiler_t) = {0};
+
+
+exportd_start_conf_param_t  expgwc_non_blocking_conf;  /**< configuration of the non blocking side */
+
+gw_configuration_t  expgw_conf;
+
+uint32_t expgw_eid_table[EXPGW_EID_MAX_IDX];
+gw_host_conf_t expgw_host_table[EXPGW_EXPGW_MAX_IDX];
+
+/*
+ *_______________________________________________________________________
+ */
+
+void expgw_init_configuration_message(char *exportd_hostname)
+{
+  gw_configuration_t  *expgw_conf_p = &expgw_conf;
+  expgw_conf_p->eid.eid_val = expgw_eid_table;
+  expgw_conf_p->eid.eid_len = 0;
+  expgw_conf_p->exportd_host = malloc( ROZOFS_HOSTNAME_MAX+1);
+  strcpy(expgw_conf_p->exportd_host,exportd_hostname);
+  memset(expgw_conf_p->eid.eid_val,0,sizeof(expgw_eid_table));
+  expgw_conf_p->gateway_host.gateway_host_val = expgw_host_table;  
+  memset(expgw_conf_p->gateway_host.gateway_host_val,0,sizeof(expgw_host_table));
+  int i;
+  for (i = 0; i < EXPGW_EXPGW_MAX_IDX; i++)
+  {
+    expgw_host_table[i].host = malloc( ROZOFS_HOSTNAME_MAX+1);
+  }
+  expgw_conf_p->gateway_host.gateway_host_len = 0;  
+}
+
+
+/*
+ *_______________________________________________________________________
+ */
+void expgw_reinit_configuration_message()
+{
+  gw_configuration_t  *expgw_conf_p = &expgw_conf;
+  expgw_conf_p->eid.eid_val = expgw_eid_table;
+  expgw_conf_p->eid.eid_len = 0;
+  expgw_conf_p->gateway_host.gateway_host_val = expgw_host_table;  
+  expgw_conf_p->gateway_host.gateway_host_len = 0;  
+}
+
+/*
+ *_______________________________________________________________________
+ */
+int expgw_build_configuration_message(char * pchar, uint32_t size)
+{
+    list_t *iterator;
+    list_t *iterator_expgw;
+    DEBUG_FUNCTION;
+    
+    gw_configuration_t  *expgw_conf_p = &expgw_conf;
+//    info("gw_configuration_t %d",(int)sizeof(gw_configuration_t));
+    
+    expgw_reinit_configuration_message();
+    
+    expgw_conf_p->eid.eid_len = 0;
+    expgw_conf_p->exportd_port = 0;
+    expgw_conf_p->gateway_port = 0;
+    /*
+    ** lock the exportd configuration while searching for the eid handled by the export daemon
+    */
+    if ((errno = pthread_rwlock_rdlock(&exports_lock)) != 0) 
+    {
+        severe("can lock exports.");
+        return -1;
+    }
+    list_for_each_forward(iterator, &exports) 
+    {
+       export_entry_t *entry = list_entry(iterator, export_entry_t, list);
+       expgw_eid_table[expgw_conf_p->eid.eid_len] = entry->export.eid;
+//       info("eid : %d",expgw_eid_table[expgw_conf_p->eid.eid_len]);
+       expgw_conf_p->eid.eid_len++;
+    }
+    /*
+    ** unlock exportd config
+    */
+    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) 
+    {
+        severe("can unlock exports, potential dead lock.");
+        return -1;
+    }
+    if (expgw_conf_p->eid.eid_len == 0)
+    {
+      severe(" no eid in the exportd configuration !!");
+      return -1;    
+    }
+    /*
+    ** now go through the exportd gateway configuration
+    */
+    if ((errno = pthread_rwlock_rdlock(&expgws_lock)) != 0) 
+    {
+        severe("can't lock expgws.");
+        return -1;
+    }
+    expgw_conf_p->hdr.export_id            = 0;
+    expgw_conf_p->hdr.nb_gateways          = 0;
+    expgw_conf_p->hdr.gateway_rank         = 0;
+    expgw_conf_p->hdr.configuration_indice = 0;
+    
+    list_for_each_forward(iterator, &expgws) 
+    {
+        expgw_entry_t *entry = list_entry(iterator, expgw_entry_t, list);
+        expgw_conf_p->hdr.export_id = entry->expgw.daemon_id;
+        expgw_t *expgw = &entry->expgw;
+        /*
+        ** loop on the storage
+        */
+        
+        list_for_each_forward(iterator_expgw, &expgw->expgw_storages) 
+        {
+          expgw_storage_t *entry = list_entry(iterator_expgw, expgw_storage_t, list);
+          /*
+          ** copy the hostname
+          */
+ 
+          strcpy((char*)expgw_host_table[expgw_conf_p->gateway_host.gateway_host_len].host, entry->host);
+ 
+//          info("host %s",(char*)expgw_host_table[expgw_conf_p->gateway_host.gateway_host_len].host); 
+          expgw_conf_p->gateway_host.gateway_host_len++;
+          expgw_conf_p->hdr.nb_gateways++;
+        }
+    }
+    if ((errno = pthread_rwlock_unlock(&expgws_lock)) != 0) 
+    {
+        severe("can't unlock expgws, potential dead lock.");
+        return -1;
+    } 
+    info("exportd id  %d",expgw_conf_p->hdr.export_id);          
+    info("nb_gateways %d",expgw_conf_p->hdr.nb_gateways);          
+    info("nb_eid      %d",expgw_conf_p->eid.eid_len);   
+     
+    XDR               xdrs; 
+    int total_len = -1 ;
+    xdrmem_create(&xdrs,(char*)pchar,size,XDR_ENCODE);
+    if (xdr_gw_configuration_t(&xdrs,expgw_conf_p) == FALSE)
+    {
+      severe("encoding error");    
+    } 
+    else
+    {   
+     total_len = xdr_getpos(&xdrs) ;
+    }
+//    info("total_len %d",total_len);
+    return total_len;
+}
+
+
+
 
 static void *balance_volume_thread(void *v) {
     struct timespec ts = {8, 0};
@@ -437,6 +591,10 @@ static int exportd_initialize() {
     if (volumes_initialize() != 0)
         fatal("can't initialize volume: %s", strerror(errno));
 
+    // Initialize list of export gateway(s)
+    if (expgw_root_initialize() != 0)
+        fatal("can't initialize export gateways: %s", strerror(errno));
+        
     // Initialize list of exports
     if (exports_initialize() != 0)
         fatal("can't initialize exports: %s", strerror(errno));
@@ -451,8 +609,13 @@ static int exportd_initialize() {
     if (load_volumes_conf() != 0)
         fatal("can't load volume");
 
+    if (load_export_expgws_conf() != 0)
+        fatal("can't load export gateways");
+
+        
     if (load_exports_conf() != 0)
         fatal("can't load exports");
+
 
     if (pthread_create(&bal_vol_thread, NULL, balance_volume_thread, NULL) !=
             0)
@@ -480,20 +643,76 @@ static void exportd_release() {
     monitor_release();
     exports_release();
     volumes_release();
+    export_expgws_release();
     econfig_release(&exportd_config);
     lv2_cache_release(&cache);
 }
+
+
+
+int fdl_debug = 0;
 
 static void on_start() {
     int sock;
     int one = 1;
     struct rlimit rls;
+    pthread_t thread;
     DEBUG_FUNCTION;
+    int loop_count = 0;
+    
+    /**
+    * start the non blocking thread
+    */
+    expgwc_non_blocking_thread_started = 0;
+    if ((errno = pthread_create(&thread, NULL, (void*) expgwc_start_nb_blocking_th, &expgwc_non_blocking_conf)) != 0) {
+        severe("can't create non blocking thread: %s", strerror(errno));
+    }
 
     if (exportd_initialize() != 0) {
         fatal("can't initialize exportd.");
     }
-
+    /*
+    ** wait for end of init of the non blocking thread
+    */
+    while (expgwc_non_blocking_thread_started == 0)
+    {
+       sleep(1);
+       loop_count++;
+       if (loop_count > 5) fatal("Non Blocking thread does not answer");    
+    }
+#if 0
+    while(fdl_debug == 0)
+    {
+           sleep(1);
+    }
+#endif
+     /*
+     ** build the structure for sending out an exportd gateway configuration message
+     */     
+#define MSG_SIZE  (32*1024)    
+     char * pChar = malloc(MSG_SIZE);
+     int msg_sz;
+     if (pChar == NULL)  {
+       fatal("malloc %d", MSG_SIZE);
+     }
+    expgw_init_configuration_message("localhost");
+    if ( (msg_sz = expgw_build_configuration_message(pChar,MSG_SIZE))< 0)
+    {
+        fatal("can't build export gateway configuration message");
+    }
+    /*
+    ** Send the exportd gateway configuration towards the non blocking thread
+    */
+    {
+      int ret;
+      ret = expgwc_internal_channel_send(EXPGWC_LOAD_CONF,msg_sz,pChar);
+      if (ret < 0)
+      {
+         severe("EXPGWC_LOAD_CONF: %s",strerror(errno));
+      }    
+    
+    }
+    free(pChar);
     /*
      * Metadata service
      */
@@ -504,6 +723,7 @@ static void on_start() {
     int oldflags = fcntl(sock, F_GETFL, 0);
     /* If reading the flags failed, return error indication now. */
     if (oldflags < 0) {
+        fatal("can't initialize exportd.");
         return;
     }
     /* Set just the flag we want to set. */
@@ -720,23 +940,32 @@ static void usage() {
     printf("Rozofs export daemon - %s\n", VERSION);
     printf("Usage: exportd [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
+    printf("\t-d,--debug <port>\t\texportd non blocking debug port(default: none) \n");
+//    printf("\t-n,--hostname <name>\t\texportd host name(default: none) \n");
+    printf("\t-i,--instance <value>\t\texportd instance id(default: 1) \n");
     printf("\t-c, --config\tconfiguration file to use (default: %s).\n",
             EXPORTD_DEFAULT_CONFIG);
 };
 
 int main(int argc, char *argv[]) {
     int c;
+    int val;
 
     static struct option long_options[] = {
         {"help", no_argument, 0, 'h'},
+        {"debug", required_argument, 0, 'd'},
+        {"instance", required_argument, 0, 'i'},
         {"config", required_argument, 0, 'c'},
         {0, 0, 0, 0}
     };
 
+    expgwc_non_blocking_conf.debug_port = 0;
+    expgwc_non_blocking_conf.instance   = 1;
+    expgwc_non_blocking_conf.exportd_hostname   = NULL;
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:i:d:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -754,6 +983,26 @@ int main(int argc, char *argv[]) {
                             optarg, strerror(errno));
                     exit(EXIT_FAILURE);
                 }
+                break;
+             case 'd':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                expgwc_non_blocking_conf.debug_port = val;
+                break;
+             case 'i':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                expgwc_non_blocking_conf.instance = val;
                 break;
             case '?':
                 usage();
@@ -781,6 +1030,7 @@ int main(int argc, char *argv[]) {
                 strerror(errno));
         goto error;
     }
+
 
     openlog("exportd", LOG_PID, LOG_DAEMON);
     daemon_start(EXPORTD_PID_FILE, on_start, on_stop, on_hup);

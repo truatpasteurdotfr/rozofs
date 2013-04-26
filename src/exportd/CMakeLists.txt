@@ -52,6 +52,13 @@ add_executable(exportd
     epproto.c
     exportd.c
     exp_cache_dirty_mgt.c
+    export_expgw_conf.c
+    export_expgw_conf.h
+    export_internal_channel.c
+    export_internal_channel.h
+    export_nblock_init.c
+    export_expgateway_conf.c
+    export_expgateway_conf.h
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 

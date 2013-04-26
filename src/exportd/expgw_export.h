@@ -44,6 +44,7 @@
 #include <rpc/rpc.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/eproto.h>
+#include <rozofs/core/expgw_common.h>
 
 typedef enum
 {
@@ -183,6 +184,10 @@ typedef struct _expgw_ctx_t
   void     *decoded_arg;          /**< pointer to the decoded argument */
   uint64_t *profiler_probe;       /**< pointer to the profiler counter */
   uint64_t profiler_time;        /**< profiler timestamp */
+   /*
+   ** Parameters specific to the exportd gateway management
+   */
+   expgw_tx_routing_ctx_t expgw_routing_ctx; 
 } expgw_ctx_t;
 
 
@@ -467,6 +472,108 @@ int expgw_export_build_and_send_common(int lbg_id,uint32_t prog,uint32_t vers,
  */
 
 void expgw_generic_export_reply_cbk(void *this,void *param) ;
+
+/*
+**__________________________________________________________________
+*/
+/**
+* API for re-sending a rpc message towards an exportd
+ Here it is assumed that the transaction context is already allocated and ready to use
+ The routing context has a buffer available and is already encoded (xdr)
+ 
+ Only the transaction xid of the rpc message will be changed.
+ 
+ note : that function is intended to be called by expgw_generic_export_reply_cbk()
+
+ @param rozofs_tx_ctx_p        : transaction context
+ @param recv_cbk        : callback function (may be NULL)
+ @param req_ctx_p       : exportd gateway context (associated with a request comming from either an export gateway or rozofsmount)
+ @param vers       : program version
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+int expgw_resend_routing_common(rozofs_tx_ctx_t *rozofs_tx_ctx_p, sys_recv_pf_t recv_cbk,expgw_ctx_t *req_ctx_p);
+
+/*
+**__________________________________________________________________
+*/
+/**
+* API for creation a transaction towards an exportd
+
+
+ @param eid     : reference of the export
+ @param fid     : unique reference of a filesystem object (file, directory, etc...)
+ @param prog       : program
+ @param vers       : program version
+ @param opcode     : metadata opcode
+ @param encode_fct : encoding function
+ @msg2encode_p     : pointer to the message to encode
+ @param recv_cbk   : receive callback function
+ @param ctx_p      : pointer to the user context
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+int expgw_export_build_and_route_common(uint32_t eid,fid_t fid,uint32_t prog,uint32_t vers,
+                                       int opcode,xdrproc_t encode_fct,void *msg2encode_p,
+                                       sys_recv_pf_t recv_cbk,void *ctx_p);
+
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+* API to forward a request that has been received on from rozofsmount towards exportd
+  The buffer used is the buffer stored in the recv_buf field of the context.
+  
+  Prior to forward the message to the exportd, the following fields of the rpc message are modified
+    - rpc transaction id (xid)
+    - number of export gateways (user part)
+    - index of the current export gateway (user part of the rpc message)
+
+  In order to avoid a decoding of the message, the context has been updated with the offset on
+  the "number of export gateways" of the user message. The index of the current export gateway
+  must then be the next field after "number of export gateways"
+
+
+ @param eid     : reference of the export
+ @param fid     : unique reference of a filesystem object (file, directory, etc...)
+ @param seqnum     : unused
+ @param opaque_value_idx1 : unused
+ @param recv_cbk   : receive callback function
+
+ @param user_ctx_p : pointer to the working context
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+
+int expgw_routing_rq_common(expgw_ctx_t *working_ctx_p,
+                                 uint32_t eid,fid_t fid,
+                                 uint32_t seqnum,
+                                 uint32_t opaque_value_idx1,  
+                                 sys_recv_pf_t recv_cbk,void *user_ctx_p);
+/*
+**__________________________________________________________________________
+*/
+/**
+* send a error read reply
+  That API fill up the common header with the SP_READ_RSP opcode
+  insert the transaction_id associated with the inittial request transaction id
+  insert a status OK
+  insert the length of the data payload
+  
+  In case of a success it is up to the called function to release the xmit buffer
+  
+  @param p : pointer to the root transaction context used for the read
+  @param eid : reference of the eid
+  
+  @retval none
+
+*/
+void expgw_reply_error_no_such_eid(expgw_ctx_t *p,int eid);
 /*
 **__________________________________________________________________________
 */

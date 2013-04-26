@@ -772,8 +772,8 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
   ** Initialize the message header
   */
   gw_invalidate_sections_msg.hdr.export_id       = exp_cache_cnf.export_id;
-  gw_invalidate_sections_msg.hdr.srv_rank        = srv_rank;  
-  gw_invalidate_sections_msg.hdr.nb_srv          = ctx_p->nb_cache_servers;   
+  gw_invalidate_sections_msg.hdr.gateway_rank    = srv_rank;  
+  gw_invalidate_sections_msg.hdr.nb_gateways     = ctx_p->nb_cache_servers;   
   
   gw_invalidate_sections_msg.section.section_len = 0;    
   gw_invalidate_sections_msg.section.section_val = gw_dirty_section_table;            
@@ -896,8 +896,8 @@ gw_header_t * exp_cache_build_invalidate_all_msg(exp_cache_dirty_ctx_t * ctx_p,
   ** Initialize the message header
   */
   gw_invalidate_all_msg.export_id       = exp_cache_cnf.export_id;
-  gw_invalidate_all_msg.srv_rank        = srv_rank;  
-  gw_invalidate_all_msg.nb_srv          = ctx_p->nb_cache_servers;   
+  gw_invalidate_all_msg.gateway_rank    = srv_rank;  
+  gw_invalidate_all_msg.nb_gateways     = ctx_p->nb_cache_servers;   
   
   return &gw_invalidate_all_msg;
 }
@@ -937,14 +937,14 @@ gw_configuration_t * exp_cache_build_configuration_msg(exp_cache_dirty_ctx_t * c
   ** Initialize the message header
   */
   gw_configuration_msg.hdr.export_id       = exp_cache_cnf.export_id;
-  gw_configuration_msg.hdr.srv_rank        = srv_rank;  
-  gw_configuration_msg.hdr.nb_srv          = ctx_p->nb_cache_servers;   
+  gw_configuration_msg.hdr.gateway_rank    = srv_rank;  
+  gw_configuration_msg.hdr.nb_gateways     = ctx_p->nb_cache_servers;   
   
-  gw_configuration_msg.ipAddr              = exp_cache_cnf.export_ipAddr;
-  gw_configuration_msg.port                = exp_cache_cnf.export_port;
+//  gw_configuration_msg.ipAddr              = exp_cache_cnf.export_ipAddr;
+//  gw_configuration_msg.port                = exp_cache_cnf.export_port;
 
-  gw_configuration_msg.eid.eid_len         = exp_cache_cnf.eid_nb;
-  gw_configuration_msg.eid.eid_val         = exp_cache_cnf.eid_list; 
+//  gw_configuration_msg.eid.eid_len         = exp_cache_cnf.eid_nb;
+//  gw_configuration_msg.eid.eid_val         = exp_cache_cnf.eid_list; 
   
   return &gw_configuration_msg;
 }

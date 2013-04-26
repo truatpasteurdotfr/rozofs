@@ -74,6 +74,8 @@ com_cache_entry_t *expgw_fid_alloc_entry(fid_t pfid,char *name,unsigned char *fi
   p->cache.usr_key_p   = &p->key;
   list_init(&p->cache.global_lru_link);
   list_init(&p->cache.bucket_lru_link);
+  p->cache.dirty_bucket_counter = 0;
+  p->cache.dirty_main_counter = 0;
   /*
   ** copy the informationn of the key
   */

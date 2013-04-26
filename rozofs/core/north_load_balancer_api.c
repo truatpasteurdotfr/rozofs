@@ -303,6 +303,122 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
   }
 }
 
+
+
+/*__________________________________________________________________________
+*/
+/**
+* Load Balncing group deletion API
+
+  - delete all the TCP of AF_UNIX conections
+  - stop the timer  assoicated with each connection
+  - release all the xmit pending buffers associated with the load balancing group 
+
+ @param lbg_id : user ereference of the load balancing group
+ 
+ @retval 0 : success
+ @retval < 0  errno (see errno for details)
+*/
+int  north_lbg_delete(int lbg_id)
+{
+    int ret;
+   north_lbg_entry_ctx_t *entry_p ;
+   ruc_obj_desc_t        *pnext = (ruc_obj_desc_t*)NULL;
+   north_lbg_ctx_t       *lbg_p;
+   int i;
+   void *bufRef;
+   
+   lbg_p = north_lbg_getObjCtx_p(lbg_id);
+   if (lbg_p == NULL) 
+   {
+     errno = EINVAL;
+     return -1;
+   }
+
+    lbg_p->state = NORTH_LBG_SHUTTING_DOWN;
+    /*
+    **get the pointer to the destination stored in the buffer
+    */
+
+    /*
+    ** OK, now go the buffer that might be queued on that entry and do the same
+    */
+    for (i = 0;  i < lbg_p->nb_entries_conf; i++)
+    {
+      entry_p = &lbg_p->entry_tb[i];
+
+      /*
+      ** stop the timer
+      */
+      north_lbg_entry_stop_timer(entry_p);      
+      /*
+      ** delete the TCP or AF_UNIX connection
+      */
+      ret = af_unix_delete_socket(entry_p->sock_ctx_ref);
+      if (ret < 0) severe("failure on af_unix_delete_socket()entry  %d",i);
+      entry_p->sock_ctx_ref = -1;
+      /*
+      ** Purge the buffer that are queued in the xmitlist done of the entry
+      */
+      while ((bufRef = (void*) ruc_objGetNext((ruc_obj_desc_t*)&entry_p->xmitList,
+                                           &pnext))
+                  !=NULL) 
+      { 
+        /*
+        ** remove it from the list because it might be queued afterwards on a new queue
+        */        
+        ruc_objRemove((ruc_obj_desc_t*)bufRef);
+        while (1) 
+        {	 	 
+             if (lbg_p->userDiscCallBack!= NULL)
+             {
+              (lbg_p->userDiscCallBack)(NULL,lbg_p->index,bufRef, EPIPE); 
+              break;        
+             }
+             /*
+             ** release the buffer
+             */
+             ruc_buf_freeBuffer(bufRef); 
+             break;               
+        }   
+      }
+    }
+    /*
+    ** Purge the pending xmit list of the load balancer
+    */
+    for (i = 0; i < NORTH_LBG_MAX_PRIO; i++)
+    {
+      while ((bufRef = (void*) ruc_objGetNext((ruc_obj_desc_t*)&lbg_p->xmitList[i],
+                                           &pnext))
+                  !=NULL) 
+      { 
+        /*
+        ** remove it from the list because it might be queued afterwards on a new queue
+        */        
+        ruc_objRemove((ruc_obj_desc_t*)bufRef);
+        while (1) 
+        {	 	 
+             if (lbg_p->userDiscCallBack!= NULL)
+             {
+              (lbg_p->userDiscCallBack)(NULL,lbg_p->index,bufRef, EPIPE); 
+              break;        
+             }
+             /*
+             ** release the buffer
+             */
+             ruc_buf_freeBuffer(bufRef); 
+             break;               
+        }   
+      }
+    }
+    /*
+    ** release the lbg context
+    */
+    north_lbg_free_from_ptr(lbg_p);
+    return 0;
+
+}
+
 /*__________________________________________________________________________
 */
 /**
@@ -908,6 +1024,10 @@ int north_lbg_send(int  lbg_idx,void *buf_p)
   {
     RUC_WARNING(-1);
     return -1;
+  }
+  if ((lbg_p->state == NORTH_LBG_SHUTTING_DOWN) || (lbg_p->free == TRUE))
+  {
+     return -1;
   }
 reloop:
   /*

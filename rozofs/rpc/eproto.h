@@ -45,6 +45,7 @@ enum ep_status_t {
 	EP_SUCCESS = 0,
 	EP_FAILURE = 1,
 	EP_EMPTY = 2,
+	EP_FAILURE_EID_NOT_SUPPORTED = 3,
 };
 typedef enum ep_status_t ep_status_t;
 

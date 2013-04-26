@@ -5,6 +5,17 @@
 
 #include "gwproto.h"
 #include <rozofs/rozofs.h>
+#define GW_NAME_LEN (ROZOFS_HOSTNAME_MAX/4)
+
+bool_t
+xdr_epgw_host_t (XDR *xdrs, epgw_host_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_string (xdrs, objp, ROZOFS_PATH_MAX))
+		 return FALSE;
+	return TRUE;
+}
 
 bool_t
 xdr_gw_status_e (XDR *xdrs, gw_status_e *objp)
@@ -23,9 +34,11 @@ xdr_gw_header_t (XDR *xdrs, gw_header_t *objp)
 
 	 if (!xdr_uint32_t (xdrs, &objp->export_id))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->nb_srv))
+	 if (!xdr_uint32_t (xdrs, &objp->nb_gateways))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->srv_rank))
+	 if (!xdr_uint32_t (xdrs, &objp->gateway_rank))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->configuration_indice))
 		 return FALSE;
 	return TRUE;
 }
@@ -77,18 +90,35 @@ xdr_gw_invalidate_sections_t (XDR *xdrs, gw_invalidate_sections_t *objp)
 }
 
 bool_t
+xdr_gw_host_conf_t (XDR *xdrs, gw_host_conf_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_epgw_host_t (xdrs, &objp->host))
+		 return FALSE;
+	return TRUE;
+}
+//  uint32_t           eid[EXPGW_EID_MAX_IDX];  
+//  gw_host_conf_t     gateway_host[EXPGW_EXPGW_MAX_IDX];
+
+bool_t
 xdr_gw_configuration_t (XDR *xdrs, gw_configuration_t *objp)
 {
 	//register int32_t *buf;
 
 	 if (!xdr_gw_header_t (xdrs, &objp->hdr))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->ipAddr))
+	 if (!xdr_epgw_host_t (xdrs, &objp->exportd_host))
 		 return FALSE;
-	 if (!xdr_uint16_t (xdrs, &objp->port))
+	 if (!xdr_uint16_t (xdrs, &objp->exportd_port))
+		 return FALSE;
+	 if (!xdr_uint16_t (xdrs, &objp->gateway_port))
 		 return FALSE;
 	 if (!xdr_array (xdrs, (char **)&objp->eid.eid_val, (u_int *) &objp->eid.eid_len, ~0,
 		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
+		 return FALSE;
+	 if (!xdr_array (xdrs, (char **)&objp->gateway_host.gateway_host_val, (u_int *) &objp->gateway_host.gateway_host_len, ~0,
+		sizeof (gw_host_conf_t), (xdrproc_t) xdr_gw_host_conf_t))
 		 return FALSE;
 	return TRUE;
 }

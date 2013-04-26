@@ -41,7 +41,7 @@
 #include "north_lbg_timer.h"
 #include "north_lbg_timer_api.h"
 
-#define NORTH__LBG_MAX_ENTRY    (2<<6) /**< max number of entries on a north load-balancer  */
+#define NORTH__LBG_MAX_ENTRY    (1<<5) /**< max number of entries on a north load-balancer  */
 #define NORTH__LBG_TB_MAX_ENTRY  (NORTH__LBG_MAX_ENTRY/sizeof(uint8_t))
 /**
 * state of a loab balancer eny
@@ -51,6 +51,7 @@ typedef enum _north_lbg_entry_state_e
    NORTH_LBG_DEPENDENCY = 0,
    NORTH_LBG_UP,
    NORTH_LBG_DOWN,
+   NORTH_LBG_SHUTTING_DOWN,
 
 } north_lbg_entry_state_e;
 

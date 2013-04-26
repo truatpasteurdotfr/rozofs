@@ -189,6 +189,8 @@ static inline void * ruc_buf_poolCreate(uint32_t nbBuf,uint32_t bufsize)
      // 64BITS return (uint32)NULL;
      return NULL;
    }
+//#warning to make valgrind happy!!
+//   memset(pusrData,0,bufsize*nbBuf);
    /*
    ** store the pointer address on the head
    */

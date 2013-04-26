@@ -14,6 +14,9 @@ extern "C" {
 #endif
 
 #include <rozofs/rozofs.h>
+#define GW_NAME_LEN (ROZOFS_HOSTNAME_MAX/4)
+
+typedef char *epgw_host_t;
 
 enum gw_status_e {
 	GW_FAILURE = 0,
@@ -23,8 +26,9 @@ typedef enum gw_status_e gw_status_e;
 
 struct gw_header_t {
 	uint32_t export_id;
-	uint32_t nb_srv;
-	uint32_t srv_rank;
+	uint32_t nb_gateways;
+	uint32_t gateway_rank;
+	uint32_t configuration_indice;
 };
 typedef struct gw_header_t gw_header_t;
 
@@ -55,14 +59,26 @@ struct gw_invalidate_sections_t {
 };
 typedef struct gw_invalidate_sections_t gw_invalidate_sections_t;
 
+struct gw_host_conf_t {
+	epgw_host_t host;
+};
+typedef struct gw_host_conf_t gw_host_conf_t;
+//  uint32_t           eid[EXPGW_EID_MAX_IDX];  
+//  gw_host_conf_t     gateway_host[EXPGW_EXPGW_MAX_IDX];
+
 struct gw_configuration_t {
 	gw_header_t hdr;
-	uint32_t ipAddr;
-	uint16_t port;
+	epgw_host_t exportd_host;
+	uint16_t exportd_port;
+	uint16_t gateway_port;
 	struct {
 		u_int eid_len;
 		uint32_t *eid_val;
 	} eid;
+	struct {
+		u_int gateway_host_len;
+		gw_host_conf_t *gateway_host_val;
+	} gateway_host;
 };
 typedef struct gw_configuration_t gw_configuration_t;
 
@@ -82,6 +98,9 @@ extern  gw_status_t * gw_invalidate_all_1_svc(gw_header_t *, struct svc_req *);
 #define GW_CONFIGURATION 3
 extern  gw_status_t * gw_configuration_1(gw_configuration_t *, CLIENT *);
 extern  gw_status_t * gw_configuration_1_svc(gw_configuration_t *, struct svc_req *);
+#define GW_POLL 4
+extern  gw_status_t * gw_poll_1(gw_header_t *, CLIENT *);
+extern  gw_status_t * gw_poll_1_svc(gw_header_t *, struct svc_req *);
 extern int gw_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -97,25 +116,32 @@ extern  gw_status_t * gw_invalidate_all_1_svc();
 #define GW_CONFIGURATION 3
 extern  gw_status_t * gw_configuration_1();
 extern  gw_status_t * gw_configuration_1_svc();
+#define GW_POLL 4
+extern  gw_status_t * gw_poll_1();
+extern  gw_status_t * gw_poll_1_svc();
 extern int gw_program_1_freeresult ();
 #endif /* K&R C */
 
 /* the xdr functions */
 
 #if defined(__STDC__) || defined(__cplusplus)
+extern  bool_t xdr_epgw_host_t (XDR *, epgw_host_t*);
 extern  bool_t xdr_gw_status_e (XDR *, gw_status_e*);
 extern  bool_t xdr_gw_header_t (XDR *, gw_header_t*);
 extern  bool_t xdr_gw_status_t (XDR *, gw_status_t*);
 extern  bool_t xdr_gw_dirty_section_t (XDR *, gw_dirty_section_t*);
 extern  bool_t xdr_gw_invalidate_sections_t (XDR *, gw_invalidate_sections_t*);
+extern  bool_t xdr_gw_host_conf_t (XDR *, gw_host_conf_t*);
 extern  bool_t xdr_gw_configuration_t (XDR *, gw_configuration_t*);
 
 #else /* K&R C */
+extern bool_t xdr_epgw_host_t ();
 extern bool_t xdr_gw_status_e ();
 extern bool_t xdr_gw_header_t ();
 extern bool_t xdr_gw_status_t ();
 extern bool_t xdr_gw_dirty_section_t ();
 extern bool_t xdr_gw_invalidate_sections_t ();
+extern bool_t xdr_gw_host_conf_t ();
 extern bool_t xdr_gw_configuration_t ();
 
 #endif /* K&R C */

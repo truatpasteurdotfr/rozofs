@@ -6,6 +6,9 @@
 #include <memory.h> /* for memset */
 #include "gwproto.h"
 #include <rozofs/rozofs.h>
+#define GW_NAME_LEN (ROZOFS_HOSTNAME_MAX/4)
+//  uint32_t           eid[EXPGW_EID_MAX_IDX];  
+//  gw_host_conf_t     gateway_host[EXPGW_EXPGW_MAX_IDX];
 
 /* Default timeout can be changed using clnt_control() */
 static struct timeval TIMEOUT = { 25, 0 };
@@ -63,6 +66,21 @@ gw_configuration_1(gw_configuration_t *argp, CLIENT *clnt)
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, GW_CONFIGURATION,
 		(xdrproc_t) xdr_gw_configuration_t, (caddr_t) argp,
+		(xdrproc_t) xdr_gw_status_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+gw_status_t *
+gw_poll_1(gw_header_t *argp, CLIENT *clnt)
+{
+	static gw_status_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, GW_POLL,
+		(xdrproc_t) xdr_gw_header_t, (caddr_t) argp,
 		(xdrproc_t) xdr_gw_status_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);

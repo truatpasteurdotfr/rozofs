@@ -1422,9 +1422,8 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
     ** now initiates the transaction towards the remote end
     */
 
-    int lbg_id = expgw_get_export_gateway_lbg(arg.arg_gw.eid,arg.arg_gw.fid);
 #if 1
-    ret = rozofs_expgateway_send_common(lbg_id,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,file_p->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
                               export_write_block_cbk,fuse_ctx_p); 
 #else
@@ -1470,7 +1469,10 @@ void export_write_block_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
-
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
     /*
     ** get the pointer to the transaction context:
@@ -1528,6 +1530,44 @@ void export_write_block_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+
+
     if (ret.status_gw.status == EP_FAILURE) {
         errno = ret.status_gw.ep_io_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    

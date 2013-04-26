@@ -75,7 +75,6 @@ void expgw_lookup_1_svc(epgw_lookup_arg_t * arg, expgw_ctx_t *req_ctx_p)
     expgw_fid_cache_t  *cache_fid_entry_p;
     expgw_attr_cache_t *cache_attr_entry_p;
     int   export_lbg_id;
-    int   lbg_id;
     int status;
     int local;
     
@@ -86,8 +85,9 @@ void expgw_lookup_1_svc(epgw_lookup_arg_t * arg, expgw_ctx_t *req_ctx_p)
     export_lbg_id = expgw_get_exportd_lbg(arg->arg_gw.eid);
     if (export_lbg_id < 0)
     {
-      errno = EINVAL;
-      goto error;
+      expgw_reply_error_no_such_eid(req_ctx_p,arg->arg_gw.eid);
+      expgw_release_context(req_ctx_p);
+      return;
     }
     /*
     ** check if the fid is handled by the current export gateway
@@ -97,16 +97,10 @@ void expgw_lookup_1_svc(epgw_lookup_arg_t * arg, expgw_ctx_t *req_ctx_p)
     local = expgw_check_local(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
     if (local != 0)
     {
-       lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent);
-       if (lbg_id < 0)
-       {
-         errno = EINVAL;
-         goto error;          
-       }
        /*
        ** the export gateway must operate in passthrough mode
        */
-       status = expgw_forward_rq_common(req_ctx_p,lbg_id,0,0,expgw_lookup_cbk,req_ctx_p);
+       status = expgw_routing_rq_common(req_ctx_p,arg->arg_gw.eid,(unsigned char *)arg->arg_gw.parent,0,0,expgw_lookup_cbk,req_ctx_p);
        if (status < 0)
        {
          goto error;
@@ -177,19 +171,19 @@ void expgw_lookup_1_svc(epgw_lookup_arg_t * arg, expgw_ctx_t *req_ctx_p)
     arg_attr.arg_gw.eid = arg->arg_gw.eid;
     memcpy(arg_attr.arg_gw.fid, cache_fid_entry_p->fid, sizeof (uuid_t));     
     /*
-    ** get the export gateway that handle the fid. If the lbg towards the export gateway is down, the 
-    ** service returns the reference of the master exportd lbg
+    ** route the request either to the target export gateway or to the master exportd
     */
-    lbg_id = expgw_get_export_gateway_lbg(arg->arg_gw.eid,(unsigned char *)cache_fid_entry_p->fid);
-    if (lbg_id < 0)
-    {
-      errno = EINVAL;
-      goto error;          
-    }
+#if 1
 
+    status = expgw_export_build_and_route_common( arg->arg_gw.eid,(unsigned char *)cache_fid_entry_p->fid,
+                                                 EXPORT_PROGRAM,EXPORT_VERSION, EP_GETATTR, 
+                                                 (xdrproc_t)xdr_epgw_mfile_arg_t , &arg_attr, 
+                                                 expgw_generic_export_reply_cbk,req_ctx_p) ;
+#else
     status = expgw_export_build_and_send_common( lbg_id,EXPORT_PROGRAM,EXPORT_VERSION, EP_GETATTR, 
                                                  (xdrproc_t)xdr_epgw_mfile_arg_t , &arg_attr, 
                                                  expgw_generic_export_reply_cbk,req_ctx_p) ;
+#endif
     if (status < 0)
     {
       goto error;
@@ -281,7 +275,7 @@ void expgw_lookup_cbk(void *this,void *buffer)
        if (com_cache_bucket_insert_entry(expgw_attr_cache_p, cache_entry) < 0)
        {
          severe("error on fid insertion"); 
-         expgw_attr_release_entry(cache_attr_entry_p);
+         expgw_attr_release_entry(cache_entry->usr_entry_p);
        }
        break;     
      }
@@ -341,7 +335,7 @@ void expgw_lookup_cbk(void *this,void *buffer)
       if (com_cache_bucket_insert_entry(expgw_attr_cache_p, cache_entry) < 0)
       {
         severe("error on fid insertion"); 
-        expgw_attr_release_entry(cache_attr_entry_p);
+        expgw_attr_release_entry(cache_entry->usr_entry_p);
       }
       break;
    }

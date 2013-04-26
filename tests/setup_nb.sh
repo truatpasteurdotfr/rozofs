@@ -44,6 +44,20 @@ build ()
 }
 
 
+rebuild ()
+{
+    if [ ! -e "${LOCAL_SOURCE_DIR}" ]
+    then
+        echo "Unable to build RozoFS (${LOCAL_SOURCE_DIR} not exist)"
+    fi
+    cd ${LOCAL_BUILD_DIR}
+    make
+    cd ..
+    cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
+}
+
+
+
 # $1 -> LAYOUT
 # $2 -> Number or serving port per storage host (nb of process)
 gen_storage_conf_nb ()
@@ -255,6 +269,35 @@ gen_export_conf ()
             done;
         echo '            );' >> $FILE
         if [[ ${v} == ${NB_VOLUMES} ]]
+        then
+            echo '        }' >> $FILE
+        else
+            echo '        },' >> $FILE
+        fi
+        done;
+    echo '    )' >> $FILE
+    echo ';' >> $FILE
+    NB_EXPORTDS=1
+    NB_EXPGATEWAYS=2
+    echo 'export_gateways =' >> $FILE
+    echo '      (' >> $FILE
+        for k in $(seq ${NB_EXPORTDS}); do
+            echo '        {' >> $FILE
+            echo "            daemon_id = $k;" >> $FILE
+            echo '            gwids= ' >> $FILE
+            echo '            (' >> $FILE
+
+                for r in $(seq ${NB_EXPGATEWAYS}); do
+                    let idx=${r}-1;
+                    if [[ ${r} == ${NB_EXPGATEWAYS} ]]
+                    then
+                        echo "                 {gwid = ${r}; host = \"${LOCAL_STORAGE_NAME_BASE}${r}\";}" >> $FILE
+                    else
+                        echo "                 {gwid = ${r}; host = \"${LOCAL_STORAGE_NAME_BASE}${r}\";}," >> $FILE
+                    fi
+                done;
+            echo '              );' >> $FILE
+        if [[ ${k} == ${NB_EXPORTDS} ]]
         then
             echo '        }' >> $FILE
         else
@@ -484,7 +527,8 @@ start_exportd ()
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_EXPORT_DAEMON}"
-        ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
+        echo " ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} -d 62000 -i $1"
+        ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} -d 62000 -i $1
     else
         echo "Unable to start ${EXPORT_DAEMON} (already running as PID: ${PID})"
         exit 0;
@@ -726,7 +770,7 @@ main ()
         NB_CLUSTERS_BY_VOLUME=1;
 
         gen_storage_conf ${STORAGES_BY_CLUSTER}
-        gen_storage_conf_nb ${STORAGES_BY_CLUSTER} 4
+        gen_storage_conf_nb ${STORAGES_BY_CLUSTER} 2
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT}
@@ -737,7 +781,7 @@ main ()
 
 #        start_storaged
         start_storaged_nb ${STORAGES_BY_CLUSTER}
-        start_exportd
+        start_exportd 1
 
         deploy_clients_local
 
@@ -782,6 +826,9 @@ main ()
     elif [ "$1" == "build" ]
     then
         build
+    elif [ "$1" == "rebuild" ]
+    then
+        rebuild
     elif [ "$1" == "clean" ]
     then
         clean_all

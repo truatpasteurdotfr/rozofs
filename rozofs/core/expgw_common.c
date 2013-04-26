@@ -179,7 +179,7 @@ static void export_lbg_periodic_ticker(void * param) {
   status = north_lbg_get_state(exportclt->export_lbg_id);
 //  info("export_lbg_periodic_ticker status %d\n", status);
   
-  if (status == NORTH_LBG_UP) return;
+  if (status != NORTH_LBG_DOWN) return;
 
   /* Try to find out whether the export service is up again */
   port = get_service_tcp_port(exportclt->hostname,EXPORT_PROGRAM, EXPORT_VERSION);
@@ -291,9 +291,12 @@ out:
 */
 void expgw_export_tableInit()
 {  
-  memset(expgw_eid_table,0,sizeof(expgw_eid_table));
-  memset(expgw_exportd_table,0,sizeof(expgw_exportd_table));
   int i,j;
+
+
+  memset(expgw_eid_table,0,sizeof(expgw_eid_table));
+
+  memset(expgw_exportd_table,0,sizeof(expgw_exportd_table));
   for (i = 0; i < EXPGW_EXPORTD_MAX_IDX; i++)
   {
     expgw_exportd_table[i].export_lbg_id = -1;  
@@ -332,7 +335,7 @@ int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname,
     errno = EINVAL;
     return -1;
   }
-  if (nb_gateways <= gateway_rank)
+  if (nb_gateways < gateway_rank)
   {
     errno = EINVAL;
     return -1;  
@@ -388,7 +391,7 @@ int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname,
 int expgw_export_update_eid_gw_info(uint16_t eid,uint16_t nb_gateways,uint16_t gateway_rank)
 {
   int exportd_id;
-  if ((eid >= EXPGW_EXPORTD_MAX_IDX) || (nb_gateways <= gateway_rank))
+  if ((eid >= EXPGW_EXPORTD_MAX_IDX) || (nb_gateways < gateway_rank))
   {
     errno = EINVAL;
     return -1;
@@ -449,6 +452,13 @@ int expgw_add_export_gateway(uint16_t exportd_id, char *hostname,
     return -1;  
   }
   Pgw->port  = port;  
+  if (gateway_rank == expgw_exportd_table[exportd_id].gateway_rank)
+  {
+    /*
+    ** this our gateway rank:do not create a load balancing group
+    */
+    return 0;  
+  }
   /*
   ** create the load balancing group
   */
@@ -608,3 +618,120 @@ int expgw_get_export_gateway_lbg(uint16_t eid,fid_t fid)
    return lbg_id;
 }
 
+/*
+**______________________________________________________________________________
+*/
+/**
+  That function is inteneded to be called to get the references of the egress
+  load balancing group:
+
+  That API might return up to 2 load balancing group references
+  When there are 2 references the first is the one associated with the exportd gateway
+  and the second is the one associated with the master exportd (default route).
+  
+  Note: for the case of the default route the state of the load balancing group
+  is not tested. This might avoid a reject of a request while the system attempts
+  to reconnect. This will permit the offer a system which is less sensitive to
+  the network failures.
+   
+   
+  @param eid: eid within the exportd
+  @param fid : fid of the incoming response or request
+  @param routing_ctx_p : load balancing routing context result
+  
+  @retval >= 0 : reference of the lood balancing group 
+  @retval <  0 no load balancing group 
+  
+*/
+int expgw_get_export_routing_lbg_info(uint16_t eid,fid_t fid,expgw_tx_routing_ctx_t *routing_ctx_p)
+{
+    uint32_t slice;
+    uint32_t subslice;
+    uint16_t srv_rank;
+    int lbg_id = -1;
+
+  int exportd_id;
+  /*
+  ** clear the routing information
+  */
+  expgw_routing_ctx_init(routing_ctx_p);
+  
+  if (eid >= EXPGW_EXPORTD_MAX_IDX)
+  {
+    errno = EINVAL;
+    return -1;
+  }
+  exportd_id = expgw_eid_table[eid].exportd_id;
+  if (exportd_id == 0)
+  {
+    errno = ENOENT;
+    return -1;    
+  }    
+  if (expgw_exportd_table[exportd_id].nb_gateways == 0)
+  {
+    /*
+    ** there is only the default gateway (master exportd
+    */
+    if (expgw_exportd_table[exportd_id].export_lbg_id == -1)
+    {
+      errno = ENOENT;
+      return -1;           
+    }
+    expgw_routing_insert_lbg(routing_ctx_p,expgw_exportd_table[exportd_id].export_lbg_id,eid,1);
+    return 0;
+  }
+  /*
+  ** get the slice from the fid
+  */
+   mstor_get_slice_and_subslice(fid,&slice,&subslice);
+   srv_rank = slice%expgw_exportd_table[exportd_id].nb_gateways;
+   lbg_id = expgw_exportd_table[exportd_id].expgw_list[srv_rank].gateway_lbg_id ;
+   if (lbg_id == -1)
+   {
+     /*
+     ** get the reference of the default destination (master exportd lbg_id)
+     */
+     if (expgw_exportd_table[exportd_id].export_lbg_id == -1)
+     {
+       errno = ENOENT;
+       return -1;           
+     }
+     expgw_routing_insert_lbg(routing_ctx_p,expgw_exportd_table[exportd_id].export_lbg_id,eid,1);
+     return 0;
+   }
+   /*
+   ** check the state of the load balancing group
+   */
+   if (north_lbg_get_state(lbg_id) != NORTH_LBG_UP)
+   {
+     /*
+     ** get the reference of the default destination (master exportd lbg_id)
+     */
+     if (expgw_exportd_table[exportd_id].export_lbg_id == -1)
+     {
+       errno = ENOENT;
+       return -1;           
+     }
+     expgw_routing_insert_lbg(routing_ctx_p,expgw_exportd_table[exportd_id].export_lbg_id,eid,1);
+     return 0;
+   }
+   /*
+   ** the export gateway load balancing group is up, check if the eid is reachable thanks
+   ** that export gateway
+   */
+   if ((expgw_eid_table[eid].exp_gateway_bitmap_status & (1<<srv_rank))==0)
+   {
+     expgw_routing_insert_lbg(routing_ctx_p,lbg_id,eid,0);  
+     routing_ctx_p->gw_rank =  srv_rank;
+   }
+   /*
+   ** get the reference of the default destination (master exportd lbg_id)
+   */
+   if (expgw_exportd_table[exportd_id].export_lbg_id != -1)
+   {
+     expgw_routing_insert_lbg(routing_ctx_p,expgw_exportd_table[exportd_id].export_lbg_id,eid,1);
+     return 0;
+   }
+   if (routing_ctx_p->nb_lbg == 0) return -1;
+   return 0; 
+}

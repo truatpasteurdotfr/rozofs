@@ -73,7 +73,8 @@ com_cache_entry_t *expgw_attr_alloc_entry(mattr_t *attr)
   p->cache.usr_key_p   = p->attr.fid;
   list_init(&p->cache.global_lru_link);
   list_init(&p->cache.bucket_lru_link);
-  
+  p->cache.dirty_bucket_counter = 0;
+  p->cache.dirty_main_counter = 0;
   return &p->cache;
 }
 

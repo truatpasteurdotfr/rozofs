@@ -42,7 +42,8 @@ struct ep_gateway_t
 enum ep_status_t {
     EP_SUCCESS = 0,
     EP_FAILURE = 1,
-    EP_EMPTY   = 2
+    EP_EMPTY   = 2,
+    EP_FAILURE_EID_NOT_SUPPORTED =3
 };
 
 union ep_status_ret_t switch (ep_status_t status) {

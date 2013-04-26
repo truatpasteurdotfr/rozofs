@@ -61,6 +61,20 @@
 #define ROZOFS_MD5_SIZE 22
 #define ROZOFS_MD5_NONE "0000000000000000000000"
 
+
+#define EXPGW_EID_MAX_IDX 1024 /**< max number of eid  */
+#define EXPGW_EXPGW_MAX_IDX 32 /**< max number of export gateway per exportd */
+#define EXPGW_EXPORTD_MAX_IDX 64 /**< max number of exportd */
+
+
+
+
+/* Value max for an Exportd Gateway */
+#define GWID_MAX 32
+/* Value min for a Exportd Gateway */
+#define GWID_MIN 1
+
+
 /* Timeout in seconds for storaged requests by mproto */
 #define ROZOFS_MPROTO_TIMEOUT_SEC 4
 

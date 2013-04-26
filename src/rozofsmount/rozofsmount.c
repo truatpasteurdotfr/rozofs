@@ -42,6 +42,7 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/expgw_common.h>
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
@@ -65,7 +66,7 @@ static SVCXPRT *rozofsmount_profile_svc = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
 
-char localBuf[4096];
+char localBuf[8192];
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
@@ -402,6 +403,27 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
+
+void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
+
+    char *pChar = localBuf;
+    
+    expgw_display_all_exportd_routing_table(pChar);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+
+void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
+
+    char *pChar = localBuf;
+    
+    expgw_display_all_eid(pChar);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+
 typedef struct _xmalloc_stats_t {
     uint64_t count;
     int size;
@@ -663,7 +685,9 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
-
+    uma_dbg_addTopic("exp_route", show_exp_routing_table);
+    uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
+    
     //    uint16_t debug_port = 60000;
     rozofs_fuse_conf.debug_port = (uint16_t) conf.dbg_port;
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;

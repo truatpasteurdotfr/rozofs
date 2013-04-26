@@ -274,6 +274,11 @@ expgw_ctx_t *expgw_alloc_context()
    **  reinitilisation of the context
    */
    expgw_ctxInit(p,FALSE);   
+  /*
+  ** init of the routing context
+  */
+  expgw_routing_ctx_init(&p->expgw_routing_ctx);
+
    /*
    ** remove it for the linked list
    */
@@ -313,11 +318,21 @@ void expgw_release_context(expgw_ctx_t *ctx_p)
     ruc_buf_freeBuffer(ctx_p->xmitBuf);
     ctx_p->xmitBuf = NULL;
   }
+  /*
+  ** check if there is an xmit buffer to release since it might be the case
+  ** when there were 2 available load balancing groups
+  */
+  expgw_routing_release_buffer(&ctx_p->expgw_routing_ctx);
+  
   if (ctx_p->fid_cache_entry != NULL)
   {
-     expgw_fid_release_entry(ctx_p->fid_cache_entry);
+     com_cache_entry_t *p;
+     
+     p = (com_cache_entry_t*)ctx_p->fid_cache_entry;
+     expgw_fid_release_entry(p->usr_entry_p);
      ctx_p->fid_cache_entry = NULL;  
   }
+
   /*
   ** remove it from any other list and re-insert it on the free list
   */
