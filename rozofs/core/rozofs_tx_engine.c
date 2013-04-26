@@ -565,6 +565,19 @@ void rozofs_tx_start_timer(rozofs_tx_ctx_t *tx_p,uint32_t time_ms)
 {
  uint8_t slot;
   /*
+  ** check if the context is still allocated, it might be possible
+  ** that the receive callback of the application can be called before
+  ** the application starts the timer, in that case we must
+  ** prevent the application to start the timer
+  */
+  if (tx_p->free == TRUE)
+  {
+    /*
+    ** context has been release
+    */
+    return;  
+  }
+  /*
   **  remove the timer from its current list
   */
   slot = COM_TX_TMR_SLOT0;
