@@ -1466,7 +1466,7 @@ void rozofs_storcli_periodic_ticker(void * param)
 **____________________________________________________
 */
 /*
-  start a periodic timer to chech wether the export LBG is down
+  start a periodic timer to check wether the export LBG is down
   When the export is restarted its port may change, and so
   the previous configuration of the LBG is not valid any more
 */
@@ -1486,7 +1486,7 @@ void rozofs_storcli_read_init_timer_module() {
     return;
   }
   ruc_periodic_timer_start (periodic_timer, 
-                            100,
+                            20,
  	                        rozofs_storcli_periodic_ticker,
  			                0);
 

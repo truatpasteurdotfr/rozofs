@@ -180,4 +180,37 @@ int north_lbg_re_configure_af_inet_destination_port(int lbg_idx,north_remote_ip_
 */
 int north_lbg_send(int  lbg_idx,void *buf_p);
 
+
+/*__________________________________________________________________________
+*/
+/**
+* Load Balancing group deletion API
+
+  - delete all the TCP of AF_UNIX connections
+  - stop the timer associated with each connection
+  - release all the xmit pending buffers associated with the load balancing group 
+
+ @param lbg_id : user ereference of the load balancing group
+ 
+ @retval 0 : success
+ @retval < 0  errno (see errno for details)
+*/
+int  north_lbg_delete(int lbg_id);
+
+/*__________________________________________________________________________
+*/
+/**
+*  API to display the load balancing group id and its current state
+
+  @param lbg_id : index of the load balancing group
+  @param buffer : output buffer
+  
+  @retval : pointer to the next entry in the input buffer
+*
+*/
+char *north_lbg_display_lbg_id_and_state(char * buffer,int lbg_id);
+
+
+char *north_lbg_display_lbg_state(char * pchar,int lbg_id);
+
 #endif

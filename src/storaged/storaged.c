@@ -165,7 +165,7 @@ static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
 
     /* Bind the socket */
     if (bind(sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) < 0) {
-        severe("Couldn't bind to tcp port %d", port);
+        severe("Couldn't bind to tcp port %d: %s", port, strerror(errno));
         return NULL;
     }
 
@@ -432,7 +432,7 @@ static void on_start() {
             if ((storaged_profile_svc = storaged_create_rpc_service
                     (storaged_storage_ports[i] + 1000,
                     storaged_hostname)) == NULL) {
-                fatal("can't create IO monitoring service on port: %d",
+                severe("can't create IO monitoring service on port: %d",
                         storaged_storage_ports[i] + 1000);
             }
 

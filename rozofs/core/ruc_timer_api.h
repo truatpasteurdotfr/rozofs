@@ -296,13 +296,20 @@ void ruc_timer_init (TIMER_TICK_VALUE_E timer_application_tick,
 			 TIMER_SLOT_SIZE_E timer_slot_size1);
 
 
-  uint32_t ruc_timer_moduleInit(uint32_t active);
+uint32_t ruc_timer_moduleInit(uint32_t active);
+  
+/**
+*  Get the current ruc ticker (in 10 ms unit)
+*/
+extern uint64_t  ruc_timer_ticker;
+
+static inline uint64_t timer_get_ticker()
+{
+  return ruc_timer_ticker;
+}
 
 #ifdef __cplusplus
 }
 #endif /*__cplusplus */
-
-
-
 
 #endif

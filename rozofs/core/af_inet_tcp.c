@@ -92,7 +92,7 @@ uint32_t af_inet_tcp_tuneTcpSocket(int socketId,int size)
   }
 #endif
 
-#if 0
+#if 1
   int UMA_TCP_NODELAY = 1;
   if (setsockopt (socketId,IPPROTO_TCP,
                   TCP_NODELAY,&UMA_TCP_NODELAY,sizeof(int)) == -1)
@@ -233,7 +233,7 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
     RUC_WARNING(errno);
    return -1;
   }
-#if 0
+#if 1
   int UMA_TCP_NODELAY = 1;
   if (setsockopt (fd,IPPROTO_TCP,
                   TCP_NODELAY,&UMA_TCP_NODELAY,sizeof(int)) == -1)

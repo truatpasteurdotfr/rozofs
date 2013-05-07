@@ -24,16 +24,14 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include "uma_tcp.h"
 
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
 
+#include "uma_tcp.h"
 #include "ruc_common.h"
 #include "ppu_trace.h"
 #include "af_unix_socket_generic.h"
-
-
 
  /*
 **__________________________________________________________________________
@@ -182,14 +180,16 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           if (socket_p->userXmitDoneCallBack != NULL)
           {
              /*
-             ** caution: in that case it is up to the application that provides the callback to release
-             ** the xmit buffer
+             ** caution: in that case it is up to the application that provides
+             ** the callback to release the xmit buffer
              */
-	     if (ruc_buf_get_opaque_ref(xmit_p->bufRefCurrent) == socket_p) {
-               (socket_p->userXmitDoneCallBack)(socket_p->userRef,socket_p->index,xmit_p->bufRefCurrent);
+	     if (ruc_buf_get_opaque_ref(xmit_p->bufRefCurrent) == socket_p) 
+             {
+                (socket_p->userXmitDoneCallBack)(socket_p->userRef,socket_p->index,xmit_p->bufRefCurrent);
 	     }
-	     else {
-               if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);	        
+	     else 
+             {
+                if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);	        
 	     }  
           }
           else
@@ -239,41 +239,42 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           socket_p->stats.totalXmitError++;
           if (socket_p->userDiscCallBack != NULL)
           {
-             void *bufref = xmit_p->bufRefCurrent;
-             xmit_p->bufRefCurrent = NULL;
-	     
-	     if (ruc_buf_get_opaque_ref(bufref) != socket_p) {
-	       /*
-	       ** the buffer is affected to another socket, however it might possible
-	       ** that the real owner of the buffer has finished while the buffer is
-	       ** still used by that old connection. So it might be necessary to release
-	       ** the buffer.
-	       ** However in any case the application must not be inform that there was
-	       ** an issue while sendig that buffer since the connection is not considered
-	       ** anymore.
-	       */ 
-	       if (inuse == 1) ruc_buf_freeBuffer(bufref);
-	       bufref = NULL;
-             }
-             /*
-             ** it is up to the application to release the buffer if the error is fatal
-             */
-             (socket_p->userDiscCallBack)(socket_p->userRef,socket_p->index,bufref,errno);
-             af_unix_sock_stream_disconnect_internal(socket_p);
-             xmit_p->state = XMIT_DEAD;
-             return;
+            void *bufref = xmit_p->bufRefCurrent;
+            xmit_p->bufRefCurrent = NULL;	     
+            if (ruc_buf_get_opaque_ref(bufref) != socket_p) 
+            {
+              /*
+              ** the buffer is affected to another socket, however it might possible
+              ** that the real owner of the buffer has finished while the buffer is
+              ** still used by that old connection. So it might be necessary to release
+              ** the buffer.
+              ** However in any case the application must not be inform that there was
+              ** an issue while sendig that buffer since the connection is not considered
+              ** anymore.
+              */ 
+              if (inuse == 1) ruc_buf_freeBuffer(bufref);
+              bufref = NULL;
+            }
+            /*
+            ** it is up to the application to release the buffer if the error is fatal:
+            ** caution the internal disconnection MUST be called before the application since
+            ** the application might attempt to perform a direct re-connection
+            */
+            xmit_p->state = XMIT_DEAD;
+            af_unix_sock_stream_disconnect_internal(socket_p);
+            (socket_p->userDiscCallBack)(socket_p->userRef,socket_p->index,bufref,errno);
+            return;
           }
           else
           {
            if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
             xmit_p->bufRefCurrent = NULL;
-
           }
           /*
           ** general disconnection->need to clean the socket queue
           */
-          af_unix_sock_stream_disconnect_internal(socket_p);
           xmit_p->state = XMIT_DEAD;
+          af_unix_sock_stream_disconnect_internal(socket_p);
           return ;
           break;
 

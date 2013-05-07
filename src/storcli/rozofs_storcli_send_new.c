@@ -31,8 +31,8 @@
 #include <getopt.h>
 #include <pthread.h>
 #include <assert.h>
-
 #include <config.h>
+
 #include <rozofs/rozofs.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
@@ -45,6 +45,7 @@
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+
 #include "rozofs_storcli.h"
 #include "rozofs_storcli_rpc.h"
 
@@ -55,7 +56,7 @@ DECLARE_PROFILING(stcpp_profiler_t);
 
  The reference of the north load balancing is extracted for the client structure
  fuse_ctx_p:
- That API needs the pointer to the current fuse context. That nformation will be
+ That API needs the pointer to the current fuse context. That information will be
  saved in the transaction context as userParam. It is intended to be used later when
  the client gets the response from the server
  encoding function;
@@ -218,7 +219,7 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t prog,uint32_t vers,
     /*
     ** OK, so now finish by starting the guard timer
     */
-    rozofs_tx_start_timer(rozofs_tx_ctx_p,10);  
+    rozofs_tx_start_timer(rozofs_tx_ctx_p,3);  
     return 0;  
     
   error:

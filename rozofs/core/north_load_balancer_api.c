@@ -43,6 +43,80 @@ void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms
 void north_lbg_entry_timeout_CBK (void *opaque);
 void north_lbg_entry_stop_timer(north_lbg_entry_ctx_t *pObj);
 
+
+/*__________________________________________________________________________
+*/
+/**
+*  API to display the load balancing group id and its current state
+
+  @param buffer : output buffer
+  @param lbg_id : index of the load balancing group
+  
+  @retval : pointer to the output buffer
+*
+*/
+char *north_lbg_display_lbg_id_and_state(char * pchar,int lbg_id)
+{
+   char *buffer = pchar;
+   if (lbg_id== -1)
+   {
+      buffer += sprintf(buffer," lbg_id ??? state DOWN ");     
+   }
+   else
+   {
+      int lbg_state = north_lbg_get_state(lbg_id);
+      switch (lbg_state)
+      {
+        case NORTH_LBG_UP:
+         buffer += sprintf(buffer," lbg_id %3d state UP   ",lbg_id);  
+         break; 
+         default:
+        case NORTH_LBG_DOWN:
+         buffer += sprintf(buffer," lbg_id %3d state DOWN ",lbg_id);  
+         break;          
+      }
+   }
+   return pchar;
+}
+
+
+
+/*__________________________________________________________________________
+*/
+/**
+*  API to display the load balancing group id and its current state
+
+  @param buffer : output buffer
+  @param lbg_id : index of the load balancing group
+  
+  @retval : pointer to the output buffer
+*
+*/
+char *north_lbg_display_lbg_state(char * pchar,int lbg_id)
+{
+   char *buffer = pchar;
+   if (lbg_id== -1)
+   {
+      buffer += sprintf(buffer,"DOWN");     
+   }
+   else
+   {
+      int lbg_state = north_lbg_get_state(lbg_id);
+      switch (lbg_state)
+      {
+        case NORTH_LBG_UP:
+         buffer += sprintf(buffer,"UP  ");  
+         break; 
+         default:
+        case NORTH_LBG_DOWN:
+         buffer += sprintf(buffer,"DOWN");  
+         break;          
+      }
+   }
+   return pchar;
+}
+
+
 /*__________________________________________________________________________
 */
 /**
@@ -160,7 +234,7 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
     if (entry_p->state != NORTH_LBG_DOWN) 
     { 
       north_lbg_entry_state_change(entry_p,NORTH_LBG_DOWN);
-      warning("north_lbg_userDiscCallBack->Disconnect for %d \n",socket_context_ref);
+      //warning("north_lbg_userDiscCallBack->Disconnect for %d \n",socket_context_ref);
       up2down_transition = 1;
     }
     /*
@@ -306,6 +380,120 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
 /*__________________________________________________________________________
 */
 /**
+* Load Balancing group deletion API
+
+  - delete all the TCP or AF_UNIX conections
+  - stop the timer associated with each connection
+  - release all the xmit pending buffers associated with the load balancing group 
+
+ @param lbg_id : user ereference of the load balancing group
+ 
+ @retval 0 : success
+ @retval < 0  errno (see errno for details)
+*/
+int  north_lbg_delete(int lbg_id)
+{
+    int ret;
+   north_lbg_entry_ctx_t *entry_p ;
+   ruc_obj_desc_t        *pnext = (ruc_obj_desc_t*)NULL;
+   north_lbg_ctx_t       *lbg_p;
+   int i;
+   void *bufRef;
+   
+   lbg_p = north_lbg_getObjCtx_p(lbg_id);
+   if (lbg_p == NULL) 
+   {
+     errno = EINVAL;
+     return -1;
+   }
+
+    lbg_p->state = NORTH_LBG_SHUTTING_DOWN;
+    /*
+    **get the pointer to the destination stored in the buffer
+    */
+
+    /*
+    ** OK, now go the buffer that might be queued on that entry and do the same
+    */
+    for (i = 0;  i < lbg_p->nb_entries_conf; i++)
+    {
+      entry_p = &lbg_p->entry_tb[i];
+
+      /*
+      ** stop the timer
+      */
+      north_lbg_entry_stop_timer(entry_p);      
+      /*
+      ** delete the TCP or AF_UNIX connection
+      */
+      ret = af_unix_delete_socket(entry_p->sock_ctx_ref);
+      if (ret < 0) severe("failure on af_unix_delete_socket() entry %d",i);
+      entry_p->sock_ctx_ref = -1;
+      /*
+      ** Purge the buffer that are queued in the xmitlist done of the entry
+      */
+      while ((bufRef = (void*) ruc_objGetNext((ruc_obj_desc_t*)&entry_p->xmitList,
+                                           &pnext))
+                  !=NULL) 
+      { 
+        /*
+        ** remove it from the list because it might be queued afterwards on a new queue
+        */        
+        ruc_objRemove((ruc_obj_desc_t*)bufRef);
+        while (1) 
+        {	 	 
+             if (lbg_p->userDiscCallBack!= NULL)
+             {
+              (lbg_p->userDiscCallBack)(NULL,lbg_p->index,bufRef, EPIPE); 
+              break;        
+             }
+             /*
+             ** release the buffer
+             */
+             ruc_buf_freeBuffer(bufRef); 
+             break;               
+        }   
+      }
+    }
+    /*
+    ** Purge the pending xmit list of the load balancer
+    */
+    for (i = 0; i < NORTH_LBG_MAX_PRIO; i++)
+    {
+      pnext = (ruc_obj_desc_t*)NULL;
+      while ((bufRef = (void*) ruc_objGetNext((ruc_obj_desc_t*)&lbg_p->xmitList[i],
+                                           &pnext))
+                  !=NULL) 
+      { 
+        /*
+        ** remove it from the list because it might be queued afterwards on a new queue
+        */        
+        ruc_objRemove((ruc_obj_desc_t*)bufRef);
+        while (1) 
+        {	 	 
+             if (lbg_p->userDiscCallBack!= NULL)
+             {
+              (lbg_p->userDiscCallBack)(NULL,lbg_p->index,bufRef, EPIPE); 
+              break;        
+             }
+             /*
+             ** release the buffer
+             */
+             ruc_buf_freeBuffer(bufRef); 
+             break;               
+        }   
+      }
+    }
+    /*
+    ** release the lbg context
+    */
+    north_lbg_free_from_ptr(lbg_p);
+    return 0;
+}
+
+/*__________________________________________________________________________
+*/
+/**
 * that callback is called upon the successful transmission of a buffer
   Depending on the inuse value of the buffer, the application can
   either release the message or queue it in its local xmit queue.
@@ -404,7 +592,6 @@ void north_lbg_connect_cbk (void *userRef,uint32_t socket_context_ref,int retcod
       
 //      entry_p->state = NORTH_LBG_UP ;
 //      entry_p->stats.totalUpDownTransition++;
-      printf("Successful reconnection!!!\n");  
       return;
       
      case RUC_DISC:
@@ -909,6 +1096,10 @@ int north_lbg_send(int  lbg_idx,void *buf_p)
     RUC_WARNING(-1);
     return -1;
   }
+  if ((lbg_p->state == NORTH_LBG_SHUTTING_DOWN) || (lbg_p->free == TRUE))
+  {
+     return -1;
+  }
 reloop:
   /*
   ** we have the context, search for a valid entry
@@ -960,6 +1151,14 @@ reloop:
   ret = af_unix_generic_send_stream_with_idx(entry_p->sock_ctx_ref,buf_p); 
   if (ret == 0)
   {
+    /*
+    ** set the timer to supervise the connection (it only affects client connections)
+    */
+    af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+    af_inet_enable_cnx_supervision(this);
+    af_inet_set_cnx_tmo(this,10);
+
+
     lbg_p->stats.totalXmit++; 
     entry_p->stats.totalXmit++;     
     return 0; 

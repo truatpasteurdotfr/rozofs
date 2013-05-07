@@ -16,7 +16,6 @@
   <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef AF_UNIX_SOCKET_GENERIC_H
 #define AF_UNIX_SOCKET_GENERIC_H
 #include <stdlib.h>
@@ -24,10 +23,6 @@
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <sys/un.h>
-//#include <arpa/inet.h>
-//#include <netinet/in.h>
-//#include <netdb.h>
-//#include <netinet/tcp.h>
 #include <signal.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -38,7 +33,6 @@
 #include "uma_tcp.h"
 #include "ruc_common.h"
 #include "ppu_trace.h"
-
 
 /**
 * Callback that returns the length of the received header
@@ -252,6 +246,20 @@ typedef struct _com_recv_template_t
 
 #define ROZOFS_SOCK_EXTNAME_SIZE 64
 #define AF_UNIX_SOCKET_NAME_SIZE 64
+
+/**
+* structure used to supervise the activity of a tcp connection
+*/
+typedef union 
+{
+   uint64_t u64;
+   struct {
+   uint64_t check_cnx_enabled:1 ; /**< assert to one if enabled */
+   uint64_t check_cnx_rq:1 ;      /**< assert to one when there is a buffer submitted */
+   uint64_t timestamp:62 ;        /**< expiration date */
+   } s;
+} af_inet_check_cnx_t;
+
 /**
 * AF UNIX generic context
 */
@@ -301,6 +309,7 @@ typedef struct _af_unix_ctx_generic_t
   com_xmit_template_t   xmit;
   com_recv_template_t   recv;
   rozofs_socket_stats_t stats;
+  af_inet_check_cnx_t   cnx_supevision; /**< supervision context */
 
 } af_unix_ctx_generic_t;
 
@@ -748,4 +757,55 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
 */
 uint32_t af_unix_send_stream_generic(int fd,char *pMsg,int lgth,int *len_sent_p);
 void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t *xmit_p);
+
+/*
+**__________________________________________________________________________
+*/
+
+/**
+*  clear the check_cnx_rq bit for the following condition
+   - init
+   - successful reception (data or EAGAIN)
+*/
+static inline void af_inet_cnx_ok (af_unix_ctx_generic_t *sock_p)
+{
+   af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
+   p->s.check_cnx_rq = 0;
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Set a guard timer for the connexion to monitor the response
+   
+   @param tmo: tmo in ticker (base is 10 ms)
+*/
+static inline void af_inet_set_cnx_tmo (af_unix_ctx_generic_t  *sock_p, int tmo)
+{
+   uint64_t cur_ts;
+   af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
+   if (p->s.check_cnx_enabled == 0) return;
+   if (p->s.check_cnx_rq == 0)
+   {
+     cur_ts = timer_get_ticker();
+     p->s.timestamp = cur_ts+tmo;
+     p->s.check_cnx_rq = 1;
+   }   
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Set a guard timer for the connexion to monitor the response
+   
+   @param tmo: tmo in ticker (base is 10 ms)
+*/
+static inline void af_inet_enable_cnx_supervision(af_unix_ctx_generic_t  *sock_p)
+{
+   af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
+   p->s.check_cnx_enabled =1;
+}
+
 #endif
