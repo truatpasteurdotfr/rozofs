@@ -267,6 +267,7 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
  /*
   ** active keepalive on the new connection
   */
+//  #warning TCP KEEP ALIVE disabled
 #if 1
   if (setsockopt (fd,SOL_SOCKET,
                   SO_KEEPALIVE,&YES,sizeof(int)) == -1)

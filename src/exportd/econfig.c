@@ -30,6 +30,7 @@
 #include "econfig.h"
 
 #define ELAYOUT	    "layout"
+#define EVIP	    "exportd_vip"
 #define EVOLUMES    "volumes"
 #define EVID        "vid"
 #define ECIDS       "cids"
@@ -447,7 +448,7 @@ static int load_expgw_conf(econfig_t *ec, struct config_t *config) {
                 goto out;
             }
 
-            for (s = 0; s < config_setting_length(expgw_set); s++) {
+            for (s = 0; s < config_setting_length(mexpgw_set); s++) {
 
                 struct config_setting_t *node_expgw_set = NULL;
                 // Check version of libconfig
@@ -665,6 +666,7 @@ out:
 
 int econfig_read(econfig_t *config, const char *fname) {
     int status = -1;
+    const char *host;
     config_t cfg;
     // Check version of libconfig
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
@@ -674,6 +676,7 @@ int econfig_read(econfig_t *config, const char *fname) {
 
     long int layout;
 #endif
+
 
     DEBUG_FUNCTION;
 
@@ -692,6 +695,21 @@ int econfig_read(econfig_t *config, const char *fname) {
     }
     config->layout = (uint8_t) layout;
 
+    if (!config_lookup_string(&cfg, EVIP, &host)) {
+        errno = ENOKEY;
+        severe("can't lookup exportd vip setting.");
+        goto out;
+    }
+
+    // Check length of export hostname
+    if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+        errno = ENAMETOOLONG;
+        severe(" hostname length  must be lower\
+             than %d.", ROZOFS_HOSTNAME_MAX);
+        goto out;
+    }
+    strncpy(config->exportd_vip, host, ROZOFS_HOSTNAME_MAX);
+    
     if (load_volumes_conf(config, &cfg) != 0) {
         severe("can't load volume config.");
         goto out;

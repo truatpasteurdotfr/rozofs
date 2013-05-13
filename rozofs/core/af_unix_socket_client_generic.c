@@ -278,6 +278,68 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
 **__________________________________________________________________________
 */
 
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  check if the supervision timer of the connexion has expired
+  
+   @retval 1 if expired
+   @retval 0 if not expired or inactive
+*/
+static  int af_inet_cnx_check_expiration (af_unix_ctx_generic_t  *sock_p)
+{
+
+   af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
+   uint64_t cur_ts;
+   uint64_t cnx_ts;        
+   uint8_t fake_buf[16];
+   int len;
+   int status;
+   
+   if (p->s.check_cnx_enabled == 0) return 0;
+   if (p->s.check_cnx_rq == 0) return 0;
+   /*
+   ** check the timestamp
+   */
+   cur_ts = timer_get_ticker();
+   cnx_ts = p->s.timestamp;
+   if (cur_ts < cnx_ts) return 0;
+   /*
+   ** timer has expired: check the reception
+   */
+   p->s.check_cnx_rq = 0;
+   
+   status = af_unix_recv_stream_sock_recv(sock_p,fake_buf,2,MSG_PEEK,&len);
+   switch(status)
+   {
+     case RUC_OK:   
+//     case RUC_WOULDBLOCK:
+     case RUC_PARTIAL:
+      /*
+      ** the connexion seems to be still up
+      */
+      return  0;
+
+     case RUC_WOULDBLOCK:
+      /*
+      ** the other end does not answer
+      */
+//      af_unix_sock_stream_disconnect_internal(sock_p);
+//      (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
+      return  0;
+      
+     case RUC_DISC:
+     default:
+      af_unix_sock_stream_disconnect_internal(sock_p);
+      (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
+      return 1;
+   }
+   return 0;
+}
+
+
 /*
 **  Call back function for socket controller
 */
@@ -312,6 +374,17 @@ uint32_t af_unix_generic_cli_connected_rcvReady_cbk(void * socket_ctx_p,int sock
 {
     af_unix_ctx_generic_t  *sock_p;
     sock_p = (af_unix_ctx_generic_t*)socket_ctx_p;
+    /*
+    ** check if there is a potential connection expiration 
+    */
+    if (af_inet_cnx_check_expiration(sock_p) == 1)
+    {
+      /*
+      ** expiration of the connection : no response for a request that is still in the connection
+      */
+      return FALSE;
+    
+    }
     /*
     ** check if there is a user callback associated with that socket
     ** otherwise use the default function of the generic socket
@@ -354,6 +427,11 @@ uint32_t af_unix_generic_cli_connected_recv_cbk(void * socket_ctx_p,int socketId
   af_unix_ctx_generic_t  *sock_p = (af_unix_ctx_generic_t*)socket_ctx_p;
   com_recv_template_t    *recv_p;
   recv_p = &sock_p->recv;
+  /*
+  ** deassert the xmit/resp supervision bit 
+  */
+  af_inet_cnx_ok(sock_p);
+  
   if (recv_p->rpc.receiver_active)
   {
     af_unix_recv_rpc_stream_generic_cbk(socket_ctx_p,socketId);

@@ -20,6 +20,16 @@
 #include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "af_unix_socket_generic.h"
+//#include <linux/tcp.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <netinet/tcp.h>
+#include <rozofs/rozofs.h>
+#include <rozofs/common/log.h>
 
 af_unix_ctx_generic_t *af_unix_context_freeListHead;  /**< head of list of the free context  */
 af_unix_ctx_generic_t af_unix_context_activeListHead;  /**< list of the active context     */
@@ -76,6 +86,98 @@ int af_unix_check_empty_stats(rozofs_socket_stats_t *stats_p)
    return 1;
 }
 
+
+ char *af_inet_get_tcp_state(int state)
+ {
+  switch (state)
+  {
+    case  TCP_ESTABLISHED: return "ESTABLISHED";
+    case  TCP_SYN_SENT:    return "SYN_SENT   ";
+    case  TCP_SYN_RECV:    return "SYN_RECV   "; 
+    case  TCP_FIN_WAIT1:   return "FIN_WAIT1  ";
+    case  TCP_FIN_WAIT2:   return "FIN_WAIT2  ";
+    case  TCP_TIME_WAIT:   return "TIME_WAIT  ";
+    case  TCP_CLOSE:       return "CLOSE      ";
+    case  TCP_CLOSE_WAIT:  return "CLOSE_WAIT ";
+    case  TCP_LAST_ACK:    return "LAST_ACK   ";
+    case  TCP_LISTEN:      return "LISTEN     ";
+    case  TCP_CLOSING:     return "CLOSING    ";   
+    default:                return "UNK        ";
+  }
+}
+
+/**
+*  Get the informatio relative to a TCP connection
+
+  @param socket: reference of the socket
+  
+  @retval
+*/
+struct tcp_info *af_inet_tcp_get_tcp_info(int socket)
+{
+   static struct tcp_info tcp_info_buffer;
+   int optionsize = sizeof(tcp_info_buffer);
+   int ret;
+   
+   if (socket == -1)
+   {
+     return NULL;
+   }
+
+  /*
+  ** change the length for the send buffer, nothing to do for receive buf
+  ** since it is out of the scope of the AF_SOCKET
+  */
+  ret= getsockopt(socket,IPPROTO_TCP,TCP_INFO,(char*)&tcp_info_buffer,(socklen_t*)&optionsize);
+  if(ret<0)
+  {
+    info ("af_inet_tcp_get_tcp_info : %s",strerror(errno));
+   return NULL;
+  }
+  
+  return &tcp_info_buffer;
+}
+
+
+
+
+void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) 
+{
+  char           *buffer=myBuf;
+  struct tcp_info *p;
+  af_unix_ctx_generic_t *sock_p;
+  ruc_obj_desc_t        *pnext;
+  buffer +=sprintf(buffer,"  State      |sock      |  retrans | probes   |  rto     | snd_mss  |  rcv_mss | unacked  |  lost    | retrans  |last_sent |   rtt    |\n");
+  buffer +=sprintf(buffer,"-------------+----------+----------+----------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
+
+    pnext = (ruc_obj_desc_t*)NULL;
+    while ((sock_p = (af_unix_ctx_generic_t*)ruc_objGetNext((ruc_obj_desc_t*)&af_unix_context_activeListHead,
+                                             &pnext))
+               !=(af_unix_ctx_generic_t*)NULL)
+    {
+
+      if (sock_p->af_family == AF_UNIX) continue;
+       p = af_inet_tcp_get_tcp_info(sock_p->socketRef);
+       if (p == NULL) continue;
+     
+       buffer +=sprintf(buffer," %s |",af_inet_get_tcp_state(p->tcpi_state));
+       buffer +=sprintf(buffer," %8d |",sock_p->socketRef);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_retransmits);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_probes);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_rto);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_snd_mss);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_rcv_mss);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_unacked);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_lost);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_retrans);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_last_data_sent);
+       buffer +=sprintf(buffer," %8d |\n",p->tcpi_rtt);
+
+
+   }
+  uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
+
+}
 /*__________________________________________________________________________
   Trace level debug function
   ==========================================================================
@@ -128,7 +230,7 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
         int               vSckAddrLen=sizeof(struct sockaddr);
         uint32_t          ipAddr;
         uint16_t          port;
-
+        
 
         if((getpeername(sock_p->socketRef, (struct sockaddr *)&vSckAddr,(socklen_t*) &vSckAddrLen)) == -1)
         {
@@ -195,6 +297,11 @@ void af_unix_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 }
 
 
+void af_inet_tcp_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
+  af_inet_tcp_debug_show(tcpRef,bufRef);
+}
+
+
 /*__________________________________________________________________________
   Register to the debug SWBB
   ==========================================================================
@@ -204,6 +311,9 @@ void af_unix_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   ==========================================================================*/
 void af_unix_debug_init() {
   uma_dbg_addTopic(af_unix_DEBUG_TOPIC, af_unix_debug);
+
+  uma_dbg_addTopic("tcp_info", af_inet_tcp_debug);
+
 }
 
 
@@ -404,6 +514,8 @@ void  af_unix_ctxInit(af_unix_ctx_generic_t *p,uint8_t creation)
   */
   stats_p = &p->stats;
   memset(stats_p,0,sizeof(rozofs_socket_stats_t));
+  
+  p->cnx_supevision.u64 = 0;
 
 }
 

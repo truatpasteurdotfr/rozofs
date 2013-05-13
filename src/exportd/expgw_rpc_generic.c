@@ -16,48 +16,65 @@ typedef struct _expgw_rpc_generic_tx_t
 } expgw_rpc_generic_tx_t;
 
 
-
-    status = expgw_rpc_req_generic( lbg_id,EXPORT_PROGRAM,EXPORT_VERSION, EP_GETATTR, 
-                                                 (xdrproc_t)xdr_epgw_mfile_arg_t , &arg_attr, 
-                                                  (xdrproc_t)xdr_epgw_mfile_arg_t ,
-                                                 expgw_generic_export_reply_cbk,
-                                                 req_ctx_p) ;
-
-
-
 /**
-* API for creation a transaction towards an exportd
+* structure with transaction module for rpc in non-blocking mode (generic API
+*/
+typedef struct _rozofs_rpc_ctx_t
+{
+  ruc_obj_desc_t link;
+  uint32_t            index;         /**< Index of the MS */
+  uint32_t            free;          /**< Is the context free or allocated TRUE/FALSE */
+  uint32_t            integrity;     /**< the value of this field is incremented at  each MS ctx allocation  */
+  
+  sys_recv_pf_t    response_cbk;     /**< callback function associated with the response of the root transaction */
+  xdrproc_t        xdr_result;       /**< rpc decoding procedure                                                 */
+  void             *user_ref;        /**< object index                                                           */
+  int              ret_len;          /**< length of the structure for decoding the returned parameters           */
+  void            *ret_p;            /**< pointer to the structure used for storing the decoded response         */
+  uint64_t *profiler_probe;          /**< pointer to the profiler counter */
+  uint64_t profiler_time;            /**< profiler timestamp */
+} rozofs_rpc_ctx_t;
 
- The reference of the north load balancing is extracted for the client structure
- fuse_ctx_p:
- That API needs the pointer to the current fuse context. That nformation will be
- saved in the transaction context as userParam. It is intended to be used later when
- the client gets the response from the server
- encoding function;
- For making that API generic, the caller is intended to provide the function that
- will encode the message in XDR format. The source message that is encoded is 
- supposed to be pointed by msg2encode_p.
- Since the service is non-blocking, the caller MUST provide the callback function 
- that will be used for decoding the message
+
+
+/*
+**______________________________________________________________________________
+*/
+/**
+* ROZOFS Generic RPC Request transaction in non-blocking mode
+
+ That service initiates RPC call towards the destination referenced by its associated load balancing group
+ WHen the transaction is started, the application will received the response thanks the provided callback
  
+ The first parameter is a user dependent reference and the second pointer is the pointer to the decoded
+ area.
+ In case of decoding error, transmission error, the second pointer is NULL and errno is asserted with the
+ error.
+ 
+ The array provided for decoding the response might be a static variable within  the user context or
+ can be an allocated array. If that array has be allocated by the application it is up to the application
+ to release it
 
  @param lbg_id     : reference of the load balancing group of the exportd
  @param prog       : program
  @param vers       : program version
  @param opcode     : metadata opcode
  @param encode_fct : encoding function
- @msg2encode_p     : pointer to the message to encode
- @param recv_cbk   : receive callback function
+ @param msg2encode_p     : pointer to the message to encode
+ @param decode_fct  : xdr function for message decoding
+ @param ret: pointer to the array that is used for message decoding
+ @parem ret_len : length of the array used for decoding
+ @param recv_cbk   : receive callback function (for interpretation of the rpc result
  @param ctx_p      : pointer to the user context
  
  @retval 0 on success;
  @retval -1 on error,, errno contains the cause
  */
-
-int expgw_rpc_req_generic(int lbg_id,uint32_t prog,uint32_t vers,
-                                       int opcode,xdrproc_t encode_fct,void *msg2encode_p,
+int rozofs_rpc_non_blocking_req_send (int lbg_id,uint32_t prog,uint32_t vers,
+                                      int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                                        xdrproc_t decode_fct,
-                                       sys_recv_pf_t recv_cbk,void *ctx_p) 
+                                       sys_recv_pf_t recv_cbk,void *ctx_p,
+                                       void *ret,int ret_len) 
 {
     DEBUG_FUNCTION;
    
@@ -72,23 +89,30 @@ int expgw_rpc_req_generic(int lbg_id,uint32_t prog,uint32_t vers,
 	struct rpc_msg   call_msg;
     uint32_t         null_val = 0;
 
-    expgw_rpc_generic_tx_t *rpc_ctx_p = NULL;
+    rozofs_tx_rpc_ctx_t *rpc_ctx_p = NULL;
+
     /*
-    ** allocate a buffer fro the rpc tx
+    ** allocate a rpc context
     */
-    rpc_ctx_p = expgw_rpc_gen_alloc_tx_ctx()
-    if (rpc_ctx_p == NULL) 
+    rozofs_rpc_p = rozofs_rpc_req_alloc();  
+    if (rozofs_rpc_p == NULL) 
     {
        /*
        ** out of context
        */
        errno = ENOMEM;
        goto error;
-    } 
+    }    
+    /*
+    ** save the rpc parameter of the caller
+    */
+    rpc_ctx_p = &rozofs_tx_ctx_p->rpc_ctx;
     rpc_ctx_p->user_ref   = ctx_p;       /* save the user reference of the caller   */    
     rpc_ctx_p->xdr_result = decode_fct;  /* save the decoding procedure  */   
     rpc_ctx_p->response_cbk = recv_cbk ;
-    rpc_ctx_p->errno  = 0;
+    rpc_ctx_p->ret_len  = ret_len;
+    rpc_ctx_p->ret_p  = ret;
+    START_RPC_REQ_PROFILING_START(rpc_ctx_p);
     /*
     ** allocate a transaction context
     */
@@ -103,6 +127,7 @@ int expgw_rpc_req_generic(int lbg_id,uint32_t prog,uint32_t vers,
        errno = ENOMEM;
        goto error;
     }    
+
     /*
     ** allocate an xmit buffer
     */  
@@ -187,7 +212,7 @@ int expgw_rpc_req_generic(int lbg_id,uint32_t prog,uint32_t vers,
     /*
     ** store the receive call back and its associated parameter
     */
-    rozofs_tx_ctx_p->recv_cbk   = expgw_generic_rpc_reply_cbk;
+    rozofs_tx_ctx_p->recv_cbk   = rozofs_rpc_generic_reply_cbk;
     rozofs_tx_ctx_p->user_param = rpc_ctx_p;    
     /*
     ** now send the message
@@ -209,7 +234,7 @@ int expgw_rpc_req_generic(int lbg_id,uint32_t prog,uint32_t vers,
     
   error:
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);
-    if (rpc_ctx_p != NULL) expgw_rpc_gen_free_tx_ctx(rpc_ctx_p);
+    if (rpc_ctx_p != NULL) rozofs_rpc_req_free(rpc_ctx_p);
     return -1;    
 }
 
@@ -222,29 +247,45 @@ int expgw_rpc_req_generic(int lbg_id,uint32_t prog,uint32_t vers,
 *  Call back function call upon a success rpc, timeout or any other rpc failure
 *
  @param this : pointer to the transaction context
- @param param: pointer to the associated gateway context
+ @param param: pointer to the associated rpc context
  
  @return none
  */
 
-void expgw_generic_rpc_reply_cbk(void *this,void *param) 
+void rozofs_rpc_generic_reply_cbk(void *this,void *param) 
 {
    struct rpc_msg  rpc_reply;
-   char argument[EXPGW_RPC_MAX_DECODE_BUFFER];
-   expgw_ctx_t *req_ctx_p = (expgw_ctx_t*) param;
+   rozofs_rpc_ctx_t *rpc_ctx_p = (rozofs_rpc_ctx_t*) param;
    void *ret;  
+   int   ret_len;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   xdrproc_t decode_proc = req_ctx_p->xdr_result;
-   int xdr_free_done = 0;
+   xdrproc_t decode_proc;
+   int xdr_free_done;;
    
-   
-   ret = argument;
-   
-   memset(ret,0,EXPGW_RPC_MAX_DECODE_BUFFER);
+   /*
+   ** get the decoding function from the user rpc context
+   */
+   decode_proc    = rpc_ctx_p->xdr_result;
+   xdr_free_done  = 0;
+   /*
+   ** get the memory area in which we must decode the info
+   */
+   ret = rpc_ctx_p->ret_p;
+   rel_len = rpc_ctx_p->rel_len;
+   if ((ret == NULL) || (rel_len== 0)
+   {
+     severe("bad argurment ret %p rel_len %d",ret,rel_len);
+     errno = EINVAL;
+     goto error;
+   }
+   /*
+   ** clear the memory used for decoding the reply
+   */
+   memset(ret,0,rel_len);
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
     /*
@@ -321,18 +362,17 @@ out:
     /*
     ** call the user callback for returned parameter interpretation: caution recv_buf might be NULL!!
     */
-    req_ctx_p->decoded_arg = ret;
     if (recv_buf == NULL)
-      (*req_ctx_p->response_cbk)(req_ctx_p->usr_ref,NULL); 
+      (*req_ctx_p->response_cbk)(rpc_ctx_p->usr_ref,NULL); 
     else
-      (*req_ctx_p->response_cbk)(req_ctx_p->usr_ref,ret);      
+      (*req_ctx_p->response_cbk)(rpc_ctx_p->usr_ref,ret);      
     /*
     ** do not forget to release data allocated for xdr decoding
     */
     if (xdr_free_done == 0) xdr_free((xdrproc_t) decode_proc, (char *) ret);
+    
     if (recv_buf != NULL)   ruc_buf_freeBuffer(recv_buf);
-    if (req_ctx_p != NULL)   expgw_rpc_gen_free_tx_ctx(req_ctx_p);
-
+    if (rpc_ctx_p != NULL) rozofs_rpc_req_free(rpc_ctx_p);
     return;
 }
 

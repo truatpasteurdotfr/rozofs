@@ -66,6 +66,8 @@ void rozofs_tx_debug_show(uint32_t tcpRef, void *bufRef) {
   char           *pChar=myBuf;
 
   pChar += sprintf(pChar,"number of transaction contexts (initial/allocated) : %u/%u\n",rozofs_tx_context_count,rozofs_tx_context_allocated);
+  pChar += sprintf(pChar,"context size (bytes)                               : %u\n",(unsigned int)sizeof(rozofs_tx_ctx_t));;
+  pChar += sprintf(pChar,"Total memory size (bytes)                          : %u\n",(unsigned int)sizeof(rozofs_tx_ctx_t)*rozofs_tx_context_count);;
   pChar += sprintf(pChar,"Statistics\n");
   pChar += sprintf(pChar,"TX_SEND           : %10llu\n",(unsigned long long int)rozofs_tx_stats[ROZOFS_TX_SEND]);  
   pChar += sprintf(pChar,"TX_SEND_ERR       : %10llu\n",(unsigned long long int)rozofs_tx_stats[ROZOFS_TX_SEND_ERROR]);  

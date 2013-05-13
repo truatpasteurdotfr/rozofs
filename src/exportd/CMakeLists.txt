@@ -59,6 +59,10 @@ add_executable(exportd
     export_nblock_init.c
     export_expgateway_conf.c
     export_expgateway_conf.h
+    export_expgateway_sup.c
+    export_gwprotoclt.c
+
+    
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -83,6 +87,9 @@ expgw_exportd_north_intf.c
 expgw_main.c
 expgw_main.h
 expgw_nblock_init.c
+expgw_gwprotosvc.c
+expgw_gwprotosvc.h
+expgw_gw_poll.c
 
 )
 target_link_libraries(expgateway rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})

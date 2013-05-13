@@ -122,3 +122,15 @@ xdr_gw_configuration_t (XDR *xdrs, gw_configuration_t *objp)
 		 return FALSE;
 	return TRUE;
 }
+
+bool_t
+xdr_gw_ret_configuration_t (XDR *xdrs, gw_ret_configuration_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_gw_status_t (xdrs, &objp->ret))
+		 return FALSE;
+	 if (!xdr_gw_configuration_t (xdrs, &objp->config))
+		 return FALSE;
+	return TRUE;
+}

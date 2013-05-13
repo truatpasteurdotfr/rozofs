@@ -140,6 +140,15 @@ struct epp_profiler_t {
     uint64_t    put_mdirentry[2];
     uint64_t    del_mdirentry[2];
     uint64_t    list_mdirentries[2];
+    
+    uint64_t    gw_invalidate[2];
+    uint64_t    gw_invalidate_all[2];
+    uint64_t    gw_configuration[2];
+    uint64_t    gw_poll[2];
+    uint64_t    ep_configuration[2];
+    uint64_t    ep_conf_gateway[2];
+    uint64_t    ep_poll[2];
+
 };
 
 union epp_profiler_ret_t switch (epp_status_t status) {

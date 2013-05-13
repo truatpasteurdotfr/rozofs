@@ -331,6 +331,27 @@ xdr_epp_profiler_t (XDR *xdrs, epp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->list_mdirentries, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->gw_invalidate, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->gw_invalidate_all, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->gw_configuration, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->gw_poll, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_configuration, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_conf_gateway, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_poll, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	return TRUE;
 }
 

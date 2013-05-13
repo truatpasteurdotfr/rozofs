@@ -16,12 +16,14 @@
 
 include_directories(${CMAKE_BINARY_DIR}) # for config.h
 include_directories(${CMAKE_SOURCE_DIR}) # for librozofs headers
+include_directories(${READLINE_INCLUDE_DIR})
+include_directories(${NCURSES_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(rozodebug
     debug.c
 )
-target_link_libraries(rozodebug)
+target_link_libraries(rozodebug ${READLINE_LIBRARY} ${NCURSES_LIBRARY})
 
 # Install
 

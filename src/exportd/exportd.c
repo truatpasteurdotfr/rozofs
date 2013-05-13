@@ -102,6 +102,40 @@ gw_configuration_t  expgw_conf;
 uint32_t expgw_eid_table[EXPGW_EID_MAX_IDX];
 gw_host_conf_t expgw_host_table[EXPGW_EXPGW_MAX_IDX];
 
+uint32_t export_configuration_file_hash = 0;  /**< hash value of the configuration file */
+/*
+ *_______________________________________________________________________
+ */
+/**
+*  compute the hash of a configuration file
+
+   @param : full pathname of the file
+   @param[out]: pointer to the array where hash value is returned
+   
+   @retval 0 on success
+   @retval -1 on error
+*/
+int hash_file_compute(char *path,uint32_t *hash_p)
+{
+  uint32_t hash;
+  uint8_t c;
+
+  FILE *fp = fopen( path,"r");
+  if (fp < 0)
+  {
+    return -1;
+  }
+  while (!feof(fp) && !ferror(fp))
+  {
+    c = fgetc(fp);
+    hash = c + (hash << 6) + (hash << 16) - hash;
+  }
+  *hash_p = hash;
+  fclose(fp);
+  return 0;
+}
+
+
 /*
  *_______________________________________________________________________
  */
@@ -147,7 +181,6 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
     DEBUG_FUNCTION;
     
     gw_configuration_t  *expgw_conf_p = &expgw_conf;
-//    info("gw_configuration_t %d",(int)sizeof(gw_configuration_t));
     
     expgw_reinit_configuration_message();
     
@@ -166,7 +199,6 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
     {
        export_entry_t *entry = list_entry(iterator, export_entry_t, list);
        expgw_eid_table[expgw_conf_p->eid.eid_len] = entry->export.eid;
-//       info("eid : %d",expgw_eid_table[expgw_conf_p->eid.eid_len]);
        expgw_conf_p->eid.eid_len++;
     }
     /*
@@ -193,7 +225,7 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
     expgw_conf_p->hdr.export_id            = 0;
     expgw_conf_p->hdr.nb_gateways          = 0;
     expgw_conf_p->hdr.gateway_rank         = 0;
-    expgw_conf_p->hdr.configuration_indice = 0;
+    expgw_conf_p->hdr.configuration_indice = export_configuration_file_hash;
     
     list_for_each_forward(iterator, &expgws) 
     {
@@ -212,8 +244,6 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
           */
  
           strcpy((char*)expgw_host_table[expgw_conf_p->gateway_host.gateway_host_len].host, entry->host);
- 
-//          info("host %s",(char*)expgw_host_table[expgw_conf_p->gateway_host.gateway_host_len].host); 
           expgw_conf_p->gateway_host.gateway_host_len++;
           expgw_conf_p->hdr.nb_gateways++;
         }
@@ -223,9 +253,6 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
         severe("can't unlock expgws, potential dead lock.");
         return -1;
     } 
-    info("exportd id  %d",expgw_conf_p->hdr.export_id);          
-    info("nb_gateways %d",expgw_conf_p->hdr.nb_gateways);          
-    info("nb_eid      %d",expgw_conf_p->eid.eid_len);   
      
     XDR               xdrs; 
     int total_len = -1 ;
@@ -238,7 +265,6 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
     {   
      total_len = xdr_getpos(&xdrs) ;
     }
-//    info("total_len %d",total_len);
     return total_len;
 }
 
@@ -695,11 +721,26 @@ static void on_start() {
      if (pChar == NULL)  {
        fatal("malloc %d", MSG_SIZE);
      }
-    expgw_init_configuration_message("localhost");
+    expgw_init_configuration_message(exportd_config.exportd_vip);
     if ( (msg_sz = expgw_build_configuration_message(pChar,MSG_SIZE))< 0)
     {
         fatal("can't build export gateway configuration message");
     }
+    /*
+    ** create the array for building export gateway configuration
+    ** message for rozofsmount
+    */
+    ep_expgw_init_configuration_message(exportd_config.exportd_vip);
+    
+    /*
+    ** create the array for storing storage configuration
+    */
+    if (exportd_init_storage_configuration_message()!=0)
+    {
+        fatal("can't allocate storage configuration array");
+    
+    }
+    
     /*
     ** Send the exportd gateway configuration towards the non blocking thread
     */
@@ -819,16 +860,24 @@ static void on_hup() {
 
     if (econfig_initialize(&new) != 0) {
         severe("can't initialize exportd config: %s.", strerror(errno));
-        goto error;
+        goto invalid_conf;
     }
 
     if (econfig_read(&new, exportd_config_file) != 0) {
         severe("failed to parse configuration file: %s.", strerror(errno));
-        goto error;
+        goto invalid_conf;
     }
 
     if (econfig_validate(&new) != 0) {
         severe("invalid configuration file: %s.", strerror(errno));
+        goto invalid_conf;
+    }
+    /*
+    ** compute the hash of the exportd configuration
+    */
+    if (hash_file_compute(exportd_config_file,&export_configuration_file_hash) != 0) {
+        severe("error while computing hash value of the configuration file: %s.\n",
+                strerror(errno));
         goto error;
     }
 
@@ -923,6 +972,61 @@ static void on_hup() {
         severe("can't create remove files pthread %s", strerror(errno));
         goto error;
     }
+    /*
+    ** reload the export gateways configuration
+    */
+    // Acquire lock on export gateways list
+    if ((errno = pthread_rwlock_wrlock(&expgws_lock)) != 0) {
+        severe("can't lock export gateways: %s", strerror(errno));
+        goto error;
+    }
+    
+
+    list_for_each_forward_safe(p, q, &expgws) {
+        expgw_entry_t *entry = list_entry(p, expgw_entry_t, list);
+        expgw_release(&entry->expgw);
+        list_remove(p);
+        free(entry);
+    }
+    load_export_expgws_conf();
+    
+    //Release lock on export gateways list
+    if ((errno = pthread_rwlock_unlock(&expgws_lock)) != 0) {
+        severe("can't lock export gateways: %s", strerror(errno));
+        goto error;
+    }
+     /*
+     ** build the structure for sending out an exportd gateway configuration message
+     */     
+#define MSG_SIZE  (32*1024)    
+     char * pChar = malloc(MSG_SIZE);
+     int msg_sz;
+     if (pChar == NULL)  {
+       fatal("malloc %d", MSG_SIZE);
+     }
+//    expgw_init_configuration_message(exportd_config.exportd_vip);
+    if ( (msg_sz = expgw_build_configuration_message(pChar,MSG_SIZE))< 0)
+    {
+        severe("can't build export gateway configuration message");
+        free(pChar);
+        goto error;
+    }
+    /*
+    ** Send the exportd gateway configuration towards the non blocking thread
+    */
+    {
+      int ret;
+      ret = expgwc_internal_channel_send(EXPGWC_LOAD_CONF,msg_sz,pChar);
+      if (ret < 0)
+      {
+         severe("EXPGWC_LOAD_CONF: %s",strerror(errno));
+         free(pChar);
+        goto error;
+      }    
+    
+    }
+    free(pChar);
+
 
     info("reloaded.");
     goto out;
@@ -930,6 +1034,8 @@ error:
     pthread_rwlock_unlock(&exports_lock);
     pthread_rwlock_unlock(&volumes_lock);
     pthread_rwlock_unlock(&config_lock);
+    pthread_rwlock_unlock(&expgws_lock);
+invalid_conf:
     severe("reload failed.");
 out:
     econfig_release(&new);
@@ -1027,6 +1133,14 @@ int main(int argc, char *argv[]) {
     }
     if (econfig_validate(&exportd_config) != 0) {
         fprintf(stderr, "inconsistent configuration file: %s.\n",
+                strerror(errno));
+        goto error;
+    }
+    /*
+    ** compute the hash of the exportd configuration
+    */
+    if (hash_file_compute(exportd_config_file,&export_configuration_file_hash) != 0) {
+        fprintf(stderr, "error while computing hash value of the configuration file: %s.\n",
                 strerror(errno));
         goto error;
     }

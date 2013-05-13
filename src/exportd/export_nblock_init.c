@@ -58,6 +58,7 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include "export.h"
+#include <rozofs/core/rozofs_rpc_non_blocking_generic.h>
 #include "export_expgateway_conf.h"
 
 DECLARE_PROFILING(epp_profiler_t);
@@ -165,12 +166,74 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	SHOW_PROFILER_PROBE(put_mdirentry);
 	SHOW_PROFILER_PROBE(del_mdirentry);
 	SHOW_PROFILER_PROBE(list_mdirentries);
+	SHOW_PROFILER_PROBE(gw_invalidate);
+	SHOW_PROFILER_PROBE(gw_invalidate_all);
+	SHOW_PROFILER_PROBE(gw_configuration);
+	SHOW_PROFILER_PROBE(gw_poll);
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
 
 
+void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+
+    pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
+    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
+    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------\n");
+
+
+	SHOW_PROFILER_PROBE(gw_invalidate);
+	SHOW_PROFILER_PROBE(gw_invalidate_all);
+	SHOW_PROFILER_PROBE(gw_configuration);
+	SHOW_PROFILER_PROBE(gw_poll);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+
+void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+
+    pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
+    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
+    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------\n");
+
+	SHOW_PROFILER_PROBE(ep_mount);
+	SHOW_PROFILER_PROBE(ep_umount);
+	SHOW_PROFILER_PROBE(ep_statfs);
+	SHOW_PROFILER_PROBE(ep_lookup);
+	SHOW_PROFILER_PROBE(ep_getattr);
+	SHOW_PROFILER_PROBE(ep_setattr);
+
+	SHOW_PROFILER_PROBE(ep_readlink);
+	SHOW_PROFILER_PROBE(ep_mknod);
+	SHOW_PROFILER_PROBE(ep_mkdir);
+	SHOW_PROFILER_PROBE(ep_unlink);
+	SHOW_PROFILER_PROBE(ep_rmdir);
+	SHOW_PROFILER_PROBE(ep_symlink);
+	SHOW_PROFILER_PROBE(ep_rename);
+	SHOW_PROFILER_PROBE(ep_readdir);
+	SHOW_PROFILER_PROBE_BYTE(ep_read_block);
+	SHOW_PROFILER_PROBE_BYTE(ep_write_block);
+	SHOW_PROFILER_PROBE(ep_link);
+	SHOW_PROFILER_PROBE(ep_setxattr);
+	SHOW_PROFILER_PROBE(ep_getxattr);
+	SHOW_PROFILER_PROBE(ep_removexattr);
+	SHOW_PROFILER_PROBE(ep_listxattr);
+
+	SHOW_PROFILER_PROBE(get_mdirentry);
+	SHOW_PROFILER_PROBE(put_mdirentry);
+	SHOW_PROFILER_PROBE(del_mdirentry);
+	SHOW_PROFILER_PROBE(list_mdirentries);
+	SHOW_PROFILER_PROBE(gw_invalidate);
+	SHOW_PROFILER_PROBE(gw_invalidate_all);
+	SHOW_PROFILER_PROBE(gw_configuration);
+	SHOW_PROFILER_PROBE(gw_poll);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
 
 
 
@@ -305,7 +368,12 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance)
      */    
      ret = north_lbg_module_init(mx_lbg_north_ctx);
      if (ret != RUC_OK) break;   
-
+     /*
+     ** init of the rpc client module
+     */
+     
+     ret = rozofs_rpc_module_init();
+     if (ret != RUC_OK) break;   
      /*
      ** Init of the module that handles the configuration channel with main process of exportd
      */
@@ -313,9 +381,9 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance)
      if (ret != RUC_OK) break; 
      
      ret = rozofs_tx_module_init(EXPORTNB_SOUTH_TX_CNT,  // transactions count
-                                 EXPORTNB_CNF_NO_BUF_CNT,EXPORTNB_CNF_NO_BUF_SZ,        // xmit small [count,size]
-                                 EXPORTNB_CNF_NO_BUF_CNT,EXPORTNB_CNF_NO_BUF_SZ,  // xmit large [count,size]
-                                 EXPORTNB_CNF_NO_BUF_CNT,EXPORTNB_CNF_NO_BUF_SZ,        // recv small [count,size]
+                                 EXPORTNB_SOUTH_TX_RECV_BUF_CNT,EXPORTNB_SOUTH_TX_RECV_BUF_SZ,        // xmit small [count,size]
+                                 EXPORTNB_SOUTH_TX_RECV_BUF_CNT,EXPORTNB_SOUTH_TX_RECV_BUF_SZ,  // xmit large [count,size]
+                                 EXPORTNB_SOUTH_TX_RECV_BUF_CNT,EXPORTNB_SOUTH_TX_RECV_BUF_SZ,        // recv small [count,size]
                                  EXPORTNB_SOUTH_TX_RECV_BUF_CNT,EXPORTNB_SOUTH_TX_RECV_BUF_SZ);  // recv large [count,size];  
      break;
      
@@ -407,6 +475,8 @@ int expgwc_start_nb_blocking_th(void *args) {
     ** add profiler subject (exportd statistics
     */
     uma_dbg_addTopic("profiler", show_profiler);
+    uma_dbg_addTopic("profiler_conf", show_profiler_conf);
+    uma_dbg_addTopic("profiler_short", show_profiler_short);
 
     expgwc_non_blocking_thread_started = 1;
     info("Exportd %d non blocking thread started: debug port %d",args_p->instance,args_p->debug_port);

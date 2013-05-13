@@ -130,8 +130,6 @@ void expgw_release(expgw_t *expgw)
 void expgw_storage_initialize(expgw_storage_t * vs, int gwid,
         const char *hostname) {
     DEBUG_FUNCTION;
-    info(" configuration message size %d",(int)sizeof(gw_configuration_t));
-    info("expgw_config-> idx %d host %s",gwid,hostname);
     vs->gwid = gwid;
     strcpy(vs->host, hostname);
     vs->status = 0;

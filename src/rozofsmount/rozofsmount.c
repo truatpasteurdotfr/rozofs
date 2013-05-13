@@ -43,6 +43,7 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/expgw_common.h>
+#include "rozofs_reload_export_gateway_conf.h"
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
@@ -700,6 +701,11 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("can't create debug thread: %s", strerror(errno));
         return err;
     }
+
+    /*
+    ** start the thread that supervise any change of configuration on the exportd
+    */
+    rozofs_start_exportd_config_supervision_thread(&exportclt);
 
     /*
      * Start profiling server

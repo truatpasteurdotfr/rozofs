@@ -51,12 +51,10 @@
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
+#include "rozofs_storcli_reload_storage_config.h"
 
 #define STORCLI_PID_FILE "storcli.pid"
 
-int rozofs_storcli_non_blocking_init(uint16_t dbg_port, uint16_t rozofsmount_instance);
-
-DEFINE_PROFILING(stcpp_profiler_t) = {0};
 
 /**
  * data structure used to store the configuration parameter of a storcli process
@@ -73,7 +71,22 @@ typedef struct storcli_conf {
     unsigned rozofsmount_instance;
 } storcli_conf;
 
-static char localBuf[4096];
+
+int rozofs_storcli_non_blocking_init(uint16_t dbg_port, uint16_t rozofsmount_instance);
+/*__________________________________________________________________________
+ */
+/**
+ *  Global and local datas
+ */
+static storcli_conf conf;
+exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
+uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
+
+
+DEFINE_PROFILING(stcpp_profiler_t) = {0};
+
+
+static char localBuf[8192];
 
 
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  |\n",\
@@ -93,8 +106,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
-    pChar += sprintf(pChar, "   procedure    |     count       |  time(us) | cumulated time(us) |     bytes       \n");
-    pChar += sprintf(pChar, "----------------+-----------------+-----------+--------------------+-----------------\n");
+    pChar += sprintf(pChar, "   procedure    |     count        |  time(us)  | cumulated time(us)  |     bytes       \n");
+    pChar += sprintf(pChar, "----------------+------------------+------------+---------------------+-----------------\n");
 
     SHOW_PROFILER_PROBE_BYTE(read);
     SHOW_PROFILER_PROBE_BYTE(read_prj);
@@ -108,15 +121,143 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
-/*__________________________________________________________________________
- */
-/**
- *  Global and local datas
- */
-static storcli_conf conf;
-exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
-uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
+/**________________________________________________________________________
+*/
+/**
+*  Display of the state of the current configuration of the exportd
+
+ */
+static char bufall[1024];
+
+static char *show_storlci_display_configuration_state(char *buffer,int state)
+{
+    char *pchar = buffer;
+   switch (state)
+   {
+      default:
+      case STORCLI_CONF_UNKNOWN:
+        sprintf(pchar,"UNKNOWN   ");
+        break;
+   
+      case STORCLI_CONF_NOT_SYNCED:
+        sprintf(pchar,"NOT_SYNCED");
+        break;   
+      case STORCLI_CONF_SYNCED:
+        sprintf(pchar,"SYNCED    ");
+        break;   
+   
+   }
+   return buffer;
+}
+/*
+**________________________________________________________________________
+*/
+/**
+*
+*/
+void show_storcli_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+    char *pchar = localBuf;
+   storcli_conf_ctx_t *p = &storcli_conf_ctx ;
+   rpcclt_t *client_p;
+   
+   client_p = &exportclt.rpcclt;
+   
+   while(1)
+   {   
+
+     pchar += sprintf(pchar,"root path    :%s  (eid:%d)\n",exportclt.root,exportclt.eid);
+     pchar += sprintf(pchar,"exportd host : %s\n",exportclt.host); 
+     pchar += sprintf(pchar,"hash config  : 0x%x\n",exportd_configuration_file_hash); 
+
+pchar += sprintf(pchar,"     hostname        |  socket  | state  | cnf. status |  poll (attps/ok/nok) | conf send (attps/ok/nok)\n");
+pchar += sprintf(pchar,"---------------------+----------+--------+-------------+----------------------+--------------------------\n");
+     while(1)
+     {
+       pchar += sprintf(pchar,"%20s |",exportclt.host);
+       if ( client_p->sock == -1)
+       {
+         pchar += sprintf(pchar,"  ???     |");
+       }
+       else
+       {
+         pchar += sprintf(pchar,"  %3d     |",client_p->sock);
+       
+       }
+       pchar += sprintf(pchar,"  %s  |",(client_p->sock !=-1)?"UP  ":"DOWN");
+       pchar += sprintf(pchar," %s  |",show_storlci_display_configuration_state(bufall,p->conf_state));
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu |",
+                (long long unsigned int)p->stats.poll_counter[STORCLI_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.poll_counter[STORCLI_STATS_SUCCESS],
+               (long long unsigned int) p->stats.poll_counter[STORCLI_STATS_FAILURE]);
+
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu\n",
+                (long long unsigned int)p->stats.conf_counter[STORCLI_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.conf_counter[STORCLI_STATS_SUCCESS],
+               (long long unsigned int) p->stats.conf_counter[STORCLI_STATS_FAILURE]);  
+
+       break;
+     }
+     break;
+  } 
+  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+/*
+**________________________________________________________________________
+*/
+char *display_mstorage(mstorage_t *s,char *buffer)
+{
+
+  int i;
+
+  for (i = 0; i< s->sids_nb; i++)
+  {
+     buffer += sprintf(buffer," %3.3d  |  %2.2d  |",s->cids[i],s->sids[i]);
+     buffer += sprintf(buffer,"%20s |",s->host);
+     if ( s->lbg_id == -1)
+     {
+       buffer += sprintf(buffer,"  ???     |");
+     }
+     else
+     {
+       buffer += sprintf(buffer,"  %3d     |",s->lbg_id);       
+     }
+     buffer += sprintf(buffer,"  %s  |\n",north_lbg_display_lbg_state(bufall,s->lbg_id));         
+  }
+  return buffer;
+}
+
+
+
+/**
+*  Display the configuration et operationbal status of the storaged
+
+
+*/
+void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+    char *pchar = localBuf;
+
+   pchar +=sprintf(pchar," cid  |  sid |     hostname        |  socket  | state  |\n");
+   pchar +=sprintf(pchar,"------+------+---------------------+----------+--------+\n");
+
+   list_t *iterator = NULL;
+   /* Search if the node has already been created  */
+   list_for_each_forward(iterator, &exportclt.storages) 
+   {
+     mstorage_t *s = list_entry(iterator, mstorage_t, list);
+
+     /*
+     ** entry is found 
+     ** update the cid and sid part only. changing the number of
+     ** ports of the mstorage is not yet supported.
+     */
+     pchar=display_mstorage(s,pchar);
+   }
+   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);      
+}      
 
 /*__________________________________________________________________________
  */
@@ -234,7 +375,7 @@ out:
  */
 #define CONNECTION_THREAD_TIMESPEC  2
 
-static void *connect_storage(void *v) {
+void *connect_storage(void *v) {
     mstorage_t *mstorage = (mstorage_t*) v;
     int configuration_done = 0;
 
@@ -427,6 +568,10 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         /* Release mclient*/
         mclient_release(&mclt);
     }
+    /*
+    ** start the exportd configuration polling thread
+    */
+    rozofs_storcli_start_exportd_config_supervision_thread(&exportclt);
     return 0;
 
 
@@ -582,7 +727,15 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Fatal error on rozofs_storcli_get_export_config()\n");
         goto error;
     }
-
+    /*
+    ** Declare the debug entry to get the currrent configuration of the storcli
+    */
+    uma_dbg_addTopic("config_status", show_storcli_configuration);
+    /*
+    ** Declare the debug entry to get the currrent configuration of the storcli
+    */
+    uma_dbg_addTopic("storaged_status", show_storage_configuration);
+    
     /*
      ** Init of the north interface (read/write request processing)
      */

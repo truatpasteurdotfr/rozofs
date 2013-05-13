@@ -51,7 +51,6 @@
 
 #define EXPGW_PID_FILE "expgw.pid"
 
-int rozofs_expgw_non_blocking_init(uint16_t listening_port_base, uint16_t rozofsmount_instance);
 uint32_t expgw_local_ipaddr = INADDR_ANY;
 
 DEFINE_PROFILING(epp_profiler_t) = {0};
@@ -75,7 +74,7 @@ typedef struct expgw_conf {
 static char localBuf[8192];
 
 
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %18s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
@@ -93,8 +92,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
-    pChar += sprintf(pChar, "   procedure    |     count       |  time(us) | cumulated time(us) |     bytes       \n");
-    pChar += sprintf(pChar, "----------------+-----------------+-----------+--------------------+-----------------\n");
+    pChar += sprintf(pChar, "   procedure        |     count        |  time(us)  | cumulated time(us)  |     bytes       \n");
+    pChar += sprintf(pChar, "--------------------+------------------+------------+---------------------+-----------------\n");
 #if 1
     SHOW_PROFILER_PROBE(ep_lookup);
     SHOW_PROFILER_PROBE(ep_getattr);
@@ -114,6 +113,11 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(ep_getxattr);
     SHOW_PROFILER_PROBE(ep_removexattr);
     SHOW_PROFILER_PROBE(ep_listxattr);
+	SHOW_PROFILER_PROBE(gw_invalidate);
+	SHOW_PROFILER_PROBE(gw_invalidate_all);
+	SHOW_PROFILER_PROBE(gw_configuration);
+	SHOW_PROFILER_PROBE(gw_poll);
+
 #endif
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
@@ -181,13 +185,8 @@ void usage() {
     printf("Rozofs storage client daemon - %s\n", VERSION);
     printf("Usage: expgw -i <instance> [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
-    printf("\t-H,--host EXPORT_HOST\t\tdefine address (or dns name) where exportd deamon is running (default: rozofsexport) \n");
     printf("\t-P,--port LISTENING_PORT_BASE\t\trozofsmount,exportd,debug port (default: none) \n");
     printf("\t-L,--local LOCAL_HOST\t\tdefine address (or dns name) of the local host \n");
-    printf("\t-E,--path EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export)\n");
-    printf("\t-M,--mount MOUNT_POINT\t\tmount point\n");
-    printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
-    printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
 }
 
 int main(int argc, char *argv[]) {
@@ -196,13 +195,8 @@ int main(int argc, char *argv[]) {
     int val;
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
-        { "host", required_argument, 0, 'H'},
         { "local", required_argument, 0, 'L'},
-        { "path", required_argument, 0, 'E'},
         { "port", required_argument, 0, 'P'},
-        { "mount", required_argument, 0, 'M'},
-        { "instance", required_argument, 0, 'i'},
-        { "rozo_instance", required_argument, 0, 'R'},
         { 0, 0, 0, 0}
     };
 
@@ -220,7 +214,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:i:P:M:R:L:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hP:L:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -230,29 +224,8 @@ int main(int argc, char *argv[]) {
                 usage();
                 exit(EXIT_SUCCESS);
                 break;
-            case 'H':
-                conf.host = strdup(optarg);
-                break;
             case 'L':
                 conf.localhost = strdup(optarg);
-                break;
-            case 'E':
-                conf.export = strdup(optarg);
-                break;
-
-                break;
-            case 'M':
-                conf.mount = strdup(optarg);
-                break;
-            case 'i':
-                errno = 0;
-                val = (int) strtol(optarg, (char **) NULL, 10);
-                if (errno != 0) {
-                    strerror(errno);
-                    usage();
-                    exit(EXIT_FAILURE);
-                }
-                conf.module_index = val;
                 break;
 
             case 'P':
@@ -265,16 +238,6 @@ int main(int argc, char *argv[]) {
                 }
                 conf.listening_port_base = val;
                 break;
-            case 'R':
-                errno = 0;
-                val = (int) strtol(optarg, (char **) NULL, 10);
-                if (errno != 0) {
-                    strerror(errno);
-                    usage();
-                    exit(EXIT_FAILURE);
-                }
-                conf.rozofsmount_instance = val;
-                break;
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);
@@ -286,41 +249,13 @@ int main(int argc, char *argv[]) {
         }
     }
     /*
-     ** Check the parameters
-     */
-    if (conf.module_index == -1) {
-        printf("instance number is mandatory!\n");
-        usage();
-        exit(EXIT_FAILURE);
-    }
-
-    if (conf.host == NULL) {
-        conf.host = strdup("rozofsexport");
-    }
-
-    if (conf.export == NULL) {
-        conf.export = strdup("/srv/rozofs/exports/export");
-    }
-
-    if (conf.passwd == NULL) {
-        conf.passwd = strdup("none");
-    }
-    openlog("expgw", LOG_PID, LOG_DAEMON);
-
-    /*
-     ** init of the non blocking part
-     */
-    ret = expgw_non_blocking_init(conf.listening_port_base+(100*conf.module_index)+EXPGW_PORT_DEBUG_IDX, conf.rozofsmount_instance);
-    if (ret < 0) {
-        severe("Fatal error while initializing non blocking entity\n");
-        goto error;
-    }
+    ** check the listening base port is configured
+    */
+    if (conf.listening_port_base == 0)
     {
-        char name[32];
-        sprintf(name, "expgw %d ", conf.module_index);
-        uma_dbg_set_name(name);
+        severe("Listening Base port configuration missing: ");
+        goto error;               
     }
-
     /*
     ** get the IP address of the local host
     */
@@ -333,6 +268,29 @@ int main(int argc, char *argv[]) {
        
        }
     }
+    char name[128];
+    {
+      if (conf.localhost != NULL)
+      {
+        sprintf(name, "expgw %s", conf.localhost);
+      }
+      else
+      {
+        sprintf(name, "expgw");        
+      }
+      uma_dbg_set_name(name);
+    }
+    openlog(name, LOG_PID, LOG_DAEMON);
+
+    /*
+     ** init of the non blocking part
+     */
+    ret = expgw_non_blocking_init(conf.listening_port_base+EXPGW_PORT_DEBUG_IDX, expgw_local_ipaddr);
+    if (ret < 0) {
+        severe("Fatal error while initializing non blocking entity\n");
+        goto error;
+    }
+
     /*
      ** Init of the north interface (read/write request processing)
      */
@@ -376,34 +334,6 @@ int main(int argc, char *argv[]) {
     ** init of the exportd/eid routing table
     */
     expgw_export_tableInit();
-    int idx = -1;
-    sscanf(conf.localhost,"localhost%d",&idx);
-//#warning only 1 gateway: localhost1 see alo line 381
- 
-    ret = expgw_export_add_eid(1,   // exportd id
-                               1,   // eid
-                               conf.host,  // hostname of the Master exportd
-                               0,  // port
-                               2,  // nb Gateway
-                               idx-1   // gateway rank
-                               );
-    if (ret < 0) {
-        severe("Fatal error on expgw_export_add_eid()\n");
-        goto error;
-    } 
-    while (1)
-    {
-      ret = expgw_add_export_gateway(1, "localhost2",conf.listening_port_base+EXPGW_PORT_ROZOFSMOUNT_IDX,1); 
-      if (ret < 0) break;
-      ret = expgw_add_export_gateway(1, "localhost1",conf.listening_port_base+EXPGW_PORT_ROZOFSMOUNT_IDX,0);  
-      if (ret < 0) break;
-      break;    
-    }      
-    if (ret < 0) {
-        severe("Fatal error on expgw_add_export_gateway()\n");
-        goto error;
-    } 
- 
     /*
      ** add the topic for the local profiler
      */
@@ -419,8 +349,8 @@ int main(int argc, char *argv[]) {
     /*
      ** main loop
      */
-    info("Export Gateway %d non blocking thread started: debug port %d",conf.module_index,
-                                conf.listening_port_base+(100*conf.module_index)+EXPGW_PORT_DEBUG_IDX);
+    info("Export Gateway non blocking thread started: debug port %d",
+                                conf.listening_port_base+EXPGW_PORT_DEBUG_IDX);
 
     while (1) {
         ruc_sockCtrl_selectWait();

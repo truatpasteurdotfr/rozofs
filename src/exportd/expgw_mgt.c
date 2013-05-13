@@ -303,7 +303,6 @@ expgw_ctx_t *expgw_alloc_context()
 void expgw_release_context(expgw_ctx_t *ctx_p)
 {
 
-#warning take care about the xdr_free since some data might allocated by rpc stuff
   /*
   ** release the buffer that was carrying the initial request
   */

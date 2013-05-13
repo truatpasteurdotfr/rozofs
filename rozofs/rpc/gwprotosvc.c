@@ -28,6 +28,7 @@ gw_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		gw_header_t gw_invalidate_all_1_arg;
 		gw_configuration_t gw_configuration_1_arg;
 		gw_header_t gw_poll_1_arg;
+		gw_header_t gw_get_configuration_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -62,6 +63,12 @@ gw_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_gw_header_t;
 		_xdr_result = (xdrproc_t) xdr_gw_status_t;
 		local = (char *(*)(char *, struct svc_req *)) gw_poll_1_svc;
+		break;
+
+	case GW_GET_CONFIGURATION:
+		_xdr_argument = (xdrproc_t) xdr_gw_header_t;
+		_xdr_result = (xdrproc_t) xdr_gw_ret_configuration_t;
+		local = (char *(*)(char *, struct svc_req *)) gw_get_configuration_1_svc;
 		break;
 
 	default:

@@ -43,6 +43,80 @@ void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms
 void north_lbg_entry_timeout_CBK (void *opaque);
 void north_lbg_entry_stop_timer(north_lbg_entry_ctx_t *pObj);
 
+
+/*__________________________________________________________________________
+*/
+/**
+*  API to display the load balancing group id and its current state
+
+  @param buffer : output buffer
+  @param lbg_id : index of the load balancing group
+  
+  @retval : pointer to the output buffer
+*
+*/
+char *north_lbg_display_lbg_id_and_state(char * pchar,int lbg_id)
+{
+   char *buffer = pchar;
+   if (lbg_id== -1)
+   {
+      buffer += sprintf(buffer," lbg_id ??? state DOWN ");     
+   }
+   else
+   {
+      int lbg_state = north_lbg_get_state(lbg_id);
+      switch (lbg_state)
+      {
+        case NORTH_LBG_UP:
+         buffer += sprintf(buffer," lbg_id %3d state UP   ",lbg_id);  
+         break; 
+         default:
+        case NORTH_LBG_DOWN:
+         buffer += sprintf(buffer," lbg_id %3d state DOWN ",lbg_id);  
+         break;          
+      }
+   }
+   return pchar;
+}
+
+
+
+/*__________________________________________________________________________
+*/
+/**
+*  API to display the load balancing group id and its current state
+
+  @param buffer : output buffer
+  @param lbg_id : index of the load balancing group
+  
+  @retval : pointer to the output buffer
+*
+*/
+char *north_lbg_display_lbg_state(char * pchar,int lbg_id)
+{
+   char *buffer = pchar;
+   if (lbg_id== -1)
+   {
+      buffer += sprintf(buffer,"DOWN");     
+   }
+   else
+   {
+      int lbg_state = north_lbg_get_state(lbg_id);
+      switch (lbg_state)
+      {
+        case NORTH_LBG_UP:
+         buffer += sprintf(buffer,"UP  ");  
+         break; 
+         default:
+        case NORTH_LBG_DOWN:
+         buffer += sprintf(buffer,"DOWN");  
+         break;          
+      }
+   }
+   return pchar;
+}
+
+
 /*__________________________________________________________________________
 */
 /**
@@ -114,7 +188,7 @@ void  north_lbg_userRecvCallBack(void *userRef,uint32_t  socket_ctx_idx, void *b
    ** update the statistics
    */
    lbg_p->stats.totalRecv++;
-   entry_p->stats.totalXmit++;     
+   entry_p->stats.totalRecv++;     
    /*
    ** check if there is some message to pull out from the global queue
    */
@@ -388,6 +462,7 @@ int  north_lbg_delete(int lbg_id)
     */
     for (i = 0; i < NORTH_LBG_MAX_PRIO; i++)
     {
+      pnext = (ruc_obj_desc_t*)NULL;
       while ((bufRef = (void*) ruc_objGetNext((ruc_obj_desc_t*)&lbg_p->xmitList[i],
                                            &pnext))
                   !=NULL) 
@@ -520,7 +595,7 @@ void north_lbg_connect_cbk (void *userRef,uint32_t socket_context_ref,int retcod
       
 //      entry_p->state = NORTH_LBG_UP ;
 //      entry_p->stats.totalUpDownTransition++;
-      printf("Successful reconnection!!!\n");  
+//      printf("Successful reconnection!!!\n");  
       return;
       
      case RUC_DISC:
@@ -1080,6 +1155,14 @@ reloop:
   ret = af_unix_generic_send_stream_with_idx(entry_p->sock_ctx_ref,buf_p); 
   if (ret == 0)
   {
+    /*
+    ** set the timer to supervise the connection (it only affects client connections)
+    */
+    af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+    af_inet_enable_cnx_supervision(this);
+    af_inet_set_cnx_tmo(this,10);
+
+
     lbg_p->stats.totalXmit++; 
     entry_p->stats.totalXmit++;     
     return 0; 

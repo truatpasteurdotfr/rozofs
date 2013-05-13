@@ -31,19 +31,24 @@ typedef string          ep_link_t<ROZOFS_PATH_MAX>;
 typedef char            ep_host_t[ROZOFS_HOSTNAME_MAX];
 typedef char            ep_md5_t[ROZOFS_MD5_SIZE];
 
+typedef string            ep_st_host_t<ROZOFS_HOSTNAME_MAX>;
+typedef string            ep_epgw_host_t<ROZOFS_PATH_MAX>;
+
+
 struct ep_gateway_t
 {
     uint32_t  eid;
     uint32_t  nb_gateways;
     uint32_t  gateway_rank;
-    uint32_t  reserved;
+    uint32_t  hash_config;
 };
  
 enum ep_status_t {
     EP_SUCCESS = 0,
     EP_FAILURE = 1,
     EP_EMPTY   = 2,
-    EP_FAILURE_EID_NOT_SUPPORTED =3
+    EP_FAILURE_EID_NOT_SUPPORTED =3,
+    EP_NOT_SYNCED =4
 };
 
 union ep_status_ret_t switch (ep_status_t status) {
@@ -92,6 +97,7 @@ struct ep_storage_node_t {
 };
 
 struct ep_export_t {
+    uint32_t            hash_conf;
     uint32_t            eid;
     ep_md5_t            md5;
     ep_uuid_t           rfid;   /*root fid*/
@@ -110,6 +116,34 @@ struct epgw_mount_ret_t
 {
   struct ep_gateway_t hdr;
   ep_mount_ret_t    status_gw;
+};
+
+struct ep_cnf_storage_node_t {
+    string       host<ROZOFS_HOSTNAME_MAX>;
+    uint8_t         sids_nb;
+    uint8_t         sids[STORAGES_MAX_BY_STORAGE_NODE];
+    uint16_t        cids[STORAGES_MAX_BY_STORAGE_NODE];
+};
+
+struct ep_conf_export_t {
+    uint32_t            hash_conf;
+    uint32_t            eid;
+    ep_md5_t            md5;
+    ep_uuid_t           rfid;   /*root fid*/
+    uint8_t             rl;     /* rozofs layout */
+    ep_cnf_storage_node_t   storage_nodes<>;
+};
+
+union ep_conf_ret_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_conf_export_t export;
+    case EP_FAILURE:    int         error;
+    default:            void;
+};
+
+struct epgw_conf_ret_t
+{
+  struct ep_gateway_t hdr;
+  ep_conf_ret_t    status_gw;
 };
 
 
@@ -507,6 +541,37 @@ struct  epgw_listxattr_ret_t
   ep_listxattr_ret_t    status_gw;
 };
 
+struct ep_gw_host_conf_t  
+{
+  ep_epgw_host_t   host;
+};
+struct ep_gw_header_t {
+  uint32_t export_id;
+  uint32_t nb_gateways;
+  uint32_t gateway_rank;
+  uint32_t configuration_indice;
+};
+
+
+struct ep_gateway_configuration_t {
+  ep_gw_header_t     hdr;
+  ep_epgw_host_t     exportd_host;
+  uint16_t           exportd_port;
+  uint16_t           gateway_port;
+  uint32_t           eid<>;  
+  ep_gw_host_conf_t     gateway_host<>;
+} ; 
+
+union ep_gateway_configuration_ret_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_gateway_configuration_t    config;
+    case EP_FAILURE:    int             error;
+    default:            void;
+};
+struct ep_gw_gateway_configuration_ret_t
+{
+        struct ep_gateway_t hdr;
+        ep_gateway_configuration_ret_t status_gw;
+};
 
 program EXPORT_PROGRAM {
     version EXPORT_VERSION {
@@ -578,7 +643,16 @@ program EXPORT_PROGRAM {
         EP_LISTXATTR(epgw_listxattr_arg_t)        = 22;
 
         epgw_cluster_ret_t
-        EP_LIST_CLUSTER(uint16_t)               = 23;
+        EP_LIST_CLUSTER(uint16_t)                 = 23;
 
+        epgw_conf_ret_t
+        EP_CONF_STORAGE(ep_path_t)                        = 24;
+               
+        epgw_status_ret_t
+        EP_POLL_CONF(ep_gateway_t)                        = 25;
+
+        ep_gw_gateway_configuration_ret_t
+        EP_CONF_EXPGW(ep_path_t)                           = 26;
+        
     } = 1;
 } = 0x20000001;

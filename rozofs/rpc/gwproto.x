@@ -25,7 +25,8 @@ typedef string          epgw_host_t<ROZOFS_PATH_MAX>;
  
 enum gw_status_e {
     GW_FAILURE = 0,
-    GW_SUCCESS = 1
+    GW_SUCCESS = 1,
+    GW_NOT_SYNCED = 2
 };
 
 
@@ -71,6 +72,12 @@ struct gw_configuration_t {
 %//  gw_host_conf_t     gateway_host[EXPGW_EXPGW_MAX_IDX];
 } ; 
   
+struct gw_ret_configuration_t
+{
+        gw_status_t ret;
+        gw_configuration_t config;
+};
+
 program GW_PROGRAM {
     version GW_VERSION {
     
@@ -88,6 +95,9 @@ program GW_PROGRAM {
 
         gw_status_t
         GW_POLL(gw_header_t)                                       = 4;
+
+        gw_ret_configuration_t
+        GW_GET_CONFIGURATION(gw_header_t)                          = 5;
 
     } = 1;
 } = 0x20000009;

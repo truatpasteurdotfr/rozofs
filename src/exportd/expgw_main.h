@@ -28,15 +28,38 @@ extern "C" {
 
 #include "expgw_fid_cache.h"
 #include "expgw_attr_cache.h"
+
 /**
 *  Init of the data structure used for the non blocking entity
-
+  
+  @param dbg_port: debug listening port
+  @param local_ip_addr:IP debug address
+  
   @retval 0 on success
   @retval -1 on error
 */
-int expgw_non_blocking_init(uint16_t dbg_port, uint16_t expgw_instance);
+int expgw_non_blocking_init(uint16_t dbg_port, uint32_t local_ip_addr);
 
 
+/*
+**____________________________________________________
+*/
+/**
+   
+
+  Creation of the north interface for rozofsmount (AF_INET)
+
+@param     : src_ipaddr_host : source IP address in host format
+@param     : src_port_host : port in host format
+@param     : read_write_buf_count : number of read/write buffer
+@param     : read_write_buf_sz : size of a read/write buffer
+
+@retval   : RUC_OK : done
+@retval          RUC_NOK : out of memory
+*/
+
+int expgw_exportd_north_interface_init(uint32_t src_ipaddr_host,uint16_t src_port_host,
+                             int read_write_buf_count,int read_write_buf_sz);
 
 
 #ifdef __cplusplus

@@ -45,31 +45,6 @@ void *expgw_exportd_north_buffer_pool_p = NULL;  /**< reference of the read/writ
  
 
 /*
-**__________________________________________________________________________
-*/
-/**
-  Application callBack:
-
-   THis the callback that is activated upon the reception of an exportd
-   request 
-
-    
-  @param socket_ctx_p: pointer to the af unix socket
-  @param socketId: reference of the socket (not used)
- 
-   @retval : TRUE-> xmit ready event expected
-  @retval : FALSE-> xmit  ready event not expected
-*/
-void expgw_exportd_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
-{
- #warning fake expgw_exportd_req_rcv_cbk()   
-    ruc_buf_freeBuffer(recv_buf);
-    info ("Message received on Config. Channel");
-    
-}
-
-
-/*
 **____________________________________________________
 */
 /**
@@ -240,7 +215,7 @@ int expgw_exportd_north_interface_init(uint32_t src_ipaddr_host,uint16_t src_por
       ** create the listening af unix socket on the north interface
       */
       af_inet_exportd_north_conf.rpc_recv_max_sz = expgw_exportd_read_write_buf_sz;
-      ret =  af_inet_sock_listening_create("EXPGW_EXPORTD_NORTH",
+      ret =  af_inet_sock_listening_create("EXPGW_EXPORTD",
                                             src_ipaddr_host,src_port_host, 
                                             &af_inet_exportd_north_conf   
                                             );

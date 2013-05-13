@@ -40,6 +40,27 @@ extern "C" {
 #include <rpc/pmap_clnt.h>
 
 /**
+* relative index of the export gateway listening ports
+*/
+typedef enum
+{
+   EXPGW_PORT_ROZOFSMOUNT_IDX= 0,
+   EXPGW_PORT_EXPORTD_IDX,
+   EXPGW_PORT_DEBUG_IDX,
+   EXPGW_PORT_MAX_IDX,  
+} expgw_listening_ports_e;
+
+/**
+* state of an entry of the exportd context
+*/
+typedef enum
+{
+   EXPGW_STATE_EMPTY= 0,
+   EXPGW_STATE_SYNCED,
+   EXPGW_STATE_DIRTY,
+} expgw_exportd_entry_state_e;
+
+/**
 *   The reference of the load balancing group are set to -1 if the destination is not reachable
 *   For the case of the master exportd it corresponds to the case where the lbg is down 
 *   for the case of the export gateway it correspond to the case of lbg down and also to the case where is eid is not reachable
@@ -81,6 +102,7 @@ typedef struct _expgw_eid_ctx_t
 
 typedef struct _expgw_expgw_ctx_t
 {
+   uint16_t  entry_state;  /**< config state see expgw_exportd_entry_state_e */
    uint16_t  port;     /**< tcp port in host format   */
    uint32_t  ipaddr;   /**< IP address in host format */
    char      hostname[ROZOFS_HOSTNAME_MAX];
@@ -91,11 +113,12 @@ typedef struct _expgw_expgw_ctx_t
 
 typedef struct _expgw_exportd_ctx_t
 {
-   uint16_t  exportd_id ; /**< index of the parent exportd  */   
-   uint16_t  port;     /**< tcp port in host format   */
-   uint32_t  ipaddr;   /**< IP address in host format */
+   uint32_t  hash_config;   /**< hash configuretion of the export file    */
+   uint16_t  exportd_id ;   /**< index of the parent exportd              */   
+   uint16_t  port;          /**< tcp port in host format                  */
+   uint32_t  ipaddr;        /**< IP address in host format                */
    char      hostname[ROZOFS_HOSTNAME_MAX];
-   uint16_t  nb_gateways;  /**< number of gateay for export caching */
+   uint16_t  nb_gateways;  /**< number of gateay for export caching        */
    uint16_t  gateway_rank;  /**< rank of the gateway  */
    int       export_lbg_id;        /**< reference of the load balancing group for reach the master exportd (default route) */
    expgw_expgw_ctx_t expgw_list[EXPGW_EXPGW_MAX_IDX];
@@ -122,12 +145,64 @@ static inline void expgw_routing_ctx_init(expgw_tx_routing_ctx_t *p)
      p->lbg_id[i] = -1;  
      p->lbg_type[i] = -1;  
    }
-   p->eid       = 0;
-   p->nb_lbg    = 0;       
-   p->cur_lbg   = 0;       
+   p->eid         = 0;
+   p->nb_lbg      = 0;       
+   p->cur_lbg     = 0;       
    p->keep_xmit_buf_flag = 0; 
    p->xmit_buf = NULL; 
    p->gw_rank = -1;
+}
+
+/*
+**______________________________________________________________________________
+*/
+/**
+* API to get the current hash config associated with an exportd_id
+
+  @param exportd_id: index of the master exportd
+  
+  @retval hash value of the configuration (0 if the exportd id is out of range
+  
+*/
+static inline uint32_t expgw_get_exportd_hash_config(uint32_t exportd_id)
+{
+   if (exportd_id >= EXPGW_EXPORTD_MAX_IDX)
+   {
+     /*
+     ** out of range
+     */
+     severe("expgw_get_exportd_hash_config: exportd_id is out of range :%d max: %d",exportd_id,EXPGW_EXPORTD_MAX_IDX);
+     return 0;   
+   }
+   return expgw_exportd_table[exportd_id].hash_config;
+}
+
+
+/*
+**______________________________________________________________________________
+*/
+/**
+* API to get the current hash config associated with an exportd_id
+
+  @param exportd_id: index of the master exportd
+  @param hash_config: hash value of the exportd configuration file
+  
+  @retval 0 on success
+  @retval -1 on error (exportd id out of range)
+  
+*/
+static inline int expgw_set_exportd_hash_config(uint32_t exportd_id,uint32_t hash_config)
+{
+   if (exportd_id >= EXPGW_EXPORTD_MAX_IDX)
+   {
+     /*
+     ** out of range
+     */
+     severe("expgw_set_exportd_hash_config: exportd_id is out of range :%d max: %d",exportd_id,EXPGW_EXPORTD_MAX_IDX);
+     return -1;   
+   }
+   expgw_exportd_table[exportd_id].hash_config = hash_config;
+   return 0;
 }
 /*
 **______________________________________________________________________________
@@ -329,6 +404,36 @@ void expgw_export_tableInit();
 @retval -1 on error (see errno faor details
 */
 int expgw_host2ip(char *host,uint32_t *ipaddr_p);
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  API to set to the dirty state all the entry associated with an exportd id
+   That API is intended to be called upon receiving a new configuration from 
+   an exportd
+   
+   @param exportd_id : index of the exportd
+   
+   @retval 0 on success
+   @retval -1 : exportd id is out of range
+*/
+int expgw_set_exportd_table_dirty(uint32_t exportd_id);
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  API to clean up the dirty entries of a exportd id after a configuration update
+
+   The purpose of that service is to release any created load balancing group
+   
+   @param exportd_id : index of the exportd
+   
+   @retval 0 on success
+   @retval -1 : exportd id is out of range
+*/
+int expgw_clean_up_exportd_table_dirty(uint32_t exportd_id);
 /*
 **______________________________________________________________________________
 */
@@ -350,21 +455,6 @@ int expgw_host2ip(char *host,uint32_t *ipaddr_p);
 int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname, 
                       uint16_t port,uint16_t nb_gateways,uint16_t gateway_rank);
                       
-/*
-**______________________________________________________________________________
-*/
-/**
-*  update an ienetry with a new gateway count and gateway rank 
-
-  @param eid: eid within the exportd
-  @param nb_gateways : number of gateways
-  @param gateway_rank : rank of the current export gateway
-  
-  @retval 0 on success
-  @retval -1 on error (see errno for details)
-  
-*/
-int expgw_export_update_eid_gw_info(uint16_t eid,uint16_t nb_gateways,uint16_t gateway_rank);                      
 
 /*
 **______________________________________________________________________________

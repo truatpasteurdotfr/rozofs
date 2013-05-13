@@ -43,6 +43,8 @@
 gw_configuration_t  expgw_conf_local;
 int expgw_configuration_available = 0;
 
+int export_conf_lock = 0;
+
 uint32_t  expgwc_sup_getIntSockIdxFromSocketId(expgwc_internal_channel_conf_t *p,int socketId);
 /*
 **   G L O B A L    D A T A
@@ -73,9 +75,96 @@ uint8_t expgwc_internal_channel_buf_recv[EXPORTDNB_INTERNAL_CHAN_RECV_SZ_MAX];
 
 
  uint32_t expgwc_internal_channel_conf_trace = TRUE;
+/*
+**________________________________________________________________________
+*/
+/**
+*  Display of the state of the current configuration of the exportd
+
+ */
+static char localBuf[8192];
+static char bufall[1024];
+
+static char *show_expgw_display_configuration_state(char *buffer,int state)
+{
+    char *pchar = buffer;
+   switch (state)
+   {
+      default:
+      case EPGW_CONF_UNKNOWN:
+        sprintf(pchar,"UNKNOWN   ");
+        break;
+   
+      case EPGW_CONF_NOT_SYNCED:
+        sprintf(pchar,"NOT_SYNCED");
+        break;   
+      case EPGW_CONF_SYNCED:
+        sprintf(pchar,"SYNCED    ");
+        break;   
+   
+   }
+   return buffer;
+}
+/*
+**________________________________________________________________________
+*/
+/**
+*
+*/
+void show_expgw_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+    char *pchar = localBuf;
+   export_expgw_conf_ctx_t *p = export_expgw_conf_table ;
+   gw_configuration_t *expgw_conf_p= &expgw_conf_local;
+   int i;
+   
+   while(1)
+   {   
+     if (expgw_configuration_available == 0)
+     {
+       pchar += sprintf(pchar,"No configuration available\n");
+       break;
+     }
+     pchar += sprintf(pchar,"exportd id %d\n",expgw_conf_p->hdr.export_id);
+     pchar += sprintf(pchar,"nb gateways : %d\n",expgw_conf_p->hdr.nb_gateways);
+     pchar += sprintf(pchar,"nb eids     : %d\n",expgw_conf_p->eid.eid_len); 
+     pchar += sprintf(pchar,"hash config : 0x%x\n",expgw_conf_p->hdr.configuration_indice); 
+
+pchar += sprintf(pchar,"     hostname        |  lbg_id  | state  | cnf. status |  poll (attps/ok/nok) | conf send (attps/ok/nok)\n");
+pchar += sprintf(pchar,"---------------------+----------+--------+-------------+----------------------+--------------------------\n");
+     for (i = 0; i < expgw_conf_p->gateway_host.gateway_host_len; i++,p++) 
+     {
+       pchar += sprintf(pchar,"%20s |",p->hostname);
+       if ( p->gateway_lbg_id == -1)
+       {
+         pchar += sprintf(pchar,"  ???     |");
+       }
+       else
+       {
+         pchar += sprintf(pchar,"  %3d     |",p->gateway_lbg_id);
+       
+       }
+       pchar += sprintf(pchar,"  %s  |",north_lbg_display_lbg_state(bufall,p->gateway_lbg_id));
+       pchar += sprintf(pchar," %s  |",show_expgw_display_configuration_state(bufall,p->conf_state));
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu |",
+                (long long unsigned int)p->stats.poll_counter[EXPGW_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.poll_counter[EXPGW_STATS_SUCCESS],
+               (long long unsigned int) p->stats.poll_counter[EXPGW_STATS_FAILURE]);
+
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu\n",
+                (long long unsigned int)p->stats.conf_counter[EXPGW_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.conf_counter[EXPGW_STATS_SUCCESS],
+               (long long unsigned int) p->stats.conf_counter[EXPGW_STATS_FAILURE]);  
 
 
-
+     }
+     break;
+  } 
+  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+**________________________________________________________________________
+*/
 /*----------------------------------------------
 **  expgwc_sup_getObjRef
 **----------------------------------------------
@@ -269,14 +358,14 @@ int expgwc_load_conf_proc(char *msg,int len)
     /*
     ** successful decoding
     */
-    info("NB exportd id  %d",expgw_conf_p->hdr.export_id);          
-    info("NB nb_gateways %d",expgw_conf_p->hdr.nb_gateways);          
-    info("NB nb_eid      %d",expgw_conf_p->eid.eid_len); 
+//    info("NB exportd id  %d",expgw_conf_p->hdr.export_id);          
+//    info("NB nb_gateways %d",expgw_conf_p->hdr.nb_gateways);          
+//    info("NB nb_eid      %d",expgw_conf_p->eid.eid_len); 
       
     export_nb_gateways = expgw_conf_p->gateway_host.gateway_host_len;   
     for (i = 0; i < expgw_conf_p->gateway_host.gateway_host_len; i++) 
     {
-       info("NB host %s",(char*)expgw_conf_p->gateway_host.gateway_host_val[i].host); 
+//       info("NB host %s",(char*)expgw_conf_p->gateway_host.gateway_host_val[i].host); 
 #warning configuration port base (60000)  of the export gateway is almost hardcoded!!
        int port = EXPGW_PORT_EXPORTD_IDX+60000;
        ret = export_expgw_conf_ctx_create(i,(char*)expgw_conf_p->gateway_host.gateway_host_val[i].host,port);
@@ -369,11 +458,11 @@ uint32_t expgwc_internal_channel_recv_cbk(void * not_significant,int socketId)
   switch ( msg->opcode)
   {
     case EXPGWC_NULL:
-      info(" EXPGWC_NULL received !!");
+//      info(" EXPGWC_NULL received !!");
       break;
     case EXPGWC_LOAD_CONF:
       ret = expgwc_load_conf_proc(pchar,msg->length);
-      info("EXPGWC_LOAD_CONF recived -> length %d",msg->length);
+//      info("EXPGWC_LOAD_CONF received -> length %d",msg->length);
       break;
     default:
        severe("bad opcode:%d",msg->opcode);
@@ -484,7 +573,7 @@ uint32_t expgwc_sup_createInternalSocket(expgwc_internal_channel_conf_t *p)
 {
   int    ret;
   uint32_t retcode = RUC_NOK;
-  int    fileflags;
+//  int    fileflags;
 
 
   /*
@@ -507,6 +596,7 @@ uint32_t expgwc_sup_createInternalSocket(expgwc_internal_channel_conf_t *p)
   }
   while (1)
   {
+#if 0
     /*
     ** change socket mode to asynchronous
     */
@@ -520,6 +610,7 @@ uint32_t expgwc_sup_createInternalSocket(expgwc_internal_channel_conf_t *p)
       severe("expgwc_sup_createInternalSocket: %s",strerror(errno));;
       break;
     }
+#endif
     /*
     ** 2 - perform the connection with the socket controller
     */
@@ -636,8 +727,11 @@ uint32_t expgwc_sup_deleteInternalSocket(expgwc_internal_channel_conf_t *p)
 */
 static void expgwc_int_periodic_ticker(void * param) 
 {
-#if 0
+
   int i;
+  export_expgw_conf_ctx_t *p;
+  
+  if (export_conf_lock) return;
   /*
   ** check if the configuration is available: nothing to do if there is no configuration
   */
@@ -647,9 +741,7 @@ static void expgwc_int_periodic_ticker(void * param)
   for ( i = 0; i < export_nb_gateways ;i++,p++)
   {
     export_expgw_check_config(p);  
-  }
-  
-#endif 
+  } 
 
 
 }
@@ -666,7 +758,7 @@ static void expgwc_int_start_timer() {
 
   expgwc_int_periodic_timer = ruc_timer_alloc(0,0);
   if (expgwc_int_periodic_timer == NULL) {
-    severe("expgwc_int_start_timer");
+    fatal("expgwc_int_start_timer");
     return;
   }
   ruc_periodic_timer_start (expgwc_int_periodic_timer, 
@@ -700,6 +792,9 @@ uint32_t expgwc_int_chan_moduleInit()
 
   gw_configuration_t *expgw_conf_p= &expgw_conf_local;
   
+  uma_dbg_addTopic("config_status", show_expgw_configuration);
+
+  
   /*
   ** clear the configuration area
   */
@@ -708,6 +803,10 @@ uint32_t expgwc_int_chan_moduleInit()
   **  Get the pointer to the timer Object
   */
   p = expgwc_sup_getObjRef();
+  /*
+  ** starts the periodic timer
+  */
+   expgwc_int_start_timer();
 
    /*
    ** create the internal socket

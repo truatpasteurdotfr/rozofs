@@ -117,6 +117,7 @@ typedef struct export {
     // to delete when we start or reload this export
 } export_t;
 
+extern uint32_t export_configuration_file_hash;  /**< hash value of the configuration file */
 
 
 /** Remove bins files from trash 
@@ -522,4 +523,63 @@ int expgwc_start_nb_blocking_th(void *args);
 */
 uint32_t expgwc_int_chan_moduleInit();
 
+/*
+ *_______________________________________________________________________
+ */
+/**
+*  Init of the array that is used for building an exportd configuration message
+  That array is allocated during the initialization of the exportd and might be
+  released upon the termination of the exportd process
+  
+  @param none
+  
+  @retval 0 on success
+  @retval -1 on error
+ */
+int exportd_init_storage_configuration_message();
+
+
+/*
+ *_______________________________________________________________________
+ */
+ /**
+ *  That API is intended to be called by ep_conf_storage_1_svc() 
+    prior to build the configuration message
+    
+    The goal is to clear the number of storages and to clear the
+    number of sid per storage entry
+    
+    @param none
+    retval none
+*/
+void exportd_reinit_storage_configuration_message();
+
+
+/*
+ *_______________________________________________________________________
+ */
+/**
+*  Init of the array that is used for building an exportd configuration message
+  That array is allocated during the initialization of the exportd and might be
+  released upon the termination of the exportd process
+  
+  @param none
+  
+  @retval 0 on success
+  @retval -1 on error
+ */
+int exportd_init_storage_configuration_message();
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  Init of the data structure used for sending out export gateway configuration
+   to rozofsmount.
+   That API must be called during the inif of exportd
+  
+  @param exportd_hostname: VIP address of the exportd (extracted from the exportd configuration file)
+  @retval none
+*/
+void ep_expgw_init_configuration_message(char *exportd_hostname);
 #endif

@@ -41,6 +41,403 @@ void *ep_null_1_svc(void *noargs, struct svc_req *req) {
     DEBUG_FUNCTION;
     return 0;
 }
+
+
+uint32_t exportd_storage_host_count = 0;                          /**< number of host storage in the configuration of an eid  */
+ep_cnf_storage_node_t exportd_storage_host_table[STORAGE_NODES_MAX];  /**< configuration for each storage */
+
+epgw_conf_ret_t  export_storage_conf;                 /**< preallocated area to build storage configuration message */
+
+
+/*
+ *_______________________________________________________________________
+ */
+/**
+*  Init of the array that is used for building an exportd configuration message
+  That array is allocated during the initialization of the exportd and might be
+  released upon the termination of the exportd process
+  
+  @param none
+  
+  @retval 0 on success
+  @retval -1 on error
+ */
+int exportd_init_storage_configuration_message()
+{
+  ep_cnf_storage_node_t *storage_cnf_p;
+  int i;
+  /*
+  ** clear the memory that contains the area for building a storage configuration message
+  */
+  memset(&export_storage_conf,0,sizeof(epgw_conf_ret_t));
+  export_storage_conf.status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len = 0;
+  export_storage_conf.status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_val = exportd_storage_host_table;
+  /*
+  ** init of the storage node array
+  */
+  storage_cnf_p = exportd_storage_host_table;
+  export_storage_conf.status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_val = storage_cnf_p ;
+  char* host;
+  
+  host = malloc( ROZOFS_HOSTNAME_MAX+1);
+  storage_cnf_p->host = host;
+
+  
+
+  for (i = 0; i < STORAGE_NODES_MAX; i++,storage_cnf_p++)
+  {
+    storage_cnf_p->host = (char*)malloc( ROZOFS_HOSTNAME_MAX+1);
+    if (storage_cnf_p->host == NULL)
+    {
+      severe("exportd_init_storage_configuration_message: out of memory");
+      return -1;
+    
+    }
+    storage_cnf_p->host[0] = 0;  
+    storage_cnf_p->sids_nb = 0;
+  }
+  return 0;
+}
+
+
+/*
+ *_______________________________________________________________________
+ */
+ /**
+ *  That API is intended to be called by ep_conf_storage_1_svc() 
+    prior to build the configuration message
+    
+    The goal is to clear the number of storages and to clear the
+    number of sid per storage entry
+    
+    @param none
+    retval none
+*/
+void exportd_reinit_storage_configuration_message()
+{
+  int i;
+  ep_cnf_storage_node_t *storage_cnf_p = exportd_storage_host_table;
+  export_storage_conf.status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len = 0;
+
+  for (i = 0; i < STORAGE_NODES_MAX; i++,storage_cnf_p++)
+  {
+    storage_cnf_p->sids_nb = 0;
+
+  }
+}
+
+
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd configuration polling : check if the configuration of
+    the remote is inline with the current one of the exportd.
+*/
+
+epgw_status_ret_t * ep_poll_conf_1_svc(ep_gateway_t *args, struct svc_req *req)
+{
+    static epgw_status_ret_t ret;
+    START_PROFILING(ep_poll);
+
+    if (args->hash_config == export_configuration_file_hash) 
+    {   
+      ret.status_gw.status = EP_SUCCESS;
+    }
+    else
+    {
+      ret.status_gw.status = EP_NOT_SYNCED;
+    }
+    STOP_PROFILING(ep_poll);
+    return &ret;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd: Get the configuration of the storaged for a given eid
+
+  : returns to the rozofsmount the list of the
+*   volume,clusters and storages
+*/
+epgw_conf_ret_t *ep_conf_storage_1_svc(ep_path_t * arg, struct svc_req * req) {
+    static epgw_conf_ret_t ret;
+    
+    epgw_conf_ret_t *ret_cnf_p = &export_storage_conf;
+    epgw_conf_ret_t *ret_out = NULL;
+    list_t *p, *q, *r;
+    eid_t *eid = NULL;
+    export_t *exp;
+    int i = 0;
+    int stor_idx = 0;
+    int exist = 0;
+    ep_cnf_storage_node_t *storage_cnf_p;
+    
+
+    DEBUG_FUNCTION;
+    START_PROFILING(ep_mount);
+    
+    exportd_reinit_storage_configuration_message();
+#if 0
+#warning fake xdrmem_create
+    XDR               xdrs; 
+    int total_len = -1 ;
+    int size = 1024*64;
+    char *pchar = malloc(size);
+    xdrmem_create(&xdrs,(char*)pchar,size,XDR_ENCODE);    
+#endif
+    // XXX exportd_lookup_id could return export_t *
+    if (!(eid = exports_lookup_id(*arg)))
+        goto error;
+    if (!(exp = exports_lookup_export(*eid)))
+        goto error;
+
+    /* Get lock on config */
+    if ((errno = pthread_rwlock_rdlock(&config_lock)) != 0) {
+        goto error;
+    }
+
+    /* For each volume */
+    list_for_each_forward(p, &exportd_config.volumes) {
+
+        volume_config_t *vc = list_entry(p, volume_config_t, list);
+
+        /* Get volume with this vid */
+        if (vc->vid == exp->volume->vid) {
+
+            stor_idx = 0;
+            ret_cnf_p->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len = 0;
+            storage_cnf_p = &exportd_storage_host_table[stor_idx];
+//            memset(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.storage_nodes, 0, sizeof (ep_cnf_storage_node_t) * STORAGE_NODES_MAX);
+
+            /* For each cluster */
+            list_for_each_forward(q, &vc->clusters) {
+
+                cluster_config_t *cc = list_entry(q, cluster_config_t, list);
+
+                /* For each sid */
+                list_for_each_forward(r, &cc->storages) {
+
+                    storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
+
+                    /* Verify that this hostname does not already exist
+                     * in the list of physical storage nodes. */
+                    ep_cnf_storage_node_t *storage_cmp_p = &exportd_storage_host_table[0];
+                    for (i = 0; i < stor_idx; i++,storage_cmp_p++) {
+
+                        if (strcmp(s->host, storage_cmp_p->host) == 0) {
+
+                            /* This physical storage node exist
+                             *  but we add this SID*/
+                            uint8_t sids_nb = storage_cmp_p->sids_nb;
+                            storage_cmp_p->sids[sids_nb] = s->sid;
+                            storage_cmp_p->cids[sids_nb] = cc->cid;
+                            storage_cmp_p->sids_nb++;
+                            exist = 1;
+                            break;
+                        }
+                    }
+
+                    /* This physical storage node doesn't exist*/
+                    if (exist == 0) {
+
+                        /* Add this storage node to the list */
+                        strncpy(storage_cnf_p->host, s->host, ROZOFS_HOSTNAME_MAX);
+                        /* Add this sid */
+                        storage_cnf_p->sids[0] = s->sid;
+                        storage_cnf_p->cids[0] = cc->cid;
+                        storage_cnf_p->sids_nb++;
+
+                        /* Increments the nb. of physical storage nodes */
+                        stor_idx++;
+                        storage_cnf_p++;
+                    }
+                    exist = 0;
+                }
+            }
+        }
+    }
+    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len = stor_idx;
+    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.eid = *eid;
+    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.hash_conf = export_configuration_file_hash;
+    memcpy(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
+    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rl = exportd_config.layout;
+    memcpy(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
+
+    if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
+        goto error;
+    }
+
+    ret_cnf_p->status_gw.status = EP_SUCCESS;
+#if 0
+    if (xdr_epgw_conf_ret_t(&xdrs,ret_cnf_p) == FALSE)
+    {
+      severe("encoding error");    
+    } 
+    else
+    {   
+     total_len = xdr_getpos(&xdrs) ;
+
+    }
+#endif
+    ret_out = ret_cnf_p;
+    goto out;
+error:
+    ret.status_gw.status = EP_FAILURE;
+    ret.status_gw.ep_conf_ret_t_u.error = errno;
+    ret_out = &ret;
+
+out:
+#if 0
+    if (pchar != NULL) free(pchar);
+#endif
+    STOP_PROFILING(ep_mount);
+    return ret_out;
+}
+
+static uint32_t local_expgw_eid_table[EXPGW_EID_MAX_IDX];
+static ep_gw_host_conf_t local_expgw_host_table[EXPGW_EXPGW_MAX_IDX];
+/*
+**______________________________________________________________________________
+*/
+/**
+*  Init of the data structure used for sending out export gateway configuration
+   to rozofsmount.
+   That API must be called during the inif of exportd
+  
+  @param exportd_hostname: VIP address of the exportd (extracted from the exportd configuration file)
+  @retval none
+*/
+void ep_expgw_init_configuration_message(char *exportd_hostname)
+{
+//  expgw_conf_p->exportd_host = malloc( ROZOFS_HOSTNAME_MAX+1);
+//  strcpy(expgw_conf_p->exportd_host,exportd_hostname);
+  memset(local_expgw_eid_table,0,sizeof(local_expgw_eid_table));
+  memset(local_expgw_host_table,0,sizeof(local_expgw_host_table));
+  int i;
+  for (i = 0; i < EXPGW_EXPGW_MAX_IDX; i++)
+  {
+    local_expgw_host_table[i].host = malloc( ROZOFS_HOSTNAME_MAX+1);
+  }
+}
+
+/*
+**______________________________________________________________________________
+*/
+/**
+ *  Message to provide a ROZOFS with the export gateway configuration: EP_CONF_EXPGW
+*/
+ep_gw_gateway_configuration_ret_t *ep_conf_expgw_1_svc(ep_path_t * arg, struct svc_req * req) {
+    static ep_gw_gateway_configuration_ret_t ret;
+    static char exportd_hostname[ROZOFS_HOSTNAME_MAX];
+    eid_t *eid = NULL;
+    export_t *exp;
+
+    int err = 0;
+    list_t *iterator;
+    list_t *iterator_expgw;    
+    ep_gateway_configuration_t *expgw_conf_p= &ret.status_gw.ep_gateway_configuration_ret_t_u.config;
+
+    START_PROFILING(ep_conf_gateway);
+	ret.hdr.eid          = 0;      /* NS */
+	ret.hdr.nb_gateways  = 0; /* NS */
+	ret.hdr.gateway_rank = 0; /* NS */
+	ret.hdr.hash_config  = 0; /* NS */
+    
+
+    // XXX exportd_lookup_id could return export_t *
+    if (!(eid = exports_lookup_id(*arg)))
+        goto error;
+    if (!(exp = exports_lookup_export(*eid)))
+        goto error;
+
+    /* Get lock on config */
+    if ((errno = pthread_rwlock_rdlock(&config_lock)) != 0) {
+        goto error;
+    }            
+    expgw_conf_p->eid.eid_len = 0;
+    expgw_conf_p->eid.eid_val = local_expgw_eid_table;
+    expgw_conf_p->exportd_host = exportd_hostname;
+    strcpy(expgw_conf_p->exportd_host,exportd_config.exportd_vip);
+    expgw_conf_p->exportd_port = 0;
+    expgw_conf_p->gateway_port = 0;
+    expgw_conf_p->gateway_host.gateway_host_len = 0;  
+    expgw_conf_p->gateway_host.gateway_host_val = local_expgw_host_table;  
+  
+    list_for_each_forward(iterator, &exportd_config.exports) 
+    {
+       export_config_t *entry = list_entry(iterator, export_config_t, list);
+       local_expgw_eid_table[expgw_conf_p->eid.eid_len] = entry->eid;
+       expgw_conf_p->eid.eid_len++;
+    }
+    /*
+    ** unlock exportd config
+    */
+    if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) 
+    {
+        severe("can unlock config_lock, potential dead lock.");
+        goto error;
+    }
+    if (expgw_conf_p->eid.eid_len == 0)
+    {
+      severe(" no eid in the exportd configuration !!");
+      err = EPROTO;
+      goto error;
+    }
+
+    expgw_conf_p->hdr.export_id            = 0;
+    expgw_conf_p->hdr.nb_gateways          = 0;
+    expgw_conf_p->hdr.gateway_rank         = 0;
+    expgw_conf_p->hdr.configuration_indice = export_configuration_file_hash;
+    /*
+    ** Lock Config.
+    */
+    if ((errno = pthread_rwlock_rdlock(&config_lock)) != 0) 
+    {
+        goto error;
+    }       
+    list_for_each_forward(iterator, &exportd_config.expgw) 
+    {
+        expgw_config_t *entry = list_entry(iterator, expgw_config_t, list);
+        expgw_conf_p->hdr.export_id = entry->daemon_id;
+        /*
+        ** loop on the storage
+        */
+        
+        list_for_each_forward(iterator_expgw, &entry->expgw_node) 
+        {
+          expgw_node_config_t *entry = list_entry(iterator_expgw, expgw_node_config_t, list);
+          /*
+          ** copy the hostname
+          */
+ 
+          strcpy((char*)local_expgw_host_table[expgw_conf_p->gateway_host.gateway_host_len].host, entry->host);
+           expgw_conf_p->gateway_host.gateway_host_len++;
+          expgw_conf_p->hdr.nb_gateways++;
+        }
+    }
+    /*
+    ** Unlock Config.
+    */
+    if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) 
+    {
+        severe("can't unlock expgws, potential dead lock.");
+        goto error;
+    } 
+    ret.status_gw.status = EP_SUCCESS;
+
+    goto out;
+error:
+    ret.status_gw.status = EP_FAILURE;
+    ret.status_gw.ep_gateway_configuration_ret_t_u.error = errno;
+out:
+
+    STOP_PROFILING(ep_conf_gateway);
+    return &ret;
+}
+
+
 /*
 **______________________________________________________________________________
 */
@@ -56,6 +453,7 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     int i = 0;
     int stor_idx = 0;
     int exist = 0;
+    
 
     DEBUG_FUNCTION;
     START_PROFILING(ep_mount);
@@ -81,7 +479,7 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
 
             stor_idx = 0;
             ret.status_gw.ep_mount_ret_t_u.export.storage_nodes_nb = 0;
-            memset(ret.status_gw.ep_mount_ret_t_u.export.storage_nodes, 0, sizeof (ep_storage_node_t) * STORAGE_NODES_MAX);
+            memset(ret.status_gw.ep_mount_ret_t_u.export.storage_nodes, 0, sizeof (ep_cnf_storage_node_t) * STORAGE_NODES_MAX);
 
             /* For each cluster */
             list_for_each_forward(q, &vc->clusters) {
@@ -131,6 +529,8 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
 
     ret.status_gw.ep_mount_ret_t_u.export.storage_nodes_nb = stor_idx;
     ret.status_gw.ep_mount_ret_t_u.export.eid = *eid;
+    ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
+
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
     ret.status_gw.ep_mount_ret_t_u.export.rl = exportd_config.layout;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
@@ -140,11 +540,13 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     }
 
     ret.status_gw.status = EP_SUCCESS;
+
     goto out;
 error:
     ret.status_gw.status = EP_FAILURE;
     ret.status_gw.ep_mount_ret_t_u.error = errno;
 out:
+
     STOP_PROFILING(ep_mount);
     return &ret;
 }

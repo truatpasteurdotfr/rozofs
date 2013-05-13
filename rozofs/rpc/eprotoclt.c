@@ -354,3 +354,48 @@ ep_list_cluster_1(uint16_t *argp, CLIENT *clnt)
 	}
 	return (&clnt_res);
 }
+
+epgw_conf_ret_t *
+ep_conf_storage_1(ep_path_t *argp, CLIENT *clnt)
+{
+	static epgw_conf_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CONF_STORAGE,
+		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_conf_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_poll_conf_1(ep_gateway_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_POLL_CONF,
+		(xdrproc_t) xdr_ep_gateway_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+ep_gw_gateway_configuration_ret_t *
+ep_conf_expgw_1(ep_path_t *argp, CLIENT *clnt)
+{
+	static ep_gw_gateway_configuration_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CONF_EXPGW,
+		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
+		(xdrproc_t) xdr_ep_gw_gateway_configuration_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}

@@ -39,9 +39,48 @@ extern "C" {
 
 typedef enum 
 {
-  EXPGW_NOT_CONFIGURED = 0,
-  EXPGW_CONFIGURED,
+  EPGW_CONF_UNKNOWN = 0,
+  EPGW_CONF_NOT_SYNCED ,
+  EPGW_CONF_SYNCED,
+  EPGW_CONF_MAX,
 } export_expgwc_conf_state_e;
+
+typedef enum 
+{
+  EPGW_TX_IDLE = 0,
+  EPGW_TX_WAIT,
+  EPGW_TX_MAX,
+} export_expgwc_tx_state_e;
+
+typedef enum
+{
+  EXPGW_STATS_ATTEMPT = 0,
+  EXPGW_STATS_SUCCESS,
+  EXPGW_STATS_FAILURE,
+  EXPGW_STATS_MAX
+} export_expgwc_conf_stats_e;
+
+typedef struct export_expgw_conf_stats_t
+{
+   uint64_t poll_counter[EXPGW_STATS_MAX];
+   uint64_t conf_counter[EXPGW_STATS_MAX];
+} export_expgw_conf_stats_t;
+
+
+#define EXGW_CONF_STATS_INC(p,cpt)  \
+{\
+   p->stats.cpt[EXPGW_STATS_ATTEMPT]++;\
+}
+
+#define EXGW_CONF_STATS_OK(p,cpt)  \
+{\
+   p->stats.cpt[EXPGW_STATS_SUCCESS]++;\
+}
+
+#define EXGW_CONF_STATS_NOK(p,cpt)  \
+{\
+   p->stats.cpt[EXPGW_STATS_FAILURE]++;\
+}
 
 typedef struct export_expgw_conf_ctx_t
 {
@@ -51,11 +90,16 @@ typedef struct export_expgw_conf_ctx_t
   /*
   ** specific part
   */
+   export_expgwc_tx_state_e  poll_conf_tx_state;    /**< configuration polling state */
+   export_expgwc_conf_state_e  conf_state;    /**< configuration  state */
+   
+   
    uint16_t  port;     /**< tcp port in host format   */
    uint32_t  ipaddr;   /**< IP address in host format */
    int       current_conf_idx;
    char      hostname[ROZOFS_HOSTNAME_MAX];
    int       gateway_lbg_id;        /**< reference of the load balancing group for reaching the configuration port of the gateway */
+   export_expgw_conf_stats_t stats;  /**< statistics */
 } export_expgw_conf_ctx_t;
 
 
@@ -108,6 +152,26 @@ int export_expgw_conf_ctx_create(int rank,char *hostname,uint16_t port);
 */
 int export_expgw_conf_moduleInit();
 
+/*
+**____________________________________________________________
+*/
+/**
+*  that function is called periodically
+   The purpose is to check if the export gateway is synced in terms of configuration
+   
+   The exportd master sends periodically a GW_POLL to the export gateway.
+   Upon receiving the answer (see gw_poll_1_nblocking_cbk()) the
+   exportd master check if the configuration of the  export gateway 
+   is inline with the current one.
+   
+   When the export gateway is out of sync, the exportd master sends
+   to it the current configuration.
+   
+   @param p: context of the export gateway
+   
+   @retval none
+*/
+void export_expgw_check_config( export_expgw_conf_ctx_t *p);
 
 #ifdef __cplusplus
 }

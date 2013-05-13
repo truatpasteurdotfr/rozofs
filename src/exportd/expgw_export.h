@@ -46,6 +46,7 @@
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/core/expgw_common.h>
 
+#if 0
 typedef enum
 {
    EXPGW_PORT_ROZOFSMOUNT_IDX= 0,
@@ -53,7 +54,7 @@ typedef enum
    EXPGW_PORT_DEBUG_IDX,
    EXPGW_PORT_MAX_IDX,  
 } expgw_listening_ports_e;
-
+#endif
 /**
 *  STORCLI Resource configurationj
 */

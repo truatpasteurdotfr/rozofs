@@ -33,11 +33,15 @@ typedef char ep_host_t[ROZOFS_HOSTNAME_MAX];
 
 typedef char ep_md5_t[ROZOFS_MD5_SIZE];
 
+typedef char *ep_st_host_t;
+
+typedef char *ep_epgw_host_t;
+
 struct ep_gateway_t {
 	uint32_t eid;
 	uint32_t nb_gateways;
 	uint32_t gateway_rank;
-	uint32_t reserved;
+	uint32_t hash_config;
 };
 typedef struct ep_gateway_t ep_gateway_t;
 
@@ -46,6 +50,7 @@ enum ep_status_t {
 	EP_FAILURE = 1,
 	EP_EMPTY = 2,
 	EP_FAILURE_EID_NOT_SUPPORTED = 3,
+	EP_NOT_SYNCED = 4,
 };
 typedef enum ep_status_t ep_status_t;
 
@@ -100,6 +105,7 @@ struct ep_storage_node_t {
 typedef struct ep_storage_node_t ep_storage_node_t;
 
 struct ep_export_t {
+	uint32_t hash_conf;
 	uint32_t eid;
 	ep_md5_t md5;
 	ep_uuid_t rfid;
@@ -123,6 +129,42 @@ struct epgw_mount_ret_t {
 	ep_mount_ret_t status_gw;
 };
 typedef struct epgw_mount_ret_t epgw_mount_ret_t;
+
+struct ep_cnf_storage_node_t {
+	char *host;
+	uint8_t sids_nb;
+	uint8_t sids[STORAGES_MAX_BY_STORAGE_NODE];
+	uint16_t cids[STORAGES_MAX_BY_STORAGE_NODE];
+};
+typedef struct ep_cnf_storage_node_t ep_cnf_storage_node_t;
+
+struct ep_conf_export_t {
+	uint32_t hash_conf;
+	uint32_t eid;
+	ep_md5_t md5;
+	ep_uuid_t rfid;
+	uint8_t rl;
+	struct {
+		u_int storage_nodes_len;
+		ep_cnf_storage_node_t *storage_nodes_val;
+	} storage_nodes;
+};
+typedef struct ep_conf_export_t ep_conf_export_t;
+
+struct ep_conf_ret_t {
+	ep_status_t status;
+	union {
+		ep_conf_export_t export;
+		int error;
+	} ep_conf_ret_t_u;
+};
+typedef struct ep_conf_ret_t ep_conf_ret_t;
+
+struct epgw_conf_ret_t {
+	struct ep_gateway_t hdr;
+	ep_conf_ret_t status_gw;
+};
+typedef struct epgw_conf_ret_t epgw_conf_ret_t;
 
 struct ep_mattr_t {
 	ep_uuid_t fid;
@@ -575,6 +617,50 @@ struct epgw_listxattr_ret_t {
 };
 typedef struct epgw_listxattr_ret_t epgw_listxattr_ret_t;
 
+struct ep_gw_host_conf_t {
+	ep_epgw_host_t host;
+};
+typedef struct ep_gw_host_conf_t ep_gw_host_conf_t;
+
+struct ep_gw_header_t {
+	uint32_t export_id;
+	uint32_t nb_gateways;
+	uint32_t gateway_rank;
+	uint32_t configuration_indice;
+};
+typedef struct ep_gw_header_t ep_gw_header_t;
+
+struct ep_gateway_configuration_t {
+	ep_gw_header_t hdr;
+	ep_epgw_host_t exportd_host;
+	uint16_t exportd_port;
+	uint16_t gateway_port;
+	struct {
+		u_int eid_len;
+		uint32_t *eid_val;
+	} eid;
+	struct {
+		u_int gateway_host_len;
+		ep_gw_host_conf_t *gateway_host_val;
+	} gateway_host;
+};
+typedef struct ep_gateway_configuration_t ep_gateway_configuration_t;
+
+struct ep_gateway_configuration_ret_t {
+	ep_status_t status;
+	union {
+		ep_gateway_configuration_t config;
+		int error;
+	} ep_gateway_configuration_ret_t_u;
+};
+typedef struct ep_gateway_configuration_ret_t ep_gateway_configuration_ret_t;
+
+struct ep_gw_gateway_configuration_ret_t {
+	struct ep_gateway_t hdr;
+	ep_gateway_configuration_ret_t status_gw;
+};
+typedef struct ep_gw_gateway_configuration_ret_t ep_gw_gateway_configuration_ret_t;
+
 #define EXPORT_PROGRAM 0x20000001
 #define EXPORT_VERSION 1
 
@@ -648,6 +734,15 @@ extern  epgw_listxattr_ret_t * ep_listxattr_1_svc(epgw_listxattr_arg_t *, struct
 #define EP_LIST_CLUSTER 23
 extern  epgw_cluster_ret_t * ep_list_cluster_1(uint16_t *, CLIENT *);
 extern  epgw_cluster_ret_t * ep_list_cluster_1_svc(uint16_t *, struct svc_req *);
+#define EP_CONF_STORAGE 24
+extern  epgw_conf_ret_t * ep_conf_storage_1(ep_path_t *, CLIENT *);
+extern  epgw_conf_ret_t * ep_conf_storage_1_svc(ep_path_t *, struct svc_req *);
+#define EP_POLL_CONF 25
+extern  epgw_status_ret_t * ep_poll_conf_1(ep_gateway_t *, CLIENT *);
+extern  epgw_status_ret_t * ep_poll_conf_1_svc(ep_gateway_t *, struct svc_req *);
+#define EP_CONF_EXPGW 26
+extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1(ep_path_t *, CLIENT *);
+extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1_svc(ep_path_t *, struct svc_req *);
 extern int export_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -720,6 +815,15 @@ extern  epgw_listxattr_ret_t * ep_listxattr_1_svc();
 #define EP_LIST_CLUSTER 23
 extern  epgw_cluster_ret_t * ep_list_cluster_1();
 extern  epgw_cluster_ret_t * ep_list_cluster_1_svc();
+#define EP_CONF_STORAGE 24
+extern  epgw_conf_ret_t * ep_conf_storage_1();
+extern  epgw_conf_ret_t * ep_conf_storage_1_svc();
+#define EP_POLL_CONF 25
+extern  epgw_status_ret_t * ep_poll_conf_1();
+extern  epgw_status_ret_t * ep_poll_conf_1_svc();
+#define EP_CONF_EXPGW 26
+extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1();
+extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1_svc();
 extern int export_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -735,6 +839,8 @@ extern  bool_t xdr_ep_path_t (XDR *, ep_path_t*);
 extern  bool_t xdr_ep_link_t (XDR *, ep_link_t*);
 extern  bool_t xdr_ep_host_t (XDR *, ep_host_t);
 extern  bool_t xdr_ep_md5_t (XDR *, ep_md5_t);
+extern  bool_t xdr_ep_st_host_t (XDR *, ep_st_host_t*);
+extern  bool_t xdr_ep_epgw_host_t (XDR *, ep_epgw_host_t*);
 extern  bool_t xdr_ep_gateway_t (XDR *, ep_gateway_t*);
 extern  bool_t xdr_ep_status_t (XDR *, ep_status_t*);
 extern  bool_t xdr_ep_status_ret_t (XDR *, ep_status_ret_t*);
@@ -747,6 +853,10 @@ extern  bool_t xdr_ep_storage_node_t (XDR *, ep_storage_node_t*);
 extern  bool_t xdr_ep_export_t (XDR *, ep_export_t*);
 extern  bool_t xdr_ep_mount_ret_t (XDR *, ep_mount_ret_t*);
 extern  bool_t xdr_epgw_mount_ret_t (XDR *, epgw_mount_ret_t*);
+extern  bool_t xdr_ep_cnf_storage_node_t (XDR *, ep_cnf_storage_node_t*);
+extern  bool_t xdr_ep_conf_export_t (XDR *, ep_conf_export_t*);
+extern  bool_t xdr_ep_conf_ret_t (XDR *, ep_conf_ret_t*);
+extern  bool_t xdr_epgw_conf_ret_t (XDR *, epgw_conf_ret_t*);
 extern  bool_t xdr_ep_mattr_t (XDR *, ep_mattr_t*);
 extern  bool_t xdr_ep_mattr_ret_t (XDR *, ep_mattr_ret_t*);
 extern  bool_t xdr_epgw_mattr_ret_t (XDR *, epgw_mattr_ret_t*);
@@ -807,6 +917,11 @@ extern  bool_t xdr_ep_listxattr_arg_t (XDR *, ep_listxattr_arg_t*);
 extern  bool_t xdr_epgw_listxattr_arg_t (XDR *, epgw_listxattr_arg_t*);
 extern  bool_t xdr_ep_listxattr_ret_t (XDR *, ep_listxattr_ret_t*);
 extern  bool_t xdr_epgw_listxattr_ret_t (XDR *, epgw_listxattr_ret_t*);
+extern  bool_t xdr_ep_gw_host_conf_t (XDR *, ep_gw_host_conf_t*);
+extern  bool_t xdr_ep_gw_header_t (XDR *, ep_gw_header_t*);
+extern  bool_t xdr_ep_gateway_configuration_t (XDR *, ep_gateway_configuration_t*);
+extern  bool_t xdr_ep_gateway_configuration_ret_t (XDR *, ep_gateway_configuration_ret_t*);
+extern  bool_t xdr_ep_gw_gateway_configuration_ret_t (XDR *, ep_gw_gateway_configuration_ret_t*);
 
 #else /* K&R C */
 extern bool_t xdr_ep_uuid_t ();
@@ -818,6 +933,8 @@ extern bool_t xdr_ep_path_t ();
 extern bool_t xdr_ep_link_t ();
 extern bool_t xdr_ep_host_t ();
 extern bool_t xdr_ep_md5_t ();
+extern bool_t xdr_ep_st_host_t ();
+extern bool_t xdr_ep_epgw_host_t ();
 extern bool_t xdr_ep_gateway_t ();
 extern bool_t xdr_ep_status_t ();
 extern bool_t xdr_ep_status_ret_t ();
@@ -830,6 +947,10 @@ extern bool_t xdr_ep_storage_node_t ();
 extern bool_t xdr_ep_export_t ();
 extern bool_t xdr_ep_mount_ret_t ();
 extern bool_t xdr_epgw_mount_ret_t ();
+extern bool_t xdr_ep_cnf_storage_node_t ();
+extern bool_t xdr_ep_conf_export_t ();
+extern bool_t xdr_ep_conf_ret_t ();
+extern bool_t xdr_epgw_conf_ret_t ();
 extern bool_t xdr_ep_mattr_t ();
 extern bool_t xdr_ep_mattr_ret_t ();
 extern bool_t xdr_epgw_mattr_ret_t ();
@@ -890,6 +1011,11 @@ extern bool_t xdr_ep_listxattr_arg_t ();
 extern bool_t xdr_epgw_listxattr_arg_t ();
 extern bool_t xdr_ep_listxattr_ret_t ();
 extern bool_t xdr_epgw_listxattr_ret_t ();
+extern bool_t xdr_ep_gw_host_conf_t ();
+extern bool_t xdr_ep_gw_header_t ();
+extern bool_t xdr_ep_gateway_configuration_t ();
+extern bool_t xdr_ep_gateway_configuration_ret_t ();
+extern bool_t xdr_ep_gw_gateway_configuration_ret_t ();
 
 #endif /* K&R C */
 

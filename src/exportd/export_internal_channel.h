@@ -34,6 +34,8 @@
 #include <rozofs/common/types.h>
 #include <rozofs/core/ruc_common.h>
 #include <rozofs/core/ruc_sockCtl_api.h>
+#include <rozofs/rpc/gwproto.h>
+
 
 typedef struct expgwc_internal_channel_conf_t
 {
@@ -64,6 +66,9 @@ typedef struct _expgwc_int_chan_msg_t
     uint32_t  length; /**< length of the payload */
 } expgwc_int_chan_msg_t;
 
+
+extern gw_configuration_t  expgw_conf_local;
+extern int expgw_configuration_available;
 /*
  *_______________________________________________________________________
  */

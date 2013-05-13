@@ -75,6 +75,7 @@ typedef struct expgw_config {
 
 typedef struct econfig {
     uint8_t layout; ///< layout used for this exportd
+    char   exportd_vip[ROZOFS_HOSTNAME_MAX]; ///< virtual IP address of the exportd
     list_t volumes;
     list_t exports;
     list_t expgw;   /*< exportd gateways */

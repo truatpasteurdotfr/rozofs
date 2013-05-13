@@ -87,3 +87,18 @@ gw_poll_1(gw_header_t *argp, CLIENT *clnt)
 	}
 	return (&clnt_res);
 }
+
+gw_ret_configuration_t *
+gw_get_configuration_1(gw_header_t *argp, CLIENT *clnt)
+{
+	static gw_ret_configuration_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, GW_GET_CONFIGURATION,
+		(xdrproc_t) xdr_gw_header_t, (caddr_t) argp,
+		(xdrproc_t) xdr_gw_ret_configuration_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}

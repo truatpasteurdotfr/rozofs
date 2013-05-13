@@ -32,6 +32,9 @@
 #include "eproto.h"
 #include "eclient.h"
 
+
+ uint32_t exportd_configuration_file_hash = 0; /**< hash value of the configuration file */
+
 int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         const char *passwd, uint32_t bufsize,
         uint32_t retries, struct timeval timeout) {

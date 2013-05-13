@@ -39,6 +39,7 @@
 
 
 uint32_t  ruc_timer_getIntSockIdxFromSocketId(ruc_timer_t *p,int socketId);
+uint64_t  ruc_timer_ticker = 0;
 /*
 **   G L O B A L    D A T A
 */
@@ -623,6 +624,7 @@ void ruc_timer_tickReceived(ruc_timer_t *p)
 #endif
 
   p->active = TRUE;
+  ruc_timer_ticker++;
   ruc_timer_process();
   p->active = FALSE;
 

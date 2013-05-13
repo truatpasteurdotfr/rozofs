@@ -149,6 +149,10 @@ set (librozofs_sources
     rpc/gwprotoxdr.c
     core/expgw_common.h
     core/expgw_common.c
+    core/rozofs_rpc_non_blocking_generic.c
+    core/rozofs_rpc_non_blocking_generic.h
+    core/rozofs_rpc_non_blocking_generic_srv.c
+    core/rozofs_rpc_non_blocking_generic_srv.h
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

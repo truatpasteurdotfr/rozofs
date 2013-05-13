@@ -197,4 +197,20 @@ int north_lbg_send(int  lbg_idx,void *buf_p);
 */
 int  north_lbg_delete(int lbg_id);
 
+/*__________________________________________________________________________
+*/
+/**
+*  API to display the load balancing group id and its current state
+
+  @param lbg_id : index of the load balancing group
+  @param buffer : output buffer
+  
+  @retval : pointer to the next entry in the input buffer
+*
+*/
+char *north_lbg_display_lbg_id_and_state(char * buffer,int lbg_id);
+
+
+char *north_lbg_display_lbg_state(char * pchar,int lbg_id);
+
 #endif

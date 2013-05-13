@@ -21,6 +21,7 @@ typedef char *epgw_host_t;
 enum gw_status_e {
 	GW_FAILURE = 0,
 	GW_SUCCESS = 1,
+	GW_NOT_SYNCED = 2,
 };
 typedef enum gw_status_e gw_status_e;
 
@@ -82,6 +83,12 @@ struct gw_configuration_t {
 };
 typedef struct gw_configuration_t gw_configuration_t;
 
+struct gw_ret_configuration_t {
+	gw_status_t ret;
+	gw_configuration_t config;
+};
+typedef struct gw_ret_configuration_t gw_ret_configuration_t;
+
 #define GW_PROGRAM 0x20000009
 #define GW_VERSION 1
 
@@ -101,6 +108,9 @@ extern  gw_status_t * gw_configuration_1_svc(gw_configuration_t *, struct svc_re
 #define GW_POLL 4
 extern  gw_status_t * gw_poll_1(gw_header_t *, CLIENT *);
 extern  gw_status_t * gw_poll_1_svc(gw_header_t *, struct svc_req *);
+#define GW_GET_CONFIGURATION 5
+extern  gw_ret_configuration_t * gw_get_configuration_1(gw_header_t *, CLIENT *);
+extern  gw_ret_configuration_t * gw_get_configuration_1_svc(gw_header_t *, struct svc_req *);
 extern int gw_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -119,6 +129,9 @@ extern  gw_status_t * gw_configuration_1_svc();
 #define GW_POLL 4
 extern  gw_status_t * gw_poll_1();
 extern  gw_status_t * gw_poll_1_svc();
+#define GW_GET_CONFIGURATION 5
+extern  gw_ret_configuration_t * gw_get_configuration_1();
+extern  gw_ret_configuration_t * gw_get_configuration_1_svc();
 extern int gw_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -133,6 +146,7 @@ extern  bool_t xdr_gw_dirty_section_t (XDR *, gw_dirty_section_t*);
 extern  bool_t xdr_gw_invalidate_sections_t (XDR *, gw_invalidate_sections_t*);
 extern  bool_t xdr_gw_host_conf_t (XDR *, gw_host_conf_t*);
 extern  bool_t xdr_gw_configuration_t (XDR *, gw_configuration_t*);
+extern  bool_t xdr_gw_ret_configuration_t (XDR *, gw_ret_configuration_t*);
 
 #else /* K&R C */
 extern bool_t xdr_epgw_host_t ();
@@ -143,6 +157,7 @@ extern bool_t xdr_gw_dirty_section_t ();
 extern bool_t xdr_gw_invalidate_sections_t ();
 extern bool_t xdr_gw_host_conf_t ();
 extern bool_t xdr_gw_configuration_t ();
+extern bool_t xdr_gw_ret_configuration_t ();
 
 #endif /* K&R C */
 

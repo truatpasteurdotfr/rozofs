@@ -210,12 +210,13 @@ gen_storage_conf ()
 
 # $1 -> LAYOUT
 # $2 -> storages by node
-# $2 -> Nb. of exports
-# $3 -> md5 generated
+# $3 -> exportd VIP
+# $4 -> md5 generated
 gen_export_conf ()
 {
 
     ROZOFS_LAYOUT=$1
+    EXPORTD_VIP=$3
 
     FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
 
@@ -233,6 +234,7 @@ gen_export_conf ()
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -278,7 +280,7 @@ gen_export_conf ()
     echo '    )' >> $FILE
     echo ';' >> $FILE
     NB_EXPORTDS=1
-    NB_EXPGATEWAYS=2
+
     echo 'export_gateways =' >> $FILE
     echo '      (' >> $FILE
         for k in $(seq ${NB_EXPORTDS}); do
@@ -311,9 +313,9 @@ gen_export_conf ()
     for k in $(seq ${NB_EXPORTS}); do
         if [[ ${k} == ${NB_EXPORTS} ]]
         then
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${3}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
         else
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${3}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
         fi
     done;
     echo ');' >> $FILE
@@ -338,7 +340,6 @@ start_storaged ()
 # $1 = STORAGES_BY_CLUSTER
 start_storaged_nb ()
 {
-    STORAGES_BY_CLUSTER=$1
     
     echo "------------------------------------------------------"
     PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
@@ -351,6 +352,25 @@ start_storaged_nb ()
         done
     else
         echo "Unable to start ${LOCAL_STORAGE_DAEMON} (already running as PID: ${PID})"
+        exit 0;
+    fi
+
+}
+
+start_expgw ()
+{
+    
+    echo "------------------------------------------------------"
+    PID=`ps ax | grep "build/src/exportd/xxxxexpgateway" | grep -v grep | awk '{print $1}'`
+    if [ "$PID" == "" ]
+    then
+        echo "Start Export Gateway(s)"
+		for j in $(seq ${NB_EXPGATEWAYS}); do
+        echo "start export gateway" ${LOCAL_BINARY_DIR}/exportd/expgateway  -L ${LOCAL_STORAGE_NAME_BASE}${j} -P 60000
+    	${LOCAL_BINARY_DIR}/exportd/expgateway  -L ${LOCAL_STORAGE_NAME_BASE}${j} -P 60000 &
+        done
+    else
+        echo "Unable to start expgateway (already running as PID: ${PID})"
         exit 0;
     fi
 
@@ -523,14 +543,14 @@ undeploy_clients_local ()
 start_exportd ()
 {
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
+    PID=`ps ax | grep "${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON}" | grep -v grep | awk '{print $1}'`
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_EXPORT_DAEMON}"
         echo " ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} -d 62000 -i $1"
         ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} -d 62000 -i $1
     else
-        echo "Unable to start ${EXPORT_DAEMON} (already running as PID: ${PID})"
+        echo "Unable to start ${LOCAL_EXPORT_DAEMON} (already running as PID: ${PID})"
         exit 0;
     fi
 }
@@ -749,14 +769,17 @@ main ()
         then
             ROZOFS_LAYOUT=$2
             STORAGES_BY_CLUSTER=4
+            NB_EXPGATEWAYS=4
         elif [ "$2" -eq 1 ]
         then
             ROZOFS_LAYOUT=$2
             STORAGES_BY_CLUSTER=8
+            NB_EXPGATEWAYS=4
         elif [ "$2" -eq 2 ]
         then
             ROZOFS_LAYOUT=$2
             STORAGES_BY_CLUSTER=16
+            NB_EXPGATEWAYS=4
         else
 	        echo >&2 "Rozofs layout must be equal to 0,1 or 2."
 	        exit 1
@@ -771,7 +794,7 @@ main ()
 
         gen_storage_conf ${STORAGES_BY_CLUSTER}
         gen_storage_conf_nb ${STORAGES_BY_CLUSTER} 2
-        gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
+        gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
 
         go_layout ${ROZOFS_LAYOUT}
         go_layout_nb ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
@@ -781,8 +804,9 @@ main ()
 
 #        start_storaged
         start_storaged_nb ${STORAGES_BY_CLUSTER}
+        start_expgw
         start_exportd 1
-
+        echo "Exportd Started"
         deploy_clients_local
 
     elif [ "$1" == "stop" ]

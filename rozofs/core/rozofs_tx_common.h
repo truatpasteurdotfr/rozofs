@@ -40,8 +40,6 @@ typedef struct _rozofs_com_hdr_t
 
 } rozofs_com_hdr_t;
 
-
-
  
  #define ROZOFS_TX_OPAQUE_MAX 4 /**< size of the user opaque array   */
  
@@ -59,6 +57,7 @@ typedef struct _rozofs_tx_ctx_p_t
 **   DO NOT MOVE THE EVENT/FLAG ARRAY: integrity field is used for giving
 **   the address of the beginning of the bitfields
 */
+
   /*
     _______Event flags
   */
@@ -151,7 +150,7 @@ typedef struct _rozofs_tx_ctx_p_t
     void *user_param;         /**< user param to provide upon reception */
     com_tx_tmr_cell_t  rpc_guard_timer;   /**< guard timer associated with the transaction */
       /* FSM */
-    uma_fsm_t    sys_tx_fsm;         /**< active fsm for the current transaction  */
+//    uma_fsm_t    sys_tx_fsm;         /**< active fsm for the current transaction  */
     
 //    int moduleId; 
     uint64_t timeStamp;

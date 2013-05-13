@@ -115,4 +115,12 @@ int rozofs_storcli_north_interface_init(uint32_t eid,uint16_t rozofsmount_instan
 */
 uint32_t rozofs_storcli_module_init();
 
+/*__________________________________________________________________________
+ */
+/** Thread : Check if the connections for one storage node are active or not
+ *
+ * @param storage: the storage node
+ */
+
+void *connect_storage(void *v);
 #endif

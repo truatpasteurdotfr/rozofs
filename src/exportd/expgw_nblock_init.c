@@ -48,6 +48,7 @@
 #include <rozofs/rozofs_srv.h>
 #include "expgw_main.h"
 #include "expgw_export.h"
+#include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 
 
 /*
@@ -86,7 +87,7 @@ unsigned long long Global_timeBefore, Global_timeAfter;
 */
 
 
-uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t expgw_instance)
+uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint32_t local_ip_addr)
 {
   int ret;
 
@@ -202,6 +203,13 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t expgw_instance)
      */
      ret = expgw_module_init();
      if (ret != RUC_OK) break; 
+     
+     /*
+     ** RPC SERVER MODULE INIT
+     */
+     ret = rozorpc_srv_module_init();
+     if (ret != RUC_OK) break; 
+     
 #if 0    
      ret = storcli_sup_moduleInit();
      if (ret != RUC_OK) break; 
@@ -228,7 +236,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t expgw_instance)
      */
 
      printf(" rozodebug -p %d\n",dbg_port);
-     uma_dbg_init(10,INADDR_ANY,dbg_port);
+     uma_dbg_init(10,local_ip_addr,dbg_port);
 
 
 //#warning Start of specific application initialization code
@@ -241,17 +249,20 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t expgw_instance)
 
 /**
 *  Init of the data structure used for the non blocking entity
-
+  
+  @param dbg_port: debug listening port
+  @param local_ip_addr:IP debug address
+  
   @retval 0 on success
   @retval -1 on error
 */
-int expgw_non_blocking_init(uint16_t dbg_port, uint16_t expgw_instance)
+int expgw_non_blocking_init(uint16_t dbg_port, uint32_t local_ip_addr)
 {
   int   ret;
 //  sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
 
 
- ret = ruc_init(FALSE,dbg_port,expgw_instance);
+ ret = ruc_init(FALSE,dbg_port,local_ip_addr);
  
  if (ret != RUC_OK) return -1;
  

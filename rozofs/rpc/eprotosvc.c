@@ -43,6 +43,9 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		epgw_removexattr_arg_t ep_removexattr_1_arg;
 		epgw_listxattr_arg_t ep_listxattr_1_arg;
 		uint16_t ep_list_cluster_1_arg;
+		ep_path_t ep_conf_storage_1_arg;
+		ep_gateway_t ep_poll_conf_1_arg;
+		ep_path_t ep_conf_expgw_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -185,6 +188,24 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_uint16_t;
 		_xdr_result = (xdrproc_t) xdr_epgw_cluster_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_list_cluster_1_svc;
+		break;
+
+	case EP_CONF_STORAGE:
+		_xdr_argument = (xdrproc_t) xdr_ep_path_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_conf_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_conf_storage_1_svc;
+		break;
+
+	case EP_POLL_CONF:
+		_xdr_argument = (xdrproc_t) xdr_ep_gateway_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_poll_conf_1_svc;
+		break;
+
+	case EP_CONF_EXPGW:
+		_xdr_argument = (xdrproc_t) xdr_ep_path_t;
+		_xdr_result = (xdrproc_t) xdr_ep_gw_gateway_configuration_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_conf_expgw_1_svc;
 		break;
 
 	default:

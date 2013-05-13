@@ -117,9 +117,6 @@ void expgw_getattr_1_svc(epgw_mfile_arg_t * arg, expgw_ctx_t *req_ctx_p)
     */
     req_ctx_p->xmitBuf = req_ctx_p->recv_buf;
     req_ctx_p->recv_buf = NULL;
-#warning STOP_PROFILING_EXPGW anticipation
-       STOP_PROFILING_EXPGW(req_ctx_p);
-
     expgw_forward_reply(req_ctx_p,(char*)&ret);
     /*
     ** release the context

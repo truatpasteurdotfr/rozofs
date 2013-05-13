@@ -108,12 +108,15 @@ void export_expgw_conf_ctx_init(export_expgw_conf_ctx_t *p,int rank)
 {
    ruc_listEltInit(&p->link);
    p->index = rank;
+   p->conf_state = EPGW_CONF_UNKNOWN;
+   p->poll_conf_tx_state = EPGW_TX_IDLE;
    p->free = TRUE;
    p->port = 0;
    p->ipaddr = 0;
    p->current_conf_idx = 0;
    p->hostname[0] = 0;
    p->gateway_lbg_id = -1;
+   memset(&p->stats,0,sizeof(export_expgw_conf_stats_t));
 }
 
 
