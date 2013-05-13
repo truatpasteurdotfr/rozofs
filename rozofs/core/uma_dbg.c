@@ -75,7 +75,29 @@ UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
 static char rcvCmdBuffer[64];
 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_show_name(char * argv[], uint32_t tcpRef, void *bufRef) {  
+    
+  if (uma_gdb_system_name == NULL) {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "system : NO NAME\n");
+  }  
+  else {  
+    uma_dbg_send(tcpRef, bufRef, TRUE, "system : %s\n", uma_gdb_system_name);
+  }
+}
 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the version of the library 
+*/
+void uma_dbg_show_version(char * argv[], uint32_t tcpRef, void *bufRef) {  
+  uma_dbg_send(tcpRef, bufRef, TRUE, "version : %s\n", VERSION);
+}
 /*-----------------------------------------------------------------------------
 **
 **  #SYNOPSIS
@@ -347,20 +369,12 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   }
 
   /* Build the list of topic */
-  
-  if (uma_gdb_system_name != NULL) {
-    idx += sprintf(&p[idx], "__ROZO %s____Module %s____\n\n",VERSION,uma_gdb_system_name);
-  }
-  else {
-    idx += sprintf(&p[idx], "__ROZO %s________\n\n",VERSION);
-  }
-  
   idx += sprintf(&p[idx], "List of available topic :\n");
   for (topicNum=0; topicNum <UMA_DBG_MAX_TOPIC; topicNum++) {
     if (uma_dbg_topic[topicNum].len == 0) break; /* end of topic list */
-    idx += sprintf(&p[idx], "%s\n",uma_dbg_topic[topicNum].name);
+    idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);
   }
-  idx += sprintf(&p[idx], "exit\n");
+  idx += sprintf(&p[idx], "  exit / quit / q\n");
 
   idx ++;
 
@@ -674,6 +688,10 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
     ERRFAT "ruc_tcp_server_connect" ENDERRLOG;
   }
+  
+  uma_dbg_addTopic("who", uma_dbg_show_name);
+  uma_dbg_addTopic("version", uma_dbg_show_version);
+
 }
 /*
 **-------------------------------------------------------
