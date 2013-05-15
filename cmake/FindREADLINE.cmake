@@ -21,6 +21,7 @@
 #  READLINE_LIBRARIES   - List of libraries when using pthread.
 #  READLINE_FOUND       - True if pthread found.
 
+
 FIND_PATH(READLINE_INCLUDE_DIR readline.h
   /usr/local/include/readline
   /usr/local/include

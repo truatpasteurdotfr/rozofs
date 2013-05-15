@@ -59,7 +59,6 @@ set (librozofs_sources
     rpc/mpclient.h
     rpc/mpclient.c
     rpc/export_lbg.c
-    rpc/storage_lbg.c
     rpc/storcli_lbg_prototypes.h
     rpc/storcli_protoclt.c
     rpc/storcli_protosvc.c

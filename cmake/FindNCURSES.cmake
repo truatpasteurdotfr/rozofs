@@ -21,6 +21,7 @@
 #  NCURSES_LIBRARIES   - List of libraries when using pthread.
 #  NCURSES_FOUND       - True if pthread found.
 
+
 FIND_PATH(NCURSES_INCLUDE_DIR ncurses.h
   /usr/local/include
   /usr/include

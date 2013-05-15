@@ -47,7 +47,7 @@ const char      *   prgName;
 */
 void syntax() {
   printf("\n%s [-i <IPaddr>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>]\n\n",prgName);
-  printf("-i <IPaddr>             destination IP address of the debug server\n");
+  printf("-i <hostname>           destination IP address or hostname of the debug server\n");
   printf("                        default is 127.0.0.1\n");
   printf("-p <port>               destination port number of the debug server\n");
   printf("                        mandatory parameter\n"); 
@@ -200,7 +200,9 @@ void debug_interactive_loop(int socketId) {
       printf("Debug session end\n");
       break;
     }
-    add_history(mycmd);    
+    if (strcasecmp(mycmd,"!!") != 0) {
+       add_history(mycmd);
+    }
     if (debug_run_this_cmd(socketId, mycmd) < 0)  break;
     free(mycmd);
   }
@@ -214,6 +216,25 @@ void debug_run_command_list(int socketId) {
     if (debug_run_this_cmd(socketId, cmd[idx]) < 0)  break;
   }
 } 
+
+
+int expgw_host2ip(char *host,uint32_t *ipaddr_p)
+{
+    struct hostent *hp;    
+    /*
+    ** get the IP address of the storage node
+    */
+    if ((hp = gethostbyname(host)) == 0) {
+        printf("gethostbyname failed for host : %s, %s", host,
+                strerror(errno));
+        return -1;
+    }
+    bcopy((char *) hp->h_addr, (char *) ipaddr_p, hp->h_length);
+//    *ipaddr_p = ntohl(*ipaddr_p);
+    return 0;
+    
+}
+
 void read_parameters(argc, argv)
 int argc;
 char *argv[];
@@ -221,6 +242,7 @@ char *argv[];
   uint32_t            ret;
   uint32_t            idx;
   uint32_t            port32;
+  int                 status;
 
   idx = 1;
   /* Scan parameters */
@@ -233,7 +255,12 @@ char *argv[];
 	printf ("%s option but missing value !!!\n",argv[idx-1]);
 	syntax();
       }
-      ipAddr = inet_addr(argv[idx]);
+//      ipAddr = inet_addr(argv[idx]);
+      status = expgw_host2ip(argv[idx],&ipAddr);
+      if (status < 0) 
+      {
+        syntax();      
+      }
       idx++;
       continue;
     }
