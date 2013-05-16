@@ -213,4 +213,35 @@ char *north_lbg_display_lbg_id_and_state(char * buffer,int lbg_id);
 
 char *north_lbg_display_lbg_state(char * pchar,int lbg_id);
 
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Attach a supervision Application callback with the load balancing group
+   That callback is configured on each entry of the LBG
+   
+   @param lbg_idx: reference of the load balancing group
+   @param supervision_callback supervision_callback
+
+  retval 0 : success
+  retval -1 : error
+*/
+int  north_lbg_attach_application_supervision_callback(int lbg_idx,af_stream_poll_CBK_t supervision_callback);
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Configure the TMO of the application for connexion supervision
+   
+   @param lbg_idx: reference of the load balancing group
+   @param tmo_sec : timeout value
+
+  retval 0 : success
+  retval -1 : error
+*/
+int  north_lbg_set_application_tmo4supervision(int lbg_idx,int tmo_sec);
 #endif

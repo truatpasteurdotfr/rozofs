@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <rozofs/rozofs.h>
+#include <rozofs/rpc/eclient.h>
 
  
 extern uint32_t  *rozofs_storcli_cid_table[];
@@ -123,4 +124,10 @@ uint32_t rozofs_storcli_module_init();
  */
 
 void *connect_storage(void *v);
+/*__________________________________________________________________________
+ */
+/**
+* Init of the load balancing group from mstorage configuration
+*/
+int storaged_lbg_initialize(mstorage_t *s);
 #endif

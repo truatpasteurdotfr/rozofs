@@ -35,6 +35,7 @@
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/north_lbg_api.h>
+#include "storcli_main.h"
 
 
 

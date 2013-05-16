@@ -339,6 +339,121 @@ extern void *rozofs_storcli_pool[];
 #define ROZOFS_STORCLI_SOUTH_SMALL_POOL rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL]
 #define ROZOFS_STORCLI_SOUTH_LARGE_POOL rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL]
 
+/*
+**_________________________________________________________________________________
+*/
+/**
+* Section concerning the supervision of the lbg connectivity
+*/
+
+#define STORCLI_LBG_RUNNING 0       
+#define STORCLI_LBG_DOWNGRADED 1    /**< the lbg is in quarantine   */
+
+#define STORCLI_MAX_LBG  256       /**< max number of LBG supported  */
+#define STORCLI_LBG_SUP_TMO_THRES1  1
+#define STORCLI_LBG_SUP_TMO_MAX     8
+
+#define STORCLI_LBG_BASE_DELAY (20*10)  /**< 20 s */
+#define STORCLI_LBG_SP_NULL_INTERVAL (5*10)  /**< 5 s period  */
+
+#define STORCLI_POLL_IDLE  0  /**< no polling towards LBG */
+#define STORCLI_POLL_IN_PRG 1 /**< transaction in progress */
+#define STORCLI_POLL_ERR 2    /**< sp_null error */
+
+/*
+** 
+*/
+typedef struct _storcli_lbg_cnx_supervision_t
+{
+//  uint64_t   expiration_date;  /**< date for which the lbg  leaves the quarantine  */
+  uint64_t   next_poll_date;   /**< date for the next polling  */
+  uint16_t   state:2 ;         /*< state : RUNNING/DOWNGRADED  */
+  uint16_t   poll_state:2 ;         /*< polling state  */
+  uint16_t   tmo_counter ; 
+  uint16_t   poll_counter ; 
+} storcli_lbg_cnx_supervision_t;
+/*
+** the tmo_counter is cleared each time a successful reception happens
+**
+** The expiration date depends on the tmo_counter
+*/
+
+
+extern storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[];
+
+
+/**
+*  init of the load balancing group supervision table
+*/
+
+static inline void storcli_lbg_cnx_sup_init()
+{
+  int i;
+  for (i = 0; i < STORCLI_MAX_LBG;i++)
+  {
+    storcli_lbg_cnx_supervision_tab[i].state = STORCLI_LBG_RUNNING;
+    storcli_lbg_cnx_supervision_tab[i].poll_state = STORCLI_POLL_IDLE;
+    storcli_lbg_cnx_supervision_tab[i].tmo_counter = 0;
+    storcli_lbg_cnx_supervision_tab[i].poll_counter = 0;
+//    storcli_lbg_cnx_supervision_tab[i].expiration_date = 0;  
+    storcli_lbg_cnx_supervision_tab[i].next_poll_date = 0;  
+  }
+}
+
+/**
+*  Increment the time-out counter of a load balancing group
+  
+  @param lbg_id : index of the load balancing group
+  
+  @retval none
+ */
+  
+static inline void storcli_lbg_cnx_sup_increment_tmo(int lbg_id)
+{
+ storcli_lbg_cnx_supervision_t *p;
+ if (lbg_id >=STORCLI_MAX_LBG) return;
+ 
+ p = &storcli_lbg_cnx_supervision_tab[lbg_id];
+ p->tmo_counter++;
+// p->expiration_date =  (p->tmo_counter*STORCLI_LBG_BASE_DELAY) + timer_get_ticker();
+ p->state = STORCLI_LBG_DOWNGRADED;
+}
+
+
+/**
+*  clear the time-out counter of a load balancing group
+  
+  @param lbg_id : index of the load balancing group
+  
+  @retval none
+ */
+  
+static inline void storcli_lbg_cnx_sup_clear_tmo(int lbg_id)
+{
+ storcli_lbg_cnx_supervision_t *p;
+ if (lbg_id >=STORCLI_MAX_LBG) return;
+ 
+ p = &storcli_lbg_cnx_supervision_tab[lbg_id];
+ p->tmo_counter= 0;
+ p->state = STORCLI_LBG_RUNNING;
+// p->expiration_date = 0;
+}
+
+
+/**
+*  Check if a load balancing group is selectable based on the tmo counter
+  @param lbg_id : index of the load balancing group
+  
+  @retval 0 non selectable
+  @retval 1  selectable
+ */
+  
+int storcli_lbg_cnx_sup_is_selectable(int lbg_id);
+
+
+/*
+**_________________________________________________________________________________
+*/
 
 /*
 *________________________________________________________
@@ -819,6 +934,13 @@ static inline int rozofs_storcli_lbg_prj_is_lbg_selectable(rozofs_storcli_lbg_pr
   {
     return 0;  
   }
+  /*
+  ** check if the lbg is not in quarantine
+  */
+  if (north_lbg_is_available(lbg_assoc_p[index].lbg_id) == 0) return 0;
+  
+  if (storcli_lbg_cnx_sup_is_selectable(lbg_assoc_p[index].lbg_id) == 0) return 0;
+  
   if (lbg_assoc_p[index].state == NORTH_LBG_UP)
   {
     return 1;
@@ -1040,5 +1162,18 @@ static inline void rozofs_storcli_update_lbg_for_safe_range(rozofs_storcli_ctx_t
   }
 }
 
+
+/*
+**____________________________________________________
+*/
+/**
+*  
+  Applicative Polling of a TCP connection towards Storage
+  @param sock_p : pointer to the connection context
+  
+  @retval none
+ */
+  
+void storcli_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p);
 #endif
 

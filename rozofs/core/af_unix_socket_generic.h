@@ -83,6 +83,24 @@ typedef void (*generic_xmitDone_CBK_t)(void *userRef,uint32_t socket_context_ref
 
 
 /**
+* Call back for connection supervision from application
+  @param *sock_p: pointer to cnnection context
+  
+  @retval: none
+*/
+typedef void (*af_stream_poll_CBK_t)(void *sock_p);
+
+
+/**
+* Call back for connection supervision state change 
+  @param *user_param: opaque value
+  
+  @retval: none
+*/
+typedef void (*af_stream_avail_CBK_t)(uint32_t param);
+
+
+/**
 * service type for stream reception
 */
 typedef enum _com_stream_recv_service_e
@@ -252,6 +270,9 @@ typedef struct _com_recv_template_t
 
 #define ROZOFS_SOCK_EXTNAME_SIZE 64
 #define AF_UNIX_SOCKET_NAME_SIZE 64
+
+#define AF_UNIX_CNX_AVAILABLE  0
+#define AF_UNIX_CNX_UNAVAILABLE  1
 /**
 * structure used to supervise the activity of a tcp connection
 */
@@ -307,13 +328,17 @@ typedef struct _af_unix_ctx_generic_t
   generic_connect_CBK_t      userConnectCallBack; /**< callback for client connection only         */
   generic_xmitDone_CBK_t     userXmitDoneCallBack; /**< optional call that must be set when the application when to be warned when packet has been sent */
   generic_hdr_getsz_CBK_t    userHdrAnalyzerCallBack; /* NULL by default, function that analyse the received header that returns the payload  length  */
-
+  af_stream_poll_CBK_t       userPollingCallBack;    /**< call that permits polling at application level */
+  af_stream_avail_CBK_t      userAvailabilityCallBack;
+  uint32_t                   availability_param;
   void          *userRef;           /**< user reference that must be recalled in the callbacks */
   af_unix_socket_conf_t *conf_p;  /**< for listening socket only */
   com_xmit_template_t   xmit;
   com_recv_template_t   recv;
   rozofs_socket_stats_t stats;
   af_inet_check_cnx_t   cnx_supevision; /**< supervision context */
+  uint8_t               cnx_availability_state;  /**< operational state of the connection */
+  
 
 } af_unix_ctx_generic_t;
 
@@ -774,6 +799,18 @@ static inline void af_inet_cnx_ok (af_unix_ctx_generic_t *sock_p)
 {
    af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
    p->s.check_cnx_rq = 0;
+
+   if (sock_p->cnx_availability_state  != AF_UNIX_CNX_AVAILABLE)
+   {
+     sock_p->cnx_availability_state = AF_UNIX_CNX_AVAILABLE;
+     if (sock_p->userAvailabilityCallBack!= NULL)
+     {
+       /**
+       * application has a polling callback for the connection supervision
+       */
+       (sock_p->userAvailabilityCallBack)(sock_p->availability_param);   
+     }
+   }
 }
 
 /*
@@ -782,7 +819,7 @@ static inline void af_inet_cnx_ok (af_unix_ctx_generic_t *sock_p)
 /**
 *  Set a guard timer for the connexion to monitor the response
    
-   @param tmo: tmo in ticker (base is 10 ms)
+   @param tmo: tmo in ticker (base is 100 ms)
 */
 static inline void af_inet_set_cnx_tmo (af_unix_ctx_generic_t  *sock_p, int tmo)
 {
@@ -801,9 +838,9 @@ static inline void af_inet_set_cnx_tmo (af_unix_ctx_generic_t  *sock_p, int tmo)
 **__________________________________________________________________________
 */
 /**
-*  Set a guard timer for the connexion to monitor the response
+*  Enable the supervision at the level of the stream connection
    
-   @param tmo: tmo in ticker (base is 10 ms)
+   @param sock_p: reference of the connection
 */
 static inline void af_inet_enable_cnx_supervision(af_unix_ctx_generic_t  *sock_p)
 {
@@ -811,5 +848,42 @@ static inline void af_inet_enable_cnx_supervision(af_unix_ctx_generic_t  *sock_p
    p->s.check_cnx_enabled =1;
 }
 
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Declare an application callback for connection supervision
+   
+   @param sock_p: reference of the connection
+   @param supervision_callback supervision_callback
+*/
+static inline void af_inet_attach_application_supervision_callback(af_unix_ctx_generic_t  *sock_p,af_stream_poll_CBK_t supervision_callback)
+{
+   af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
+   p->s.check_cnx_enabled =1;
+   sock_p->userPollingCallBack = supervision_callback;
+}
+
+
+
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Declare an application callback for connection supervision
+   
+   @param sock_p: reference of the connection
+   @param available_callback : call back to process availability change 
+   @param param : opaque param associated with the callback
+*/
+static inline void af_inet_attach_application_availability_callback(af_unix_ctx_generic_t  *sock_p,af_stream_avail_CBK_t available_callback,uint32_t param)
+{
+   sock_p->userAvailabilityCallBack = available_callback;
+   sock_p->availability_param = param;
+}
 
 #endif

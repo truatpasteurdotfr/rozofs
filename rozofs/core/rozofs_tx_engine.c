@@ -400,6 +400,7 @@ uint32_t rozofs_tx_free_from_idx(uint32_t transaction_id)
    ** get the reference from idx
    */
    p = rozofs_tx_getObjCtx_p(transaction_id);
+
    /*
    **  remove the xmit block
    */
@@ -778,6 +779,14 @@ void rozofs_tx_recv_rpc_cbk(void *userRef,uint32_t  lbg_id, void *recv_buf)
     {
       ruc_objRemove((ruc_obj_desc_t*)this->xmit_buf);
       ruc_buf_freeBuffer(this->xmit_buf);
+    }
+    else 
+    {
+      /* This buffer may be in a queue somewhere */
+      ruc_objRemove((ruc_obj_desc_t*)this->xmit_buf);    
+      /* Prevent transmitter to call a xmit done call back 
+        that may queue this buffer somewhere */
+      ruc_buf_set_opaque_ref(this->xmit_buf,NULL);
     }
     this->xmit_buf = NULL;  
   }

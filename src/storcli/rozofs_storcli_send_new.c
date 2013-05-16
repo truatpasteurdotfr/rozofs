@@ -199,6 +199,7 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t prog,uint32_t vers,
     */
     rozofs_tx_write_opaque_data( rozofs_tx_ctx_p,0,seqnum);  
     rozofs_tx_write_opaque_data( rozofs_tx_ctx_p,1,opaque_value_idx1);  
+    rozofs_tx_write_opaque_data( rozofs_tx_ctx_p,2,lbg_id);  
     /*
     ** now send the message
     */
@@ -218,7 +219,7 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t prog,uint32_t vers,
     /*
     ** OK, so now finish by starting the guard timer
     */
-    rozofs_tx_start_timer(rozofs_tx_ctx_p,10);  
+    rozofs_tx_start_timer(rozofs_tx_ctx_p,3);  
     return 0;  
     
   error:
@@ -588,4 +589,139 @@ error:
     return;
 }
 
+
+
+/**
+*  Check if a load balancing group is selectable based on the tmo counter
+  @param lbg_id : index of the load balancing group
+  
+  @retval 0 non selectable
+  @retval 1  selectable
+ */
+  
+extern void rozofs_storcli_sp_null_processing_cbk(void *this,void *param);
+
+int storcli_lbg_cnx_sup_is_selectable(int lbg_id)
+{
+  uint64_t current_date;
+  storcli_lbg_cnx_supervision_t *p;
+  void *xmit_buf = NULL;
+  int ret;
+
+  if (lbg_id >=STORCLI_MAX_LBG) return 0;
+
+  p = &storcli_lbg_cnx_supervision_tab[lbg_id];
+
+  if (p->state == STORCLI_LBG_RUNNING) return 1;
+
+  current_date = timer_get_ticker();
+
+//  if (current_date > p->expiration_date) return 1;
+  /*
+  ** check if poll is active
+  */
+  if (p->poll_state == STORCLI_POLL_IN_PRG) return 0;
+  /*
+  ** check the period
+  */
+  if (current_date > p->next_poll_date)
+  {
+    /*
+    ** attempt to poll
+    */
+      p->poll_counter++;
+      
+      xmit_buf = ruc_buf_getBuffer(ROZOFS_STORCLI_SOUTH_LARGE_POOL);
+      if (xmit_buf == NULL)
+      {
+         return 0; 
+      }
+      p->poll_state = STORCLI_POLL_IN_PRG;
+      /*
+      ** increment the inuse to avoid a release of the xmit buffer by rozofs_sorcli_send_rq_common()
+      */
+      ruc_buf_inuse_increment(xmit_buf);
+      
+      ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_NULL,
+                                          (xdrproc_t) xdr_void, (caddr_t) NULL,
+                                           xmit_buf,
+                                           lbg_id,
+                                           0,
+                                           0,
+                                           rozofs_storcli_sp_null_processing_cbk,
+                                           (void*)NULL);
+      ruc_buf_inuse_decrement(xmit_buf);
+
+     if (ret < 0)
+     {
+      /*
+      ** direct need to free the xmit buffer
+      */
+      ruc_buf_freeBuffer(xmit_buf);    
+      return 0;   
+
+     }
+     /*
+     ** Check if there is direct response from tx module
+     */
+     if (p->poll_state == STORCLI_POLL_ERR)
+     {
+       /*
+       ** set the next expiration date
+       */
+       p->next_poll_date = current_date+STORCLI_LBG_SP_NULL_INTERVAL;
+       /*
+       ** release the xmit buffer since there was a direct reply from the lbg while attempting to send the buffer
+       */
+      ruc_buf_freeBuffer(xmit_buf);    
+       return 0;
+     } 
+  }  
+  return 0;
+}
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+
+void rozofs_storcli_sp_null_processing_cbk(void *this,void *param) 
+{
+   uint32_t   lbg_id;
+   int status;
+    /*
+    ** get the sequence number and the reference of the projection id form the opaque user array
+    ** of the transaction context
+    */
+    rozofs_tx_read_opaque_data(this,0,&lbg_id);
+    /*    
+    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
+    */
+    status = rozofs_tx_get_status(this);
+    if (status < 0)
+    {
+       storcli_lbg_cnx_supervision_tab[lbg_id].poll_state = STORCLI_POLL_ERR;
+       storcli_lbg_cnx_supervision_tab[lbg_id].next_poll_date = timer_get_ticker()+STORCLI_LBG_SP_NULL_INTERVAL;
+       goto out;
+    }
+    storcli_lbg_cnx_supervision_tab[lbg_id].poll_state = STORCLI_POLL_IDLE;
+    storcli_lbg_cnx_sup_clear_tmo(lbg_id);
+
+
+    /*
+    ** the message has not the right sequence number,so just drop the received message
+    ** and release the transaction context
+    */  
+out:
+     rozofs_tx_free_from_ptr(this);
+     return;
+}
 

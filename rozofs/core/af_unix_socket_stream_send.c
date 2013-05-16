@@ -191,12 +191,24 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
 	         }
 	         else 
              {
-                if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);	        
+                if (inuse == 1) 
+                {
+                  /*
+                  ** need an obj remove since that buffer might still queue somewhere : typically
+                  ** in the xmit list of a load balacner entry.
+                  */
+                  ruc_objRemove((ruc_obj_desc_t*)xmit_p->bufRefCurrent);
+                  ruc_buf_freeBuffer(xmit_p->bufRefCurrent);	
+                }        
 	         }  
           }
           else
           {
-            if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
+            if (inuse == 1) 
+            {
+              ruc_objRemove((ruc_obj_desc_t*)xmit_p->bufRefCurrent);
+              ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
+            }
           }
           xmit_p->bufRefCurrent = NULL;
           xmit_p->nbWrite  = 0;
@@ -254,7 +266,11 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
               ** an issue while sendig that buffer since the connection is not considered
               ** anymore.
               */ 
-              if (inuse == 1) ruc_buf_freeBuffer(bufref);
+              if (inuse == 1) 
+              {
+                ruc_objRemove((ruc_obj_desc_t*)bufref);
+                ruc_buf_freeBuffer(bufref);
+              }
               bufref = NULL;
             }
             /*
@@ -269,8 +285,12 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           }
           else
           {
-           if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
-            xmit_p->bufRefCurrent = NULL;
+              if (inuse == 1) 
+              {
+                ruc_objRemove((ruc_obj_desc_t*)xmit_p->bufRefCurrent);
+                ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
+              }            
+              xmit_p->bufRefCurrent = NULL;
           }
           /*
           ** general disconnection->need to clean the socket queue
@@ -392,7 +412,7 @@ int af_unix_generic_stream_send(af_unix_ctx_generic_t *this,void *buf_p)
         */
         ruc_buf_inuse_increment(buf_p);
         xmit_p->bufRefCurrent = buf_p;
-	ruc_buf_set_opaque_ref(buf_p,this);
+	    ruc_buf_set_opaque_ref(buf_p,this);
         af_unix_send_stream_fsm(this,xmit_p);
         return 0;
 

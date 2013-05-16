@@ -210,7 +210,14 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t rozofsmount_instance)
      **  contexts supported
      **--------------------------------------   
      **  
-     */    
+     */ 
+     /*
+     ** Check if the number of configured LBG is compatible with the lbg cnx supervision table  
+     */
+     if ( STORCLI_MAX_LBG < mx_lbg_north_ctx)
+     {
+       fatal("STORCLI_MAX_LBG constant need at least to be %d",mx_lbg_north_ctx);
+     }
      ret = north_lbg_module_init(mx_lbg_north_ctx);
      if (ret != RUC_OK) break;   
      /*

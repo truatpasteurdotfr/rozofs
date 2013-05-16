@@ -132,6 +132,9 @@ typedef struct _north_lbg_ctx_t
   ** 2) When this indicator is not set, the application call back is called 
   */
   int                    rechain_when_lbg_gets_down;
+  af_stream_poll_CBK_t       userPollingCallBack;    /**< call that permits polling at application level */
+  int                        tmo_supervision_in_sec;
+  int                        available_state;      /**< 0: unavailable/ 1 available */
 } north_lbg_ctx_t;
 
 /*
@@ -312,6 +315,22 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
        continue;
      }
      /*
+     ** where there is a supervision callback associated with the lbg need to check the 
+     ** availability of the connection
+     */
+     if (lbg_p->userPollingCallBack != NULL) 
+     {
+       /*
+       ** Get the available stat eof the connection
+       */
+       af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(lbg_p->entry_tb[check_idx].sock_ctx_ref);
+       if (this->cnx_availability_state == AF_UNIX_CNX_UNAVAILABLE) 
+       {
+         check_idx +=1;
+         continue;         
+       }             
+     }    
+     /*
      ** update for the next run
      */
      lbg_p->next_entry_idx = check_idx+1;
@@ -332,4 +351,25 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
  @retval    NORTH_LBG_DOWN : all the connection are down
 */
 int north_lbg_get_state(int lbg_id);
+
+
+/**
+*  API that provide the current state of a load balancing Group
+
+ @param lbg_idx : index of the load balancing group
+ 
+ @retval   none
+*/
+void north_lbg_update_available_state(uint32_t lbg_idx);
+
+
+/**
+*  API that provide the current state of a load balancing Group
+
+ @param lbg_idx : index of the load balancing group
+ 
+ @retval   1 : available
+ @retval   0 : unavailable
+*/
+int north_lbg_is_available(int lbg_idx);
 #endif

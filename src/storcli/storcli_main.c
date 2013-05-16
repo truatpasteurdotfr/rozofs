@@ -82,6 +82,7 @@ static storcli_conf conf;
 exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
 uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
+storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
 DEFINE_PROFILING(stcpp_profiler_t) = {0};
 
@@ -145,6 +146,35 @@ static char *show_storlci_display_configuration_state(char *buffer,int state)
         break;   
       case STORCLI_CONF_SYNCED:
         sprintf(pchar,"SYNCED    ");
+        break;   
+   
+   }
+   return buffer;
+}
+
+
+/**________________________________________________________________________
+*/
+/**
+*  Display of the state of the current configuration of the exportd
+
+ */
+
+static char *show_storcli_display_poll_state(char *buffer,int state)
+{
+    char *pchar = buffer;
+   switch (state)
+   {
+      default:
+      case STORCLI_POLL_IDLE:
+        sprintf(pchar,"IDLE  ");
+        break;
+   
+      case STORCLI_POLL_IN_PRG:
+        sprintf(pchar,"IN_PRG");
+        break;   
+      case STORCLI_POLL_ERR:
+        sprintf(pchar,"ERROR ");
         break;   
    
    }
@@ -224,7 +254,13 @@ char *display_mstorage(mstorage_t *s,char *buffer)
      {
        buffer += sprintf(buffer,"  %3d     |",s->lbg_id);       
      }
-     buffer += sprintf(buffer,"  %s  |\n",north_lbg_display_lbg_state(bufall,s->lbg_id));         
+     buffer += sprintf(buffer,"  %s  |",north_lbg_display_lbg_state(bufall,s->lbg_id));         
+     buffer += sprintf(buffer,"  %s      |",north_lbg_is_available(s->lbg_id)==1 ?"UP  ":"DOWN");        
+     buffer += sprintf(buffer," %3s |",storcli_lbg_cnx_supervision_tab[s->lbg_id].state==STORCLI_LBG_RUNNING ?"YES":"NO");        
+     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[s->lbg_id].tmo_counter); 
+     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[s->lbg_id].poll_counter); 
+     buffer += sprintf(buffer," %2d |",STORCLI_LBG_SP_NULL_INTERVAL);         
+     buffer += sprintf(buffer,"  %s      |\n",show_storcli_display_poll_state(bufall,storcli_lbg_cnx_supervision_tab[s->lbg_id].poll_state));         
   }
   return buffer;
 }
@@ -240,8 +276,8 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
 {
     char *pchar = localBuf;
 
-   pchar +=sprintf(pchar," cid  |  sid |     hostname        |  socket  | state  |\n");
-   pchar +=sprintf(pchar,"------+------+---------------------+----------+--------+\n");
+   pchar +=sprintf(pchar," cid  |  sid |     hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
+   pchar +=sprintf(pchar,"------+------+---------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
 
    list_t *iterator = NULL;
    /* Search if the node has already been created  */
@@ -309,6 +345,11 @@ int rozofs_storcli_cid_table_insert(cid_t cid, sid_t sid, uint32_t lbg_id) {
         rozofs_storcli_cid_table[cid - 1] = sid_lbg_id_p;
     }
     sid_lbg_id_p[sid - 1] = lbg_id;
+    /*
+    ** clear the tmo supervision structure assocated with the lbg
+    */
+    storcli_lbg_cnx_sup_clear_tmo(lbg_id);
+    
     return 0;
 
 }
@@ -705,6 +746,10 @@ int main(int argc, char *argv[]) {
         conf.passwd = strdup("none");
     }
     openlog("storcli", LOG_PID, LOG_DAEMON);
+    
+    rozofs_storcli_cid_table_init();
+    storcli_lbg_cnx_sup_init();
+    
     /*
      ** init of the non blocking part
      */

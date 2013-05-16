@@ -343,7 +343,9 @@ void  north_lbg_ctxInit(north_lbg_ctx_t *p,uint8_t creation)
   p->nb_active_entries     = 0;
   p->next_entry_idx        = 0 ;
 
-  p->state         = NORTH_LBG_DOWN;
+  p->state                 = NORTH_LBG_DOWN;
+  p->userPollingCallBack   = NULL;
+  p->available_state       = 1;
   memset(&p->stats,0,sizeof(north_lbg_stats_t));
 
   p->rechain_when_lbg_gets_down = 0;
