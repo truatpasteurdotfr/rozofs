@@ -456,7 +456,8 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-                option="-o debug_port=610${j}0 -o instance=1" 
+#                option="-o debug_port=610${j}0 -o instance=1 -o rozofsstorclitimeout=11 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4" 
+               option="-o debug_port=610${j}0 -o instance=1 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}

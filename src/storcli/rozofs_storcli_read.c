@@ -47,7 +47,7 @@
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/sproto.h>
 #include "storcli_main.h"
-
+#include <rozofs/rozofs_timer_conf.h>
 DECLARE_PROFILING(stcpp_profiler_t);
 
 /*
@@ -611,7 +611,7 @@ retry:
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_READ_IN_PRG;
      ruc_buf_inuse_increment(xmit_buf);
      
-     ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_READ,
+     ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_READ,
                                          (xdrproc_t) xdr_sp_read_arg_t, (caddr_t) request,
                                           xmit_buf,
                                           working_ctx_p->read_seqnum,
@@ -826,7 +826,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
      ruc_buf_inuse_increment(xmit_buf);
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_READ_IN_PRG;
      
-     ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_READ,
+     ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_READ,
                                          (xdrproc_t) xdr_sp_read_arg_t, (caddr_t) request,
                                           xmit_buf,
                                           working_ctx_p->read_seqnum,

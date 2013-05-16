@@ -35,6 +35,7 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/north_lbg_api.h>
 #include "rozofs_storcli.h"
+#include <rozofs/rozofs_timer_conf.h>
 
 /*
 **____________________________________________________
@@ -220,7 +221,7 @@ void storcli_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p)
 {
   void *xmit_buf = NULL;
   int ret;
-  int timeout = 3;
+  int timeout = (int)ROZOFS_TMR_GET(TMR_RPC_NULL_PROC_TCP);
 
   af_inet_set_cnx_tmo(sock_p,timeout*10);
   /*

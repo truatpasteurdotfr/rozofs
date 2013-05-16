@@ -42,7 +42,8 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-
+#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
 
@@ -108,6 +109,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "\t-o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
     fprintf(stderr, "\t-o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
+    fprintf(stderr, "\t-o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 10)\n");
     fprintf(stderr, "\t-o debug_port=N\tdefine the base debug port for Rozofsmount (default:none)\n");
     fprintf(stderr, "\t-o instance=N\tinstance number (default:0)\n");
 }
@@ -135,8 +137,9 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("exportpasswd=%s", passwd, 0),
     MYFS_OPT("rozofsbufsize=%u", buf_size, 0),
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
-    //MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
-    //MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
+    MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
+    MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
+    MYFS_OPT("rozofsstorclitimeout=%u", storcli_timeout, 0),
     MYFS_OPT("debug_port=%u", dbg_port, 0),
     MYFS_OPT("instance=%u", instance, 0),
 
@@ -482,9 +485,7 @@ void rozofs_kill_storcli(const char *mountpoint) {
 void rozofs_start_storcli(const char *mountpoint) {
     int i;
     char cmd[1024];
-
     rozofs_kill_storcli(mountpoint);
-
     for (i = 1; i <= STORCLI_PER_FSMOUNT; i++) {
         char *cmd_p = &cmd[0];
         cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
@@ -495,7 +496,9 @@ void rozofs_start_storcli(const char *mountpoint) {
         cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
         cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
         cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
+        cmd_p += sprintf(cmd_p, "-s %d ",ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
         cmd_p += sprintf(cmd_p, "&");
+    info("rozofs_start_storcli  cmd %s",cmd);
         system(cmd);
     }
 }
@@ -518,9 +521,12 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
+
+
     struct timeval timeout_mproto;
-    timeout_mproto.tv_sec = 25;
+    timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
+
 
     for (retry_count = 3; retry_count > 0; retry_count--) {
         /* Initiate the connection to the export and get informations
@@ -537,6 +543,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
         sleep(2);
     }
+
     if (retry_count == 0) {
 
         fprintf(stderr,
@@ -546,6 +553,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
                 mountpoint, strerror(errno));
         return 1;
     }
+    printf("FDL all param read %d\n",__LINE__);
 
     /* Initialize list and htables for inode_entries */
     list_init(&inode_entries);
@@ -663,7 +671,11 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
-
+    /*
+    ** declare timer debug functions
+    */
+    rozofs_timer_conf_dbg_init();
+    
     //    uint16_t debug_port = 60000;
     rozofs_fuse_conf.debug_port = (uint16_t) conf.dbg_port;
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
@@ -772,6 +784,10 @@ int main(int argc, char *argv[]) {
     int res;
 
     memset(&conf, 0, sizeof (conf));
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
 
     conf.max_retry = 50;
     conf.buf_size = 0;
@@ -814,35 +830,31 @@ int main(int argc, char *argv[]) {
         conf.buf_size = 8192;
     }
 
-    /*
-        // Set timeout for exportd requests
-        if (conf.export_timeout == 0) {
-            conf.export_timeout = 25;
-        }
 
-        // Check timeout for exportd requests
-        if (conf.export_timeout < 10) {
-            fprintf(stderr,
-                    "timeout for exportd requests is too low (%u KiB)"
-                    " - increased to 10\n",
-                    conf.export_timeout);
-            conf.export_timeout = 10;
+    // Set timeout for exportd requests
+    if (conf.export_timeout != 0) {
+        if (rozofs_tmr_configure(TMR_EXPORT_PROGRAM,conf.export_timeout)< 0)
+        {
+          fprintf(stderr,
+                "timeout for exportd requests is out of range: revert to default setting");
         }
+    }
 
-        // Set timeout for storaged requests
-        if (conf.storage_timeout == 0) {
-            conf.storage_timeout = 3;
+    if (conf.storage_timeout != 0) {
+        if (rozofs_tmr_configure(TMR_STORAGE_PROGRAM,conf.storage_timeout)< 0)
+        {
+          fprintf(stderr,
+                "timeout for storaged requests is out of range: revert to default setting");
         }
+    }
 
-        // Check timeout for storaged requests
-        if (conf.storage_timeout < 2) {
-            fprintf(stderr,
-                    "timeout for storaged requests is too low (%u KiB)"
-                    " - increased to 2\n",
-                    conf.storage_timeout);
-            conf.storage_timeout = 10;
+    if (conf.storcli_timeout != 0) {
+        if (rozofs_tmr_configure(TMR_STORCLI_PROGRAM,conf.storcli_timeout)< 0)
+        {
+          fprintf(stderr,
+                "timeout for storcli requests is out of range: revert to default setting");
         }
-     */
+    }
 
     if (fuse_version() < 28) {
         if (fuse_opt_add_arg(&args, "-o" FUSE27_DEFAULT_OPTIONS) == -1) {

@@ -54,6 +54,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -121,7 +122,7 @@ void rozofs_ll_mkdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_MKDIR,(xdrproc_t) xdr_ep_mkdir_arg_t,(void *)&arg,
                               rozofs_ll_mkdir_cbk,buffer_p); 
     if (ret < 0) goto error;

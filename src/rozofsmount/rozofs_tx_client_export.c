@@ -70,6 +70,7 @@
  
 
  @param clt        : pointer to the client structure
+ @param timeout_sec : transaction timeout
  @param prog       : program
  @param vers       : program version
  @param opcode     : metadata opcode
@@ -82,7 +83,7 @@
  @retval -1 on error,, errno contains the cause
  */
 
-int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
+int rozofs_export_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               sys_recv_pf_t recv_cbk,void *fuse_ctx_p) 
 {
@@ -214,7 +215,7 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
     /*
     ** OK, so now finish by starting the guard timer
     */
-    rozofs_tx_start_timer(rozofs_tx_ctx_p, 25);
+    rozofs_tx_start_timer(rozofs_tx_ctx_p, timeout_sec);
 //    if (*tx_ptr != NULL) *tx_ptr = rozofs_tx_ctx_p;
     return 0;  
     
@@ -246,6 +247,7 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
  
 
  @param clt        : pointer to the client structure
+ @param timeout_sec : transaction timeout
  @param prog       : program
  @param vers       : program version
  @param opcode     : metadata opcode
@@ -259,7 +261,7 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
  @retval -1 on error,, errno contains the cause
  */
 
-int rozofs_storcli_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
+int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               sys_recv_pf_t recv_cbk,void *fuse_ctx_p,
 			      int lbg_id) 			       
@@ -393,7 +395,7 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t prog,uint32_t vers,
     /*
     ** OK, so now finish by starting the guard timer
     */
-    rozofs_tx_start_timer(rozofs_tx_ctx_p,10);  
+    rozofs_tx_start_timer(rozofs_tx_ctx_p,timeout_sec);  
 //    if (*tx_ptr != NULL) *tx_ptr = rozofs_tx_ctx_p;
     return 0;  
     

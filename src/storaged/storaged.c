@@ -54,6 +54,7 @@
 #include "storage.h"
 #include "storaged.h"
 #include "rbs.h"
+#include <rozofs/rozofs_timer_conf.h>
 
 #define STORAGED_PID_FILE "storaged.pid"
 
@@ -521,6 +522,11 @@ int main(int argc, char *argv[]) {
         { 0, 0, 0, 0}
     };
 
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
+    
     storaged_hostname = NULL;
 
     while (1) {

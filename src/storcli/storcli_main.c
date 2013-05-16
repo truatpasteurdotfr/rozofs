@@ -51,6 +51,8 @@
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
+#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/rozofs_timer_conf_dbg.h>
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -437,7 +439,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     struct timeval timeout_exportd;
 
     //XXX Static timeout
-    timeout_exportd.tv_sec = 25;
+    timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
 
     /* Initiate the connection to the export and get informations
@@ -479,7 +481,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         }
 
         struct timeval timeout_mproto;
-        timeout_mproto.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+        timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_MONITOR_PROGRAM);
         timeout_mproto.tv_usec = 0;
 
         /* Initialize connection with storage (by mproto) */
@@ -541,6 +543,7 @@ void usage() {
     printf("\t-D,--dbg DEBUG_PORT\t\tdebug port (default: none) \n");
     printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
     printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
+    printf("\t-s,--storagetmr \t\t define timeout (s) for IO storaged requests (default: 3)\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -556,8 +559,13 @@ int main(int argc, char *argv[]) {
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
+        { "storagetmr", required_argument, 0, 's'},
         { 0, 0, 0, 0}
     };
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
 
     conf.host = NULL;
     conf.passwd = NULL;
@@ -572,7 +580,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -624,6 +632,16 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 conf.rozofsmount_instance = val;
+                break;
+            case 's':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                rozofs_tmr_configure(TMR_STORAGE_PROGRAM,val);
                 break;
             case '?':
                 usage();
@@ -702,6 +720,10 @@ int main(int argc, char *argv[]) {
      ** add the topic for the local profiler
      */
     uma_dbg_addTopic("profiler", show_profiler);
+    /*
+    ** declare timer debug functions
+    */
+    rozofs_timer_conf_dbg_init();
     /*
      ** main loop
      */

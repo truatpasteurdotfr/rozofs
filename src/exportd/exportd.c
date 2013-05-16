@@ -42,6 +42,7 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -732,6 +733,10 @@ int main(int argc, char *argv[]) {
         {"config", required_argument, 0, 'c'},
         {0, 0, 0, 0}
     };
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
 
     while (1) {
 

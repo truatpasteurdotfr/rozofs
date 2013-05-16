@@ -555,6 +555,7 @@ static inline uint32_t rozofs_storcli_get_free_transaction_context()
  
 
  @param lbg_id     : reference of the load balancing group
+ @param timeout_sec : transaction timeout
  @param prog       : program
  @param vers       : program version
  @param opcode     : metadata opcode
@@ -573,7 +574,7 @@ static inline uint32_t rozofs_storcli_get_free_transaction_context()
  */
 
 #if 1
-int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t prog,uint32_t vers,
+int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               void *xmit_buf,
                               uint32_t seqnum,

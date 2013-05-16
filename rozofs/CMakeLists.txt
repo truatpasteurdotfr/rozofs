@@ -140,6 +140,10 @@ set (librozofs_sources
     core/rozofs_tx_common.h
     core/rozofs_tx_engine.c
     core/com_tx_timer.c
+    rozofs_timer_conf.h
+    rozofs_timer_conf.c    
+    core/rozofs_timer_conf_dbg.c
+    core/rozofs_timer_conf_dbg.h
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

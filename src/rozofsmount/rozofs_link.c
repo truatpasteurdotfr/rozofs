@@ -52,6 +52,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -122,7 +123,7 @@ void rozofs_ll_link_nb(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_LINK,(xdrproc_t) xdr_ep_link_arg_t,(void *)&arg,
                               rozofs_ll_link_cbk,buffer_p); 
     if (ret < 0) goto error;
@@ -319,7 +320,7 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_READLINK,(xdrproc_t) xdr_ep_mfile_arg_t,(void *)&arg,
                               rozofs_ll_readlink_cbk,buffer_p); 
     if (ret < 0) goto error;
@@ -506,7 +507,7 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SYMLINK,(xdrproc_t) xdr_ep_symlink_arg_t,(void *)&arg,
                               rozofs_ll_symlink_cbk,buffer_p); 
     if (ret < 0) goto error;
@@ -713,7 +714,7 @@ void rozofs_ll_unlink_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_UNLINK,(xdrproc_t) xdr_ep_unlink_arg_t,(void *)&arg,
                               rozofs_ll_unlink_cbk,buffer_p); 
     if (ret < 0) goto error;

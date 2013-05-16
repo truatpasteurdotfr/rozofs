@@ -49,6 +49,8 @@
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -486,7 +488,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     */
     GET_FUSE_CALLBACK(buffer_p,callback);
     f->buf_write_pending++;
-    ret = rozofs_storcli_send_common(NULL,STORCLI_PROGRAM, STORCLI_VERSION,
+    ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
                               callback,buffer_p,lbg_id); 
     if (ret < 0) goto error;
@@ -1420,7 +1422,7 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_ep_write_block_arg_t,(void *)&arg,
                               export_write_block_cbk,fuse_ctx_p); 
     if (ret < 0) goto error;    

@@ -36,6 +36,7 @@
 #include "north_lbg.h"
 #include "north_lbg_api.h"
 #include "af_inet_stream_api.h"
+#include <rozofs/rozofs_timer_conf.h>
 
 
 void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms) ;
@@ -371,7 +372,7 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
     if (ret < 0)
     {
  //  printf("north_lbg_userDiscCallBack->fatal error on reconnect\n");
-      north_lbg_entry_start_timer(entry_p,2); 
+      north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_FIRST_RECONNECT)); 
     }
   }
 }
@@ -570,7 +571,7 @@ void north_lbg_connect_cbk (void *userRef,uint32_t socket_context_ref,int retcod
      /*
      ** restart the delay timer and then retry
      */
-     north_lbg_entry_start_timer(entry_p,4);
+     north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_RECONNECT));
      return;    
    }
    /**
@@ -603,7 +604,7 @@ void north_lbg_connect_cbk (void *userRef,uint32_t socket_context_ref,int retcod
        ** still deconnected-> remove from socket controller and restart the timer
        */
        af_unix_disconnect_from_socketCtrl(socket_context_ref);
-        north_lbg_entry_start_timer(entry_p,4);
+        north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_RECONNECT));
    }
 }
 
@@ -630,7 +631,7 @@ void north_lbg_entry_timeout_CBK (void *opaque)
       /*
       ** restart the timer
       */
-      north_lbg_entry_start_timer(entry_p,4);
+      north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_RECONNECT));
    }
 }
 /*
@@ -760,7 +761,7 @@ int north_lbg_create_af_unix(char *name,char *basename_p,int family,int first_in
      entry_p->sock_ctx_ref = af_unix_sock_client_create(nickname,sun_path,conf_p); 
      if (entry_p->sock_ctx_ref >= 0)  
      {
-       north_lbg_entry_start_timer(entry_p,4);
+       north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_RECONNECT));
        north_lbg_entry_state_change(entry_p,NORTH_LBG_DOWN);
 //       entry_p->state = NORTH_LBG_DOWN; 
      }  
@@ -866,7 +867,7 @@ int north_lbg_create_af_inet(char *name,
                                                      conf_p); 
      if (entry_p->sock_ctx_ref >= 0)  
      {
-       north_lbg_entry_start_timer(entry_p,4);
+       north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_RECONNECT));
        north_lbg_entry_state_change(entry_p,NORTH_LBG_DOWN);
 //       entry_p->state = NORTH_LBG_DOWN; 
      }  
@@ -1108,7 +1109,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
                                                      conf_p); 
      if (entry_p->sock_ctx_ref >= 0)  
      {
-       north_lbg_entry_start_timer(entry_p,4);
+       north_lbg_entry_start_timer(entry_p,ROZOFS_TMR_GET(TMR_TCP_RECONNECT));
        north_lbg_entry_state_change(entry_p,NORTH_LBG_DOWN);
 //       entry_p->state = NORTH_LBG_DOWN; 
      }  
