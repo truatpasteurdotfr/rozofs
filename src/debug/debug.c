@@ -42,11 +42,12 @@ uint32_t            ipAddr;
 uint16_t            serverPort;
 uint32_t            period;
 const char      *   prgName;  
+char prompt[64];
 /**
 **   lnkdebug <IPADDR> <PORT>
 */
 void syntax() {
-  printf("\n%s [-i <IPaddr>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>]\n\n",prgName);
+  printf("\n%s [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>]\n\n",prgName);
   printf("-i <hostname>           destination IP address or hostname of the debug server\n");
   printf("                        default is 127.0.0.1\n");
   printf("-p <port>               destination port number of the debug server\n");
@@ -68,13 +69,15 @@ int debug_receive(int socketId) {
 
 
     recvLen = 0;
+    char * p = (char *)&msg;
     while (recvLen < sizeof(UMA_MSGHEADER_S)) {
-      ret = recv(socketId,&msg,sizeof(UMA_MSGHEADER_S)-recvLen,0);
+      ret = recv(socketId,p,sizeof(UMA_MSGHEADER_S)-recvLen,0);
       if (ret <= 0) {
-	    perror("error on recv1");
-	    return 0;
+        if (errno != 0) perror("error on recv1");
+	return 0;
       }
       recvLen += ret;
+      p += ret;
     }
     
     msg.header.len = ntohl(msg.header.len);    
@@ -172,12 +175,38 @@ int debug_run_this_cmd(int socketId, const char * cmd) {
   return 0;
   
 }
+#define SYSTEM_HEADER "system : "
+void uma_dbg_read_prompt(int socketId) {
+  int i=strlen(SYSTEM_HEADER);
+  char *c = prompt;
+    
+  // Read the prompt
+  if (debug_run_this_cmd(socketId, "who") < 0)  return;
+  
+  if (strncmp(msg.buffer,SYSTEM_HEADER, strlen(SYSTEM_HEADER)) == 0) {
+
+    while(msg.buffer[i] != '\n') {
+      *c = msg.buffer[i];
+      c++;
+      i++;
+    }
+    *c++ = '>';
+    *c++ = ' ';     
+    *c = 0;
+  }
+  else {
+    strcpy(prompt,"rzdbg> ");
+  }
+}
+
 void debug_interactive_loop(int socketId) {
 //  char mycmd[1024]; 
   char *mycmd = NULL; 
 //  int len;
 //  int fd;
-    
+
+  uma_dbg_read_prompt(socketId);
+  
 //  fd = open("/dev/stdin", O_RDONLY);
   using_history();
   rl_bind_key('\t',rl_complete);   
@@ -186,7 +215,7 @@ void debug_interactive_loop(int socketId) {
     printf("\n_______________________________________________\n");
 //    len = readln (fd, mycmd,sizeof(mycmd));
 //    if (len == (uint32_t)-1) break;
-    mycmd = readline ("rzdbg>");
+    mycmd = readline (prompt);
     if (mycmd == NULL) break;
     if (strcasecmp(mycmd,"exit") == 0) {
       printf("Debug session end\n");
