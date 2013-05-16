@@ -30,7 +30,6 @@
 #include "af_unix_socket_generic_api.h"
 #include "af_unix_socket_generic.h"
 #include "rozofs_socket_family.h"
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "north_lbg_timer.h"
 #include "north_lbg_timer_api.h"
@@ -42,7 +41,7 @@
 void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms) ;
 void north_lbg_entry_timeout_CBK (void *opaque);
 void north_lbg_entry_stop_timer(north_lbg_entry_ctx_t *pObj);
-
+int north_lbg_attach_app_sup_cbk_on_entries(north_lbg_ctx_t  *lbg_p);
 
 /*__________________________________________________________________________
 */
@@ -188,7 +187,7 @@ void  north_lbg_userRecvCallBack(void *userRef,uint32_t  socket_ctx_idx, void *b
    ** update the statistics
    */
    lbg_p->stats.totalRecv++;
-   entry_p->stats.totalXmit++;     
+   entry_p->stats.totalRecv++;     
    /*
    ** check if there is some message to pull out from the global queue
    */
@@ -234,7 +233,7 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
     if (entry_p->state != NORTH_LBG_DOWN) 
     { 
       north_lbg_entry_state_change(entry_p,NORTH_LBG_DOWN);
-      //warning("north_lbg_userDiscCallBack->Disconnect for %d \n",socket_context_ref);
+      warning("north_lbg_userDiscCallBack->Disconnect for %d \n",socket_context_ref);
       up2down_transition = 1;
     }
     /*
@@ -372,18 +371,20 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
     if (ret < 0)
     {
  //  printf("north_lbg_userDiscCallBack->fatal error on reconnect\n");
-      north_lbg_entry_start_timer(entry_p,4); 
+      north_lbg_entry_start_timer(entry_p,2); 
     }
   }
 }
 
+
+
 /*__________________________________________________________________________
 */
 /**
-* Load Balancing group deletion API
+* Load Balncing group deletion API
 
-  - delete all the TCP or AF_UNIX conections
-  - stop the timer associated with each connection
+  - delete all the TCP of AF_UNIX conections
+  - stop the timer  assoicated with each connection
   - release all the xmit pending buffers associated with the load balancing group 
 
  @param lbg_id : user ereference of the load balancing group
@@ -427,7 +428,7 @@ int  north_lbg_delete(int lbg_id)
       ** delete the TCP or AF_UNIX connection
       */
       ret = af_unix_delete_socket(entry_p->sock_ctx_ref);
-      if (ret < 0) severe("failure on af_unix_delete_socket() entry %d",i);
+      if (ret < 0) severe("failure on af_unix_delete_socket()entry  %d",i);
       entry_p->sock_ctx_ref = -1;
       /*
       ** Purge the buffer that are queued in the xmitlist done of the entry
@@ -489,6 +490,7 @@ int  north_lbg_delete(int lbg_id)
     */
     north_lbg_free_from_ptr(lbg_p);
     return 0;
+
 }
 
 /*__________________________________________________________________________
@@ -592,6 +594,7 @@ void north_lbg_connect_cbk (void *userRef,uint32_t socket_context_ref,int retcod
       
 //      entry_p->state = NORTH_LBG_UP ;
 //      entry_p->stats.totalUpDownTransition++;
+//      printf("Successful reconnection!!!\n");  
       return;
       
      case RUC_DISC:
@@ -704,7 +707,7 @@ int north_lbg_create_af_unix(char *name,char *basename_p,int family,int first_in
     /*
     ** no instances!!
     */
-    RUC_WARNING(nb_instances);
+    warning("north_lbg_create_af_unix: no instances");
     return -1;   
   }
   if (nb_instances >= NORTH__LBG_MAX_ENTRY)
@@ -712,7 +715,7 @@ int north_lbg_create_af_unix(char *name,char *basename_p,int family,int first_in
     /*
     ** to many instances!!
     */
-    RUC_WARNING(nb_instances);
+    warning("north_lbg_create_af_unix: to many instances : %d max %d ",nb_instances,NORTH__LBG_MAX_ENTRY);
     return -1;   
   }  
   /*
@@ -724,7 +727,7 @@ int north_lbg_create_af_unix(char *name,char *basename_p,int family,int first_in
     /*
     ** out of context
     */
-    RUC_WARNING(-1);
+    fatal("north_lbg_create_af_unix: out of load balancing group context");
     return -1; 
   }
   lbg_p->family = family;
@@ -762,6 +765,11 @@ int north_lbg_create_af_unix(char *name,char *basename_p,int family,int first_in
 //       entry_p->state = NORTH_LBG_DOWN; 
      }  
   }
+  /*
+  ** attach the application callback if any is declared
+  */
+  north_lbg_attach_app_sup_cbk_on_entries(lbg_p);
+  
   return (lbg_p->index);
 }
 
@@ -797,7 +805,7 @@ int north_lbg_create_af_inet(char *name,
     /*
     ** no instances!!
     */
-    RUC_WARNING(nb_instances);
+    warning("north_lbg_create_af_inet: no instances");
     return -1;   
   }
   if (nb_instances >= NORTH__LBG_MAX_ENTRY)
@@ -805,7 +813,7 @@ int north_lbg_create_af_inet(char *name,
     /*
     ** to many instances!!
     */
-    RUC_WARNING(nb_instances);
+    warning("north_lbg_create_af_inet: to many instances : %d max %d ",nb_instances,NORTH__LBG_MAX_ENTRY);
     return -1;   
   }  
   /*
@@ -817,7 +825,7 @@ int north_lbg_create_af_inet(char *name,
     /*
     ** out of context
     */
-    RUC_WARNING(-1);
+    fatal("north_lbg_create_af_inet: out of load balancing group context");
     return -1; 
   }
   /*
@@ -863,6 +871,11 @@ int north_lbg_create_af_inet(char *name,
 //       entry_p->state = NORTH_LBG_DOWN; 
      }  
   }
+  /*
+  ** attach the application callback if any is declared
+  */
+  north_lbg_attach_app_sup_cbk_on_entries(lbg_p);
+  
   return (lbg_p->index);
 }
 
@@ -887,13 +900,90 @@ int north_lbg_get_state(int lbg_idx)
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
   {
-    RUC_WARNING(-1);
+    warning("north_lbg_get_state: no such instance %d ",lbg_idx);
     return NORTH_LBG_DEPENDENCY;
   }
   return lbg_p->state;
 
 }
+
+
+
+/**
+*  API that provide the current state of a load balancing Group
+
+ @param lbg_idx : index of the load balancing group
+ 
+ @retval   1 : available
+ @retval   0 : unavailable
+*/
+int north_lbg_is_available(int lbg_idx)
+{
+
+  north_lbg_ctx_t  *lbg_p;
+
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_is_available: no such instance %d ",lbg_idx);
+    return 0;
+  }
+  if (lbg_p->state != NORTH_LBG_UP) return 0;
+  return lbg_p->available_state;
+}
   
+
+
+
+/**
+*  API that provide the current state of a load balancing Group
+
+ @param lbg_idx : index of the load balancing group
+ 
+ @retval   none
+*/
+void north_lbg_update_available_state(uint32_t lbg_idx)
+{
+
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_update_available_state: no such instance %d ",lbg_idx);
+    return;
+  }
+  if (lbg_p->userPollingCallBack == NULL) return;
+  
+  int    i;
+  north_lbg_entry_ctx_t *entry_p;
+  af_unix_ctx_generic_t *sock_p ;
+ 
+  /* configure each stream connection */
+  entry_p = lbg_p->entry_tb;
+  for (i = 0; i < lbg_p->nb_entries_conf ; i++,entry_p++) {
+     /*
+     ** get the reference from idx
+     */
+     sock_p = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+     if (sock_p == NULL)
+     {
+        continue;
+     }
+     if (sock_p->cnx_availability_state == AF_UNIX_CNX_AVAILABLE)
+     {
+       lbg_p->available_state = 1;
+       /*
+       ** for the future when we will move the supervision contexts in the load balancer
+       ** we change the state of the global availability of the LBG to STORCLI_LBG_RUNNING
+       ** Up to now all that code is in storcli.
+       */
+       
+       return;
+     }
+   }
+   lbg_p->available_state = 0;
+}  
   
  /**
 *  API to allocate a  load balancing Group context with no configuration 
@@ -919,7 +1009,7 @@ int north_lbg_create_no_conf()
     /*
     ** out of context
     */
-    RUC_WARNING(-1);
+    warning("north_lbg_create_no_conf: out of load balancing context");
     return -1; 
   }
 
@@ -953,7 +1043,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
   {
-    RUC_WARNING(-1);
+    warning("north_lbg_configure_af_inet: no such instance %d ",lbg_idx);
     return -1;
   }
     
@@ -962,7 +1052,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
 
   if (lbg_p->state != NORTH_LBG_DEPENDENCY)
   {
-    RUC_WARNING(-1);
+    warning("north_lbg_configure_af_inet: unexpected state %d ",lbg_p->state);
     return -1;  
   }
   if (nb_instances == 0)
@@ -970,7 +1060,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
     /*
     ** no instances!!
     */
-    RUC_WARNING(nb_instances);
+    warning("north_lbg_configure_af_inet: no instance for lbg %d ",lbg_idx);
     return -1;   
   }
   if (nb_instances >= NORTH__LBG_MAX_ENTRY)
@@ -978,7 +1068,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
     /*
     ** to many instances!!
     */
-    RUC_WARNING(nb_instances);
+    warning("north_lbg_configure_af_inet: too many instances (%d max %d) for lbg %d ",nb_instances,NORTH__LBG_MAX_ENTRY,lbg_idx);
     return -1;   
   }  
   /*
@@ -1023,6 +1113,11 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
 //       entry_p->state = NORTH_LBG_DOWN; 
      }  
   }
+  /*
+  ** attach the application callback if any is declared
+  */
+  north_lbg_attach_app_sup_cbk_on_entries(lbg_p);
+  
   return (lbg_p->index);
 
 }
@@ -1070,7 +1165,114 @@ int north_lbg_re_configure_af_inet_destination_port(int lbg_idx,north_remote_ip_
   }
   return 0;
 }
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Attach the application call back on each entries of the lbg
+  Note : the callback must be previously stored in the lbg context
 
+ @param lbg_p : context of the load balancing group
+ 
+   retval 0 : success
+  retval -1 : error  
+*/
+int north_lbg_attach_app_sup_cbk_on_entries(north_lbg_ctx_t  *lbg_p)
+{
+  int    i;
+  north_lbg_entry_ctx_t *entry_p;
+  af_unix_ctx_generic_t *sock_p ;
+  
+  if (lbg_p->userPollingCallBack == NULL) return 0;
+  
+  /* configure each stream connection */
+  entry_p = lbg_p->entry_tb;
+  for (i = 0; i < lbg_p->nb_entries_conf ; i++,entry_p++) {
+   /*
+   ** get the reference from idx
+   */
+   sock_p = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+   if (sock_p == NULL)
+   {
+     /*
+     ** socket reference is out of range
+     */
+     severe("north_lbg_attach_app_sup_cbk_on_entries socket index %d does not exist",entry_p->sock_ctx_ref);
+     return -1;
+   }
+    af_inet_attach_application_supervision_callback(sock_p,lbg_p->userPollingCallBack);
+    /*
+    ** attach the callabck of the lbg for availability supervision
+    */
+    af_inet_attach_application_availability_callback(sock_p,north_lbg_update_available_state,lbg_p->index);
+
+  }
+  return 0;
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Attach a supervision Application callback with the load balancing group
+   That callback is configured on each entry of the LBG
+   
+   @param lbg_idx: reference of the load balancing group
+   @param supervision_callback supervision_callback
+
+  retval 0 : success
+  retval -1 : error
+*/
+int  north_lbg_attach_application_supervision_callback(int lbg_idx,af_stream_poll_CBK_t supervision_callback)
+{
+  north_lbg_ctx_t  *lbg_p;
+  int ret;
+    
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    severe("north_lbg_attach_application_supervision_callback bad lbg idx %d", lbg_idx);
+    return -1;
+  }
+  /*
+  ** save the reference of the callback in the lbg context
+  */
+  lbg_p->userPollingCallBack = supervision_callback;
+  if (lbg_p->nb_entries_conf== 0) return 0;
+  ret = north_lbg_attach_app_sup_cbk_on_entries(lbg_p);
+  return ret;
+
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Configure the TMO of the application for connexion supervision
+   
+   @param lbg_idx: reference of the load balancing group
+   @param tmo_sec : timeout value
+
+  retval 0 : success
+  retval -1 : error
+*/
+int  north_lbg_set_application_tmo4supervision(int lbg_idx,int tmo_sec)
+{
+  north_lbg_ctx_t  *lbg_p;
+    
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    severe("north_lbg_set_application_tmo4supervision bad lbg idx %d", lbg_idx);
+    return -1;
+  }
+  /*
+  ** save the reference of the callback in the lbg context
+  */
+  lbg_p->tmo_supervision_in_sec = tmo_sec;
+  return 0;
+
+}
 
 /*__________________________________________________________________________
 */
@@ -1093,7 +1295,7 @@ int north_lbg_send(int  lbg_idx,void *buf_p)
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
   {
-    RUC_WARNING(-1);
+    severe("north_lbg_send: no such instance %d ",lbg_idx);
     return -1;
   }
   if ((lbg_p->state == NORTH_LBG_SHUTTING_DOWN) || (lbg_p->free == TRUE))
@@ -1154,11 +1356,12 @@ reloop:
     /*
     ** set the timer to supervise the connection (it only affects client connections)
     */
-    af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
-    af_inet_enable_cnx_supervision(this);
-    af_inet_set_cnx_tmo(this,10);
-
-
+    if (lbg_p->userPollingCallBack != NULL)
+    {
+      af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+      af_inet_enable_cnx_supervision(this);
+      af_inet_set_cnx_tmo(this,lbg_p->tmo_supervision_in_sec*10);
+    }
     lbg_p->stats.totalXmit++; 
     entry_p->stats.totalXmit++;     
     return 0; 

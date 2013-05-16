@@ -214,6 +214,7 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
         /*
         ** Delete the client connection or attempt to re-connect
         */
+        warning("socket cannot re-connect with socket controller %s",sock_p->nickname);
         ret =  RUC_NOK;
         break;
       }
@@ -222,6 +223,14 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
       */
       sock_p->xmit.state = XMIT_READY;
       sock_p->recv.state = RECV_IDLE;
+      sock_p->cnx_availability_state = AF_UNIX_CNX_AVAILABLE;
+      if (sock_p->userAvailabilityCallBack!= NULL)
+      {
+        /**
+        * application has a polling callback for the connection supervision
+        */
+        (sock_p->userAvailabilityCallBack)(sock_p->availability_param);   
+      }
       ret =  RUC_OK;
       break;
     }
@@ -264,6 +273,7 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
    ** call the user callback on connect
    */
    uint64_t userRef = (uint64_t) sock_p->userRef;
+   
    (sock_p->userConnectCallBack)((void*)userRef,sock_p->index,ret,error);
    return RUC_OK;
 
@@ -294,9 +304,7 @@ static  int af_inet_cnx_check_expiration (af_unix_ctx_generic_t  *sock_p)
    af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
    uint64_t cur_ts;
    uint64_t cnx_ts;        
-   uint8_t fake_buf[16];
-   int len;
-   int status;
+
    
    if (p->s.check_cnx_enabled == 0) return 0;
    if (p->s.check_cnx_rq == 0) return 0;
@@ -310,6 +318,30 @@ static  int af_inet_cnx_check_expiration (af_unix_ctx_generic_t  *sock_p)
    ** timer has expired: check the reception
    */
    p->s.check_cnx_rq = 0;
+   if (sock_p->cnx_availability_state  != AF_UNIX_CNX_UNAVAILABLE)
+   {
+     sock_p->cnx_availability_state = AF_UNIX_CNX_UNAVAILABLE;
+     if (sock_p->userAvailabilityCallBack!= NULL)
+     {
+       /**
+       * application has a polling callback for the connection supervision
+       */
+       (sock_p->userAvailabilityCallBack)(sock_p->availability_param);   
+     }
+   }
+   
+   if (sock_p->userPollingCallBack!= NULL)
+   {
+     /**
+     * application has a polling callback for the connection supervision
+     */
+     (sock_p->userPollingCallBack)(sock_p);   
+   }
+
+#if 0   
+   int len;
+   int status;
+   uint8_t fake_buf[16];
    
    status = af_unix_recv_stream_sock_recv(sock_p,fake_buf,2,MSG_PEEK,&len);
    switch(status)
@@ -336,6 +368,7 @@ static  int af_inet_cnx_check_expiration (af_unix_ctx_generic_t  *sock_p)
       (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
       return 1;
    }
+#endif
    return 0;
 }
 
@@ -547,6 +580,20 @@ void af_unix_sock_stream_disconnect_internal(af_unix_ctx_generic_t *socket_p)
    com_xmit_template_t *xmit_p = &socket_p->xmit;
    int inuse;
    /*
+   ** set the path as unavailable and call any associated callback
+   */
+   if (socket_p->cnx_availability_state  != AF_UNIX_CNX_UNAVAILABLE)
+   {
+     socket_p->cnx_availability_state = AF_UNIX_CNX_UNAVAILABLE;
+     if (socket_p->userAvailabilityCallBack!= NULL)
+     {
+       /**
+       * application has a polling callback for the connection supervision
+       */
+       (socket_p->userAvailabilityCallBack)(socket_p->availability_param);   
+     }
+   }   
+   /*
    ** check if there is a pending buffer
    */
    if (xmit_p->bufRefCurrent != NULL)
@@ -680,7 +727,7 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
   fd=socket(PF_UNIX,SOCK_STREAM,0);
   if(fd<0)
   {
-    RUC_WARNING(errno);
+    warning("socket creation failure  :%s",strerror(errno));
    return -1;
   }
   /*
@@ -697,7 +744,7 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
     ret=bind(fd,(struct sockaddr*)&addr,sizeof(addr));
     if(ret<0)
     {
-      RUC_WARNING(errno);
+     warning("socket binding failure  :%s",strerror(errno));
      return -1;
     }
   }
@@ -708,7 +755,7 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
   ret= getsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&fdsize,(socklen_t*)&optionsize);
   if(ret<0)
   {
-    RUC_WARNING(errno);
+    warning("socket getsockopt failure (SO_SNDBUF)  :%s",strerror(errno));
    return -1;
   }
   /*
@@ -723,7 +770,7 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
   ret=setsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&fdsize,sizeof(int));
   if(ret<0)
   {
-    RUC_WARNING(errno);
+    warning("socket setsockopt failure (SO_SNDBUF)  :%s",strerror(errno));
    return -1;
   }
   /*
@@ -731,7 +778,7 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
   */
   if((fileflags=fcntl(fd,F_GETFL,0))==-1)
   {
-    RUC_WARNING(errno);
+    warning("socket cannot switch to non-blocking :%s",strerror(errno));
     return -1;
   }
 //  #warning socket is operating blocking mode
@@ -739,7 +786,7 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
 
   if((fcntl(fd,F_SETFL,fileflags|O_NDELAY))==-1)
   {
-    RUC_WARNING(errno);
+    warning("socket cannot switch to non-blocking :%s",strerror(errno));
     return -1;
   }
 #endif
@@ -840,7 +887,7 @@ int af_unix_sock_client_reconnect(uint32_t af_unix_ctx_id)
        /*
        ** Fail to connect with the socket controller
        */
-       RUC_WARNING(-1);
+       warning("socket cannot connect with socket controller %s",sock_p->nickname);
        break;
     }
     /*
@@ -945,7 +992,7 @@ int af_unix_sock_client_create(char *nickname,char *remote_sun_path,af_unix_sock
    */
    if (conf_p->userConnectCallBack == NULL)
    {
-     RUC_WARNING(-1);
+      fatal("af_unix_sock_client_create: userConnectCallBack missing");
 
    }
 
@@ -955,7 +1002,7 @@ int af_unix_sock_client_create(char *nickname,char *remote_sun_path,af_unix_sock
       /*
       ** name is too big!!
       */
-      RUC_WARNING(len);
+      warning("af_unix_sock_client_create: remote_sun_path too big:%d max: %d ",len,AF_UNIX_SOCKET_NAME_SIZE);
       return -1;
    }
 
@@ -965,7 +1012,7 @@ int af_unix_sock_client_create(char *nickname,char *remote_sun_path,af_unix_sock
       /*
       ** name is too big!!
       */
-      RUC_WARNING(len);
+      warning("af_unix_sock_client_create: nickname too big:%d max: %d ",len,AF_UNIX_SOCKET_NAME_SIZE);
       return -1;
    }
    /*
@@ -977,8 +1024,8 @@ int af_unix_sock_client_create(char *nickname,char *remote_sun_path,af_unix_sock
      /*
      ** Out of socket context
      */
-     RUC_WARNING(-1);
-     return -1;
+      warning("af_unix_sock_client_create: out of socket context");
+      return -1;
    }
    xmit_p = &sock_p->xmit;
    recv_p = &sock_p->recv;
@@ -1072,7 +1119,7 @@ int af_unix_sock_client_create(char *nickname,char *remote_sun_path,af_unix_sock
        /*
        ** Fail to connect with the socket controller
        */
-       RUC_WARNING(-1);
+       warning("socket cannot connect with socket controller %s",sock_p->nickname);
        release_req = 1;
        break;
     }
@@ -1085,7 +1132,7 @@ int af_unix_sock_client_create(char *nickname,char *remote_sun_path,af_unix_sock
     if (ret == -1)
     {
 //      printf("FDL error on %s errno %s\n",addr.sun_path,strerror(errno));
-      RUC_WARNING(errno);
+//      RUC_WARNING(errno);
       
       /*
       ** error, but we rely on periodic timer for retrying

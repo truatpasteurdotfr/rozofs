@@ -1258,6 +1258,7 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
    struct rpc_msg  rpc_reply;
    storcli_write_arg_no_data_t *storcli_write_rq_p = NULL;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
+   int lbg_id;
 
    
    int status;
@@ -1273,6 +1274,7 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
     */
     rozofs_tx_read_opaque_data(this,0,&seqnum);
     rozofs_tx_read_opaque_data(this,1,&projection_id);
+    rozofs_tx_read_opaque_data(this,2,(uint32_t*)&lbg_id);
     /*
     ** check if the sequence number of the transaction matches with the one saved in the tranaaction
     ** that control is required because we can receive a response from a late transaction that
@@ -1287,12 +1289,25 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
       */
       goto drop_msg;    
     }
+    /*
+    ** check if the write is already doen: this might happen in the case when the same projection
+    ** is sent twoards 2 different LBG
+    */    
+    if (working_ctx_p->prj_ctx[projection_id].prj_state == ROZOFS_PRJ_WR_DONE)
+    {
+      /*
+      ** The reponse has already been received for that projection so we don't care about that
+      ** extra reponse
+      */
+      goto drop_msg;       
+    }
     /*    
     ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
     */
     status = rozofs_tx_get_status(this);
     if (status < 0)
     {
+
        /*
        ** something wrong happened: assert the status in the associated projection id sub-context
        ** now, double check if it is possible to retry on a new storage
@@ -1300,9 +1315,19 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
        working_ctx_p->prj_ctx[projection_id].prj_state = ROZOFS_PRJ_WR_ERROR;
        working_ctx_p->prj_ctx[projection_id].errcode   = rozofs_tx_get_errno(this);
        errno = rozofs_tx_get_errno(this);  
+       if (errno == ETIME)
+       {
+         storcli_lbg_cnx_sup_increment_tmo(lbg_id);
+         STORCLI_ERR_PROF(write_prj_tmo);
+       }
+       else
+       {
+         STORCLI_ERR_PROF(write_prj_err);
+       }       
        same_storage_retry_acceptable = 1;
        goto retry_attempt; 
     }
+    storcli_lbg_cnx_sup_clear_tmo(lbg_id);
     /*
     ** get the pointer to the receive buffer payload
     */
@@ -1366,8 +1391,8 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
     if (error)
     {
        /*
-       ** there was an error on the remote storage while attempt to read the file
-       ** try to read the projection on another storaged
+       ** there was an error on the remote storage while attempt to write the file
+       ** try to write the projection on another storaged
        */
        working_ctx_p->prj_ctx[projection_id].prj_state = ROZOFS_PRJ_WR_ERROR;
        working_ctx_p->prj_ctx[projection_id].errcode   = errno;

@@ -117,10 +117,101 @@ static storcli_conf conf;
 exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
 uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
+storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
+
 
 /*__________________________________________________________________________
  */
 
+
+/**________________________________________________________________________
+*/
+/**
+*  Display of the state of the current configuration of the exportd
+
+ */
+
+static char *show_storcli_display_poll_state(char *buffer,int state)
+{
+    char *pchar = buffer;
+   switch (state)
+   {
+      default:
+      case STORCLI_POLL_IDLE:
+        sprintf(pchar,"IDLE  ");
+        break;
+   
+      case STORCLI_POLL_IN_PRG:
+        sprintf(pchar,"IN_PRG");
+        break;   
+      case STORCLI_POLL_ERR:
+        sprintf(pchar,"ERROR ");
+        break;   
+   
+   }
+   return buffer;
+}
+/*
+**________________________________________________________________________
+*/
+static char bufall[1024];
+char *display_mstorage(mstorage_t *s,char *buffer)
+{
+
+  int i;
+
+  for (i = 0; i< s->sids_nb; i++)
+  {
+     buffer += sprintf(buffer," %3.3d  |  %2.2d  |",s->cids[i],s->sids[i]);
+     buffer += sprintf(buffer,"%20s |",s->host);
+     if ( s->lbg_id == -1)
+     {
+       buffer += sprintf(buffer,"  ???     |");
+     }
+     else
+     {
+       buffer += sprintf(buffer,"  %3d     |",s->lbg_id);       
+     }
+     buffer += sprintf(buffer,"  %s  |",north_lbg_display_lbg_state(bufall,s->lbg_id));         
+     buffer += sprintf(buffer,"  %s      |",north_lbg_is_available(s->lbg_id)==1 ?"UP  ":"DOWN");        
+     buffer += sprintf(buffer," %3s |",storcli_lbg_cnx_supervision_tab[s->lbg_id].state==STORCLI_LBG_RUNNING ?"YES":"NO");        
+     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[s->lbg_id].tmo_counter); 
+     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[s->lbg_id].poll_counter); 
+     buffer += sprintf(buffer," %2d |",STORCLI_LBG_SP_NULL_INTERVAL);         
+     buffer += sprintf(buffer,"  %s      |\n",show_storcli_display_poll_state(bufall,storcli_lbg_cnx_supervision_tab[s->lbg_id].poll_state));         
+  }
+  return buffer;
+}
+
+
+
+/**
+*  Display the configuration et operationbal status of the storaged
+
+
+*/
+void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+    char *pchar = localBuf;
+
+   pchar +=sprintf(pchar," cid  |  sid |     hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
+   pchar +=sprintf(pchar,"------+------+---------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
+
+   list_t *iterator = NULL;
+   /* Search if the node has already been created  */
+   list_for_each_forward(iterator, &exportclt.storages) 
+   {
+     mstorage_t *s = list_entry(iterator, mstorage_t, list);
+
+     /*
+     ** entry is found 
+     ** update the cid and sid part only. changing the number of
+     ** ports of the mstorage is not yet supported.
+     */
+     pchar=display_mstorage(s,pchar);
+   }
+   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);      
+}      
 
 /*__________________________________________________________________________
  */
@@ -168,6 +259,11 @@ int rozofs_storcli_cid_table_insert(cid_t cid, sid_t sid, uint32_t lbg_id) {
         rozofs_storcli_cid_table[cid - 1] = sid_lbg_id_p;
     }
     sid_lbg_id_p[sid - 1] = lbg_id;
+    /*
+    ** clear the tmo supervision structure assocated with the lbg
+    */
+    storcli_lbg_cnx_sup_clear_tmo(lbg_id);
+    
     return 0;
 
 }
@@ -234,7 +330,7 @@ out:
  */
 #define CONNECTION_THREAD_TIMESPEC  2
 
-static void *connect_storage(void *v) {
+void *connect_storage(void *v) {
     mstorage_t *mstorage = (mstorage_t*) v;
     int configuration_done = 0;
 
@@ -560,6 +656,10 @@ int main(int argc, char *argv[]) {
         conf.passwd = strdup("none");
     }
     openlog("storcli", LOG_PID, LOG_DAEMON);
+    
+    rozofs_storcli_cid_table_init();
+    storcli_lbg_cnx_sup_init();
+    
     /*
      ** init of the non blocking part
      */
@@ -582,7 +682,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Fatal error on rozofs_storcli_get_export_config()\n");
         goto error;
     }
-
+    /*
+    ** Declare the debug entry to get the currrent configuration of the storcli
+    */
+    uma_dbg_addTopic("storaged_status", show_storage_configuration);
     /*
      ** Init of the north interface (read/write request processing)
      */

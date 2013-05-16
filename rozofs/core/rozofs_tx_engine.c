@@ -66,6 +66,8 @@ void rozofs_tx_debug_show(uint32_t tcpRef, void *bufRef) {
   char           *pChar=myBuf;
 
   pChar += sprintf(pChar,"number of transaction contexts (initial/allocated) : %u/%u\n",rozofs_tx_context_count,rozofs_tx_context_allocated);
+  pChar += sprintf(pChar,"context size (bytes)                               : %u\n",(unsigned int)sizeof(rozofs_tx_ctx_t));;
+  pChar += sprintf(pChar,"Total memory size (bytes)                          : %u\n",(unsigned int)sizeof(rozofs_tx_ctx_t)*rozofs_tx_context_count);;
   pChar += sprintf(pChar,"Statistics\n");
   pChar += sprintf(pChar,"TX_SEND           : %10llu\n",(unsigned long long int)rozofs_tx_stats[ROZOFS_TX_SEND]);  
   pChar += sprintf(pChar,"TX_SEND_ERR       : %10llu\n",(unsigned long long int)rozofs_tx_stats[ROZOFS_TX_SEND_ERROR]);  
@@ -398,6 +400,7 @@ uint32_t rozofs_tx_free_from_idx(uint32_t transaction_id)
    ** get the reference from idx
    */
    p = rozofs_tx_getObjCtx_p(transaction_id);
+
    /*
    **  remove the xmit block
    */
@@ -564,6 +567,19 @@ void rozofs_tx_stop_timer(rozofs_tx_ctx_t *pObj)
 void rozofs_tx_start_timer(rozofs_tx_ctx_t *tx_p,uint32_t time_ms) 
 {
  uint8_t slot;
+  /*
+  ** check if the context is still allocated, it might be possible
+  ** that the receive callback of the application can be called before
+  ** the application starts the timer, in that case we must
+  ** prevent the application to start the timer
+  */
+  if (tx_p->free == TRUE)
+  {
+    /*
+    ** context has been release
+    */
+    return;  
+  }
   /*
   **  remove the timer from its current list
   */
@@ -763,6 +779,14 @@ void rozofs_tx_recv_rpc_cbk(void *userRef,uint32_t  lbg_id, void *recv_buf)
     {
       ruc_objRemove((ruc_obj_desc_t*)this->xmit_buf);
       ruc_buf_freeBuffer(this->xmit_buf);
+    }
+    else 
+    {
+      /* This buffer may be in a queue somewhere */
+      ruc_objRemove((ruc_obj_desc_t*)this->xmit_buf);    
+      /* Prevent transmitter to call a xmit done call back 
+        that may queue this buffer somewhere */
+      ruc_buf_set_opaque_ref(this->xmit_buf,NULL);
     }
     this->xmit_buf = NULL;  
   }

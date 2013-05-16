@@ -24,14 +24,16 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include "uma_tcp.h"
 
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
 
-#include "uma_tcp.h"
 #include "ruc_common.h"
 #include "ppu_trace.h"
 #include "af_unix_socket_generic.h"
+
+
 
  /*
 **__________________________________________________________________________
@@ -180,21 +182,33 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           if (socket_p->userXmitDoneCallBack != NULL)
           {
              /*
-             ** caution: in that case it is up to the application that provides
-             ** the callback to release the xmit buffer
+             ** caution: in that case it is up to the application that provides the callback to release
+             ** the xmit buffer
              */
-	     if (ruc_buf_get_opaque_ref(xmit_p->bufRefCurrent) == socket_p) 
+	         if (ruc_buf_get_opaque_ref(xmit_p->bufRefCurrent) == socket_p) 
              {
-                (socket_p->userXmitDoneCallBack)(socket_p->userRef,socket_p->index,xmit_p->bufRefCurrent);
-	     }
-	     else 
+                   (socket_p->userXmitDoneCallBack)(socket_p->userRef,socket_p->index,xmit_p->bufRefCurrent);
+	         }
+	         else 
              {
-                if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);	        
-	     }  
+                if (inuse == 1) 
+                {
+                  /*
+                  ** need an obj remove since that buffer might still queue somewhere : typically
+                  ** in the xmit list of a load balacner entry.
+                  */
+                  ruc_objRemove((ruc_obj_desc_t*)xmit_p->bufRefCurrent);
+                  ruc_buf_freeBuffer(xmit_p->bufRefCurrent);	
+                }        
+	         }  
           }
           else
           {
-            if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
+            if (inuse == 1) 
+            {
+              ruc_objRemove((ruc_obj_desc_t*)xmit_p->bufRefCurrent);
+              ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
+            }
           }
           xmit_p->bufRefCurrent = NULL;
           xmit_p->nbWrite  = 0;
@@ -232,8 +246,8 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           if (inuse < 0)
           {
             /*
-	    * inuse MUST never be negative so EXIT !!!!!
-	    */
+	        * inuse MUST never be negative so EXIT !!!!!
+	        */
             fatal("Inuse is negative %d",inuse);
           }
           socket_p->stats.totalXmitError++;
@@ -252,7 +266,11 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
               ** an issue while sendig that buffer since the connection is not considered
               ** anymore.
               */ 
-              if (inuse == 1) ruc_buf_freeBuffer(bufref);
+              if (inuse == 1) 
+              {
+                ruc_objRemove((ruc_obj_desc_t*)bufref);
+                ruc_buf_freeBuffer(bufref);
+              }
               bufref = NULL;
             }
             /*
@@ -267,8 +285,12 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           }
           else
           {
-           if (inuse == 1) ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
-            xmit_p->bufRefCurrent = NULL;
+              if (inuse == 1) 
+              {
+                ruc_objRemove((ruc_obj_desc_t*)xmit_p->bufRefCurrent);
+                ruc_buf_freeBuffer(xmit_p->bufRefCurrent);
+              }            
+              xmit_p->bufRefCurrent = NULL;
           }
           /*
           ** general disconnection->need to clean the socket queue
@@ -390,7 +412,7 @@ int af_unix_generic_stream_send(af_unix_ctx_generic_t *this,void *buf_p)
         */
         ruc_buf_inuse_increment(buf_p);
         xmit_p->bufRefCurrent = buf_p;
-	ruc_buf_set_opaque_ref(buf_p,this);
+	    ruc_buf_set_opaque_ref(buf_p,this);
         af_unix_send_stream_fsm(this,xmit_p);
         return 0;
 

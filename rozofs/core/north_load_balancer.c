@@ -53,8 +53,8 @@ char * lbg_north_state2String (int x) {
 
   switch(x) {
   case NORTH_LBG_DEPENDENCY: return "DEPENDENCY";
-  case NORTH_LBG_UP: return "UP";
-  case NORTH_LBG_DOWN: return "DOWN";
+  case NORTH_LBG_UP: return         "        UP";
+  case NORTH_LBG_DOWN: return       "      DOWN";
   
     /* Value out of range */
   default: return "?UNK?";
@@ -118,6 +118,47 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
   uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
 
 }
+
+void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
+  char           *pChar=myBuf;
+{
+    north_lbg_ctx_t *lbg_p;
+    ruc_obj_desc_t        *pnext;
+    int i;
+
+    pChar += sprintf(pChar,"  LBG Name                | lbg_id | idx  | sock |    state   |   Queue   | Cnx Attpts | Xmit Attpts | Recv count |\n");
+    pChar += sprintf(pChar,"--------------------------+--------+------+------+------------+-----------+------------+-------------+------------+\n");    
+    pnext = (ruc_obj_desc_t*)NULL;
+    while ((lbg_p = (north_lbg_ctx_t*)ruc_objGetNext((ruc_obj_desc_t*)&north_lbg_context_activeListHead,
+                                             &pnext))
+               !=(north_lbg_ctx_t*)NULL) 
+    {
+      if (lbg_p->nb_entries_conf == 0) continue;  
+      north_lbg_entry_ctx_t *entry_p = lbg_p->entry_tb;
+      af_unix_ctx_generic_t  *sock_p;
+      
+
+      for (i = 0; i < lbg_p->nb_entries_conf; i++,entry_p++)
+      {
+        sock_p = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+        pChar += sprintf(pChar," %-24s |",lbg_p->name);
+        pChar += sprintf(pChar,"  %4d  |",lbg_p->index);
+        pChar += sprintf(pChar,"  %2d  |",i);
+        pChar += sprintf(pChar," %4d |",sock_p->socketRef);  /** socket */
+
+        pChar += sprintf(pChar," %s |",lbg_north_state2String(entry_p->state));
+        pChar += sprintf(pChar," %s |",ruc_objIsEmptyList((ruc_obj_desc_t*)&entry_p->xmitList)?"    EMPTY":"NON EMPTY");      
+        pChar += sprintf(pChar," %10llu |",(unsigned long long int)entry_p->stats.totalConnectAttempts);      
+        pChar += sprintf(pChar,"  %10llu |",(unsigned long long int)entry_p->stats.totalXmit);      
+        pChar += sprintf(pChar,"  %10llu |\n",(unsigned long long int)entry_p->stats.totalRecv);      
+      }      
+
+    }
+}
+  uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
+
+}
+
 /*__________________________________________________________________________
   Trace level debug function
   ==========================================================================
@@ -127,6 +168,10 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
   ==========================================================================*/
 void north_lbg_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   north_lbg_debug_show(tcpRef,bufRef);
+}
+
+void north_lbg_entries_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
+  north_lbg_entries_debug_show(tcpRef,bufRef);
 }
 
 
@@ -139,6 +184,7 @@ void north_lbg_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   ==========================================================================*/
 void north_lbg_debug_init() {
   uma_dbg_addTopic(NORTH_LBG_DEBUG_TOPIC, north_lbg_debug); 
+  uma_dbg_addTopic("lbg_entries", north_lbg_entries_debug); 
 }
 
 
@@ -297,7 +343,9 @@ void  north_lbg_ctxInit(north_lbg_ctx_t *p,uint8_t creation)
   p->nb_active_entries     = 0;
   p->next_entry_idx        = 0 ;
 
-  p->state         = NORTH_LBG_DOWN;
+  p->state                 = NORTH_LBG_DOWN;
+  p->userPollingCallBack   = NULL;
+  p->available_state       = 1;
   memset(&p->stats,0,sizeof(north_lbg_stats_t));
 
   p->rechain_when_lbg_gets_down = 0;

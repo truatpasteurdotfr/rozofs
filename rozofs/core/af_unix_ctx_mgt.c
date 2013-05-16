@@ -147,8 +147,8 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef)
   struct tcp_info *p;
   af_unix_ctx_generic_t *sock_p;
   ruc_obj_desc_t        *pnext;
-  buffer +=sprintf(buffer,"  State      |sock  |  retrans | probes   |  rto       | snd_mss   |  rcv_mss | unacked  |  lost    | retrans  | last_sent | rtt      |\n");
-  buffer +=sprintf(buffer,"-------------+------+----------+----------+------------+-----------+----------+----------+----------+----------+-----------+----------+\n");
+  buffer +=sprintf(buffer,"  State      | Avail.|sock      |  retrans | probes   |  rto     | snd_mss  |  rcv_mss | unacked  |  lost    | retrans  |last_sent |   rtt    |\n");
+  buffer +=sprintf(buffer,"-------------+-------+----------+----------+----------+----------+----------+----------+----------+----------+----------+----------+----------+\n");
 
     pnext = (ruc_obj_desc_t*)NULL;
     while ((sock_p = (af_unix_ctx_generic_t*)ruc_objGetNext((ruc_obj_desc_t*)&af_unix_context_activeListHead,
@@ -161,17 +161,18 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef)
        if (p == NULL) continue;
      
        buffer +=sprintf(buffer," %s |",af_inet_get_tcp_state(p->tcpi_state));
-       buffer +=sprintf(buffer," %4.4d |",sock_p->socketRef);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_retransmits);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_probes);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_rto);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_snd_mss);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_rcv_mss);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_unacked);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_lost);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_retrans);
-       buffer +=sprintf(buffer,"    %4.4d  |",p->tcpi_last_data_sent);
-       buffer +=sprintf(buffer,"    %4.4d  |\n",p->tcpi_rtt);
+       buffer +=sprintf(buffer," %5s |",(sock_p->cnx_availability_state==AF_UNIX_CNX_AVAILABLE)?"YES":"NO");
+       buffer +=sprintf(buffer," %8d |",sock_p->socketRef);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_retransmits);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_probes);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_rto);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_snd_mss);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_rcv_mss);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_unacked);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_lost);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_retrans);
+       buffer +=sprintf(buffer," %8d |",p->tcpi_last_data_sent);
+       buffer +=sprintf(buffer," %8d |\n",p->tcpi_rtt);
 
 
    }
@@ -457,6 +458,12 @@ void  af_unix_ctxInit(af_unix_ctx_generic_t *p,uint8_t creation)
   p->userHdrAnalyzerCallBack   = NULL;
   p->userRef = NULL;               /* user reference that must be recalled in the callbacks */
   p->conf_p  = NULL;
+  
+  p->userPollingCallBack = NULL;
+  p->userAvailabilityCallBack = NULL;
+  p->cnx_availability_state = AF_UNIX_CNX_AVAILABLE;
+  p->availability_param = (uint32_t)-1;
+
   /*
   ** Transmitter init
   */
@@ -516,6 +523,7 @@ void  af_unix_ctxInit(af_unix_ctx_generic_t *p,uint8_t creation)
   memset(stats_p,0,sizeof(rozofs_socket_stats_t));
   
   p->cnx_supevision.u64 = 0;
+  p->cnx_availability_state =AF_UNIX_CNX_AVAILABLE;
 
 }
 

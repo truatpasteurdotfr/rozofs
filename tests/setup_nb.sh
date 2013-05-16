@@ -44,6 +44,20 @@ build ()
 }
 
 
+rebuild ()
+{
+    if [ ! -e "${LOCAL_SOURCE_DIR}" ]
+    then
+        echo "Unable to build RozoFS (${LOCAL_SOURCE_DIR} not exist)"
+    fi
+
+    cd ${LOCAL_BUILD_DIR}
+    make
+    cd ..
+    cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
+}
+
+
 # $1 -> LAYOUT
 # $2 -> Number or serving port per storage host (nb of process)
 gen_storage_conf_nb ()
@@ -782,6 +796,10 @@ main ()
     elif [ "$1" == "build" ]
     then
         build
+
+    elif [ "$1" == "rebuild" ]
+    then
+        rebuild
     elif [ "$1" == "clean" ]
     then
         clean_all

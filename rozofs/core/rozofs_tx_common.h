@@ -151,7 +151,7 @@ typedef struct _rozofs_tx_ctx_p_t
     void *user_param;         /**< user param to provide upon reception */
     com_tx_tmr_cell_t  rpc_guard_timer;   /**< guard timer associated with the transaction */
       /* FSM */
-    uma_fsm_t    sys_tx_fsm;         /**< active fsm for the current transaction  */
+//    uma_fsm_t    sys_tx_fsm;         /**< active fsm for the current transaction  */
     
 //    int moduleId; 
     uint64_t timeStamp;

@@ -34,7 +34,7 @@
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-
+#include "storcli_main.h"
 
 
 

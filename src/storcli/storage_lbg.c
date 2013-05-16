@@ -37,9 +37,8 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/rpc/eclient.h>
-#include "rpcclt.h"
-#include "storcli_lbg_prototypes.h"
-
+#include <rozofs/rpc/rpcclt.h>
+#include "rozofs_storcli.h"
 
 static north_remote_ip_list_t my_list[STORAGE_NODE_PORTS_MAX];  /**< list of the connection for the exportd */
 
@@ -93,6 +92,22 @@ int storaged_lbg_initialize(mstorage_t *s) {
                 strerror(errno));
         goto out;
     }
+    
+    /*
+    ** configure the callback that is intended to perform the polling of the storaged on each TCP connection
+    */
+   ret =  north_lbg_attach_application_supervision_callback(s->lbg_id,(af_stream_poll_CBK_t)storcli_lbg_cnx_polling);
+   if (ret < 0)
+   {
+     severe("Cannot configure Soraged polling callback");   
+   }
+
+
+   ret =  north_lbg_set_application_tmo4supervision(s->lbg_id,3);
+   if (ret < 0)
+   {
+     severe("Cannot configure application TMO");   
+   }   
 
     bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
 

@@ -40,6 +40,8 @@ add_executable(storcli
   transform.c
   rozofs_storcli_rebuild_prj.c          
   xmalloc.c
+  storage_lbg.c  
+  rozofs_storcli_cnx_supervision.c
 )
 #pthread need by fuse
 target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CRYPT_LIBRARY})

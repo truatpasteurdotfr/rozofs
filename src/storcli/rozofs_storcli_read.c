@@ -600,10 +600,17 @@ retry:
      ** rozofs_storcli_read_req_processing_cbk() ,if we get a tcp disconnection without 
      ** any other TCP connection up in the lbg.
      ** In that case the state of the projection is changed to ROZOFS_PRJ_READ_ERROR
+     **
+     ** We also increment the inuse counter of the buffer to avoid a release of the buffer
+     ** while releasing the transaction context if there is an error either  while submitting the 
+     ** buffer to the lbg or if there is a direct reply to the transaction due to a transmission failure
+     ** that usage of the inuse is mandatory since in case of failure the function re-use the same
+     ** xmit buffer to attempt a transmission on another lbg
      */
      working_ctx_p->read_ctx_lock++;
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_READ_IN_PRG;
-
+     ruc_buf_inuse_increment(xmit_buf);
+     
      ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_READ,
                                          (xdrproc_t) xdr_sp_read_arg_t, (caddr_t) request,
                                           xmit_buf,
@@ -613,6 +620,8 @@ retry:
                                          rozofs_storcli_read_req_processing_cbk,
                                          (void*)working_ctx_p);
      working_ctx_p->read_ctx_lock--;
+     ruc_buf_inuse_decrement(xmit_buf);
+     
      if (ret < 0)
      {
        /*
@@ -814,6 +823,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
      ** In that case the state of the projection is changed to ROZOFS_PRJ_READ_ERROR
      */
      working_ctx_p->read_ctx_lock++;
+     ruc_buf_inuse_increment(xmit_buf);
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_READ_IN_PRG;
      
      ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_READ,
@@ -826,6 +836,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
                                          (void*)working_ctx_p);
 
     working_ctx_p->read_ctx_lock--;
+     ruc_buf_inuse_decrement(xmit_buf);
     if (ret < 0)
     {
       /*
@@ -957,6 +968,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    bin_t   *bins_p;
    uint64_t raw_file_size;
    int bins_len = 0;
+   int lbg_id;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
@@ -972,6 +984,8 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     */
     rozofs_tx_read_opaque_data(this,0,&seqnum);
     rozofs_tx_read_opaque_data(this,1,&projection_id);
+    rozofs_tx_read_opaque_data(this,2,(uint32_t*)&lbg_id);
+    
     /*
     ** check if the sequence number of the transaction matches with the one saved in the tranaaction
     ** that control is required because we can receive a response from a late transaction that
@@ -982,8 +996,26 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     if (seqnum != working_ctx_p->read_seqnum)
     {
       /*
-      ** not the right sequence number, so drop the received message
+      ** not the right sequence number, so drop the received message but before check the status of the
+      ** operation since we might decide to put the LBG in quarantine
       */
+      status = rozofs_tx_get_status(this);
+      if (status < 0)
+      {
+         /*
+         ** something wrong happened: assert the status in the associated projection id sub-context
+         ** now, double check if it is possible to retry on a new storage
+         */
+         errno = rozofs_tx_get_errno(this);  
+         if (errno == ETIME)
+         {
+           storcli_lbg_cnx_sup_increment_tmo(lbg_id);
+         }
+      }
+      else
+      {
+        storcli_lbg_cnx_sup_clear_tmo(lbg_id);
+      }
       goto drop_msg;    
     }
     /*    
@@ -1002,6 +1034,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
        working_ctx_p->prj_ctx[projection_id].errcode = errno;
        if (errno == ETIME)
        {
+         storcli_lbg_cnx_sup_increment_tmo(lbg_id);
          STORCLI_ERR_PROF(read_prj_tmo);
        }
        else
@@ -1011,6 +1044,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
        same_storage_retry_acceptable = 1;
        goto retry_attempt; 
     }
+    storcli_lbg_cnx_sup_clear_tmo(lbg_id);
     /*
     ** get the pointer to the receive buffer payload
     */
@@ -1466,7 +1500,7 @@ void rozofs_storcli_periodic_ticker(void * param)
 **____________________________________________________
 */
 /*
-  start a periodic timer to check wether the export LBG is down
+  start a periodic timer to chech wether the export LBG is down
   When the export is restarted its port may change, and so
   the previous configuration of the LBG is not valid any more
 */
@@ -1486,7 +1520,7 @@ void rozofs_storcli_read_init_timer_module() {
     return;
   }
   ruc_periodic_timer_start (periodic_timer, 
-                            20,
+                            100,
  	                        rozofs_storcli_periodic_ticker,
  			                0);
 
