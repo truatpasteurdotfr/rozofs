@@ -294,7 +294,7 @@ start_storaged ()
 {
 
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
+    PID=`ps -ef | grep ${LOCAL_STORAGE_DAEMON} | grep -v defunct | grep -v grep | awk '{print $1}'`
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_STORAGE_DAEMON}"
@@ -312,7 +312,7 @@ start_storaged_nb ()
     STORAGES_BY_CLUSTER=$1
     
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
+    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v defunct |  grep -v grep | awk '{print $1}'`
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_STORAGE_DAEMON}"
@@ -456,8 +456,7 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-#                option="-o debug_port=610${j}0 -o instance=1 -o rozofsstorclitimeout=11 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4" 
-               option="-o debug_port=610${j}0 -o instance=1 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
+                option="-o debug_port=610${j}0 -o instance=1" 
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -734,7 +733,7 @@ main ()
         fi
 
         check_build
-        check_no_run
+        #check_no_run
 
         NB_EXPORTS=1
         NB_VOLUMES=1;
