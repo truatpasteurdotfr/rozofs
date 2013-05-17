@@ -43,15 +43,15 @@
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
 
-#define UMA_DBG_MAX_TOPIC_NAME   18
 typedef struct uma_dbg_topic_s {
-  char                     name[UMA_DBG_MAX_TOPIC_NAME];
+  char                     * name;
   uint16_t                   len;
   uma_dbg_topic_function_t funct;
 } UMA_DBG_TOPIC_S;
 
-#define UMA_DBG_MAX_TOPIC 50
+#define UMA_DBG_MAX_TOPIC 128
 UMA_DBG_TOPIC_S uma_dbg_topic[UMA_DBG_MAX_TOPIC];
+uint32_t        uma_dbg_nb_topic = 0;
 uint32_t          uma_dbg_topic_initialized=FALSE;
 
 #define            MAX_ARG   50
@@ -290,18 +290,26 @@ UMA_DBG_SESSION_S *uma_dbg_findFromCnxRef(uint32_t ref) {
 **
 **--------------------------------------------------------------------------
 */
+void uma_dbg_insert_topic(int idx, char * topic, uint16_t length, uma_dbg_topic_function_t funct) {
+  /* Register the topic */
+  uma_dbg_topic[idx].name         = topic;
+  uma_dbg_topic[idx].len          = length;
+  uma_dbg_topic[idx].funct        = funct;
+}  
 void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
-  int    idx;
+  int    idx,idx2;
   uint16_t length;
+  char * my_topic = NULL;
 
   if (uma_dbg_topic_initialized == FALSE) {
     /* Reset the topic table */
     for (idx=0; idx <UMA_DBG_MAX_TOPIC; idx++) {
-      uma_dbg_topic[idx].len     = 0;
-      uma_dbg_topic[idx].name[0] = 0;
+      uma_dbg_topic[idx].len   = 0;
+      uma_dbg_topic[idx].name  = NULL;
       uma_dbg_topic[idx].funct = NULL;
     }
     uma_dbg_topic_initialized = TRUE;
+    uma_dbg_nb_topic = 0;
   }
 
   /* Get the size of the topic */
@@ -310,34 +318,44 @@ void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
     ERRLOG "Bad topic length %d", length ENDERRLOG;
     return;
   }
-  if (length >= UMA_DBG_MAX_TOPIC_NAME) {
-    ERRLOG "A topic name should not exceed %d characters [%s]", UMA_DBG_MAX_TOPIC_NAME-1, topic ENDERRLOG;
+  
+  /* Check a place is left */
+  if (uma_dbg_nb_topic == UMA_DBG_MAX_TOPIC) {
+    ERRLOG "Too much topic %d. Can not insert %s", UMA_DBG_MAX_TOPIC, topic ENDERRLOG;
+    return;    
+  }
+
+  /* copy the topic */
+  my_topic = malloc(length + 1) ;
+  if (my_topic == NULL) {
+    ERRLOG "Out of memory. Can not insert %s",topic ENDERRLOG;    
     return;
   }
+  strcpy(my_topic, topic);
 
   /* Find a free entry in the topic table */
-  for (idx=0; idx <UMA_DBG_MAX_TOPIC; idx++) {
-    if (uma_dbg_topic[idx].len == 0) break; /* Free entry */
+  for (idx=0; idx <uma_dbg_nb_topic; idx++) {
+    int order;   
+    
+    order = strcasecmp(topic,uma_dbg_topic[idx].name);
+    
     /* check the current entry has got a different key word than
        the one we are to add */
-    if ((uma_dbg_topic[idx].len == length) &&
-	(strcasecmp(uma_dbg_topic[idx].name,topic) == 0)) {
+    if (order == 0) {
       ERRLOG "Trying to add topic %s that already exist", topic ENDERRLOG;
+      free(my_topic);
       return;
     }
+    
+    /* Insert here */
+    if (order < 0) break;
   }
-
-  if (idx == UMA_DBG_MAX_TOPIC) {
-    /* Not enough entries in the topic table */
-    ERRLOG "Topic table full. Increase UMA_DBG_MAX_TOPIC" ENDERRLOG;
-    return;
+  
+  for (idx2 = uma_dbg_nb_topic-1; idx2 >= idx; idx2--) {
+     uma_dbg_insert_topic(idx2+1,uma_dbg_topic[idx2].name,uma_dbg_topic[idx2].len, uma_dbg_topic[idx2].funct);
   }
-
-  /* Register the topic */
-  strncpy(uma_dbg_topic[idx].name, topic, length);
-  uma_dbg_topic[idx].name[length] = 0;
-  uma_dbg_topic[idx].len          = length;
-  uma_dbg_topic[idx].funct        = funct;
+  uma_dbg_insert_topic(idx,my_topic,length, funct);
+  uma_dbg_nb_topic++;
 }
 /*-----------------------------------------------------------------------------
 **
@@ -488,10 +506,14 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   for (topicNum=0; topicNum <UMA_DBG_MAX_TOPIC; topicNum++) {
     if (uma_dbg_topic[topicNum].len == 0) break; /* end of topic list */
     if (uma_dbg_topic[topicNum].len == length) {
-      if (strcasecmp(p->argv[0],uma_dbg_topic[topicNum].name) == 0) {
+    
+      int order = strcasecmp(p->argv[0],uma_dbg_topic[topicNum].name);
+      
+      if (order == 0) {
 	found = TRUE;
 	break;
       }
+      if (order < 0) break;  
     }
   }
 
