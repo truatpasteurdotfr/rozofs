@@ -456,7 +456,6 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-    ERRLOG "Too much topic %d. Can not insert %s", UMA_DBG_MAX_TOPIC, topic ENDERRLOG;
 
                 option="-o debug_port=610${j}0 -o instance=1 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
                 
