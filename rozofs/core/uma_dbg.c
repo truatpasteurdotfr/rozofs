@@ -372,6 +372,7 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   UMA_MSGHEADER_S *pHead;
   char            *p;
   uint32_t           idx,topicNum;
+  int             len=0;               
 
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
@@ -384,15 +385,23 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   /* Format the string */
   if (topic) {
     idx += sprintf(&p[idx], "No such topic \"%s\" !!!\n\n",topic);
+    len = strlen(topic);                
   }
 
   /* Build the list of topic */
-  idx += sprintf(&p[idx], "List of available topic :\n");
-  for (topicNum=0; topicNum <UMA_DBG_MAX_TOPIC; topicNum++) {
-    if (uma_dbg_topic[topicNum].len == 0) break; /* end of topic list */
-    idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);
+  if (len == 0) idx += sprintf(&p[idx], "List of available topics :\n");
+  else          idx += sprintf(&p[idx], "List of %s... topics:\n",topic);
+  
+  for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
+  
+    if (len == 0) {
+      idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);
+    }
+    else if (strncmp(topic,uma_dbg_topic[topicNum].name, len) == 0) {
+      idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);      
+    }  
   }
-  idx += sprintf(&p[idx], "  exit / quit / q\n");
+  if (len == 0) idx += sprintf(&p[idx], "  exit / quit / q\n");
 
   idx ++;
 
@@ -428,7 +437,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   char           * pBuf, * pArg;
   uint16_t           length;
   uint32_t           argc;
-  uint32_t           found=FALSE;
+  uint32_t           found=0;
   UMA_MSGHEADER_S *pHead;
   uint32_t           idx;
   UMA_DBG_SESSION_S * p;
@@ -501,33 +510,55 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
     return;
   }
 
-  /* Search in the topic list the one requested */
+  /* Search exact match in the topic list the one requested */
   length = strlen(p->argv[0]);
-  for (topicNum=0; topicNum <UMA_DBG_MAX_TOPIC; topicNum++) {
-    if (uma_dbg_topic[topicNum].len == 0) break; /* end of topic list */
+  for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
     if (uma_dbg_topic[topicNum].len == length) {
-    
+        
       int order = strcasecmp(p->argv[0],uma_dbg_topic[topicNum].name);
       
       if (order == 0) {
-	found = TRUE;
+	found = 1;
+	idx = topicNum;	
 	break;
       }
       if (order < 0) break;  
     }
   }
 
-  /* We have found it */
-  if (found == TRUE) {
-    /* Save this existing command for later replay */
-    if (replay == 0) {
-      strcpy(p->last_valid_command,(char*)(pHead+1));
-    }  
-    uma_dbg_topic[topicNum].funct(p->argv,tcpCnxRef,bufRef);
-    return;
+  /* Search match on first characters */
+  if (found == 0) {
+    for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
+      if (uma_dbg_topic[topicNum].len > length) {
+        int order = strncmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
+        if (order < 0) break;  	
+	if (order == 0) {
+	  found++;
+	  idx = topicNum;
+	   /* Several matches Display possibilities */
+	  if (found > 1) {
+            uma_dbg_listTopic(tcpCnxRef, bufRef, p->argv[0]);  
+            return; 	  
+	  }
+	}  
+      }	 
+    } 
   }
 
-  uma_dbg_listTopic(tcpCnxRef, bufRef, p->argv[0]);
+  /* No such command. List everything */
+  if (found == 0) {
+    uma_dbg_listTopic(tcpCnxRef, bufRef, NULL);  
+    return;  
+  }
+  
+  
+  /* We have found one command */
+
+  /* Save this existing command for later replay */
+  if (replay == 0) {
+    strcpy(p->last_valid_command,(char*)(pHead+1));
+  }  
+  uma_dbg_topic[idx].funct(p->argv,tcpCnxRef,bufRef);
 }
 /*
 **-------------------------------------------------------
