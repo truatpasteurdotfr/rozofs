@@ -41,6 +41,7 @@ const char      *   cmd[MAX_CMD];
 uint32_t            ipAddr;
 uint16_t            serverPort;
 uint32_t            period;
+int                 allCmd;
 const char      *   prgName;  
 char prompt[64];
 /**
@@ -52,7 +53,7 @@ void syntax() {
   printf("                        default is 127.0.0.1\n");
   printf("-p <port>               destination port number of the debug server\n");
   printf("                        mandatory parameter\n"); 
-  printf("-c <cmd>                command to run in one shot or periodically (-period)\n");                 
+  printf("-c <cmd|all>            command to run in one shot or periodically (-period)\n");                 
   printf("                        several -c options can be set\n");                 
   printf("-f <cmd file>           command file to run in one shot or periodically (-period)\n");         
   printf("                        several -f options can be set\n");                 
@@ -124,9 +125,18 @@ uint32_t readln(int fd,char *pbuf,uint32_t buflen)
    pbuf[lenCur] = 0;
    return lenCur+1;
 }
+
+void add_cmd_in_list(char * new_cmd, int len) {
+  char * p;
+  
+  p = malloc(len+1);
+  memcpy(p,new_cmd,len);
+  p[len] = 0;
+  cmd[nbCmd++] = (const char *) p;
+}
+
 void read_file(const char * fileName ) {
   uint32_t len;  
-  char * p;
   int fd;
     
   fd = open(fileName, O_RDONLY); 
@@ -140,11 +150,7 @@ void read_file(const char * fileName ) {
     len = readln (fd, msg.buffer,sizeof(msg.buffer));
     if (len == (uint32_t)-1) break;
 
-    p = malloc(len+1);
-    memcpy(p,msg.buffer,len);
-    p[len] = 0;
-    cmd[nbCmd++] = p;
-    
+    add_cmd_in_list(msg.buffer, len);
   }
   
   close(fd);
@@ -198,7 +204,40 @@ void uma_dbg_read_prompt(int socketId) {
     strcpy(prompt,"rzdbg> ");
   }
 }
+#define LIST_COMMAND_HEADER "List of available topics :"
+void uma_dbg_read_all_cmd_list(int socketId) {
+  char * p, * begin;
+  int len;
+    
+  // Read the command list
+  if (debug_run_this_cmd(socketId, "") < 0)  return;
 
+  nbCmd = 0;
+  p = msg.buffer;
+    
+  if (strncmp(p,LIST_COMMAND_HEADER, strlen(LIST_COMMAND_HEADER)) != 0) return;  
+  while(*p != '\n') p++;    
+  p++;
+    
+  while (p) {
+  
+    // Skip ' '
+    while (*p == ' ') p++;  
+    
+    // Is it the end
+    if (strncmp(p,"exit", 4) == 0) break;
+    
+    // Read command in list
+    begin = p;
+    len = 0;
+    while(*p != '\n') {
+      len++;  
+      p++;
+    }
+    add_cmd_in_list(begin, len);
+    p++;
+  }
+}
 void debug_interactive_loop(int socketId) {
 //  char mycmd[1024]; 
   char *mycmd = NULL; 
@@ -212,7 +251,7 @@ void debug_interactive_loop(int socketId) {
   rl_bind_key('\t',rl_complete);   
   while (1) {
 
-    printf("\n_______________________________________________\n");
+    printf("_________________________________________________________\n");
 //    len = readln (fd, mycmd,sizeof(mycmd));
 //    if (len == (uint32_t)-1) break;
     mycmd = readline (prompt);
@@ -229,7 +268,7 @@ void debug_interactive_loop(int socketId) {
       printf("Debug session end\n");
       break;
     }
-    if (strcasecmp(mycmd,"!!") != 0) {
+    if ((mycmd[0] != 0) && (strcasecmp(mycmd,"!!") != 0)) {
        add_history(mycmd);
     }
     if (debug_run_this_cmd(socketId, mycmd) < 0)  break;
@@ -242,6 +281,8 @@ void debug_run_command_list(int socketId) {
   int idx;  
 
   for (idx=0; idx < nbCmd; idx++) {
+    printf("_________________________________________________________\n");
+    printf("> %s", cmd[idx]);  
     if (debug_run_this_cmd(socketId, cmd[idx]) < 0)  break;
   }
 } 
@@ -333,19 +374,19 @@ char *argv[];
     
     /* -c <command> */
     if (strcmp(argv[idx],"-c")==0) {
-      char * p;
       int len;
       idx++;
       if (idx == argc) {
 	printf ("%s option but missing value !!!\n",argv[idx-1]);
 	syntax();
       }
-      len = strlen(argv[idx]);
-      p = malloc(len+1);
-      memcpy(p,argv[idx],len);
-      p[len] = 0;
-      cmd[nbCmd] = p;
-      nbCmd++;
+      if (strcmp(argv[idx],"all") == 0) {
+        allCmd = 1;
+      }
+      else {
+        len = strlen(argv[idx]);
+        add_cmd_in_list(argv[idx], len);
+      }	
       idx++;
       continue;
     }
@@ -444,10 +485,13 @@ int main(int argc, const char **argv) {
   ipAddr        = inet_addr("127.0.0.1");
   period        = 0;
   nbCmd         = 0;
+  allCmd        = 0;
   read_parameters(argc, argv);
   if (serverPort == 0) syntax();
 
   socketId = connect_to_server(ipAddr,serverPort);
+
+  if (allCmd) uma_dbg_read_all_cmd_list(socketId);
   
   if (nbCmd == 0) {
     debug_interactive_loop(socketId);
