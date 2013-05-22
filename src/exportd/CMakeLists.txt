@@ -50,6 +50,7 @@ add_executable(exportd
     econfig.c
     epproto.c
     exportd.c
+    export_nblock_init.c
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 

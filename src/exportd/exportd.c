@@ -33,6 +33,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <rpc/pmap_clnt.h>
+#include <rozofs/rozofs_debug_ports.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -91,6 +92,9 @@ static SVCXPRT *exportd_profile_svc = 0;
 extern void exportd_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 DEFINE_PROFILING(epp_profiler_t) = {0};
+
+exportd_start_conf_param_t  expgwc_non_blocking_conf;  /**< configuration of the non blocking side */
+
 
 static void *balance_volume_thread(void *v) {
     struct timespec ts = {8, 0};
@@ -489,12 +493,30 @@ static void on_start() {
     int sock;
     int one = 1;
     struct rlimit rls;
+    pthread_t thread;
     DEBUG_FUNCTION;
+    int loop_count = 0;
+    
+    /**
+    * start the non blocking thread
+    */
+    expgwc_non_blocking_thread_started = 0;
+    if ((errno = pthread_create(&thread, NULL, (void*) expgwc_start_nb_blocking_th, &expgwc_non_blocking_conf)) != 0) {
+        severe("can't create non blocking thread: %s", strerror(errno));
+    }
 
     if (exportd_initialize() != 0) {
         fatal("can't initialize exportd.");
     }
-
+    /*
+    ** wait for end of init of the non blocking thread
+    */
+    while (expgwc_non_blocking_thread_started == 0)
+    {
+       sleep(1);
+       loop_count++;
+       if (loop_count > 5) fatal("Non Blocking thread does not answer");    
+    }
     /*
      * Metadata service
      */
@@ -721,23 +743,33 @@ static void usage() {
     printf("Rozofs export daemon - %s\n", VERSION);
     printf("Usage: exportd [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
+    printf("\t-d,--debug <port>\t\texportd non blocking debug port(default: none) \n");
+//    printf("\t-n,--hostname <name>\t\texportd host name(default: none) \n");
+    printf("\t-i,--instance <value>\t\texportd instance id(default: 1) \n");
     printf("\t-c, --config\tconfiguration file to use (default: %s).\n",
             EXPORTD_DEFAULT_CONFIG);
 };
 
 int main(int argc, char *argv[]) {
     int c;
+    int val;
 
     static struct option long_options[] = {
         {"help", no_argument, 0, 'h'},
+        {"debug", required_argument, 0, 'd'},
+        {"instance", required_argument, 0, 'i'},
         {"config", required_argument, 0, 'c'},
         {0, 0, 0, 0}
     };
+
     /*
     ** init of the timer configuration
     */
     rozofs_tmr_init_configuration();
-
+  
+    expgwc_non_blocking_conf.debug_port = rzdbg_default_base_port;
+    expgwc_non_blocking_conf.instance   = 1;
+    expgwc_non_blocking_conf.exportd_hostname   = NULL;
     while (1) {
 
         int option_index = 0;
@@ -759,6 +791,26 @@ int main(int argc, char *argv[]) {
                             optarg, strerror(errno));
                     exit(EXIT_FAILURE);
                 }
+                break;
+             case 'd':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                expgwc_non_blocking_conf.debug_port = val;
+                break;
+             case 'i':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                expgwc_non_blocking_conf.instance = val;
                 break;
             case '?':
                 usage();

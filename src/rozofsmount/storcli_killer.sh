@@ -6,9 +6,9 @@ kill_everybody ()
 {
   for pid in `ps -ef | grep "storcli "| grep "M $mountpoint" | awk '{print $2}'`
   do
-    kill -9 $pid
+    kill $1 $pid
   done
 }
 
-kill_everybody
-kill_everybody
+kill_everybody -6
+kill_everybody -9

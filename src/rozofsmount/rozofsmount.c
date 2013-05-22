@@ -35,6 +35,7 @@
 #include <fuse/fuse_opt.h>
 
 #include <rozofs/rozofs.h>
+#include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/htable.h>
@@ -351,13 +352,13 @@ void rozofmount_profiling_thread_run(void *args) {
     DEBUG("REACHED !!!!");
     /* NOT REACHED */
 }
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
                     gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
-                    gprofiler.rozofs_ll_##probe[P_ELAPSE]);
+                    gprofiler.rozofs_ll_##probe[P_ELAPSE]," " );
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64"\n",\
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64" |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
                     gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
@@ -367,10 +368,21 @@ void rozofmount_profiling_thread_run(void *args) {
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
 
-    pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+
+
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
     pChar += sprintf(pChar, " - ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
-    pChar += sprintf(pChar, "   procedure  |     count       |  time(us) | cumulated time(us) |     bytes       \n");
-    pChar += sprintf(pChar, "--------------+-----------------+-----------+--------------------+-----------------\n");
+    pChar += sprintf(pChar, "   procedure  |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
+    pChar += sprintf(pChar, "--------------+-----------------+-----------+--------------------+-----------------+\n");
     SHOW_PROFILER_PROBE(lookup);
     SHOW_PROFILER_PROBE(forget);
     SHOW_PROFILER_PROBE(getattr);
@@ -553,7 +565,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
                 mountpoint, strerror(errno));
         return 1;
     }
-    printf("FDL all param read %d\n",__LINE__);
 
     /* Initialize list and htables for inode_entries */
     list_init(&inode_entries);
@@ -675,10 +686,20 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     ** declare timer debug functions
     */
     rozofs_timer_conf_dbg_init();
-    
-    //    uint16_t debug_port = 60000;
-    rozofs_fuse_conf.debug_port = (uint16_t) conf.dbg_port;
+    /*
+    ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
+    */
+    if (conf.dbg_port == 0) 
+    {
+      conf.dbg_port = rzdbg_default_base_port;    
+    }
+    else
+    {
+      rzdbg_default_base_port = conf.dbg_port;    
+    }    
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
+    rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_rozofsmount_port((uint16_t) conf.instance);
+    conf.dbg_port = rozofs_fuse_conf.debug_port;
     rozofs_fuse_conf.se = se;
     rozofs_fuse_conf.ch = ch;
     rozofs_fuse_conf.exportclt = (void*) &exportclt;
@@ -730,7 +751,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     info("monitoring port: %d", profiling_port);
 
     /* try to create a flag file with port number */
-    sprintf(ppfile, "%s%s%s", DAEMON_PID_DIRECTORY, "rozofsmount", mountpoint);
+    sprintf(ppfile, "%s%s_%d%s", DAEMON_PID_DIRECTORY, "rozofsmount",conf.instance, mountpoint);
     c = ppfile + strlen(DAEMON_PID_DIRECTORY);
     while (*c++) {
         if (*c == '/') *c = '.';
@@ -739,7 +760,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("can't open profiling port file");
     } else {
         char str[10];
-        sprintf(str, "%d\n", profiling_port);
+        sprintf(str, "%d\n", getpid());
         write(ppfd, str, strlen(str));
         close(ppfd);
     }

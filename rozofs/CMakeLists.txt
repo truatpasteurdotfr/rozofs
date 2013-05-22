@@ -144,6 +144,8 @@ set (librozofs_sources
     rozofs_timer_conf.c    
     core/rozofs_timer_conf_dbg.c
     core/rozofs_timer_conf_dbg.h
+    rozofs_debug_ports.h
+    rozofs_debug_ports.c
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

@@ -294,7 +294,7 @@ start_storaged ()
 {
 
     echo "------------------------------------------------------"
-    PID=`ps -ef | grep ${LOCAL_STORAGE_DAEMON} | grep -v defunct | grep -v grep | awk '{print $1}'`
+    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_STORAGE_DAEMON}"
@@ -307,12 +307,12 @@ start_storaged ()
 }
 
 # $1 = STORAGES_BY_CLUSTER
-start_storaged_nb ()
+start_storaged_nb_old ()
 {
     STORAGES_BY_CLUSTER=$1
     
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v defunct |  grep -v grep | awk '{print $1}'`
+    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
     if [ "$PID" == "" ]
     then
         echo "Start ${LOCAL_STORAGE_DAEMON}"
@@ -327,7 +327,37 @@ start_storaged_nb ()
 
 }
 
-stop_storaged ()
+
+# $1 = STORAGES_BY_CLUSTER
+start_storaged_nb ()
+{
+    STORAGES_BY_CLUSTER=$1
+    
+    echo "------------------------------------------------------"
+
+    echo "Start ${LOCAL_STORAGE_DAEMON}"
+	for j in $(seq ${STORAGES_BY_CLUSTER}); do
+    echo "start storaged" ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${j}
+    ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${j}
+    done
+
+
+}
+stop_storaged()
+{
+   echo "Stopping the storaged"
+   for pid in `cat /var/run/storaged*`
+   do
+     kill  $pid
+   done
+   sleep 1
+   for pid in `cat /var/run/storaged*`
+   do
+     kill -9 $pid
+   done
+}
+
+stop_storaged_old ()
 {
     echo "------------------------------------------------------"
     PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
@@ -456,8 +486,8 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-
-                option="-o debug_port=610${j}0 -o instance=1 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
+#                option="-o debug_port=610${j}0 -o instance=1 -o rozofsstorclitimeout=11 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4" 
+               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -469,6 +499,23 @@ ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BA
             fi
         done;
     fi
+}
+
+rozofsmount_kill_best_effort()
+{
+    echo "------------------------------------------------------"
+    echo "Killing rozofsmount and storcli in best effort mode"
+    for pid in `cat /var/run/rozofsmount*`
+    do
+      kill  $pid
+    done
+    sleep 1
+    for pid in `cat /var/run/rozofsmount*`
+    do
+      kill -9 $pid
+    done
+
+
 }
 
 undeploy_clients_local ()
@@ -488,25 +535,38 @@ undeploy_clients_local ()
             echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}"
             umount ${LOCAL_MNT_ROOT}${j}
             test -d ${LOCAL_MNT_ROOT}${j} && rm -rf ${LOCAL_MNT_ROOT}${j}
-        done;
+            test -d ${LOCAL_MNT_ROOT}${j} && umount -l ${LOCAL_MNT_ROOT}${j}
+            test -d ${LOCAL_MNT_ROOT}${j} && storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
+        done
+    sleep 2
+    rozofsmount_kill_best_effort
     fi
 }
 
 start_exportd ()
 {
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" == "" ]
-    then
+
         echo "Start ${LOCAL_EXPORT_DAEMON}"
         ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
-    else
-        echo "Unable to start ${EXPORT_DAEMON} (already running as PID: ${PID})"
-        exit 0;
-    fi
+
 }
 
 stop_exportd ()
+{
+    echo "------------------------------------------------------"
+    echo "Killing exportd"
+    for pid in `cat /var/run/export*.pid`
+    do
+      kill  $pid
+    done
+    sleep 1
+    for pid in `cat /var/run/export*.pid`
+    do
+      kill -9 $pid
+    done
+}
+stop_exportd_old ()
 {
     echo "------------------------------------------------------"
     PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
@@ -603,7 +663,7 @@ clean_all ()
     remove_all
 }
 
-check_no_run ()
+check_no_run_old ()
 {
 
     PID_EXPORTD=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v "grep" | awk '{print $1}'`
@@ -616,6 +676,20 @@ check_no_run ()
     fi
 
 }
+
+
+do_stop()
+{
+        undeploy_clients_local
+        stop_storaged
+        stop_exportd
+        remove_all
+
+
+}
+
+
+
 
 check_build ()
 {
@@ -734,7 +808,7 @@ main ()
         fi
 
         check_build
-        #check_no_run
+        do_stop
 
         NB_EXPORTS=1
         NB_VOLUMES=1;
@@ -758,13 +832,8 @@ main ()
 
     elif [ "$1" == "stop" ]
     then
+           do_stop
 
-        undeploy_clients_local
-
-        stop_storaged
-        stop_exportd
-
-        remove_all
     elif [ "$1" == "reload" ]
     then
 

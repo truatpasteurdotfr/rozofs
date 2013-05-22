@@ -126,8 +126,9 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
     ruc_obj_desc_t        *pnext;
     int i;
 
-    pChar += sprintf(pChar,"  LBG Name                | lbg_id | idx  | sock |    state   |   Queue   | Cnx Attpts | Xmit Attpts | Recv count |\n");
-    pChar += sprintf(pChar,"--------------------------+--------+------+------+------------+-----------+------------+-------------+------------+\n");    
+    pChar += sprintf(pChar,"  LBG Name                | lbg_id | idx  | sock |    state   |   Queue   | Cnx Attpts | Xmit Attpts | Recv count  |\n");
+    pChar +=
+    sprintf(pChar,"--------------------------+--------+------+------+------------+-----------+------------+-------------+-------------+\n");    
     pnext = (ruc_obj_desc_t*)NULL;
     while ((lbg_p = (north_lbg_ctx_t*)ruc_objGetNext((ruc_obj_desc_t*)&north_lbg_context_activeListHead,
                                              &pnext))
