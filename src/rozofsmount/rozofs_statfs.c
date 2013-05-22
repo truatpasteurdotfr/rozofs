@@ -207,7 +207,7 @@ error:
     st.f_bavail = st.f_bfree = estat.bfree;
     st.f_frsize = st.f_bsize = estat.bsize;
     st.f_favail = st.f_ffree = estat.ffree;
-    st.f_files = estat.files;
+    st.f_files = estat.files+estat.ffree;
     st.f_namemax = estat.namemax;
 
     fuse_reply_statfs(req, &st);
