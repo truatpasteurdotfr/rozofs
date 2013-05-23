@@ -28,6 +28,8 @@
 #define FIRST_PORT  9000
 #define LAST_PORT  10000
 
+#define DEFAULT_TIMEOUT 4
+
 #define         MX_BUF (2048*8)
 typedef struct  msg_s {
    UMA_MSGHEADER_S header;
@@ -43,12 +45,13 @@ uint16_t            serverPort;
 uint32_t            period;
 int                 allCmd;
 const char      *   prgName;  
+int                 timeout=DEFAULT_TIMEOUT;
 char prompt[64];
 /**
 **   lnkdebug <IPADDR> <PORT>
 */
 void syntax() {
-  printf("\n%s [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>]\n\n",prgName);
+  printf("\n%s [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>] [-t <seconds>]\n\n",prgName);
   printf("-i <hostname>           destination IP address or hostname of the debug server\n");
   printf("                        default is 127.0.0.1\n");
   printf("-p <port>               destination port number of the debug server\n");
@@ -58,6 +61,7 @@ void syntax() {
   printf("-f <cmd file>           command file to run in one shot or periodically (-period)\n");         
   printf("                        several -f options can be set\n");                 
   printf("-period <seconds>       periodicity for running commands using -c or/and -f options\n");                 
+  printf("-t <seconds>            timeout value to wait for a response (default %d seconds)\n",DEFAULT_TIMEOUT);                 
   exit(0);
 }
 int debug_receive(int socketId) {
@@ -65,6 +69,27 @@ int debug_receive(int socketId) {
   unsigned int    recvLen;
  
   printf("\n...............................................\n");
+  
+  /* 
+  ** Do a select before reading to be sure that a response comes in time
+  */
+  {
+    fd_set fd_read;
+    struct timeval to;
+    
+    to.tv_sec  = timeout;
+    to.tv_usec = 0;
+
+    FD_ZERO(&fd_read);
+    FD_SET(socketId,&fd_read);
+    
+    ret = select(socketId+1, &fd_read, NULL, NULL, &to);
+    if (ret != 1) {
+      printf("Timeout %d sec\n",timeout);
+      return 0;
+    }
+  }
+  
 
   while (1) {
 
@@ -372,6 +397,22 @@ char *argv[];
       continue;
     }
     
+    /* -t <seconds> */
+    if (strcmp(argv[idx],"-t")==0) {
+      idx++;
+      if (idx == argc) {
+	printf ("%s option but missing value !!!\n",argv[idx-1]);
+	syntax();
+      }
+      ret = sscanf(argv[idx],"%u",&timeout);
+      if (ret != 1) {
+	printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);   
+        syntax();
+      }
+      idx++;
+      continue;
+    }  
+      
     /* -c <command> */
     if (strcmp(argv[idx],"-c")==0) {
       int len;
