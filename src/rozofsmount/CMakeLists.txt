@@ -49,8 +49,6 @@ add_executable(rozofsmount
 #pthread need by fuse
 target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${CRYPT_LIBRARY})
 
-
-
 # Install
 
 install(TARGETS rozofsmount
@@ -61,4 +59,3 @@ install(TARGETS rozofsmount
 )
 
 install(PROGRAMS storcli_starter.sh storcli_killer.sh  DESTINATION bin)
-

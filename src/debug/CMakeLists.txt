@@ -20,7 +20,6 @@ include_directories(${READLINE_INCLUDE_DIR})
 include_directories(${NCURSES_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
-
 add_executable(rozodebug
     debug.c
 )

@@ -385,19 +385,15 @@ static void on_stop() {
 
 char storage_process_filename[NAME_MAX];
 
-
 /**
-*  Signal catching
-*/
+ *  Signal catching
+ */
 
-static void storaged_handle_signal(int sig)
-{
-   unlink(storage_process_filename); 
-   signal(sig, SIG_DFL);
-   raise(sig);
+static void storaged_handle_signal(int sig) {
+    unlink(storage_process_filename);
+    signal(sig, SIG_DFL);
+    raise(sig);
 }
-
-
 
 static void on_start() {
     int i = 0;
@@ -406,7 +402,7 @@ static void on_start() {
     pthread_t thread;
 
     DEBUG_FUNCTION;
-    
+
     storage_process_filename[0] = 0;
 
     // Initialization of the storage configuration
@@ -427,70 +423,68 @@ static void on_start() {
     strncpy((char*) gprofiler.vers, VERSION, 20);
     SET_PROBE_VALUE(nb_io_processes, storaged_nb_io_processes);
     /*
-    ** config for non blocking side (rozodebug):
-    ** Caution: the thread associated with the parent MUST be created after the 
-    ** fork() of the io processes (children) otherwise we might face a deadlock
-    ** on syslog() because mutexes are "passed" unconsistent to the children
-    ** since the thread associated with the parent can be in the syslog.
-    */
-    storaged_start_conf_param_t  conf;
-    storaged_start_conf_param_t  conf_child;
+     ** config for non blocking side (rozodebug):
+     ** Caution: the thread associated with the parent MUST be created after the 
+     ** fork() of the io processes (children) otherwise we might face a deadlock
+     ** on syslog() because mutexes are "passed" unconsistent to the children
+     ** since the thread associated with the parent can be in the syslog.
+     */
+    storaged_start_conf_param_t conf;
+    storaged_start_conf_param_t conf_child;
     conf.instance_id = 0;
-    conf.io_port  = 0;
-    if (storaged_hostname != NULL) strcpy(conf.hostname,storaged_hostname);
-    else  conf.hostname[0] = 0;
-    
-    conf.debug_port = rzdbg_default_base_port + RZDBG_STORAGED_PORT;    
-    conf_child = conf ;
+    conf.io_port = 0;
+    if (storaged_hostname != NULL) strcpy(conf.hostname, storaged_hostname);
+    else conf.hostname[0] = 0;
+
+    conf.debug_port = rzdbg_default_base_port + RZDBG_STORAGED_PORT;
+    conf_child = conf;
 
 
-    
+
     // Create io process(es)
     for (i = 0; i < storaged_nb_io_processes; i++) {
         int pid;
-        conf_child.instance_id = i+1;
-        conf_child.debug_port = rzdbg_default_base_port + RZDBG_STORAGED_PORT+i+1;
-        conf_child.io_port    = storaged_storage_ports[i];
-               
+        conf_child.instance_id = i + 1;
+        conf_child.debug_port = rzdbg_default_base_port + RZDBG_STORAGED_PORT + i + 1;
+        conf_child.io_port = storaged_storage_ports[i];
+
         // Create child process
         if (!(pid = fork())) {
 
-          signal(SIGCHLD, SIG_IGN);
-          signal(SIGTSTP, SIG_IGN);
-          signal(SIGTTOU, SIG_IGN);
-          signal(SIGTTIN, SIG_IGN);
-          signal(SIGILL, storaged_handle_signal);
-          signal(SIGSTOP, storaged_handle_signal);
-          signal(SIGABRT, storaged_handle_signal);
-          signal(SIGSEGV, storaged_handle_signal);
-          signal(SIGKILL, storaged_handle_signal);
-          signal(SIGTERM, storaged_handle_signal);
-          signal(SIGQUIT, storaged_handle_signal);
-          
-          char *pid_name_p = storage_process_filename;
-          if (storaged_hostname != NULL) {
-              sprintf(pid_name_p, "%s%s_%s:%d.pid",DAEMON_PID_DIRECTORY, STORAGED_PID_FILE,storaged_hostname,storaged_storage_ports[i]);
-          }
-          else
-          {
-             sprintf(pid_name_p, "%s%s:%d.pid", DAEMON_PID_DIRECTORY,STORAGED_PID_FILE,storaged_storage_ports[i]);
-          }
-          int ppfd;
-          if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
-              severe("can't open process file");
-          } else {
-              char str[10];
-              sprintf(str, "%d\n", getpid());
-              write(ppfd, str, strlen(str));
-              close(ppfd);
-          }    
-    
-           /**
-           * start the non blocking thread
-           */
-           if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf_child)) != 0) {
-               fatal("can't create non blocking thread: %s", strerror(errno));
-           }
+            signal(SIGCHLD, SIG_IGN);
+            signal(SIGTSTP, SIG_IGN);
+            signal(SIGTTOU, SIG_IGN);
+            signal(SIGTTIN, SIG_IGN);
+            signal(SIGILL, storaged_handle_signal);
+            signal(SIGSTOP, storaged_handle_signal);
+            signal(SIGABRT, storaged_handle_signal);
+            signal(SIGSEGV, storaged_handle_signal);
+            signal(SIGKILL, storaged_handle_signal);
+            signal(SIGTERM, storaged_handle_signal);
+            signal(SIGQUIT, storaged_handle_signal);
+
+            char *pid_name_p = storage_process_filename;
+            if (storaged_hostname != NULL) {
+                sprintf(pid_name_p, "%s%s_%s:%d.pid", DAEMON_PID_DIRECTORY, STORAGED_PID_FILE, storaged_hostname, storaged_storage_ports[i]);
+            } else {
+                sprintf(pid_name_p, "%s%s:%d.pid", DAEMON_PID_DIRECTORY, STORAGED_PID_FILE, storaged_storage_ports[i]);
+            }
+            int ppfd;
+            if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
+                severe("can't open process file");
+            } else {
+                char str[10];
+                sprintf(str, "%d\n", getpid());
+                write(ppfd, str, strlen(str));
+                close(ppfd);
+            }
+
+            /**
+             * start the non blocking thread
+             */
+            if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf_child)) != 0) {
+                fatal("can't create non blocking thread: %s", strerror(errno));
+            }
             // Associates STORAGE_PROGRAM, STORAGE_VERSION and
             // STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION
             // with their service dispatch procedure.
@@ -499,9 +493,9 @@ static void on_start() {
 
             if ((storaged_svc = storaged_create_rpc_service
                     (storaged_storage_ports[i], storaged_hostname)) == NULL) {
-                    fatal("can't create IO storaged service on port: %d",
-                            storaged_storage_ports[i]);
-                }
+                fatal("can't create IO storaged service on port: %d",
+                        storaged_storage_ports[i]);
+            }
 
             if (!svc_register(storaged_svc, STORAGE_PROGRAM, STORAGE_VERSION,
                     storage_program_1, 0)) {
@@ -534,12 +528,12 @@ static void on_start() {
 
 
     /*
-    ** create the debug thread of the parent
-    */
+     ** create the debug thread of the parent
+     */
     if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf)) != 0) {
         fatal("can't create non blocking thread: %s", strerror(errno));
     }
-    
+
     // Create internal monitoring service
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -609,10 +603,10 @@ int main(int argc, char *argv[]) {
     };
 
     /*
-    ** init of the timer configuration
-    */
+     ** init of the timer configuration
+     */
     rozofs_tmr_init_configuration();
-    
+
     storaged_hostname = NULL;
 
     while (1) {
@@ -685,11 +679,9 @@ int main(int argc, char *argv[]) {
 
     char *pid_name_p = pid_name;
     if (storaged_hostname != NULL) {
-        sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE,storaged_hostname);
-    }
-    else
-    {
-       sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
+        sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE, storaged_hostname);
+    } else {
+        sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }
     daemon_start(pid_name, on_start, on_stop, NULL);
 
