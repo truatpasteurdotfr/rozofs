@@ -56,6 +56,7 @@ struct epp_vstat_t {
     uint16_t    vid;
     uint16_t    bsize;
     uint64_t    bfree;
+    uint64_t    blocks;
     uint32_t    nb_storages;
     epp_sstat_t sstats[EPP_MAX_STORAGES];
 };

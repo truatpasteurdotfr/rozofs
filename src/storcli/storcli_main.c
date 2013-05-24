@@ -179,7 +179,7 @@ char *display_mstorage(mstorage_t *s,char *buffer)
   for (i = 0; i< s->sids_nb; i++)
   {
      buffer += sprintf(buffer," %3.3d  |  %2.2d  |",s->cids[i],s->sids[i]);
-     buffer += sprintf(buffer,"%-20s |",s->host);
+     buffer += sprintf(buffer," %-20s |",s->host);
      if ( s->lbg_id == -1)
      {
        buffer += sprintf(buffer,"  ???     |");
@@ -210,8 +210,8 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
 {
     char *pchar = localBuf;
 
-   pchar +=sprintf(pchar," cid  |  sid |     hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
-   pchar +=sprintf(pchar,"------+------+---------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
+   pchar +=sprintf(pchar," cid  |  sid |      hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
+   pchar +=sprintf(pchar,"------+------+----------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
 
    list_t *iterator = NULL;
    /* Search if the node has already been created  */

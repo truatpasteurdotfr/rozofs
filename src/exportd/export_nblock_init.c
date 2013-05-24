@@ -227,19 +227,31 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Storage,Volumes, EID statistics
 
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
 void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pbuf = localBuf;
     int i, j;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
-        pbuf += sprintf(pbuf, "Volume: %d - Bsize: %d ,Bfree: %"PRIu64"\n",
-                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize, gprofiler.vstats[i].bfree);
-        pbuf += sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s |\n", "Sid", "Status", "Capacity(B)", "Free(B)");
-        pbuf += sprintf(pbuf, "-------+--------+----------------------+----------------------+\n");
+        pbuf+=sprintf(pbuf, "Volume: %d  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
+                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
+                (int)((gprofiler.vstats[i].blocks==0)? 0:gprofiler.vstats[i].bfree*100/gprofiler.vstats[i].blocks));
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s |\n", "Sid", "Status", "Capacity(B)","Free(B)");
+        pbuf+=sprintf(pbuf, "-------+--------+----------------------+----------------------+\n");
         for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
-            pbuf += sprintf(pbuf, "%-6d | %-6s | %20"PRIu64" | %20"PRIu64" |\n", gprofiler.vstats[i].sstats[j].sid,
-                    (gprofiler.vstats[i].sstats[j].status == 1) ? "UP" : "DOWN", gprofiler.vstats[i].sstats[j].size,
+            pbuf+=sprintf(pbuf, "%6d | %-6s | %20"PRIu64" | %20"PRIu64" |\n", gprofiler.vstats[i].sstats[j].sid,
+                    (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", gprofiler.vstats[i].sstats[j].size,
                     gprofiler.vstats[i].sstats[j].free);
         }
         pbuf += sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid", "Bsize", "Blocks", "Bfree", "Files", "Ffree");
@@ -255,6 +267,97 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
         }
         pbuf += sprintf(pbuf, "\n");
     }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Volumes statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int i;
+
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+        pbuf+=sprintf(pbuf, "Volume: %d  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
+                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
+               (int)((gprofiler.vstats[i].blocks==0)? 0:gprofiler.vstats[i].bfree*100/gprofiler.vstats[i].blocks));
+
+        pbuf+=sprintf(pbuf, "\n");
+    }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Storage statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int i,j;
+
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+ 
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-8s |\n","Vid", "Sid", "Status", "Capacity(B)","Free(B)","Free(%)");
+        pbuf+=sprintf(pbuf, "-------+--------+--------+----------------------+----------------------+----------+\n");
+        for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, "%6d | %6d | %-6s | %20"PRIu64" | %20"PRIu64" | %8d |\n",
+                   gprofiler.vstats[i].vid,
+                   gprofiler.vstats[i].sstats[j].sid,
+                   (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", 
+                   gprofiler.vstats[i].sstats[j].size,
+                   gprofiler.vstats[i].sstats[j].free,
+                   (int)((gprofiler.vstats[i].sstats[j].size==0)? 0:gprofiler.vstats[i].sstats[j].free*100/gprofiler.vstats[i].sstats[j].size));
+        }
+        pbuf+=sprintf(pbuf, "\n");
+    }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   EID statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat_eid(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int j;
+
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid","Vid", "Bsize","Blocks", "Bfree", "Files", "Ffree");
+        pbuf+=sprintf(pbuf, "-------+--------+--------+----------------------+----------------------+--------------+--------------+\n");
+
+
+        for (j = 0; j < gprofiler.nb_exports; j++) {
+
+                pbuf+=sprintf(pbuf, "%6d | %6d | %6d | %20"PRIu64" | %20"PRIu64" | %12"PRIu64" | %12"PRIu64" |\n", gprofiler.estats[j].eid,
+                    gprofiler.estats[j].vid,
+                    gprofiler.estats[j].bsize, gprofiler.estats[j].blocks, gprofiler.estats[j].bfree,
+                    gprofiler.estats[j].files, gprofiler.estats[j].ffree);
+        }
+        pbuf+=sprintf(pbuf, "\n");
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
@@ -481,6 +584,9 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("profiler_short", show_profiler_short);
     uma_dbg_addTopic("vfstat", show_vfstat);
+    uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
+    uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
+    uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
 
     expgwc_non_blocking_thread_started = 1;
 

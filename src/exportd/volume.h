@@ -29,6 +29,7 @@
 typedef struct volume_stat {
     uint16_t bsize; ///< the block size
     uint64_t bfree; ///< number of free blocks
+    uint64_t blocks; ///< number of  blocks
 } volume_stat_t;
 
 /** a managed storage */

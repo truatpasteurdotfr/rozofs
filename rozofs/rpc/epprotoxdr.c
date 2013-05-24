@@ -84,6 +84,8 @@ xdr_epp_vstat_t (XDR *xdrs, epp_vstat_t *objp)
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bfree))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->blocks))
+		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_storages))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->sstats, 2048,
