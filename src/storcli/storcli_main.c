@@ -727,6 +727,8 @@ int main(int argc, char *argv[]) {
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();
 
+    gprofiler.uptime = time(0);
+
     /*
     ** create the process filename
     */
