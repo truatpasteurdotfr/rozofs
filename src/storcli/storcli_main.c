@@ -80,7 +80,20 @@ typedef struct storcli_conf {
 char storcli_process_filename[NAME_MAX];
 
 static char localBuf[4096];
+void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+    time_t elapse;
+    int days, hours, mins, secs;
 
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}      
 
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15s |\n",\
 					#probe,\
@@ -786,6 +799,7 @@ int main(int argc, char *argv[]) {
      ** add the topic for the local profiler
      */
     uma_dbg_addTopic("profiler", show_profiler);
+    uma_dbg_addTopic("uptime", show_uptime);
     /*
     ** declare timer debug functions
     */

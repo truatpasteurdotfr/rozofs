@@ -70,6 +70,20 @@ DECLARE_PROFILING(epp_profiler_t);
 
 
 static char localBuf[8192];
+void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}      
 
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
@@ -587,6 +601,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
     uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
     uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
+    uma_dbg_addTopic("uptime", show_uptime);
 
     expgwc_non_blocking_thread_started = 1;
 

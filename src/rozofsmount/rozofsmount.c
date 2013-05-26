@@ -72,6 +72,21 @@ char localBuf[4096];
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
+
+void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}      
 /*
  *________________________________________________________
  */
@@ -683,6 +698,8 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
+    uma_dbg_addTopic("uptime", show_uptime);
+
     /*
     ** declare timer debug functions
     */
