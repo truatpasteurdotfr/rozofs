@@ -32,11 +32,11 @@
 #include <pthread.h>
 #include <assert.h>
 #include <netinet/tcp.h>
-
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
 
 #include <rozofs/rozofs.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/htable.h>
@@ -47,15 +47,15 @@
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/rozofs_tx_common.h>
+#include <rozofs/core/rozofs_tx_api.h>
+
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
 #include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 

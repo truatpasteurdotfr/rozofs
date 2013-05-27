@@ -33,7 +33,7 @@ Description: Rozofs filesystem (monitoring package).
 
 Package: rozofs-rozodebug
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libncurses5, libreadline5
+Depends: ${shlibs:Depends}, ${misc:Depends}, libncurses5, libreadline6
 Description: Rozofs filesystem (debugging package).
  Rozofs is a scale-out NAS using erasure coding.
 
