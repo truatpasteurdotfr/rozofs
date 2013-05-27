@@ -86,10 +86,10 @@ void rozofs_exit() {
     if (semForEver != NULL) {
         sem_post(semForEver);
         for (;;) {
-            severe("RozofsMount exit required!!");
+            severe("rozofsmount exit required.");
             sleep(10);
         }
-        fatal("semForEver is not initialized !!");
+        fatal("semForEver is not initialized.");
     }
 }
 
@@ -509,9 +509,15 @@ void rozofs_start_storcli(const char *mountpoint) {
         cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
         cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
         cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
-        cmd_p += sprintf(cmd_p, "-s %d ",ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+        cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
         cmd_p += sprintf(cmd_p, "&");
-    info("rozofs_start_storcli  cmd %s",cmd);
+        
+        info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
+                " profile port: %d, rozofs instance: %d, storage timeout: %d).",
+                i, conf.host, conf.export, mountpoint,
+                conf.dbg_port + i, conf.instance,
+                ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+        
         system(cmd);
     }
 }

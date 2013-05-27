@@ -17,9 +17,9 @@
 # - Find ncurses
 # Find the native NCURSES includes and library
 #
-#  NCURSES_INCLUDE_DIR - where to find pthread.h, etc.
-#  NCURSES_LIBRARIES   - List of libraries when using pthread.
-#  NCURSES_FOUND       - True if pthread found.
+#  NCURSES_INCLUDE_DIR - where to find ncurses.h, etc.
+#  NCURSES_LIBRARIES   - List of libraries when using ncurses.
+#  NCURSES_FOUND       - True if ncurses found.
 
 
 FIND_PATH(NCURSES_INCLUDE_DIR ncurses.h

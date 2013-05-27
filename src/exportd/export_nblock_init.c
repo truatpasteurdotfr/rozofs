@@ -590,7 +590,7 @@ int expgwc_start_nb_blocking_th(void *args) {
 
     expgwc_non_blocking_thread_started = 1;
 
-    info("exportd non-blocking thread started (instance: %d, port: %d)",
+    info("exportd non-blocking thread started (instance: %d, port: %d).",
             args_p->instance, args_p->debug_port);
 
     /*

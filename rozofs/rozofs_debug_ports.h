@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <config.h>
+
 #include "rozofs.h"
 
 extern uint16_t rzdbg_default_base_port;
@@ -39,32 +40,31 @@ extern uint16_t rzdbg_default_base_port;
 #define RZDBG_LAST_PORT         RZDBG_STORAGED_PORT+(STORAGE_NODE_PORTS_MAX)
 
 /**
-* Get the rozofsmount rozodebug port based on the rozofmount instance 
+ * Get the rozofsmount rozodebug port based on the rozofmount instance 
 
   @param instance :rozofsmount instance
   
   @retval rozodebug port value
   
-*/
-static inline uint16_t rzdbg_get_rozofsmount_port(uint8_t instance)
-{
+ */
+static inline uint16_t rzdbg_get_rozofsmount_port(uint8_t instance) {
 
-  return (rzdbg_default_base_port +RZDBG_ROZOFSMOUNT_PORT +instance*3);
+    return (rzdbg_default_base_port + RZDBG_ROZOFSMOUNT_PORT + instance * 3);
 
 }
+
 /**
-* Get the storcli rozodebug port based on the rozofmount instance and storcli instance
+ * Get the storcli rozodebug port based on the rozofmount instance and storcli instance
 
   @param rozofs_instance: rozofsmount instance
   @param storcli_instance: storcli instance
   
   @retval rozodebug port value
   
-*/
-static inline uint16_t rzdbg_get_storcli_port(uint8_t rozofs_instance, uint8_t storcli_instance)
-{
+ */
+static inline uint16_t rzdbg_get_storcli_port(uint8_t rozofs_instance, uint8_t storcli_instance) {
 
-  return (rzdbg_default_base_port +RZDBG_ROZOFSMOUNT_PORT +rozofs_instance*3+storcli_instance+1);
+    return (rzdbg_default_base_port + RZDBG_ROZOFSMOUNT_PORT + rozofs_instance * 3 + storcli_instance + 1);
 
 }
 

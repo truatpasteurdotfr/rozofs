@@ -398,7 +398,7 @@ int storaged_start_nb_blocking_th(void *args) {
     }
 
     info("storaged non-blocking thread started "
-            "(instance: %d, host: %s, port: %d)",
+            "(instance: %d, host: %s, port: %d).",
             args_p->instance_id, args_p->hostname, args_p->debug_port);
 
     /*

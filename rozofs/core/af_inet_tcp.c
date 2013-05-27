@@ -38,7 +38,6 @@
 #include "af_unix_socket_generic_api.h"
 #include "af_inet_stream_api.h"
 
-
 /*
 **__________________________________________________________________________
 */

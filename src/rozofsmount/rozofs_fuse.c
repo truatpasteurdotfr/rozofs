@@ -164,10 +164,10 @@ restart:
 			goto restart;
 
 		if (err == ENODEV) {
-            severe("Exit from RozofsMount required!!!");
-			fuse_session_exit(se);
-            rozofs_exit();
-			return 0;
+                    severe("Exit from rozofsmount required !!!");
+                    fuse_session_exit(se);
+                    rozofs_exit();
+                    return 0;
 		}
 		/* Errors occurring during normal operation: EINTR (read
 		   interrupted), EAGAIN (nonblocking I/O), ENODEV (filesystem

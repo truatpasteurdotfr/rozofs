@@ -21,7 +21,7 @@ include_directories(${NCURSES_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(rozodebug
-    debug.c
+    rozodebug.c
 )
 target_link_libraries(rozodebug ${READLINE_LIBRARY} ${NCURSES_LIBRARY})
 

@@ -16,11 +16,10 @@
  <http://www.gnu.org/licenses/>.
  */
 
-
 #include <stdint.h>
 #include <config.h>
+
 #include "rozofs.h"
 #include "rozofs_debug_ports.h"
 
 uint16_t rzdbg_default_base_port = RZDBG_DEFAULT_BASE_PORT;
-

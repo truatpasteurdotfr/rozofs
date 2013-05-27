@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZOFSMOUNT 8 "MARCH 2013" Rozofs "User Manuals"
+.TH ROZOFSMOUNT 8 "MAY 2013" Rozofs "User Manuals"
 .SH NAME
 rozofsmount \- rozofs fuse mount
 .SH SYNOPSIS
@@ -65,6 +65,9 @@ specify timeout in seconds for exportd requests (default: 25)
 .TP
 \fB\-o rozofsstoragetimeout=\fP\fIN\fP
 specify timeout in seconds for IO storaged requests (default: 3)
+.TP
+\fB\-o rozofsstorclitimeout=\fP\fIN\fP
+specify timeout in seconds for storcli requests (default: 10)
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.

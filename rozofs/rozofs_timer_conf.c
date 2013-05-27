@@ -20,8 +20,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include "rozofs_timer_conf.h"
 
+#include "rozofs_timer_conf.h"
 
 rozofs_configure_param_t rozofs_timer_conf[TMR_MAX_ENTRY];
 
@@ -173,6 +173,3 @@ buf+=sprintf(buf,"-----------------------------+-----+---------+-------+-------+
   return buf;
 
 }
-
-
-

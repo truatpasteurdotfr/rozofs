@@ -14,11 +14,11 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-# - Find pthread
-# Find the native PTHREAD includes and library
+# - Find readline
+# Find the native READLINE includes and library
 #
-#  READLINE_INCLUDE_DIR - where to find pthread.h, etc.
-#  READLINE_LIBRARIES   - List of libraries when using pthread.
+#  READLINE_INCLUDE_DIR - where to find readline.h, etc.
+#  READLINE_LIBRARIES   - List of libraries when using readline.
 #  READLINE_FOUND       - True if pthread found.
 
 

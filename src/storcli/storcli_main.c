@@ -35,6 +35,7 @@
 #include <time.h>
 
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
@@ -47,12 +48,12 @@
 #include <rozofs/rpc/stcpproto.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/north_lbg_api.h>
+#include <rozofs/core/rozofs_timer_conf_dbg.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
-#include <rozofs/rozofs_timer_conf.h>
-#include <rozofs/core/rozofs_timer_conf_dbg.h>
+
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -788,10 +789,12 @@ int main(int argc, char *argv[]) {
     ** declare timer debug functions
     */
     rozofs_timer_conf_dbg_init();
+    
     /*
      ** main loop
      */
-    info("storcli %d of rozofsmount %d on mount point %s started", conf.module_index, conf.rozofsmount_instance, conf.mount);
+    info("storcli started (instance: %d, rozofs instance: %d, mountpoint: %s).",
+            conf.module_index, conf.rozofsmount_instance, conf.mount);
 
     while (1) {
         ruc_sockCtrl_selectWait();

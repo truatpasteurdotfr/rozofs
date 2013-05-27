@@ -17,11 +17,11 @@
  */
 #ifndef ROZOFS_TIMER_CONF_H
 #define ROZOFS_TIMER_CONF_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <errno.h>
-
 
 typedef struct _rozofs_configure_param_t
 {
@@ -37,9 +37,9 @@ typedef struct _rozofs_configure_param_t
 
 typedef enum
 {
-  TMR_EXPORT_PROGRAM = 0,          /**< exportd transaction timeout :             default 25 s */
-  TMR_STORAGE_PROGRAM ,            /**< storaged transaction timeout :            default 3 s  */
-  TMR_STORCLI_PROGRAM ,            /**< storagd client transaction timeout :      default 10 s */
+  TMR_EXPORT_PROGRAM = 0,          /**< exportd transaction timeout:              default 25 s */
+  TMR_STORAGE_PROGRAM ,            /**< storaged transaction timeout:             default 3 s  */
+  TMR_STORCLI_PROGRAM ,            /**< stor_cli transaction timeout:             default 10 s */
   TMR_EXPORTD_PROFILE_PROGRAM,     /**< exportd profiler program                  default 25 s */
   TMR_ROZOFSMOUNT_PROFILE_PROGRAM, /**< rozofsmount profiler program              default 25 s */
   TMR_MONITOR_PROGRAM,             /**< storaged monitor program                  default 4 s  */
