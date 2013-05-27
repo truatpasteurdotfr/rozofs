@@ -20,6 +20,8 @@
 #  FUSE_INCLUDE_DIR - where to find fuse.h, etc.
 #  FUSE_LIBRARIES   - List of libraries when using fuse.
 #  FUSE_FOUND       - True if fuse found.
+#  FUSE_MAJOR_VERSION       - The major as define in fuse_common.h 
+#  FUSE_MINOR_VERSION       - The minor as define in fuse_common.h 
 
 FIND_PATH(FUSE_INCLUDE_DIR fuse.h
   /usr/local/include/fuse
@@ -33,6 +35,18 @@ FIND_LIBRARY(FUSE_LIBRARY
   NAMES ${FUSE_NAMES}
   PATHS /usr/lib /usr/local/lib
 )
+
+IF(FUSE_INCLUDE_DIR)
+    file(STRINGS "${FUSE_INCLUDE_DIR}/fuse/fuse_common.h" line REGEX ".*#define FUSE_MAJOR_VERSION *([0-9]+)")
+    string(REGEX REPLACE ".*# *define *FUSE_MAJOR_VERSION *([0-9]+).*" "\\1" FUSE_MAJOR_VERSION "${line}")
+    file(STRINGS "${FUSE_INCLUDE_DIR}/fuse/fuse_common.h" line REGEX ".*#define FUSE_MINOR_VERSION *([0-9]+)")
+    string(REGEX REPLACE ".*# *define *FUSE_MINOR_VERSION *([0-9]+).*" "\\1" FUSE_MINOR_VERSION "${line}")
+    math(EXPR FUSE_VERSION "10 * ${FUSE_MAJOR_VERSION} + ${FUSE_MINOR_VERSION}")
+    if (${FUSE_VERSION} LESS 29)
+        message (FATAL_ERROR "Fuse 2.9 or greater required (${FUSE_MAJOR_VERSION}.${FUSE_MINOR_VERSION} found).")
+    endif (${FUSE_VERSION} LESS 29)
+ENDIF(FUSE_INCLUDE_DIR)
+
 
 IF(FUSE_INCLUDE_DIR AND FUSE_LIBRARY)
   SET(FUSE_FOUND TRUE)

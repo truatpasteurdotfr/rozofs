@@ -1,3 +1,23 @@
+#!/bin/bash
+
+#  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
+#  This file is part of Rozofs.
+#  Rozofs is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published
+#  by the Free Software Foundation, version 2.
+#  Rozofs is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  General Public License for more details.
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see
+#  <http://www.gnu.org/licenses/>.
+
+#
+# dbg.sh 
+#
+. env.sh
+
 exp_hosts="localhost"
 exp_ports="50000"
 
@@ -16,6 +36,7 @@ syntax() {
   echo "$name [verbose] [exp|fs|stc|st|std|io|all] [cmd1 [cmd2 [...]]]"
   exit
 }
+
 do_ask () {
  for h in $H
  do
@@ -24,44 +45,51 @@ do_ask () {
      echo
      echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"     
      printf  "_______ %9s _______________ %s:%s\n" $WHAT $h $p   
-     /root/rozofs/tests/build/src/debug/rozodebug -t 1 -i $h -p $p $cmd
+     ${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 1 -i $h -p $p $cmd
    done
  done
-} 
+}
+
 ask_exp () {
   WHAT="EXPORT"
   H=$exp_hosts
   P=$exp_ports
   do_ask
 }
+
 ask_fs () {
   WHAT="FS MOUNT"
   H=$fs_hosts
   P=$fs_ports
   do_ask
 }
+
 ask_stc () {
   WHAT="STORCLI"
   H=$stc_hosts
   P=$stc_ports
   do_ask
 }
+
 ask_std () {
   WHAT="STORAGED"
   H=$st_hosts
   P=$std_ports
   do_ask
 }
+
 ask_io () {
   WHAT="STORIO"
   H=$st_hosts
   P=$io_ports
   do_ask
 }
+
 ask_st () {
   ask_std
   ask_io
 }
+
 ask_all () {
   ask_exp
   ask_fs
