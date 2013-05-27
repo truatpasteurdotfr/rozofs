@@ -212,7 +212,7 @@ start_storaged ()
 stop_storaged()
 {
    echo "Stopping the storaged"
-   for pid in `cat /var/run/storaged*`
+   for pid in `cat /var/run/storaged*.pid`
    do
      kill  $pid
    done
@@ -621,8 +621,14 @@ main ()
     [ $# -lt 1 ] && usage
 
 
+    # to reach storcli executable
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storcli
+    # to reach storcli_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
+    # to reach storio executable
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storaged
+    # to reach storio_starter.sh  
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/storaged
 
     if [ "$1" == "start" ]
     then

@@ -83,7 +83,7 @@ int debug_receive(int socketId) {
   int             ret;
   unsigned int    recvLen;
  
-  printf("\n...............................................\n");
+//  printf("\n...............................................\n");
   
   /* 
   ** Do a select before reading to be sure that a response comes in time
@@ -114,7 +114,7 @@ int debug_receive(int socketId) {
     while (recvLen < sizeof(UMA_MSGHEADER_S)) {
       ret = recv(socketId,p,sizeof(UMA_MSGHEADER_S)-recvLen,0);
       if (ret <= 0) {
-        if (errno != 0) perror("error on recv1");
+        if (errno != 0) printf("error on recv1 %s",strerror(errno));
 	return 0;
       }
       recvLen += ret;
@@ -131,7 +131,7 @@ int debug_receive(int socketId) {
     while (recvLen < msg.header.len) {
       ret = recv(socketId,&msg.buffer[recvLen],msg.header.len-recvLen,0);
       if (ret <= 0) {
-	    perror("error on recv2");
+	    printf("error on recv2 %s",strerror(errno));
 	    return 0;
       }
       recvLen += ret;
@@ -209,7 +209,7 @@ int debug_run_this_cmd(int socketId, const char * cmd) {
 
   sent = send(socketId, &msg, len, 0);
   if (sent != len) {
-    perror("send\n");
+    printf("send %s",strerror(errno));
     printf("%d sent upon %d\n", sent,len);
     return -1;
   }
@@ -321,8 +321,8 @@ void debug_run_command_list(int socketId) {
   int idx;  
 
   for (idx=0; idx < nbCmd; idx++) {
-    printf("_________________________________________________________\n");
-    printf("> %s", cmd[idx]);  
+//    printf("_________________________________________________________\n");
+//    printf("> %s", cmd[idx]);  
     if (debug_run_this_cmd(socketId, cmd[idx]) < 0)  break;
   }
 } 
@@ -470,6 +470,7 @@ int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
   struct  sockaddr_in vSckAddr;
   int                 sockSndSize = 256;
   int                 sockRcvdSize = 2*MX_BUF;
+  int                  one=1;
   /*
   ** now create the socket for TCP
   */
@@ -477,7 +478,15 @@ int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
     printf("Unable to create a socket !!!\n");
     exit(0);
   }  
-
+  /* 
+  ** Set REUSE_ADDR
+  */  
+  if (setsockopt (socketId,SOL_SOCKET,SO_REUSEADDR,(char*)&one,sizeof(one)) == -1)  {
+    printf("Error on setsockopt SO_RCVBUF %d !!!\n",sockRcvdSize);
+    close(socketId);
+    exit(0);
+  }
+  
   /* Find a free port */
   for (port=FIRST_PORT; port < LAST_PORT; port++) {
     memset(&vSckAddr, 0, sizeof(struct sockaddr_in));
@@ -490,7 +499,7 @@ int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
       if (errno ==EADDRINUSE) port++; /* Try next port */
       else {
 	printf ("BIND ERROR %8.8x\n", vSckAddr.sin_addr.s_addr);
-	perror ("unable to bind");
+	printf ("unable to bind %s",strerror(errno));
 	close(socketId);
 	exit(0);
       }
@@ -521,12 +530,13 @@ int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
     exit(0);
   }
   
+
   /* Connect to the GG */
   vSckAddr.sin_family = AF_INET;
   vSckAddr.sin_port   = htons(serverPort);
   memcpy(&vSckAddr.sin_addr.s_addr, &ipAddr, 4); 
   if (connect(socketId,(struct sockaddr *)&vSckAddr,sizeof(struct sockaddr_in)) == -1) {
-    perror("error on connect !!!");
+    printf("error on connect %s!!!", strerror(errno));
     exit(0);
   }
   return socketId;
@@ -559,7 +569,6 @@ int main(int argc, const char **argv) {
     sleep(period);
   }
   
-  shutdown(socketId,2);
   close(socketId);
   exit(1);
 }
