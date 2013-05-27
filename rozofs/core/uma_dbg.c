@@ -27,7 +27,8 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <unistd.h>
-
+#include <time.h>
+ 
 #include <rozofs/common/types.h>
 
 #include "ruc_common.h"
@@ -42,16 +43,17 @@
 
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
+static time_t uptime=0;
 
-#define UMA_DBG_MAX_TOPIC_NAME   18
 typedef struct uma_dbg_topic_s {
-  char                     name[UMA_DBG_MAX_TOPIC_NAME];
+  char                     * name;
   uint16_t                   len;
   uma_dbg_topic_function_t funct;
 } UMA_DBG_TOPIC_S;
 
-#define UMA_DBG_MAX_TOPIC 50
+#define UMA_DBG_MAX_TOPIC 128
 UMA_DBG_TOPIC_S uma_dbg_topic[UMA_DBG_MAX_TOPIC];
+uint32_t        uma_dbg_nb_topic = 0;
 uint32_t          uma_dbg_topic_initialized=FALSE;
 
 #define            MAX_ARG   50
@@ -74,8 +76,46 @@ typedef struct uma_dbg_session_s {
 UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
 static char rcvCmdBuffer[64];
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    time_t elapse;
+    int days, hours, mins, secs;
 
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    uma_dbg_send(tcpRef, bufRef, TRUE, "uptime = %d days, %d:%d:%d\n", days, hours, mins, secs);
+}      
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_show_name(char * argv[], uint32_t tcpRef, void *bufRef) {  
+    
+  if (uma_gdb_system_name == NULL) {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "system : NO NAME\n");
+  }  
+  else {  
+    uma_dbg_send(tcpRef, bufRef, TRUE, "system : %s\n", uma_gdb_system_name);
+  }
+}
 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the version of the library 
+*/
+void uma_dbg_show_version(char * argv[], uint32_t tcpRef, void *bufRef) {  
+  uma_dbg_send(tcpRef, bufRef, TRUE, "version : %s\n", VERSION);
+}
 /*-----------------------------------------------------------------------------
 **
 **  #SYNOPSIS
@@ -268,18 +308,26 @@ UMA_DBG_SESSION_S *uma_dbg_findFromCnxRef(uint32_t ref) {
 **
 **--------------------------------------------------------------------------
 */
+void uma_dbg_insert_topic(int idx, char * topic, uint16_t length, uma_dbg_topic_function_t funct) {
+  /* Register the topic */
+  uma_dbg_topic[idx].name         = topic;
+  uma_dbg_topic[idx].len          = length;
+  uma_dbg_topic[idx].funct        = funct;
+}  
 void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
-  int    idx;
+  int    idx,idx2;
   uint16_t length;
+  char * my_topic = NULL;
 
   if (uma_dbg_topic_initialized == FALSE) {
     /* Reset the topic table */
     for (idx=0; idx <UMA_DBG_MAX_TOPIC; idx++) {
-      uma_dbg_topic[idx].len     = 0;
-      uma_dbg_topic[idx].name[0] = 0;
+      uma_dbg_topic[idx].len   = 0;
+      uma_dbg_topic[idx].name  = NULL;
       uma_dbg_topic[idx].funct = NULL;
     }
     uma_dbg_topic_initialized = TRUE;
+    uma_dbg_nb_topic = 0;
   }
 
   /* Get the size of the topic */
@@ -288,34 +336,44 @@ void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
     ERRLOG "Bad topic length %d", length ENDERRLOG;
     return;
   }
-  if (length >= UMA_DBG_MAX_TOPIC_NAME) {
-    ERRLOG "A topic name should not exceed %d characters [%s]", UMA_DBG_MAX_TOPIC_NAME-1, topic ENDERRLOG;
+  
+  /* Check a place is left */
+  if (uma_dbg_nb_topic == UMA_DBG_MAX_TOPIC) {
+    ERRLOG "Too much topic %d. Can not insert %s", UMA_DBG_MAX_TOPIC, topic ENDERRLOG;
+    return;    
+  }
+
+  /* copy the topic */
+  my_topic = malloc(length + 1) ;
+  if (my_topic == NULL) {
+    ERRLOG "Out of memory. Can not insert %s",topic ENDERRLOG;    
     return;
   }
+  strcpy(my_topic, topic);
 
   /* Find a free entry in the topic table */
-  for (idx=0; idx <UMA_DBG_MAX_TOPIC; idx++) {
-    if (uma_dbg_topic[idx].len == 0) break; /* Free entry */
+  for (idx=0; idx <uma_dbg_nb_topic; idx++) {
+    int order;   
+    
+    order = strcasecmp(topic,uma_dbg_topic[idx].name);
+    
     /* check the current entry has got a different key word than
        the one we are to add */
-    if ((uma_dbg_topic[idx].len == length) &&
-	(strcasecmp(uma_dbg_topic[idx].name,topic) == 0)) {
+    if (order == 0) {
       ERRLOG "Trying to add topic %s that already exist", topic ENDERRLOG;
+      free(my_topic);
       return;
     }
+    
+    /* Insert here */
+    if (order < 0) break;
   }
-
-  if (idx == UMA_DBG_MAX_TOPIC) {
-    /* Not enough entries in the topic table */
-    ERRLOG "Topic table full. Increase UMA_DBG_MAX_TOPIC" ENDERRLOG;
-    return;
+  
+  for (idx2 = uma_dbg_nb_topic-1; idx2 >= idx; idx2--) {
+     uma_dbg_insert_topic(idx2+1,uma_dbg_topic[idx2].name,uma_dbg_topic[idx2].len, uma_dbg_topic[idx2].funct);
   }
-
-  /* Register the topic */
-  strncpy(uma_dbg_topic[idx].name, topic, length);
-  uma_dbg_topic[idx].name[length] = 0;
-  uma_dbg_topic[idx].len          = length;
-  uma_dbg_topic[idx].funct        = funct;
+  uma_dbg_insert_topic(idx,my_topic,length, funct);
+  uma_dbg_nb_topic++;
 }
 /*-----------------------------------------------------------------------------
 **
@@ -332,6 +390,7 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   UMA_MSGHEADER_S *pHead;
   char            *p;
   uint32_t           idx,topicNum;
+  int             len=0;               
 
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
@@ -344,23 +403,23 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   /* Format the string */
   if (topic) {
     idx += sprintf(&p[idx], "No such topic \"%s\" !!!\n\n",topic);
+    len = strlen(topic);                
   }
 
   /* Build the list of topic */
+  if (len == 0) idx += sprintf(&p[idx], "List of available topics :\n");
+  else          idx += sprintf(&p[idx], "List of %s... topics:\n",topic);
   
-  if (uma_gdb_system_name != NULL) {
-    idx += sprintf(&p[idx], "__ROZO %s____Module %s____\n\n",VERSION,uma_gdb_system_name);
-  }
-  else {
-    idx += sprintf(&p[idx], "__ROZO %s________\n\n",VERSION);
-  }
+  for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
   
-  idx += sprintf(&p[idx], "List of available topic :\n");
-  for (topicNum=0; topicNum <UMA_DBG_MAX_TOPIC; topicNum++) {
-    if (uma_dbg_topic[topicNum].len == 0) break; /* end of topic list */
-    idx += sprintf(&p[idx], "%s\n",uma_dbg_topic[topicNum].name);
+    if (len == 0) {
+      idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);
+    }
+    else if (strncmp(topic,uma_dbg_topic[topicNum].name, len) == 0) {
+      idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);      
+    }  
   }
-  idx += sprintf(&p[idx], "exit\n");
+  if (len == 0) idx += sprintf(&p[idx], "  exit / quit / q\n");
 
   idx ++;
 
@@ -396,7 +455,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   char           * pBuf, * pArg;
   uint16_t           length;
   uint32_t           argc;
-  uint32_t           found=FALSE;
+  uint32_t           found=0;
   UMA_MSGHEADER_S *pHead;
   uint32_t           idx;
   UMA_DBG_SESSION_S * p;
@@ -469,29 +528,55 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
     return;
   }
 
-  /* Search in the topic list the one requested */
+  /* Search exact match in the topic list the one requested */
   length = strlen(p->argv[0]);
-  for (topicNum=0; topicNum <UMA_DBG_MAX_TOPIC; topicNum++) {
-    if (uma_dbg_topic[topicNum].len == 0) break; /* end of topic list */
+  for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
     if (uma_dbg_topic[topicNum].len == length) {
-      if (strcasecmp(p->argv[0],uma_dbg_topic[topicNum].name) == 0) {
-	found = TRUE;
+        
+      int order = strcasecmp(p->argv[0],uma_dbg_topic[topicNum].name);
+      
+      if (order == 0) {
+	found = 1;
+	idx = topicNum;	
 	break;
       }
+      if (order < 0) break;  
     }
   }
 
-  /* We have found it */
-  if (found == TRUE) {
-    /* Save this existing command for later replay */
-    if (replay == 0) {
-      strcpy(p->last_valid_command,(char*)(pHead+1));
-    }  
-    uma_dbg_topic[topicNum].funct(p->argv,tcpCnxRef,bufRef);
-    return;
+  /* Search match on first characters */
+  if (found == 0) {
+    for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
+      if (uma_dbg_topic[topicNum].len > length) {
+        int order = strncmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
+        if (order < 0) break;  	
+	if (order == 0) {
+	  found++;
+	  idx = topicNum;
+	   /* Several matches Display possibilities */
+	  if (found > 1) {
+            uma_dbg_listTopic(tcpCnxRef, bufRef, p->argv[0]);  
+            return; 	  
+	  }
+	}  
+      }	 
+    } 
   }
 
-  uma_dbg_listTopic(tcpCnxRef, bufRef, p->argv[0]);
+  /* No such command. List everything */
+  if (found == 0) {
+    uma_dbg_listTopic(tcpCnxRef, bufRef, NULL);  
+    return;  
+  }
+  
+  
+  /* We have found one command */
+
+  /* Save this existing command for later replay */
+  if (replay == 0) {
+    strcpy(p->last_valid_command,(char*)(pHead+1));
+  }  
+  uma_dbg_topic[idx].funct(p->argv,tcpCnxRef,bufRef);
 }
 /*
 **-------------------------------------------------------
@@ -636,6 +721,8 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
     return;
   }
   uma_dbg_initialized = TRUE;
+  
+  uptime = time(0);
 
   /* Create a distributor of debug sessions */
   uma_dbg_freeList = (UMA_DBG_SESSION_S*)ruc_listCreate(nbElements,sizeof(UMA_DBG_SESSION_S));
@@ -674,6 +761,11 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
     ERRFAT "ruc_tcp_server_connect" ENDERRLOG;
   }
+  
+  uma_dbg_addTopic("who", uma_dbg_show_name);
+  uma_dbg_addTopic("uptime", uma_dbg_show_uptime);
+  uma_dbg_addTopic("version", uma_dbg_show_version);
+
 }
 /*
 **-------------------------------------------------------

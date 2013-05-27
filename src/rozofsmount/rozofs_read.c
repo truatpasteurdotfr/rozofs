@@ -32,11 +32,11 @@
 #include <pthread.h>
 #include <assert.h>
 #include <netinet/tcp.h>
-
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
 
 #include <rozofs/rozofs.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/htable.h>
@@ -47,14 +47,15 @@
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/rozofs_tx_common.h>
+#include <rozofs/core/rozofs_tx_api.h>
+
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
 #include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -111,7 +112,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     ** now initiates the transaction towards the remote end
     */
     f->buf_read_pending++;
-    ret = rozofs_storcli_send_common(NULL,STORCLI_PROGRAM, STORCLI_VERSION,
+    ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_READ,(xdrproc_t) xdr_storcli_read_arg_t,(void *)&args,
                               rozofs_ll_read_cbk,buffer_p,lbg_id); 
     if (ret < 0) goto error;

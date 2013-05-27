@@ -37,35 +37,34 @@ build ()
 
     cd ${LOCAL_BUILD_DIR}
     rm -f ${LOCAL_SOURCE_DIR}/CMakeCache.txt
-    cmake -G "Unix Makefiles" -DDAEMON_PID_DIRECTORY=${BUILD_DIR} -DCMAKE_BUILD_TYPE=${LOCAL_CMAKE_BUILD_TYPE} ${LOCAL_SOURCE_DIR}
+    cmake -G "Unix Makefiles" -DROZOFS_BIN_DIR=${ROZOFS_BIN_DIR} -DROZOFS_SHELL_DIR=${ROZOFS_SHELL_DIR}  -DDAEMON_PID_DIRECTORY=${BUILD_DIR} -DCMAKE_BUILD_TYPE=${LOCAL_CMAKE_BUILD_TYPE} ${LOCAL_SOURCE_DIR}
     make
     cd ..
     cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
 }
 
+
+rebuild ()
+{
+    if [ ! -e "${LOCAL_SOURCE_DIR}" ]
+    then
+        echo "Unable to build RozoFS (${LOCAL_SOURCE_DIR} not exist)"
+    fi
+    cd ${LOCAL_BUILD_DIR}
+    make
+    cd ..
+    cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
+}
+
+
+
 # $1 -> LAYOUT
-# $2 -> storages by cluster
+# $2 -> Number or serving port per storage host (nb of process)
 gen_storage_conf ()
 {
     STORAGES_BY_CLUSTER=$1
+    PORT_PER_STORAGE_HOST=$2
 
-    FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'.conf'
-
-    if [ ! -e "$LOCAL_CONF" ]
-    then
-        mkdir -p $LOCAL_CONF
-    fi
-
-    if [ -e "$FILE" ]
-    then
-        rm -rf $FILE
-    fi
-
-    touch $FILE
-    echo "#${NAME_LABEL}" >> $FILE
-    echo "#${DATE_LABEL}" >> $FILE
-    echo "ports = [ 40000, 40001, 40002, 40003 ] ;" >> $FILE
-    echo 'storages = (' >> $FILE
 
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
@@ -73,20 +72,45 @@ gen_storage_conf ()
 	for i in $(seq ${nb_clusters}); do
 
 		for j in $(seq ${STORAGES_BY_CLUSTER}); do
+           FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${j}'.conf'
+           echo "$FILE"
+           if [ ! -e "$LOCAL_CONF" ]
+           then
+               mkdir -p $LOCAL_CONF
+           fi
 
-		    if [[ ${i} == ${nb_clusters} && ${j} == ${STORAGES_BY_CLUSTER} ]]
+           if [ -e "$FILE" ]
+           then
+               rm -rf $FILE
+           fi
+
+           touch $FILE
+           echo "#${NAME_LABEL}" >> $FILE
+           echo "#${DATE_LABEL}" >> $FILE
+           #echo "ports = [ 51000, 51001] ;" >> $FILE
+	   PORT_LIST="51001"
+	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
+	   done
+	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	   
+           echo 'storages = (' >> $FILE
+		   for z in $(seq ${STORAGES_BY_CLUSTER}); do
+		    if [[ ${i} == ${nb_clusters} && ${z} == ${STORAGES_BY_CLUSTER} ]]
 		    then
-		        echo "  {cid = $i; sid = $j; root =\"${LOCAL_STORAGES_ROOT}_$i-$j\";}" >> $FILE
+		        echo "  {cid = $i; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$i-$z\";}" >> $FILE
 		    else
-		        echo "  {cid = $i; sid = $j; root =\"${LOCAL_STORAGES_ROOT}_$i-$j\";}," >> $FILE
+		        echo "  {cid = $i; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$i-$z\";}," >> $FILE
 		    fi
+            
+            done;
+            echo ');' >> $FILE
 
 		done;
 
 	done;
 
 
-    echo ');' >> $FILE
+
 }
 
 # $1 -> LAYOUT
@@ -97,6 +121,7 @@ gen_export_conf ()
 {
 
     ROZOFS_LAYOUT=$1
+    EXPORTD_VIP=$3
 
     FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
 
@@ -114,6 +139,7 @@ gen_export_conf ()
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -135,9 +161,9 @@ gen_export_conf ()
                      idx_tmp_2=$((${STORAGES_BY_CLUSTER}*(${c}-1)))
                     if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
                     then
-                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}\";}" >> $FILE
+                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}${k}\";}" >> $FILE
                     else
-                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}\";}," >> $FILE
+                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}${k}\";}," >> $FILE
                     fi
                 done;
                 echo '                       );' >> $FILE
@@ -158,36 +184,77 @@ gen_export_conf ()
         done;
     echo '    )' >> $FILE
     echo ';' >> $FILE
+    NB_EXPORTDS=1
+
+    echo 'export_gateways =' >> $FILE
+    echo '      (' >> $FILE
+        for k in $(seq ${NB_EXPORTDS}); do
+            echo '        {' >> $FILE
+            echo "            daemon_id = $k;" >> $FILE
+            echo '            gwids= ' >> $FILE
+            echo '            (' >> $FILE
+
+                for r in $(seq ${NB_EXPGATEWAYS}); do
+                    let idx=${r}-1;
+                    if [[ ${r} == ${NB_EXPGATEWAYS} ]]
+                    then
+                        echo "                 {gwid = ${r}; host = \"${LOCAL_STORAGE_NAME_BASE}${r}\";}" >> $FILE
+                    else
+                        echo "                 {gwid = ${r}; host = \"${LOCAL_STORAGE_NAME_BASE}${r}\";}," >> $FILE
+                    fi
+                done;
+            echo '              );' >> $FILE
+        if [[ ${k} == ${NB_EXPORTDS} ]]
+        then
+            echo '        }' >> $FILE
+        else
+            echo '        },' >> $FILE
+        fi
+        done;
+    echo '    )' >> $FILE
+    echo ';' >> $FILE
 
     echo 'exports = (' >> $FILE
     for k in $(seq ${NB_EXPORTS}); do
         if [[ ${k} == ${NB_EXPORTS} ]]
         then
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${3}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
         else
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${3}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
         fi
     done;
     echo ');' >> $FILE
 }
 
+# $1 = STORAGES_BY_CLUSTER
 start_storaged ()
 {
-
+    STORAGES_BY_CLUSTER=$1
+    
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" == "" ]
-    then
-        echo "Start ${LOCAL_STORAGE_DAEMON}"
-    	${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE}
-    else
-        echo "Unable to start ${LOCAL_STORAGE_DAEMON} (already running as PID: ${PID})"
-        exit 0;
-    fi
 
+    echo "Start ${LOCAL_STORAGE_DAEMON}"
+	for j in $(seq ${STORAGES_BY_CLUSTER}); do
+    echo "start storaged" ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${j}
+    ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${j}
+    done
 }
 
-stop_storaged ()
+stop_storaged()
+{
+   echo "Stopping the storaged"
+   for pid in `cat /var/run/storaged*.pid`
+   do
+     kill  $pid
+   done
+   sleep 1
+   for pid in `cat /var/run/storaged*`
+   do
+     kill -9 $pid
+   done
+}
+
+stop_storaged_old ()
 {
     echo "------------------------------------------------------"
     PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
@@ -207,34 +274,29 @@ reload_storaged ()
     kill -1 `ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
 }
 
+
 # $1 -> storages by node
 create_storages ()
 {
 
-    if [ ! -e "${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE}" ]
-    then
-        echo "Unable to remove storage directories (configuration file doesn't exist)"
-    else
+    let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
-    	let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+    for i in $(seq ${nb_clusters}); do
 
-		for i in $(seq ${nb_clusters}); do
+        for j in $(seq ${STORAGES_BY_CLUSTER}); do
 
-			for j in $(seq ${STORAGES_BY_CLUSTER}); do
+            if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${j}" ]
+            then
+                rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${j}/*.bins
+            else
+                mkdir -p ${LOCAL_STORAGES_ROOT}_${i}-${j}
+            fi
 
-		        if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${j}" ]
-		        then
-		            rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${j}/*.bins
-		        else
-		            mkdir -p ${LOCAL_STORAGES_ROOT}_${i}-${j}
-		        fi
+        done;
 
-			done;
-
-		done;
-
-    fi
+    done;
 }
+
 
 # $1 -> storages by node
 remove_storages ()
@@ -261,11 +323,31 @@ remove_storages ()
 
     fi
 }
+start_expgw ()
+{
+    
+    echo "------------------------------------------------------"
+    PID=`ps ax | grep "build/src/exportd/xxxxexpgateway" | grep -v grep | awk '{print $1}'`
+    if [ "$PID" == "" ]
+    then
+        echo "Start Export Gateway(s)"
+		for j in $(seq ${NB_EXPGATEWAYS}); do
+        echo "start export gateway" ${LOCAL_BINARY_DIR}/exportd/expgateway  -L ${LOCAL_STORAGE_NAME_BASE}${j} -P 60000
+    	${LOCAL_BINARY_DIR}/exportd/expgateway  -L ${LOCAL_STORAGE_NAME_BASE}${j} -P 60000 &
+        done
+    else
+        echo "Unable to start expgateway (already running as PID: ${PID})"
+        exit 0;
+    fi
+
+}
 
 # $1 -> LAYOUT
+# $2 -> NB STORAGES BY CLUSTER
 go_layout ()
 {
     ROZOFS_LAYOUT=$1
+    STORAGES_BY_CLUSTER=$2
 
     if [ ! -e "${LOCAL_CONF}export_l${ROZOFS_LAYOUT}.conf" ] || [ ! -e "${LOCAL_CONF}export_l${ROZOFS_LAYOUT}.conf" ]
     then
@@ -273,7 +355,10 @@ go_layout ()
         exit 0
     else
         ln -s -f ${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf' ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
-        ln -s -f ${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'.conf' ${LOCAL_CONF}${LOCAL_STORAGE_CONF_FILE}
+
+		for j in $(seq ${STORAGES_BY_CLUSTER}); do
+           ln -s -f ${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${j}'.conf' ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE}
+        done
     fi
 }
 
@@ -296,8 +381,14 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-
-                ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}
+                option="-o debug_port=610${j}0 -o instance=1" 
+               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
+                
+echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
+${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
+#                ${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 1 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}  -D 610${j}1& 
+#                ${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 2 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j} -D 610${j}2&
+                
             else
                 echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j} already mounted)"
             fi
@@ -305,32 +396,21 @@ deploy_clients_local ()
     fi
 }
 
-deploy_clients_local_check () #mount with valgrind
+rozofsmount_kill_best_effort()
 {
     echo "------------------------------------------------------"
-    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
-        then
-        echo "Unable to mount RozoFS (configuration file doesn't exist)"
-    else
-        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+    echo "Killing rozofsmount and storcli in best effort mode"
+    for pid in `cat /var/run/rozofsmount*`
+    do
+      kill  $pid
+    done
+    sleep 1
+    for pid in `cat /var/run/rozofsmount*`
+    do
+      kill -9 $pid
+    done
 
-        for j in $(seq ${NB_EXPORTS}); do
-            mountpoint -q ${LOCAL_MNT_ROOT}${j}
-            if [ "$?" -ne 0 ]
-            then
-                echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${LOCAL_MNT_PREFIX}${j}"
 
-                if [ ! -e "${LOCAL_MNT_ROOT}${j}" ]
-                then
-                    mkdir -p ${LOCAL_MNT_ROOT}${j}
-                fi
-
-                ${VALGRIND_BINARY} --leak-check=full --show-reachable=yes ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} -f ${LOCAL_MNT_ROOT}${j}
-            else
-                echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j} already mounted)"
-            fi
-        done;
-    fi
 }
 
 undeploy_clients_local ()
@@ -341,30 +421,58 @@ undeploy_clients_local ()
         echo "Unable to umount RozoFS (configuration file doesn't exist)"
     else
         NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
-
+	# Kill every storcli process
+#	for pid in `ps -ef | grep storcli | grep ${LOCAL_EXPORT_NAME_BASE} | awk '{print $2 }'`
+#	do
+#	   kill -9 $pid
+#	done
         for j in $(seq ${NB_EXPORTS}); do
             echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}"
             umount ${LOCAL_MNT_ROOT}${j}
             test -d ${LOCAL_MNT_ROOT}${j} && rm -rf ${LOCAL_MNT_ROOT}${j}
-        done;
+            test -d ${LOCAL_MNT_ROOT}${j} && umount -l ${LOCAL_MNT_ROOT}${j}
+            test -d ${LOCAL_MNT_ROOT}${j} && storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
+        done
+    sleep 2
+    rozofsmount_kill_best_effort
     fi
 }
 
 start_exportd ()
 {
     echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" == "" ]
-    then
+
         echo "Start ${LOCAL_EXPORT_DAEMON}"
         ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
-    else
-        echo "Unable to start ${EXPORT_DAEMON} (already running as PID: ${PID})"
-        exit 0;
-    fi
+
 }
 
 stop_exportd ()
+{
+    echo "------------------------------------------------------"
+    echo "Killing exportd"
+    for pid in `cat /var/run/export*.pid`
+    do
+      kill  $pid
+    done
+    sleep 1
+    for pid in `cat /var/run/export*.pid`
+    do
+      kill -9 $pid
+    done
+    echo "------------------------------------------------------"
+    echo "Killing export gateway"
+    for pid in `cat /var/run/expgw*.pid`
+    do
+      kill  $pid
+    done
+    sleep 1
+    for pid in `cat /var/run/expgw*.pid`
+    do
+      kill -9 $pid
+    done
+}
+stop_exportd_old ()
 {
     echo "------------------------------------------------------"
     PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
@@ -461,7 +569,7 @@ clean_all ()
     remove_all
 }
 
-check_no_run ()
+check_no_run_old ()
 {
 
     PID_EXPORTD=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v "grep" | awk '{print $1}'`
@@ -475,12 +583,28 @@ check_no_run ()
 
 }
 
+
+do_stop()
+{
+        undeploy_clients_local
+        stop_storaged
+        stop_exportd
+        remove_all
+
+
+}
+
+
+
+
+
 check_build ()
 {
 
     if [ ! -e "${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON}" ]
     then
         echo "Daemons are not build !!! use $0 build"
+        echo "${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON}"
         exit 0;
     fi
 
@@ -552,6 +676,7 @@ usage ()
     echo >&2 "$0 stop"
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
+    echo >&2 "$0 rebuild"
     echo >&2 "$0 clean"
     echo >&2 "$0 pjd_test"
     echo >&2 "$0 fileop_test"
@@ -564,6 +689,10 @@ main ()
 {
     [ $# -lt 1 ] && usage
 
+
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storcli
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
+
     if [ "$1" == "start" ]
     then
 
@@ -573,48 +702,48 @@ main ()
         then
             ROZOFS_LAYOUT=$2
             STORAGES_BY_CLUSTER=4
+            NB_EXPGATEWAYS=4
         elif [ "$2" -eq 1 ]
         then
             ROZOFS_LAYOUT=$2
             STORAGES_BY_CLUSTER=8
+            NB_EXPGATEWAYS=4
         elif [ "$2" -eq 2 ]
         then
             ROZOFS_LAYOUT=$2
             STORAGES_BY_CLUSTER=16
+            NB_EXPGATEWAYS=4
         else
 	        echo >&2 "Rozofs layout must be equal to 0,1 or 2."
 	        exit 1
         fi
 
         check_build
-        check_no_run
+        do_stop
 
-        NB_EXPORTS=2
-        NB_VOLUMES=2;
+        NB_EXPORTS=1
+        NB_VOLUMES=1;
         NB_CLUSTERS_BY_VOLUME=1;
 
-        gen_storage_conf ${STORAGES_BY_CLUSTER}
-        gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
+        gen_storage_conf ${STORAGES_BY_CLUSTER} 4
+        gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
 
-        go_layout ${ROZOFS_LAYOUT}
+        go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         create_storages
         create_exports
 
-        start_storaged
-        start_exportd
-
+#        start_storaged
+        start_storaged ${STORAGES_BY_CLUSTER}
+        start_expgw
+        start_exportd 1
+        echo "Exportd Started"
         deploy_clients_local
 
     elif [ "$1" == "stop" ]
     then
+           do_stop
 
-        undeploy_clients_local
-
-        stop_storaged
-        stop_exportd
-
-        remove_all
     elif [ "$1" == "reload" ]
     then
 
@@ -639,11 +768,6 @@ main ()
         check_build
         deploy_clients_local
 
-    elif [ "$1" == "mount_check" ] # mount with valgrind
-    then
-        check_build
-        deploy_clients_local_check
-
     elif [ "$1" == "umount" ]
     then
         check_build
@@ -652,6 +776,9 @@ main ()
     elif [ "$1" == "build" ]
     then
         build
+    elif [ "$1" == "rebuild" ]
+    then
+        rebuild
     elif [ "$1" == "clean" ]
     then
         clean_all

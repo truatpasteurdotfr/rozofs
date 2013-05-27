@@ -40,6 +40,8 @@ mp_status_ret_t *mp_remove_1_svc(mp_remove_arg_t * args, struct svc_req * req) {
     storage_t *st = 0;
     DEBUG_FUNCTION;
 
+    START_PROFILING(remove);
+
     ret.status = MP_FAILURE;
 
     if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
@@ -54,6 +56,7 @@ mp_status_ret_t *mp_remove_1_svc(mp_remove_arg_t * args, struct svc_req * req) {
 
     ret.status = MP_SUCCESS;
 out:
+    STOP_PROFILING(remove);
     return &ret;
 }
 
@@ -108,7 +111,7 @@ out:
 mp_list_bins_files_ret_t *mp_list_bins_files_1_svc(
         mp_list_bins_files_arg_t * args,
         struct svc_req * req) {
-    
+
     static mp_list_bins_files_ret_t ret;
     storage_t *st = 0;
 
@@ -123,10 +126,10 @@ mp_list_bins_files_ret_t *mp_list_bins_files_1_svc(
 
     if (storage_list_bins_files_to_rebuild(st, args->rebuild_sid,
             &args->layout,
-            (sid_t *) &args->dist_set,
+            (sid_t *) & args->dist_set,
             &args->spare,
             &args->cookie,
-            (bins_file_rebuild_t **) 
+            (bins_file_rebuild_t **)
             & ret.mp_list_bins_files_ret_t_u.reply.children,
             (uint8_t *) & ret.mp_list_bins_files_ret_t_u.reply.eof) != 0) {
         goto error;

@@ -50,6 +50,8 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/expgw_common.h>
+#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -487,7 +489,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     */
     GET_FUSE_CALLBACK(buffer_p,callback);
     f->buf_write_pending++;
-    ret = rozofs_storcli_send_common(NULL,STORCLI_PROGRAM, STORCLI_VERSION,
+    ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
                               callback,buffer_p,lbg_id); 
     if (ret < 0) goto error;

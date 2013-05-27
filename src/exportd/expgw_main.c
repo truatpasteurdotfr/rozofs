@@ -49,9 +49,11 @@
 #include <rozofs/core/expgw_common.h>
 
 
-#define EXPGW_PID_FILE "expgw.pid"
+#define EXPGW_PID_FILE "expgw"
 
 uint32_t expgw_local_ipaddr = INADDR_ANY;
+char storage_process_filename[NAME_MAX];
+
 
 DEFINE_PROFILING(epp_profiler_t) = {0};
 
@@ -176,7 +178,18 @@ uint32_t *rozofs_expgw_cid_table[ROZOFS_CLUSTERS_MAX];
 
 
 
+/**
+ *  Signal catching
+ */
 
+static void expgw_handle_signal(int sig) {
+    if (storage_process_filename[0] != 0) {
+      unlink(storage_process_filename);
+    }  
+    
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
 
 
 
@@ -199,6 +212,8 @@ int main(int argc, char *argv[]) {
         { "port", required_argument, 0, 'P'},
         { 0, 0, 0, 0}
     };
+
+   storage_process_filename[0] = 0;
 
     conf.host = NULL;
     conf.localhost = NULL;
@@ -281,6 +296,34 @@ int main(int argc, char *argv[]) {
       uma_dbg_set_name(name);
     }
     openlog(name, LOG_PID, LOG_DAEMON);
+
+    signal(SIGCHLD, SIG_IGN);
+    signal(SIGTSTP, SIG_IGN);
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
+    signal(SIGILL, expgw_handle_signal);
+    signal(SIGSTOP, expgw_handle_signal);
+    signal(SIGABRT, expgw_handle_signal);
+    signal(SIGSEGV, expgw_handle_signal);
+    signal(SIGKILL, expgw_handle_signal);
+    signal(SIGTERM, expgw_handle_signal);
+    signal(SIGQUIT, expgw_handle_signal);
+
+    char *pid_name_p = storage_process_filename;
+    if (conf.localhost != NULL) {
+        sprintf(pid_name_p, "%s%s_%s:%d.pid", DAEMON_PID_DIRECTORY, EXPGW_PID_FILE, conf.localhost , conf.listening_port_base);
+    } else {
+        sprintf(pid_name_p, "%s%s:%d.pid", DAEMON_PID_DIRECTORY, EXPGW_PID_FILE, conf.listening_port_base);
+    }
+    int ppfd;
+    if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
+        severe("can't open process file");
+    } else {
+        char str[10];
+        sprintf(str, "%d\n", getpid());
+        write(ppfd, str, strlen(str));
+        close(ppfd);
+    }
 
     /*
      ** init of the non blocking part

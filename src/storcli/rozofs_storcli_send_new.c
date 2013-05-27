@@ -47,6 +47,7 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include "rozofs_storcli.h"
 #include "rozofs_storcli_rpc.h"
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(stcpp_profiler_t);
 
@@ -67,6 +68,7 @@ DECLARE_PROFILING(stcpp_profiler_t);
  
 
  @param lbg_id     : reference of the load balancing group
+ @param timeout_sec : transaction timeout
  @param prog       : program
  @param vers       : program version
  @param opcode     : metadata opcode
@@ -84,7 +86,7 @@ DECLARE_PROFILING(stcpp_profiler_t);
  @retval -1 on error,, errno contains the cause
  */
 
-int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t prog,uint32_t vers,
+int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               void *xmit_buf,
                               uint32_t seqnum,
@@ -219,7 +221,7 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t prog,uint32_t vers,
     /*
     ** OK, so now finish by starting the guard timer
     */
-    rozofs_tx_start_timer(rozofs_tx_ctx_p,3);  
+    rozofs_tx_start_timer(rozofs_tx_ctx_p,timeout_sec);  
     return 0;  
     
   error:
@@ -642,7 +644,7 @@ int storcli_lbg_cnx_sup_is_selectable(int lbg_id)
       */
       ruc_buf_inuse_increment(xmit_buf);
       
-      ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_NULL,
+      ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_RPC_NULL_PROC_LBG),STORAGE_PROGRAM,STORAGE_VERSION,SP_NULL,
                                           (xdrproc_t) xdr_void, (caddr_t) NULL,
                                            xmit_buf,
                                            lbg_id,

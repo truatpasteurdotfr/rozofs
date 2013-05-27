@@ -16,19 +16,18 @@
   <http://www.gnu.org/licenses/>.
  */
 #define RUC_OBSERVER_C
+
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <errno.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include "ruc_observer_api.h"
 #include "ppu_trace.h"
@@ -198,7 +197,6 @@ RUC_OBSERVER_CLIENT_T *ruc_observer_getClient(uint32_t index) {
 */
 void ruc_observer_updateEventCur(RUC_OBSERVER_EVENT_T  * pEvent,
 				 RUC_OBSERVER_CLIENT_T * pClt) {
-  ruc_obj_desc_t *pfake;
 
   if (pEvent->pnextCur != (ruc_obj_desc_t*)pClt) {
     /*
@@ -209,7 +207,7 @@ void ruc_observer_updateEventCur(RUC_OBSERVER_EVENT_T  * pEvent,
   /*
   ** ruc_observer_client_pnextCur needs to be updated
   */
-  pfake = ruc_objGetNext(&pEvent->head, &pEvent->pnextCur);
+  ruc_objGetNext(&pEvent->head, &pEvent->pnextCur);
 }
 /*----------------------------------------------
 **   init of the observer service

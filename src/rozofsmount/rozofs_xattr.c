@@ -52,6 +52,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -117,7 +118,7 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SETXATTR,(xdrproc_t) xdr_epgw_setxattr_arg_t,(void *)&arg,
                               rozofs_ll_setxattr_cbk,buffer_p); 
     if (ret < 0) goto error;
@@ -308,7 +309,7 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_GETXATTR,(xdrproc_t) xdr_epgw_getxattr_arg_t,(void *)&arg,
                               rozofs_ll_getxattr_cbk,buffer_p); 
     if (ret < 0) goto error;
@@ -502,7 +503,8 @@ void rozofs_ll_removexattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name)
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret =
+    rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_REMOVEXATTR,(xdrproc_t) xdr_epgw_removexattr_arg_t,(void *)&arg,
                               rozofs_ll_removexattr_cbk,buffer_p); 
     if (ret < 0) goto error;
@@ -682,7 +684,7 @@ void rozofs_ll_listxattr_nb(fuse_req_t req, fuse_ino_t ino, size_t size)
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_LISTXATTR,(xdrproc_t) xdr_epgw_listxattr_arg_t,(void *)&arg,
                               rozofs_ll_listxattr_cbk,buffer_p); 
     if (ret < 0) goto error;

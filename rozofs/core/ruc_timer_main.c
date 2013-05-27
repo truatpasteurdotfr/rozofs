@@ -36,8 +36,6 @@
 #include "ruc_trace_api.h"
 #include "ruc_sockCtl_api.h"
 
-
-
 uint32_t  ruc_timer_getIntSockIdxFromSocketId(ruc_timer_t *p,int socketId);
 uint64_t  ruc_timer_ticker = 0;
 /*

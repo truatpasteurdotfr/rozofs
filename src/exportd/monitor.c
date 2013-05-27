@@ -89,9 +89,11 @@ int monitor_volume(volume_t *volume) {
     volume_stat(&clone, 0, &vstat);
     gprofiler.vstats[gprofiler.nb_volumes].bsize = vstat.bsize;
     gprofiler.vstats[gprofiler.nb_volumes].bfree = vstat.bfree;
+    gprofiler.vstats[gprofiler.nb_volumes].blocks = vstat.blocks;
 
     dprintf(fd, "bsize: %u\n", vstat.bsize);
     dprintf(fd, "bfree: %"PRIu64"\n", vstat.bfree);
+    dprintf(fd, "blocks: %"PRIu64"\n", vstat.blocks);
     dprintf(fd, "nb_clusters: %d\n", list_size(&clone.clusters));
 
     list_for_each_forward(p, &clone.clusters) {

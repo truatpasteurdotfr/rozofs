@@ -19,7 +19,6 @@
 /* need for crypt */
 #define _XOPEN_SOURCE 500
 
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
@@ -36,9 +35,11 @@
 #include <strings.h>
 #include <semaphore.h>
 #include <pthread.h>
+#include <config.h>
 
 #include <rozofs/rozofs.h>
-#include <config.h>
+#include <rozofs/common/log.h>
+#include <rozofs/common/profile.h>
 #include <rozofs/core/ruc_common.h>
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/core/ruc_timer_api.h>
@@ -50,15 +51,15 @@
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/ruc_list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/eproto.h>
-#include <rozofs/rpc/epproto.h>
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
-#include "export.h"
 #include <rozofs/core/rozofs_rpc_non_blocking_generic.h>
+#include <rozofs/rpc/eproto.h>
+#include <rozofs/rpc/epproto.h>
+#include <rozofs/rozofs_debug_ports.h>
+
+#include "export.h"
 #include "export_expgateway_conf.h"
 
 DECLARE_PROFILING(epp_profiler_t);
@@ -71,106 +72,117 @@ DECLARE_PROFILING(epp_profiler_t);
 */
 
 
-static char localBuf[8192];
+static char localBuf[8192]; 
 
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.probe[P_COUNT],\
                     gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
-                    gprofiler.probe[P_ELAPSE]);
+                    gprofiler.probe[P_ELAPSE]," ");
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64"\n",\
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64" |\n",\
                     #probe,\
                     gprofiler.probe[P_COUNT],\
                     gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
                     gprofiler.probe[P_ELAPSE],\
                     gprofiler.probe[P_BYTES]);
 
+
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
 
-    pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
-    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
-    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------\n");
+    time_t elapse;
+    int days, hours, mins, secs;
 
-	SHOW_PROFILER_PROBE(ep_mount);
-	SHOW_PROFILER_PROBE(ep_umount);
-	SHOW_PROFILER_PROBE(ep_statfs);
-	SHOW_PROFILER_PROBE(ep_lookup);
-	SHOW_PROFILER_PROBE(ep_getattr);
-	SHOW_PROFILER_PROBE(ep_setattr);
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
 
-	SHOW_PROFILER_PROBE(ep_readlink);
-	SHOW_PROFILER_PROBE(ep_mknod);
-	SHOW_PROFILER_PROBE(ep_mkdir);
-	SHOW_PROFILER_PROBE(ep_unlink);
-	SHOW_PROFILER_PROBE(ep_rmdir);
-	SHOW_PROFILER_PROBE(ep_symlink);
-	SHOW_PROFILER_PROBE(ep_rename);
-	SHOW_PROFILER_PROBE(ep_readdir);
-	SHOW_PROFILER_PROBE_BYTE(ep_read_block);
-	SHOW_PROFILER_PROBE_BYTE(ep_write_block);
-	SHOW_PROFILER_PROBE(ep_link);
-	SHOW_PROFILER_PROBE(ep_setxattr);
-	SHOW_PROFILER_PROBE(ep_getxattr);
-	SHOW_PROFILER_PROBE(ep_removexattr);
-	SHOW_PROFILER_PROBE(ep_listxattr);
-	SHOW_PROFILER_PROBE(export_lv1_resolve_entry);
-	SHOW_PROFILER_PROBE(export_lv2_resolve_path);
-	SHOW_PROFILER_PROBE(export_lookup_fid);
-	SHOW_PROFILER_PROBE(export_update_files);
-	SHOW_PROFILER_PROBE(export_update_blocks);
-	SHOW_PROFILER_PROBE(export_stat);
-	SHOW_PROFILER_PROBE(export_lookup);
-	SHOW_PROFILER_PROBE(export_getattr);
-	SHOW_PROFILER_PROBE(export_setattr);
-	SHOW_PROFILER_PROBE(export_link);
-	SHOW_PROFILER_PROBE(export_mknod);
-	SHOW_PROFILER_PROBE(export_mkdir);
-	SHOW_PROFILER_PROBE(export_unlink);
-	SHOW_PROFILER_PROBE(export_rmdir);
-	SHOW_PROFILER_PROBE(export_symlink);
-	SHOW_PROFILER_PROBE(export_readlink);
-	SHOW_PROFILER_PROBE(export_rename);
-	SHOW_PROFILER_PROBE_BYTE(export_read);
-	SHOW_PROFILER_PROBE(export_read_block);
-	SHOW_PROFILER_PROBE(export_write_block);
-	SHOW_PROFILER_PROBE(export_setxattr);
-	SHOW_PROFILER_PROBE(export_getxattr);
-	SHOW_PROFILER_PROBE(export_removexattr);
-	SHOW_PROFILER_PROBE(export_listxattr);
-	SHOW_PROFILER_PROBE(export_readdir);
-	SHOW_PROFILER_PROBE(lv2_cache_put);
-	SHOW_PROFILER_PROBE(lv2_cache_get);
-	SHOW_PROFILER_PROBE(lv2_cache_del);
-	SHOW_PROFILER_PROBE(volume_balance);
-	SHOW_PROFILER_PROBE(volume_distribute);
-	SHOW_PROFILER_PROBE(volume_stat);
-	SHOW_PROFILER_PROBE(mdir_open);
-	SHOW_PROFILER_PROBE(mdir_close);
-	SHOW_PROFILER_PROBE(mdir_read_attributes);
-	SHOW_PROFILER_PROBE(mdir_write_attributes);
-	SHOW_PROFILER_PROBE(mreg_open);
-	SHOW_PROFILER_PROBE(mreg_close);
-	SHOW_PROFILER_PROBE(mreg_read_attributes);
-	SHOW_PROFILER_PROBE(mreg_write_attributes);
-	SHOW_PROFILER_PROBE(mreg_read_dist);
-	SHOW_PROFILER_PROBE(mreg_write_dist);
-	SHOW_PROFILER_PROBE(mslnk_open);
-	SHOW_PROFILER_PROBE(mslnk_close);
-	SHOW_PROFILER_PROBE(mslnk_read_attributes);
-	SHOW_PROFILER_PROBE(mslnk_write_attributes);
-	SHOW_PROFILER_PROBE(mslnk_read_link);
-	SHOW_PROFILER_PROBE(mslnk_write_link);
-	SHOW_PROFILER_PROBE(get_mdirentry);
-	SHOW_PROFILER_PROBE(put_mdirentry);
-	SHOW_PROFILER_PROBE(del_mdirentry);
-	SHOW_PROFILER_PROBE(list_mdirentries);
-	SHOW_PROFILER_PROBE(gw_invalidate);
-	SHOW_PROFILER_PROBE(gw_invalidate_all);
-	SHOW_PROFILER_PROBE(gw_configuration);
-	SHOW_PROFILER_PROBE(gw_poll);
 
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers, days, hours, mins, secs);
+    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
+    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------+\n");
+
+    SHOW_PROFILER_PROBE(ep_mount);
+    SHOW_PROFILER_PROBE(ep_umount);
+    SHOW_PROFILER_PROBE(ep_statfs);
+    SHOW_PROFILER_PROBE(ep_lookup);
+    SHOW_PROFILER_PROBE(ep_getattr);
+    SHOW_PROFILER_PROBE(ep_setattr);
+
+    SHOW_PROFILER_PROBE(ep_readlink);
+    SHOW_PROFILER_PROBE(ep_mknod);
+    SHOW_PROFILER_PROBE(ep_mkdir);
+    SHOW_PROFILER_PROBE(ep_unlink);
+    SHOW_PROFILER_PROBE(ep_rmdir);
+    SHOW_PROFILER_PROBE(ep_symlink);
+    SHOW_PROFILER_PROBE(ep_rename);
+    SHOW_PROFILER_PROBE(ep_readdir);
+    SHOW_PROFILER_PROBE_BYTE(ep_read_block);
+    SHOW_PROFILER_PROBE_BYTE(ep_write_block);
+    SHOW_PROFILER_PROBE(ep_link);
+    SHOW_PROFILER_PROBE(ep_setxattr);
+    SHOW_PROFILER_PROBE(ep_getxattr);
+    SHOW_PROFILER_PROBE(ep_removexattr);
+    SHOW_PROFILER_PROBE(ep_listxattr);
+    SHOW_PROFILER_PROBE(export_lv1_resolve_entry);
+    SHOW_PROFILER_PROBE(export_lv2_resolve_path);
+    SHOW_PROFILER_PROBE(export_lookup_fid);
+    SHOW_PROFILER_PROBE(export_update_files);
+    SHOW_PROFILER_PROBE(export_update_blocks);
+    SHOW_PROFILER_PROBE(export_stat);
+    SHOW_PROFILER_PROBE(export_lookup);
+    SHOW_PROFILER_PROBE(export_getattr);
+    SHOW_PROFILER_PROBE(export_setattr);
+    SHOW_PROFILER_PROBE(export_link);
+    SHOW_PROFILER_PROBE(export_mknod);
+    SHOW_PROFILER_PROBE(export_mkdir);
+    SHOW_PROFILER_PROBE(export_unlink);
+    SHOW_PROFILER_PROBE(export_rmdir);
+    SHOW_PROFILER_PROBE(export_symlink);
+    SHOW_PROFILER_PROBE(export_readlink);
+    SHOW_PROFILER_PROBE(export_rename);
+    SHOW_PROFILER_PROBE_BYTE(export_read);
+    SHOW_PROFILER_PROBE(export_read_block);
+    SHOW_PROFILER_PROBE(export_write_block);
+    SHOW_PROFILER_PROBE(export_setxattr);
+    SHOW_PROFILER_PROBE(export_getxattr);
+    SHOW_PROFILER_PROBE(export_removexattr);
+    SHOW_PROFILER_PROBE(export_listxattr);
+    SHOW_PROFILER_PROBE(export_readdir);
+    SHOW_PROFILER_PROBE(lv2_cache_put);
+    SHOW_PROFILER_PROBE(lv2_cache_get);
+    SHOW_PROFILER_PROBE(lv2_cache_del);
+    SHOW_PROFILER_PROBE(volume_balance);
+    SHOW_PROFILER_PROBE(volume_distribute);
+    SHOW_PROFILER_PROBE(volume_stat);
+    SHOW_PROFILER_PROBE(mdir_open);
+    SHOW_PROFILER_PROBE(mdir_close);
+    SHOW_PROFILER_PROBE(mdir_read_attributes);
+    SHOW_PROFILER_PROBE(mdir_write_attributes);
+    SHOW_PROFILER_PROBE(mreg_open);
+    SHOW_PROFILER_PROBE(mreg_close);
+    SHOW_PROFILER_PROBE(mreg_read_attributes);
+    SHOW_PROFILER_PROBE(mreg_write_attributes);
+    SHOW_PROFILER_PROBE(mreg_read_dist);
+    SHOW_PROFILER_PROBE(mreg_write_dist);
+    SHOW_PROFILER_PROBE(mslnk_open);
+    SHOW_PROFILER_PROBE(mslnk_close);
+    SHOW_PROFILER_PROBE(mslnk_read_attributes);
+    SHOW_PROFILER_PROBE(mslnk_write_attributes);
+    SHOW_PROFILER_PROBE(mslnk_read_link);
+    SHOW_PROFILER_PROBE(mslnk_write_link);
+    SHOW_PROFILER_PROBE(get_mdirentry);
+    SHOW_PROFILER_PROBE(put_mdirentry);
+    SHOW_PROFILER_PROBE(del_mdirentry);
+    SHOW_PROFILER_PROBE(list_mdirentries);
+    SHOW_PROFILER_PROBE(gw_invalidate);
+    SHOW_PROFILER_PROBE(gw_invalidate_all);
+    SHOW_PROFILER_PROBE(gw_configuration);
+    SHOW_PROFILER_PROBE(gw_poll);
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
@@ -183,11 +195,10 @@ void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
     pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------\n");
 
-
-	SHOW_PROFILER_PROBE(gw_invalidate);
-	SHOW_PROFILER_PROBE(gw_invalidate_all);
-	SHOW_PROFILER_PROBE(gw_configuration);
-	SHOW_PROFILER_PROBE(gw_poll);
+    SHOW_PROFILER_PROBE(gw_invalidate);
+    SHOW_PROFILER_PROBE(gw_invalidate_all);
+    SHOW_PROFILER_PROBE(gw_configuration);
+    SHOW_PROFILER_PROBE(gw_poll);
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
@@ -196,46 +207,189 @@ void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
 void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
 
-    pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
-    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
-    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------\n");
+    time_t elapse;
+    int days, hours, mins, secs;
 
-	SHOW_PROFILER_PROBE(ep_mount);
-	SHOW_PROFILER_PROBE(ep_umount);
-	SHOW_PROFILER_PROBE(ep_statfs);
-	SHOW_PROFILER_PROBE(ep_lookup);
-	SHOW_PROFILER_PROBE(ep_getattr);
-	SHOW_PROFILER_PROBE(ep_setattr);
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
 
-	SHOW_PROFILER_PROBE(ep_readlink);
-	SHOW_PROFILER_PROBE(ep_mknod);
-	SHOW_PROFILER_PROBE(ep_mkdir);
-	SHOW_PROFILER_PROBE(ep_unlink);
-	SHOW_PROFILER_PROBE(ep_rmdir);
-	SHOW_PROFILER_PROBE(ep_symlink);
-	SHOW_PROFILER_PROBE(ep_rename);
-	SHOW_PROFILER_PROBE(ep_readdir);
-	SHOW_PROFILER_PROBE_BYTE(ep_read_block);
-	SHOW_PROFILER_PROBE_BYTE(ep_write_block);
-	SHOW_PROFILER_PROBE(ep_link);
-	SHOW_PROFILER_PROBE(ep_setxattr);
-	SHOW_PROFILER_PROBE(ep_getxattr);
-	SHOW_PROFILER_PROBE(ep_removexattr);
-	SHOW_PROFILER_PROBE(ep_listxattr);
 
-	SHOW_PROFILER_PROBE(get_mdirentry);
-	SHOW_PROFILER_PROBE(put_mdirentry);
-	SHOW_PROFILER_PROBE(del_mdirentry);
-	SHOW_PROFILER_PROBE(list_mdirentries);
-	SHOW_PROFILER_PROBE(gw_invalidate);
-	SHOW_PROFILER_PROBE(gw_invalidate_all);
-	SHOW_PROFILER_PROBE(gw_configuration);
-	SHOW_PROFILER_PROBE(gw_poll);
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers, days, hours, mins, secs);
+    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
+    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------+\n");
+
+    SHOW_PROFILER_PROBE(ep_mount);
+    SHOW_PROFILER_PROBE(ep_umount);
+    SHOW_PROFILER_PROBE(ep_statfs);
+    SHOW_PROFILER_PROBE(ep_lookup);
+    SHOW_PROFILER_PROBE(ep_getattr);
+    SHOW_PROFILER_PROBE(ep_setattr);
+
+    SHOW_PROFILER_PROBE(ep_readlink);
+    SHOW_PROFILER_PROBE(ep_mknod);
+    SHOW_PROFILER_PROBE(ep_mkdir);
+    SHOW_PROFILER_PROBE(ep_unlink);
+    SHOW_PROFILER_PROBE(ep_rmdir);
+    SHOW_PROFILER_PROBE(ep_symlink);
+    SHOW_PROFILER_PROBE(ep_rename);
+    SHOW_PROFILER_PROBE(ep_readdir);
+    SHOW_PROFILER_PROBE_BYTE(ep_read_block);
+    SHOW_PROFILER_PROBE_BYTE(ep_write_block);
+    SHOW_PROFILER_PROBE(ep_link);
+    SHOW_PROFILER_PROBE(ep_setxattr);
+    SHOW_PROFILER_PROBE(ep_getxattr);
+    SHOW_PROFILER_PROBE(ep_removexattr);
+    SHOW_PROFILER_PROBE(ep_listxattr);
+
+    SHOW_PROFILER_PROBE(get_mdirentry);
+    SHOW_PROFILER_PROBE(put_mdirentry);
+    SHOW_PROFILER_PROBE(del_mdirentry);
+    SHOW_PROFILER_PROBE(list_mdirentries);
+    
+    SHOW_PROFILER_PROBE(gw_invalidate);
+    SHOW_PROFILER_PROBE(gw_invalidate_all);
+    SHOW_PROFILER_PROBE(gw_configuration);
+    SHOW_PROFILER_PROBE(gw_poll);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Storage,Volumes, EID statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int i, j;
+
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+        pbuf+=sprintf(pbuf, "Volume: %d  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
+                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
+                (int)((gprofiler.vstats[i].blocks==0)? 0:gprofiler.vstats[i].bfree*100/gprofiler.vstats[i].blocks));
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s |\n", "Sid", "Status", "Capacity(B)","Free(B)");
+        pbuf+=sprintf(pbuf, "-------+--------+----------------------+----------------------+\n");
+        for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, "%6d | %-6s | %20"PRIu64" | %20"PRIu64" |\n", gprofiler.vstats[i].sstats[j].sid,
+                    (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", gprofiler.vstats[i].sstats[j].size,
+                    gprofiler.vstats[i].sstats[j].free);
+        }
+        pbuf += sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid", "Bsize", "Blocks", "Bfree", "Files", "Ffree");
+        pbuf += sprintf(pbuf, "-------+--------+----------------------+----------------------+--------------+--------------+\n");
+
+
+        for (j = 0; j < gprofiler.nb_exports; j++) {
+
+            if (gprofiler.estats[j].vid == gprofiler.vstats[i].vid)
+                pbuf += sprintf(pbuf, "%6d | %6d | %20"PRIu64" | %20"PRIu64" | %12"PRIu64" | %12"PRIu64" |\n", gprofiler.estats[j].eid,
+                    gprofiler.estats[j].bsize, gprofiler.estats[j].blocks, gprofiler.estats[j].bfree,
+                    gprofiler.estats[j].files, gprofiler.estats[j].ffree);
+        }
+        pbuf += sprintf(pbuf, "\n");
+    }
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Volumes statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int i;
+
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+        pbuf+=sprintf(pbuf, "Volume: %d  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
+                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
+               (int)((gprofiler.vstats[i].blocks==0)? 0:gprofiler.vstats[i].bfree*100/gprofiler.vstats[i].blocks));
+
+        pbuf+=sprintf(pbuf, "\n");
+    }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Storage statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int i,j;
+
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+ 
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-8s |\n","Vid", "Sid", "Status", "Capacity(B)","Free(B)","Free(%)");
+        pbuf+=sprintf(pbuf, "-------+--------+--------+----------------------+----------------------+----------+\n");
+        for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, "%6d | %6d | %-6s | %20"PRIu64" | %20"PRIu64" | %8d |\n",
+                   gprofiler.vstats[i].vid,
+                   gprofiler.vstats[i].sstats[j].sid,
+                   (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", 
+                   gprofiler.vstats[i].sstats[j].size,
+                   gprofiler.vstats[i].sstats[j].free,
+                   (int)((gprofiler.vstats[i].sstats[j].size==0)? 0:gprofiler.vstats[i].sstats[j].free*100/gprofiler.vstats[i].sstats[j].size));
+        }
+        pbuf+=sprintf(pbuf, "\n");
+    }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   EID statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vfstat_eid(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = localBuf;
+    int j;
+
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid","Vid", "Bsize","Blocks", "Bfree", "Files", "Ffree");
+        pbuf+=sprintf(pbuf, "-------+--------+--------+----------------------+----------------------+--------------+--------------+\n");
 
 
+        for (j = 0; j < gprofiler.nb_exports; j++) {
+
+                pbuf+=sprintf(pbuf, "%6d | %6d | %6d | %20"PRIu64" | %20"PRIu64" | %12"PRIu64" | %12"PRIu64" |\n", gprofiler.estats[j].eid,
+                    gprofiler.estats[j].vid,
+                    gprofiler.estats[j].bsize, gprofiler.estats[j].blocks, gprofiler.estats[j].bfree,
+                    gprofiler.estats[j].files, gprofiler.estats[j].ffree);
+        }
+        pbuf+=sprintf(pbuf, "\n");
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
 
 // For trace purpose
 struct timeval     Global_timeDay;
@@ -424,13 +578,12 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance)
   @retval 0 on success
   @retval -1 on error
 */
-int expgwc_non_blocking_init(uint16_t dbg_port, uint16_t exportd_instance)
-{
+int expgwc_non_blocking_init(uint16_t dbg_port, uint16_t exportd_instance) {
   int   ret;
 //  sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
 
 
- ret = ruc_init(FALSE,dbg_port,exportd_instance);
+ ret = ruc_init(FALSE,dbg_port + RZDBG_EXPORTD_PORT,exportd_instance);
  
  if (ret != RUC_OK) return -1;
  
@@ -477,10 +630,15 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("profiler_conf", show_profiler_conf);
     uma_dbg_addTopic("profiler_short", show_profiler_short);
-
+    uma_dbg_addTopic("vfstat", show_vfstat);
+    uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
+    uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
+    uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
+    
     expgwc_non_blocking_thread_started = 1;
-    info("Exportd %d non blocking thread started: debug port %d",args_p->instance,args_p->debug_port);
-
+    
+    info("exportd non-blocking thread started (instance: %d, port: %d).",
+            args_p->instance, args_p->debug_port);
     /*
      ** main loop
      */

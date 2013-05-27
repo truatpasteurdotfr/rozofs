@@ -33,6 +33,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <rpc/pmap_clnt.h>
+#include <rozofs/rozofs_debug_ports.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -42,6 +43,7 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -1065,7 +1067,7 @@ int main(int argc, char *argv[]) {
         {0, 0, 0, 0}
     };
 
-    expgwc_non_blocking_conf.debug_port = 0;
+    expgwc_non_blocking_conf.debug_port = rzdbg_default_base_port;
     expgwc_non_blocking_conf.instance   = 1;
     expgwc_non_blocking_conf.exportd_hostname   = NULL;
     while (1) {

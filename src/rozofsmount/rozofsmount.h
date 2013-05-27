@@ -72,6 +72,9 @@ typedef struct rozofsmnt_conf {
     unsigned max_retry;
     unsigned dbg_port;  /**< lnkdebug base port: rozofsmount=dbg_port, storcli(1)=dbg_port+1, ....  */
     unsigned instance;  /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
+    unsigned export_timeout;
+    unsigned storcli_timeout;
+    unsigned storage_timeout;
 } rozofsmnt_conf_t;
 
 

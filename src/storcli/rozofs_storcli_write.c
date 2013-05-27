@@ -44,6 +44,7 @@
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/sproto.h>
 #include "storcli_main.h"
+#include <rozofs/rozofs_timer_conf.h>
 
 
 int rozofs_storcli_get_position_of_first_byte2write();
@@ -963,7 +964,7 @@ retry:
      working_ctx_p->write_ctx_lock = 1;
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_WR_IN_PRG;
      
-     ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
+     ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
                                          (xdrproc_t) xdr_sp_write_arg_no_bins_t, (caddr_t) request,
                                           xmit_buf,
                                           working_ctx_p->read_seqnum,
@@ -1156,7 +1157,7 @@ retry:
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_WR_IN_PRG;
      
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),write_prj,bins_len);
-     ret =  rozofs_sorcli_send_rq_common(lbg_id,STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
+     ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
                                          (xdrproc_t) xdr_sp_write_arg_no_bins_t, (caddr_t) request,
                                           xmit_buf,
                                           working_ctx_p->read_seqnum,

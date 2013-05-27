@@ -52,6 +52,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -150,7 +151,7 @@ int rozofs_ll_readdir_send_to_export(fid_t fid, uint64_t cookie,void	 *buffer_p)
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_READDIR,(xdrproc_t) xdr_epgw_readdir_arg_t,(void *)&arg,
                               rozofs_ll_readdir_cbk,buffer_p); 
     return ret;  

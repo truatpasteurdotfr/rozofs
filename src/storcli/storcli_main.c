@@ -35,6 +35,7 @@
 #include <time.h>
 
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
@@ -47,6 +48,7 @@
 #include <rozofs/rpc/stcpproto.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/north_lbg_api.h>
+#include <rozofs/core/rozofs_timer_conf_dbg.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
@@ -55,6 +57,9 @@
 
 #define STORCLI_PID_FILE "storcli.pid"
 
+int rozofs_storcli_non_blocking_init(uint16_t dbg_port, uint16_t rozofsmount_instance);
+
+DEFINE_PROFILING(stcpp_profiler_t) = {0};
 
 /**
  * data structure used to store the configuration parameter of a storcli process
@@ -72,7 +77,9 @@ typedef struct storcli_conf {
 } storcli_conf;
 
 
-int rozofs_storcli_non_blocking_init(uint16_t dbg_port, uint16_t rozofsmount_instance);
+
+char storcli_process_filename[NAME_MAX];
+
 /*__________________________________________________________________________
  */
 /**
@@ -84,19 +91,18 @@ uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
 storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
-DEFINE_PROFILING(stcpp_profiler_t) = {0};
 
 
 static char localBuf[8192];
+   
 
-
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15s |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
-					gprofiler.probe[P_ELAPSE]);
+					gprofiler.probe[P_ELAPSE]," ");
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" \n",\
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
@@ -105,10 +111,20 @@ static char localBuf[8192];
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
+    time_t elapse;
+    int days, hours, mins, secs;
 
-    pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
-    pChar += sprintf(pChar, "   procedure    |     count        |  time(us)  | cumulated time(us)  |     bytes       \n");
-    pChar += sprintf(pChar, "----------------+------------------+------------+---------------------+-----------------\n");
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+
+
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
+    pChar += sprintf(pChar, "   procedure    |     count        |  time(us)  | cumulated time(us)  |     bytes       |\n");
+    pChar += sprintf(pChar, "----------------+------------------+------------+---------------------+-----------------+\n");
 
     SHOW_PROFILER_PROBE_BYTE(read);
     SHOW_PROFILER_PROBE_BYTE(read_prj);
@@ -245,7 +261,7 @@ char *display_mstorage(mstorage_t *s,char *buffer)
   for (i = 0; i< s->sids_nb; i++)
   {
      buffer += sprintf(buffer," %3.3d  |  %2.2d  |",s->cids[i],s->sids[i]);
-     buffer += sprintf(buffer,"%20s |",s->host);
+     buffer += sprintf(buffer," %-20s |",s->host);
      if ( s->lbg_id == -1)
      {
        buffer += sprintf(buffer,"  ???     |");
@@ -277,7 +293,7 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
     char *pchar = localBuf;
 
    pchar +=sprintf(pchar," cid  |  sid |     hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
-   pchar +=sprintf(pchar,"------+------+---------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
+   pchar +=sprintf(pchar,"------+------+----------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
 
    list_t *iterator = NULL;
    /* Search if the node has already been created  */
@@ -523,7 +539,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     struct timeval timeout_exportd;
 
     //XXX Static timeout
-    timeout_exportd.tv_sec = 25;
+    timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
 
     /* Initiate the connection to the export and get informations
@@ -565,7 +581,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         }
 
         struct timeval timeout_mproto;
-        timeout_mproto.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+        timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_MONITOR_PROGRAM);
         timeout_mproto.tv_usec = 0;
 
         /* Initialize connection with storage (by mproto) */
@@ -631,7 +647,21 @@ void usage() {
     printf("\t-D,--dbg DEBUG_PORT\t\tdebug port (default: none) \n");
     printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
     printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
+    printf("\t-s,--storagetmr \t\t define timeout (s) for IO storaged requests (default: 3)\n");
 }
+
+/**
+*  Signal catching
+*/
+
+static void storlci_handle_signal(int sig)
+{
+   unlink(storcli_process_filename); 
+   signal(sig, SIG_DFL);
+   raise(sig);
+}
+
+
 
 int main(int argc, char *argv[]) {
     int c;
@@ -646,8 +676,29 @@ int main(int argc, char *argv[]) {
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
+        { "storagetmr", required_argument, 0, 's'},	
         { 0, 0, 0, 0}
     };
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
+    
+    storcli_process_filename[0] = 0;
+
+
+    signal(SIGCHLD, SIG_IGN);
+    signal(SIGTSTP, SIG_IGN);
+    signal(SIGTTOU, SIG_IGN);
+    signal(SIGTTIN, SIG_IGN);
+    signal(SIGILL, storlci_handle_signal);
+    signal(SIGSTOP, storlci_handle_signal);
+    signal(SIGABRT, storlci_handle_signal);
+    signal(SIGSEGV, storlci_handle_signal);
+    signal(SIGKILL, storlci_handle_signal);
+    signal(SIGTERM, storlci_handle_signal);
+    signal(SIGQUIT, storlci_handle_signal);
+    
 
     conf.host = NULL;
     conf.passwd = NULL;
@@ -662,7 +713,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -715,6 +766,16 @@ int main(int argc, char *argv[]) {
                 }
                 conf.rozofsmount_instance = val;
                 break;
+            case 's':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                rozofs_tmr_configure(TMR_STORAGE_PROGRAM,val);
+                break;
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);
@@ -749,6 +810,24 @@ int main(int argc, char *argv[]) {
     
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();
+    
+    gprofiler.uptime = time(0);
+
+
+    /*
+    ** create the process filename
+    */
+    int ppfd;
+    sprintf(storcli_process_filename, "%s%s_%d_storcli_%d", DAEMON_PID_DIRECTORY, "rozofsmount",conf.rozofsmount_instance, conf.module_index);
+
+    if ((ppfd = open(storcli_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
+        severe("can't open process file");
+    } else {
+        char str[10];
+        sprintf(str, "%d\n", getpid());
+        write(ppfd, str, strlen(str));
+        close(ppfd);
+    }    
     
     /*
      ** init of the non blocking part
@@ -798,9 +877,15 @@ int main(int argc, char *argv[]) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     /*
+    ** declare timer debug functions
+    */
+    rozofs_timer_conf_dbg_init();
+    
+    /*
      ** main loop
      */
-    info("storcli %d of rozofsmount %d on mount point %s started", conf.module_index, conf.rozofsmount_instance, conf.mount);
+    info("storcli started (instance: %d, rozofs instance: %d, mountpoint: %s).",
+            conf.module_index, conf.rozofsmount_instance, conf.mount);
 
     while (1) {
         ruc_sockCtrl_selectWait();

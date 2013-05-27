@@ -52,6 +52,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/expgw_common.h>
 
 DECLARE_PROFILING(mpp_profiler_t);

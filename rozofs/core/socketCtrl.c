@@ -18,19 +18,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <unistd.h>
+#include <fcntl.h>     
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <unistd.h>
-#include <pthread.h>
-
 #include <sys/socket.h>
-#include <fcntl.h>              
-
 
 #include "ruc_list.h"
 #include "socketCtrl.h"
 #include "uma_dbg_api.h"
-
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define RUC_SOCKCTRL_DEBUG_TOPIC      "cpu"
@@ -205,7 +202,6 @@ void ruc_sockCtrl_debug_show(char *myBuf) {
 void ruc_sockctl_updatePnextCur(ruc_obj_desc_t *pHead,
                                    ruc_sockObj_t *pobj)
 {
-   ruc_obj_desc_t *pfake;
 
 
    if (ruc_sockctl_pnextCur != (ruc_obj_desc_t*)pobj)
@@ -218,8 +214,7 @@ void ruc_sockctl_updatePnextCur(ruc_obj_desc_t *pHead,
    /*
    ** ruc_sockctl_pnextCur needs to be updated
    */
-   pfake = ruc_objGetNext(pHead,
-                          &ruc_sockctl_pnextCur);
+   ruc_objGetNext(pHead, &ruc_sockctl_pnextCur);
      
 }
 
