@@ -47,6 +47,7 @@
 #include "expgw_main.h"
 #include "expgw_export.h"
 #include <rozofs/core/expgw_common.h>
+#include <rozofs/rozofs_debug_ports.h>
 
 
 #define EXPGW_PID_FILE "expgw"
@@ -198,7 +199,8 @@ void usage() {
     printf("Rozofs storage client daemon - %s\n", VERSION);
     printf("Usage: expgw -i <instance> [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
-    printf("\t-P,--port LISTENING_PORT_BASE\t\trozofsmount,exportd,debug port (default: none) \n");
+    printf("\t-P,--port LISTENING_PORT_BASE\t\trozofsmount,exportd (default: none) \n");
+    printf("\t-D,--debug_port DEBUG_PORT_BASE\t\tdebug port (default: none) \n");
     printf("\t-L,--local LOCAL_HOST\t\tdefine address (or dns name) of the local host \n");
 }
 
@@ -206,10 +208,12 @@ int main(int argc, char *argv[]) {
     int c;
     int ret;
     int val;
+    int debug_port;
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "local", required_argument, 0, 'L'},
         { "port", required_argument, 0, 'P'},
+        { "debug_port", required_argument, 0, 'D'},
         { 0, 0, 0, 0}
     };
 
@@ -225,7 +229,8 @@ int main(int argc, char *argv[]) {
     conf.max_retry = 3;
     conf.listening_port_base = 0;
     conf.rozofsmount_instance = 0;
-
+    debug_port = rzdbg_default_base_port;
+   
     while (1) {
 
         int option_index = 0;
@@ -252,6 +257,16 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 conf.listening_port_base = val;
+                break;
+            case 'D':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                debug_port = val;
                 break;
             case '?':
                 usage();
@@ -328,11 +343,13 @@ int main(int argc, char *argv[]) {
     /*
      ** init of the non blocking part
      */
-    ret = expgw_non_blocking_init(conf.listening_port_base+EXPGW_PORT_DEBUG_IDX, expgw_local_ipaddr);
+    ret = expgw_non_blocking_init(debug_port+RZDBG_EXPGW_PORT, expgw_local_ipaddr);
     if (ret < 0) {
         severe("Fatal error while initializing non blocking entity\n");
         goto error;
     }
+    
+    rozofs_timer_conf_dbg_init();
 
     /*
      ** Init of the north interface (read/write request processing)
