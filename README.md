@@ -39,7 +39,7 @@ make edit_cache
 make uninstall
 ```
 
-#RUNNING
+##RUNNING
 
 ###Requirements
 * a running portmap/rpcbind see portmap(8)/rpcbind(8)
@@ -59,10 +59,7 @@ make uninstall
 ``
 [sudo] storaged
 ``
-7. wherever you want: 
-``
-[sudo] rozofsmount -H <_the_host_running_exportd_> -E  <_the export_path_> -P <_passwd_> <_the_mount_dir_>
-``
+7. wherever you want: `` [sudo] rozofsmount -H <_the_host_running_exportd_> -E  <_the export_path_> -P <_passwd_> <_the_mount_dir_> ``
 
 ###Stop
 1. ``[sudo] killall exportd``
