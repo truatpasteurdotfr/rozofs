@@ -38,6 +38,8 @@ add_executable(storaged
     rbs.c
     storaged.h
     storaged.c
+    storaged_nblock_init.h
+    storaged_nblock_init.c
 )
 target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 

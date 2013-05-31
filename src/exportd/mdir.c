@@ -71,11 +71,7 @@ int mdir_read_attributes(mdir_t *mdir, mattr_t *attrs) {
     if (pread(mdir->fdattrs, attrs, sizeof (mattr_t), 0) != sizeof (mattr_t)) {
         goto out;
     }
-    // read children
-    if (pread(mdir->fdattrs, &mdir->children, sizeof (int),
-            sizeof (mattr_t)) != sizeof (int)) {
-        goto out;
-    }
+
     status = 0;
 out:
     STOP_PROFILING(mdir_read_attributes);
@@ -90,11 +86,7 @@ int mdir_write_attributes(mdir_t *mdir, mattr_t *attrs) {
     if (pwrite(mdir->fdattrs, attrs, sizeof (mattr_t), 0) != sizeof (mattr_t)) {
         return -1;
     }
-    // write children
-    if (pwrite(mdir->fdattrs, &mdir->children, sizeof (int),
-            sizeof (mattr_t)) != sizeof (int)) {
-        return -1;
-    }
+
     status = 0;
 
     STOP_PROFILING(mdir_write_attributes);

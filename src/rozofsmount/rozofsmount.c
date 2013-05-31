@@ -25,7 +25,9 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <inttypes.h>
 #include <assert.h>
+#include <semaphore.h>
 #include <netinet/tcp.h>
 
 #define FUSE_USE_VERSION 26
@@ -33,17 +35,19 @@
 #include <fuse/fuse_opt.h>
 
 #include <rozofs/rozofs.h>
+#include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/htable.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
+#include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/rozofs_timer_conf_dbg.h>
 
-#include "config.h"
-#include "file.h"
+#include "rozofs_fuse.h"
+#include "rozofsmount.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -56,9 +60,53 @@
 
 #define CONNECTION_THREAD_TIMESPEC  2
 
+#define STORCLI_STARTER  "storcli_starter.sh"
+#define STORCLI_KILLER  "storcli_killer.sh"
+#define STORCLI_EXEC "storcli"
+
 static SVCXPRT *rozofsmount_profile_svc = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
+
+char localBuf[4096];
+
+sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
+
+
+void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}      
+/*
+ *________________________________________________________
+ */
+
+/*
+ ** API to be called for stopping rozofsmount
+
+ @param none
+ @retval none
+ */
+void rozofs_exit() {
+    if (semForEver != NULL) {
+        sem_post(semForEver);
+        for (;;) {
+            severe("rozofsmount exit required.");
+            sleep(10);
+        }
+        fatal("semForEver is not initialized.");
+    }
+}
 
 extern void rozofsmount_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
@@ -78,23 +126,16 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "\t-o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
     fprintf(stderr, "\t-o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
+    fprintf(stderr, "\t-o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 10)\n");
+    fprintf(stderr, "\t-o debug_port=N\tdefine the base debug port for Rozofsmount (default:none)\n");
+    fprintf(stderr, "\t-o instance=N\tinstance number (default:0)\n");
 }
-
-typedef struct rozofsmnt_conf {
-    char *host;
-    char *export;
-    char *passwd;
-    unsigned buf_size;
-    unsigned max_retry;
-    unsigned export_timeout;
-    unsigned storage_timeout;
-} rozofsmnt_conf_t;
 
 static rozofsmnt_conf_t conf;
 
-static double direntry_cache_timeo = CACHE_TIMEOUT;
-static double entry_cache_timeo = CACHE_TIMEOUT;
-static double attr_cache_timeo = CACHE_TIMEOUT;
+double direntry_cache_timeo = CACHE_TIMEOUT;
+double entry_cache_timeo = CACHE_TIMEOUT;
+double attr_cache_timeo = CACHE_TIMEOUT;
 
 enum {
     KEY_EXPORT_HOST,
@@ -102,6 +143,7 @@ enum {
     KEY_EXPORT_PASSWD,
     KEY_HELP,
     KEY_VERSION,
+    KEY_DEBUG_PORT,
 };
 
 #define MYFS_OPT(t, p, v) { t, offsetof(struct rozofsmnt_conf, p), v }
@@ -114,6 +156,9 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
     MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
     MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
+    MYFS_OPT("rozofsstorclitimeout=%u", storcli_timeout, 0),
+    MYFS_OPT("debug_port=%u", dbg_port, 0),
+    MYFS_OPT("instance=%u", instance, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -164,222 +209,15 @@ static int myfs_opt_proc(void *data, const char *arg, int key,
     return 1;
 }
 
-typedef struct dirbuf {
-    char *p;
-    size_t size;
-    uint8_t eof;
-    uint64_t cookie;
-} dirbuf_t;
+/**< structure associated to exportd, needed for communication */
+exportclt_t exportclt; 
 
-/** entry kept locally to map fuse_inode_t with rozofs fid_t */
-typedef struct ientry {
-    fuse_ino_t inode; ///< value of the inode allocated by rozofs
-    fid_t fid; ///< unique file identifier associated with the file or directory
-    dirbuf_t db; ///< buffer used for directory listing
-    unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
-    list_t list;
-} ientry_t;
+list_t inode_entries;
+htable_t htable_inode;
+htable_t htable_fid;
+uint64_t rozofs_ientries_count = 0;
 
-static exportclt_t exportclt;
-
-static list_t inode_entries;
-static htable_t htable_inode;
-static htable_t htable_fid;
-
-static inline uint32_t fuse_ino_hash(void *n) {
-    return hash_xor8(*(uint32_t *) n);
-}
-
-static inline int fuse_ino_cmp(void *v1, void *v2) {
-    return (*(fuse_ino_t *) v1 - *(fuse_ino_t *) v2);
-}
-
-static inline int fid_cmp(void *key1, void *key2) {
-    return memcmp(key1, key2, sizeof (fid_t));
-}
-
-static unsigned int fid_hash(void *key) {
-    uint32_t hash = 0;
-    uint8_t *c;
-    for (c = key; c != key + 16; c++)
-        hash = *c + (hash << 6) + (hash << 16) - hash;
-    return hash;
-}
-
-static void ientries_release() {
-    list_t *p, *q;
-
-    htable_release(&htable_inode);
-    htable_release(&htable_fid);
-
-    list_for_each_forward_safe(p, q, &inode_entries) {
-        ientry_t *entry = list_entry(p, ientry_t, list);
-        list_remove(p);
-        if (entry->db.p != NULL) {
-            free(entry->db.p);
-            entry->db.p = NULL;
-        }
-        free(entry);
-    }
-}
-
-static inline void put_ientry(ientry_t * ie) {
-    DEBUG("put inode: %lu\n", ie->inode);
-    htable_put(&htable_inode, &ie->inode, ie);
-    htable_put(&htable_fid, ie->fid, ie);
-    list_push_front(&inode_entries, &ie->list);
-}
-
-static inline void del_ientry(ientry_t * ie) {
-    DEBUG("del inode: %lu\n", ie->inode);
-    htable_del(&htable_inode, &ie->inode);
-    htable_del(&htable_fid, ie->fid);
-    list_remove(&ie->list);
-}
-
-static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
-    return htable_get(&htable_inode, &ino);
-}
-
-static inline ientry_t *get_ientry_by_fid(fid_t fid) {
-    return htable_get(&htable_fid, fid);
-}
-
-static fuse_ino_t inode_idx = 1;
-
-static inline fuse_ino_t next_inode_idx() {
-    return inode_idx++;
-}
-
-/** Send a request to a storage node for get the list of TCP ports this storage
- *
- * @param storage: the storage node
- *
- * @return 0 on success otherwise -1
- */
-static int get_storage_ports(mstorage_t *s) {
-    int status = -1;
-    int i = 0;
-    mclient_t mclt;
-
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
-    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
-    strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
-
-    struct timeval timeo;
-    timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
-    timeo.tv_usec = 0;
-
-    /* Initialize connection with storage (by mproto) */
-    if (mclient_initialize(&mclt, timeo) != 0) {
-        severe("Warning: failed to join storage (host: %s), %s.\n",
-                s->host, strerror(errno));
-        goto out;
-    } else {
-        /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, ports) != 0) {
-            severe("Warning: failed to get ports for storage (host: %s).\n",
-                    s->host);
-            goto out;
-        }
-    }
-
-    /* Copy each TCP ports */
-    for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (ports[i] != 0) {
-            strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
-            s->sclients[i].port = ports[i];
-            s->sclients[i].status = 0;
-            s->sclients_nb++;
-        }
-    }
-
-    /* Release mclient*/
-    mclient_release(&mclt);
-
-    status = 0;
-out:
-    return status;
-}
-
-/** Check if the connections for one storage node are active or not
- *
- * @param storage: the storage node
- */
-static void *connect_storage(void *v) {
-    mstorage_t *mstorage = (mstorage_t*) v;
-    int i = 0;
-
-    struct timespec ts = {CONNECTION_THREAD_TIMESPEC, 0};
-
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-
-    for (;;) {
-
-        /* We don't have the ports for this storage node */
-        if (mstorage->sclients_nb == 0) {
-            /* Get ports for this storage node */
-            if (get_storage_ports(mstorage) != 0) {
-                DEBUG("Cannot get ports for host: %s", mstorage->host);
-            }
-        }
-
-        /* Verify each connections for this storage node */
-        for (i = 0; i < mstorage->sclients_nb; i++) {
-
-            sclient_t *sclt = &mstorage->sclients[i];
-
-            if (sclt->rpcclt.client == 0 || sclt->status != 1) {
-
-                struct timeval timeo;
-                timeo.tv_sec = conf.storage_timeout;
-                timeo.tv_usec = 0;
-
-                DEBUG("Disconnection (host: %s, port: %u) detected",
-                        sclt->host, sclt->port);
-
-                if (sclient_initialize(sclt, timeo) != 0) {
-                    DEBUG("sclient_initialize failed for connection (host: %s, port: %u): %s",
-                            sclt->host, sclt->port, strerror(errno));
-                }
-            }
-        }
-        nanosleep(&ts, NULL);
-    }
-    return 0;
-}
-
-static struct stat *mattr_to_stat(mattr_t * attr, struct stat *st) {
-    memset(st, 0, sizeof (struct stat));
-    st->st_mode = attr->mode;
-    st->st_nlink = attr->nlink;
-    st->st_size = attr->size;
-    st->st_ctime = attr->ctime;
-    st->st_atime = attr->atime;
-    st->st_mtime = attr->mtime;
-    st->st_blksize = ROZOFS_BSIZE;
-    st->st_blocks = ((attr->size + 512 - 1) / 512);
-    st->st_dev = 0;
-    st->st_uid = attr->uid;
-    st->st_gid = attr->gid;
-    return st;
-}
-
-static mattr_t *stat_to_mattr(struct stat *st, mattr_t * attr, int to_set) {
-    if (to_set & FUSE_SET_ATTR_MODE)
-        attr->mode = st->st_mode;
-    if (to_set & FUSE_SET_ATTR_SIZE)
-        attr->size = st->st_size;
-    //if (to_set & FUSE_SET_ATTR_ATIME)
-    //    attr->atime = st->st_atime;
-    //if (to_set & FUSE_SET_ATTR_MTIME)
-    //    attr->mtime = st->st_mtime;
-    if (to_set & FUSE_SET_ATTR_UID)
-        attr->uid = st->st_uid;
-    if (to_set & FUSE_SET_ATTR_GID)
-        attr->gid = st->st_gid;
-    return attr;
-}
+fuse_ino_t inode_idx = 1;
 
 static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
     int *piped = (int *) userdata;
@@ -392,904 +230,6 @@ static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
         }
         close(piped[1]);
     }
-}
-
-void rozofs_ll_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
-        const char *newname) {
-    ientry_t *npie = 0;
-    ientry_t *ie = 0;
-    mattr_t attrs;
-    struct fuse_entry_param fep;
-    struct stat stbuf;
-
-    START_PROFILING(rozofs_ll_link);
-
-    if (strlen(newname) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (!(npie = get_ientry_by_inode(newparent))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_link(&exportclt, ie->fid, npie->fid, (char *) newname,
-            &attrs) != 0) {
-        goto error;
-    }
-
-    if (!(ie = get_ientry_by_fid(attrs.fid))) {
-        ie = xmalloc(sizeof (ientry_t));
-        memcpy(ie->fid, attrs.fid, sizeof (fid_t));
-        ie->inode = next_inode_idx();
-        list_init(&ie->list);
-        ie->db.size = 0;
-        ie->db.eof = 0;
-        ie->db.p = NULL;
-        ie->nlookup = 1;
-        put_ientry(ie);
-    }
-    memset(&fep, 0, sizeof (fep));
-    fep.ino = ie->inode;
-    mattr_to_stat(&attrs, &stbuf);
-    stbuf.st_ino = ie->inode;
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
-    ie->nlookup++;
-    fuse_reply_entry(req, &fep);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_link);
-    return;
-}
-
-void rozofs_ll_mknod(fuse_req_t req, fuse_ino_t parent, const char *name,
-        mode_t mode, dev_t rdev) {
-    ientry_t *ie = 0;
-    ientry_t *nie = 0;
-    mattr_t attrs;
-    struct fuse_entry_param fep;
-    struct stat stbuf;
-    const struct fuse_ctx *ctx;
-    ctx = fuse_req_ctx(req);
-
-    START_PROFILING(rozofs_ll_mknod);
-
-    DEBUG("mknod (%lu,%s,%04o,%08lX)\n", (unsigned long int) parent, name,
-            (unsigned int) mode, (unsigned long int) rdev);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_mknod(&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid,
-            mode, &attrs) != 0) {
-        goto error;
-    }
-
-    if (!(nie = get_ientry_by_fid(attrs.fid))) {
-        nie = xmalloc(sizeof (ientry_t));
-        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
-        nie->inode = next_inode_idx();
-        list_init(&nie->list);
-        nie->db.size = 0;
-        nie->db.p = NULL;
-        nie->db.eof = 0;
-        nie->db.cookie = 0;
-        nie->nlookup = 1;
-        put_ientry(nie);
-    }
-    memset(&fep, 0, sizeof (fep));
-    fep.ino = nie->inode;
-    mattr_to_stat(&attrs, &stbuf);
-    stbuf.st_ino = nie->inode;
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
-    nie->nlookup++;
-    fuse_reply_entry(req, &fep);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_mknod);
-    return;
-}
-
-void rozofs_ll_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
-        mode_t mode) {
-    ientry_t *ie = 0;
-    ientry_t *nie = 0;
-    mattr_t attrs;
-    struct fuse_entry_param fep;
-    struct stat stbuf;
-    const struct fuse_ctx *ctx;
-
-    START_PROFILING(rozofs_ll_mkdir);
-
-    DEBUG("mkdir (%lu,%s,%04o)\n", (unsigned long int) parent, name,
-            (unsigned int) mode);
-
-    ctx = fuse_req_ctx(req);
-    mode = (mode | S_IFDIR);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (exportclt_mkdir(&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid,
-            mode, &attrs) != 0) {
-        goto error;
-    }
-
-    if (!(nie = get_ientry_by_fid(attrs.fid))) {
-        nie = xmalloc(sizeof (ientry_t));
-        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
-        nie->inode = next_inode_idx();
-        list_init(&nie->list);
-        nie->db.size = 0;
-        nie->db.p = NULL;
-        nie->db.eof = 0;
-        nie->db.cookie = 0;
-        nie->nlookup = 1;
-        put_ientry(nie);
-    }
-
-    memset(&fep, 0, sizeof (fep));
-    fep.ino = nie->inode;
-    mattr_to_stat(&attrs, &stbuf);
-    stbuf.st_ino = nie->inode;
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = direntry_cache_timeo;
-    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
-    nie->nlookup++;
-
-    fuse_reply_entry(req, &fep);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_mkdir);
-    return;
-}
-
-void rozofs_ll_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
-        fuse_ino_t newparent, const char *newname) {
-    ientry_t *pie = 0;
-    ientry_t *npie = 0;
-    ientry_t *old_ie = 0;
-    fid_t fid;
-
-    START_PROFILING(rozofs_ll_rename);
-
-    DEBUG("rename (%lu,%s,%lu,%s)\n", (unsigned long int) parent, name,
-            (unsigned long int) newparent, newname);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX ||
-            strlen(newname) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(pie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (!(npie = get_ientry_by_inode(newparent))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_rename(&exportclt, pie->fid, (char *) name, npie->fid,
-            (char *) newname, &fid) != 0) {
-        goto error;
-    }
-
-    if ((old_ie = get_ientry_by_fid(fid))) {
-        old_ie->nlookup--;
-    }
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_rename);
-    return;
-}
-
-void rozofs_ll_readlink(fuse_req_t req, fuse_ino_t ino) {
-    char target[PATH_MAX];
-    ientry_t *ie = NULL;
-
-    START_PROFILING(rozofs_ll_readlink);
-
-    DEBUG("readlink (%lu)\n", (unsigned long int) ino);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (exportclt_readlink(&exportclt, ie->fid, target) != 0) {
-        goto error;
-    }
-
-    fuse_reply_readlink(req, (char *) target);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_readlink);
-    return;
-}
-
-void rozofs_ll_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
-    file_t *file;
-    ientry_t *ie = 0;
-
-    START_PROFILING(rozofs_ll_open);
-
-    DEBUG("open (%lu)\n", (unsigned long int) ino);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (!(file = file_open(&exportclt, ie->fid, S_IRWXU))) {
-        goto error;
-    }
-
-    fi->fh = (unsigned long) file;
-    fuse_reply_open(req, fi);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_open);
-    return;
-}
-
-void rozofs_ll_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-        struct fuse_file_info *fi) {
-    size_t length = 0;
-    char *buff;
-    ientry_t *ie = 0;
-
-    START_PROFILING_IO(rozofs_ll_read, size);
-
-    DEBUG("read to inode %lu %llu bytes at position %llu\n",
-            (unsigned long int) ino, (unsigned long long int) size,
-            (unsigned long long int) off);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    file_t *file = (file_t *) (unsigned long) fi->fh;
-
-    memcpy(file->fid, ie->fid, sizeof (fid_t));
-
-    buff = 0;
-    length = file_read(file, off, &buff, size);
-    if (length == -1)
-        goto error;
-    fuse_reply_buf(req, (char *) buff, length);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_read);
-    return;
-}
-
-void rozofs_ll_write(fuse_req_t req, fuse_ino_t ino, const char *buf,
-        size_t size, off_t off, struct fuse_file_info *fi) {
-    size_t length = 0;
-    ientry_t *ie = 0;
-
-    START_PROFILING_IO(rozofs_ll_write, size);
-
-    DEBUG("write to inode %lu %llu bytes at position %llu\n",
-            (unsigned long int) ino, (unsigned long long int) size,
-            (unsigned long long int) off);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    file_t *file = (file_t *) (unsigned long) fi->fh;
-    memcpy(file->fid, ie->fid, sizeof (fid_t));
-
-    length = file_write(file, off, buf, size);
-    if (length == -1)
-        goto error;
-    fuse_reply_write(req, length);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_write);
-    return;
-}
-
-void rozofs_ll_flush(fuse_req_t req, fuse_ino_t ino,
-        struct fuse_file_info *fi) {
-    file_t *f;
-    ientry_t *ie = 0;
-
-    START_PROFILING(rozofs_ll_flush);
-
-    DEBUG_FUNCTION;
-
-    // Sanity check
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (!(f = (file_t *) (unsigned long) fi->fh)) {
-        errno = EBADF;
-        goto out;
-    }
-
-    memcpy(f->fid, ie->fid, sizeof (fid_t));
-
-    if (file_flush(f) != 0) {
-        goto error;
-    }
-
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_flush);
-    return;
-}
-
-void rozofs_ll_access(fuse_req_t req, fuse_ino_t ino, int mask) {
-    START_PROFILING(rozofs_ll_access);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_access);
-}
-
-void rozofs_ll_release(fuse_req_t req, fuse_ino_t ino,
-        struct fuse_file_info *fi) {
-    file_t *f;
-    ientry_t *ie = 0;
-
-    START_PROFILING(rozofs_ll_release);
-
-    DEBUG("release (%lu)\n", (unsigned long int) ino);
-
-    // Sanity check
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (!(f = (file_t *) (unsigned long) fi->fh)) {
-        errno = EBADF;
-        goto out;
-    }
-
-    memcpy(f->fid, ie->fid, sizeof (fid_t));
-
-    if (file_flush(f) != 0) {
-        goto error;
-    }
-
-    if (file_close(&exportclt, f) != 0)
-        goto error;
-
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_release);
-    return;
-}
-
-void rozofs_ll_statfs(fuse_req_t req, fuse_ino_t ino) {
-    (void) ino;
-    estat_t estat;
-    struct statvfs st;
-
-    START_PROFILING(rozofs_ll_statfs);
-
-    memset(&st, 0, sizeof (struct statvfs));
-    if (exportclt_stat(&exportclt, &estat) == -1)
-        goto error;
-
-    st.f_blocks = estat.blocks; // + estat.bfree;
-    st.f_bavail = st.f_bfree = estat.bfree;
-    st.f_frsize = st.f_bsize = estat.bsize;
-    st.f_favail = st.f_ffree = estat.ffree;
-    st.f_files = estat.files;
-    st.f_namemax = estat.namemax;
-
-    fuse_reply_statfs(req, &st);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_statfs);
-    return;
-}
-
-void rozofs_ll_getattr(fuse_req_t req, fuse_ino_t ino,
-        struct fuse_file_info *fi) {
-    struct stat stbuf;
-    (void) fi;
-    ientry_t *ie = 0;
-    mattr_t attr;
-
-    START_PROFILING(rozofs_ll_getattr);
-
-    DEBUG("getattr for inode: %lu\n", (unsigned long int) ino);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_getattr(&exportclt, ie->fid, &attr) == -1) {
-        goto error;
-    }
-
-    mattr_to_stat(&attr, &stbuf);
-    stbuf.st_ino = ino;
-    fuse_reply_attr(req, &stbuf, attr_cache_timeo);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_getattr);
-    return;
-}
-
-void rozofs_ll_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
-        int to_set, struct fuse_file_info *fi) {
-    ientry_t *ie = 0;
-    struct stat o_stbuf;
-    mattr_t attr;
-
-    START_PROFILING(rozofs_ll_setattr);
-
-    DEBUG("setattr for inode: %lu\n", (unsigned long int) ino);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_setattr(&exportclt, ie->fid, stat_to_mattr(stbuf, &attr,
-            to_set), to_set) == -1) {
-        goto error;
-    }
-
-    mattr_to_stat(&attr, &o_stbuf);
-    o_stbuf.st_ino = ino;
-    fuse_reply_attr(req, &o_stbuf, attr_cache_timeo);
-
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_setattr);
-    return;
-}
-
-void rozofs_ll_symlink(fuse_req_t req, const char *link, fuse_ino_t parent,
-        const char *name) {
-    ientry_t *ie = 0;
-    mattr_t attrs;
-    ientry_t *nie = 0;
-    struct fuse_entry_param fep;
-    struct stat stbuf;
-
-    START_PROFILING(rozofs_ll_symlink);
-
-    DEBUG("symlink (%s,%lu,%s)", link, (unsigned long int) parent, name);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_symlink(&exportclt, (char *) link, ie->fid, (char *) name,
-            &attrs) != 0) {
-        goto error;
-    }
-
-    if (!(nie = get_ientry_by_fid(attrs.fid))) {
-        nie = xmalloc(sizeof (ientry_t));
-        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
-        nie->inode = next_inode_idx();
-        list_init(&nie->list);
-        nie->db.size = 0;
-        nie->db.p = NULL;
-        nie->db.eof = 0;
-        nie->db.cookie = 0;
-        nie->nlookup = 1;
-        put_ientry(nie);
-    }
-    memset(&fep, 0, sizeof (fep));
-    fep.ino = nie->inode;
-    mattr_to_stat(&attrs, &stbuf);
-    stbuf.st_ino = nie->inode;
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
-    nie->nlookup++;
-    fuse_reply_entry(req, &fep);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_symlink);
-    return;
-}
-
-void rozofs_ll_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
-    ientry_t *ie = 0;
-    ientry_t *ie2 = 0;
-    fid_t fid;
-
-    START_PROFILING(rozofs_ll_rmdir);
-
-    DEBUG("rmdir (%lu,%s)\n", (unsigned long int) parent, name);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (exportclt_rmdir(&exportclt, ie->fid, (char *) name, &fid) != 0) {
-        goto error;
-    }
-
-    if ((ie2 = get_ientry_by_fid(fid))) {
-        ie2->nlookup--;
-    }
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_rmdir);
-    return;
-}
-
-void rozofs_ll_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
-    ientry_t *ie = 0;
-    ientry_t *ie2 = 0;
-    fid_t fid;
-
-    START_PROFILING(rozofs_ll_unlink);
-
-    DEBUG("unlink (%lu,%s)\n", (unsigned long int) parent, name);
-
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (exportclt_unlink(&exportclt, ie->fid, (char *) name, &fid) != 0) {
-        goto error;
-    }
-
-    if ((ie2 = get_ientry_by_fid(fid))) {
-        ie2->nlookup--;
-    }
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_unlink);
-    return;
-}
-
-void rozofs_ll_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
-    ientry_t *ie = 0;
-
-    START_PROFILING(rozofs_ll_opendir);
-
-    /* just check if exists */
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-    fuse_reply_open(req, fi);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_opendir);
-}
-
-static void dirbuf_add(fuse_req_t req, dirbuf_t *b, const char *name,
-        fuse_ino_t ino, mattr_t * attrs) {
-
-    // Get oldsize of buffer
-    size_t oldsize = b->size;
-    // Set the inode number in stbuf
-    struct stat stbuf;
-    mattr_to_stat(attrs, &stbuf);
-    stbuf.st_ino = ino;
-    // Get the size for this entry
-    b->size += fuse_add_direntry(req, NULL, 0, name, &stbuf, 0);
-    // Realloc dirbuf
-    b->p = (char *) realloc(b->p, b->size);
-    // Add this entry
-    fuse_add_direntry(req, b->p + oldsize, b->size - oldsize, name, &stbuf, b->size);
-}
-
-#define min(x, y) ((x) < (y) ? (x) : (y))
-
-static int reply_buf_limited(fuse_req_t req, struct dirbuf *b, off_t off,
-        size_t maxsize) {
-    if (off < b->size) {
-        return fuse_reply_buf(req, b->p + off, min(b->size - off, maxsize));
-    } else {
-        // At the end
-        // Free buffer
-        if (b->p != NULL) {
-            free(b->p);
-            b->size = 0;
-            b->eof = 0;
-            b->cookie = 0;
-            b->p = NULL;
-        }
-        return fuse_reply_buf(req, NULL, 0);
-    }
-}
-
-void rozofs_ll_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-        struct fuse_file_info *fi) {
-    ientry_t *ie = 0;
-    child_t *child = NULL;
-    child_t *iterator = NULL;
-    child_t *free_it = NULL;
-
-    START_PROFILING(rozofs_ll_readdir);
-
-    DEBUG("readdir (%lu, size:%llu, off:%llu)\n", (unsigned long int) ino,
-            (unsigned long long int) size, (unsigned long long int) off);
-
-    // Get ientry
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    // If offset is 0, it maybe the first time the caller read the dir but
-    // it might also have already read the a chunk of dir but wants to
-    // read from 0 again. it might be overkill but to be sure not using
-    // buffer content force exportd readdir call.
-    if (off == 0) {
-        if (ie->db.p != NULL) {
-            free(ie->db.p);
-            ie->db.size = 0;
-            ie->db.eof = 0;
-            ie->db.cookie = 0;
-            ie->db.p = NULL;
-        }
-    }
-
-    // If the requested size is greater than the current size of buffer
-    // and the end of stream is not reached:
-    // we send a readdir request
-    if ((off + size) > ie->db.size && ie->db.eof == 0) {
-
-        // Send readdir request
-        // cookie is a uint64_t.
-        // It's the index of next directory entry
-        if (exportclt_readdir(&exportclt, ie->fid, &ie->db.cookie, &child, &ie->db.eof) != 0) {
-            goto error;
-        }
-
-        iterator = child;
-
-        // Process the list of children
-        while (iterator != NULL) {
-            mattr_t attrs;
-            memset(&attrs, 0, sizeof (mattr_t));
-            ientry_t *ie2 = 0;
-
-            // May be already cached
-            if (!(ie2 = get_ientry_by_fid(iterator->fid))) {
-                // If not, cache it
-                ie2 = xmalloc(sizeof (ientry_t));
-                memcpy(ie2->fid, iterator->fid, sizeof (fid_t));
-                ie2->inode = next_inode_idx();
-                list_init(&ie2->list);
-                ie2->db.size = 0;
-                ie2->db.cookie = 0;
-                ie2->db.eof = 0;
-                ie2->db.p = NULL;
-                ie2->nlookup = 1;
-                put_ientry(ie2);
-            }
-
-            memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
-
-            // Add this directory entry to the buffer
-            dirbuf_add(req, &ie->db, iterator->name, ie2->inode, &attrs);
-
-            // Free it and go to the next child
-            free_it = iterator;
-            iterator = iterator->next;
-            free(free_it->name);
-            free(free_it);
-
-            // If we reached the end of this current child list but the
-            // end of stream is not reached and the requested size is greater
-            // than the current size of buffer then send another request
-            if (iterator == NULL && ie->db.eof == 0 && ((off + size) > ie->db.size)) {
-
-                if (exportclt_readdir(&exportclt, ie->fid, &ie->db.cookie, &child, &ie->db.eof) != 0) {
-                    goto error;
-                }
-                iterator = child;
-            }
-        }
-    }
-    // Reply with data
-    reply_buf_limited(req, &ie->db, off, size);
-
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_readdir);
-    return;
-}
-
-void rozofs_ll_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
-    struct fuse_entry_param fep;
-    ientry_t *ie = 0;
-    ientry_t *nie = 0;
-    struct stat stbuf;
-    mattr_t attrs;
-
-    START_PROFILING(rozofs_ll_lookup);
-
-    DEBUG("lookup (%lu,%s)\n", (unsigned long int) parent, name);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_lookup(&exportclt, ie->fid, (char *) name, &attrs) != 0) {
-        goto error;
-    }
-
-    if (!(nie = get_ientry_by_fid(attrs.fid))) {
-        nie = xmalloc(sizeof (ientry_t));
-        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
-        nie->inode = next_inode_idx();
-        list_init(&nie->list);
-        nie->db.size = 0;
-        nie->db.p = NULL;
-        nie->db.eof = 0;
-        nie->db.cookie = 0;
-        nie->nlookup = 1;
-        put_ientry(nie);
-    }
-    memset(&fep, 0, sizeof (fep));
-    mattr_to_stat(&attrs, &stbuf);
-    stbuf.st_ino = nie->inode;
-    fep.ino = nie->inode;
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
-    nie->nlookup++;
-    fuse_reply_entry(req, &fep);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_lookup);
-    return;
-}
-
-void rozofs_ll_create(fuse_req_t req, fuse_ino_t parent, const char *name,
-        mode_t mode, struct fuse_file_info *fi) {
-    ientry_t *ie = 0;
-    ientry_t *nie = 0;
-    mattr_t attrs;
-    struct fuse_entry_param fep;
-    struct stat stbuf;
-    file_t *file;
-    const struct fuse_ctx *ctx;
-
-    START_PROFILING(rozofs_ll_create);
-
-    DEBUG("create (%lu,%s,%04o)\n", (unsigned long int) parent, name,
-            (unsigned int) mode);
-
-    ctx = fuse_req_ctx(req);
-
-    if (strlen(name) > ROZOFS_FILENAME_MAX) {
-        errno = ENAMETOOLONG;
-        goto error;
-    }
-    if (!(ie = get_ientry_by_inode(parent))) {
-        errno = ENOENT;
-        goto error;
-    }
-    if (exportclt_mknod(&exportclt, ie->fid, (char *) name, ctx->uid, ctx->gid,
-            mode, &attrs) != 0) {
-        goto error;
-    }
-
-    if (!(nie = get_ientry_by_fid(attrs.fid))) {
-        nie = xmalloc(sizeof (ientry_t));
-        memcpy(nie->fid, attrs.fid, sizeof (fid_t));
-        nie->inode = next_inode_idx();
-        list_init(&nie->list);
-        nie->db.size = 0;
-        nie->db.p = NULL;
-        nie->db.eof = 0;
-        nie->db.cookie = 0;
-        nie->nlookup = 1;
-        put_ientry(nie);
-    }
-
-    if (!(file = file_open(&exportclt, nie->fid, S_IRWXU))) {
-        goto error;
-    }
-
-    memset(&fep, 0, sizeof (fep));
-    mattr_to_stat(&attrs, &stbuf);
-    stbuf.st_ino = nie->inode;
-    fep.ino = nie->inode;
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = entry_cache_timeo;
-    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
-    fi->fh = (unsigned long) file;
-    nie->nlookup++;
-    fuse_reply_create(req, &fep, fi);
-
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_create);
-    return;
 }
 
 void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
@@ -1313,140 +253,7 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
     }
 
     STOP_PROFILING(rozofs_ll_forget);
-
     fuse_reply_none(req);
-}
-
-#define XATTR_CAPABILITY_NAME "security.capability"
-
-void rozofs_ll_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
-        size_t size) {
-
-    START_PROFILING(rozofs_ll_getxattr);
-
-    DEBUG("getxattr (inode: %lu, name: %s, size: %llu) \n",
-            (unsigned long int) ino, name, (unsigned long long int) size);
-
-    /// XXX: respond with the error ENODATA for these calls
-    // to avoid that the getxattr called on export at each write to this file
-    // But these calls have overhead (each one requires a context switch)
-    // It's seems to be a bug in kernel.
-    if (strcmp(XATTR_CAPABILITY_NAME, name) == 0) {
-        fuse_reply_err(req, ENODATA);
-        goto out;
-    }
-
-    ientry_t *ie = 0;
-    uint64_t value_size = 0;
-    char value[ROZOFS_XATTR_VALUE_MAX];
-    memset(value, 0, ROZOFS_XATTR_VALUE_MAX * sizeof (char));
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_getxattr(&exportclt, ie->fid, (char *) name, value, size,
-            &value_size) == -1)
-        goto error;
-
-    if (size == 0) {
-        fuse_reply_xattr(req, value_size);
-        goto out;
-    }
-
-    fuse_reply_buf(req, (char *) value, value_size);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_getxattr);
-    return;
-}
-
-void rozofs_ll_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
-        const char *value, size_t size, int flags) {
-    ientry_t *ie = 0;
-
-    START_PROFILING(rozofs_ll_setxattr);
-
-    DEBUG("setxattr (inode: %lu, name: %s, value: %s, size: %llu)\n",
-            (unsigned long int) ino, name, value,
-            (unsigned long long int) size);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_setxattr(&exportclt, ie->fid, (char *) name, (char *) value,
-            size, flags) == -1)
-        goto error;
-
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_setxattr);
-    return;
-}
-
-void rozofs_ll_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size) {
-    ientry_t *ie = 0;
-    uint64_t list_size = 0;
-    char list[ROZOFS_XATTR_LIST_MAX];
-
-    START_PROFILING(rozofs_ll_listxattr);
-
-    DEBUG("listxattr (inode: %lu, size: %llu)\n", (unsigned long int) ino,
-            (unsigned long long int) size);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_listxattr(&exportclt, ie->fid, list, size, &list_size) == -1)
-        goto error;
-
-    if (size == 0) {
-        fuse_reply_xattr(req, list_size);
-        goto out;
-    }
-
-    fuse_reply_buf(req, (char *) list, list_size);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_listxattr);
-    return;
-}
-
-void rozofs_ll_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name) {
-    ientry_t *ie = 0;
-
-    START_PROFILING(rozofs_ll_removexattr);
-
-    DEBUG("removexattr (inode: %lu, name: %s)\n", (unsigned long int) ino,
-            name);
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
-
-    if (exportclt_removexattr(&exportclt, ie->fid, (char *) name) == -1)
-        goto error;
-
-    fuse_reply_err(req, 0);
-    goto out;
-error:
-    fuse_reply_err(req, errno);
-out:
-    STOP_PROFILING(rozofs_ll_removexattr);
-    return;
 }
 
 /*
@@ -1497,6 +304,14 @@ void rozofs_ll_ioctl(fuse_req_t req, fuse_ino_t ino, int cmd, void *arg,
     STOP_PROFILING(rozofs_ll_ioctl);
 }
 
+#warning fake untested function.
+
+void rozofs_ll_access(fuse_req_t req, fuse_ino_t ino, int mask) {
+    START_PROFILING(rozofs_ll_access);
+    fuse_reply_err(req, 0);
+    STOP_PROFILING(rozofs_ll_access);
+}
+
 static SVCXPRT *rozofsmount_create_rpc_service(int port) {
     int sock;
     int one = 1;
@@ -1539,8 +354,8 @@ void rozofmount_profiling_thread_run(void *args) {
         severe("can't create monitoring service: %s", strerror(errno));
     }
 
-    /* Associates STORAGE_PROGRAM and STORAGE_VERSION
-     * with the service dispatch procedure, storage_program_1.
+    /* Associates ROZOFSMOUNT_PROFILE_PROGRAM and ROZOFSMOUNT_PROFILE_VERSION
+     * with the service dispatch procedure, rozofsmount_profile_program_1.
      * Here protocol is zero, the service is not registered with
      *  the portmap service */
     if (!svc_register(rozofsmount_profile_svc, ROZOFSMOUNT_PROFILE_PROGRAM,
@@ -1553,44 +368,174 @@ void rozofmount_profiling_thread_run(void *args) {
     DEBUG("REACHED !!!!");
     /* NOT REACHED */
 }
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
+                    #probe,\
+                    gprofiler.rozofs_ll_##probe[P_COUNT],\
+                    gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
+                    gprofiler.rozofs_ll_##probe[P_ELAPSE]," " );
 
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64" |\n",\
+                    #probe,\
+                    gprofiler.rozofs_ll_##probe[P_COUNT],\
+                    gprofiler.rozofs_ll_##probe[P_COUNT]?gprofiler.rozofs_ll_##probe[P_ELAPSE]/gprofiler.rozofs_ll_##probe[P_COUNT]:0,\
+                    gprofiler.rozofs_ll_##probe[P_ELAPSE],\
+                    gprofiler.rozofs_ll_##probe[P_BYTES]);
+
+void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+
+
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
+    pChar += sprintf(pChar, " - ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
+    pChar += sprintf(pChar, "   procedure  |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
+    pChar += sprintf(pChar, "--------------+-----------------+-----------+--------------------+-----------------+\n");
+    SHOW_PROFILER_PROBE(lookup);
+    SHOW_PROFILER_PROBE(forget);
+    SHOW_PROFILER_PROBE(getattr);
+    SHOW_PROFILER_PROBE(setattr);
+    SHOW_PROFILER_PROBE(readlink);
+    SHOW_PROFILER_PROBE(mknod);
+    SHOW_PROFILER_PROBE(mkdir);
+    SHOW_PROFILER_PROBE(unlink);
+    SHOW_PROFILER_PROBE(rmdir);
+    SHOW_PROFILER_PROBE(symlink);
+    SHOW_PROFILER_PROBE(rename);
+    SHOW_PROFILER_PROBE(open);
+    SHOW_PROFILER_PROBE(link);
+    SHOW_PROFILER_PROBE_BYTE(read);
+    SHOW_PROFILER_PROBE_BYTE(write);
+    SHOW_PROFILER_PROBE(flush);
+    SHOW_PROFILER_PROBE(release);
+    SHOW_PROFILER_PROBE(opendir);
+    SHOW_PROFILER_PROBE(readdir);
+    SHOW_PROFILER_PROBE(releasedir);
+    SHOW_PROFILER_PROBE(fsyncdir);
+    SHOW_PROFILER_PROBE(statfs);
+    SHOW_PROFILER_PROBE(setxattr);
+    SHOW_PROFILER_PROBE(getxattr);
+    SHOW_PROFILER_PROBE(listxattr);
+    SHOW_PROFILER_PROBE(removexattr);
+    SHOW_PROFILER_PROBE(access);
+    SHOW_PROFILER_PROBE(create);
+    SHOW_PROFILER_PROBE(getlk);
+    SHOW_PROFILER_PROBE(setlk);
+    SHOW_PROFILER_PROBE(ioctl);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+typedef struct _xmalloc_stats_t {
+    uint64_t count;
+    int size;
+} xmalloc_stats_t;
+
+#define XMALLOC_MAX_SIZE  512
+
+extern xmalloc_stats_t *xmalloc_size_table_p;
+
+void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+    int i;
+    xmalloc_stats_t *p;
+
+    if (xmalloc_size_table_p == NULL) {
+        pChar += sprintf(pChar, "xmalloc stats not available\n");
+        uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+        return;
+
+    }
+
+    for (i = 0; i < 64; i++) {
+        p = &xmalloc_size_table_p[i];
+        if (p->size == 0) {
+            break;
+        }
+        pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, (long long unsigned int) p->count);
+    }
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+
+}
 static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .init = rozofs_ll_init,
     //.destroy = rozofs_ll_destroy,
-    .lookup = rozofs_ll_lookup,
-    .forget = rozofs_ll_forget,
-    .getattr = rozofs_ll_getattr,
-    .setattr = rozofs_ll_setattr,
-    .readlink = rozofs_ll_readlink,
-    .mknod = rozofs_ll_mknod,
-    .mkdir = rozofs_ll_mkdir,
-    .unlink = rozofs_ll_unlink,
-    .rmdir = rozofs_ll_rmdir,
-    .symlink = rozofs_ll_symlink,
-    .rename = rozofs_ll_rename,
-    .open = rozofs_ll_open,
-    .link = rozofs_ll_link,
-    .read = rozofs_ll_read,
-    .write = rozofs_ll_write,
-    .flush = rozofs_ll_flush,
-    .release = rozofs_ll_release,
-    .opendir = rozofs_ll_opendir,
-    .readdir = rozofs_ll_readdir,
-    .releasedir = rozofs_ll_releasedir,
-    .fsyncdir = rozofs_ll_fsyncdir,
-    .statfs = rozofs_ll_statfs,
-    .setxattr = rozofs_ll_setxattr,
-    .getxattr = rozofs_ll_getxattr,
-    .listxattr = rozofs_ll_listxattr,
-    .removexattr = rozofs_ll_removexattr,
-    .access = rozofs_ll_access,
-    .create = rozofs_ll_create,
-    .getlk = rozofs_ll_getlk,
-    .setlk = rozofs_ll_setlk,
+    .lookup = rozofs_ll_lookup_nb, /** non blocking */
+    .forget = rozofs_ll_forget, /** non blocking by construction */
+    .getattr = rozofs_ll_getattr_nb, /** non blocking */
+    .setattr = rozofs_ll_setattr_nb, /** non blocking */
+    .readlink = rozofs_ll_readlink_nb, /** non blocking */
+    .mknod = rozofs_ll_mknod_nb, /** non blocking */
+    .mkdir = rozofs_ll_mkdir_nb, /** non blocking */
+    .unlink = rozofs_ll_unlink_nb, /** non blocking */
+    .rmdir = rozofs_ll_rmdir_nb, /** non blocking */
+    .symlink = rozofs_ll_symlink_nb, /** non blocking */
+    .rename = rozofs_ll_rename_nb, /** non blocking */
+    .open = rozofs_ll_open_nb, /** non blocking */
+    .link = rozofs_ll_link_nb, /** non blocking */
+    .read = rozofs_ll_read_nb, /**non blocking */
+    .write = rozofs_ll_write_nb, /**non blocking */
+    .flush = rozofs_ll_flush_nb, /**non blocking */
+    .release = rozofs_ll_release_nb, /**non blocking */
+    //.opendir = rozofs_ll_opendir, /** non blocking by construction */
+    .readdir = rozofs_ll_readdir_nb, /** non blocking */
+    //.releasedir = rozofs_ll_releasedir, /** non blocking by construction */
+    //.fsyncdir = rozofs_ll_fsyncdir, /** non blocking by construction */
+    .statfs = rozofs_ll_statfs_nb, /** non blocking */
+    .setxattr = rozofs_ll_setxattr_nb, /** non blocking */
+    .getxattr = rozofs_ll_getxattr_nb, /** non blocking */
+    .listxattr = rozofs_ll_listxattr_nb, /** non blocking */
+    .removexattr = rozofs_ll_removexattr_nb, /** non blocking */
+    .access = rozofs_ll_access, /** non blocking by construction */
+    .create = rozofs_ll_create_nb, /** non blocking */
+    //.getlk = rozofs_ll_getlk,
+    //.setlk = rozofs_ll_setlk,
     //.bmap = rozofs_ll_bmap,
-    .ioctl = rozofs_ll_ioctl,
+    //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,
 };
+
+void rozofs_kill_storcli(const char *mountpoint) {
+
+    char cmd[1024];
+    char *cmd_p = &cmd[0];
+    cmd_p += sprintf(cmd_p, "%s %s", STORCLI_KILLER, mountpoint);
+    system(cmd);
+}
+
+void rozofs_start_storcli(const char *mountpoint) {
+    int i;
+    char cmd[1024];
+    rozofs_kill_storcli(mountpoint);
+    for (i = 1; i <= STORCLI_PER_FSMOUNT; i++) {
+        char *cmd_p = &cmd[0];
+        cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
+        cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
+        cmd_p += sprintf(cmd_p, "-i %d ", i);
+        cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
+        cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
+        cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
+        cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
+        cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
+        cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+        cmd_p += sprintf(cmd_p, "&");
+        
+        info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
+                " profile port: %d, rozofs instance: %d, storage timeout: %d).",
+                i, conf.host, conf.export, mountpoint,
+                conf.dbg_port + i, conf.instance,
+                ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+        
+        system(cmd);
+    }
+}
 
 int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int i = 0;
@@ -1601,33 +546,40 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     char s;
     struct fuse_chan *ch;
     struct fuse_session *se;
-    list_t *p = NULL;
-    list_t *iterator = NULL;
     int sock;
     pthread_t profiling_thread;
     uint16_t profiling_port;
+    int retry_count;
     char ppfile[NAME_MAX];
     int ppfd = -1;
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
-    /* Initialize rozofs */
-    rozofs_layout_initialize();
 
-    struct timeval timeout_exportd;
-    timeout_exportd.tv_sec = conf.export_timeout;
-    timeout_exportd.tv_usec = 0;
 
-    /* Initiate the connection to the export and get informations
-     * about exported filesystem */
-    if (exportclt_initialize(
-            &exportclt,
-            conf.host,
-            conf.export,
-            conf.passwd,
-            conf.buf_size * 1024,
-            conf.max_retry,
-            timeout_exportd) != 0) {
+    struct timeval timeout_mproto;
+    timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
+    timeout_mproto.tv_usec = 0;
+
+
+    for (retry_count = 3; retry_count > 0; retry_count--) {
+        /* Initiate the connection to the export and get informations
+         * about exported filesystem */
+        /// XXX: TO CHANGE
+        if (exportclt_initialize(
+                &exportclt,
+                conf.host,
+                conf.export,
+                conf.passwd,
+                conf.buf_size * 1024,
+                conf.max_retry,
+                timeout_mproto) == 0) break;
+
+        sleep(2);
+    }
+
+    if (retry_count == 0) {
+
         fprintf(stderr,
                 "rozofsmount failed for:\n" "export directory: %s\n"
                 "export hostname: %s\n" "local mountpoint: %s\n" "error: %s\n"
@@ -1636,61 +588,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         return 1;
     }
 
-    /* Initiate the connection to each storage node (with mproto),
-     *  get the list of ports and
-     *  establish a connection with each storage socket (with sproto) */
-    list_for_each_forward(iterator, &exportclt.storages) {
-
-        mstorage_t *s = list_entry(iterator, mstorage_t, list);
-
-        mclient_t mclt;
-        strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
-        uint32_t ports[STORAGE_NODE_PORTS_MAX];
-        memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
-
-        struct timeval timeout_mproto;
-        timeout_mproto.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
-        timeout_mproto.tv_usec = 0;
-
-        /* Initialize connection with storage (by mproto) */
-        if (mclient_initialize(&mclt, timeout_mproto) != 0) {
-            fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
-                    s->host, strerror(errno));
-        } else {
-            /* Send request to get storage TCP ports */
-            if (mclient_ports(&mclt, ports) != 0) {
-                fprintf(stderr,
-                        "Warning: failed to get ports for storage (host: %s).\n"
-                        , s->host);
-            }
-        }
-
-        /* Initialize each TCP ports connection with this storage node
-         *  (by sproto) */
-        for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-            if (ports[i] != 0) {
-                strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
-                s->sclients[i].port = ports[i];
-                s->sclients[i].status = 0;
-                struct timeval timeout_sproto;
-                timeout_sproto.tv_sec = conf.storage_timeout;
-                timeout_sproto.tv_usec = 0;
-
-                if (sclient_initialize(&s->sclients[i], timeout_sproto) != 0) {
-                    fprintf(stderr,
-                            "Warning: failed to join storage "
-                            "(host: %s, port: %u), %s.\n",
-                            s->host, s->sclients[i].port, strerror(errno));
-                }
-                s->sclients_nb++;
-            }
-        }
-
-        /* Release mclient*/
-        mclient_release(&mclt);
-    }
-
-    /* Initialize list and htables for inode_entries*/
+    /* Initialize list and htables for inode_entries */
     list_init(&inode_entries);
     htable_initialize(&htable_inode, INODE_HSIZE, fuse_ino_hash, fuse_ino_cmp);
     htable_initialize(&htable_fid, PATH_HSIZE, fid_hash, fid_cmp);
@@ -1786,17 +684,54 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         }
     }
 
-    /* Creates one thread for each storage TCP connection.
-     Each thread will detect if a storage connection is going offline
-     and try to reconnect it.*/
-    list_for_each_forward(p, &exportclt.storages) {
+    /* Creates one debug thread */
 
-        mstorage_t *storage = list_entry(p, mstorage_t, list);
-        pthread_t thread;
+    pthread_t thread;
+    rozofs_fuse_conf_t rozofs_fuse_conf;
 
-        if ((errno = pthread_create(&thread, NULL, connect_storage, storage)) != 0) {
-            severe("can't create connexion thread: %s", strerror(errno));
-        }
+    semForEver = malloc(sizeof (sem_t)); /* semaphore for blocking the main thread doing nothing */
+    //    int ret;
+
+    if (sem_init(semForEver, 0, 0) == -1) {
+        severe("main() sem_init() problem : %s", strerror(errno));
+    }
+
+
+    /*
+     ** Register these topics befora start the rozofs_stat_start that will
+     ** register other topic. Topic registration is not safe in multi thread
+     ** case
+     */
+    uma_dbg_addTopic("profiler", show_profiler);
+    uma_dbg_addTopic("xmalloc", show_xmalloc);
+    uma_dbg_addTopic("uptime", show_uptime);
+
+    /*
+    ** declare timer debug functions
+    */
+    rozofs_timer_conf_dbg_init();
+    /*
+    ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
+    */
+    if (conf.dbg_port == 0) 
+    {
+      conf.dbg_port = rzdbg_default_base_port;    
+    }
+    else
+    {
+      rzdbg_default_base_port = conf.dbg_port;    
+    }    
+    rozofs_fuse_conf.instance = (uint16_t) conf.instance;
+    rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_rozofsmount_port((uint16_t) conf.instance);
+    conf.dbg_port = rozofs_fuse_conf.debug_port;
+    rozofs_fuse_conf.se = se;
+    rozofs_fuse_conf.ch = ch;
+    rozofs_fuse_conf.exportclt = (void*) &exportclt;
+    rozofs_fuse_conf.max_transactions = 32;
+
+    if ((errno = pthread_create(&thread, NULL, (void*) rozofs_stat_start, &rozofs_fuse_conf)) != 0) {
+        severe("can't create debug thread: %s", strerror(errno));
+        return err;
     }
 
     /*
@@ -1840,7 +775,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     info("monitoring port: %d", profiling_port);
 
     /* try to create a flag file with port number */
-    sprintf(ppfile, "%s%s%s", DAEMON_PID_DIRECTORY, "rozofsmount", mountpoint);
+    sprintf(ppfile, "%s%s_%d%s", DAEMON_PID_DIRECTORY, "rozofsmount",conf.instance, mountpoint);
     c = ppfile + strlen(DAEMON_PID_DIRECTORY);
     while (*c++) {
         if (*c == '/') *c = '.';
@@ -1849,22 +784,26 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("can't open profiling port file");
     } else {
         char str[10];
-        sprintf(str, "%d\n", profiling_port);
+        sprintf(str, "%d\n", getpid());
         write(ppfd, str, strlen(str));
         close(ppfd);
     }
 
+    rozofs_start_storcli(mountpoint);
 
-    err = fuse_session_loop(se);
+    for (;;) {
+        int ret;
+        ret = sem_wait(semForEver);
+        if (ret != 0) {
+            severe("sem_wait: %s", strerror(errno));
+            continue;
 
-    if (err) {
-        if (piped[1] >= 0) {
-            if (write(piped[1], &s, 1) != 1) {
-                syslog(LOG_ERR, "pipe write error: %s", strerror(errno));
-            }
-            close(piped[1]);
         }
+        break;
     }
+
+    rozofs_kill_storcli(mountpoint);
+
     fuse_remove_signal_handlers(se);
     fuse_session_remove_chan(ch);
     fuse_session_destroy(se);
@@ -1890,6 +829,10 @@ int main(int argc, char *argv[]) {
     int res;
 
     memset(&conf, 0, sizeof (conf));
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
 
     conf.max_retry = 50;
     conf.buf_size = 0;
@@ -1932,32 +875,30 @@ int main(int argc, char *argv[]) {
         conf.buf_size = 8192;
     }
 
+
     // Set timeout for exportd requests
-    if (conf.export_timeout == 0) {
-        conf.export_timeout = 25;
+    if (conf.export_timeout != 0) {
+        if (rozofs_tmr_configure(TMR_EXPORT_PROGRAM,conf.export_timeout)< 0)
+        {
+          fprintf(stderr,
+                "timeout for exportd requests is out of range: revert to default setting");
+        }
     }
 
-    // Check timeout for exportd requests
-    if (conf.export_timeout < 10) {
-        fprintf(stderr,
-                "timeout for exportd requests is too low (%u KiB)"
-                " - increased to 10\n",
-                conf.export_timeout);
-        conf.export_timeout = 10;
+    if (conf.storage_timeout != 0) {
+        if (rozofs_tmr_configure(TMR_STORAGE_PROGRAM,conf.storage_timeout)< 0)
+        {
+          fprintf(stderr,
+                "timeout for storaged requests is out of range: revert to default setting");
+        }
     }
 
-    // Set timeout for storaged requests
-    if (conf.storage_timeout == 0) {
-        conf.storage_timeout = 3;
-    }
-
-    // Check timeout for storaged requests
-    if (conf.storage_timeout < 2) {
-        fprintf(stderr,
-                "timeout for storaged requests is too low (%u KiB)"
-                " - increased to 2\n",
-                conf.storage_timeout);
-        conf.storage_timeout = 10;
+    if (conf.storcli_timeout != 0) {
+        if (rozofs_tmr_configure(TMR_STORCLI_PROGRAM,conf.storcli_timeout)< 0)
+        {
+          fprintf(stderr,
+                "timeout for storcli requests is out of range: revert to default setting");
+        }
     }
 
     if (fuse_version() < 28) {

@@ -20,7 +20,7 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
-set(MINOR "1")
+set(MINOR "2")
 set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
@@ -34,6 +34,7 @@ find_package(CONFIG REQUIRED)
 find_package(XATTR REQUIRED)
 find_package(PTHREAD REQUIRED)
 find_package(FUSE REQUIRED)
+find_package(READLINE REQUIRED)
 find_package(SWIG REQUIRED)
 find_package(Doxygen QUIET)
 find_program(PYTHON NAMES python2.6)
@@ -59,6 +60,18 @@ set(ROZOFS_CONFIG_DIR "${SYSCONFDIR}/rozofs")
 set(EXPORTD_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/export.conf")
 
 set(STORAGED_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/storage.conf")
+
+#if(NOT ROZOFS_SHELL_DIR)
+#    set(ROZOFS_SHELL_DIR "/usr/local/bin")
+#endif(NOT ROZOFS_SHELL_DIR)
+#
+#if(NOT ROZOFS_BIN_DIR)
+#    set(ROZOFS_BIN_DIR "/usr/local/bin")
+#endif(NOT ROZOFS_BIN_DIR)
+#
+#set(STORCLI_STARTER "${ROZOFS_SHELL_DIR}/storcli_starter.sh")
+#set(STORCLI_KILLER "${ROZOFS_SHELL_DIR}/storcli_killer.sh")
+#set(STORCLI_EXEC "${ROZOFS_BIN_DIR}/storcli")
 
 if(NOT DAEMON_PID_DIRECTORY)
     set(DAEMON_PID_DIRECTORY "/var/run")
@@ -111,11 +124,11 @@ set(CMAKE_C_FLAGS "-D_GNU_SOURCE" CACHE STRING
     "Flags used by the compiler during all build types."
     FORCE)
 
-set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE" CACHE STRING
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE  -g" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
 
-set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
+set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE " CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
 

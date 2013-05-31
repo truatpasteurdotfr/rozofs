@@ -47,11 +47,10 @@
 #include "cache.h"
 #include "mdirent.h"
 
-/** max entries of lv1 directory structure */
-#define MAX_LV1_BUCKETS 256
+/** Max entries of lv1 directory structure (nb. of buckets) */
+#define MAX_LV1_BUCKETS 1024
 #define LV1_NOCREATE 0
 #define LV1_CREATE 1
-#define RM_FILES_MAX 2500
 
 /** Default mode for export root directory */
 #define EXPORT_DEFAULT_ROOT_MODE S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
@@ -76,39 +75,126 @@ typedef struct cnxentry {
 
 DECLARE_PROFILING(epp_profiler_t);
 
+
+/*
+ **__________________________________________________________________
+ */
+
 /** get the lv1 directory.
  *
  * lv1 entries are first level directories of an export root named by uint32_t
  * string value and used has entry of a hash table storing the export
  * meta data files.
  *
- * @param export: the export used to find directory
- * @param fid: the search fid
- * @param create: whenever directory will be created or not
+ * @param root_path: root path of the exportd
+ * @param slice: value of the slice
  *
- * @return the entry on success otherwise -1
+ * @return 0 on success otherwise -1
  */
-static int export_lv1_resolve_entry(export_t *export, fid_t fid, int create) {
-    uint32_t hash = 0;
-    uint8_t *c = 0;
+static inline int mstor_slice_resolve_entry(char *root_path, uint32_t slice) {
     char path[PATH_MAX];
-    START_PROFILING(export_lv1_resolve_entry);
-
-    for (c = fid; c != fid + 16; c++)
-        hash = *c + (hash << 6) + (hash << 16) - hash;
-    hash %= MAX_LV1_BUCKETS;
-    sprintf(path, "%s/%"PRId32"", export->root, hash);
+    sprintf(path, "%s/%"PRId32"", root_path, slice);
     if (access(path, F_OK) == -1) {
-        if (errno == ENOENT && create) {
-            if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0)
+        if (errno == ENOENT) {
+            /*
+             ** it is the fisrt time we access to the slice
+             **  we need to create the level 1 directory and the 
+             ** timestamp file
+             */
+            if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+                severe("mkdir (%s): %s", path, strerror(errno));
                 return -1;
-        } else {
-            return -1;
+            }
+            //          mstor_ts_srv_create_slice_timestamp_file(export,slice); 
+            return 0;
         }
+        /*
+         ** any other error
+         */
+        severe("access (%s): %s", path, strerror(errno));
+        return -1;
     }
+    return 0;
+}
 
-    STOP_PROFILING(export_lv1_resolve_entry);
-    return hash;
+/*
+ **__________________________________________________________________
+ */
+
+/** get the subslice directory index.
+ *
+ * lv1 entries are first level directories of an export root named by uint32_t
+ * string value and used has entry of a hash table storing the export
+ * meta data files.
+ *
+ * @param root_path: root path of the exportd
+ * @param fid: the search fid
+ *
+ * @return 0 on success otherwise -1
+ */
+static inline int mstor_subslice_resolve_entry(char *root_path, fid_t fid, uint32_t slice, uint32_t subslice) {
+    char path[PATH_MAX];
+
+
+    sprintf(path, "%s/%d/%d", root_path, slice, subslice);
+    if (access(path, F_OK) == -1) {
+        if (errno == ENOENT) {
+            /*
+             ** it is the fisrt time we access to the subslice
+             **  we need to create the associated directory 
+             */
+            if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+                severe("mkdir (%s): %s", path, strerror(errno));
+                return -1;
+            }
+            return 0;
+        }
+        severe("access (%s): %s", path, strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+/** build a full path based on export root and fid of the lv2 file
+ *
+ * lv2 is the second level of files or directories in storage of metadata
+ * they are acceded thru mreg or mdir API according to their type.
+ *
+ * @param root_path: root path of the exportd
+ * @param fid: the fid we are looking for
+ * @param path: the path to fill in
+ */
+
+static inline int export_lv2_resolve_path_internal(char *root_path, fid_t fid, char *path) {
+    uint32_t slice;
+    uint32_t subslice;
+    char str[37];
+
+    /*
+     ** extract the slice and subsclie from the fid
+     */
+    mstor_get_slice_and_subslice(fid, &slice, &subslice);
+    /*
+     ** check the existence of the slice directory: create it if it does not exist
+     */
+    if (mstor_slice_resolve_entry(root_path, slice) < 0) {
+        goto error;
+    }
+    /*
+     ** check the existence of the subslice directory: create it if it does not exist
+     */
+    if (mstor_subslice_resolve_entry(root_path, fid, slice, subslice) < 0) {
+        goto error;
+    }
+    /*
+     ** convert the fid in ascii
+     */
+    uuid_unparse(fid, str);
+    sprintf(path, "%s/%d/%d/%s", root_path, slice, subslice, str);
+    return 0;
+
+error:
+    return -1;
 }
 
 /** build a full path based on export root and fid of the lv2 file
@@ -120,19 +206,16 @@ static int export_lv1_resolve_entry(export_t *export, fid_t fid, int create) {
  * @param fid: the fid we are looking for
  * @param path: the path to fill in
  */
-static int export_lv2_resolve_path(export_t *export, fid_t fid, char *path) {
-    int lv1 = -1;
-    char str[37];
+
+int export_lv2_resolve_path(export_t *export, fid_t fid, char *path) {
+    int ret;
+
     START_PROFILING(export_lv2_resolve_path);
 
-    if ((lv1 = export_lv1_resolve_entry(export, fid, LV1_CREATE)) < 0)
-        return -1;
-
-    uuid_unparse(fid, str);
-    sprintf(path, "%s/%d/%s", export->root, lv1, str);
+    ret = export_lv2_resolve_path_internal(export->root, fid, path);
 
     STOP_PROFILING(export_lv2_resolve_path);
-    return 0;
+    return ret;
 }
 
 /** search a fid in the cache
@@ -195,7 +278,8 @@ static int export_lv2_write_attributes(lv2_entry_t *entry) {
  *
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
-static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void *value, size_t size, int flags) {
+static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name,
+        const void *value, size_t size, int flags) {
 
     if (S_ISDIR(entry->attributes.mode)) {
         return mdir_set_xattr(&entry->container.mdir, name, value, size, flags);
@@ -220,7 +304,8 @@ static int export_lv2_set_xattr(lv2_entry_t *entry, const char *name, const void
  * @return: On success, the size of the extended attribute value.
  * On failure, -1 is returned and errno is set appropriately.
  */
-static ssize_t export_lv2_get_xattr(lv2_entry_t *entry, const char *name, void *value, size_t size) {
+static ssize_t export_lv2_get_xattr(lv2_entry_t *entry, const char *name,
+        void *value, size_t size) {
 
     if (S_ISDIR(entry->attributes.mode)) {
         return mdir_get_xattr(&entry->container.mdir, name, value, size);
@@ -264,7 +349,8 @@ static int export_lv2_remove_xattr(lv2_entry_t *entry, const char *name) {
  * @return: On success, the size of the extended attribute name list.
  * On failure, -1 is returned and errno is set appropriately.
  */
-static ssize_t export_lv2_list_xattr(lv2_entry_t *entry, void *list, size_t size) {
+static ssize_t export_lv2_list_xattr(lv2_entry_t *entry, void *list,
+        size_t size) {
 
     if (S_ISDIR(entry->attributes.mode)) {
         return mdir_list_xattr(&entry->container.mdir, list, size);
@@ -368,67 +454,137 @@ int export_is_valid(const char *root) {
 static int export_load_rmfentry(export_t * e) {
     int status = -1;
     DIR *dd = NULL;
-    struct dirent *dp;
+    struct dirent *dirent_sub_trash = NULL;
     rmfentry_t *rmfe = NULL;
     char trash_path[PATH_MAX];
+    int i = 0;
 
+    // Build thrash path
     sprintf(trash_path, "%s/%s", e->root, TRASH_DNAME);
 
+    // Create trash directory if necessary
+    if (access(trash_path, F_OK) != 0) {
+        if (mkdir(trash_path, S_IRUSR | S_IWUSR | S_IXUSR) < 0) {
+            severe("mkdir failed (%s): %s", trash_path, strerror(errno));
+            goto out;
+        }
+    }
+
+    // Open trash directory
     if ((dd = opendir(trash_path)) == NULL) {
-        severe("opendir (trash directory) failed: %s", strerror(errno));
+        severe("opendir failed (%s): %s", trash_path, strerror(errno));
         goto out;
     }
 
-    while ((dp = readdir(dd)) != NULL) {
+    // For each subdirectory under trash
+    while ((dirent_sub_trash = readdir(dd)) != NULL) {
 
-        if ((strcmp(dp->d_name, ".") == 0) || (strcmp(dp->d_name, "..") == 0)) {
+        // Check . and ..
+        if ((strcmp(dirent_sub_trash->d_name, ".") == 0) ||
+                (strcmp(dirent_sub_trash->d_name, "..") == 0)) {
             continue;
         }
 
-        char rm_path[PATH_MAX];
-        int fd = -1;
-        mattr_t attrs;
+        char bucket_path[PATH_MAX];
+        DIR *bucket_dir = NULL;
+        struct dirent *dirent_sub_bucket = NULL;
+        struct stat s;
 
-        sprintf(rm_path, "%s/%s/%s", e->root, TRASH_DNAME, dp->d_name);
+        // Build bucket directory path
+        sprintf(bucket_path, "%s/%s", trash_path, dirent_sub_trash->d_name);
 
-        // Open file to delete
-        if ((fd = open(rm_path, O_RDWR, S_IRWXU)) == -1) {
-            severe("open (file under trash directory) failed: %s", strerror(errno));
-            goto out;
+        // Check if is a directory
+        if (stat(bucket_path, &s) != 0)
+            continue;
+        if (S_ISDIR(s.st_mode) == 0)
+            continue;
+
+        // Check if is a valid number
+        i = atoi(dirent_sub_trash->d_name);
+        if (i > RM_MAX_BUCKETS)
+            continue;
+
+        // Open bucket directory
+        if ((bucket_dir = opendir(bucket_path)) == NULL) {
+            severe("opendir (%s) failed: %s", bucket_path, strerror(errno));
+            continue;
         }
 
-        // Read file to delete
-        if ((pread(fd, &attrs, sizeof (mattr_t), 0)) != (sizeof (mattr_t))) {
-            severe("pread (file under trash directory) failed: %s", strerror(errno));
-            goto out;
+        // Scan bucket directory
+        while ((dirent_sub_bucket = readdir(bucket_dir)) != NULL) {
+
+            char rm_file_path[PATH_MAX];
+            int fd = -1;
+            mattr_t attrs;
+
+            // Check . and ..
+            if ((strcmp(dirent_sub_bucket->d_name, ".") == 0) ||
+                    (strcmp(dirent_sub_bucket->d_name, "..") == 0)) {
+                continue;
+            }
+
+            // Build file to delete path
+            sprintf(rm_file_path, "%s/%s/%s/%s", e->root, TRASH_DNAME,
+                    dirent_sub_trash->d_name, dirent_sub_bucket->d_name);
+
+            // Open file to delete
+            if ((fd = open(rm_file_path, O_RDWR, S_IRWXU)) == -1) {
+                severe("open (%s) failed: %s", rm_file_path, strerror(errno));
+                continue;
+            }
+
+            // Read file to delete
+            if ((pread(fd, &attrs, sizeof (mattr_t), 0))
+                    != (sizeof (mattr_t))) {
+                severe("pread (%s) failed: %s", rm_file_path, strerror(errno));
+                continue;
+            }
+
+            // Build the rmfentry_t
+            rmfe = xmalloc(sizeof (rmfentry_t));
+            memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
+            rmfe->cid = attrs.cid;
+            memcpy(rmfe->initial_dist_set, attrs.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->current_dist_set, attrs.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            list_init(&rmfe->list);
+
+            // Acquire lock on bucket trash list
+            if ((errno = pthread_rwlock_wrlock(&e->trash_buckets[i].rm_lock)) != 0) {
+                severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+                goto out;
+            }
+
+            // Check size of file 
+            if (attrs.size >= RM_FILE_SIZE_TRESHOLD) {
+                // Add to front of list
+                list_push_front(&e->trash_buckets[i].rmfiles, &rmfe->list);
+            } else {
+                // Add to back of list
+                list_push_back(&e->trash_buckets[i].rmfiles, &rmfe->list);
+            }
+
+            if ((errno = pthread_rwlock_unlock(&e->trash_buckets[i].rm_lock)) != 0) {
+                severe("pthread_rwlock_unlock failed: %s", strerror(errno));
+                goto out;
+            }
+
+            // Close file
+            if (fd != -1)
+                close(fd);
         }
 
-        rmfe = xmalloc(sizeof (rmfentry_t));
-        memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
-        rmfe->cid = attrs.cid;
-        memcpy(rmfe->initial_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-        memcpy(rmfe->current_dist_set, attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-
-        list_init(&rmfe->list);
-
-        if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
-            goto out;
-
-        list_push_front(&e->rmfiles, &rmfe->list);
-
-        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
-            goto out;
-
-        if (fd != -1) {
-            close(fd);
-        }
-
+        // Close bucket directory
+        if (bucket_dir != NULL)
+            closedir(bucket_dir);
     }
     status = 0;
 out:
-    if (dd != NULL) {
+    // Close trash directory
+    if (dd != NULL)
         closedir(dd);
-    }
+
     return status;
 }
 
@@ -442,9 +598,6 @@ int export_create(const char *root) {
     export_fstat_t est;
     export_const_t ect;
     int fd = -1;
-    uint32_t lv1 = 0;
-    uint8_t *c = 0;
-    char fidstr[37];
     mattr_t root_attrs;
     mdir_t root_mdir;
 
@@ -485,28 +638,24 @@ int export_create(const char *root) {
     if ((root_attrs.ctime = root_attrs.atime = root_attrs.mtime = time(NULL)) == -1)
         return -1;
     root_attrs.size = ROZOFS_DIR_SIZE;
-
-    // create the lv1 directory
-    for (c = root_attrs.fid; c != root_attrs.fid + 16; c++)
-        lv1 = *c + (lv1 << 6) + (lv1 << 16) - lv1;
-    lv1 %= MAX_LV1_BUCKETS;
-    sprintf(root_path, "%s/%u", path, lv1);
-    if (mkdir(root_path, S_IRUSR | S_IWUSR | S_IXUSR) != 0)
+    /*
+     ** create the slice and subslice directory for root if they don't exist
+     ** and then create the "fid" directory or the root
+     */
+    if (export_lv2_resolve_path_internal(path, root_attrs.fid, root_path) != 0)
         return -1;
 
-    // create the lv2 directory
-    uuid_unparse(root_attrs.fid, fidstr);
-    sprintf(root_path, "%s/%u/%s", root, lv1, fidstr);
-    if (mkdir(root_path, S_IRUSR | S_IWUSR | S_IXUSR) != 0)
+    if (mkdir(root_path, S_IRUSR | S_IWUSR | S_IXUSR) < 0) {
         return -1;
+    }
 
     // open the root mdir
     if (mdir_open(&root_mdir, root_path) != 0) {
         return -1;
     }
 
-    // set children count to 0
-    root_mdir.children = 0;
+    // Set children count to 0
+    root_attrs.children = 0;
 
     if (mdir_write_attributes(&root_mdir, &root_attrs) != 0) {
         mdir_close(&root_mdir);
@@ -545,6 +694,24 @@ int export_create(const char *root) {
     return 0;
 }
 
+static void *load_trash_dir_thread(void *v) {
+
+    export_t *export = (export_t*) v;
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+    // Load files to delete in trash list
+    if (export_load_rmfentry(export) != 0) {
+        severe("export_load_rmfentry failed: %s", strerror(errno));
+        return 0;
+    }
+
+    info("Load trash directory pthread completed successfully (eid=%d)",
+            export->eid);
+
+    return 0;
+}
+
 int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
         lv2_cache_t *lv2_cache, uint32_t eid, const char *root, const char *md5,
         uint64_t squota, uint64_t hquota) {
@@ -553,7 +720,8 @@ int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
     char const_path[PATH_MAX];
     char root_path[PATH_MAX];
     export_const_t ect;
-    int fd;
+    int fd = -1;
+    int i = 0;
 
     if (!realpath(root, e->root))
         return -1;
@@ -605,17 +773,21 @@ int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
         return -1;
     }
 
-    // Initialize list of files to delete
-    list_init(&e->rmfiles);
-
-    // Initialize lock for the list of files to delete
-    if ((errno = pthread_rwlock_init(&e->rm_lock, NULL)) != 0) {
-        return -1;
+    // For each trash bucket 
+    for (i = 0; i < RM_MAX_BUCKETS; i++) {
+        // Initialize list of files to delete
+        list_init(&e->trash_buckets[i].rmfiles);
+        // Initialize lock for the list of files to delete
+        if ((errno = pthread_rwlock_init(&e->trash_buckets[i].rm_lock, NULL)) != 0) {
+            severe("pthread_rwlock_init failed: %s", strerror(errno));
+            return -1;
+        }
     }
 
-    // Push the files to delete in rmfiles list
-    if (export_load_rmfentry(e) != 0) {
-        severe("export_load_rmfentry failed: %s", strerror(errno));
+    // Initialize pthread for load files to remove
+    if ((errno = pthread_create(&e->load_trash_thread, NULL,
+            load_trash_dir_thread, e)) != 0) {
+        severe("can't create load trash pthread: %s", strerror(errno));
         return -1;
     }
 
@@ -758,16 +930,7 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
         if (lv2->attributes.size > attrs->size) {
             if (ftruncate(lv2->container.mreg.fdattrs, sizeof (mattr_t) + nrb_new * sizeof (dist_t)) != 0)
                 goto out;
-        } else {
-            dist_t *empty;
-            empty = xmalloc((nrb_new - nrb_old) * sizeof (dist_t));
-            memset(empty, 0, (nrb_new - nrb_old) * sizeof (dist_t));
-            if (mreg_write_dist(&lv2->container.mreg, nrb_old, nrb_new - nrb_old, empty) != 0) {
-                free(empty);
-                goto out;
-            }
-            free(empty);
-        }
+        } 
         if (export_update_blocks(e, ((int32_t) nrb_new - (int32_t) nrb_old))
                 != 0)
             goto out;
@@ -841,7 +1004,7 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
         goto out;
 
     // Update parent
-    plv2->container.mdir.children++;
+    plv2->attributes.children++;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
 
     // Write attributes of parents
@@ -927,9 +1090,9 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
     if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0) {
         goto error;
     }
-    plv2->container.mdir.children++;
 
-    // update times of parent
+    // Update children nb. and times of parent
+    plv2->attributes.children++;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0) {
         goto error;
@@ -1003,7 +1166,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     if ((attrs->ctime = attrs->atime = attrs->mtime = time(NULL)) == -1)
         goto error;
     attrs->size = ROZOFS_DIR_SIZE;
-    node_mdir.children = 0;
+    attrs->children = 0;
 
     // write attributes to mdir file
     if (mdir_open(&node_mdir, node_path) < 0)
@@ -1029,7 +1192,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
     }
 
-    plv2->container.mdir.children++;
+    plv2->attributes.children++;
     plv2->attributes.nlink++;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1114,37 +1277,95 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
 
         if (lv2->attributes.size > 0 && S_ISREG(lv2->attributes.mode)) {
 
-            char rm_path[PATH_MAX];
+            char trash_file_path[PATH_MAX];
+            char trash_bucket_path[PATH_MAX];
+
+            // Compute hash value for this fid
+            uint32_t hash = 0;
+            uint8_t *c = 0;
+            for (c = lv2->attributes.fid; c != lv2->attributes.fid + 16; c++)
+                hash = *c + (hash << 6) + (hash << 16) - hash;
+            hash %= RM_MAX_BUCKETS;
+
+            // Build trash_bucket_path
+            sprintf(trash_bucket_path, "%s/%s/%"PRIu32"",
+                    e->root, TRASH_DNAME, hash);
+
+            // Check existence of trash bucket directory
+            if (access(trash_bucket_path, F_OK) == -1) {
+                if (errno == ENOENT) {
+                    if (mkdir(trash_bucket_path,
+                            S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+                        severe("mkdir for trash bucket (%s) failed: %s",
+                                trash_bucket_path, strerror(errno));
+                        goto out;
+                    }
+                } else {
+                    severe("access for trash bucket (%s) failed: %s",
+                            trash_bucket_path, strerror(errno));
+                    goto out;
+                }
+            }
+
+            // Unparse fid
             char fid_str[37];
             uuid_unparse(lv2->attributes.fid, fid_str);
-            sprintf(rm_path, "%s/%s/%s", e->root, TRASH_DNAME, fid_str);
 
-            if (rename(child_path, rm_path) == -1) {
-                severe("rename for trash (%s to %s) failed: %s", child_path, rm_path, strerror(errno));
-                goto out;
+            // Build trash path for the file
+            sprintf(trash_file_path, "%s/%s", trash_bucket_path, fid_str);
+
+            // Move the file in trash directoory
+            if (rename(child_path, trash_file_path) == -1) {
+                severe("rename for trash (%s to %s) failed: %s",
+                        child_path, trash_file_path, strerror(errno));
+                // Best effort
             }
 
             // Preparation of the rmfentry
             rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
             memcpy(rmfe->fid, lv2->attributes.fid, sizeof (fid_t));
             rmfe->cid = lv2->attributes.cid;
-            memcpy(rmfe->initial_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            memcpy(rmfe->current_dist_set, lv2->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->initial_dist_set, lv2->attributes.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
+            memcpy(rmfe->current_dist_set, lv2->attributes.sids,
+                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
             list_init(&rmfe->list);
 
-            // Adding the rmfentry to the list of files to delete
-            if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
-                goto out;
-            list_push_back(&e->rmfiles, &rmfe->list);
-            if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
-                goto out;
+            // Acquire lock on bucket trash list
+            if ((errno = pthread_rwlock_wrlock
+                    (&e->trash_buckets[hash].rm_lock)) != 0) {
+                severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+                // Best effort
+            }
+
+            // Check size of file 
+            if (lv2->attributes.size >= RM_FILE_SIZE_TRESHOLD) {
+                // Add to front of list
+                list_push_front(&e->trash_buckets[hash].rmfiles, &rmfe->list);
+            } else {
+                // Add to back of list
+                list_push_back(&e->trash_buckets[hash].rmfiles, &rmfe->list);
+            }
+
+            if ((errno = pthread_rwlock_unlock
+                    (&e->trash_buckets[hash].rm_lock)) != 0) {
+                severe("pthread_rwlock_unlock failed: %s", strerror(errno));
+                // Best effort
+            }
 
             // Update the nb. of blocks
-            if (export_update_blocks(e, -(((int64_t) lv2->attributes.size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0)
-                goto out;
+            if (export_update_blocks(e,
+                    -(((int64_t) lv2->attributes.size + ROZOFS_BSIZE - 1)
+                    / ROZOFS_BSIZE)) != 0) {
+                severe("export_update_blocks failed: %s", strerror(errno));
+                // Best effort
+            }
         } else {
-            if (unlink(child_path) != 0)
-                goto out;
+            // file empty
+            if (unlink(child_path) != 0) {
+                severe("unlink failed (%s): %s", child_path, strerror(errno));
+                // Best effort
+            }
         }
 
         // Return the fid of deleted file
@@ -1168,7 +1389,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
 
     // Update parent
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
-    plv2->container.mdir.children--;
+    plv2->attributes.children--;
 
     // Write attributes of parents
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1186,8 +1407,9 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
     int status = -1;
     DEBUG_FUNCTION;
 
-    if ((errno = pthread_rwlock_tryrdlock(&volume->lock)) != 0) {
-        severe("init_storages_cnx failed: can't lock volume %d.", volume->vid);
+    if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
+        severe("pthread_rwlock_rdlock failed (vid: %d): %s", volume->vid,
+                strerror(errno));
         goto out;
     }
 
@@ -1222,9 +1444,11 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
     }
 
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
-        severe("init_storages_cnx failed: can't unlock volume %d.", volume->vid);
+        severe("pthread_rwlock_unlock failed (vid: %d): %s", volume->vid,
+                strerror(errno));
         goto out;
     }
+
     status = 0;
 out:
 
@@ -1245,7 +1469,7 @@ static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
         }
     }
 
-    severe("lookup_cnx failed : storage connexion (cid:%u ; sid: %u) not found",
+    severe("lookup_cnx failed: storage connexion (cid: %u; sid: %u) not found",
             cid, sid);
 
     errno = EINVAL;
@@ -1265,15 +1489,18 @@ static void release_storages_cnx(list_t *list) {
         if (cnx_entry->cnx != NULL)
             free(cnx_entry->cnx);
         list_remove(p);
-        free(cnx_entry);
+        if (cnx_entry != NULL)
+            free(cnx_entry);
     }
 }
 
-int export_rm_bins(export_t * e) {
+int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
     int status = -1;
     int rm_bins_file_nb = 0;
     int i = 0;
-    int release = 0;
+    uint16_t idx = 0;
+    uint16_t bucket_idx = 0;
+    uint8_t cnx_init = 0;
     int limit_rm_files = RM_FILES_MAX;
     int curr_rm_files = 0;
     uint8_t rozofs_safe = 0;
@@ -1281,37 +1508,48 @@ int export_rm_bins(export_t * e) {
 
     DEBUG_FUNCTION;
 
-    // If the list is no empty
-    // Create a list of connections to storages
-    if (!list_empty(&e->rmfiles)) {
-        // Init list of connexions
-        list_init(&connexions);
-        release = 1;
-        if (init_storages_cnx(e->volume, &connexions) != 0) {
-            severe("init_storages_cnx failed: %s", strerror(errno));
-            goto out;
-        }
-    }
-
     // Get the nb. of safe storages for this layout
     rozofs_safe = rozofs_get_rozofs_safe(e->layout);
 
-    // For each file to remove
-    while (!list_empty(&e->rmfiles) && curr_rm_files < limit_rm_files) {
+    // For each trash bucket (MAX_RM_BUCKETS buckets)
+    // Begin with trash bucket idx = *first_bucket_idx
+    for (idx = *first_bucket_idx; idx < (*first_bucket_idx + RM_MAX_BUCKETS);
+            idx++) {
 
-        // Remove entry for the list of files to delete
-        if ((errno = pthread_rwlock_trywrlock(&e->rm_lock)) != 0) {
-            severe("pthread_rwlock_trywrlock failed");
-            goto out;
+        // Compute valid trash bucket idx
+        bucket_idx = idx % RM_MAX_BUCKETS;
+
+        // Check if the bucket is empty
+        if (list_empty(&e->trash_buckets[bucket_idx].rmfiles))
+            continue; // Try with the next bucket
+
+        // If the connexions are not initialized
+        if (cnx_init == 0) {
+            // Init list of connexions
+            list_init(&connexions);
+            cnx_init = 1;
+            if (init_storages_cnx(e->volume, &connexions) != 0) {
+                // Problem with lock
+                severe("init_storages_cnx failed: %s", strerror(errno));
+                goto out;
+            }
         }
 
-        // Get from the list, one file to remove
-        rmfentry_t *entry = list_first_entry(&e->rmfiles, rmfentry_t, list);
+        // Acquire lock on this list
+        if ((errno = pthread_rwlock_wrlock
+                (&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+            severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+            continue; // Best effort
+        }
+
+        // Remove rmfentry_t from the list of files to remove for this bucket
+        rmfentry_t *entry = list_first_entry(
+                &e->trash_buckets[bucket_idx].rmfiles, rmfentry_t, list);
         list_remove(&entry->list);
 
-        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0) {
-            severe("pthread_rwlock_unlock failed");
-            goto out;
+        if ((errno = pthread_rwlock_unlock(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+            severe("pthread_rwlock_unlock failed: %s", strerror(errno));
+            continue;
         }
 
         // Nb. of bins files removed for this file
@@ -1340,53 +1578,84 @@ int export_rm_bins(export_t * e) {
                 continue; // Go to the next storage
             }
 
-            if (mclient_remove(stor, e->layout, entry->initial_dist_set, entry->fid) != 0) {
+            // Send remove request
+            if (mclient_remove(stor, e->layout, entry->initial_dist_set,
+                    entry->fid) != 0) {
                 // Problem with request
-                warning("mclient_remove failed: (cid: %u; sid: %u) %s",
+                warning("mclient_remove failed (cid: %u; sid: %u): %s",
                         stor->cid, stor->sid, strerror(errno));
                 continue; // Go to the next storage
             }
 
             // The bins file has been deleted successfully
+            // Update distribution and nb. of bins file deleted
             entry->current_dist_set[i] = 0;
             rm_bins_file_nb++;
         }
 
-        // If all bins file are deleted
+        // If all bins files are deleted
         // Remove the file from trash
         if (rm_bins_file_nb == rozofs_safe) {
             char path[PATH_MAX];
-            // In case of rename it's not neccessary to remove trash file
+
             char fid_str[37];
             uuid_unparse(entry->fid, fid_str);
-            sprintf(path, "%s/%s/%s", e->root, TRASH_DNAME, fid_str);
 
+            // Build path file
+            sprintf(path, "%s/%s/%"PRIu32"/%s",
+                    e->root, TRASH_DNAME, bucket_idx, fid_str);
+
+            // Free entry
+            if (entry != NULL)
+                free(entry);
+
+            // Unlink file
             if (unlink(path) == -1) {
-                severe("unlink failed: unlink file %s failed: %s", path, strerror(errno));
-                goto out;
+                // Under certain circumstances it is possible that the
+                // file is already deleted
+                if (errno != ENOENT) {
+                    severe("unlink failed (%s): %s", path, strerror(errno));
+                    // Best effort
+                }
             }
-            free(entry);
+
         } else { // If NO all bins are deleted
 
-            // Repush entry in the list of files to delete
-            if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0) {
-                severe("pthread_rwlock_trywrlock failed");
-                goto out;
+            if ((errno = pthread_rwlock_wrlock
+                    (&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+                severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+                continue; // Best effort
             }
 
-            list_push_back(&e->rmfiles, &entry->list);
+            // Repush back entry in the list of files to delete
+            list_push_back(&e->trash_buckets[bucket_idx].rmfiles, &entry->list);
 
-            if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0) {
-                severe("pthread_rwlock_unlock failed");
-                goto out;
+            if ((errno = pthread_rwlock_unlock
+                    (&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+                severe("pthread_rwlock_unlock failed: %s", strerror(errno));
             }
         }
+        // Update the nb. of files that have been tested to be deleted.
         curr_rm_files++;
+
+        // Check if enough files are removed
+        if (curr_rm_files >= limit_rm_files)
+            break; // Exit from the loop
+    }
+
+    // Update the first bucket index to use for the next call
+    if (0 == curr_rm_files) {
+        // If no files removed 
+        // The next first bucket index will be 0
+        // not necessary but better for debug
+        *first_bucket_idx = 0;
+    } else {
+        *first_bucket_idx = (bucket_idx + 1) % RM_MAX_BUCKETS;
     }
 
     status = 0;
 out:
-    if (release == 1) {
+    if (cnx_init == 1) {
         // Release storage connexions
         release_storages_cnx(&connexions);
     }
@@ -1426,7 +1695,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
         goto out;
     }
 
-    if (lv2->container.mdir.children != 0) {
+    if (lv2->attributes.children != 0) {
         errno = ENOTEMPTY;
         goto out;
     }
@@ -1462,7 +1731,7 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
      ** attributes of the parent must be updated first otherwise we can afce the situation where
      ** parent directory cannot be removed because the number of children is not 0
      */
-    if (plv2->container.mdir.children > 0) plv2->container.mdir.children--;
+    if (plv2->attributes.children > 0) plv2->attributes.children--;
     plv2->attributes.nlink--;
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1552,7 +1821,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     // add the new child to the parent
     if (put_mdirentry(plv2->container.mdir.fdp, pfid, name, node_fid, attrs->mode) != 0)
         goto error;
-    plv2->container.mdir.children++;
+    plv2->attributes.children++;
     // update times of parent
     plv2->attributes.mtime = plv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(plv2) != 0)
@@ -1594,7 +1863,8 @@ out:
     return status;
 }
 
-int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newname, fid_t fid) {
+int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
+        char *newname, fid_t fid) {
     int status = -1;
     lv2_entry_t *lv2_old_parent = 0;
     lv2_entry_t *lv2_new_parent = 0;
@@ -1656,8 +1926,8 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                 goto out;
             }
 
-            // The entry to replace must be a enpty directory
-            if (lv2_to_replace->container.mdir.children != 0) {
+            // The entry to replace must be a empty directory
+            if (lv2_to_replace->attributes.children != 0) {
                 errno = ENOTEMPTY;
                 goto out;
             }
@@ -1673,7 +1943,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
             // Update parent directory
             lv2_new_parent->attributes.nlink--;
-            lv2_new_parent->container.mdir.children--;
+            lv2_new_parent->attributes.children--;
 
             // We'll write attributes of parents after
 
@@ -1704,12 +1974,14 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
         } else {
             // The entry (to replace) is an existing file
             if (S_ISREG(lv2_to_replace->attributes.mode) || S_ISLNK(lv2_to_replace->attributes.mode)) {
+
                 // Get nlink
                 uint16_t nlink = lv2_to_replace->attributes.nlink;
 
                 // 2 cases:
                 // nlink > 1, it's a hardlink -> not delete the lv2 file
-                // nlink=1, it's not a harlink -> put the lv2 file on trash directory
+                // nlink=1, it's not a harlink -> put the lv2 file on trash
+                // directory
 
                 // Not a hardlink
                 if (nlink == 1) {
@@ -1717,42 +1989,117 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                     char old_path[PATH_MAX];
 
                     // Resolve path for the node to delete
-                    if (export_lv2_resolve_path(e, fid_to_replace, old_path) != 0)
+                    if (export_lv2_resolve_path(e, fid_to_replace,
+                            old_path) != 0)
                         goto out;
 
+                    // Check if it's a regular file not empty 
+                    if (lv2_to_replace->attributes.size > 0 &&
+                            S_ISREG(lv2_to_replace->attributes.mode)) {
 
-                    if (lv2_to_replace->attributes.size > 0 && S_ISREG(lv2_to_replace->attributes.mode)) {
+                        char trash_file_path[PATH_MAX];
+                        char trash_bucket_path[PATH_MAX];
 
-                        char rm_path[PATH_MAX];
+                        // Compute hash value for this fid
+                        uint32_t hash = 0;
+                        uint8_t *c = 0;
+                        for (c = lv2_to_replace->attributes.fid;
+                                c != lv2_to_replace->attributes.fid + 16; c++)
+                            hash = *c + (hash << 6) + (hash << 16) - hash;
+                        hash %= RM_MAX_BUCKETS;
+
+                        // Build trash_bucket_path
+                        sprintf(trash_bucket_path, "%s/%s/%"PRIu32"",
+                                e->root, TRASH_DNAME, hash);
+
+                        // Check existence of trash bucket directory
+                        if (access(trash_bucket_path, F_OK) == -1) {
+                            if (errno == ENOENT) {
+                                if (mkdir(trash_bucket_path,
+                                        S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+                                    severe("mkdir for trash bucket (%s) failed:"
+                                            " %s",
+                                            trash_bucket_path, strerror(errno));
+                                    goto out;
+                                }
+                            } else {
+                                severe("access for trash bucket (%s) failed:"
+                                        " %s",
+                                        trash_bucket_path, strerror(errno));
+                                goto out;
+                            }
+                        }
+
+                        // Unparse fid
                         char fid_str[37];
                         uuid_unparse(lv2_to_replace->attributes.fid, fid_str);
-                        sprintf(rm_path, "%s/%s/%s", e->root, TRASH_DNAME, fid_str);
 
-                        if (rename(old_path, rm_path) == -1) {
-                            severe("rename for trash (%s to %s) failed: %s", old_path, rm_path, strerror(errno));
-                            goto out;
+                        // Build path for the trash file
+                        sprintf(trash_file_path, "%s/%s", trash_bucket_path,
+                                fid_str);
+
+                        // Move the file in trash directoory
+                        if (rename(old_path, trash_file_path) == -1) {
+                            severe("rename for trash (%s to %s) failed: %s",
+                                    old_path, trash_file_path, strerror(errno));
+                            // Best effort
                         }
 
                         // Preparation of the rmfentry
                         rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
-                        memcpy(rmfe->fid, lv2_to_replace->attributes.fid, sizeof (fid_t));
-                        memcpy(rmfe->initial_dist_set, lv2_to_replace->attributes.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+                        memcpy(rmfe->fid, lv2_to_replace->attributes.fid,
+                                sizeof (fid_t));
+                        rmfe->cid = lv2_to_replace->attributes.cid;
+                        memcpy(rmfe->initial_dist_set,
+                                lv2_to_replace->attributes.sids,
+                                sizeof (sid_t) * ROZOFS_SAFE_MAX);
+                        memcpy(rmfe->current_dist_set,
+                                lv2_to_replace->attributes.sids,
+                                sizeof (sid_t) * ROZOFS_SAFE_MAX);
                         list_init(&rmfe->list);
 
-                        // Adding the rmfentry to the list of files to delete
-                        if ((errno = pthread_rwlock_wrlock(&e->rm_lock)) != 0)
-                            goto out;
-                        list_push_back(&e->rmfiles, &rmfe->list);
-                        if ((errno = pthread_rwlock_unlock(&e->rm_lock)) != 0)
-                            goto out;
+                        // Acquire lock on bucket trash list
+                        if ((errno = pthread_rwlock_wrlock
+                                (&e->trash_buckets[hash].rm_lock)) != 0) {
+                            severe("pthread_rwlock_wrlock failed: %s",
+                                    strerror(errno));
+                            // Best effort
+                        }
+
+                        // Check size of file 
+                        if (lv2_to_replace->attributes.size
+                                >= RM_FILE_SIZE_TRESHOLD) {
+                            // Add to front of list
+                            list_push_front(&e->trash_buckets[hash].rmfiles,
+                                    &rmfe->list);
+                        } else {
+                            // Add to back of list
+                            list_push_back(&e->trash_buckets[hash].rmfiles,
+                                    &rmfe->list);
+                        }
+
+                        if ((errno = pthread_rwlock_unlock
+                                (&e->trash_buckets[hash].rm_lock)) != 0) {
+                            severe("pthread_rwlock_unlock failed: %s",
+                                    strerror(errno));
+                            // Best effort
+                        }
 
                         // Update the nb. of blocks
-                        if (export_update_blocks(e, -(((int64_t) lv2_to_replace->attributes.size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0)
-                            goto out;
-
+                        if (export_update_blocks(e,
+                                -(((int64_t) lv2_to_replace->attributes.size
+                                + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0) {
+                            severe("export_update_blocks failed: %s",
+                                    strerror(errno));
+                            // Best effort
+                        }
                     } else {
-                        if (unlink(old_path) != 0)
-                            goto out;
+                        // file empty
+                        if (unlink(old_path) != 0) {
+                            severe("unlink failed (%s): %s", old_path,
+                                    strerror(errno));
+                            // Best effort
+                        }
                     }
 
                     // Update export files
@@ -1773,7 +2120,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
                     // Return a empty fid because no inode has been deleted
                     memset(fid, 0, sizeof (fid_t));
                 }
-                lv2_new_parent->container.mdir.children--;
+                lv2_new_parent->attributes.children--;
             }
         }
     } else {
@@ -1798,8 +2145,8 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid, char *newnam
 
     if (memcmp(pfid, npfid, sizeof (fid_t)) != 0) {
 
-        lv2_new_parent->container.mdir.children++;
-        lv2_old_parent->container.mdir.children--;
+        lv2_new_parent->attributes.children++;
+        lv2_old_parent->attributes.children--;
 
         if (S_ISDIR(lv2_to_rename->attributes.mode)) {
             lv2_new_parent->attributes.nlink++;
@@ -1897,7 +2244,7 @@ out:
 }
 
 int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d) {
-    int status = -1;
+    int status = 0;
     lv2_entry_t *lv2 = NULL;
 
     START_PROFILING(export_read_block);
@@ -1944,8 +2291,6 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
         dist_t d, uint64_t off, uint32_t len) {
     int64_t length = -1;
     lv2_entry_t *lv2 = NULL;
-    dist_t *dist = NULL;
-    int i = 0;
 
     START_PROFILING(export_write_block);
 
@@ -1953,16 +2298,6 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     if (!(lv2 = export_lookup_fid(e, fid)))
         goto out;
 
-    /// Write distribution
-    dist = xmalloc(n * sizeof (dist_t));
-    for (i = 0; i < n; i++) {
-        memcpy(dist + i, &d, sizeof (dist_t));
-    }
-    if (mreg_write_dist(&lv2->container.mreg, bid, n, dist) != 0) {
-        free(dist);
-        goto out;
-    }
-    free(dist);
 
     // Update size of file
     if (off + len > lv2->attributes.size) {

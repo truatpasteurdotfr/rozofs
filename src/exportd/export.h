@@ -54,6 +54,25 @@
 #define EXPORT_SET_ATTR_GID   (1 << 2)
 #define EXPORT_SET_ATTR_SIZE  (1 << 3)
 
+/** Variables specific to the removal of the bins files */
+/** Max nb. of subdirectories under trash directory (nb. of buckets) */
+#define RM_MAX_BUCKETS 1024
+/** Nb. max of entries to delete during one call of export_rm_bins function */
+#define RM_FILES_MAX 500
+/* Frequency calls of export_rm_bins function */
+#define RM_BINS_PTHREAD_FREQUENCY_SEC 2
+/** File size treshold: if a removed file is bigger than or equel to this size
+ *  it will be push in front of list */
+#define RM_FILE_SIZE_TRESHOLD 0x40000000LL
+
+/**
+ *  By default the system uses 256 slices with 4096 subslices per slice
+ */
+#define MAX_SLICE_BIT 8
+#define MAX_SLICE_NB (1<<MAX_SLICE_BIT)
+#define MAX_SUBSLICE_BIT 12
+#define MAX_SUBSLICE_NB (1<<MAX_SUBSLICE_BIT)
+
 /** stat of an export
  * these values are independent of volume
  */
@@ -61,6 +80,14 @@ typedef struct export_fstat {
     uint64_t blocks;
     uint64_t files;
 } export_fstat_t;
+
+/** structure for store the list of files to remove
+ * for one trash bucket.
+ */
+typedef struct trash_bucket {
+    list_t rmfiles; ///< List of files to delete
+    pthread_rwlock_t rm_lock; ///< Lock for the list of files to delete
+} trash_bucket_t;
 
 /** export stucture
  *
@@ -77,11 +104,35 @@ typedef struct export {
     int fdstat; ///< open file descriptor on stat file
     fid_t rfid; ///< root fid
     lv2_cache_t *lv2_cache; ///< cache of lv2 entries
-    list_t rmfiles; ///< List of files to delete
-    pthread_rwlock_t rm_lock; ///< Lock for the list of files to delete
+    trash_bucket_t trash_buckets[RM_MAX_BUCKETS]; ///< table for store the list
+    // of files to delete for each bucket trash
+    pthread_t load_trash_thread; ///< pthread for load the list of trash files
+    // to delete when we start or reload this export
 } export_t;
 
-int export_rm_bins(export_t * e);
+/*
+ **__________________________________________________________________
+ */
+static inline void mstor_get_slice_and_subslice(fid_t fid, uint32_t *slice, uint32_t *subslice) {
+    uint32_t hash = 0;
+    uint8_t *c = 0;
+
+    for (c = fid; c != fid + 16; c++)
+        hash = *c + (hash << 6) + (hash << 16) - hash;
+
+    *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
+    hash = hash >> MAX_SLICE_BIT;
+    *subslice = hash & ((1 << MAX_SUBSLICE_BIT) - 1);
+}
+
+/** Remove bins files from trash 
+ *
+ * @param export: pointer to the export
+ * @param first_bucket_idx: pointer for the first index bucket to remove
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int export_rm_bins(export_t * e, uint16_t * first_bucket_idx);
 
 
 /** check if export directory is valid
@@ -386,5 +437,82 @@ int export_removexattr(export_t *e, fid_t fid, char *name);
  * On failure, -1 is returned and errno is set appropriately.
  */
 ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size);
+/*
+ *_______________________________________________________________________
+ */
+
+/**
+*  Non blocing thread section
+*/
+/*
+ *_______________________________________________________________________
+ */
+#define EXPORTNB_CNF_NO_BUF_CNT          1
+#define EXPORTNB_CNF_NO_BUF_SZ           1
+/**
+*  North Interface
+*/
+#define EXPORTNB_CTX_CNT   32  /**< context for processing either a read or write request from rozofsmount and internal read req */
+#define EXPORTNB_CTX_MIN_CNT 3 /**< minimum count to process a request from rozofsmount */
+/**
+* Buffer s associated with the reception of the load balancing group on north interface
+*/
+#define EXPORTNB_NORTH_LBG_BUF_RECV_CNT   EXPORTNB_CTX_CNT  /**< number of reception buffer to receive from rozofsmount */
+#define EXPORTNB_NORTH_LBG_BUF_RECV_SZ    (1024*38)  /**< max user data payload is 38K       */
+/**
+* Storcli buffer mangement configuration
+*  INTERNAL_READ are small buffer used when a write request requires too trigger read of first and/or last block
+*/
+#define EXPORTNB_NORTH_MOD_INTERNAL_READ_BUF_CNT   EXPORTNB_CTX_CNT  /**< expgw_north_small_buf_count  */
+#define EXPORTNB_NORTH_MOD_INTERNAL_READ_BUF_SZ   2048  /**< expgw_north_small_buf_sz  */
+
+#define EXPORTNB_NORTH_MOD_XMIT_BUF_CNT   EXPORTNB_CTX_CNT  /**< expgw_north_large_buf_count  */
+#define EXPORTNB_NORTH_MOD_XMIT_BUF_SZ    EXPORTNB_NORTH_LBG_BUF_RECV_SZ  /**< expgw_north_large_buf_sz  */
+
+#define EXPORTNB_SOUTH_TX_XMIT_BUF_CNT   (EXPORTNB_CTX_CNT)  /**< expgw_south_large_buf_count  */
+#define EXPORTNB_SOUTH_TX_XMIT_BUF_SZ    (1024*8)                           /**< expgw_south_large_buf_sz  */
+
+/**
+* configuartion of the resource of the transaction module
+*
+*  concerning the buffers, only reception buffer are required 
+*/
+
+#define EXPORTNB_SOUTH_TX_CNT   (EXPORTNB_CTX_CNT)  /**< number of transactions towards storaged  */
+#define EXPORTNB_SOUTH_TX_RECV_BUF_CNT   EXPORTNB_SOUTH_TX_CNT  /**< number of recption buffers  */
+#define EXPORTNB_SOUTH_TX_RECV_BUF_SZ    EXPORTNB_SOUTH_TX_XMIT_BUF_SZ  /**< buffer size  */
+
+#define EXPORTNB_NORTH_TX_BUF_CNT   0  /**< not needed for the case of storcli  */
+#define EXPORTNB_NORTH_TX_BUF_SZ    0  /**< buffer size  */
+
+
+#define EXPORTNB_MAX_RETRY   3  /**< max attempts for read or write on mstorage */
+
+extern volatile int expgwc_non_blocking_thread_started; /**< clear on start, and asserted by non blocking thread when ready */
+
+typedef struct _exportd_start_conf_param_t
+{
+   uint16_t debug_port;   /**< port value to be used by rmonitor  */
+   uint16_t instance;     /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
+   char     *exportd_hostname;  /**< hostname of the exportd: needed by nobody!!! */
+} exportd_start_conf_param_t;
+
+/*
+ *_______________________________________________________________________
+ */
+
+/**
+ *  This function is the entry point for setting rozofs in non-blocking mode
+
+   @param args->ch: reference of the fuse channnel
+   @param args->se: reference of the fuse session
+   @param args->max_transactions: max number of transactions that can be handled in parallel
+   
+   @retval -1 on error
+   @retval : no retval -> only on fatal error
+
+ */
+int expgwc_start_nb_blocking_th(void *args);
+
 
 #endif

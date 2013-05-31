@@ -24,6 +24,7 @@
 typedef struct rpcclt {
     int sock;
     CLIENT *client;
+    int lbg_id; /**< reference of the load balancing group */
 } rpcclt_t;
 
 

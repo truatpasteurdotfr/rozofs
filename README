@@ -3,7 +3,7 @@ ABOUT
 
 RozoFS is a scale-out NAS file system. RozoFS aims to provide an open source high performance and high availibility scale out storage software appliance  for  intensive disk IO data center scenario. It comes as a free software, licensed under the GNU GPL v2. RozoFS provides an easy way to scale to petabytes storage but using erasure coding it was designed to provide very high availability levels with optimized raw capacity usage on heterogenous commodity hardwares.
 
-Rozo provide a native open source POSIX filesystem, build on top of a usual out-band scale-out storage architecture. The Rozo specificity lies in the way data is stored. The data to be stored is translated into several chunks named projections using Mojette Transform and distributed across storage devices in such a way that it can be retrieved even if several pieces are unavailable. On the other hand, chuncks are meaningless alone. Redundancy schemes based on coding techniques like the one used by RozoFS allow to achieve signiﬁcant storage savings as compared to simple replication.
+RozoFS provide a native open source POSIX filesystem, build on top of a usual out-band scale-out storage architecture. The Rozo specificity lies in the way data is stored. The data to be stored is translated into several chunks named projections using Mojette Transform and distributed across storage devices in such a way that it can be retrieved even if several pieces are unavailable. On the other hand, chuncks are meaningless alone. Redundancy schemes based on coding techniques like the one used by RozoFS allow to achieve signiﬁcant storage savings as compared to simple replication.
 
 Note: [xxx] means optional, <xxx> means requiered.
 
@@ -13,12 +13,15 @@ INSTALLATION
 Requirements
 ------------
     - cmake
-    - libattr
-    - libuuid
-    - libconfig
-    - libfuse
+    - libattr1-dev
+    - uuid-dev
+    - libconfig-dev
+    - libfuse-dev
+    - libreadline-dev
+    - python2.6-dev
     - libpthread
     - libcrypt
+    - swig
 
 Quick start
 -----------
@@ -42,19 +45,19 @@ RUNNING
 
 Requirements
 ------------
-    - a running portmap see portmap(8)
+    - a running portmap/rpcbind see portmap(8)/rpcbind(8)
     - extend attributes on used file system for exportd see mount(8) and fstab(5)
 
 Start
 -----
 
-    1 ) install exportd on a host
-    2 ) install storaged on multiple hosts
-    3 ) fill in export.conf (/etc/rozofs or /usr/local/etc/rozofs according to CMAKE_INSTALL_PREFIX)
-    4 ) fill in all storage.conf
-    5 ) [sudo] exportd
-    6 ) [sudo] storaged
-    7 ) wherever you want: [sudo] rozofsmount -H <the_host_running_exportd> -E  <the export_path> -P <passwd> <the_mount_dir>
+    1) install exportd on a host
+    2) install storaged on multiple hosts
+    3) fill in export.conf (/etc/rozofs or /usr/local/etc/rozofs according to CMAKE_INSTALL_PREFIX)
+    4) fill in all storage.conf
+    5) [sudo] exportd
+    6) [sudo] storaged
+    7) wherever you want: [sudo] rozofsmount -H <the_host_running_exportd> -E  <the export_path> -P <passwd> <the_mount_dir>
 
 Stop
 ----

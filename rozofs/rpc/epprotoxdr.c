@@ -84,6 +84,8 @@ xdr_epp_vstat_t (XDR *xdrs, epp_vstat_t *objp)
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bfree))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->blocks))
+		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_storages))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->sstats, 2048,
@@ -317,6 +319,18 @@ xdr_epp_profiler_t (XDR *xdrs, epp_profiler_t *objp)
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->mslnk_write_link, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->get_mdirentry, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->put_mdirentry, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->del_mdirentry, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->list_mdirentries, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
 	return TRUE;

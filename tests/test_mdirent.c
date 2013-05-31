@@ -12,12 +12,14 @@
 #include <inttypes.h>
 
 #include <rozofs/common/mattr.h>
+#include <rozofs/common/profile.h>
+#include <rozofs/rpc/epproto.h>
 
 #include "mdirent.h"
 
 uint64_t my_global;
 
-
+DEFINE_PROFILING(epp_profiler_t);
 
 #define NUMBER_OF_BLOCKS 1
 #define NUMBER_OF_ENTRIES 384

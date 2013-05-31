@@ -52,6 +52,7 @@ struct epp_vstat_t {
 	uint16_t vid;
 	uint16_t bsize;
 	uint64_t bfree;
+	uint64_t blocks;
 	uint32_t nb_storages;
 	epp_sstat_t sstats[2048];
 };
@@ -133,6 +134,10 @@ struct epp_profiler_t {
 	uint64_t mslnk_write_attributes[2];
 	uint64_t mslnk_read_link[2];
 	uint64_t mslnk_write_link[2];
+	uint64_t get_mdirentry[2];
+	uint64_t put_mdirentry[2];
+	uint64_t del_mdirentry[2];
+	uint64_t list_mdirentries[2];
 };
 typedef struct epp_profiler_t epp_profiler_t;
 

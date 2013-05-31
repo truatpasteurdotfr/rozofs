@@ -153,7 +153,8 @@ int do_offset(int idx) {
     memset(pBuff, 0, buffSize);
     size = pread(f, pBuff, buffSize, 0);
     if (size != (idx + blockSize)) {
-        printf("pread only %"PRIu64" while expecting %d\n", size, (idx + blockSize));
+        printf("pread only %"PRIu64" while expecting %d\n",
+                (uint64_t) size, (idx + blockSize));
         perror("pread");
         close(f);
         return 0;

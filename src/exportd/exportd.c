@@ -28,10 +28,12 @@
 #include <getopt.h>
 #include <libconfig.h>
 #include <limits.h>
+#include <inttypes.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <unistd.h>
 #include <rpc/pmap_clnt.h>
+#include <rozofs/rozofs_debug_ports.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -41,6 +43,7 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -90,6 +93,9 @@ extern void exportd_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 DEFINE_PROFILING(epp_profiler_t) = {0};
 
+exportd_start_conf_param_t  expgwc_non_blocking_conf;  /**< configuration of the non blocking side */
+
+
 static void *balance_volume_thread(void *v) {
     struct timespec ts = {8, 0};
 
@@ -100,6 +106,7 @@ static void *balance_volume_thread(void *v) {
 
         if ((errno = pthread_rwlock_tryrdlock(&volumes_lock)) != 0) {
             warning("can lock volumes, balance_volume_thread deferred.");
+            nanosleep(&ts, NULL);
             continue;
         }
 
@@ -116,30 +123,32 @@ static void *balance_volume_thread(void *v) {
     return 0;
 }
 
-int exports_remove_bins() {
-    int status = -1;
-    list_t *iterator;
-    DEBUG_FUNCTION;
-
-    list_for_each_forward(iterator, &exports) {
-        export_entry_t *entry = list_entry(iterator, export_entry_t, list);
-        if (export_rm_bins(&entry->export) != 0) {
-            goto out;
-        }
-    }
-    status = 0;
-out:
-    return status;
-}
-
+/** Thread for remove bins files on storages for each exports
+ */
 static void *remove_bins_thread(void *v) {
-    struct timespec ts = {20, 0};
-
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    list_t *iterator = NULL;
+    int export_idx = 0;
+    // Set the frequency of calls
+    struct timespec ts = {RM_BINS_PTHREAD_FREQUENCY_SEC, 0};
+
+    // Pointer for store start bucket index for each exports
+    uint16_t * idx_p = xmalloc(list_size(&exports) * sizeof (uint16_t));
+    // Init. each index to 0
+    memset(idx_p, 0, sizeof (uint16_t) * list_size(&exports));
 
     for (;;) {
-        if (exports_remove_bins() != 0) {
-            warning("remove_bins_thread failed: %s", strerror(errno));
+        export_idx = 0;
+
+        list_for_each_forward(iterator, &exports) {
+            export_entry_t *entry = list_entry(iterator, export_entry_t, list);
+
+            // Remove bins file starting with specific bucket idx 
+            if (export_rm_bins(&entry->export, &idx_p[export_idx]) != 0) {
+                severe("export_rm_bins failed (eid: %"PRIu32"): %s",
+                        entry->export.eid, strerror(errno));
+            }
+            export_idx++;
         }
         nanosleep(&ts, NULL);
     }
@@ -155,10 +164,12 @@ static void *monitoring_thread(void *v) {
     for (;;) {
         if ((errno = pthread_rwlock_tryrdlock(&volumes_lock)) != 0) {
             warning("can't lock volumes, monitoring_thread deferred.");
+            nanosleep(&ts, NULL);
             continue;
         }
 
         gprofiler.nb_volumes = 0;
+
         list_for_each_forward(p, &volumes) {
             if (monitor_volume(&list_entry(p, volume_entry_t, list)->volume) != 0) {
                 severe("monitor thread failed: %s", strerror(errno));
@@ -173,10 +184,12 @@ static void *monitoring_thread(void *v) {
 
         if ((errno = pthread_rwlock_tryrdlock(&exports_lock)) != 0) {
             warning("can't lock exports, monitoring_thread deferred.");
+            nanosleep(&ts, NULL);
             continue;
         }
 
         gprofiler.nb_exports = 0;
+
         list_for_each_forward(p, &exports) {
             if (monitor_export(&list_entry(p, export_entry_t, list)->export) != 0) {
                 severe("monitor thread failed: %s", strerror(errno));
@@ -399,9 +412,9 @@ static int load_exports_conf() {
         }
 
         // Initialize export
-        if (export_initialize(&entry->export, volume, exportd_config.layout, &cache, econfig->eid,
-                econfig->root, econfig->md5, econfig->squota,
-                econfig->hquota) != 0) {
+        if (export_initialize(&entry->export, volume, exportd_config.layout,
+                &cache, econfig->eid, econfig->root, econfig->md5,
+                econfig->squota, econfig->hquota) != 0) {
             severe("can't initialize export with path %s: %s\n",
                     econfig->root, strerror(errno));
             goto out;
@@ -480,12 +493,30 @@ static void on_start() {
     int sock;
     int one = 1;
     struct rlimit rls;
+    pthread_t thread;
     DEBUG_FUNCTION;
+    int loop_count = 0;
+    
+    /**
+    * start the non blocking thread
+    */
+    expgwc_non_blocking_thread_started = 0;
+    if ((errno = pthread_create(&thread, NULL, (void*) expgwc_start_nb_blocking_th, &expgwc_non_blocking_conf)) != 0) {
+        severe("can't create non blocking thread: %s", strerror(errno));
+    }
 
     if (exportd_initialize() != 0) {
         fatal("can't initialize exportd.");
     }
-
+    /*
+    ** wait for end of init of the non blocking thread
+    */
+    while (expgwc_non_blocking_thread_started == 0)
+    {
+       sleep(1);
+       loop_count++;
+       if (loop_count > 5) fatal("Non Blocking thread does not answer");    
+    }
     /*
      * Metadata service
      */
@@ -648,20 +679,32 @@ static void on_hup() {
         volume_balance(&list_entry(p, volume_entry_t, list)->volume);
     }
 
-    // Reload the list of exports
+    // Canceled the remove bins pthread before reload list of exports
+    if ((errno = pthread_cancel(rm_bins_thread)) != 0)
+        severe("can't canceled remove bins pthread: %s", strerror(errno));
 
+    // Acquire lock on export list
     if ((errno = pthread_rwlock_wrlock(&exports_lock)) != 0) {
         severe("can't lock exports: %s", strerror(errno));
         goto error;
     }
 
+    // Release the list of exports
+
     list_for_each_forward_safe(p, q, &exports) {
         export_entry_t *entry = list_entry(p, export_entry_t, list);
+
+        // Canceled the load trash pthread if neccesary before
+        // reload list of exports
+
+        pthread_cancel(entry->export.load_trash_thread);
+
         export_release(&entry->export);
         list_remove(p);
         free(entry);
     }
 
+    // Load new list of exports
     load_exports_conf();
 
     if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
@@ -671,6 +714,16 @@ static void on_hup() {
 
     if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
         severe("can't unlock config: %s", strerror(errno));
+        goto error;
+    }
+
+    // XXX: An export may have been deleted while the rest of the files deleted.
+    // These files will never be deleted.
+
+    // Start pthread for remove bins file
+    if ((errno = pthread_create(&rm_bins_thread, NULL,
+            remove_bins_thread, NULL)) != 0) {
+        severe("can't create remove files pthread %s", strerror(errno));
         goto error;
     }
 
@@ -690,19 +743,33 @@ static void usage() {
     printf("Rozofs export daemon - %s\n", VERSION);
     printf("Usage: exportd [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
+    printf("\t-d,--debug <port>\t\texportd non blocking debug port(default: none) \n");
+//    printf("\t-n,--hostname <name>\t\texportd host name(default: none) \n");
+    printf("\t-i,--instance <value>\t\texportd instance id(default: 1) \n");
     printf("\t-c, --config\tconfiguration file to use (default: %s).\n",
             EXPORTD_DEFAULT_CONFIG);
 };
 
 int main(int argc, char *argv[]) {
     int c;
+    int val;
 
     static struct option long_options[] = {
         {"help", no_argument, 0, 'h'},
+        {"debug", required_argument, 0, 'd'},
+        {"instance", required_argument, 0, 'i'},
         {"config", required_argument, 0, 'c'},
         {0, 0, 0, 0}
     };
 
+    /*
+    ** init of the timer configuration
+    */
+    rozofs_tmr_init_configuration();
+  
+    expgwc_non_blocking_conf.debug_port = rzdbg_default_base_port;
+    expgwc_non_blocking_conf.instance   = 1;
+    expgwc_non_blocking_conf.exportd_hostname   = NULL;
     while (1) {
 
         int option_index = 0;
@@ -724,6 +791,26 @@ int main(int argc, char *argv[]) {
                             optarg, strerror(errno));
                     exit(EXIT_FAILURE);
                 }
+                break;
+             case 'd':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                expgwc_non_blocking_conf.debug_port = val;
+                break;
+             case 'i':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                expgwc_non_blocking_conf.instance = val;
                 break;
             case '?':
                 usage();

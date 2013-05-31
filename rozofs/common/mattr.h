@@ -41,6 +41,7 @@ typedef struct mattr {
     uint64_t atime;                 /**< see stat(2) */
     uint64_t mtime;                 /**< see stat(2) */
     uint64_t size;                  /**< see stat(2) */
+    uint32_t children;              /**< number of children (excluding . and ..) */
 } mattr_t;
 
 /** initialize mattr_t

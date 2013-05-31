@@ -33,7 +33,8 @@ DECLARE_PROFILING(spp_profiler_t);
 
 void *sp_null_1_svc(void *args, struct svc_req *req) {
     DEBUG_FUNCTION;
-    return 0;
+    static void *result = NULL;
+    return &result;
 }
 
 sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {

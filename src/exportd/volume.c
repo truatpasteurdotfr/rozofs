@@ -359,6 +359,7 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
 
     stat->bsize = ROZOFS_BSIZE;
     stat->bfree = 0;
+    stat->blocks = 0;
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
@@ -368,6 +369,7 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
 
     list_for_each_forward(p, &volume->clusters) {
         stat->bfree += list_entry(p, cluster_t, list)->free / ROZOFS_BSIZE;
+        stat->blocks += list_entry(p, cluster_t, list)->size / ROZOFS_BSIZE;    
     }
 
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
@@ -375,6 +377,8 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
     }
 
     stat->bfree = (long double) stat->bfree / ((double) rozofs_forward /
+            (double) rozofs_inverse);
+    stat->blocks = (long double) stat->blocks / ((double) rozofs_forward /
             (double) rozofs_inverse);
 
     STOP_PROFILING(volume_stat);

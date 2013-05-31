@@ -25,11 +25,29 @@ add_executable(rozofsmount
     file.c
     mpproto.c
     rozofsmount.c
+    rozofs_fuse_api.h
+    rozofs_fuse.c
+    rozofs_fuse.h
+    rozofs_tx_client_export.c
+    rozofs_non_blocking_main.c
+    rozofsmount.h
+    rozofs_attr.c
+    rozofs_lookup.c
+    rozofs_mkdir.c
+    rozofs_mknod.c
+    rozofs_open.c
+    rozofs_link.c
+    rozofs_rmdir.c   
+    rozofs_rename.c   
+    rozofs_statfs.c   
+    rozofs_create.c 
+    rozofs_xattr.c
+    rozofs_read.c
+    rozofs_write.c
+    rozofs_readdir.c
 )
 #pthread need by fuse
 target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${CRYPT_LIBRARY})
-
-
 
 # Install
 
@@ -39,3 +57,5 @@ install(TARGETS rozofsmount
     ARCHIVE DESTINATION lib
     COMPONENT mount
 )
+
+install(PROGRAMS storcli_starter.sh storcli_killer.sh  DESTINATION bin)
