@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZO 1 "MARCH 2013" Rozofs "User Manuals"
+.TH ROZO 1 "MAY 2013" Rozofs "User Manuals"
 .SH NAME
 rozo \- rozofs management tool
 .SH SYNOPSIS
@@ -54,7 +54,7 @@ agent\-start
 \fB\-p\fP, \fB--pacemaker\fP
 whenever
 .BR exportd (8)
-is managed thru pacemaker.
+is managed by pacemaker.
 .SS
 agent\-stop
 \fBrozo \fPagent\-stop
@@ -69,7 +69,7 @@ agent\-restart
 \fB\-p\fP, \fB--pacemaker\fP
 whenever
 .BR exportd (8)
-is managed thru pacemaker.
+is managed by pacemaker.
 .SS
 nodes
 \fBrozo \fPnodes [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-r\fP | \fB--roles \fP\fIrole\fP ...]
@@ -185,7 +185,7 @@ Volume id to be expand. If not set a new volume will be created. In this case th
 shrink
 \fBrozo \fPshrink [\fB\-E\fP | \fB--exportd\fP\fI host\fP] \fIvid\fP,... 
 .TP
-Remove volume(s) (according to the given \fIvid\fP list) from this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. Volume(s) will be removed if and only if no exports exists on it.
+Remove volume(s) (according to the given \fIvid\fP list) from this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. Volume(s) will be removed if and only if no export exists on it.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname. If not set the local hostname will be used.
