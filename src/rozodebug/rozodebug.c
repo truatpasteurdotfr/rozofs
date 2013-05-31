@@ -466,11 +466,9 @@ char *argv[];
 }
 int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
   int                 socketId;  
-  uint16_t            port;
   struct  sockaddr_in vSckAddr;
   int                 sockSndSize = 256;
   int                 sockRcvdSize = 2*MX_BUF;
-  int                  one=1;
   /*
   ** now create the socket for TCP
   */
@@ -478,39 +476,7 @@ int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
     printf("Unable to create a socket !!!\n");
     exit(0);
   }  
-  /* 
-  ** Set REUSE_ADDR
-  */  
-  if (setsockopt (socketId,SOL_SOCKET,SO_REUSEADDR,(char*)&one,sizeof(one)) == -1)  {
-    printf("Error on setsockopt SO_RCVBUF %d !!!\n",sockRcvdSize);
-    close(socketId);
-    exit(0);
-  }
   
-  /* Find a free port */
-  for (port=FIRST_PORT; port < LAST_PORT; port++) {
-    memset(&vSckAddr, 0, sizeof(struct sockaddr_in));
-    vSckAddr.sin_family = AF_INET;
-    vSckAddr.sin_port   = htons(port);
-    vSckAddr.sin_addr.s_addr = INADDR_ANY;
-    if ((bind(socketId,
-	      (struct sockaddr *)&vSckAddr,
-	      sizeof(struct sockaddr_in))) != 0) {
-      if (errno ==EADDRINUSE) port++; /* Try next port */
-      else {
-	printf ("BIND ERROR %8.8x\n", vSckAddr.sin_addr.s_addr);
-	printf ("unable to bind %s",strerror(errno));
-	close(socketId);
-	exit(0);
-      }
-    }
-    else break;
-  }
-  if (port >= LAST_PORT) {
-    printf("No more free port number between %d and %d !!!\n", FIRST_PORT, LAST_PORT);
-    exit(0);
-  }
-
   /* 
   ** change sizeof the buffer of socket for sending
   */
@@ -568,8 +534,8 @@ int main(int argc, const char **argv) {
     if (period == 0) break;
     sleep(period);
   }
-  
+
+  shutdown(socketId,SHUT_RDWR);   
   close(socketId);
   exit(1);
 }
-
