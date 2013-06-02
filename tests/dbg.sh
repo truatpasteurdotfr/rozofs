@@ -18,25 +18,59 @@
 #
 . env.sh
 
+
 exp_hosts="localhost"
-exp_ports="50000"
 
 fs_hosts="localhost"
-fs_ports="50003"
 
 stc_hosts="localhost"
-stc_ports="50004 50005"
 
 st1_host="localhost1"
 st2_host="localhost2"
 st3_host="localhost3"
 st4_host="localhost4"
 st_hosts="$st1_host $st2_host $st3_host $st4_host"
-std_ports="50027"
-io_ports="50028 50029 50030 50031"
 
 gw_hosts=$st_hosts
-gw_ports="60002"
+ 
+ 
+DBG_PORT_BASE="50000" 
+set_debug_ports () {
+
+  port=$DBG_PORT_BASE
+  exp_ports=$port
+  
+  port=`expr $port + 1`
+  gw_ports=$port
+
+  # RBS
+  port=`expr $port + 1`
+
+  # FS
+  fs_ports=""
+  stc_ports=""
+  for i in $(seq $1); 
+  do
+    port=`expr $port + 1`
+    fs_ports=`echo "$fs_ports $port"`
+    
+    port=`expr $port + 1`
+    stc_ports=`echo "$stc_ports $port"`
+    port=`expr $port + 1`
+    stc_ports=`echo "$stc_ports $port"`    
+  done
+  
+  port=`expr $DBG_PORT_BASE + 27`
+  std_ports=$port
+  
+  io_ports=""
+  for i in $(seq $2); 
+  do
+    port=`expr $port + 1`
+    io_ports=`echo "$io_ports $port"`  
+  done  
+
+} 
  
 syntax() {
   echo "$name [verbose] [period <sec>] [exp|gw|fs|stc|st|std|io|all] [cmd1 [cmd2 [...]]]"
@@ -154,6 +188,9 @@ then
   shift 1
 fi
 
+# 1 FS 4 STORIO
+set_debug_ports 1 4
+
 perio=""
 if [ "$1" == "period" ];
 then 
@@ -166,15 +203,15 @@ case "$1" in
   exp|gw|fs|stc|st|std|io|io1|io2|io3|io4|all) who=$1; shift 1;;
   *)                        who=all;;
 esac    
-  
-cmd=""  
-while [ ! -z $1 ];
+    
+while [ ! -z "$1" ];
 do
-  cmd=`echo "$cmd -c $1"`
+  cmd=`echo "$cmd $1"`
   shift 1
 done  
 case "$cmd" in
   "") cmd="-c uptime";;
+  *)  cmd=`echo "-c $cmd"`;;
 esac  
 
 delta=0
