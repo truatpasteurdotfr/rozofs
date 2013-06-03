@@ -60,13 +60,36 @@ typedef enum _north_lbg_entry_state_e
 #define NORTH_LBG_MAX_XMIT_ON_UP_TRANSITION 4
 
 #define NORTH_LBG_MAX_RETRY 3  /**< max number of time that we can reselet a target */
+
+#define NORTH_LBG_MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
+
+#define NORTH_LBG_START_PROF(buffer)\
+ { \
+  unsigned long long time;\
+  struct timeval     timeDay;  \
+  buffer->timestampCount++;\
+  gettimeofday(&timeDay,(struct timezone *)0);  \
+  time = NORTH_LBG_MICROLONG(timeDay); \
+  buffer->timestamp =time;\
+}
+
+#define NORTH_LBG_STOP_PROF(buffer)\
+{ \
+  unsigned long long timeAfter;\
+  struct timeval     timeDay;  \
+    gettimeofday(&timeDay,(struct timezone *)0);  \
+    timeAfter = NORTH_LBG_MICROLONG(timeDay); \
+    buffer->timestampElasped += (timeAfter- buffer->timestamp); \
+}
 /**
 * That structure contains the statistics of a socket : might be common for all
 * sockets
 */
 typedef struct _north_lbg_stats_t
 {
-
+   uint64_t timestamp;     /**< timestamp for service measure */   
+   uint64_t timestampCount;     /**< number of time service is called */   
+   uint64_t timestampElasped;     /**< elapsed time */   
    uint64_t xmitQueuelen;     /**< global xmit queue len */
    uint64_t totalXmitBytes;     /**< total number of bytes that has been sent */
    uint64_t totalXmitRetries;             /**< total number of messages that have been retransmiited    */

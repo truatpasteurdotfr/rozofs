@@ -451,7 +451,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
     /*
     ** no error, so get the length of the data part
     */
-    int received_len = ret.storcli_read_ret_no_data_t_u.len;
+    int received_len = ret.storcli_read_ret_no_data_t_u.len.len;
     xdr_free((xdrproc_t) decode_proc, (char *) &ret); 
     int position = XDR_GETPOS(&xdrs);
     

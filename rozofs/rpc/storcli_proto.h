@@ -83,22 +83,34 @@ struct storcli_truncate_arg_t {
 };
 typedef struct storcli_truncate_arg_t storcli_truncate_arg_t;
 
+struct storcli_read_no_data_ret_t {
+	uint32_t alignment;
+	uint32_t len;
+};
+typedef struct storcli_read_no_data_ret_t storcli_read_no_data_ret_t;
+
 struct storcli_read_ret_no_data_t {
 	storcli_status_t status;
 	union {
-		int len;
+		storcli_read_no_data_ret_t len;
 		int error;
 	} storcli_read_ret_no_data_t_u;
 };
 typedef struct storcli_read_ret_no_data_t storcli_read_ret_no_data_t;
 
+struct storcli_read_data_ret_t {
+	uint32_t alignment;
+	struct {
+		u_int dara_len;
+		char *dara_val;
+	} dara;
+};
+typedef struct storcli_read_data_ret_t storcli_read_data_ret_t;
+
 struct storcli_read_ret_t {
 	storcli_status_t status;
 	union {
-		struct {
-			u_int dara_len;
-			char *dara_val;
-		} dara;
+		struct storcli_read_data_ret_t data;
 		int error;
 	} storcli_read_ret_t_u;
 };
@@ -148,7 +160,9 @@ extern  bool_t xdr_storcli_write_arg_t (XDR *, storcli_write_arg_t*);
 extern  bool_t xdr_storcli_write_arg_no_data_t (XDR *, storcli_write_arg_no_data_t*);
 extern  bool_t xdr_storcli_read_arg_t (XDR *, storcli_read_arg_t*);
 extern  bool_t xdr_storcli_truncate_arg_t (XDR *, storcli_truncate_arg_t*);
+extern  bool_t xdr_storcli_read_no_data_ret_t (XDR *, storcli_read_no_data_ret_t*);
 extern  bool_t xdr_storcli_read_ret_no_data_t (XDR *, storcli_read_ret_no_data_t*);
+extern  bool_t xdr_storcli_read_data_ret_t (XDR *, storcli_read_data_ret_t*);
 extern  bool_t xdr_storcli_read_ret_t (XDR *, storcli_read_ret_t*);
 
 #else /* K&R C */
@@ -159,7 +173,9 @@ extern bool_t xdr_storcli_write_arg_t ();
 extern bool_t xdr_storcli_write_arg_no_data_t ();
 extern bool_t xdr_storcli_read_arg_t ();
 extern bool_t xdr_storcli_truncate_arg_t ();
+extern bool_t xdr_storcli_read_no_data_ret_t ();
 extern bool_t xdr_storcli_read_ret_no_data_t ();
+extern bool_t xdr_storcli_read_data_ret_t ();
 extern bool_t xdr_storcli_read_ret_t ();
 
 #endif /* K&R C */

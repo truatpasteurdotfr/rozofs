@@ -542,6 +542,8 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
     {
       if ( wr_proj_buf_p[i].state == ROZOFS_WR_ST_TRANSFORM_REQ)
       {
+         STORCLI_START_KPI(storcli_kpi_transform_forward);
+
          ret = rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
                                                  layout,
                                                  wr_proj_buf_p[i].first_block_idx, 
@@ -550,6 +552,7 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
                                                  wr_proj_buf_p[i].last_block_size,
                                                  wr_proj_buf_p[i].data);  
          wr_proj_buf_p[i].state =  ROZOFS_WR_ST_TRANSFORM_DONE; 
+         STORCLI_STOP_KPI(storcli_kpi_transform_forward,0);
       }    
    }
    /*

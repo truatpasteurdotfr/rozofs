@@ -205,6 +205,9 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t 
     /*
     ** now send the message
     */
+
+//     STORCLI_STOP_NORTH_PROF_SRV((rozofs_storcli_ctx_t*)user_ctx_p,read_req,0);   // FDL  
+
 #ifndef TEST_STORCLI_TEST
     ret = north_lbg_send(lbg_id,xmit_buf);
 #else
@@ -283,7 +286,14 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
                                                               p->effective_number_of_blocks,
                                                               &eof_flag);
     STORCLI_STOP_NORTH_PROF(p,read,data_len);
-
+    /*
+    ** skip the alignment
+    */
+    int position;
+    position = xdr_getpos(&xdrs);
+    position += sizeof(uint32_t);
+    xdr_setpos(&xdrs,position); 
+   
     XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
     /*
     ** round up data_len to 4 bytes alignment
@@ -726,4 +736,3 @@ out:
      rozofs_tx_free_from_ptr(this);
      return;
 }
-

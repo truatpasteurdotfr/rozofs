@@ -317,6 +317,7 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
       position =  sizeof(uint32_t); /* length header of the rpc message */
       position += rozofs_storcli_get_min_rpc_reply_hdr_len();
       position += sizeof(uint32_t);   /* length of the storage status field */
+      position += sizeof(uint32_t);   /* length of the alignment field (FDL) */
       position += sizeof(uint32_t);   /* length of the bins len field */
       pbuf +=position;      
       working_ctx_p->data_read_p        = pbuf;
@@ -366,7 +367,9 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
    */
    if (do_not_queue == STORCLI_DO_NOT_QUEUE )
    {
-     return rozofs_storcli_read_req_processing(working_ctx_p);
+      rozofs_storcli_read_req_processing(working_ctx_p);
+      return;
+
    }
    /*
    ** Prepare for request serialization
@@ -389,7 +392,8 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
      /*
      ** no request pending with that fid, so we can process it right away
      */
-     return rozofs_storcli_read_req_processing(working_ctx_p);
+      rozofs_storcli_read_req_processing(working_ctx_p);
+      return;
    }
 
 
@@ -558,6 +562,8 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   ** all the projection MUST have the same timestamp
   
   */
+
+
   int sent = 0;
   for (projection_id = 0;projection_id < rozofs_inverse; projection_id++) 
   {
@@ -621,7 +627,7 @@ retry:
                                          (void*)working_ctx_p);
      working_ctx_p->read_ctx_lock--;
      ruc_buf_inuse_decrement(xmit_buf);
-     
+
      if (ret < 0)
      {
        /*
@@ -1103,6 +1109,20 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
         error = 1;
         break;    
       }
+      {
+       int alignment;
+       /*
+       ** skip the alignment
+       */
+       if (xdr_int(&xdrs, &alignment) != TRUE)
+       {
+         errno = EPROTO;
+         STORCLI_ERR_PROF(read_prj_err);       
+         error = 1;
+         break;          
+       }
+      }
+
       /*
       ** Now get the length of the part that has been read
       */
@@ -1216,6 +1236,8 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     /*
     ** That's fine, all the projections have been received start rebuild the initial message
     */
+    STORCLI_START_KPI(storcli_kpi_transform_inverse);
+    
     ret = rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
                                      layout,
                                      working_ctx_p->cur_nmbs2read,
@@ -1250,6 +1272,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
        rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,0);   
        return;     
     }
+    STORCLI_STOP_KPI(storcli_kpi_transform_inverse,0);
 
     /*
     ** now the inverse transform is finished, release the allocated ressources used for
@@ -1525,6 +1548,4 @@ void rozofs_storcli_read_init_timer_module() {
  			                0);
 
 }
-
-
 
