@@ -1351,7 +1351,9 @@ reloop:
   ** That's fine, get the pointer to the entry in order to get its socket context reference
   */
   north_lbg_entry_ctx_t  *entry_p = &lbg_p->entry_tb[entry_idx];
+  NORTH_LBG_START_PROF((&entry_p->stats));
   ret = af_unix_generic_send_stream_with_idx(entry_p->sock_ctx_ref,buf_p); 
+  NORTH_LBG_STOP_PROF((&entry_p->stats));
   if (ret == 0)
   {
     /*

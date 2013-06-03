@@ -19,10 +19,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <errno.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
-#include <sys/un.h>
+#include <sys/un.h>             
 
 #include <rozofs/common/types.h>
 
@@ -94,12 +95,17 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
             north_lbg_entry_ctx_t *entry_p = lbg_p->entry_tb;
             pChar += sprintf(pChar, "      Main Queue               : %s\n", ruc_objIsEmptyList((ruc_obj_desc_t*) & lbg_p->xmitList[0]) ? "EMPTY" : "NON EMPTY");
             for (i = 0; i < lbg_p->nb_entries_conf; i++, entry_p++) {
+                north_lbg_stats_t *stats_p = &entry_p->stats;
                 pChar += sprintf(pChar, "   Entry[%d]\n", i);
                 pChar += sprintf(pChar, "       state                    : %s\n", lbg_north_state2String(entry_p->state));
                 pChar += sprintf(pChar, "       Queue_entry              : %s\n", ruc_objIsEmptyList((ruc_obj_desc_t*) & entry_p->xmitList) ? "EMPTY" : "NON EMPTY");
                 pChar += sprintf(pChar, "       Cnx  Attempts            : %12llu\n", (unsigned long long int) entry_p->stats.totalConnectAttempts);
                 pChar += sprintf(pChar, "       Xmit messages            : %12llu\n", (unsigned long long int) entry_p->stats.totalXmit);
                 pChar += sprintf(pChar, "       Recv messages            : %12llu\n", (unsigned long long int) entry_p->stats.totalRecv);
+                pChar += sprintf(pChar, "       Xmit Perf. (count/time)  : %"PRIu64" / %"PRIu64" us / cumul %"PRIu64" us\n",
+                        stats_p->timestampCount,
+                        stats_p->timestampCount ? stats_p->timestampElasped / stats_p->timestampCount : 0,
+                        stats_p->timestampElasped);
             }
             pChar += sprintf(pChar, "  Cumulated\n");
 

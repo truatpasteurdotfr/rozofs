@@ -78,15 +78,26 @@ struct storcli_truncate_arg_t {
     uint64_t    bid; 
 };
 
+struct storcli_read_no_data_ret_t
+{
+   uint32_t alignment;
+   uint32_t len;
+};
 
 union storcli_read_ret_no_data_t switch (storcli_status_t status) {
-    case STORCLI_SUCCESS:    int     len;
+    case STORCLI_SUCCESS:    storcli_read_no_data_ret_t     len;
     case STORCLI_FAILURE:    int     error;
     default:            void;
 };
 
+struct storcli_read_data_ret_t
+{
+   uint32_t alignment;
+   opaque  dara<>;
+};
+
 union storcli_read_ret_t switch (storcli_status_t status) {
-    case STORCLI_SUCCESS:    opaque  dara<>;
+    case STORCLI_SUCCESS:   struct storcli_read_data_ret_t  data;
     case STORCLI_FAILURE:    int     error;
     default:            void;
 };
@@ -107,4 +118,3 @@ program STORCLI_PROGRAM {
 
     }=1;
 } = 0x20000007;
-

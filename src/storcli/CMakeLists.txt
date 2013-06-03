@@ -37,9 +37,7 @@ add_executable(storcli
   rozofs_storcli_north_intf.c           
   storcli_stub.c
   rozofs_storcli_read.c                 
-  transform.c
   rozofs_storcli_rebuild_prj.c          
-  xmalloc.c
   storage_lbg.c  
   rozofs_storcli_cnx_supervision.c
 )

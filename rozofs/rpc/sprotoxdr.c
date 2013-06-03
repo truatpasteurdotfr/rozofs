@@ -70,6 +70,8 @@ xdr_sp_write_arg_t (XDR *xdrs, sp_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_proj))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->alignment))
+		 return FALSE;
 	 if (!xdr_bytes (xdrs, (char **)&objp->bins.bins_val, (u_int *) &objp->bins.bins_len, ~0))
 		 return FALSE;
 	return TRUE;
@@ -99,6 +101,8 @@ xdr_sp_write_arg_no_bins_t (XDR *xdrs, sp_write_arg_no_bins_t *objp)
 	 if (!xdr_uint64_t (xdrs, &objp->bid))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_proj))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->alignment))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->len))
 		 return FALSE;
@@ -162,6 +166,8 @@ xdr_sp_read_t (XDR *xdrs, sp_read_t *objp)
 {
 	//register int32_t *buf;
 
+	 if (!xdr_uint32_t (xdrs, &objp->filler))
+		 return FALSE;
 	 if (!xdr_bytes (xdrs, (char **)&objp->bins.bins_val, (u_int *) &objp->bins.bins_len, ~0))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->file_size))

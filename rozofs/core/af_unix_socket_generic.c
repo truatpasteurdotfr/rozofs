@@ -310,6 +310,17 @@ int af_unix_sock_set_non_blocking(int fd,int size)
     RUC_WARNING(errno);
    return -1;
   }
+
+  /*
+  ** set a new size for 
+  ** reception socket's buffer
+  */
+  ret=setsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&fdsize,sizeof(int));
+  if(ret<0)
+  {
+    RUC_WARNING(errno);
+   return -1;
+  }
   /*
   ** Change the mode of the socket to non blocking
   */

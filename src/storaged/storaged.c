@@ -172,7 +172,7 @@ static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
     }
 
     /* Creates a TCP/IP-based RPC service transport */
-    return svctcp_create(sock, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE);
+    return svctcp_create(sock, ROZOFS_RPC_STORAGE_BUFFER_SIZE, ROZOFS_RPC_STORAGE_BUFFER_SIZE);
 
 }
 

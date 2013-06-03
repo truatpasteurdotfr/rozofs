@@ -499,7 +499,7 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
         
 
         // Inverse data for the block (first_block_idx + block_idx)
-        transform_inverse((pxl_t *) (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
+        transform_inverse_inline((pxl_t *) (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
                 rozofs_inverse,
                 ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
                 rozofs_inverse, projections);
