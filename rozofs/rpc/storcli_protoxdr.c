@@ -152,6 +152,18 @@ xdr_storcli_truncate_arg_t (XDR *xdrs, storcli_truncate_arg_t *objp)
 }
 
 bool_t
+xdr_storcli_read_no_data_ret_t (XDR *xdrs, storcli_read_no_data_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->alignment))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->len))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_storcli_read_ret_no_data_t (XDR *xdrs, storcli_read_ret_no_data_t *objp)
 {
 	//register int32_t *buf;
@@ -160,7 +172,7 @@ xdr_storcli_read_ret_no_data_t (XDR *xdrs, storcli_read_ret_no_data_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case STORCLI_SUCCESS:
-		 if (!xdr_int (xdrs, &objp->storcli_read_ret_no_data_t_u.len))
+		 if (!xdr_storcli_read_no_data_ret_t (xdrs, &objp->storcli_read_ret_no_data_t_u.len))
 			 return FALSE;
 		break;
 	case STORCLI_FAILURE:
@@ -174,6 +186,18 @@ xdr_storcli_read_ret_no_data_t (XDR *xdrs, storcli_read_ret_no_data_t *objp)
 }
 
 bool_t
+xdr_storcli_read_data_ret_t (XDR *xdrs, storcli_read_data_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->alignment))
+		 return FALSE;
+	 if (!xdr_bytes (xdrs, (char **)&objp->dara.dara_val, (u_int *) &objp->dara.dara_len, ~0))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_storcli_read_ret_t (XDR *xdrs, storcli_read_ret_t *objp)
 {
 	//register int32_t *buf;
@@ -182,7 +206,7 @@ xdr_storcli_read_ret_t (XDR *xdrs, storcli_read_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case STORCLI_SUCCESS:
-		 if (!xdr_bytes (xdrs, (char **)&objp->storcli_read_ret_t_u.dara.dara_val, (u_int *) &objp->storcli_read_ret_t_u.dara.dara_len, ~0))
+		 if (!xdr_storcli_read_data_ret_t (xdrs, &objp->storcli_read_ret_t_u.data))
 			 return FALSE;
 		break;
 	case STORCLI_FAILURE:

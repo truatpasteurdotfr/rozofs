@@ -773,6 +773,12 @@ int af_unix_sock_stream_client_create_internal(char *nameOfSocket,int size)
     warning("socket setsockopt failure (SO_SNDBUF)  :%s",strerror(errno));
    return -1;
   }
+  ret=setsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&fdsize,sizeof(int));
+  if(ret<0)
+  {
+    warning("socket setsockopt failure (SO_SNDBUF)  :%s",strerror(errno));
+   return -1;
+  }
   /*
   ** Change the mode of the socket to non blocking
   */

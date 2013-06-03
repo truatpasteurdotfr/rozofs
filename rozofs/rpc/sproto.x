@@ -40,6 +40,7 @@ struct sp_write_arg_t {
     uint8_t     proj_id;     
     uint64_t    bid;
     uint32_t    nb_proj;
+    uint32_t    alignment;
     opaque      bins<>;
 };
 
@@ -57,6 +58,7 @@ struct sp_write_arg_no_bins_t {
     uint8_t     proj_id;     
     uint64_t    bid;
     uint32_t    nb_proj;
+    uint32_t    alignment;
     uint32_t    len;
 };
 
@@ -83,6 +85,7 @@ struct sp_truncate_arg_t {
 };
 
 struct sp_read_t {
+    uint32_t    filler;
     opaque      bins<>;
     uint64_t    file_size;
 };
@@ -115,4 +118,3 @@ program STORAGE_PROGRAM {
 
     }=1;
 } = 0x20000002;
-

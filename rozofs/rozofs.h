@@ -43,6 +43,9 @@
 #define ROZOFS_XATTR_LIST_MAX 65536
 #define ROZOFS_FILENAME_MAX 255
 
+/* Value for rpc buffer size used for sproto */
+#define ROZOFS_RPC_STORAGE_BUFFER_SIZE (1024*300) 
+
 #define ROZOFS_CLUSTERS_MAX 255 /**< FDL : limit for cluster */
 /* Value max for a SID */
 #define SID_MAX 255

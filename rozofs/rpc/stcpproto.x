@@ -41,8 +41,12 @@ struct stcpp_profiler_t {
     uint64_t    ports[2];
     uint64_t    remove[2];
     /* io processes only */
+    uint64_t    read_req[3];
     uint64_t    read[3];
+    uint64_t    trans_inv[3];
     uint64_t    write[3];
+    uint64_t    write_req[3];
+    uint64_t    trans_forward[3];
     uint64_t    truncate[3];
     uint64_t    read_prj[3];
     uint64_t    write_prj[3];

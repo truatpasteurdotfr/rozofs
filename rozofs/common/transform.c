@@ -17,7 +17,6 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <math.h>
@@ -26,25 +25,34 @@
 #include "xmalloc.h"
 #include "transform.h"
 
+int transform_buf_offset[1024];
+
 void transform_forward(const bin_t * support, int rows, int cols, int np,
         projection_t * projections) {
     int *offsets;
     int i, l, k;
     DEBUG_FUNCTION;
 
-    offsets = xcalloc(np, sizeof (int));
+    //    offsets = xcalloc(np, sizeof (int));
+    offsets = transform_buf_offset;
     for (i = 0; i < np; i++) {
         offsets[i] =
                 projections[i].angle.p <
                 0 ? (rows - 1) * projections[i].angle.p : 0;
-        memset(projections[i].bins, 0, projections[i].size * sizeof (bin_t));
+        //        memset(projections[i].bins, 0, projections[i].size * sizeof (bin_t));
+        uint64_t *p64;
+        int len;
+        p64 = (uint64_t*) projections[i].bins;
+        for (len = 0; len < projections[i].size; len++, p64++) {
+            *p64 = 0;
+        }
     }
 
     assert(cols % 8 == 0);
     for (i = 0; i < np; i++) {
         projection_t *p = projections + i;
         const pxl_t *ppix = support;
-        bin_t *pbin;            // = p->bins - offsets[i];
+        bin_t *pbin; // = p->bins - offsets[i];
         for (l = 0; l < rows; l++) {
             pbin = p->bins + l * p->angle.p - offsets[i];
             for (k = cols / 8; k > 0; k--) {
@@ -62,8 +70,8 @@ void transform_forward(const bin_t * support, int rows, int cols, int np,
         }
     }
 
-    if (offsets)
-        free(offsets);
+    //    if (offsets)
+    //        free(offsets);
 }
 
 static int compare_slope(const void *e1, const void *e2) {
@@ -77,6 +85,7 @@ static int compare_slope(const void *e1, const void *e2) {
 static inline int max(int a, int b) {
     return a > b ? a : b;
 }
+int transform_buf_k_offsets[1024];
 
 void transform_inverse(pxl_t * support, int rows, int cols, int np,
         projection_t * projections) {
@@ -86,6 +95,9 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
 
     k_offsets = xcalloc(np, sizeof (int));
     offsets = xcalloc(np, sizeof (int));
+
+    //    k_offsets = buf_k_offsets;
+    //    offsets = buf_offset;
 
     qsort((void *) projections, np, sizeof (projection_t), compare_slope);
     for (i = 0; i < np; i++) {
@@ -211,11 +223,12 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
             }
         }
     }
-
+#if 1
     if (offsets)
         free(offsets);
     if (k_offsets)
         free(k_offsets);
+#endif
 }
 
 void transform_forward_one_proj(const bin_t * support, int rows, int cols,
@@ -224,7 +237,7 @@ void transform_forward_one_proj(const bin_t * support, int rows, int cols,
     int l, k;
     DEBUG_FUNCTION;
 
-    offset = projections[proj_id].angle.p < 0 ? (rows - 1) * 
+    offset = projections[proj_id].angle.p < 0 ? (rows - 1) *
             projections[proj_id].angle.p : 0;
     memset(projections[proj_id].bins, 0, projections[proj_id].size
             * sizeof (bin_t));

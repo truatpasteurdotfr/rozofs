@@ -76,7 +76,11 @@ typedef struct storcli_conf {
     unsigned rozofsmount_instance;
 } storcli_conf;
 
-
+/*
+** KPI for Mojette transform
+*/
+ storcli_kpi_t storcli_kpi_transform_forward;
+ storcli_kpi_t storcli_kpi_transform_inverse;
 
 char storcli_process_filename[NAME_MAX];
 
@@ -94,7 +98,20 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     secs = (int) (elapse % 60);
     pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}      
+}         
+
+#define RESET_PROFILER_PROBE(probe) \
+{ \
+         gprofiler.probe[P_COUNT] = 0;\
+         gprofiler.probe[P_ELAPSE] = 0; \
+}
+
+#define RESET_PROFILER_PROBE_BYTE(probe) \
+{ \
+   RESET_PROFILER_PROBE(probe);\
+   gprofiler.probe[P_BYTES] = 0; \
+}
+
 
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15s |\n",\
 					#probe,\
@@ -109,10 +126,48 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
 					gprofiler.probe[P_ELAPSE],\
                     gprofiler.probe[P_BYTES]);
 
+
+#define SHOW_PROFILER_KPI_BYTE(probe,kpi_buf) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
+					#probe,\
+					kpi_buf.count,\
+					kpi_buf.count?kpi_buf.elapsed_time/kpi_buf.count:0,\
+					kpi_buf.elapsed_time,\
+                    kpi_buf.bytes_count);
+                    
+
+#define RESET_PROFILER_KPI_BYTE(probe,kpi_buf) \
+{ \
+					kpi_buf.count = 0; \
+					kpi_buf.elapsed_time = 0;\
+                    kpi_buf.bytes_count = 0; \
+}
+
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
     time_t elapse;
     int days, hours, mins, secs;
+    int reset = 0;
+    
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) reset = 1;
+    }
+    if (reset)
+    {
+      RESET_PROFILER_PROBE_BYTE(read);
+      RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
+      RESET_PROFILER_PROBE_BYTE(read_prj);
+      RESET_PROFILER_PROBE(read_prj_err);
+      RESET_PROFILER_PROBE(read_prj_tmo);
+      RESET_PROFILER_PROBE_BYTE(write)
+      RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
+      RESET_PROFILER_PROBE_BYTE(write_prj);
+      RESET_PROFILER_PROBE(write_prj_tmo);
+      RESET_PROFILER_PROBE(write_prj_err);    
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+      return;
+      
+    }
 
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);
@@ -126,11 +181,14 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += sprintf(pChar, "   procedure    |     count        |  time(us)  | cumulated time(us)  |     bytes       |\n");
     pChar += sprintf(pChar, "----------------+------------------+------------+---------------------+-----------------+\n");
 
+//    SHOW_PROFILER_PROBE_BYTE(read_req);
     SHOW_PROFILER_PROBE_BYTE(read);
+    SHOW_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
     SHOW_PROFILER_PROBE_BYTE(read_prj);
     SHOW_PROFILER_PROBE(read_prj_err);
     SHOW_PROFILER_PROBE(read_prj_tmo);
-    SHOW_PROFILER_PROBE_BYTE(write);
+    SHOW_PROFILER_PROBE_BYTE(write)
+    SHOW_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
     SHOW_PROFILER_PROBE_BYTE(write_prj);
     SHOW_PROFILER_PROBE(write_prj_tmo);
     SHOW_PROFILER_PROBE(write_prj_err);
@@ -740,8 +798,11 @@ int main(int argc, char *argv[]) {
     
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();
-
-    gprofiler.uptime = time(0);
+    /*
+    ** clear KPI counters
+    */
+    memset(&storcli_kpi_transform_forward,0,sizeof(  storcli_kpi_transform_forward));
+    memset(&storcli_kpi_transform_inverse,0,sizeof(  storcli_kpi_transform_inverse));
 
     /*
     ** create the process filename

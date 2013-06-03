@@ -41,6 +41,7 @@ struct sp_write_arg_t {
 	uint8_t proj_id;
 	uint64_t bid;
 	uint32_t nb_proj;
+	uint32_t alignment;
 	struct {
 		u_int bins_len;
 		char *bins_val;
@@ -58,6 +59,7 @@ struct sp_write_arg_no_bins_t {
 	uint8_t proj_id;
 	uint64_t bid;
 	uint32_t nb_proj;
+	uint32_t alignment;
 	uint32_t len;
 };
 typedef struct sp_write_arg_no_bins_t sp_write_arg_no_bins_t;
@@ -87,6 +89,7 @@ struct sp_truncate_arg_t {
 typedef struct sp_truncate_arg_t sp_truncate_arg_t;
 
 struct sp_read_t {
+	uint32_t filler;
 	struct {
 		u_int bins_len;
 		char *bins_val;

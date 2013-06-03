@@ -232,6 +232,7 @@ typedef struct _rozofs_storcli_ctx_t
   /*
   ** working variables for write
   */
+  uint64_t                          timestamp2;
   uint64_t                          timestamp;
 //  void                              *write_rq_p;          /**< pointer to the payload of the write request       */
   storcli_write_arg_no_data_t               storcli_write_arg;         /**< pointer to the write request arguments   */
@@ -246,6 +247,42 @@ typedef struct _rozofs_storcli_ctx_t
 
 } rozofs_storcli_ctx_t;
 
+/*
+** common structure for Mojette transform KPI
+*/
+typedef struct _storcli_kpi_t
+{
+   uint64_t  timestamp;
+   uint64_t  count;        /**< number of time the function is called */
+   uint64_t  elapsed_time;  /**< cumulated  time */
+   uint64_t  bytes_count;  /**< cumulated bytes count */
+} storcli_kpi_t;
+
+/**
+* Macro associated with KPI
+*  @param buffer : kpi buffer
+*/
+#define STORCLI_START_KPI(buffer)\
+ { \
+  unsigned long long time;\
+  struct timeval     timeDay;  \
+  gettimeofday(&timeDay,(struct timezone *)0);  \
+  time = MICROLONG(timeDay); \
+  buffer.timestamp =time;\
+}
+
+#define STORCLI_STOP_KPI(buffer,the_bytes)\
+ { \
+  unsigned long long timeAfter;\
+  struct timeval     timeDay;  \
+  buffer.bytes_count += the_bytes;\
+  buffer.count ++;\
+  gettimeofday(&timeDay,(struct timezone *)0);  \
+  timeAfter = MICROLONG(timeDay); \
+  buffer.elapsed_time += (timeAfter- buffer.timestamp); \
+}
+extern storcli_kpi_t storcli_kpi_transform_forward;
+extern storcli_kpi_t storcli_kpi_transform_inverse;
 
 #define STORCLI_START_NORTH_PROF(buffer,the_probe, the_bytes)\
  { \
@@ -258,6 +295,20 @@ typedef struct _rozofs_storcli_ctx_t
         gettimeofday(&timeDay,(struct timezone *)0);  \
         time = MICROLONG(timeDay); \
         (buffer)->timestamp =time;\
+    }\
+}
+
+#define STORCLI_START_NORTH_PROF_SRV(buffer,the_probe, the_bytes)\
+ { \
+  unsigned long long time;\
+  struct timeval     timeDay;  \
+  gprofiler.the_probe[P_COUNT]++;\
+  gprofiler.the_probe[P_BYTES] += the_bytes;\
+  if (buffer != NULL)\
+    {\
+        gettimeofday(&timeDay,(struct timezone *)0);  \
+        time = MICROLONG(timeDay); \
+        (buffer)->timestamp2 =time;\
     }\
 }
 /**
@@ -273,6 +324,19 @@ typedef struct _rozofs_storcli_ctx_t
     gettimeofday(&timeDay,(struct timezone *)0);  \
     timeAfter = MICROLONG(timeDay); \
     gprofiler.the_probe[P_ELAPSE] += (timeAfter-(buffer)->timestamp); \
+  }\
+}
+
+#define STORCLI_STOP_NORTH_PROF_SRV(buffer,the_probe,the_bytes)\
+{ \
+  unsigned long long timeAfter;\
+  struct timeval     timeDay;  \
+  gprofiler.the_probe[P_BYTES] += the_bytes;\
+  if (buffer != NULL)\
+  { \
+    gettimeofday(&timeDay,(struct timezone *)0);  \
+    timeAfter = MICROLONG(timeDay); \
+    gprofiler.the_probe[P_ELAPSE] += (timeAfter-(buffer)->timestamp2); \
   }\
 }
 
@@ -1177,4 +1241,3 @@ static inline void rozofs_storcli_update_lbg_for_safe_range(rozofs_storcli_ctx_t
   
 void storcli_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p);
 #endif
-
