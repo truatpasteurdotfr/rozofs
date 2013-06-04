@@ -326,20 +326,20 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
 
 int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids) {
     list_t *p;
-    DEBUG_FUNCTION;
+    int xerrno = ENOSPC;
+    DEBUG_FUNCTION 
     START_PROFILING(volume_distribute);
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         warning("can't lock volume %d.", volume->vid);
         goto out;
     }
-    errno = ENOSPC;
 
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
         if (cluster_distribute(layout, cluster, sids) == 0) {
             *cid = cluster->cid;
-            errno = 0;
+            xerrno = 0; 
             break;
         }
     }
@@ -349,6 +349,7 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
     }
 out:
     STOP_PROFILING(volume_distribute);
+    errno = xerrno;
     return errno == 0 ? 0 : -1;
 }
 
