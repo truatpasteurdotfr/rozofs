@@ -328,11 +328,11 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
  
-        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-8s |\n","Vid", "Sid", "Status", "Capacity(B)","Free(B)","Free(%)");
-        pbuf+=sprintf(pbuf, "-------+--------+--------+----------------------+----------------------+----------+\n");
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-6s | %-20s | %-20s | %-8s |\n","Vid", "Cid", "Sid", "Status", "Capacity(B)","Free(B)","Free(%)");
+        pbuf+=sprintf(pbuf, "-------+--------+--------+--------+----------------------+----------------------+----------+\n");
         for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
-            pbuf+=sprintf(pbuf, "%6d | %6d | %-6s | %20"PRIu64" | %20"PRIu64" | %8d |\n",
-                   gprofiler.vstats[i].vid,
+            pbuf+=sprintf(pbuf, "%6d | %6d | %6d | %-6s | %20"PRIu64" | %20"PRIu64" | %8d |\n",
+                   gprofiler.vstats[i].vid,gprofiler.vstats[i].sstats[j].cid,
                    gprofiler.vstats[i].sstats[j].sid,
                    (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", 
                    gprofiler.vstats[i].sstats[j].size,

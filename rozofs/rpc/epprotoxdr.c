@@ -61,6 +61,8 @@ xdr_epp_sstat_t (XDR *xdrs, epp_sstat_t *objp)
 {
 	//register int32_t *buf;
 
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
 	 if (!xdr_uint16_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->status))
