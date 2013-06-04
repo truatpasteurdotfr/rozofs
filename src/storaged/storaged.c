@@ -400,7 +400,8 @@ static void on_start() {
     int sock;
     int one = 1;
     pthread_t thread;
-
+    int ret;
+    
     DEBUG_FUNCTION;
 
     storage_process_filename[0] = 0;
@@ -547,32 +548,46 @@ static void on_start() {
         return;
     }
 
-    // Destroy portmap mapping
-    pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION); // in case !
+    // Re-attempt several times for simulation case on 1 server
+    // All the storaged are in concurence to register the function
+    for (i = 0; i < 8; i++) {
 
-    // Associates MONITOR_PROGRAM and MONITOR_VERSION
-    // with the service dispatch procedure, monitor_program_1.
-    // Here protocol is no zero, the service is registered with
-    // the portmap service
+      // Destroy portmap mapping
+      pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION); // in case !
 
-    if (!svc_register(storaged_monitoring_svc, MONITOR_PROGRAM,
-            MONITOR_VERSION, monitor_program_1, IPPROTO_TCP)) {
-        fatal("can't register service : %s", strerror(errno));
-        return;
+      // Associates MONITOR_PROGRAM and MONITOR_VERSION
+      // with the service dispatch procedure, monitor_program_1.
+      // Here protocol is no zero, the service is registered with
+      // the portmap service
+      ret = svc_register(storaged_monitoring_svc, MONITOR_PROGRAM,
+              MONITOR_VERSION, monitor_program_1, IPPROTO_TCP);
+      if (ret == 1) break;	     
     }
+    if (ret != 1) {
+      fatal("can't register service : %s", strerror(errno));
+    }
+    
 
     // Create profiling service for main process
     if ((storaged_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL) {
         severe("can't create profiling service.");
     }
 
-    pmap_unset(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION); // in case !
 
-    if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
+    // Re-attempt several times for simulation case on 1 server
+    // All the storaged are in concurence to register the function
+    for (i = 0; i < 8; i++) {
+    
+      pmap_unset(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION); // in case !
+
+      ret = svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
             STORAGED_PROFILE_VERSION,
-            storaged_profile_program_1, IPPROTO_TCP)) {
+            storaged_profile_program_1, IPPROTO_TCP);
+      if (ret == 1) break;	     
+    } 
+    if (ret != 1) {
         severe("can't register service : %s", strerror(errno));
-    }
+    }   
 
     // Waits for RPC requests to arrive!
     info("running.");

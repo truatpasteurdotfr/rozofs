@@ -109,8 +109,12 @@ int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root) {
         if (access(path, F_OK) == -1) {
             if (errno == ENOENT) {
                 // If the directory doesn't exist, create it
-                if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0)
-                    goto out;
+                if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
+	            if (errno != EEXIST) { 		
+                      goto out;
+		    }
+	            // Well someone else has created the directory in the meantime
+		}    
             } else {
                 goto out;
             }
@@ -121,8 +125,12 @@ int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root) {
         if (access(path, F_OK) == -1) {
             if (errno == ENOENT) {
                 // If the directory doesn't exist, create it
-                if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0)
-                    goto out;
+                if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+	            if (errno != EEXIST) { 		
+                      goto out;
+		    }
+	            // Well someone else has created the directory in the meantime
+		}    
             } else {
                 goto out;
             }
@@ -131,8 +139,12 @@ int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root) {
         if (access(path, F_OK) == -1) {
             if (errno == ENOENT) {
                 // If the directory doesn't exist, create it
-                if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0)
-                    goto out;
+                if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+	            if (errno != EEXIST) { 		
+                      goto out;
+		    }
+	            // Well someone else has created the directory in the meantime
+		}    
             } else {
                 goto out;
             }
