@@ -200,6 +200,4 @@ static inline void transform_inverse_inline(pxl_t * support, int rows, int cols,
 #endif
 }
 
-
-
 #endif

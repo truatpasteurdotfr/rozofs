@@ -159,9 +159,9 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
             volume_storage_initialize(to_storage, from_storage->sid, from_storage->host);
             to_storage->stat = from_storage->stat;
             to_storage->status = from_storage->status;
-            list_push_front(&to_cluster->storages, &to_storage->list);
+            list_push_back(&to_cluster->storages, &to_storage->list);
         }
-        list_push_front(&to->clusters, &to_cluster->list);
+        list_push_back(&to->clusters, &to_cluster->list);
     }
 
     if ((errno = pthread_rwlock_unlock(&from->lock)) != 0) {
@@ -326,6 +326,8 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
 
 int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids) {
     list_t *p;
+    int xerrno = ENOSPC;
+    
     DEBUG_FUNCTION;
     START_PROFILING(volume_distribute);
 
@@ -339,7 +341,7 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
         cluster_t *cluster = list_entry(p, cluster_t, list);
         if (cluster_distribute(layout, cluster, sids) == 0) {
             *cid = cluster->cid;
-            errno = 0;
+            xerrno = 0;
             break;
         }
     }
@@ -349,6 +351,7 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
     }
 out:
     STOP_PROFILING(volume_distribute);
+    errno = xerrno;
     return errno == 0 ? 0 : -1;
 }
 
