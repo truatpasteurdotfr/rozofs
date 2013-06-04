@@ -1605,6 +1605,19 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
        error = 0;
        break;    
      }
+     {
+       int alignment;
+       /*
+       ** skip the alignment
+       */
+       if (xdr_int(&xdrs, &alignment) != TRUE)
+       {
+         errno = EPROTO;
+         STORCLI_ERR_PROF(read_prj_err);       
+         error = 1;
+         break;          
+       }
+      }
      /*
      ** Now get the length of the part that has been read
      */
