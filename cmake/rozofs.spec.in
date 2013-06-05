@@ -5,8 +5,8 @@ Release:1
 License: GPLv2
 Group: System Environment/Base
 Vendor: Fizians SAS
-Packager: users@rozofs.org
-URL: http://www.rozofs.org
+Packager: devel@rozofs.com
+URL: http://www.rozofs.com
 Source0: rozofs-@VERSION@.tar.gz
 Requires(post): /sbin/chkconfig
 Requires(preun): /sbin/service, /sbin/chkconfig

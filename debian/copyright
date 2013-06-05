@@ -1,6 +1,6 @@
 This work was packaged for Debian by:
 
-    Fizians S.A.S. <rd@fizians.org>
+    Fizians S.A.S. <devel@rozofs.com>
 
 It was downloaded from:
 
@@ -8,7 +8,7 @@ It was downloaded from:
 
 Upstream Author(s):
 
-    Fizians S.A.S. rd@fizians.org
+    Fizians S.A.S. devel@rozofs.com
 
 Copyright:
 
@@ -33,7 +33,7 @@ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
 
 The Debian packaging is:
 
-    Copyright (C) 2011 Fizians S.A.S. <rd@fizians.org>
+    Copyright (C) 2011 Fizians S.A.S. <devel@rozofs.com>
 
 you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
