@@ -17,4 +17,4 @@ endif (INSTALL_ROOT)
 
 #cmake_policy (SET CMP0012 NEW)
 
-execute_process (COMMAND python2.6 ${SETUP} install ${EXTRA_ARGS} --prefix=${PREFIX} ${INSTALL_ROOT_ARGS} WORKING_DIRECTORY ${WDIR})
+execute_process (COMMAND python2.7 ${SETUP} install ${EXTRA_ARGS} --prefix=${PREFIX} ${INSTALL_ROOT_ARGS} WORKING_DIRECTORY ${WDIR})
