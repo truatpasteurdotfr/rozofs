@@ -15,7 +15,6 @@
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
  */
-
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -25,14 +24,15 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <unistd.h>
-#include <sys/un.h>
 
 #include <rozofs/common/types.h>
-#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
+#include <sys/un.h>
 #include "ppu_trace.h"
 #include "af_unix_socket_generic_api.h"
+#include <rozofs/common/log.h>
+
 
 /**
 *  Intaernal API for reading data from an AF_UNIX sock_stream socket
@@ -99,7 +99,7 @@ uint32_t af_unix_recv_stream_sock_recv(af_unix_ctx_generic_t  *sock_p, void *buf
          /*
          ** here we consider it as a error
          */
-         RUC_WARNING(eintr_count);
+         warning("af_unix_recv_stream_sock_recv :too many EINTR %d",eintr_count);
          sock_p->stats.totalRecvError++;
          return RUC_DISC;
 
@@ -206,9 +206,7 @@ uint32_t af_unix_recv_stream_generic_cbk(void * socket_pointer,int socketId)
           ** socket is dead call the user callback
           */
           recv_p->state = RECV_DEAD;
-/*
-          warning("af_unix_recv_stream_generic_cbk: %s",strerror(errno));
-*/
+//          warning("af_unix_recv_stream_generic_cbk: %s",strerror(errno));
           (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
 
           return TRUE;
@@ -250,6 +248,7 @@ uint32_t af_unix_recv_stream_generic_cbk(void * socket_pointer,int socketId)
            */
            (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
 
+
            return TRUE;
         }
         /*
@@ -263,11 +262,11 @@ uint32_t af_unix_recv_stream_generic_cbk(void * socket_pointer,int socketId)
            */
            af_unix_sock_stream_disconnect_internal(sock_p);
            recv_p->state = RECV_DEAD;
-           sock_p->stats.totalRecvBadHeader++;  
-           /*
+           sock_p->stats.totalRecvBadHeader++;           /*
            ** the length is wrong, we have no choice we need to close the connection
            */
            (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
+ 
  
            return TRUE;
         }
@@ -503,6 +502,7 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
                 */
                 (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
 
+
                 return TRUE;
              }
              /*
@@ -542,7 +542,7 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
           ** socket is dead call the user callback
           */
           recv_p->state = RECV_DEAD;
-          //warning("af_unix_recv_stream_generic_cbk:%s",strerror(errno));
+//          warning("af_unix_recv_stream_generic_cbk:%s",strerror(errno));
           (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
  
           return TRUE;
@@ -585,11 +585,11 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
            */
            af_unix_sock_stream_disconnect_internal(sock_p);
            recv_p->state = RECV_DEAD;
-           sock_p->stats.totalRecvBadHeader++;
-           /*
+           sock_p->stats.totalRecvBadHeader++;           /*
            ** the length is wrong, we have no choice we need to close the connection
            */
            (sock_p->userDiscCallBack)(sock_p->userRef,sock_p->index,NULL,errno);
+
 
            return TRUE;
         }
@@ -736,3 +736,6 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
   }
   return TRUE;
 }
+
+
+

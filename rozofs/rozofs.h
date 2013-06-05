@@ -64,6 +64,20 @@
 #define ROZOFS_MD5_SIZE 22
 #define ROZOFS_MD5_NONE "0000000000000000000000"
 
+
+#define EXPGW_EID_MAX_IDX 1024 /**< max number of eid  */
+#define EXPGW_EXPGW_MAX_IDX 32 /**< max number of export gateway per exportd */
+#define EXPGW_EXPORTD_MAX_IDX 64 /**< max number of exportd */
+
+
+
+
+/* Value max for an Exportd Gateway */
+#define GWID_MAX 32
+/* Value min for a Exportd Gateway */
+#define GWID_MIN 1
+
+
 /* Timeout in seconds for storaged requests by mproto */
 #define ROZOFS_MPROTO_TIMEOUT_SEC 4
 
@@ -118,4 +132,25 @@ typedef struct child {
 
 #include "common/transform.h"
 
+/**
+ *  By default the system uses 256 slices with 4096 subslices per slice
+ */
+#define MAX_SLICE_BIT 8
+#define MAX_SLICE_NB (1<<MAX_SLICE_BIT)
+#define MAX_SUBSLICE_BIT 12
+#define MAX_SUBSLICE_NB (1<<MAX_SUBSLICE_BIT)
+/*
+ **__________________________________________________________________
+ */
+static inline void mstor_get_slice_and_subslice(fid_t fid, uint32_t *slice, uint32_t *subslice) {
+    uint32_t hash = 0;
+    uint8_t *c = 0;
+
+    for (c = fid; c != fid + 16; c++)
+        hash = *c + (hash << 6) + (hash << 16) - hash;
+
+    *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
+    hash = hash >> MAX_SLICE_BIT;
+    *subslice = hash & ((1 << MAX_SUBSLICE_BIT) - 1);
+}
 #endif

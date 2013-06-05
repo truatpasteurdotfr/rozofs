@@ -49,8 +49,8 @@ static inline void list_push_back(list_t * head, list_t * new) {
 static inline void list_remove(list_t * list) {
     list->next->prev = list->prev;
     list->prev->next = list->next;
-    list->next = (void *) 0;
-    list->prev = (void *) 0;
+    list->next = (void *) list;
+    list->prev = (void *) list;
 }
 
 static inline int list_empty(list_t * head) {

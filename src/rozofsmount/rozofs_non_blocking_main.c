@@ -48,7 +48,9 @@
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-
+#include <rozofs/core/expgw_common.h>
+#include "rozofs_reload_export_gateway_conf.h"
+#include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
 
 // For trace purpose
@@ -61,6 +63,61 @@ pthread_t heartbeat_thrdId;
 
 int module_test_id = 0;
 
+
+/**
+*  Init of the module that deals with the export gateways
+
+  At the start-up we just create the entry for the Master Export
+  
+  @param host : hostname or IP address of the exportd Master
+  
+  @retval RUC_OK on success
+  @retval RUC_NOK on failure
+*/
+int rozofs_expgateway_init(char *host)
+{
+    int ret;
+    
+    expgw_export_tableInit();
+
+    /*
+    ** init of the AF_UNIX channel used for receiving export gateway configuration changes
+    */
+    ret = rozofs_exp_moduleInit();
+    if (ret != RUC_OK) return ret;
+
+//#warning only 1 gateway: localhost1
+
+    ret = expgw_export_add_eid(1,   // exportd id
+                               1,   // eid
+                               host,  // hostname of the Master exportd
+                               0,  // port
+                               2,  // nb Gateway
+                               2   // gateway rank: not significant for an rozofsmount
+                               );
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
+        fatal("Fatal error on expgw_export_add_eid()");
+        goto error;
+    }
+#if 0    
+    ret = expgw_add_export_gateway(1, "localhost1",60000,0);  
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        goto error;
+    }    
+    ret = expgw_add_export_gateway(1, "localhost2",60000,1);  
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        goto error;
+    }  
+#endif
+    return RUC_OK;
+error: 
+   return RUC_NOK;
+
+}
+
 uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     int ret;
 
@@ -68,8 +125,8 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     uint32_t mx_tcp_client = 10;
     uint32_t mx_tcp_server = 10;
     uint32_t mx_tcp_server_cnx = 10;
-    uint32_t mx_af_unix_ctx = 8;
-    uint32_t mx_lbg_north_ctx = 8;
+    uint32_t mx_af_unix_ctx = 32;
+    uint32_t mx_lbg_north_ctx = 32;
 
     //#warning TCP configuration ressources is hardcoded!!
     /*
@@ -107,7 +164,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      **   for: NPS, Timer, Debug, etc...
      */
     //#warning set the number of contexts for socketCtrl to 100
-    ret = ruc_sockctl_init(100);
+    ret = ruc_sockctl_init(256);
     if (ret != RUC_OK) {
         ERRFAT " socket controller init failed" ENDERRFAT
     }
@@ -179,6 +236,10 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
 
         if (ret != RUC_OK) break;
 #endif    
+        exportclt_t *exportclt = args_p->exportclt;
+        ret = rozofs_expgateway_init( exportclt->host);
+        if (ret != RUC_OK) break;
+
         break;
 
     }

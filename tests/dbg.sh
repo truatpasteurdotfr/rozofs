@@ -18,83 +18,130 @@
 #
 . env.sh
 
-exp_hosts="localhost"
-exp_ports="50000"
+fs_host="localhost"
+nb_fs=1
+nb_io=4
 
-fs_hosts="localhost"
-fs_ports="50003"
-
-stc_hosts="localhost"
-stc_ports="50004 50005"
-
-st_hosts=" localhost1 localhost2 localhost3 localhost4"
-std_ports="50027"
-io_ports="50028 50029 50030 50031"
-
- 
 syntax() {
-  echo "$name [verbose] [exp|fs|stc|st|std|io|all] [cmd1 [cmd2 [...]]]"
+  echo "$name [verbose] [period <sec>] [exp|gw*|fs*|stc*|st*|std*|io*|all] [cmd1 [cmd2 [...]]]"
   exit
 }
-
 do_ask () {
  for h in $H
  do
    for p in $P
    do
-     echo
-     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"     
-     printf  "_______ %9s _______________ %s:%s\n" $WHAT $h $p   
+     printf  "\n__[%8s]___[%10s:%-5s]" "$WHAT" $h $p   
+     name=`${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 1 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
+     printf "__[%s]\n" "$name"
      ${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 1 -i $h -p $p $cmd
    done
  done
-}
-
+} 
 ask_exp () {
-  WHAT="EXPORT"
-  H=$exp_hosts
-  P=$exp_ports
+  WHAT="EXPORT D"
+  H=$exp_host
+  P=$exp_port
   do_ask
 }
-
+ask_fs_instance () {
+  WHAT="FS MOUNT $instance"
+  H=$fs_host
+  P=${fs_ports[$instance]}
+  do_ask
+}
 ask_fs () {
-  WHAT="FS MOUNT"
-  H=$fs_hosts
-  P=$fs_ports
+  for instance in $(seq $nb_fs); 
+  do   
+    ask_fs_instance
+  done       
+}
+ask_stc_instance () {
+  WHAT="STOR CLI $instance"
+  H=$fs_host
+  port=${fs_ports[$instance]}
+  P="$((port+1)) $((port+2))" 
   do_ask
 }
-
 ask_stc () {
-  WHAT="STORCLI"
-  H=$stc_hosts
-  P=$stc_ports
+  for instance in $(seq $nb_fs); 
+  do   
+    ask_stc_instance
+  done
+}
+ask_std_instance () {
+  WHAT="STORAGED $instance"
+  H=${st_host[$instance]}
+  P=$std_port
   do_ask
 }
-
 ask_std () {
-  WHAT="STORAGED"
-  H=$st_hosts
-  P=$std_ports
+  for instance in $(seq $nb_st); 
+  do   
+    ask_std_instance
+  done       
+}
+ask_gw_instance () {
+  WHAT="EXP GTWY $instance"
+  H="${gw_host[instance]}"
+  P=$gw_port
   do_ask
 }
-
-ask_io () {
-  WHAT="STORIO"
-  H=$st_hosts
+ask_gw () {
+  for instance in $(seq $nb_gw); 
+  do   
+    ask_gw_instance
+  done  
+}
+ask_io_instance ()  {
+  WHAT="STOR I/O $instance"
+  H=${st_host[$instance]}
   P=$io_ports
   do_ask
 }
-
-ask_st () {
-  ask_std
-  ask_io
+ask_io () {
+  for instance in $(seq $nb_st); 
+  do   
+    ask_io_instance
+  done     
 }
-
+ask_st_instance () {
+  ask_std_instance
+  ask_io_instance
+}
+ask_st () {
+  for instance in $(seq $nb_st); 
+  do   
+    ask_st_instance
+  done   
+}
 ask_all () {
   ask_exp
+  ask_gw
   ask_fs
   ask_stc
   ask_st
+}
+ask () {
+
+  instance=${who: -1}
+
+  case "$who" in
+   exp) ask_exp;; 
+   gw)  ask_gw;;
+   gw*) ask_gw_instance;;
+   fs)  ask_fs;; 
+   fs*) ask_fs_instance;;
+   stc) ask_stc;; 
+   stc*)ask_stc_instance;; 
+   std) ask_std;; 
+   std*)ask_std_instance;;
+   st)  ask_st;; 
+   st*) ask_st_instance;;     
+   io)  ask_io;; 
+   io*) ask_io_instance;; 
+   all) ask_all;;
+  esac
 }
 
 name=`basename $0`
@@ -103,30 +150,96 @@ case "$1" in
   -*|?) syntax;;
 esac  
 
-if [ $1 == "verbose" ];
+if [ "$1" == "verbose" ];
 then 
   set -x
   shift 1
 fi
 
-case "$1" in
-  exp|fs|stc|st|std|io|all) who=$1; shift 1;;
-  *)                        who=all;;
-esac    
-  
-cmd="-c who"  
-while [ ! -z $1 ];
+perio=""
+if [ "$1" == "period" ];
+then 
+  period=$2
+  shift 2
+fi
+
+
+DBG_PORT_BASE="50000" 
+
+# Scan Export VIP in config file
+exp_host=`cat ${LOCAL_CONF}/export.conf | grep "exportd_vip = " | awk -F'\"' '{print $2}'`
+port=$DBG_PORT_BASE
+exp_port=$port
+
+
+# Scan export gateway in config file
+hosts="zero "
+for h in `cat ${LOCAL_CONF}/export.conf | grep "{gwid = " | awk -F'\"' '{print $2}'`
 do
-  cmd=`echo "$cmd -c $1"`
-  shift 1
+  hosts=`echo "$hosts $h"`
+done  
+declare -a gw_host=($hosts)  
+nb_instances=${#gw_host[@]}
+nb_gw=$((nb_instances-1)) 
+port=$((port + 1))
+gw_port=$port   
+
+# FS
+ports="zero"
+port=$((port + 2))  
+for i in $(seq $nb_fs); 
+do
+  ports=`echo "$ports $port"`
+  port=$((port+3))   
+done
+declare -a fs_ports=($ports) 
+
+# Scan storages in config file
+hosts="zero "
+for h in `cat ${LOCAL_CONF}/export.conf | grep "{sid = " | awk -F'\"' '{print $2}'`
+do
+  hosts=`echo "$hosts $h"`
+done  
+declare -a st_host=($hosts)  
+nb_instances=${#st_host[@]}
+nb_st=$((nb_instances-1))
+port=$((DBG_PORT_BASE + 27))
+std_port=$port  
+io_ports=""
+for i in $(seq $nb_io); 
+do
+  port=$((port + 1))
+  io_ports=`echo "$io_ports $port"`    
 done  
 
-case "$who" in
-  exp) ask_exp;; 
-  fs)  ask_fs;; 
-  stc) ask_stc;; 
-  st)  ask_st;; 
-  std) ask_std;; 
-  io)  ask_io;; 
-  all) ask_all;;
-esac
+ 
+
+case "$1" in
+  exp|gw*|fs*|stc*|std*|io*|st*|all) who=$1; shift 1;;
+  *)                        who=all;;
+esac    
+    
+while [ ! -z "$1" ];
+do
+  cmd=`echo "$cmd $1"`
+  shift 1
+done  
+case "$cmd" in
+  "") cmd="-c uptime";;
+  *)  cmd=`echo "-c $cmd"`;;
+esac  
+
+delta=0
+ask  
+if [ ! -z $period ];
+then
+  while [ 1 ];
+  do
+    sleep $period
+    delta=$((delta + period))
+    echo 
+    echo "~~~~~~~~~ +$delta sec ~~~~~~~~~"
+    echo
+    ask
+  done
+fi

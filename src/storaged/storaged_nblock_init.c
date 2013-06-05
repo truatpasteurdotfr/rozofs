@@ -68,21 +68,6 @@ DECLARE_PROFILING(spp_profiler_t);
 
 
 static char localBuf[8192];
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-    time_t elapse;
-    int days, hours, mins, secs;
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}      
-
 
 
 #define sp_display_probe(the_profiler, the_probe)\
@@ -410,7 +395,6 @@ int storaged_start_nb_blocking_th(void *args) {
     } else {
         uma_dbg_addTopic("profiler", show_profile_storaged_io_display);
     }
-    uma_dbg_addTopic("uptime", show_uptime);
 
     info("storaged non-blocking thread started "
             "(instance: %d, host: %s, port: %d).",

@@ -53,7 +53,7 @@
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
-
+#include "rozofs_storcli_reload_storage_config.h"
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -83,22 +83,18 @@ typedef struct storcli_conf {
  storcli_kpi_t storcli_kpi_transform_inverse;
 
 char storcli_process_filename[NAME_MAX];
+/*__________________________________________________________________________
+ */
+/**
+ *  Global and local datas
+ */
+static storcli_conf conf;
+exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
+uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
-static char localBuf[4096];
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-    time_t elapse;
-    int days, hours, mins, secs;
+storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}         
+static char localBuf[8192];
 
 #define RESET_PROFILER_PROBE(probe) \
 { \
@@ -196,20 +192,32 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
-/*__________________________________________________________________________
- */
-/**
- *  Global and local datas
- */
-static storcli_conf conf;
-exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
-uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
-storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
-
+static char bufall[1024];
 
 /*__________________________________________________________________________
  */
+
+static char *show_storlci_display_configuration_state(char *buffer,int state)
+{
+    char *pchar = buffer;
+   switch (state)
+   {
+      default:
+      case STORCLI_CONF_UNKNOWN:
+        sprintf(pchar,"UNKNOWN   ");
+        break;
+   
+      case STORCLI_CONF_NOT_SYNCED:
+        sprintf(pchar,"NOT_SYNCED");
+        break;   
+      case STORCLI_CONF_SYNCED:
+        sprintf(pchar,"SYNCED    ");
+        break;   
+   
+   }
+   return buffer;
+}
 
 
 /**________________________________________________________________________
@@ -242,7 +250,60 @@ static char *show_storcli_display_poll_state(char *buffer,int state)
 /*
 **________________________________________________________________________
 */
-static char bufall[1024];
+/**
+*
+*/
+void show_storcli_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+    char *pchar = localBuf;
+   storcli_conf_ctx_t *p = &storcli_conf_ctx ;
+   rpcclt_t *client_p;
+   
+   client_p = &exportclt.rpcclt;
+   
+   while(1)
+   {   
+
+     pchar += sprintf(pchar,"root path    :%s  (eid:%d)\n",exportclt.root,exportclt.eid);
+     pchar += sprintf(pchar,"exportd host : %s\n",exportclt.host); 
+     pchar += sprintf(pchar,"hash config  : 0x%x\n",exportd_configuration_file_hash); 
+
+pchar += sprintf(pchar,"     hostname        |  socket  | state  | cnf. status |  poll (attps/ok/nok) | conf send (attps/ok/nok)\n");
+pchar += sprintf(pchar,"---------------------+----------+--------+-------------+----------------------+--------------------------\n");
+     while(1)
+     {
+       pchar += sprintf(pchar,"%20s |",exportclt.host);
+       if ( client_p->sock == -1)
+       {
+         pchar += sprintf(pchar,"  ???     |");
+       }
+       else
+       {
+         pchar += sprintf(pchar,"  %3d     |",client_p->sock);
+       
+       }
+       pchar += sprintf(pchar,"  %s  |",(client_p->sock !=-1)?"UP  ":"DOWN");
+       pchar += sprintf(pchar," %s  |",show_storlci_display_configuration_state(bufall,p->conf_state));
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu |",
+                (long long unsigned int)p->stats.poll_counter[STORCLI_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.poll_counter[STORCLI_STATS_SUCCESS],
+               (long long unsigned int) p->stats.poll_counter[STORCLI_STATS_FAILURE]);
+
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu\n",
+                (long long unsigned int)p->stats.conf_counter[STORCLI_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.conf_counter[STORCLI_STATS_SUCCESS],
+               (long long unsigned int) p->stats.conf_counter[STORCLI_STATS_FAILURE]);  
+
+       break;
+     }
+     break;
+  } 
+  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+/*
+**________________________________________________________________________
+*/
 char *display_mstorage(mstorage_t *s,char *buffer)
 {
 
@@ -611,6 +672,10 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         /* Release mclient*/
         mclient_release(&mclt);
     }
+    /*
+    ** start the exportd configuration polling thread
+    */
+    rozofs_storcli_start_exportd_config_supervision_thread(&exportclt);
     return 0;
 
 
@@ -798,6 +863,9 @@ int main(int argc, char *argv[]) {
     
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();
+
+    gprofiler.uptime = time(0);
+
     /*
     ** clear KPI counters
     */
@@ -844,6 +912,10 @@ int main(int argc, char *argv[]) {
     /*
     ** Declare the debug entry to get the currrent configuration of the storcli
     */
+    uma_dbg_addTopic("config_status", show_storcli_configuration);
+    /*
+    ** Declare the debug entry to get the currrent configuration of the storcli
+    */
     uma_dbg_addTopic("storaged_status", show_storage_configuration);
     /*
      ** Init of the north interface (read/write request processing)
@@ -861,7 +933,6 @@ int main(int argc, char *argv[]) {
      ** add the topic for the local profiler
      */
     uma_dbg_addTopic("profiler", show_profiler);
-    uma_dbg_addTopic("uptime", show_uptime);
     /*
     ** declare timer debug functions
     */

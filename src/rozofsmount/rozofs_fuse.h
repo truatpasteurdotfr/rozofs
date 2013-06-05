@@ -26,6 +26,7 @@
 #include <sys/types.h> 
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
+#include <rozofs/core/expgw_common.h>
 #include "rozofsmount.h"
 
  /**
@@ -74,6 +75,10 @@ typedef struct _rozofs_fuse_save_ctx_t
    fuse_end_tx_recv_pf_t proc_end_tx_cbk;   /**< callback that must be call at end of transaction (mainly used by write/flush and close */ 
    uint64_t buf_flush_offset;               /**< offset of the first byte to flush    */
    uint32_t buf_flush_len;               /**< length of the data flush to disk    */
+   /*
+   ** Parameters specific to the exportd gateway management
+   */
+   expgw_tx_routing_ctx_t expgw_routing_ctx; 
    
  } rozofs_fuse_save_ctx_t;
  

@@ -430,7 +430,6 @@ char *argv[];
       
     /* -c <command> */
     if (strcmp(argv[idx],"-c")==0) {
-      int len;
       idx++;
       if (idx == argc) {
 	printf ("%s option but missing value !!!\n",argv[idx-1]);
@@ -440,10 +439,22 @@ char *argv[];
         allCmd = 1;
       }
       else {
-        len = strlen(argv[idx]);
-        add_cmd_in_list(argv[idx], len);
+        int start = idx;
+	int size  = 0;
+        while (idx < argc) {
+	  if (argv[idx][0] == '-') break;
+	  size += strlen(argv[idx])+1;
+	  idx++;
+	}
+	if (size > 1) {
+	  char * cmd = malloc(size+1);
+	  char * p = cmd;
+	  for  (;start<idx; start++) p += sprintf(p,"%s ", argv[start]);
+	  *p = 0;
+	  add_cmd_in_list(cmd,size);
+	  free(cmd);
+	} 	  
       }	
-      idx++;
       continue;
     }
         

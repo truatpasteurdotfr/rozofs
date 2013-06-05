@@ -242,7 +242,7 @@ void rozofs_storcli_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *re
 **____________________________________________________
 */
 /**
-   rozofs_storcli_module_init
+   rozofs_storcli_north_interface_init
 
   create the Transaction context pool
 

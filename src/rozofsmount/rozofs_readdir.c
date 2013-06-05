@@ -139,20 +139,20 @@ static int reply_buf_limited(fuse_req_t req, struct dirbuf *b, off_t off,
  
 int rozofs_ll_readdir_send_to_export(fid_t fid, uint64_t cookie,void	 *buffer_p) {
     int               ret;        
-    ep_readdir_arg_t  arg;
+    epgw_readdir_arg_t  arg;
 
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid,  fid, sizeof (fid_t));
-    arg.cookie = cookie;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid,  fid, sizeof (fid_t));
+    arg.arg_gw.cookie = cookie;
     
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_READDIR,(xdrproc_t) xdr_ep_readdir_arg_t,(void *)&arg,
+                              EP_READDIR,(xdrproc_t) xdr_epgw_readdir_arg_t,(void *)&arg,
                               rozofs_ll_readdir_cbk,buffer_p); 
     return ret;  
 } 
@@ -278,14 +278,14 @@ error:
 void rozofs_ll_readdir_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   ep_readdir_ret_t ret ;
+   epgw_readdir_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t) xdr_ep_readdir_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t) xdr_epgw_readdir_ret_t;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    fuse_ino_t   ino;
    size_t       size;
@@ -367,17 +367,17 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
        xdr_free(decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_readdir_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_readdir_ret_t_u.error;
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
             
-    db->eof    = ret.ep_readdir_ret_t_u.reply.eof;
-    db->cookie = ret.ep_readdir_ret_t_u.reply.cookie;
+    db->eof    = ret.status_gw.ep_readdir_ret_t_u.reply.eof;
+    db->cookie = ret.status_gw.ep_readdir_ret_t_u.reply.cookie;
  
     // Process the list of children
-    iterator = ret.ep_readdir_ret_t_u.reply.children;
+    iterator = ret.status_gw.ep_readdir_ret_t_u.reply.children;
     while (iterator != NULL) {
 
       memset(&attrs, 0, sizeof (mattr_t));
