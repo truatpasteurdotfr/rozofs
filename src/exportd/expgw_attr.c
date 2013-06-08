@@ -326,6 +326,7 @@ void expgw_write_block_1_svc(epgw_write_block_arg_t * arg, expgw_ctx_t *req_ctx_
     int   export_lbg_id;
     int status;
     int local;
+    expgw_attr_cache_t *cache_attr_entry_p;
     
     /**
     *  Get the lbg_id associated with the exportd
@@ -355,6 +356,19 @@ void expgw_write_block_1_svc(epgw_write_block_arg_t * arg, expgw_ctx_t *req_ctx_
        }
        goto out;
     }
+
+    /*
+    ** OK, the fid is handled by this server, attempt a lookup in the cache
+    */
+    cache_attr_entry_p = com_cache_bucket_search_entry(expgw_attr_cache_p,(unsigned char *)arg->arg_gw.fid);
+    if (cache_attr_entry_p != NULL)
+    {    
+      if (cache_attr_entry_p->attr.size < (arg->arg_gw.offset+arg->arg_gw.length)) 
+      {
+        cache_attr_entry_p->attr.size = arg->arg_gw.offset+arg->arg_gw.length;
+      }
+    }  	
+
 
     /*
     ** OK, the fid is handled by this server, in that case the request is forwarded
