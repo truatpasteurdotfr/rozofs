@@ -123,25 +123,17 @@ int  rozofs_storcli_transform_get_read_len_in_bytes(rozofs_storcli_inverse_block
                                                     uint32_t number_of_blocks_read,uint8_t *eof_p)
 {
 
-    int block_idx;
     int len = 0;
     
     *eof_p = 0;
-                    
-    for (block_idx = 0; block_idx < number_of_blocks_read; block_idx++) 
-    {
-      /*
-      ** Get the pointer to the beginning of the block and extract its header
-      */
-      len += (int)(inverse_res_p[block_idx].effective_length);
-    }
+    
     /*
-    ** Check for end of file condition
+    ** compute the number of 8K full
     */
-    if (inverse_res_p[number_of_blocks_read].effective_length != ROZOFS_BSIZE)
+    if (number_of_blocks_read != 0)
     {
-      *eof_p = 1;    
-    }
+      len = ROZOFS_BSIZE*(number_of_blocks_read);
+    }                
     return len;
 }    
 
@@ -508,15 +500,15 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
         */
         block_ctx_p[block_idx].state = ROZOFS_BLK_TRANSFORM_DONE;
         /*
-        ** check end of file condition
+        ** check the case of a block that is not full: need to zero's that part
         */
         if (block_ctx_p[block_idx].effective_length < ROZOFS_BSIZE)
         {
            /*
-           ** end of file case
+           ** clear the memory
            */
-           *number_of_blocks_p = (++block_idx);
-           return 0;        
+           char *raz_p = data + (ROZOFS_BSIZE * (first_block_idx + block_idx)) + block_ctx_p[block_idx].effective_length;
+           memset( raz_p,0,(ROZOFS_BSIZE-block_ctx_p[block_idx].effective_length) );
         }
     }
     /*

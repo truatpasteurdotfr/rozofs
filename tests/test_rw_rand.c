@@ -8,11 +8,17 @@
 #include <inttypes.h>
 #include <errno.h>
 
-#define LINE_SZ 30
+#define LINE_SZ 16
+#if 0
 print_char(char c) {
   if      ((c >= 'A') && (c <= 'Z')) ("\'%c\'",c);
   else if ((c >= 'a') && (c <= 'z')) printf("\'%c\'",c);
   else                               printf("x%2.2x",c);
+}
+#endif
+print_char (char c)
+{
+  printf(" 0x%2.2x",c);
 }
 
 dump(char * p1, char * p2, int start, int stop) {
@@ -20,10 +26,12 @@ dump(char * p1, char * p2, int start, int stop) {
   int nb_lines=size/LINE_SZ;
   int line;
   int idx,i;
-    
+  
+  printf("size = %d, nb_lines = %d\n",size,nb_lines);
+  
   for (line=0; line < nb_lines; line++) {
     idx = start + line * LINE_SZ;
-    printf("Offset %d\n",idx);  
+    printf("Offset %d (0x%x)\n",idx,idx);  
     for (i=0;i<LINE_SZ;i++) {
       print_char(p1[idx++]);
     }
@@ -50,7 +58,7 @@ dump(char * p1, char * p2, int start, int stop) {
   printf("\n");    
 }
 
-#define RANDOM_BUFFER_SIZE      (1024*4+1)
+#define RANDOM_BUFFER_SIZE      (1024*128+1)
 #define READ_BUFFER_SIZE         (2 * RANDOM_BUFFER_SIZE + 1)
 
 #define DEFAULT_FILENAME "this_is_the_default_file_name"
@@ -196,7 +204,8 @@ int do_offset(char * filename, int offset, int blockSize) {
     }
     for (idx2 = 0; idx2 < READ_BUFFER_SIZE; idx2++) {
         if (pReadBuff[idx2] != pCompareBuff[idx2]) {
-            printf("proc %3d - offset %d contains %x instead of %x\n", myProcId, idx2, pReadBuff[idx2],pCompareBuff[idx2]);
+            printf("proc %3d - offset %d (0x%x) (read_req : %d (0x%x)) contains %x instead of %x\n", myProcId, idx2,idx2, 
+                    READ_BUFFER_SIZE,READ_BUFFER_SIZE,pReadBuff[idx2],pCompareBuff[idx2]);
             dump(pReadBuff,pCompareBuff,idx2-30,idx2+29);
             res = 0;
 	    break;

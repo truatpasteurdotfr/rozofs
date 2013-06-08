@@ -26,6 +26,44 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/expgw_common.h>
+
+ 
+extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
+extern uint32_t rozofs_fuse_usr_ctx_idx ;
+extern uint64_t rozofs_write_merge_stats_tab[];
+
+/**
+*  write array statistics counter
+*  size in bytes
+*/
+#define ROZOFS_WRITE_STATS_ARRAY(size) \
+{\
+   rozofs_write_buf_section_table[size/ROZOFS_BSIZE]++;\
+}
+
+/**
+*  read array statistics counter
+*  size in bytes
+*/
+#define ROZOFS_READ_STATS_ARRAY(size) \
+{\
+   rozofs_read_buf_section_table[size/ROZOFS_BSIZE]++;\
+}
+
+/**
+* read/write merge process stats
+*/
+#define ROZOFS_WRITE_MERGE_STATS(cpt) \
+{ \
+  rozofs_write_merge_stats_tab[cpt]+=1; \
+}
+
+static inline void rozofs_fuse_dbg_save_ctx(rozofs_fuse_save_ctx_t *p)
+{
+   rozofs_fuse_usr_ctx_idx = (rozofs_fuse_usr_ctx_idx+1)%ROZOFS_FUSE_CTX_MAX;
+   rozofs_fuse_usr_ctx_table[rozofs_fuse_usr_ctx_idx] = p;
+   
+}
 /*
 **__________________________________________________________________________
 */
@@ -36,10 +74,11 @@
   @retval <>NULL, success->pointer to the allocated context
   @retval NULL, error ->out of context
 */
-static inline void *rozofs_fuse_alloc_saved_context()
+static inline void *_rozofs_fuse_alloc_saved_context(char *name )
 {
   rozofs_fuse_save_ctx_t *fuse_save_ctx_p;
   void *buffer_p;
+//  info("rozofs_fuse_alloc_saved_context %d \n",line);
   
   buffer_p = ruc_buf_getBuffer(rozofs_fuse_ctx_p->fuseReqPoolRef);
   if (buffer_p == NULL) 
@@ -55,6 +94,9 @@ static inline void *rozofs_fuse_alloc_saved_context()
   */
   
   fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer_p);
+  rozofs_fuse_dbg_save_ctx(fuse_save_ctx_p);
+  if (name == NULL) fuse_save_ctx_p->fct_name[0]=0;
+  else strcpy(fuse_save_ctx_p->fct_name,name);
   /*
   ** clear the fuse context
   */
@@ -73,7 +115,9 @@ static inline void *rozofs_fuse_alloc_saved_context()
   
   return buffer_p;
 }
-
+#define rozofs_fuse_alloc_saved_context() \
+  _rozofs_fuse_alloc_saved_context(NULL);
+  
 /*
 **__________________________________________________________________________
 */
@@ -83,15 +127,17 @@ static inline void *rozofs_fuse_alloc_saved_context()
   @param buffer_p: pointer to the head for the fuse save context (as returned by alloc function)
   @retval none
 */
-static inline void rozofs_fuse_release_saved_context(void *buffer_p)
+static inline void _rozofs_fuse_release_saved_context(void *buffer_p,int line)
 {
   rozofs_fuse_save_ctx_t *fuse_save_ctx_p;
+//  info("_rozofs_fuse_release_saved_context %d addr %p",line,buffer_p);
   /*
   ** Get the payload of the buffer since it is that part that contains
   ** the fuse saved context
   */
   fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer_p);
   
+  fuse_save_ctx_p->fct_name[0] = 0;
   ruc_objRemove(&fuse_save_ctx_p->link);
   /*
   ** clear the fuse context: release strings if any
@@ -113,7 +159,8 @@ static inline void rozofs_fuse_release_saved_context(void *buffer_p)
 
 }
 
-
+#define rozofs_fuse_release_saved_context(buf) \
+  _rozofs_fuse_release_saved_context(buf,(int)__LINE__);
 /*
 **__________________________________________________________________________
 */
@@ -210,7 +257,7 @@ static inline void  *fuse_ctx_write_pending_queue_get(file_t *f)
 */
 #define SAVE_FUSE_PARAM(buffer,param) \
 { \
-  rozofs_fuse_save_ctx_t *fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer_p); \
+  rozofs_fuse_save_ctx_t *fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer); \
   fuse_save_ctx_p->param = param; \
 }
 

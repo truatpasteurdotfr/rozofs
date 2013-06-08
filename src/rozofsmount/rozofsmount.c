@@ -835,6 +835,9 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     return err ? 1 : 0;
 }
 
+
+void rozofs_allocate_flush_buf(int size_kB);
+
 int main(int argc, char *argv[]) {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     char *mountpoint;
@@ -881,12 +884,17 @@ int main(int argc, char *argv[]) {
                 conf.buf_size);
         conf.buf_size = 128;
     }
-    if (conf.buf_size > 8192) {
+    if (conf.buf_size > 256) {
         fprintf(stderr,
-                "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
+                "write cache size too big (%u KiB) - decreased to 256 KiB\n",
                 conf.buf_size);
-        conf.buf_size = 8192;
+        conf.buf_size = 256;
     }
+    /*
+    ** allocate the common flush buffer
+    */
+    rozofs_allocate_flush_buf(conf.buf_size);
+    
 
 
     // Set timeout for exportd requests

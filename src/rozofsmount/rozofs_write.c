@@ -19,6 +19,9 @@
 #define _XOPEN_SOURCE 500
 #define FUSE_USE_VERSION 26
 
+//#define TRACE_FS_READ_WRITE 1
+//#warning TRACE_FS_READ_WRITE active
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -128,6 +131,10 @@ static inline int buf_flush(void *fuse_ctx_p,file_t *p)
   uint32_t flush_len = (uint32_t)(p->write_pos - p->write_from);
   uint32_t flush_off_buf = (uint32_t)(p->write_from - p->read_from);
   char *buffer;
+  /*
+  ** stats
+  */
+  rozofs_fuse_read_write_stats_buf.flush_buf_cpt++;
   
   buffer = p->buffer+flush_off_buf;
   /*
@@ -146,7 +153,7 @@ static inline int buf_flush(void *fuse_ctx_p,file_t *p)
 **__________________________________________________________________
 */
 /**
-*  API to align the write pointer to a ROZOFS_BSIZE boundary
+*  API to align the write_from pointer to a ROZOFS_BSIZE boundary
 
   @param p : pointer to the file structure that contains buffer information
   
@@ -164,7 +171,39 @@ static inline void buf_align_write_from(file_t *p)
      p->write_from = off2start;
    }      
 }
+/*
+**__________________________________________________________________
+*/
+/**
+*  API to align the write_pos pointer to a ROZOFS_BSIZE boundary
+  it is assumed that write_pos,write_from, read_from and read_pos are already computed
+  
+  @param p : pointer to the file structure that contains buffer information
+  
+  @retval none
+*/
+static inline void buf_align_write_pos(file_t *p)
+{        
+   uint64_t off2end;
 
+   /*
+   ** attempt to align write_pos on a block boundary
+   */
+   if (p->write_pos%ROZOFS_BSIZE)
+   {
+      /*
+      ** not on a block boundary
+      */
+      off2end = ((p->write_pos/ROZOFS_BSIZE)+1)*ROZOFS_BSIZE;
+      if (off2end <= p->read_pos)
+      {
+        /*
+        ** align on block boundary
+        */
+        p->write_pos = off2end;           
+      }
+   }
+}
 /*
 **__________________________________________________________________
 */
@@ -198,20 +237,22 @@ void buf_file_write_nb(void *fuse_ctx_p,
                     uint32_t len) 
 { 
 
-uint64_t off_requested = off;
-uint64_t pos_requested = off+len;
-int state;
-int action;
-uint64_t off2end;
-uint32_t buf_off;
-int ret;
-char *dest_p;
+  uint64_t off_requested = off;
+  uint64_t pos_requested = off+len;
+  int state;
+  int action;
+  uint64_t off2end;
+  uint32_t buf_off;
+  int ret;
+  char *dest_p;
+  char *src_p;
+  uint32_t len_alignment;
 
  status_p->status = BUF_STATUS_FAILURE;
  status_p->errcode = EINVAL ;
-/*
-** check the start point 
-*/
+  /*
+  ** check the start point 
+  */
   while(1)
   {
     if (!read_section_empty(p))
@@ -265,6 +306,7 @@ char *dest_p;
           action = BUF_ACT_FLUSH_ALIGN_THEN_COPY_NEW;
           break;      
         }
+        action = BUF_ACT_COPY_OVERLAP;
       }
       action = BUF_ACT_COPY;
       break;
@@ -280,6 +322,13 @@ char *dest_p;
   switch (action)
   {
     case BUF_ACT_COPY_EMPTY:
+#ifdef TRACE_FS_READ_WRITE
+      info("BUF_ACT_COPY_EMPTY state %d write[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            state,(long long unsigned int)off,(long long unsigned int)(off+len),
+            p->buf_write_wait,
+            (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
+            (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);
+#endif            
       p->write_from = off_requested; 
       p->write_pos  = pos_requested; 
       p->buf_write_wait = 1;
@@ -297,6 +346,26 @@ char *dest_p;
       break;
 
     case BUF_ACT_COPY:
+        /** 
+        *      off_req                        pos_req
+        *            +-----------------------------+
+
+        *      off_req                 pos_req
+        *            +-------------------+
+        *
+        *   +--------------------------------+
+        *   rd_f                             rd_p
+        *   +-------------------------------------------+  BUFSIZE
+        *  
+        *  
+        */
+#ifdef TRACE_FS_READ_WRITE
+      info("BUF_ACT_COPY state %d write[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            state,(long long unsigned int)off,(long long unsigned int)(off+len),
+            p->buf_write_wait,
+            (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
+            (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);
+#endif
       if (write_section_empty(p))
       {
         p->write_from = off_requested; 
@@ -314,20 +383,7 @@ char *dest_p;
         /*
         ** attempt to align write_pos on a block boundary
         */
-        if (p->write_pos%ROZOFS_BSIZE)
-        {
-           /*
-           ** not on a block boundary
-           */
-           off2end = (p->read_pos/ROZOFS_BSIZE)*ROZOFS_BSIZE;
-           if (off2end > p->write_pos)
-           {
-             /*
-             ** align on block boundary
-             */
-             p->write_pos = (p->write_pos/ROZOFS_BSIZE)*ROZOFS_BSIZE;           
-           }
-        }
+        buf_align_write_pos(p);
       }
       p->buf_write_wait = 1;
       /*
@@ -341,11 +397,143 @@ char *dest_p;
       status_p->status = BUF_STATUS_DONE;
       status_p->errcode = 0;
       break;  
+
+      /*
+      **  there is no write_wait in the buffer
+      */
+    case BUF_ACT_COPY_OVERLAP:
+        /** 
+        *      off_req                        pos_req
+        *            +-----------------------------+
+        *   +-------------------+
+        *   rd_f               rd_p
+        *   +----------------------------------+  BUFSIZE
+        *  
+        *  
+        */
+
+      /*
+      ** check for off_requested alignment on a block size boundary 
+      */
+#ifdef TRACE_FS_READ_WRITE
+      info("BUF_ACT_COPY_OVERLAP state %d write[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            state,(long long unsigned int)off,(long long unsigned int)(off+len),
+            p->buf_write_wait,
+            (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
+            (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);      
+#endif
+      p->write_from = off_requested;
+      buf_align_write_from(p);
+      if (off_requested == p->write_from)
+      {
+        /**
+        * forget previous buffer content, replace with new content
+        */
+        dest_p = p->buffer;
+        memcpy(dest_p,buf,len);
+        /*
+        ** update the offsets
+        */
+        p->write_pos  = pos_requested; 
+        p->buf_write_wait = 1;
+        p->read_from = p->write_from; 
+        p->read_pos  = p->write_pos;        
+        /*
+        ** fill the status section
+        */
+        status_p->status = BUF_STATUS_DONE;
+        status_p->errcode = 0;
+        break;      
+      }
+      /*
+      ** check the length need for alignment
+      */
+      len_alignment =  off_requested - p->write_from;
+      if ((len+ len_alignment) > p->export->bufsize)
+      {
+         /**
+         *  we cannot align the data to write so copy it unaligned
+        * forget previous buffer content, replace with new content
+        */
+        dest_p = p->buffer;
+        memcpy(dest_p,buf,len);
+        /*
+        ** update the offsets
+        */
+        p->write_from = off_requested;
+        p->write_pos  = pos_requested; 
+        p->buf_write_wait = 1;
+        p->read_from = p->write_from; 
+        p->read_pos  = p->write_pos;        
+        /*
+        ** fill the status section
+        */
+        status_p->status = BUF_STATUS_DONE;
+        status_p->errcode = 0;
+        break;                     
+      }  
+      /*
+      ** there is enough room in the buffer so move the alignment portion
+      ** to the front of the buffer
+      */ 
+      dest_p = p->buffer;
+      src_p = p->buffer + (off_requested - len_alignment -p->read_from);
+      memcpy(dest_p,src_p,len_alignment); 
+      /*
+      ** now copy the write buffer
+      */
+      dest_p = p->buffer+len_alignment;
+      memcpy(dest_p,buf,len);                 
+      /*
+      ** update the offsets
+      */
+      p->write_from = off_requested - len_alignment;
+      p->write_pos  = pos_requested; 
+      p->buf_write_wait = 1;
+      p->read_from = p->write_from; 
+      p->read_pos  = p->write_pos;        
+      /*
+      ** fill the status section
+      */
+      status_p->status = BUF_STATUS_DONE;
+      status_p->errcode = 0;
+      break;                     
+  
   
     case BUF_ACT_FLUSH_THEN_COPY_NEW:
+        /** 
+        *  Before:
+        *  -------
+        *  off_req                                             pos_req
+        *    +----------------------------------------------------+
+        *  off_req                 pos_req
+        *    +----------------------+
+        *   off_req   pos_req
+        *    +----------+
+        *                 +--------------------------------+
+        *               rd_f                             rd_p
+        *   
+        *  
+        *  After:
+        *  -------
+        *                                 off_req   pos_req
+        *                                    +----------+
+        *        +----------------------+
+        *        rd_f                  rd_p
+        *   
+        *  
+        */
+
       /*
       ** flush
       */
+#ifdef TRACE_FS_READ_WRITE
+      info("BUF_ACT_FLUSH_THEN_COPY_NEW state %d write[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            state,(long long unsigned int)off,(long long unsigned int)(off+len),
+            p->buf_write_wait,
+            (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
+            (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);     
+#endif
       if (p->buf_write_wait != 0) 
       {
         ret = buf_flush(fuse_ctx_p,p);
@@ -382,9 +570,30 @@ char *dest_p;
       break;    
   
     case BUF_ACT_FLUSH_ALIGN_THEN_COPY_NEW:
+        /** 
+        *  There is some pending data to write in the current buffer
+        *  -------
+        *                 off_req                           pos_req
+        *                  +------------------------------------+
+        *      +--------------------------------+
+        *     rd_f                             rd_p
+        *      +-------------------------------------------+  BUFSIZE
+        *          +-----------------------+ 
+        *         wr_f                    wr_pos
+        *   
+        *  
+        */
+
       /*
       ** partial flush
       */
+#ifdef TRACE_FS_READ_WRITE
+      info("BUF_ACT_FLUSH_ALIGN_THEN_COPY_NEW state %d write[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            state,(long long unsigned int)off,(long long unsigned int)(off+len),
+            p->buf_write_wait,
+            (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
+            (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);     
+#endif
       if (write_section_empty(p))
       {
         p->write_from = off_requested; 
@@ -437,11 +646,22 @@ char *dest_p;
       p->read_pos  = pos_requested; 
       if (write_section_empty(p) == 0) p->buf_write_wait = 1;      
  
-      break;      
+      break;  
+    default:
+#ifdef TRACE_FS_READ_WRITE
+      info("UNKNOWN %d state %d write[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            action,state,(long long unsigned int)off,(long long unsigned int)(off+len),
+            p->buf_write_wait,
+            (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
+            (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);     
+#endif
+      break;    
   
   }
 
 } 
+
+
 
 /*
 **__________________________________________________________________
@@ -540,10 +760,15 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
             (unsigned long int) ino, (unsigned long long int) size,
             (unsigned long long int) off);
 
+   /*
+   ** stats
+   */
+   ROZOFS_WRITE_STATS_ARRAY(size);
+
     /*
     ** allocate a context for saving the fuse parameters
     */
-    buffer_p = rozofs_fuse_alloc_saved_context();
+    buffer_p = _rozofs_fuse_alloc_saved_context("rozofs_ll_write_nb");
     if (buffer_p == NULL)
     {
       severe("out of fuse saved context");
@@ -803,7 +1028,7 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
     /*
     ** allocate a context for saving the fuse parameters
     */
-    buffer_p = rozofs_fuse_alloc_saved_context();
+    buffer_p = _rozofs_fuse_alloc_saved_context("rozofs_ll_flush_nb");
     if (buffer_p == NULL)
     {
       severe("out of fuse saved context");
@@ -941,7 +1166,7 @@ int rozofs_asynchronous_flush(struct fuse_file_info *fi) {
   /*
   ** allocate a context for processing the internal flush
   */
-  buffer_p = rozofs_fuse_alloc_saved_context();
+  buffer_p = _rozofs_fuse_alloc_saved_context("rozofs_asynchronous_flush");
   if (buffer_p == NULL) {
     severe("out of fuse context");
     errno = ENOMEM;
@@ -1080,7 +1305,14 @@ void rozofs_asynchronous_flush_cbk(void *this,void *param)
     */
     rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
     ruc_buf_freeBuffer(recv_buf);   
-    return export_write_block_nb(param,file);
+    /*
+    ** Update the exportd with the filesize if that one has changed
+    */ 
+    export_write_block_nb(param,file);
+    /*
+    ** check if there is some request waiting for the last pending write to complete
+    */
+    goto check_last_write_pending;
     
 error:
     if (file != NULL)
@@ -1095,6 +1327,23 @@ error:
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);     
+    
+check_last_write_pending:
+    /*
+    ** Check if there some request (flush or release waiting fro the last write to take place
+    */
+    if (file->buf_write_pending == 0)
+    {
+      fuse_end_tx_recv_pf_t  callback;
+      void *pending_fuse_ctx_p;
+      
+      pending_fuse_ctx_p = fuse_ctx_write_pending_queue_get(file);
+      if (pending_fuse_ctx_p != NULL)
+      {
+        GET_FUSE_CALLBACK(pending_fuse_ctx_p,callback);
+        (*callback)(NULL,pending_fuse_ctx_p);
+      }
+    }
     return;
 }
 /*
@@ -1306,7 +1555,7 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     /*
     ** allocate a context for saving the fuse parameters
     */
-    buffer_p = rozofs_fuse_alloc_saved_context();
+    buffer_p = _rozofs_fuse_alloc_saved_context("rozofs_ll_release_nb");
     if (buffer_p == NULL)
     {
       severe("out of fuse saved context");
@@ -1617,6 +1866,13 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
 
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
+    /*
+    ** adjust the size of the attributes of the local file
+    */
+    if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
+    {
+      file_p->attrs.size = buf_flush_offset + buf_flush_len;
+    }
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    

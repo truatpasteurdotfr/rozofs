@@ -21,6 +21,9 @@
 #define _XOPEN_SOURCE 500
 #define FUSE_USE_VERSION 26
 
+//#define TRACE_FS_READ_WRITE 1
+//#warning TRACE_FS_READ_WRITE active
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,6 +66,17 @@ DECLARE_PROFILING(mpp_profiler_t);
 void rozofs_ll_read_cbk(void *this,void *param);
 
 
+static char *buf_flush= NULL;  /**< flush buffer for asynchronous flush */
+/**
+* Allocation of the flush buffer
+  @param size_kB : size of the flush buffer in KiloBytes
+  
+  @retval none
+*/
+void rozofs_allocate_flush_buf(int size_kB)
+{
+  buf_flush = xmalloc(1024*size_kB);
+}
 
 
 /** Reads the distributions on the export server,
@@ -146,7 +160,6 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
     *length_p = -1;
     int ret;
 
-
     if ((off < f->read_from) || (off > f->read_pos) ||((off+len) >  f->read_pos ))
     {
        /*
@@ -156,36 +169,29 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        */
        if (f->buf_write_wait)
        {
-         /*
-	 ** 1) When area to read interleaves the pending write data
-	 **    we need to flush the data on disk first.
-         ** 2) when the file has never been written on disk, we need 
-	 **    also to flush now for the storio to create it on disk.
-         */
-	 if (
-	      // File is empty
-	      (f->attrs.size == 0)
-	      // Start of reading area inside the pending data
-	 ||   ((off >= f->write_from) && (off <= f->write_pos))
-	      // End of reading area inside the pending data	       
-	 ||   (((off+len) >= f->write_from) && ((off+len) <= f->write_pos))    
-	      // Reading area inside starts before and end after the pending data	       
-	 ||   ((off <= f->write_from) && ((off+len) >= f->write_pos))    	 
-	 ) {
-           	    
-	   struct fuse_file_info * fi;
-	   fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
-           ret = rozofs_asynchronous_flush(fi);
-	   if (ret == 0) {
-             *length_p = -1;
-             return 0;	 
-	   }	
-           f->buf_write_wait = 0;
-           f->write_from = 0; 
-           f->write_pos  = 0;
-	 }           
-       }
-       
+          /*
+          ** Each time there is a write wait we must flush it. Otherwise
+          ** we can face the situation where during read, a new write that
+          ** takes place that triggers the write of the part that was in write wait
+          ** mimplies the loss of the write pending in memory (not on disk) an
+          ** leads in returning inconsistent data to the caller
+          ** -> note : that might happen for application during read/write in async mode.
+          ** on the same file
+          */
+          {            	    
+	        struct fuse_file_info * fi;
+            
+	        fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
+            ret = rozofs_asynchronous_flush(fi);
+	        if (ret == 0) {
+                 *length_p = -1;
+                 return 0;	 
+	        }	
+            f->buf_write_wait = 0;
+            f->write_from = 0; 
+            f->write_pos  = 0;
+	     }           
+       }       
        /*
        ** The file has just been created and is empty so far
        ** Don't request the read to the storio, this would trigger an io error
@@ -200,16 +206,26 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        ** check if there is pending read in progress, in such a case, we queue the
        ** current request and we process it later upon the receiving of the response
        */
-#if 1
        if (f->buf_read_pending > 0)
        {
+#ifdef TRACE_FS_READ_WRITE
+      info("FUSE READ_QUEUED read[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            (long long unsigned int)off,(long long unsigned int)(off+len),
+            f->buf_write_wait,
+            (long long unsigned int)f->write_from,(long long unsigned int)f->write_pos,
+            (long long unsigned int)f->read_from,(long long unsigned int)f->read_pos);     
+#endif
           /*
           ** some read are in progress; queue this one
           */
           fuse_ctx_read_pending_queue_insert(f,buffer_p);
           return 1;      
        }
-#endif
+       /*
+       ** stats
+       */
+       rozofs_fuse_read_write_stats_buf.read_req_cpt++;
+       
        ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
        if (ret < 0)
        {
@@ -220,14 +236,49 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        ** read is in progress
        */
        f->buf_read_wait = 1;
+#ifdef TRACE_FS_READ_WRITE
+      info("FUSE READ_IN_PRG read[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            (long long unsigned int)off,(long long unsigned int)(off+len),
+            f->buf_write_wait,
+            (long long unsigned int)f->write_from,(long long unsigned int)f->write_pos,
+            (long long unsigned int)f->read_from,(long long unsigned int)f->read_pos);     
+#endif
        return 1;
     }     
     /*
     ** data are available in the current buffer
     */    
+#ifdef TRACE_FS_READ_WRITE
+      info("FUSE READ_DIRECT read[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            (long long unsigned int)off,(long long unsigned int)(off+len),
+            f->buf_write_wait,
+            (long long unsigned int)f->write_from,(long long unsigned int)f->write_pos,
+            (long long unsigned int)f->read_from,(long long unsigned int)f->read_pos);     
+#endif
     length =(len <= (f->read_pos - off )) ? len : (f->read_pos - off);
     *buf = f->buffer + (off - f->read_from);    
     *length_p = (size_t)length;
+    /*
+    ** check for end of buffer to trigger a readahead
+    */
+//#warning no readahead
+//    return 0;
+    
+    if ((f->buf_read_pending ==0) &&(len >= (f->export->bufsize/2)))
+    {
+      if ((off+length) == f->read_pos)
+      {
+        /*
+        ** stats
+        */
+        rozofs_fuse_read_write_stats_buf.readahead_cpt++;
+       
+        uint32_t readahead = 1;
+        SAVE_FUSE_PARAM(buffer_p,readahead);
+
+
+      }    
+    }
     return 0;
 }
 
@@ -258,9 +309,11 @@ void rozofs_ll_read_defer(void *param)
    int read_in_progress = 0;
    char *buff;
    size_t length = 0;
+   uint32_t readahead ;
 
    while(param)
    {   
+   RESTORE_FUSE_PARAM(param,readahead);
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,size);
    RESTORE_FUSE_PARAM(param,off);
@@ -292,7 +345,37 @@ error:
     */
 out:
     STOP_PROFILING_NB(param,rozofs_ll_read);
-    if (param != NULL) rozofs_fuse_release_saved_context(param);
+
+    if (param != NULL) 
+    {
+      /*
+      ** check readahead case
+      */
+      RESTORE_FUSE_PARAM(param,readahead);
+      if (readahead == 0) 
+      {
+        rozofs_fuse_release_saved_context(param);
+      }
+      else
+      {
+        int ret;
+        off = file->read_pos;
+        size_t size = file->export->bufsize;
+        SAVE_FUSE_PARAM(param,off);
+        SAVE_FUSE_PARAM(param,size); 
+        /*
+        ** attempt to read
+        */  
+        ret = read_buf_nb(param,file,file->read_pos, file->buffer, file->export->bufsize);      
+        if (ret < 0)
+        {
+           /*
+           ** read error --> release the context
+           */
+           rozofs_fuse_release_saved_context(param);
+        }   
+      }
+    }
     /*
     ** Check if there is some other read request that are pending
     */
@@ -324,10 +407,11 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     int read_in_progress = 0;
     char *buff;
     size_t length = 0;
+    uint32_t readahead =0;
     /*
     ** allocate a context for saving the fuse parameters
     */
-    buffer_p = rozofs_fuse_alloc_saved_context();
+    buffer_p = _rozofs_fuse_alloc_saved_context("rozofs_ll_read_nb");
     if (buffer_p == NULL)
     {
       severe("out of fuse saved context");
@@ -337,8 +421,15 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,size);
     SAVE_FUSE_PARAM(buffer_p,off);
+    SAVE_FUSE_PARAM(buffer_p,readahead);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));    
 
+    /*
+    ** stats
+    */
+    ROZOFS_READ_STATS_ARRAY(size);
+    rozofs_fuse_read_write_stats_buf.read_fuse_cpt++;
+    
     DEBUG("read to inode %lu %llu bytes at position %llu\n",
             (unsigned long int) ino, (unsigned long long int) size,
             (unsigned long long int) off);
@@ -374,8 +465,39 @@ error:
     ** release the buffer if has been allocated
     */
 out:
-    STOP_PROFILING_NB(buffer_p,rozofs_ll_read);
-    if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
+    if (buffer_p != NULL) 
+    {
+      /*
+      ** check readahead case
+      */
+      RESTORE_FUSE_PARAM(buffer_p,readahead);
+      if (readahead == 0) 
+      {
+        /*
+        ** release the context
+        */
+        rozofs_fuse_release_saved_context(buffer_p);
+      }
+      else
+      {
+        int ret;
+        off = file->read_pos;
+        size_t size = file->export->bufsize;
+        SAVE_FUSE_PARAM(buffer_p,off);
+        SAVE_FUSE_PARAM(buffer_p,size);      
+        /**
+        * attempt to read
+        */
+        ret = read_buf_nb(buffer_p,file,file->read_pos, file->buffer, file->export->bufsize);      
+        if (ret < 0)
+        {
+           /*
+           ** read error --> release the context
+           */
+           rozofs_fuse_release_saved_context(buffer_p);
+        }
+      }
+    }
 
     return;
 }
@@ -396,6 +518,13 @@ void rozofs_ll_read_cbk(void *this,void *param)
    struct fuse_file_info  *fi = &file_info;
    size_t size;
    uint64_t off;
+   uint64_t next_read_from, next_read_pos;
+   uint64_t offset_buf_wr_start,offset_end;
+   char *buff;
+   size_t length;
+   int len_zero;
+   uint8_t *src_p,*dst_p;
+   int len;
    
    int status;
    uint8_t  *payload;
@@ -405,12 +534,14 @@ void rozofs_ll_read_cbk(void *this,void *param)
    storcli_read_ret_no_data_t ret;
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_read_ret_no_data_t;
    file_t *file;
+   uint32_t readahead;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,size);
-   RESTORE_FUSE_PARAM(param,off);
+   RESTORE_FUSE_PARAM(param,readahead);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
+   RESTORE_FUSE_PARAM(param,off);
 
    file = (file_t *) (unsigned long)  fi->fh;   
    file->buf_read_pending--;
@@ -488,58 +619,464 @@ void rozofs_ll_read_cbk(void *this,void *param)
     int position = XDR_GETPOS(&xdrs);
     
     /*
-    ** check the length
+    ** check the length: caution, the received length can
+    ** be zero by it might be possible that the information 
+    ** is in the pending write section of the buffer
     */
-    if (received_len == 0)
+    if ((received_len == 0) || (file->attrs.size == -1) || (file->attrs.size == 0))
     {
       /*
-      ** end of file
+      ** end of filenext_read_pos
       */
       errno = 0;
       goto error;   
     }
-
+    /*
+    ** Get off requested to storcli (equal off after alignment)
+    */
+    next_read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+    /*
+    ** Truncate the received length to the known EOF as stored in
+    ** the file context
+    */
+    if ((next_read_from + received_len) > file->attrs.size)
+    {
+       received_len = file->attrs.size - next_read_from;    
+    }
+    /*
+    ** re-evalute the EOF case
+    */
+    if (received_len == 0)
+    {
+      /*
+      ** end of filenext_read_pos
+      */
+      errno = 0;
+      goto error;   
+    }    
+    
+    next_read_pos  = next_read_from+(uint64_t)received_len; 
+#ifdef TRACE_FS_READ_WRITE
+      info("FUSE READ_CBK read_rq[%llx:%llx],read_rcv[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            (long long unsigned int)off,(long long unsigned int)(off+size),
+            (long long unsigned int)next_read_from,(long long unsigned int)(next_read_pos),
+            file->buf_write_wait,
+            (long long unsigned int)file->write_from,(long long unsigned int)file->write_pos,
+            (long long unsigned int)file->read_from,(long long unsigned int)file->read_pos);     
+#endif
     /*
     ** Some data may not yet be saved on disk : flush it
     */
     if (file->buf_write_wait)
-    {
-      int      ret;
-    
-      /*
-      ** Flush the buffer
+    { 
+      while(1)
+      {
+      /**
+      *  wr_f                wr_p
+      *   +-------------------+
+      *                       +-------------------+
+      *                      nxt_rd_f           nxt_rd_p
+      *
+      *  Flush the write pending data on disk
+      *  Install the received read buffer instead
       */
-      ret = rozofs_asynchronous_flush(fi);
-      if (ret == 0) {
-        severe("rozofs_asynchronous_flush %d %s", ret, strerror(errno));	 
-      }	
-      file->buf_write_wait = 0;
-      file->write_from = 0; 
-      file->write_pos  = 0;         
+      if (file->write_pos <= next_read_from)
+      {
+        ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_0);
+        rozofs_asynchronous_flush(fi);
+        file->write_pos  = 0;
+        file->write_from = 0;
+        /*
+        ** copy the received buffer in the file descriptor context
+        */
+        src_p = payload+position;
+        dst_p = (uint8_t*)file->buffer;
+        memcpy(dst_p,src_p,received_len);
+        file->buf_read_wait = 0;
+        file->read_from = next_read_from;
+        file->read_pos  = next_read_pos;	
+        break;      
+      }
+      /**
+      *  wr_f                wr_p
+      *   +-------------------+
+      *                   +-------------------+
+      *                 nxt_rd_f           nxt_rd_p
+      *
+      *  Flush the write pending data on disk
+      *  Install the received read buffer instead
+      */
+      if (((file->write_from <= next_read_from) && (next_read_from <= file->write_pos)) &&
+         (next_read_pos > file->write_pos))
+      {
+        ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_1);
+        /*
+        ** possible optimization: extend the write pos to a User Data Blcok Boundary
+        */
+        rozofs_asynchronous_flush(fi);
+        /*
+        ** save in buf flush thesection between read_from and write_pos
+        */
+        len = file->write_pos - next_read_from;  
+        offset_buf_wr_start =  file->write_from - file->read_from ; 
+        offset_buf_wr_start +=  (next_read_from- file->write_from);
+        src_p =(uint8_t *)( file->buffer + offset_buf_wr_start);
+        memcpy(buf_flush,src_p,len);   
+        file->write_pos  = 0;
+        file->write_from = 0;
+        /*
+        ** copy the received buffer in the file descriptor context
+        */
+        src_p = payload+position;
+        dst_p = (uint8_t*)file->buffer;
+        memcpy(dst_p,src_p,received_len);
+        file->buf_read_wait = 0;
+        /**
+        * merge the with the buf flush
+        */
+        memcpy(file->buffer,buf_flush,len); 
+          
+        file->read_from = next_read_from;
+        file->read_pos  = next_read_pos;	             
+        break;      
+      }      
+      /**
+      *  wr_f                                       wr_p
+      *   +------------------------------------------+
+      *                   +-------------------+
+      *                 nxt_rd_f           nxt_rd_p
+      *
+      *  Discard the received data since it is included in the write pending data
+      */
+      if (
+         ((file->write_from <= next_read_from) && (next_read_from <= file->write_pos)) && 
+         ((file->write_from <= next_read_pos) && (next_read_pos <= file->write_pos)))
+      {
+        ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_2);
+   
+        break;      
+      }      
+
+      /**
+      *    wr_f                  wr_p
+      *      +-------------------+
+      *   +-------------------------+
+      *   nxt_rd_f           nxt_rd_p
+      *
+      *  The read and write buffer must be merged
+      *  keep the write data without flushing them
+      */
+      if (
+         ((next_read_from <=file->write_from  ) && (file->write_from <= next_read_pos )) && 
+         ((next_read_from <=file->write_pos  ) && (file->write_pos <= next_read_pos )))
+      {
+        ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_3);
+        /*
+        ** save in buf flush the section between write_from and write_pos
+        */
+        len = file->write_pos - file->write_from;      
+        src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
+        memcpy(buf_flush,src_p,len);   
+        /*
+        ** copy the received buffer in the file descriptor context
+        */
+        src_p = payload+position;
+        dst_p = (uint8_t*)file->buffer;
+        memcpy(dst_p,src_p,received_len);
+        file->buf_read_wait = 0;
+        /**
+        * merge the with the buf flush
+        */
+        dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
+        memcpy(dst_p,buf_flush,len); 
+          
+        file->read_from = next_read_from;
+        file->read_pos  = next_read_pos;	  
+        break;      
+      }            
+      /** 4
+      *    wr_f                        wr_p
+      *      +---------------------------+
+      *   +-------------------+
+      *   nxt_rd_f         nxt_rd_p
+      *
+      *  
+      */
+      if (
+         ((next_read_from <=file->write_from  ) && (file->write_from <= next_read_pos )) && 
+          (file->write_pos > next_read_pos ))
+      { 
+        /** 4.1
+        *    wr_f                        wr_p
+        *      +---------------------------+
+        *   +-------------------+
+        *   nxt_rd_f         nxt_rd_p
+        *   +----------------------------------+  BUFSIZE
+        *  
+        *  Merge the write and read in the file descriptor buffer, do not flush
+        *  
+        */
+        if ( file->write_pos -next_read_from <= file->export->bufsize)
+        {      
+          ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_4);
+          /*
+          ** save in buf flush the section between write_from and write_pos
+          */
+          len = file->write_pos - file->write_from;      
+          src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
+          memcpy(buf_flush,src_p,len);   
+          /*
+          ** copy the received buffer in the file descriptor context
+          */
+          src_p = payload+position;
+          dst_p = (uint8_t*)file->buffer;
+          memcpy(dst_p,src_p,received_len);
+          file->buf_read_wait = 0;
+          /**
+          * merge the with the buf flush
+          */
+          dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
+          memcpy(dst_p,buf_flush,len); 
+
+          file->read_from = next_read_from;
+          file->read_pos  = file->write_pos;	  
+          break;      
+        }       
+        /** 4.2
+        *    wr_f                        wr_p
+        *      +---------------------------+
+        *   +-------------------+
+        *   nxt_rd_f         nxt_rd_p
+        *   +---------------------------+  BUFSIZE
+        *  
+        *  Flush the write data on disk
+        *  Merge the remaining (read and write) in the file descriptor buffer
+        *  
+        */
+        ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_5);
+        rozofs_asynchronous_flush(fi);        
+        /*
+        ** save in buf flush the section between write_from and write_pos
+        */
+        offset_end = next_read_from + file->export->bufsize;
+        
+        len = offset_end - file->write_from;      
+        src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
+        memcpy(buf_flush,src_p,len);   
+        /*
+        ** copy the received buffer in the file descriptor context
+        */
+        src_p = payload+position;
+        dst_p = (uint8_t*)file->buffer;
+        memcpy(dst_p,src_p,received_len);
+        file->buf_read_wait = 0;
+        /**
+        * merge the with the buf flush
+        */
+        dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
+        memcpy(dst_p,buf_flush,len); 
+
+        file->write_pos  = 0;
+        file->write_from = 0;
+        file->read_from = next_read_from;
+        file->read_pos  = offset_end;	  
+        break;         
+      }      
+      /**
+      *                               wr_f                  wr_p
+      *                                 +-------------------+
+      *   +-------------------------+
+      *   nxt_rd_f           nxt_rd_p
+      *
+      */
+      if (next_read_pos <=file->write_from)
+      {
+        /**
+        *                                  wr_f                  wr_p
+        *                                   +-------------------+
+        *   +----------------------+
+        *   nxt_rd_f           nxt_rd_p
+        *   +---------------------------+  BUFSIZE
+        *
+        *  Flush the write data
+        *  copy the received data into the file descriptor buffer
+        *
+        */
+        if (file->write_from >= (next_read_from + file->export->bufsize))
+        {
+          ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_6);
+          rozofs_asynchronous_flush(fi);        
+          /*
+          ** copy the received buffer in the file descriptor context
+          */
+          src_p = payload+position;
+          dst_p = (uint8_t*)file->buffer;
+          memcpy(dst_p,src_p,received_len);
+          file->buf_read_wait = 0;
+
+          file->write_pos  = 0;
+          file->write_from = 0;
+          file->read_from = next_read_from;
+          file->read_pos  = next_read_pos;	  
+          break;  
+        } 
+        /**
+        *                          wr_f                  wr_p
+        *                           +-------------------+
+        *   +------------------+
+        *   nxt_rd_f         nxt_rd_p
+        *   +---------------------------+  BUFSIZE
+        *
+        *  Flush the write data
+        *  partial merge of write and read data into the file descriptor buffer
+        *  some zero might be inserted between read_pos and write_from
+        *
+        */
+        if (file->write_pos - next_read_from > file->export->bufsize)
+        {
+          ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_7);
+          rozofs_asynchronous_flush(fi);        
+          /*
+          ** save in buf flush the section between write_from and write_pos
+          */
+          offset_end = next_read_from + file->export->bufsize;
+
+          len = offset_end - file->write_from;      
+          src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
+          memcpy(buf_flush,src_p,len);   
+          /*
+          ** copy the received buffer in the file descriptor context
+          */
+          src_p = payload+position;
+          dst_p = (uint8_t*)file->buffer;
+          memcpy(dst_p,src_p,received_len);
+          file->buf_read_wait = 0;
+          /*
+          ** insert 0 in the middle
+          */
+          dst_p += received_len;
+          len_zero = file->write_from- next_read_pos;
+          memset(dst_p,0,len_zero);
+          /**
+          * merge the with the buf flush
+          */
+          dst_p+= len_zero;
+          memcpy(dst_p,buf_flush,len); 
+
+          file->write_pos  = 0;
+          file->write_from = 0;
+          file->read_from = next_read_from;
+          file->read_pos  = offset_end;	  
+          break;  
+        }         
+        /**
+        *                          wr_f                  wr_p
+        *                           +-------------------+
+        *   +------------------+
+        *   nxt_rd_f         nxt_rd_p
+        *   +-----------------------------------------------+  BUFSIZE
+        *
+        * no  Flush of the write data
+        *  full merge of write and read data into the file descriptor buffer
+        *  some zero might be inserted between read_pos and write_from
+        *
+        */
+        /*
+        ** save in buf flush the section between write_from and write_pos
+        */
+        ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_8);
+        offset_end = next_read_from + file->export->bufsize;
+
+        len = file->write_pos - file->write_from;      
+        src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
+        memcpy(buf_flush,src_p,len);   
+        /*
+        ** copy the received buffer in the file descriptor context
+        */
+        src_p = payload+position;
+        dst_p = (uint8_t*)file->buffer;
+        memcpy(dst_p,src_p,received_len);
+        file->buf_read_wait = 0;
+        /*
+        ** insert 0 in the middle
+        */
+        dst_p += received_len;
+        len_zero = file->write_from- next_read_pos;
+        memset(dst_p,0,len_zero);
+        /**
+        * merge the with the buf flush
+        */
+        dst_p+= len_zero;
+        memcpy(dst_p,buf_flush,len); 
+
+        file->read_from = next_read_from;
+        file->read_pos  = file->write_pos;	  
+        break;   
+      }   
+      ROZOFS_WRITE_MERGE_STATS(RZ_FUSE_WRITE_9);
+      severe("Something Rotten in the Rozfs Kingdom %llu %llu %llu %llu",
+             (long long unsigned int)next_read_from,(long long unsigned int)next_read_pos,
+             (long long unsigned int)file->write_from,(long long unsigned int)file->write_pos);
+      break;
+      }
+    }
+    else
+    {
+      /*
+      ** set the pointer to the beginning of the data array on the rpc buffer
+      */
+      uint8_t *src_p = payload+position;
+      uint8_t *dst_p = (uint8_t*)file->buffer;
+      memcpy(dst_p,src_p,received_len);
+      file->buf_read_wait = 0;
+      file->read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+      file->read_pos  = file->read_from+(uint64_t)received_len;
+
     }
     /*
-    ** set the pointer to the beginning of the data array on the rpc buffer
+    * compute the length that will be returned to fuse
     */
-    uint8_t *src_p = payload+position;
-    uint8_t *dst_p = (uint8_t*)file->buffer;
-    memcpy(dst_p,src_p,received_len);
-    file->buf_read_wait = 0;
-    file->read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
-    file->read_pos  = file->read_from+(uint64_t)received_len;
-
-    size_t length =
-            (size <=(file->read_pos - off)) ? size :(file->read_pos - off);
-    char *buff = file->buffer + (off - file->read_from);
-    
-    fuse_reply_buf(req, (char *) buff, length);
+    if (off >= file->read_pos)
+    {
+      /*
+      ** end of file
+      */
+      length = 0;
+      buff = file->buffer;
+    }
+    else
+    {
+      length = (size <=(file->read_pos - off)) ? size :(file->read_pos - off);
+      buff = file->buffer + (off - file->read_from);
+    }
+    /*
+    ** check readhead case : do not return the data since fuse did not request anything
+    */
+    if (readahead == 0)
+    {
+      fuse_reply_buf(req, (char *) buff, length);
+#ifdef TRACE_FS_READ_WRITE
+      info("FUSE READ_CBK_OUT ,read_rcv[%llx:%llx],wrb%d[%llx:%llx],rdb[%llx:%llx]",
+            (long long unsigned int)off,(long long unsigned int)(off+length),
+            file->buf_write_wait,
+            (long long unsigned int)file->write_from,(long long unsigned int)file->write_pos,
+            (long long unsigned int)file->read_from,(long long unsigned int)file->read_pos);     
+#endif
+    }    
     goto out;
 error:
-    fuse_reply_err(req, errno);
+    if (readahead == 0)
+    {
+      fuse_reply_err(req, errno);
+    }
 out:
     /*
     ** release the transaction context and the fuse context
     */
-    STOP_PROFILING_NB(param,rozofs_ll_read);
+    if (readahead == 0)
+    {
+       STOP_PROFILING_NB(param,rozofs_ll_read);
+    }
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
