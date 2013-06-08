@@ -570,7 +570,7 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
      rozofs_storcli_ctx_t *next_p = storcli_hash_table_search_ctx(ctx_p->fid_key);
      if ( next_p != NULL)
      {
-       switch (ctx_p->opcode_key)
+       switch (next_p->opcode_key)
        {
          case STORCLI_READ:
            rozofs_storcli_read_req_processing(next_p);

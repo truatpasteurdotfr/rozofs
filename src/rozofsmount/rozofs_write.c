@@ -773,7 +773,7 @@ check_last_write_pending:
 
 void rozofs_ll_flush_cbk(void *this,void *param) ;
 void rozofs_ll_flush_defer(void *ns,void *param) ;
-
+void rozofs_asynchronous_flush_cbk(void *ns,void *param) ;
 /*
 **__________________________________________________________________
 */
@@ -889,7 +889,214 @@ out:
     return;
 }
 
+/*
+**__________________________________________________________________
+*/
+/**
+*  Some request may trigger an internal flush before beeing executed.
 
+   That's the case of a read request while the file buffer contains
+   some data that have not yet been saved on disk, but do not contain 
+   the data that the read wants. 
+
+   No fuse reply is expected
+
+ @param fi   file info structure where information related to the file can be found (file_t structure)
+ 
+ @retval 0 in case of failure 1 on success
+*/
+
+int rozofs_asynchronous_flush(struct fuse_file_info *fi) {
+  file_t * f;
+  void   * buffer_p= 0;
+  int      ret;
+
+  DEBUG_FUNCTION;
+
+  /*
+  ** Retrieve file context
+  */
+  if (!(f = (file_t *) (unsigned long) fi->fh)) {
+    errno = EBADF;
+    return 0;
+  }
+
+  /*
+  ** check the status of the last write operation
+  */
+  if (f->wr_error!= 0) {
+    /*
+    ** that error is permanent, once can read the file but any
+    ** attempt to write will return that error code
+    */
+    errno = f->wr_error;
+    return 0;
+  }
+
+  /*
+  ** check that there is actually some pending data to write in the buffer
+  */
+  if (f->buf_write_wait == 0) return 1; 
+
+  /*
+  ** allocate a context for processing the internal flush
+  */
+  buffer_p = rozofs_fuse_alloc_saved_context();
+  if (buffer_p == NULL) {
+    severe("out of fuse context");
+    errno = ENOMEM;
+    return 0;
+  }    
+
+  /*
+  ** Initialize the so called fuse context
+  */
+  SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));    
+  SAVE_FUSE_CALLBACK(buffer_p,rozofs_asynchronous_flush_cbk)
+
+
+  /*
+  ** flush to disk and wait for the response
+  */
+  ret = buf_flush(buffer_p,f);
+  if (ret < 0) {
+    rozofs_fuse_release_saved_context(buffer_p);
+    return 0;
+  }
+  return 1;
+}
+/*
+**__________________________________________________________________
+*/
+/**
+*  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+void rozofs_asynchronous_flush_cbk(void *this,void *param) 
+{
+//   fuse_req_t req; 
+   struct rpc_msg  rpc_reply;
+   struct fuse_file_info  file_info;
+   struct fuse_file_info  *fi = &file_info;
+   
+   int status;
+   uint8_t  *payload;
+   void     *recv_buf = NULL;   
+   XDR       xdrs;    
+   int      bufsize;
+   storcli_status_ret_t ret;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
+   file_t *file = NULL;
+
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+//   RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
+
+   file = (file_t *) (unsigned long)  fi->fh;   
+   file->buf_write_pending--;
+   if (file->buf_write_pending < 0)
+   {
+     severe("buf_write_pending mismatch, %d",file->buf_write_pending);
+     file->buf_write_pending = 0;     
+   }
+
+    /*
+    ** get the pointer to the transaction context:
+    ** it is required to get the information related to the receive buffer
+    */
+    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+    /*    
+    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
+    */
+    status = rozofs_tx_get_status(this);
+    if (status < 0)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = rozofs_tx_get_errno(this); 
+       severe(" transaction error %s",strerror(errno));
+       goto error; 
+    }
+    /*
+    ** get the pointer to the receive buffer payload
+    */
+    recv_buf = rozofs_tx_get_recvBuf(this);
+    if (recv_buf == NULL)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = EFAULT;  
+       severe(" transaction error %s",strerror(errno));
+       goto error;         
+    }
+    payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
+    payload += sizeof(uint32_t); /* skip length*/
+    /*
+    ** OK now decode the received message
+    */
+    bufsize = (int) ruc_buf_getPayloadLen(recv_buf);
+    xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
+    /*
+    ** decode the rpc part
+    */
+    if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
+    {
+     TX_STATS(ROZOFS_TX_DECODING_ERROR);
+     errno = EPROTO;
+     severe(" transaction error %s",strerror(errno));
+     goto error;
+    }
+    /*
+    ** ok now call the procedure to decode the message
+    */
+    memset(&ret,0, sizeof(ret));                    
+    if (decode_proc(&xdrs,&ret) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_DECODING_ERROR);
+       errno = EPROTO;
+       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+       severe(" transaction error %s",strerror(errno));
+       goto error;
+    }   
+    if (ret.status == STORCLI_FAILURE) {
+        errno = ret.storcli_status_ret_t_u.error;
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+        goto error;
+    }
+    /*
+    ** no error, so get the length of the data part
+    */
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+//    fuse_reply_err(req, 0);
+    /*
+    ** Keep the fuse context since we need to trigger the update of 
+    ** the metadata of the file
+    */
+    rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
+    ruc_buf_freeBuffer(recv_buf);   
+    return export_write_block_nb(param,file);
+    
+error:
+    if (file != NULL)
+    {
+       file->wr_error = errno; 
+    }
+//    fuse_reply_err(req, errno);
+    /*
+    ** release the transaction context and the fuse context
+    */
+//    STOP_PROFILING_NB(param,rozofs_ll_flush);
+    rozofs_fuse_release_saved_context(param);
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
+    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);     
+    return;
+}
 /*
 **__________________________________________________________________
 */

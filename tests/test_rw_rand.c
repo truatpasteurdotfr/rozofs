@@ -10,7 +10,7 @@
 
 #define LINE_SZ 30
 print_char(char c) {
-  if      ((c >= 'A') && (c <= 'Z')) printf("\'%c\'",c);
+  if      ((c >= 'A') && (c <= 'Z')) ("\'%c\'",c);
   else if ((c >= 'a') && (c <= 'z')) printf("\'%c\'",c);
   else                               printf("x%2.2x",c);
 }
@@ -64,13 +64,16 @@ char * pCompareBuff = NULL;
 char * pBlock       = NULL;
 int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
-int loop=0;
+#define DEFAULT_LOOP 100
+int loop=DEFAULT_LOOP;
+int with_close = 1;
 
 static void usage() {
     printf("Parameters:\n");
     printf("[ -file <name> ]   The create/write/read/delete test will be done on <name>.<procNumber> (default %s)\n", DEFAULT_FILENAME);
     printf("[ -process <nb> ]  The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
-    printf("[ -loop <nb> ]     <nb> write/read operation will be done (default is infinite)\n");
+    printf("[ -loop <nb> ]     <nb> write/read operation will be done (default %d)\n",DEFAULT_LOOP);
+    printf("[ -noclose ]       Do not close the file between write and read\n");
     exit(0);
 }
 
@@ -133,7 +136,12 @@ char *argv[];
             idx++;
             continue;
         }	
-	
+        /* -noclose   */
+        if (strcmp(argv[idx], "-noclose") == 0) {
+            idx++;
+            with_close = 0;
+            continue;
+        }		
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
@@ -162,23 +170,25 @@ int do_offset(char * filename, int offset, int blockSize) {
         return 0;
     }
 
-    f = close(f);
-    if (f != 0) {
-        printf("proc %3d - close %d\n",myProcId,errno);
-        printf("proc %3d - Can not close %s\n", myProcId, filename);
-        return 0;
-    }
+    if (with_close) {
+      f = close(f);
+      if (f != 0) {
+          printf("proc %3d - close %d\n",myProcId,errno);
+          printf("proc %3d - Can not close %s\n", myProcId, filename);
+          return 0;
+      }
 
-    f = open(filename, O_RDONLY);
-    if (f == -1) {
-        printf("proc %3d - re-open %d\n",myProcId,errno);
-        printf("proc %3d - Can not re-open %s\n", myProcId,filename);
-        return 0;
+      f = open(filename, O_RDONLY);
+      if (f == -1) {
+          printf("proc %3d - re-open %d\n",myProcId,errno);
+          printf("proc %3d - Can not re-open %s\n", myProcId,filename);
+          return 0;
+      }
     }
-
+    
     memset(pReadBuff,0,READ_BUFFER_SIZE);
     size = pread(f, pReadBuff, READ_BUFFER_SIZE, 0);
-    if (size == 0) {
+    if (size <= 0) {
         printf("proc %3d - pread %d\n",myProcId,errno);
         printf("proc %3d - Can not read %s size %d\n", myProcId, filename, READ_BUFFER_SIZE);    
         close(f);
@@ -201,20 +211,20 @@ int do_offset(char * filename, int offset, int blockSize) {
     return res;
 }
 
-void loop_test_process() {
+int loop_test_process() {
   unsigned int blockSize;
   unsigned int offset;
   int count=0;    
   char filename[500];
   unsigned char c;
-  int idx;
+  int idx;      
   
   pBlock = NULL;
   pBlock = malloc(RANDOM_BUFFER_SIZE + 1);
   if (pBlock == NULL) {
       printf("Can not allocate %d bytes\n", RANDOM_BUFFER_SIZE+1);
       perror("malloc");
-      return;
+      return 0;
   }  
   c = 'A';
   int mark=0;
@@ -240,7 +250,7 @@ void loop_test_process() {
   if (pReadBuff == NULL) {
       printf("Can not allocate %d bytes\n", READ_BUFFER_SIZE);
       perror("malloc");
-      return ;
+      return 0;
   }
   memset(pReadBuff,0,READ_BUFFER_SIZE);
 
@@ -250,20 +260,19 @@ void loop_test_process() {
   if (pCompareBuff == NULL) {
       printf("Can not allocate %d bytes\n", READ_BUFFER_SIZE);
       perror("malloc");
-      return;
+      return 0;
   }
-  memset(pCompareBuff,0,READ_BUFFER_SIZE);
-      
-  
+  memset(pCompareBuff,0,READ_BUFFER_SIZE);  
+    
   sprintf(filename,"%s.%d",FILENAME, myProcId);
   if (unlink(filename) == -1) {
     if (errno != ENOENT) {
       printf("proc %3d - ERROR !!! can not remove %s %s\n", filename, strerror(errno));
-      return;
+      return 0;
     }
   }
   int pid = getpid();
-    
+      
   while (1) {
 
     offset    = (random()+pid) % RANDOM_BUFFER_SIZE; 
@@ -273,22 +282,19 @@ void loop_test_process() {
     
     if (do_offset(filename,offset,blockSize) == 0) {
       printf("proc %3d - ERROR !!! blocksize %6d  - offset %6d\n", myProcId, blockSize, offset);
-      printf("proc %3d : %d loop \n",myProcId, count);
-      return;
-    } 
-     
-    if ((count % 1000)==0) printf("proc %3d - Loop %d\n",myProcId, count);
+      printf("proc %3d : %d loop %s close\n",myProcId, count,with_close?"with":"without");
+      return 0;
+    }  
     
-    if (loop==count) {
-      printf("proc %3d : %d loop executed\n",myProcId, count);
-      return;
-    } 
+    if (loop==count) return 1;
   }
 }  
 int main(int argc, char **argv) {
   pid_t pid[2000];
   int proc;
-  
+  int ret;
+  char cmd[128];
+    
   read_parameters(argc, argv);
 
   if (nbProcess <= 0) {
@@ -296,18 +302,27 @@ int main(int argc, char **argv) {
     exit(0);
   }
 
+
+  sprintf(cmd,"echo "" > /tmp/result_rw_random"); 
+  system(cmd);
+     
   for (proc=0; proc < nbProcess; proc++) {
   
      pid[proc] = fork();     
      if (pid[proc] == 0) {
        myProcId = proc;
-       loop_test_process();       
+       ret = loop_test_process();
+       sprintf(cmd,"echo \"Process %3d result %s\" >> /tmp/result_rw_random",proc,ret?"OK":"FAILURE"); 
+       system(cmd);      
        exit(0);
      }  
   }
 
+  ret = 0;
   for (proc=0; proc < nbProcess; proc++) {
-    waitpid(pid[proc],NULL,0);
+    waitpid(pid[proc],NULL,0);        
   }
+  system("cat /tmp/result_rw_random");
+
   exit(0);
 }

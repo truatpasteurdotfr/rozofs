@@ -96,6 +96,7 @@ typedef struct _rozofs_fuse_ctx_t
    void   *connectionId;     /**< socket controller reference             */
    int     congested;        /**< assert to 1 when the transmitter is congested  */
    char   *buf_fuse_req_p;   /**< fuse request buffer                      */
+   uint32_t initBufCount;    /**< Number of buffer at initialization       */
 
 } rozofs_fuse_ctx_t;
  

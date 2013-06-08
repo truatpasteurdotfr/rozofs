@@ -49,9 +49,9 @@
 #include "rozofs_fuse.h"
 #endif
 
+#include <rozofs/core/uma_dbg_api.h>
 
 rozofs_fuse_ctx_t  *rozofs_fuse_ctx_p = NULL;  /**< pointer to the rozofs_fuse saved contexts   */
-
  /**
  * prototypes
  */
@@ -300,7 +300,12 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     ** fuse "socket". 
     */
     buffer_count = ruc_buf_getFreeBufferCount(ctx_p->fuseReqPoolRef);
-    if (buffer_count == 0) return FALSE;
+    /*
+    ** 2 fuse contexts are required :
+    ** - 1 to process the incoming request
+    ** - 1 to eventualy process an internal asynchronous flush
+    */
+    if (buffer_count < 2) return FALSE;
 
     return TRUE;
 }
@@ -486,7 +491,20 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     return TRUE;
 }
 
+void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
+  uint32_t            buffer_count=0;
+  char                status[16];
 
+  buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
+  /*
+  ** check if the session has been exited
+  */
+  if (fuse_session_exited(rozofs_fuse_ctx_p->se)) sprintf(status,"exited");
+  else                                            sprintf(status,"running");
+   
+  uma_dbg_send(tcpRef, bufRef, TRUE, "FUSE %8s - %d/%d ctx remaining\n",
+               status, buffer_count, rozofs_fuse_ctx_p->initBufCount);
+}
 
 /*
 **__________________________________________________________________________
@@ -524,6 +542,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
   rozofs_fuse_ctx_p->se             = se;
   rozofs_fuse_ctx_p->bufsize        = 0; 
   rozofs_fuse_ctx_p->buf_fuse_req_p = NULL;
+  rozofs_fuse_ctx_p->initBufCount   = rozofs_fuse_buffer_count;
   
   while (1)
   {
@@ -614,6 +633,8 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      status = 0;
      break;
   }
+  
+  uma_dbg_addTopic("fuse", rozofs_fuse_show);
   return status;
   
 }

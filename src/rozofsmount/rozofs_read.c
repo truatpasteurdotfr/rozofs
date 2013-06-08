@@ -157,9 +157,15 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        if (f->buf_write_wait)
        {
          /*
-         ** send a write request
+         ** Flush the buffer
          */
-//         #warning TODO: put code to trigger a write request
+	 struct fuse_file_info * fi;
+	 fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
+         ret = rozofs_asynchronous_flush(fi);
+	 if (ret == 0) {
+           *length_p = -1;
+           return 0;	 
+	 }	
          f->buf_write_wait = 0;
          f->write_from = 0; 
          f->write_pos  = 0;         
