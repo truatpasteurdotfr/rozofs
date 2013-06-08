@@ -322,7 +322,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
             if (arg_p->instance_id == 0) {
                 sprintf(name, "storaged %s ", arg_p->hostname);
             } else {
-                sprintf(name, "stor_io%d  %s:%d ", arg_p->instance_id, arg_p->hostname, arg_p->io_port);
+                sprintf(name, "stor_io%d %s:%d ", arg_p->instance_id, arg_p->hostname, arg_p->io_port);
             }
             uma_dbg_set_name(name);
         }
