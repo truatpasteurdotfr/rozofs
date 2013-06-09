@@ -157,19 +157,45 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        if (f->buf_write_wait)
        {
          /*
-         ** Flush the buffer
+	 ** 1) When area to read interleaves the pending write data
+	 **    we need to flush the data on disk first.
+         ** 2) when the file has never been written on disk, we need 
+	 **    also to flush now for the storio to create it on disk.
          */
-	 struct fuse_file_info * fi;
-	 fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
-         ret = rozofs_asynchronous_flush(fi);
-	 if (ret == 0) {
-           *length_p = -1;
-           return 0;	 
-	 }	
-         f->buf_write_wait = 0;
-         f->write_from = 0; 
-         f->write_pos  = 0;         
+	 if (
+	      // File is empty
+	      (f->attrs.size == 0)
+	      // Start of reading area inside the pending data
+	 ||   ((off >= f->write_from) && (off <= f->write_pos))
+	      // End of reading area inside the pending data	       
+	 ||   (((off+len) >= f->write_from) && ((off+len) <= f->write_pos))    
+	      // Reading area inside starts before and end after the pending data	       
+	 ||   ((off <= f->write_from) && ((off+len) >= f->write_pos))    	 
+	 ) {
+           	    
+	   struct fuse_file_info * fi;
+	   fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
+           ret = rozofs_asynchronous_flush(fi);
+	   if (ret == 0) {
+             *length_p = -1;
+             return 0;	 
+	   }	
+           f->buf_write_wait = 0;
+           f->write_from = 0; 
+           f->write_pos  = 0;
+	 }           
        }
+       
+       /*
+       ** The file has just been created and is empty so far
+       ** Don't request the read to the storio, this would trigger an io error
+       ** since the file do not yet exist on disk
+       */
+       if (f->attrs.size == 0) {
+         *length_p = 0;
+         return 0;       
+       }
+    
        /*
        ** check if there is pending read in progress, in such a case, we queue the
        ** current request and we process it later upon the receiving of the response
@@ -471,6 +497,25 @@ void rozofs_ll_read_cbk(void *this,void *param)
       */
       errno = 0;
       goto error;   
+    }
+
+    /*
+    ** Some data may not yet be saved on disk : flush it
+    */
+    if (file->buf_write_wait)
+    {
+      int      ret;
+    
+      /*
+      ** Flush the buffer
+      */
+      ret = rozofs_asynchronous_flush(fi);
+      if (ret == 0) {
+        severe("rozofs_asynchronous_flush %d %s", ret, strerror(errno));	 
+      }	
+      file->buf_write_wait = 0;
+      file->write_from = 0; 
+      file->write_pos  = 0;         
     }
     /*
     ** set the pointer to the beginning of the data array on the rpc buffer
