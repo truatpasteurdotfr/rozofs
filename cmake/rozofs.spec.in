@@ -8,9 +8,9 @@ Vendor: Fizians SAS
 Packager: devel@rozofs.com
 URL: http://www.rozofs.com
 Source0: rozofs-@VERSION@.tar.gz
-Requires(post): /sbin/chkconfig
-Requires(preun): /sbin/service, /sbin/chkconfig
-Requires(postun): /sbin/service
+#Requires(post): /sbin/chkconfig
+#Requires(preun): /sbin/service, /sbin/chkconfig
+#Requires(postun): /sbin/service
 
 # Manage by cmake
 #BuildRequires: gcc make automake cmake
@@ -204,7 +204,11 @@ mkdir -p %{buildroot}/etc/default
 %{_initrddir}/rozofs-manager-agent
 
 %post exportd
-/sbin/chkconfig --add rozofs-exportd
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-exportd
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-exportd
+fi
 
 %post storaged
 /sbin/chkconfig --add rozofs-storaged

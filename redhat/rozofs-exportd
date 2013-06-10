@@ -4,12 +4,43 @@
 #                      the exportd services.
 #
 #chkconfig: 35 20 80
-#description: rozofs-exportd
-#
+#description: rozofs exportd server
+#processname: exportd
+
+### BEGIN INIT INFO
+# Provides:          rozofs-exportd
+# Required-Start:    $network $local_fs $remote_fs $portmap
+# Required-Stop:     $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: RozoFS exportd server
+# Description:       RozoFS is a scale-out NAS file system. This service
+#                    provides the rozofs-exportd server functionality.
+### END INIT INFO
+
 
 DAEMON=/usr/bin/exportd
 
 # Source function library.
+if [ -f /lib/lsb/init-functions ]; then
+  . /lib/lsb/init-functions
+  alias START_DAEMON=start_daemon
+  alias STATUS=MyStatus
+  alias LOG_SUCCESS=log_success_msg
+  alias LOG_FAILURE=log_failure_msg
+  alias LOG_WARNING=log_warning_msg
+elif [ -f /etc/init.d/functions ]; then
+  . /etc/init.d/functions
+  alias START_DAEMON=daemon
+  alias STATUS=status
+  alias LOG_SUCCESS=success
+  alias LOG_FAILURE=failure
+  alias LOG_WARNING=passed
+else
+  echo "Error: your platform is not supported by $0" > /dev/stderr
+  exit 1
+fi
+
 . /etc/rc.d/init.d/functions
 
 # See how we were called.
