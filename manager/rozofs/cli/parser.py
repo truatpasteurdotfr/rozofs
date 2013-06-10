@@ -37,7 +37,8 @@ __parser.add_argument('listeners', nargs='+', choices=[EXPORTD_MANAGER, STORAGED
 
 
 __parent = argparse.ArgumentParser(add_help=False)
-__parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='running platform agent host')
+#__parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='running platform agent host')
+__parent.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
 
 #
@@ -106,12 +107,10 @@ __parser.add_argument('-f', '--force', action="store_true", default=False, help=
 __parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) of existing export.')
 
 __parser = __add_command_parser('mount', 'configure mountpoints and mount exported file system(s).', platform_dispatch, [__parent])
-__parser.add_argument('-v', '--vip', nargs=1, required=True, help='exportd virtual ip')
 __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount on')
 __parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
 
 __parser = __add_command_parser('umount', 'umount exported file system(s) and remove mountpoint configuration.', platform_dispatch, [__parent])
-__parser.add_argument('-v', '--vip', nargs=1, required=True, help='exportd virtual ip')
 __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to umount from')
 __parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be umount.')
 
