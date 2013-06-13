@@ -25,7 +25,7 @@ Summary: Rozofs filesystem (export package).
 License: GPLv2
 Group: System Environment/Daemons
 BuildRequires: libattr-devel libconfig-devel
-Requires: rpcbind, libattr, libconfig
+Requires: rpcbind, libattr, libconfig9
 
 %description exportd
 Rozofs is a scale-out NAS using erasure coding.
@@ -35,7 +35,7 @@ Summary: Rozofs filesystem (storage package).
 License: GPLv2
 Group: System Environment/Daemons
 BuildRequires: libconfig-devel
-Requires: rpcbind libconfig
+Requires: rpcbind libconfig9
 
 %description storaged
 Rozofs is a scale-out NAS using erasure coding.
@@ -45,7 +45,7 @@ Summary: Rozofs filesystem (rozofsmount package).
 License: GPLv2
 Group: System Environment/File
 BuildRequires: fuse-devel
-Requires: fuse-libs
+Requires: libfuse2
 
 %description rozofsmount
 Rozofs is a scale-out NAS using erasure coding.
@@ -60,12 +60,22 @@ Group: System Environment/File
 %description rprof
 Rozofs is a scale-out NAS using erasure coding.
 
+%package rozodebug
+Summary: Rozofs filesystem (debugging package).
+License: GPLv2
+Group: System Environment/File
+#BuildRequires:
+#Requires:
+
+%description rozodebug
+Rozofs is a scale-out NAS using erasure coding.
+
 %package manager-lib
 Summary: Rozofs filesystem (management library package).
 License: GPLv2
 Group: System Environment/File
 #BuildRequires:
-Requires: libconfig, python-pyro, python-argparse
+Requires: libconfig9, python-pyro, python-argparse
 
 %description manager-lib
 Rozofs is a scale-out NAS using erasure coding.
@@ -151,6 +161,10 @@ mkdir -p %{buildroot}/etc/default
 %defattr(-,root,root)
 %{_bindir}/rprof
 
+%files rozodebug
+%defattr(-,root,root)
+%{_bindir}/rozodebug
+
 %files manager-lib
 %defattr(-,root,root)
 %{_libdir}/python2.7/site-packages/rozofs/cli/platform.py
@@ -211,16 +225,28 @@ elif [ -x /sbin/chkconfig ]; then
 fi
 
 %post storaged
-/sbin/chkconfig --add rozofs-storaged
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-storaged
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-storaged
+fi
 
 %post rozofsmount
 ln -sf /sbin/mount.fuse /sbin/mount.rozofs
-/sbin/chkconfig --add rozofs-rozofsmount
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-rozofsmount
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-rozofsmount
+fi
 
 %post manager-agent
-/sbin/chkconfig --add rozofs-manager-agent
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-manager-agent
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-manager-agent
+fi
 
 %changelog
 
-* Tue Feb 05 2013 RozoFS <rd@rozofs.org> - @VERSION@
+* Tue Feb 05 2013 RozoFS <devel@rozofs.org> - @VERSION@
 - Initial spec file
