@@ -83,6 +83,10 @@ void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
   pChar += sprintf(pChar,"RECV_OK        : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_RECV_OK]);  
   pChar += sprintf(pChar,"RECV_OUT_SEQ   : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_RECV_OUT_SEQ]);  
   pChar += sprintf(pChar,"RTIMEOUT       : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_TIMEOUT]);  
+  pChar += sprintf(pChar,"EMPTY READ     : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_EMPTY_READ]);  
+  pChar += sprintf(pChar,"EMPTY WRITE    : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_EMPTY_WRITE]);
+  rozofs_storcli_stats[ROZOFS_STORCLI_EMPTY_READ] = 0;
+  rozofs_storcli_stats[ROZOFS_STORCLI_EMPTY_WRITE] = 0;  
   pChar += sprintf(pChar,"\n");
   pChar += sprintf(pChar,"Buffer Pool (name[size] :initial/current\n");
   pChar += sprintf(pChar,"North interface Buffers            \n");  
