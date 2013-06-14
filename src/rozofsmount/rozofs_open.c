@@ -180,8 +180,8 @@ void rozofs_ll_open_cbk(void *this,void *param)
    RESTORE_FUSE_PARAM(param,ino);
    RESTORE_FUSE_PARAM(param,fi);
    
-    uint8_t rozofs_safe = rozofs_get_rozofs_safe(exportclt.layout);
-    uint8_t rozofs_forward = rozofs_get_rozofs_forward(exportclt.layout);
+//    uint8_t rozofs_safe = rozofs_get_rozofs_safe(exportclt.layout);
+//    uint8_t rozofs_forward = rozofs_get_rozofs_forward(exportclt.layout);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -298,13 +298,15 @@ void rozofs_ll_open_cbk(void *this,void *param)
     */
     memcpy(&file->attrs,&attr, sizeof (mattr_t));
     file->mode     = S_IRWXU;
-    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
+//    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
     file->export   =  &exportclt;   
+#if 0 // useless for non-blocking
     // XXX use the mode because if we open the file in read-only,
     // it is not always necessary to have as many connections
     if (file_get_cnts(file, rozofs_forward, NULL) != 0)
         goto error;
+#endif
     /*
     ** init of the variable used for buffer management
     */
@@ -320,7 +322,7 @@ error:
        ** need to release the file structure and the buffer
        */
        int xerrno = errno;
-       free(file->storages);
+//       free(file->storages);
        free(file->buffer);
        free(file);
        errno = xerrno;      

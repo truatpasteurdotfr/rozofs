@@ -74,9 +74,10 @@ typedef struct file {
     mode_t mode;
     mattr_t attrs;
     exportclt_t *export;
-    sclient_t **storages;
+//    sclient_t **storages;
     //char buffer[ROZOFS_BUF_SIZE];
     char *buffer;
+    int closing;             /**< assert to 1 when the file has to be closed and there are some disks operation pending */
     int buf_write_wait;
     int buf_write_pending;   /**< number of write requests that are pending */
     int buf_read_pending;    /**< number of read requests that are pending */
@@ -107,6 +108,7 @@ static inline void rozofs_file_working_var_init(file_t *file)
     /*
     ** init of the variable used for buffer management
     */
+    file->closing   = 0;
     file->wr_error  = 0;
     file->buf_write_pending = 0;
     file->buf_read_pending  = 0;
@@ -122,15 +124,47 @@ static inline void rozofs_file_working_var_init(file_t *file)
 
 
 
-file_t *file_open(exportclt_t * e, fid_t fid, mode_t mode);
 
-int64_t file_write(file_t * f, uint64_t off, const char *buf, uint32_t len);
+/**
+*  Close of file descriptor 
 
-int file_flush(file_t * f);
+ @param file : pointer to the file decriptor structure
+ 
+ @retval 1  on success
+ @retval 0  if pending
+ */
 
-int64_t file_read(file_t * f, uint64_t off, char **buf, uint32_t len);
+static inline int file_close(file_t * f) {
 
-int file_close(exportclt_t * e, file_t * f);
+     f->closing = 1;
+     /*
+     ** Check if there some pending read or write
+     */     
+     if ((f->buf_write_pending) || (f->buf_read_pending))
+     {
+       /*
+       ** need to wait for end of pending transaction
+       */
+       return 0;
+     }
+     /*
+     ** Release all memory allocated
+     */
+     free(f->buffer);
+     free(f);
+    return 1;
+}
 
-int file_get_cnts(file_t * f, uint8_t nb_required, dist_t * dist_p);
+/**
+* API to return the closing state of a file descriptor
+
+  @param file : file descriptor
+  
+ @retval 1  closing
+ @retval 0  not closed
+ */ 
+ static inline int rozofs_is_file_closing (file_t * f) 
+{
+   return f->closing;
+}
 #endif

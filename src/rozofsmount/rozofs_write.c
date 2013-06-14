@@ -806,6 +806,14 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
       errno = file->wr_error;
       goto error;    
     }
+    /*
+    ** check if the application is attempting to write atfer a close (_ll_release)
+    */
+    if (rozofs_is_file_closing(file))
+    {
+      errno = EBADF;
+      goto error;        
+    }
     buf_file_write_nb(buffer_p,&status,file,off,buf,size);
     /*
     ** check the returned status
@@ -1628,7 +1636,7 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     /*
     ** release the data structure associated with the file descriptor
     */
-    file_close(&exportclt, f);
+    file_close(f);
     fuse_reply_err(req, 0);
     goto out;
 
@@ -1636,7 +1644,7 @@ error:
     /*
     ** release the data structure associated with the file descriptor
     */
-    file_close(&exportclt, f);
+    file_close(f);
     fuse_reply_err(req, errno);
 out:
     STOP_PROFILING_NB(buffer_p,rozofs_ll_release);
@@ -1761,7 +1769,7 @@ void rozofs_ll_release_cbk(void *this,void *param)
     ruc_buf_freeBuffer(recv_buf); 
     STOP_PROFILING_NB(param,rozofs_ll_release);      
     export_write_block_nb(param,file);
-    file_close(&exportclt, file);
+    file_close(file);
     return;
     
 error:
@@ -1775,7 +1783,7 @@ error:
     ** release the transaction context and the fuse context
     ** and release the file descriptor
     */
-    file_close(&exportclt, file);
+    file_close(file);
     
     STOP_PROFILING_NB(param,rozofs_ll_release);
     rozofs_fuse_release_saved_context(param);
@@ -1826,7 +1834,7 @@ void rozofs_ll_release_defer(void *ns,void *param)
     ** release the transaction context and the fuse context
     ** and release the file descriptor
     */
-    file_close(&exportclt, file);
+    file_close(file);
     /*
     ** release the transaction context and the fuse context
     */

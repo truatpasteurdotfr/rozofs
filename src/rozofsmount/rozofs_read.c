@@ -173,7 +173,7 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
           ** Each time there is a write wait we must flush it. Otherwise
           ** we can face the situation where during read, a new write that
           ** takes place that triggers the write of the part that was in write wait
-          ** mimplies the loss of the write pending in memory (not on disk) an
+          **  implies the loss of the write pending in memory (not on disk) and
           ** leads in returning inconsistent data to the caller
           ** -> note : that might happen for application during read/write in async mode.
           ** on the same file
@@ -441,7 +441,14 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
         goto error;
     }
     file_t *file = (file_t *) (unsigned long) fi->fh;
-
+    /*
+    ** check if the application is attempting to read atfer a close (_ll_release)
+    */
+    if (rozofs_is_file_closing(file))
+    {
+      errno = EBADF;
+      goto error;        
+    }
     buff = NULL;
     read_in_progress = file_read_nb(buffer_p,file, off, &buff, size,&length);
     if (read_in_progress)
@@ -1019,35 +1026,80 @@ void rozofs_ll_read_cbk(void *this,void *param)
              (long long unsigned int)file->write_from,(long long unsigned int)file->write_pos);
       break;
       }
+      /*
+      * compute the length that will be returned to fuse
+      */
+      if (off >= file->read_pos)
+      {
+        /*
+        ** end of file
+        */
+        length = 0;
+        buff = file->buffer;
+      }
+      else
+      {
+        length = (size <=(file->read_pos - off)) ? size :(file->read_pos - off);
+        buff = file->buffer + (off - file->read_from);
+      }
     }
     else
-    {
-      /*
-      ** set the pointer to the beginning of the data array on the rpc buffer
-      */
-      uint8_t *src_p = payload+position;
-      uint8_t *dst_p = (uint8_t*)file->buffer;
-      memcpy(dst_p,src_p,received_len);
-      file->buf_read_wait = 0;
-      file->read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
-      file->read_pos  = file->read_from+(uint64_t)received_len;
-
-    }
-    /*
-    * compute the length that will be returned to fuse
+    /**
+    *  Normal case of the sequential read (no pending write)
     */
-    if (off >= file->read_pos)
     {
       /*
-      ** end of file
+      ** check the case of the readahead: for readahead, we just copy the data
+      ** into the fd's buffer.
       */
-      length = 0;
-      buff = file->buffer;
-    }
-    else
-    {
-      length = (size <=(file->read_pos - off)) ? size :(file->read_pos - off);
-      buff = file->buffer + (off - file->read_from);
+      while(1)
+      {
+        uint8_t *src_p = payload+position;
+        uint8_t *dst_p = (uint8_t*)file->buffer;
+        length = 0;
+        /*
+        ** preset the data
+        */
+
+        file->buf_read_wait = 0;
+        file->read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+        file->read_pos  = file->read_from+(uint64_t)received_len;
+        buff =(char*)( src_p + (off - file->read_from));
+            
+        if (readahead == 1)
+        {
+          /*
+          ** set the pointer to the beginning of the data array on the rpc buffer
+          */
+          memcpy(dst_p,src_p,received_len);
+
+          goto out;
+        }
+        /*
+        ** User has request some data: give it back its requested data by avoiding
+        ** a copy in the fd's buffer, just the un-read part is filled in.
+        */     
+        if (off < file->read_pos)
+        {
+          length = (size <=(file->read_pos - off)) ? size :(file->read_pos - off);
+        }
+        /*
+        ** provide fuse with the request data
+        */
+        fuse_reply_buf(req, (char *) buff, length);
+        /*
+        ** copy the remaining data in the fd's buffer by taking into accuting the block size
+        ** alignment
+        */
+        off_t new_offset = off + length;
+        uint64_t new_read_from = (new_offset/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+        src_p += new_read_from - file->read_from;
+        length = file->read_pos - new_read_from;
+        memcpy(dst_p,src_p,length);
+        file->read_from = new_read_from;                
+        goto out;        
+      }
+
     }
     /*
     ** check readhead case : do not return the data since fuse did not request anything
@@ -1087,6 +1139,15 @@ out:
       void *buffer_p = fuse_ctx_read_pending_queue_get(file);
       if (buffer_p  != NULL) return  rozofs_ll_read_defer(buffer_p) ;
     }
-
+    /*
+    ** since it operates in async mode, we might defer the release of the fd
+    ** so we need to figure out if closing has been request and call a file_close()
+    ** in that case. However the close might effective since there is some other
+    ** requests that are pending (here it is pending write).
+    */
+    if (rozofs_is_file_closing(file))
+    {
+       file_close(file);
+    }
     return;
 }
