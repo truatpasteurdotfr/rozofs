@@ -653,7 +653,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
     /*
     ** re-evalute the EOF case
     */
-    if (received_len == 0)
+    if (received_len <= 0)
     {
       /*
       ** end of filenext_read_pos
