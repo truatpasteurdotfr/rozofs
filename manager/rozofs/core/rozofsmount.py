@@ -5,10 +5,10 @@ import subprocess
 from rozofs.ext.fstab import Fstab, Line
 
 class RozofsMountConfig(object):
-    def __init__(self, export_host, export_path, profiling_port):
+    def __init__(self, export_host, export_path, instance):
         self.export_host = export_host
         self.export_path = export_path
-        self.profiling_port = profiling_port
+        self.instance = instance
 
     def __eq__(self, other):
         return self.export_host == other.export_host and self.export_path == other.export_path
@@ -20,7 +20,7 @@ class RozofsMountAgent(Agent):
 
     __FSTAB = '/etc/fstab'
     __MTAB = '/etc/mtab'
-    __FSTAB_LINE = "rozofsmount\t%s\trozofs\texporthost=%s,exportpath=%s,_netdev\t0\t0\n"
+    __FSTAB_LINE = "rozofsmount\t%s\trozofs\texporthost=%s,exportpath=%s,instance=%d,_netdev\t0\t0\n"
 
     def __init__(self, mountdir='/mnt'):
         """
@@ -59,14 +59,14 @@ class RozofsMountAgent(Agent):
 #    def _is_mount(self, share):
 #        return self._mount_path(share) in self._list_mount()
 
-    def _add_mountpoint(self, export_host, export_path):
+    def _add_mountpoint(self, export_host, export_path, instance):
         fstab = Fstab()
         fstab.read(self.__FSTAB)
         mount_path = self._mount_path(export_host, export_path)
         if not os.path.exists(mount_path):
             os.makedirs(mount_path)
         # add a line to fstab
-        fstab.lines.append(Line(self.__FSTAB_LINE % (mount_path, export_host, export_path)))
+        fstab.lines.append(Line(self.__FSTAB_LINE % (mount_path, export_host, export_path, instance)))
         fstab.write(self.__FSTAB)
 
     def _remove_mountpoint(self, export_host, export_path):
@@ -91,19 +91,18 @@ class RozofsMountAgent(Agent):
         configurations = []
         for l in fstab.get_rozofs_lines():
             o = l.get_rozofs_options()
-            try:
-                f = open("/var/run/rozofsmount%s" % (l.directory.replace('/', '.')))
-                port = int(f.read())
-                f.close()
-            except:
-                port = -1  # if not mount port is set to -1
-            configurations.append(RozofsMountConfig(o["host"], o["path"], port))
+            configurations.append(RozofsMountConfig(o["host"], o["path"], o["instance"]))
         return configurations
 
     def set_service_config(self, configurations):
+        instance = 0
         currents = self.get_service_config()
+        #find an instance
+        if currents:
+            instance = max([int(c.instance) for c in currents]) + 1
         for config in [c for c in configurations if c not in currents]:
-            self._add_mountpoint(config.export_host, config.export_path)
+            self._add_mountpoint(config.export_host, config.export_path, instance)
+            instance = instance + 1
             self._mount(self._mount_path(config.export_host, config.export_path))
         for config in [c for c in currents if c not in configurations]:
             self._umount(self._mount_path(config.export_host, config.export_path))
