@@ -26,7 +26,40 @@
 #include <sys/types.h> 
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
+#include <rozofs/core/expgw_common.h>
 #include "rozofsmount.h"
+
+#define ROZOFS_FUSE_CTX_MAX 64
+
+typedef enum
+{
+   RZ_FUSE_WRITE_0 = 0,
+   RZ_FUSE_WRITE_1,
+   RZ_FUSE_WRITE_2,
+   RZ_FUSE_WRITE_3,
+   RZ_FUSE_WRITE_4,
+   RZ_FUSE_WRITE_5,
+   RZ_FUSE_WRITE_6,
+   RZ_FUSE_WRITE_7,
+   RZ_FUSE_WRITE_8,
+   RZ_FUSE_WRITE_9,
+   RZ_FUSE_WRITE_10,
+   RZ_FUSE_WRITE_MAX
+}  rozofs_write_merge_t;
+
+typedef struct _rozofs_fuse_read_write_stats
+{
+    uint64_t   flush_buf_cpt;   /**< number of times the file descriptor buffer is flushed  */
+    uint64_t   readahead_cpt;   /**< number of times readahead is called                    */
+    uint64_t   read_req_cpt;    /**< number of times a read request is sent to storio       */
+    uint64_t   read_fuse_cpt;    /**< number of times read request is received from fuse       */
+}  rozofs_fuse_read_write_stats;
+
+
+#define ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX  64 /**< 64 sections of BUFSIZE  */
+extern uint64_t rozofs_write_buf_section_table[];
+extern uint64_t rozofs_read_buf_section_table[];
+extern rozofs_fuse_read_write_stats  rozofs_fuse_read_write_stats_buf;
 
  /**
  * Must be the same as sys_recv_pf_t
@@ -56,6 +89,7 @@ typedef struct _rozofs_fuse_conf_t
 typedef struct _rozofs_fuse_save_ctx_t
 {
    ruc_obj_desc_t link;   /**< uwe to queue to context on the file_t structure */
+   char  fct_name[64]  ;        /**< for trace purpose    */
    void  *buf_ref;        /**< pointer to the mabagement part of the buffer    */
    fuse_req_t req;  /**< fuse request  */
    fuse_ino_t ino;  /**< fuse inode input argument  */
@@ -74,6 +108,11 @@ typedef struct _rozofs_fuse_save_ctx_t
    fuse_end_tx_recv_pf_t proc_end_tx_cbk;   /**< callback that must be call at end of transaction (mainly used by write/flush and close */ 
    uint64_t buf_flush_offset;               /**< offset of the first byte to flush    */
    uint32_t buf_flush_len;               /**< length of the data flush to disk    */
+   uint32_t readahead;                   /**< assert to 1 for readahead case */
+   /*
+   ** Parameters specific to the exportd gateway management
+   */
+   expgw_tx_routing_ctx_t expgw_routing_ctx; 
    
  } rozofs_fuse_save_ctx_t;
  
@@ -91,6 +130,7 @@ typedef struct _rozofs_fuse_ctx_t
    void   *connectionId;     /**< socket controller reference             */
    int     congested;        /**< assert to 1 when the transmitter is congested  */
    char   *buf_fuse_req_p;   /**< fuse request buffer                      */
+   uint32_t initBufCount;    /**< Number of buffer at initialization       */
 
 } rozofs_fuse_ctx_t;
  

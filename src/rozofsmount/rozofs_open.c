@@ -52,7 +52,6 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -89,7 +88,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     ientry_t *ie = 0;
     int    ret;        
     void *buffer_p = NULL;
-    ep_mfile_arg_t arg;
+    epgw_mfile_arg_t arg;
 
     /*
     ** allocate a context for saving the fuse parameters
@@ -116,14 +115,21 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     /*
     ** get the attributes of the file
     */
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid, ie->fid, sizeof (uuid_t));
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid, ie->fid, sizeof (uuid_t));
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_GETATTR,(xdrproc_t) xdr_ep_mfile_arg_t,(void *)&arg,
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_GETATTR,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
                               rozofs_ll_open_cbk,buffer_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_GETATTR,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
+                              rozofs_ll_open_cbk,buffer_p); 
+
+#endif
     if (ret < 0) goto error;    
     /*
     ** no error just waiting for the answer
@@ -155,7 +161,7 @@ void rozofs_ll_open_cbk(void *this,void *param)
   fuse_ino_t ino;
    fuse_req_t req; 
    struct fuse_file_info *fi ;  
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    int status;
    struct rpc_msg  rpc_reply;
    
@@ -164,15 +170,18 @@ void rozofs_ll_open_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attr;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
-   
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+      
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,ino);
    RESTORE_FUSE_PARAM(param,fi);
    
-    uint8_t rozofs_safe = rozofs_get_rozofs_safe(exportclt.layout);
-    uint8_t rozofs_forward = rozofs_get_rozofs_forward(exportclt.layout);
+//    uint8_t rozofs_safe = rozofs_get_rozofs_safe(exportclt.layout);
+//    uint8_t rozofs_forward = rozofs_get_rozofs_forward(exportclt.layout);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -226,12 +235,49 @@ void rozofs_ll_open_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attr, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of the the decoding part
@@ -252,13 +298,15 @@ void rozofs_ll_open_cbk(void *this,void *param)
     */
     memcpy(&file->attrs,&attr, sizeof (mattr_t));
     file->mode     = S_IRWXU;
-    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
+//    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
     file->export   =  &exportclt;   
+#if 0 // useless for non-blocking
     // XXX use the mode because if we open the file in read-only,
     // it is not always necessary to have as many connections
     if (file_get_cnts(file, rozofs_forward, NULL) != 0)
         goto error;
+#endif
     /*
     ** init of the variable used for buffer management
     */
@@ -274,7 +322,7 @@ error:
        ** need to release the file structure and the buffer
        */
        int xerrno = errno;
-       free(file->storages);
+//       free(file->storages);
        free(file->buffer);
        free(file);
        errno = xerrno;      

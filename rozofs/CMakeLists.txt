@@ -85,6 +85,8 @@ set (librozofs_sources
     core/af_unix_socket_stream_send.c
     core/af_unix_test.h
     core/dbgScript_api.h
+    core/monitoring.h
+    core/monitoring.c
     core/norh_lbg_timer.c
     core/north_lbg_api.h
     core/north_lbg.h
@@ -142,8 +144,20 @@ set (librozofs_sources
     rozofs_timer_conf.c    
     core/rozofs_timer_conf_dbg.c
     core/rozofs_timer_conf_dbg.h
-    rozofs_debug_ports.h
+    rozofs_debug_ports.h  
     rozofs_debug_ports.c
+    core/com_cache.c
+    core/com_cache.h
+    rpc/gwprotoclt.c
+    rpc/gwproto.h
+    rpc/gwprotosvc.c
+    rpc/gwprotoxdr.c
+    core/expgw_common.h
+    core/expgw_common.c
+    core/rozofs_rpc_non_blocking_generic.c
+    core/rozofs_rpc_non_blocking_generic.h
+    core/rozofs_rpc_non_blocking_generic_srv.c
+    core/rozofs_rpc_non_blocking_generic_srv.h
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

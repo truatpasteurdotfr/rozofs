@@ -45,6 +45,8 @@
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
+#include <rozofs/core/expgw_common.h>
+#include "rozofs_reload_export_gateway_conf.h"
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
@@ -68,25 +70,11 @@ static SVCXPRT *rozofsmount_profile_svc = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
 
-char localBuf[4096];
+char localBuf[8192];
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-    time_t elapse;
-    int days, hours, mins, secs;
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}      
 /*
  *________________________________________________________
  */
@@ -101,10 +89,10 @@ void rozofs_exit() {
     if (semForEver != NULL) {
         sem_post(semForEver);
         for (;;) {
-            severe("rozofsmount exit required.");
+            severe("RozofsMount exit required!!");
             sleep(10);
         }
-        fatal("semForEver is not initialized.");
+        fatal("semForEver is not initialized !!");
     }
 }
 
@@ -433,6 +421,27 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
+
+void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
+
+    char *pChar = localBuf;
+    
+    expgw_display_all_exportd_routing_table(pChar);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+
+void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
+
+    char *pChar = localBuf;
+    
+    expgw_display_all_eid(pChar);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+
 typedef struct _xmalloc_stats_t {
     uint64_t count;
     int size;
@@ -513,7 +522,9 @@ void rozofs_kill_storcli(const char *mountpoint) {
 void rozofs_start_storcli(const char *mountpoint) {
     int i;
     char cmd[1024];
+
     rozofs_kill_storcli(mountpoint);
+
     for (i = 1; i <= STORCLI_PER_FSMOUNT; i++) {
         char *cmd_p = &cmd[0];
         cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
@@ -532,7 +543,7 @@ void rozofs_start_storcli(const char *mountpoint) {
                 i, conf.host, conf.export, mountpoint,
                 conf.dbg_port + i, conf.instance,
                 ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
-        
+	
         system(cmd);
     }
 }
@@ -555,12 +566,9 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
-
-
     struct timeval timeout_mproto;
     timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
-
 
     for (retry_count = 3; retry_count > 0; retry_count--) {
         /* Initiate the connection to the export and get informations
@@ -577,7 +585,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
         sleep(2);
     }
-
     if (retry_count == 0) {
 
         fprintf(stderr,
@@ -704,12 +711,13 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
-    uma_dbg_addTopic("uptime", show_uptime);
+    uma_dbg_addTopic("exp_route", show_exp_routing_table);
+    uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
 
     /*
     ** declare timer debug functions
     */
-    rozofs_timer_conf_dbg_init();
+    rozofs_timer_conf_dbg_init();    
     /*
     ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
     */
@@ -733,6 +741,11 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("can't create debug thread: %s", strerror(errno));
         return err;
     }
+
+    /*
+    ** start the thread that supervise any change of configuration on the exportd
+    */
+    rozofs_start_exportd_config_supervision_thread(&exportclt);
 
     /*
      * Start profiling server
@@ -822,6 +835,9 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     return err ? 1 : 0;
 }
 
+
+void rozofs_allocate_flush_buf(int size_kB);
+
 int main(int argc, char *argv[]) {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     char *mountpoint;
@@ -833,7 +849,7 @@ int main(int argc, char *argv[]) {
     ** init of the timer configuration
     */
     rozofs_tmr_init_configuration();
-
+    
     conf.max_retry = 50;
     conf.buf_size = 0;
 
@@ -868,12 +884,17 @@ int main(int argc, char *argv[]) {
                 conf.buf_size);
         conf.buf_size = 128;
     }
-    if (conf.buf_size > 8192) {
+    if (conf.buf_size > 256) {
         fprintf(stderr,
-                "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
+                "write cache size too big (%u KiB) - decreased to 256 KiB\n",
                 conf.buf_size);
-        conf.buf_size = 8192;
+        conf.buf_size = 256;
     }
+    /*
+    ** allocate the common flush buffer
+    */
+    rozofs_allocate_flush_buf(conf.buf_size);
+    
 
 
     // Set timeout for exportd requests

@@ -80,7 +80,7 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
     ientry_t         *ie = 0;
     int               ret;        
     void             *buffer_p = NULL;
-    ep_setxattr_arg_t arg;
+    epgw_setxattr_arg_t arg;
 
     /*
     ** allocate a context for saving the fuse parameters
@@ -108,18 +108,18 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid,  ie->fid, sizeof (uuid_t));
-    arg.name = (char *)name;
-    arg.value.value_len = size;
-    arg.value.value_val = (char *)value;
-    arg.flags = flags;    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid,  ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char *)name;
+    arg.arg_gw.value.value_len = size;
+    arg.arg_gw.value.value_val = (char *)value;
+    arg.arg_gw.flags = flags;    
     
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_SETXATTR,(xdrproc_t) xdr_ep_setxattr_arg_t,(void *)&arg,
+                              EP_SETXATTR,(xdrproc_t) xdr_epgw_setxattr_arg_t,(void *)&arg,
                               rozofs_ll_setxattr_cbk,buffer_p); 
     if (ret < 0) goto error;
     
@@ -150,14 +150,14 @@ error:
 void rozofs_ll_setxattr_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   ep_status_ret_t ret ;
+   epgw_status_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t) xdr_ep_status_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t) xdr_epgw_status_ret_t;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
    RESTORE_FUSE_PARAM(param,req);
@@ -219,8 +219,8 @@ void rozofs_ll_setxattr_cbk(void *this,void *param)
        xdr_free(decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_status_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_status_ret_t_u.error;
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
@@ -265,7 +265,7 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
     ientry_t         *ie = 0;
     int               ret;        
     void             *buffer_p = NULL;
-    ep_getxattr_arg_t arg;
+    epgw_getxattr_arg_t arg;
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -301,16 +301,16 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid,  ie->fid, sizeof (uuid_t));
-    arg.name = (char *)name;
-    arg.size = size;  
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid,  ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char *)name;
+    arg.arg_gw.size = size;  
     
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_GETXATTR,(xdrproc_t) xdr_ep_getxattr_arg_t,(void *)&arg,
+                              EP_GETXATTR,(xdrproc_t) xdr_epgw_getxattr_arg_t,(void *)&arg,
                               rozofs_ll_getxattr_cbk,buffer_p); 
     if (ret < 0) goto error;
     
@@ -341,7 +341,7 @@ error:
 void rozofs_ll_getxattr_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   ep_getxattr_ret_t ret ;
+   epgw_getxattr_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
@@ -349,7 +349,7 @@ void rozofs_ll_getxattr_cbk(void *this,void *param)
    int      bufsize;
    struct rpc_msg  rpc_reply;
    uint64_t value_size = 0;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_getxattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_getxattr_ret_t;
    size_t size;
        
    rpc_reply.acpted_rply.ar_results.proc = NULL;
@@ -413,12 +413,12 @@ void rozofs_ll_getxattr_cbk(void *this,void *param)
        xdr_free(decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_getxattr_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_getxattr_ret_t_u.error;
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
-    value_size = ret.ep_getxattr_ret_t_u.value.value_len;
+    value_size = ret.status_gw.ep_getxattr_ret_t_u.value.value_len;
     
     if (size == 0) {
         fuse_reply_xattr(req, value_size);
@@ -431,7 +431,7 @@ void rozofs_ll_getxattr_cbk(void *this,void *param)
         goto error;
     }
 
-    fuse_reply_buf(req, (char *)ret.ep_getxattr_ret_t_u.value.value_val, value_size);
+    fuse_reply_buf(req, (char *)ret.status_gw.ep_getxattr_ret_t_u.value.value_val, value_size);
     xdr_free(decode_proc, (char *) &ret);   
     goto out;
     
@@ -470,7 +470,7 @@ void rozofs_ll_removexattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name)
     ientry_t         *ie = 0;
     int               ret;        
     void             *buffer_p = NULL;
-    ep_removexattr_arg_t arg;
+    epgw_removexattr_arg_t arg;
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -496,15 +496,16 @@ void rozofs_ll_removexattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name)
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid,  ie->fid, sizeof (uuid_t));
-    arg.name = (char *)name;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid,  ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char *)name;
     
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_REMOVEXATTR,(xdrproc_t) xdr_ep_removexattr_arg_t,(void *)&arg,
+    ret =
+    rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_REMOVEXATTR,(xdrproc_t) xdr_epgw_removexattr_arg_t,(void *)&arg,
                               rozofs_ll_removexattr_cbk,buffer_p); 
     if (ret < 0) goto error;
     
@@ -535,14 +536,14 @@ error:
 void rozofs_ll_removexattr_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   ep_status_ret_t ret ;
+   epgw_status_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_status_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_status_ret_t;
     
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -604,8 +605,8 @@ void rozofs_ll_removexattr_cbk(void *this,void *param)
        xdr_free(decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_status_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_status_ret_t_u.error;
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
@@ -648,7 +649,7 @@ void rozofs_ll_listxattr_nb(fuse_req_t req, fuse_ino_t ino, size_t size)
     ientry_t         *ie = 0;
     int               ret;        
     void             *buffer_p = NULL;
-    ep_listxattr_arg_t arg;
+    epgw_listxattr_arg_t arg;
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -676,15 +677,15 @@ void rozofs_ll_listxattr_nb(fuse_req_t req, fuse_ino_t ino, size_t size)
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid,  ie->fid, sizeof (uuid_t));
-    arg.size = size;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid,  ie->fid, sizeof (uuid_t));
+    arg.arg_gw.size = size;
     
     /*
     ** now initiates the transaction towards the remote end
     */
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_LISTXATTR,(xdrproc_t) xdr_ep_listxattr_arg_t,(void *)&arg,
+                              EP_LISTXATTR,(xdrproc_t) xdr_epgw_listxattr_arg_t,(void *)&arg,
                               rozofs_ll_listxattr_cbk,buffer_p); 
     if (ret < 0) goto error;
     
@@ -715,14 +716,14 @@ error:
 void rozofs_ll_listxattr_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   ep_listxattr_ret_t ret;
+   epgw_listxattr_ret_t ret;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_listxattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_listxattr_ret_t;
    uint64_t list_size = 0;
    size_t size=0;
 
@@ -788,12 +789,12 @@ void rozofs_ll_listxattr_cbk(void *this,void *param)
        xdr_free(decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_listxattr_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_listxattr_ret_t_u.error;
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
-    list_size = ret.ep_listxattr_ret_t_u.list.list_len;
+    list_size = ret.status_gw.ep_listxattr_ret_t_u.list.list_len;
     
     if (size == 0) {
         xdr_free(decode_proc, (char *) &ret);        
@@ -807,7 +808,7 @@ void rozofs_ll_listxattr_cbk(void *this,void *param)
         goto error;
     }
     
-    fuse_reply_buf(req, (char *) ret.ep_listxattr_ret_t_u.list.list_val, list_size);    
+    fuse_reply_buf(req, (char *) ret.status_gw.ep_listxattr_ret_t_u.list.list_val, list_size);    
     xdr_free(decode_proc, (char *) &ret);	
     goto out;
 error:

@@ -22,7 +22,7 @@ link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(rozofsmount
     file.h
-    file.c
+#    file.c
     mpproto.c
     rozofsmount.c
     rozofs_fuse_api.h
@@ -45,9 +45,15 @@ add_executable(rozofsmount
     rozofs_read.c
     rozofs_write.c
     rozofs_readdir.c
+    rozofs_reload_export_gateway_conf.c
+    rozofs_reload_export_gateway_conf.h
+    rozofs_export_gateway_conf_non_blocking.h
+    rozofs_export_gateway_conf_non_blocking.c
 )
 #pthread need by fuse
 target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${CRYPT_LIBRARY})
+
+
 
 # Install
 
@@ -59,3 +65,4 @@ install(TARGETS rozofsmount
 )
 
 install(PROGRAMS storcli_starter.sh storcli_killer.sh  DESTINATION bin)
+

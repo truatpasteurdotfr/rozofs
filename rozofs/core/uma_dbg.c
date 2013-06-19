@@ -27,7 +27,8 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <unistd.h>
-
+#include <time.h>
+ 
 #include <rozofs/common/types.h>
 
 #include "ruc_common.h"
@@ -42,6 +43,7 @@
 
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
+static time_t uptime=0;
 
 typedef struct uma_dbg_topic_s {
   char                     * name;
@@ -54,7 +56,7 @@ UMA_DBG_TOPIC_S uma_dbg_topic[UMA_DBG_MAX_TOPIC];
 uint32_t        uma_dbg_nb_topic = 0;
 uint32_t          uma_dbg_topic_initialized=FALSE;
 
-#define            MAX_ARG   50
+#define            MAX_ARG   64
 
 uma_dbg_catcher_function_t	uma_dbg_catcher = uma_dbg_catcher_DFT;
 
@@ -73,8 +75,100 @@ typedef struct uma_dbg_session_s {
 
 UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
-static char rcvCmdBuffer[64];
+static char rcvCmdBuffer[255];
+static char localBuf[8192];
 
+/*__________________________________________________________________________
+ */
+/**
+*  Run a system command and return the result 
+*/
+int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
+  pid_t  pid;
+  char   fileName[32];
+  int    fd;
+  
+  pid = getpid();
+  sprintf(fileName,"/tmp/rozo.%d",pid);
+  
+  strcat(cmd," > ");
+  strcat(cmd,fileName);
+  
+  system(cmd);
+  
+  fd = open(fileName, O_RDONLY);
+  if (fd < 0) {
+    unlink(fileName);
+    return 0;    
+  }
+  
+  len = read(fd,result, len-1);
+  localBuf[len] = 0;
+  
+  close(fd);
+  unlink(fileName);  
+  return len;
+} 
+
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_system_cmd(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char * cmd;
+  int    len;
+
+  if(argv[1] == NULL) {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "No command\n");
+    return;
+  }
+  
+  cmd = rcvCmdBuffer;
+  while (*cmd != 's') cmd++;
+  cmd += 7;
+
+  len = uma_dbg_run_system_cmd(cmd, localBuf, sizeof(localBuf));
+  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",localBuf);
+  return ;
+} 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
+  int    len;
+  pid_t  pid;
+  
+  pid = getpid();
+  
+  sprintf(localBuf,"ps -p %d ", pid);
+  strcat(localBuf, "-o%p -o%C -o%t -o%z -o%a");
+
+  len = uma_dbg_run_system_cmd(localBuf, localBuf, sizeof(localBuf));
+  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",localBuf);
+  return ;
+} 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    uma_dbg_send(tcpRef, bufRef, TRUE, "uptime = %d days, %d:%d:%d\n", days, hours, mins, secs);
+}      
 /*__________________________________________________________________________
  */
 /**
@@ -703,6 +797,8 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
     return;
   }
   uma_dbg_initialized = TRUE;
+  
+  uptime = time(0);
 
   /* Create a distributor of debug sessions */
   uma_dbg_freeList = (UMA_DBG_SESSION_S*)ruc_listCreate(nbElements,sizeof(UMA_DBG_SESSION_S));
@@ -743,7 +839,11 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   }
   
   uma_dbg_addTopic("who", uma_dbg_show_name);
+  uma_dbg_addTopic("uptime", uma_dbg_show_uptime);
   uma_dbg_addTopic("version", uma_dbg_show_version);
+  uma_dbg_addTopic("system", uma_dbg_system_cmd);
+  uma_dbg_addTopic("ps", uma_dbg_system_ps);
+  
 
 }
 /*

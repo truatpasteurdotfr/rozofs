@@ -839,7 +839,7 @@ out:
     return status;
 }
 
-int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs) {
+int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *plv2 = 0;
     lv2_entry_t *lv2 = 0;
@@ -851,6 +851,10 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs) {
     if (!(plv2 = export_lookup_fid(e, pfid))) {
         goto out;
     }
+    /*
+    ** copy the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
 
     if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, child_fid, &child_type) != 0) {
         goto out;
@@ -889,7 +893,14 @@ out:
     STOP_PROFILING(export_lookup);
     return status;
 }
-
+/** get attributes of a managed file
+ *
+ * @param e: the export managing the file
+ * @param fid: the id of the file
+ * @param attrs: attributes to fill.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_getattr(export_t *e, fid_t fid, mattr_t *attrs) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -906,7 +917,15 @@ out:
     STOP_PROFILING(export_getattr);
     return status;
 }
-
+/** set attributes of a managed file
+ *
+ * @param e: the export managing the file
+ * @param fid: the id of the file
+ * @param attrs: attributes to set.
+ * @param to_set: fields to set in attributes
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -954,8 +973,18 @@ out:
     STOP_PROFILING(export_setattr);
     return status;
 }
-
-int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_t *attrs) {
+/** create a hard link
+ *
+ * @param e: the export managing the file
+ * @param inode: the id of the file we want to be link on
+ * @param newparent: parent od the new file (the link)
+ * @param newname: the name of the new file
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *target = NULL;
     lv2_entry_t *plv2 = NULL;
@@ -1013,16 +1042,31 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
 
     // Return attributes
     memcpy(attrs, &target->attributes, sizeof (mattr_t));
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     status = 0;
 
 out:
     STOP_PROFILING(export_link);
     return status;
 }
-
+/** create a new file
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param name: the name of this file.
+ * @param uid: the user id
+ * @param gid: the group id
+ * @param mode: mode of this file
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+  
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t *attrs) {
+        uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
     fid_t node_fid;
@@ -1103,6 +1147,10 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
 
     status = 0;
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     goto out;
 
 error:
@@ -1117,9 +1165,21 @@ out:
     STOP_PROFILING(export_mknod);
     return status;
 }
-
+/** create a new directory
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param name: the name of this file.
+ * @param uid: the user id
+ * @param gid: the group id
+ * @param mode: mode of this file
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t * attrs) {
+        uint32_t gid, mode_t mode, mattr_t * attrs,mattr_t * pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
     fid_t node_fid;
@@ -1204,6 +1264,10 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     mdir_close(&node_mdir);
     status = 0;
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     goto out;
 
 error:
@@ -1229,8 +1293,17 @@ out:
     STOP_PROFILING(export_mkdir);
     return status;
 }
-
-int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
+/** remove a file
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param name: the name of this file.
+ * @param[out] fid: the fid of the removed file
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ * 
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pattrs) {
     int status = -1;
     lv2_entry_t *plv2, *lv2;
     fid_t child_fid;
@@ -1394,14 +1467,19 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
     // Write attributes of parents
     if (export_lv2_write_attributes(plv2) != 0)
         goto out;
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     status = 0;
 
 out:
     STOP_PROFILING(export_unlink);
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
 static int init_storages_cnx(volume_t *volume, list_t *list) {
     list_t *p, *q;
     int status = -1;
@@ -1454,7 +1532,9 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
 static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
 
     list_t *p;
@@ -1476,7 +1556,9 @@ static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
 
     return NULL;
 }
-
+/*
+**______________________________________________________________________________
+*/
 static void release_storages_cnx(list_t *list) {
 
     list_t *p, *q;
@@ -1493,7 +1575,9 @@ static void release_storages_cnx(list_t *list) {
             free(cnx_entry);
     }
 }
-
+/*
+**______________________________________________________________________________
+*/
 int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
     int status = -1;
     int rm_bins_file_nb = 0;
@@ -1661,8 +1745,22 @@ out:
     }
     return status;
 }
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd rmdir: delete a directory
 
-int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
+    @param pfid : fid of the parent and directory  name 
+    @param name : fid of the parent and directory  name 
+    
+    @param[out] fid:  fid of the deleted directory 
+    @param[out] pattrs:  attributes of the parent 
+    
+    @retval: 0 : success
+    @retval: <0 error see errno
+*/
+int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid,mattr_t * pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
     lv2_entry_t *lv2;
@@ -1744,16 +1842,32 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
      ** remove the entry from the parent directory: best effort
      */
     del_mdirentry(plv2->container.mdir.fdp, pfid, name, fake_fid, &fake_type);
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     status = 0;
 out:
     STOP_PROFILING(export_rmdir);
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** create a symlink
+ *
+ * @param e: the export managing the file
+ * @param link: target name
+ * @param pfid: the id of the parent
+ * @param name: the name of the file to link.
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
-        mattr_t * attrs) {
+        mattr_t * attrs,mattr_t *pattrs) {
 
     int status = -1;
     lv2_entry_t *plv2;
@@ -1832,6 +1946,10 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
         goto error;
 
     status = 0;
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     goto out;
 
 error:
@@ -1847,7 +1965,17 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** read a symbolic link
+ *
+ * @param e: the export managing the file
+ * @param fid: file id
+ * @param link: link to fill
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_readlink(export_t *e, fid_t fid, char *link) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -1862,7 +1990,20 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** rename (move) a file
+ *
+ * @param e: the export managing the file
+ * @param pfid: parent file id
+ * @param name: file name
+ * @param npfid: target parent file id
+ * @param newname: target file name
+ * @param fid: file id
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
         char *newname, fid_t fid) {
     int status = -1;
@@ -2190,7 +2331,9 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
 int64_t export_read(export_t * e, fid_t fid, uint64_t offset, uint32_t len,
         uint64_t * first_blk, uint32_t * nb_blks) {
     lv2_entry_t *lv2 = NULL;
@@ -2242,7 +2385,9 @@ out:
 
     return length;
 }
-
+/*
+**______________________________________________________________________________
+*/
 int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d) {
     int status = 0;
     lv2_entry_t *lv2 = NULL;
@@ -2286,9 +2431,26 @@ int64_t export_write(export_t *e, fid_t fid, uint64_t off, uint32_t len) {
 
     return len;
 }*/
-
+/*
+**______________________________________________________________________________
+*/
+/**  update the file size, mtime and ctime
+ *
+ * dist is the same for all blocks
+ *
+ * @param e: the export managing the file
+ * @param fid: id of the file to read
+ * @param bid: first block address (from the start of the file)
+ * @param n: number of blocks
+ * @param d: distribution to set
+ * @param off: offset to write from
+ * @param len: length written
+ * @param[out] attrs: updated attributes of the file
+ *
+ * @return: the written length on success or -1 otherwise (errno is set)
+ */
 int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
-        dist_t d, uint64_t off, uint32_t len) {
+        dist_t d, uint64_t off, uint32_t len,mattr_t *attrs) {
     int64_t length = -1;
     lv2_entry_t *lv2 = NULL;
 
@@ -2315,14 +2477,30 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     lv2->attributes.mtime = lv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(lv2) != 0)
         goto out;
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(attrs, &lv2->attributes, sizeof (mattr_t));
     length = len;
+
 out:
     STOP_PROFILING(export_write_block);
 
     return length;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** read a directory
+ *
+ * @param e: the export managing the file
+ * @param fid: the id of the directory
+ * @param children: pointer to pointer where the first children we will stored
+ * @param cookie: index mdirentries where we must begin to list the mdirentries
+ * @param eof: pointer that indicates if we list all the entries or not
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
         child_t ** children, uint8_t * eof) {
     int status = -1;
@@ -2359,7 +2537,21 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** retrieve an extended attribute value.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
 ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;
@@ -2380,7 +2572,21 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** set an extended attribute value for a file or directory.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * @param flags: parameter can be used to refine the semantics of the operation.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
 int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -2402,7 +2608,17 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** remove an extended attribute from a file or directory.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
 int export_removexattr(export_t *e, fid_t fid, char *name) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -2424,7 +2640,19 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** list extended attribute names from the lv2 regular file.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param list: list of extended attribute names associated with this file/dir.
+ * @param size: the size of a buffer to hold the list of extended attributes.
+ * 
+ * @return: On success, the size of the extended attribute name list.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
 ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;

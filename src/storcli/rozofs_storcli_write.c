@@ -1686,7 +1686,19 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
      uint32_t len;
      if (match_idx == ROZOFS_WR_FIRST)
      {
+ 
        relative_offset =   storcli_write_rq_p->off - wr_proj_buf_p[match_idx].off;
+      /*
+       ** check if the length is 0, that might happen when creating hole in afile
+       */
+       if (data_len == 0)
+       {
+          /*
+          ** clear the beginning of the buffer
+          */
+          memset(wr_proj_buf_p[match_idx].data,0,relative_offset);
+       
+       }
        if (relative_offset+storcli_write_rq_p->len >= ROZOFS_BSIZE ) 
        {
          len = ROZOFS_BSIZE - relative_offset;

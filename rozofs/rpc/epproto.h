@@ -41,6 +41,7 @@ struct epp_estat_t {
 typedef struct epp_estat_t epp_estat_t;
 
 struct epp_sstat_t {
+	uint16_t cid;
 	uint16_t sid;
 	uint8_t status;
 	uint64_t size;
@@ -138,6 +139,13 @@ struct epp_profiler_t {
 	uint64_t put_mdirentry[2];
 	uint64_t del_mdirentry[2];
 	uint64_t list_mdirentries[2];
+	uint64_t gw_invalidate[2];
+	uint64_t gw_invalidate_all[2];
+	uint64_t gw_configuration[2];
+	uint64_t gw_poll[2];
+	uint64_t ep_configuration[2];
+	uint64_t ep_conf_gateway[2];
+	uint64_t ep_poll[2];
 };
 typedef struct epp_profiler_t epp_profiler_t;
 
