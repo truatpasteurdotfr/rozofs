@@ -740,7 +740,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     gprofiler.uptime = time(0);
     strncpy((char *) gprofiler.vers, VERSION, 20);
     /* Find a free port */
-    for (profiling_port = 55000; profiling_port < 60000; profiling_port++) {
+    for (profiling_port = 52000; profiling_port < 53000; profiling_port++) {
         if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
             severe("can't create socket: %s", strerror(errno));
             break;
@@ -822,6 +822,8 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     return err ? 1 : 0;
 }
 
+void rozofs_allocate_flush_buf(int size_kB);
+
 int main(int argc, char *argv[]) {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     char *mountpoint;
@@ -868,13 +870,16 @@ int main(int argc, char *argv[]) {
                 conf.buf_size);
         conf.buf_size = 128;
     }
-    if (conf.buf_size > 8192) {
+    if (conf.buf_size > 256) {
         fprintf(stderr,
-                "write cache size too big (%u KiB) - decreased to 8192 KiB\n",
+                "write cache size too big (%u KiB) - decreased to 256 KiB\n",
                 conf.buf_size);
-        conf.buf_size = 8192;
+        conf.buf_size = 256;
     }
-
+    /*
+    ** allocate the common flush buffer
+    */
+    rozofs_allocate_flush_buf(conf.buf_size);
 
     // Set timeout for exportd requests
     if (conf.export_timeout != 0) {

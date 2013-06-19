@@ -1141,9 +1141,9 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       /*
       ** Get the file size
       */
-      position += (bins_len+(sizeof(uint32_t)-1))/sizeof(uint32_t);
+      position += ((bins_len+(sizeof(uint32_t)-1))/sizeof(uint32_t))*sizeof(uint32_t);
       xdr_setpos(&xdrs,position);      
-      xdr_uint64_t(&xdrs,&raw_file_size);      
+      xdr_uint64_t(&xdrs,&raw_file_size);
       /*
       ** The system MUST always returns a length that is a multiple of a projection block size
       */
