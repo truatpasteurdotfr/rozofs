@@ -47,4 +47,4 @@ tests/read_dirent_file
 tests/test_write_all_offset
 tests/test_xattr
 tests/test_truncate
-
+tests/rw

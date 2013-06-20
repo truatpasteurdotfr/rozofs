@@ -244,7 +244,7 @@ typedef struct _rozofs_storcli_ctx_t
   uint32_t                          wr_nb_blocks;     /**< number of blocks to write                      */
   dist_t                            wr_distribution;  /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
-
+  ruc_obj_desc_t                      timer_list;       /**< To chain this context on a guard timer */
 } rozofs_storcli_ctx_t;
 
 /*
