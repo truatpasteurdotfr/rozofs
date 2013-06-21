@@ -367,10 +367,10 @@ def __print_host_profilers(args, host, profilers):
             for mp in p:
                 print >> sys.stdout, "%s" % __mount_profiler_to_string(args, mp)
 
-def profile(platform, args):
-    profilers = platform.get_profilers(args.nodes, __args_to_roles(args))
-    for h, p in profilers.items():
-        __print_host_profilers(args, h, p)
+#def profile(platform, args):
+#    profilers = platform.get_profilers(args.nodes, __args_to_roles(args))
+#    for h, p in profilers.items():
+#        __print_host_profilers(args, h, p)
 
 def layout(platform, args):
     platform.set_layout(args.layout[0])
@@ -383,15 +383,15 @@ def stat(platform, args):
         print >> sys.stdout, "NODE: %s DOWN" % (args.exportd)
         return
 
-    profilers = platform.get_profilers([args.exportd], Role.EXPORTD)
-    if not profilers:
+    profiler = platform.stat()
+    if not profiler:
         print >> sys.stdout, "NODE: %s DOWN" % (args.exportd)
         return
 
     if not args.vids:
         args.vids = configurations[args.exportd][Role.EXPORTD].volumes.keys()
 
-    for vstat in [vstat for vstat in profilers[args.exportd][Role.EXPORTD].vstats if vstat.vid in args.vids]:
+    for vstat in [vstat for vstat in profiler.vstats if vstat.vid in args.vids]:
         print >> sys.stdout, "VOLUME: %d - BSIZE: %d, BFREE: %d" % (vstat.vid, vstat.bsize, vstat.bfree)
         print >> sys.stdout, "\t%-12s %-12s %-20s %-20s" % ("NODE", "STATUS", "CAPACITY(B)", "FREE(B)")
         # get storages by host
@@ -411,11 +411,11 @@ def stat(platform, args):
 
 
         # print exported file systems stats
-        print >> sys.stdout, "\n\t%-6s %-25s %-6s %-12s %-12s %-12s %-12s" % ("EID", "ROOT", "BSIZE", "BLOCKS", "BFREE", "FILES", "FFREE")
-        for estat in [estat for estat in profilers[args.exportd][Role.EXPORTD].estats if estat.vid == vstat.vid]:
+        print >> sys.stdout, "\n\t%-6s %-40s %-6s %-12s %-12s %-12s %-12s" % ("EID", "ROOT", "BSIZE", "BLOCKS", "BFREE", "FILES", "FFREE")
+        for estat in [estat for estat in profiler.estats if estat.vid == vstat.vid]:
             # find the root
 
-            print >> sys.stdout, "\t%-6d %-25s %-6d %-12d %-12d %-12d %-12d" % (
+            print >> sys.stdout, "\t%-6d %-40s %-6d %-12d %-12d %-12d %-12d" % (
                     estat.eid, configurations[args.exportd][Role.EXPORTD].exports[estat.eid].root,
                     estat.bsize, estat.blocks, estat.bfree,
                     estat.files, estat.ffree)

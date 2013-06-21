@@ -10,7 +10,7 @@
 #                    provides the rozofs-exportd server functionality.
 ### END INIT INFO
 
-# Author: Fizians S.A.S. <rd@fizians.org>
+# Author: Fizians S.A.S. <devel@rozofs.com>
 
 # PATH should only include /usr/* if it runs after the mountnfs.sh script
 PATH=/sbin:/usr/sbin:/bin:/usr/bin

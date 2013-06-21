@@ -49,9 +49,13 @@
 #include "rozofs_fuse.h"
 #endif
 
+#include <rozofs/core/uma_dbg_api.h>
 
 rozofs_fuse_ctx_t  *rozofs_fuse_ctx_p = NULL;  /**< pointer to the rozofs_fuse saved contexts   */
-
+uint64_t rozofs_write_merge_stats_tab[RZ_FUSE_WRITE_MAX]; /**< read/write merge stats table */
+uint64_t rozofs_write_buf_section_table[ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX];
+uint64_t rozofs_read_buf_section_table[ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX];
+rozofs_fuse_read_write_stats  rozofs_fuse_read_write_stats_buf;
  /**
  * prototypes
  */
@@ -60,6 +64,10 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId);
 int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p);
 uint32_t rozofs_fuse_xmitReadysock(void * rozofs_fuse_ctx_p,int socketId);
 uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId);
+
+rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[ROZOFS_FUSE_CTX_MAX];
+uint32_t rozofs_fuse_usr_ctx_idx = 0;
+
 
 
 /*
@@ -164,10 +172,10 @@ restart:
 			goto restart;
 
 		if (err == ENODEV) {
-                    severe("Exit from rozofsmount required !!!");
-                    fuse_session_exit(se);
-                    rozofs_exit();
-                    return 0;
+            severe("Exit from RozofsMount required!!!");
+			fuse_session_exit(se);
+            rozofs_exit();
+			return 0;
 		}
 		/* Errors occurring during normal operation: EINTR (read
 		   interrupted), EAGAIN (nonblocking I/O), ENODEV (filesystem
@@ -300,7 +308,12 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     ** fuse "socket". 
     */
     buffer_count = ruc_buf_getFreeBufferCount(ctx_p->fuseReqPoolRef);
-    if (buffer_count == 0) return FALSE;
+    /*
+    ** 2 fuse contexts are required :
+    ** - 1 to process the incoming request
+    ** - 1 to eventualy process an internal asynchronous flush
+    */
+    if (buffer_count < 2) return FALSE;
 
     return TRUE;
 }
@@ -485,8 +498,60 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     
     return TRUE;
 }
+static char localBuf[4096];
 
-
+void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
+  uint32_t            buffer_count=0;
+  char                status[16];
+  char *pChar = localBuf;
+  
+  buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
+  /*
+  ** check if the session has been exited
+  */
+  if (fuse_session_exited(rozofs_fuse_ctx_p->se)) sprintf(status,"exited");
+  else                                            sprintf(status,"running");
+  
+  pChar +=  sprintf(pChar,"FUSE %8s - %d/%d ctx remaining\n",
+               status, buffer_count, rozofs_fuse_ctx_p->initBufCount);
+  int i;
+  for (i = 0; i < RZ_FUSE_WRITE_MAX; i++)
+  {
+     pChar +=sprintf(pChar,"cpt_%d: %8llu\n",i,(long long unsigned int)rozofs_write_merge_stats_tab[i]);  
+  }
+  /**
+  * clear the stats
+  */
+  memset(rozofs_write_merge_stats_tab,0,sizeof(uint64_t)*RZ_FUSE_WRITE_MAX);
+  /**
+  *  read/write statistics
+  */
+  pChar +=sprintf(pChar,"flush buf. count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.flush_buf_cpt);  
+  pChar +=sprintf(pChar,"readahead  count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.readahead_cpt);  
+  pChar +=sprintf(pChar,"read req.  count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.read_req_cpt);  
+  pChar +=sprintf(pChar,"read fuse  count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.read_fuse_cpt);  
+  
+  memset(&rozofs_fuse_read_write_stats_buf,0,sizeof(rozofs_fuse_read_write_stats));
+  /*
+  ** Per array statistics
+  */
+  pChar +=sprintf(pChar,"Per Read Array statitics:\n" );  
+  for (i = 0; i < 32; i++)
+  {
+     if (rozofs_read_buf_section_table[i]!= 0)
+       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_BSIZE,(long long unsigned int)rozofs_read_buf_section_table[i]);  
+  }
+  pChar +=sprintf(pChar,"Per Write Array statitics:\n" );  
+  for (i = 0; i < 32; i++)
+  {
+     if (rozofs_write_buf_section_table[i]!= 0)
+       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_BSIZE,(long long unsigned int)rozofs_write_buf_section_table[i]);  
+  }
+  memset (rozofs_write_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
+  memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
+  
+  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
 
 /*
 **__________________________________________________________________________
@@ -517,6 +582,13 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
     return -1;
   }
   /*
+  ** clear read/write merge stats table
+  */
+  memset(rozofs_write_merge_stats_tab,0,sizeof(uint64_t)*RZ_FUSE_WRITE_MAX);
+  memset (rozofs_write_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
+  memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
+  memset(&rozofs_fuse_read_write_stats_buf,0,sizeof(rozofs_fuse_read_write_stats));
+  /*
   ** init of the context
   */
   rozofs_fuse_ctx_p->fuseReqPoolRef = NULL;
@@ -524,6 +596,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
   rozofs_fuse_ctx_p->se             = se;
   rozofs_fuse_ctx_p->bufsize        = 0; 
   rozofs_fuse_ctx_p->buf_fuse_req_p = NULL;
+  rozofs_fuse_ctx_p->initBufCount   = rozofs_fuse_buffer_count;
   
   while (1)
   {
@@ -614,6 +687,8 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      status = 0;
      break;
   }
+  
+  uma_dbg_addTopic("fuse", rozofs_fuse_show);
   return status;
   
 }

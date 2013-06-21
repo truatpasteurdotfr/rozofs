@@ -238,3 +238,7 @@ add_executable(test_rbs
     test_rbs.c
 )
 target_link_libraries(test_rbs ${UUID_LIBRARY})
+
+add_executable(rw
+    rw.c
+)

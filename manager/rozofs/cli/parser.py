@@ -37,7 +37,8 @@ __parser.add_argument('listeners', nargs='+', choices=[EXPORTD_MANAGER, STORAGED
 
 
 __parent = argparse.ArgumentParser(add_help=False)
-__parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='running platform agent host')
+#__parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='running platform agent host')
+__parent.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
 
 #
@@ -64,9 +65,10 @@ __parser = __add_command_parser('config', 'display nodes configurations.', platf
 __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
 __parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
 
-__parser = __add_command_parser('profile', 'display nodes profiling.', platform_dispatch, [__parent])
-__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
-__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
+# USE ROZODEBUG !!!!
+#__parser = __add_command_parser('profile', 'display nodes profiling.', platform_dispatch, [__parent])
+#__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
+#__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
 
 __parser = __add_command_parser('layout', 'set platform layout.', platform_dispatch, [__parent])
 __parser.add_argument('layout', nargs=1, type=int, choices=[0, 1, 2], help='the layout to set.')
@@ -80,7 +82,7 @@ __parser = __add_command_parser('stat', 'display platform stats.', platform_disp
 __parser.add_argument('-v', '--vids', nargs='+', type=int, help='volume(s) to stat. If not set all volumes will be displayed')
 
 __parser = __add_command_parser('expand', 'add nodes to the platform.', platform_dispatch, [__parent])
-__parser.add_argument('-v', '--vid', type=int, help='vid of an existing volume. If not set a new volume will be created')
+__parser.add_argument('-v', '--vid', nargs=1, type=int, help='vid of an existing volume. If not set a new volume will be created')
 __parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
 
 __parser = __add_command_parser('shrink', 'remove volume(s) from the platform.', platform_dispatch, [__parent])
@@ -104,15 +106,13 @@ __parser = __add_command_parser('unexport', 'remove exported file system(s).', p
 __parser.add_argument('-f', '--force', action="store_true", default=False, help='when ever to force removing.')
 __parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) of existing export.')
 
-__parser = __add_command_parser('mount', 'mount exported file system(s).', platform_dispatch, [__parent])
+__parser = __add_command_parser('mount', 'configure mountpoints and mount exported file system(s).', platform_dispatch, [__parent])
 __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount on')
-__parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
+__parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
 
-__parser = __add_command_parser('umount', 'umount exported file system(s).', platform_dispatch, [__parent])
+__parser = __add_command_parser('umount', 'umount exported file system(s) and remove mountpoint configuration.', platform_dispatch, [__parent])
 __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to umount from')
-__parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) to be umount.')
-
-# profiler management
+__parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be umount.')
 
 
 def parse(args):

@@ -9,7 +9,7 @@
 # Description:
 ### END INIT INFO
 
-# Author: Fizians S.A.S. <rd@fizians.org>
+# Author: Fizians S.A.S. <devel@rozofs.com>
 
 PATH=/sbin:/bin
 DESC=rozofsmount             # Introduce a short description here

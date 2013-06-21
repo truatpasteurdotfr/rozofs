@@ -388,7 +388,8 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
        ** there is a current request that is processed with the same fid
        */
        return;    
-     }
+     }       
+
      /*
      ** no request pending with that fid, so we can process it right away
      */
@@ -451,8 +452,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   int i;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
-  
-  
+     
   storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
   /*
   ** compute the number of blocks with the same distribution starting
@@ -1141,9 +1141,9 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       /*
       ** Get the file size
       */
-      position += (bins_len+(sizeof(uint32_t)-1))/sizeof(uint32_t);
+      position += ((bins_len+(sizeof(uint32_t)-1))/sizeof(uint32_t))*sizeof(uint32_t);
       xdr_setpos(&xdrs,position);      
-      xdr_uint64_t(&xdrs,&raw_file_size);      
+      xdr_uint64_t(&xdrs,&raw_file_size);
       /*
       ** The system MUST always returns a length that is a multiple of a projection block size
       */
@@ -1472,9 +1472,9 @@ rozofs_storcli_read_clk_t  rozofs_storcli_read_clk;
 */
 void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p)
 {
-   ruc_objRemove((ruc_obj_desc_t*) p);
+   rozofs_storcli_stop_read_guard_timer(p);
    ruc_objInsertTail((ruc_obj_desc_t*)&rozofs_storcli_read_clk.bucket[rozofs_storcli_read_clk.bucket_cur],
-                    (ruc_obj_desc_t*) p);
+                    &p->timer_list);
    
 
 }
@@ -1490,7 +1490,7 @@ void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p)
 */
 void rozofs_storcli_stop_read_guard_timer(rozofs_storcli_ctx_t  *p)
 {
-   ruc_objRemove((ruc_obj_desc_t*) p);
+   ruc_objRemove(&p->timer_list);
 }
 
 /*
@@ -1505,6 +1505,7 @@ void rozofs_storcli_periodic_ticker(void * param)
 {
    ruc_obj_desc_t   *bucket_head_p;
    rozofs_storcli_ctx_t   *read_ctx_p;
+   ruc_obj_desc_t  *timer;
    int bucket_idx;
    
    bucket_idx = rozofs_storcli_read_clk.bucket_cur;
@@ -1513,9 +1514,10 @@ void rozofs_storcli_periodic_ticker(void * param)
    rozofs_storcli_read_clk.bucket_cur = bucket_idx;
 
 
-    while  ((read_ctx_p =(rozofs_storcli_ctx_t *)ruc_objGetFirst(bucket_head_p)) !=NULL) 
+    while  ((timer = ruc_objGetFirst(bucket_head_p)) !=NULL) 
     {
-       ruc_objRemove((ruc_obj_desc_t*) read_ctx_p);       
+       read_ctx_p = (rozofs_storcli_ctx_t * )ruc_listGetAssoc(timer);
+       rozofs_storcli_stop_read_guard_timer(read_ctx_p);       
        rozofs_storcli_read_timeout(read_ctx_p);    
     }          
 }
