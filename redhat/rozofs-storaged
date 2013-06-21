@@ -1,47 +1,148 @@
 #!/bin/sh
 #
-# rozofs-storaged       This shell script takes care of starting and stopping
-#                       the storaged services.
+# rozofs-storaged      This shell script takes care of starting and stopping
+#                      the storaged services.
 #
 #chkconfig: 35 20 80
-#description: rozofs-storaged
-#
+#description: rozofs storaged server
+#processname: storaged
+
+### BEGIN INIT INFO
+# Provides:          rozofs-storaged
+# Required-Start:    $network $local_fs $remote_fs $portmap
+# Required-Stop:     $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: RozoFS storaged server
+# Description:       RozoFS is a scale-out NAS file system. This service
+#                    provides the rozofs-storaged server functionality.
+### END INIT INFO
+
 
 DAEMON=/usr/bin/storaged
+NAME=storaged
+PIDFILE=/var/run/$NAME.pid
 
 # Source function library.
-. /etc/rc.d/init.d/functions
+if [ -f /lib/lsb/init-functions ]; then
+    . /lib/lsb/init-functions
+    alias START_DAEMON=start_daemon
+    alias STATUS=storaged_status
+    alias LOG_SUCCESS=log_success_msg
+    alias LOG_FAILURE=log_failure_msg
+    alias LOG_WARNING=log_warning_msg
+elif [ -f /etc/init.d/functions ]; then
+    . /etc/init.d/functions
+    alias START_DAEMON=daemon
+    alias STATUS=status
+    alias LOG_SUCCESS=success
+    alias LOG_FAILURE=failure
+    alias LOG_WARNING=passed
+else
+    echo "Error: your platform is not supported by $0" > /dev/stderr
+    exit 1
+fi
 
-# See how we were called.
+storaged_status () {
+    local status 
+
+    status="0"
+    pidofproc -p $PIDFILE $DAEMON >/dev/null || status="$?"
+    if [ "$status" = 0 ]; then
+        log_success_msg "$NAME is running"
+        return 0
+    elif [ "$status" = 4 ]; then
+        log_failure_msg "could not access PID file for $NAME"
+        return $status
+    else
+        log_success_msg "$NAME is not running"
+        return $status
+    fi
+}
+
+do_start()
+{
+    # Return
+    #   0 if daemon has been started
+    #   1 if daemon was already running
+    #   2 if daemon could not be started
+
+    START_DAEMON -p $PIDFILE $DAEMON
+
+    return "$?"
+}
+
+# stop the daemon/service
+
+do_stop()
+{
+    # Return
+    #   0 if daemon has been stopped
+    #   1 if daemon was already stopped
+    #   2 if daemon could not be stopped
+    #   other if a failure occurred
+
+    killproc -p $PIDFILE $DAEMON
+
+    RETVAL="$?"
+    [ "$RETVAL" = 2 ] && return 2
+
+    # remove pidfile if daemon could not delete on exit.
+    rm -f $PIDFILE
+
+    return "$RETVAL"
+}
+
 case "$1" in
-  start)
-        [ -x ${DAEMON} ] || exit 5
+    start)
+        echo -n "Starting $NAME"
+        
+        do_start
 
-        # Start daemons.
-        echo -n $"Starting storaged daemon: "
-        daemon ${DAEMON}
-        RETVAL=$?
-        echo
-        [ $RETVAL -ne 0 ] && exit $RETVAL
+        case "$?" in
+            0|1) LOG_SUCCESS ;;
+            *)   LOG_FAILURE ;;
+        esac
         ;;
-  stop)
-        # Stop daemons.
-        echo -n $"Shutting down storaged: "
-        killall $DAEMON
-        echo
+    status)
+    	STATUS;;
+    stop)
+        echo -n "Stopping $NAME"
+        
+        do_stop
+
+        case "$?" in
+            0|1) LOG_SUCCESS ;;
+            2)   LOG_FAILURE ;;
+        esac
         ;;
-  status)
-        status storaged
-        RETVAL=$?
+    restart|force-reload)
+        echo -n "Restarting $NAME"
+
+        do_stop
+        case "$?" in
+            0|1)
+                sleep 1
+                do_start
+
+                case "$?" in
+                    0) LOG_SUCESS ;;
+                    1) LOG_FAILURE ;; # Old process is still running
+                    *) LOG_FAILURE ;; # Failed to start
+                esac
+                ;;
+            *)
+                # Failed to stop
+                LOG_FAILURE
+            ;;
+        esac
         ;;
-  restart)
-        $0 stop
-        $0 start
-        ;;
-  *)
-        echo $"Usage: exportd {start|stop|status|restart}"
-        RETVAL=1
-        ;;
+    *)
+
+    LOG_WARNING "Usage: $0 {start|stop|restart|force-reload}" >&2
+    exit 3
+    ;;
 esac
 
-exit $RETVAL
+:
+

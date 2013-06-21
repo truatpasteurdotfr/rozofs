@@ -267,22 +267,20 @@ class ExportdPacemakerAgent(ExportdAgent):
         self._resource = resource
 
     def _start(self):
-        cmds = ['crm', 'resource', 'start'] + self._resource
-        if self.status() is False :
-            with open('/dev/null', 'w') as devnull:
-                p = subprocess.Popen(cmds, stdout=devnull,
-                    stderr=subprocess.PIPE)
-                if p.wait() is not 0 :
-                    raise Exception(p.communicate()[1])
+        cmds = ['crm', 'resource', 'start', self._resource]
+        with open('/dev/null', 'w') as devnull:
+            p = subprocess.Popen(cmds, stdout=devnull,
+                stderr=subprocess.PIPE)
+            if p.wait() is not 0 :
+                raise Exception(p.communicate()[1])
 
     def _stop(self):
-        cmds = ['crm', 'resource', 'stop'] + self._resource
-        if self.status() is False :
-            with open('/dev/null', 'w') as devnull:
-                p = subprocess.Popen(cmds, stdout=devnull,
-                    stderr=subprocess.PIPE)
-                if p.wait() is not 0 :
-                    raise Exception(p.communicate()[1])
+        cmds = ['crm', 'resource', 'stop', self._resource]
+        with open('/dev/null', 'w') as devnull:
+            p = subprocess.Popen(cmds, stdout=devnull,
+                stderr=subprocess.PIPE)
+            if p.wait() is not 0 :
+                raise Exception(p.communicate()[1])
 
     def get_service_status(self):
         return self._daemon_manager.status()

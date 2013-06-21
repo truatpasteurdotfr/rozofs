@@ -15,7 +15,7 @@ RozoFS provide a native open source POSIX filesystem, build on top of a usual ou
 * libconfig-dev
 * libfuse-dev
 * libreadline-dev
-* python2.6-dev
+* python2.7-dev
 * libpthread
 * libcrypt
 * swig

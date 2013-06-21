@@ -10,6 +10,19 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
+
+
+
+
+#define DEFAULT_FILENAME    "mnt1/this_is_the_default_rw_test_file_name"
+#define DEFAULT_NB_PROCESS    20
+#define DEFAULT_LOOP         200
+#define DEFAULT_FILE_SIZE_MB   1
+
+#define RANDOM_BLOCK_SIZE      (9*1024)
+#define READ_BUFFER_SIZE       (RANDOM_BLOCK_SIZE+file_mb)
+
+
 int shmid;
 #define SHARE_MEM_NB 7538
 
@@ -59,14 +72,6 @@ void hexdump(void *mem, unsigned int offset, unsigned int len)
         }
 }
 
-#define RANDOM_BLOCK_SIZE      (9*1024)
-#define RANDOM_BLOCK_OFFSET    (270*1024*20)
-#define READ_BUFFER_SIZE       (RANDOM_BLOCK_OFFSET+RANDOM_BLOCK_SIZE)
-
-#define DEFAULT_FILENAME "mnt1/this_is_the_default_rw_test_file_name"
-#define DEFAULT_NB_PROCESS 100
-#define DEFAULT_LOOP       1000
-
 
 char FILENAME[500];
 
@@ -76,6 +81,8 @@ char * pBlock       = NULL;
 int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
+long long unsigned int file_mb=DEFAULT_FILE_SIZE_MB*1000000;
+
 int with_close = 1;
 int * result;
 
@@ -84,6 +91,7 @@ static void usage() {
     printf("[ -file <name> ]   file to do the test on (default %s)\n", DEFAULT_FILENAME);
     printf("[ -process <nb> ]  The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
     printf("[ -loop <nb> ]     <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
+    printf("[ -fileSize <MB> ] file size in MB (default %d)\n",DEFAULT_FILE_SIZE_MB);
     printf("[ -noclose ]       Do not close the file between write and read\n");
     exit(-100);
 }
@@ -94,6 +102,7 @@ char *argv[];
 {
     unsigned int idx;
     int ret;
+    int val;
 
     strcpy(FILENAME, DEFAULT_FILENAME);
 
@@ -152,7 +161,25 @@ char *argv[];
             idx++;
             with_close = 0;
             continue;
-        }		
+        }	
+	/* -fileSize <MB> */
+        if (strcmp(argv[idx], "-fileSize") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%u", &val);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+	    file_mb = val;
+	    file_mb *= 1000000;
+            idx++;
+            continue;
+        }	
+			
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
@@ -215,7 +242,7 @@ int do_one_test(char * filename, int count) {
     
     while (nbWrite--) {
 
-      offset    = (random()+offset)    % RANDOM_BLOCK_OFFSET; 
+      offset    = (random()+offset)    % file_mb; 
       blockSize = (random()+blockSize) % RANDOM_BLOCK_SIZE;      
       if (blockSize == 0) blockSize = 1;
 

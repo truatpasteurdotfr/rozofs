@@ -23,7 +23,7 @@ setup(
     name='rozofs-manager',
     version='@VERSION@',
     author='Fizians S.A.S.',
-    author_email='rd@fizians.com',
+    author_email='devel@rozofs.com',
     url='http://www.fizians.com/',
     description='Rozofs platform management tools',
     license='Copyright Fizians S.A.S.',

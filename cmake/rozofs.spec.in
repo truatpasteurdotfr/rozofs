@@ -5,12 +5,12 @@ Release:1
 License: GPLv2
 Group: System Environment/Base
 Vendor: Fizians SAS
-Packager: users@rozofs.org
-URL: http://www.rozofs.org
+Packager: devel@rozofs.com
+URL: http://www.rozofs.com
 Source0: rozofs-@VERSION@.tar.gz
-Requires(post): /sbin/chkconfig
-Requires(preun): /sbin/service, /sbin/chkconfig
-Requires(postun): /sbin/service
+#Requires(post): /sbin/chkconfig
+#Requires(preun): /sbin/service, /sbin/chkconfig
+#Requires(postun): /sbin/service
 
 # Manage by cmake
 #BuildRequires: gcc make automake cmake
@@ -25,7 +25,7 @@ Summary: Rozofs filesystem (export package).
 License: GPLv2
 Group: System Environment/Daemons
 BuildRequires: libattr-devel libconfig-devel
-Requires: rpcbind, libattr, libconfig
+Requires: rpcbind, libattr, libconfig9
 
 %description exportd
 Rozofs is a scale-out NAS using erasure coding.
@@ -35,7 +35,7 @@ Summary: Rozofs filesystem (storage package).
 License: GPLv2
 Group: System Environment/Daemons
 BuildRequires: libconfig-devel
-Requires: rpcbind libconfig
+Requires: rpcbind libconfig9
 
 %description storaged
 Rozofs is a scale-out NAS using erasure coding.
@@ -45,7 +45,7 @@ Summary: Rozofs filesystem (rozofsmount package).
 License: GPLv2
 Group: System Environment/File
 BuildRequires: fuse-devel
-Requires: fuse-libs
+Requires: libfuse2
 
 %description rozofsmount
 Rozofs is a scale-out NAS using erasure coding.
@@ -60,12 +60,22 @@ Group: System Environment/File
 %description rprof
 Rozofs is a scale-out NAS using erasure coding.
 
+%package rozodebug
+Summary: Rozofs filesystem (debugging package).
+License: GPLv2
+Group: System Environment/File
+#BuildRequires:
+#Requires:
+
+%description rozodebug
+Rozofs is a scale-out NAS using erasure coding.
+
 %package manager-lib
 Summary: Rozofs filesystem (management library package).
 License: GPLv2
 Group: System Environment/File
 #BuildRequires:
-Requires: libconfig, python-pyro, python-argparse
+Requires: libconfig9, python-pyro, python-argparse
 
 %description manager-lib
 Rozofs is a scale-out NAS using erasure coding.
@@ -151,47 +161,51 @@ mkdir -p %{buildroot}/etc/default
 %defattr(-,root,root)
 %{_bindir}/rprof
 
+%files rozodebug
+%defattr(-,root,root)
+%{_bindir}/rozodebug
+
 %files manager-lib
 %defattr(-,root,root)
-%{_libdir}/python2.6/site-packages/rozofs/cli/platform.py
-%{_libdir}/python2.6/site-packages/rozofs/cli/agent.py
-%{_libdir}/python2.6/site-packages/rozofs/cli/__init__.py
-%{_libdir}/python2.6/site-packages/rozofs/cli/parser.py
-%{_libdir}/python2.6/site-packages/rozofs/ext/__init__.py
-%{_libdir}/python2.6/site-packages/rozofs/ext/fstab.py
-%{_libdir}/python2.6/site-packages/rozofs/__init__.py
-%{_libdir}/python2.6/site-packages/rozofs/core/platform.py
-%{_libdir}/python2.6/site-packages/rozofs/core/agent.py
-%{_libdir}/python2.6/site-packages/rozofs/core/_profile.so
-%{_libdir}/python2.6/site-packages/rozofs/core/libconfig.py
-%{_libdir}/python2.6/site-packages/rozofs/core/storaged.py
-%{_libdir}/python2.6/site-packages/rozofs/core/__init__.py
-%{_libdir}/python2.6/site-packages/rozofs/core/_libconfig.so
-%{_libdir}/python2.6/site-packages/rozofs/core/daemon.py
-%{_libdir}/python2.6/site-packages/rozofs/core/configuration.py
-%{_libdir}/python2.6/site-packages/rozofs/core/constants.py
-%{_libdir}/python2.6/site-packages/rozofs/core/exportd.py
-%{_libdir}/python2.6/site-packages/rozofs/core/profile.py
-%{_libdir}/python2.6/site-packages/rozofs/core/rozofsmount.py
-%exclude %{_libdir}/python2.6/site-packages/rozofs/cli/platform.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/cli/agent.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/cli/__init__.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/cli/parser.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/ext/__init__.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/ext/fstab.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/__init__.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/platform.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/agent.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/libconfig.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/storaged.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/__init__.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/daemon.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/configuration.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/constants.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/exportd.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/profile.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs/core/rozofsmount.pyc
-%exclude %{_libdir}/python2.6/site-packages/rozofs_manager-@VERSION@-py2.6.egg-info
+%{_libdir}/python2.7/site-packages/rozofs/cli/platform.py
+%{_libdir}/python2.7/site-packages/rozofs/cli/agent.py
+%{_libdir}/python2.7/site-packages/rozofs/cli/__init__.py
+%{_libdir}/python2.7/site-packages/rozofs/cli/parser.py
+%{_libdir}/python2.7/site-packages/rozofs/ext/__init__.py
+%{_libdir}/python2.7/site-packages/rozofs/ext/fstab.py
+%{_libdir}/python2.7/site-packages/rozofs/__init__.py
+%{_libdir}/python2.7/site-packages/rozofs/core/platform.py
+%{_libdir}/python2.7/site-packages/rozofs/core/agent.py
+%{_libdir}/python2.7/site-packages/rozofs/core/_profile.so
+%{_libdir}/python2.7/site-packages/rozofs/core/libconfig.py
+%{_libdir}/python2.7/site-packages/rozofs/core/storaged.py
+%{_libdir}/python2.7/site-packages/rozofs/core/__init__.py
+%{_libdir}/python2.7/site-packages/rozofs/core/_libconfig.so
+%{_libdir}/python2.7/site-packages/rozofs/core/daemon.py
+%{_libdir}/python2.7/site-packages/rozofs/core/configuration.py
+%{_libdir}/python2.7/site-packages/rozofs/core/constants.py
+%{_libdir}/python2.7/site-packages/rozofs/core/exportd.py
+%{_libdir}/python2.7/site-packages/rozofs/core/profile.py
+%{_libdir}/python2.7/site-packages/rozofs/core/rozofsmount.py
+%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/platform.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/agent.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/__init__.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/parser.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/ext/__init__.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/ext/fstab.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/__init__.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/platform.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/agent.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/libconfig.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/storaged.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/__init__.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/daemon.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/configuration.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/constants.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/exportd.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/profile.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs/core/rozofsmount.pyc
+%exclude %{_libdir}/python2.7/site-packages/rozofs_manager-@VERSION@-py2.7.egg-info
 
 %files manager-cli
 %defattr(-,root,root)
@@ -204,19 +218,35 @@ mkdir -p %{buildroot}/etc/default
 %{_initrddir}/rozofs-manager-agent
 
 %post exportd
-/sbin/chkconfig --add rozofs-exportd
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-exportd
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-exportd
+fi
 
 %post storaged
-/sbin/chkconfig --add rozofs-storaged
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-storaged
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-storaged
+fi
 
 %post rozofsmount
 ln -sf /sbin/mount.fuse /sbin/mount.rozofs
-/sbin/chkconfig --add rozofs-rozofsmount
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-rozofsmount
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-rozofsmount
+fi
 
 %post manager-agent
-/sbin/chkconfig --add rozofs-manager-agent
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-manager-agent
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-manager-agent
+fi
 
 %changelog
 
-* Tue Feb 05 2013 RozoFS <rd@rozofs.org> - @VERSION@
+* Tue Feb 05 2013 RozoFS <devel@rozofs.org> - @VERSION@
 - Initial spec file

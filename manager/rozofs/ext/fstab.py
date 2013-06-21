@@ -86,7 +86,8 @@ class Line(object):
     def get_rozofs_options(self):
         opts = self.get_options()
         return {"host": [o.split('=')[1] for o in opts if o.startswith('exporthost')][0],
-                "path": [o.split('=')[1] for o in opts if o.startswith('exportpath')][0]}
+                "path": [o.split('=')[1] for o in opts if o.startswith('exportpath')][0],
+                "instance": [o.split('=')[1] for o in opts if o.startswith('instance')][0]}
 
     def set_rozofs_options(self, host, path):
         self.set_options(["exporthost=%s" % host, "exportpath=%s" % path, "_netdev"])
