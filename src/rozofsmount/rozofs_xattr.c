@@ -781,7 +781,7 @@ void rozofs_ll_listxattr_cbk(void *this,void *param)
     /*
     ** ok now call the procedure to encode the message
     */
-    memset(&ret,0, sizeof(ep_listxattr_ret_t));    
+    memset(&ret,0, sizeof(ret));    
     if (decode_proc(&xdrs,&ret) == FALSE)
     {
        TX_STATS(ROZOFS_TX_DECODING_ERROR);
