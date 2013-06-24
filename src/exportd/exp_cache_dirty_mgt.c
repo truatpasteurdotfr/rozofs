@@ -43,6 +43,7 @@
 #include <rozofs/core/ruc_tcp_client_api.h>
 #include <rozofs/core/af_inet_stream_api.h>
 #include <rozofs/rpc/gwproto.h>
+#include <rozofs/rpc/gwproto_cache.h>
 
 #define EXP_MAX_CACHE_SRV  128  /**< max number of servers involved in a distributed cache */
 #define EXP_CHILD_BITMAP_BIT_SZ  256
@@ -50,14 +51,12 @@
 #define EXP_PARENT_BITMAP_BIT_SZ  256
 #define EXP_PARENT_BITMAP_BYTE_SZ  (EXP_PARENT_BITMAP_BIT_SZ/8)
 
+
 typedef struct _exp_dirty_dirty_child_t
 {
-   uint8_t first_rel_byte;  /**< relative index of the first modified (dirty) byte */
-   uint8_t last_rel_byte;   /**< relative index of the last modified (dirty) byte  */
-   uint8_t child_bitmap[EXP_CHILD_BITMAP_BYTE_SZ];
+   uint32_t  bitmap;
+   uint8_t   child_bitmap[EXP_CHILD_BITMAP_BYTE_SZ];
 } exp_dirty_dirty_child_t;
-
-
 typedef struct _exp_dirty_parent_t
 {
    uint32_t parent_update_count;  /**< number of time a bit has been changed in the parent bitmap */
@@ -449,22 +448,11 @@ void exp_dirty_set( exp_cache_dirty_ctx_t * ctx_p,uint16_t slice,uint32_t hash_v
   
     pParent->child_update_count++;    
     pChild->child_bitmap[chunk_u8_idx] |= (1 << bit_idx);
-    
-    if (pChild->first_rel_byte == pChild->last_rel_byte) {
-      /* Was empty so far */
-      pChild->first_rel_byte = chunk_u8_idx;
-      pChild->last_rel_byte  = chunk_u8_idx + 1;
-    }
-    else {
-      if (pChild->first_rel_byte > chunk_u8_idx) {
-        pChild->first_rel_byte = chunk_u8_idx;
-      }  
-      if (pChild->last_rel_byte <= chunk_u8_idx) {
-        pChild->last_rel_byte = chunk_u8_idx + 1;
-      }    
-    }
+    pChild->bitmap                     |= (1 << chunk_u8_idx);
   }  
 }
+
+
 /*
 **______________________________________________________________________________
 */
@@ -511,211 +499,7 @@ void exp_dirty_active_switch(exp_cache_dirty_ctx_t *ctx_p,
   front_end_p->active_idx = inactive_idx;
 }   
 
-#if 0
-/*
-**______________________________________________________________________________
-*/
-/**
-*   build the dirty message to invalidate some sections for a server
 
-   @param ctx_p: pointer to the dirty management context
-   @param buf_pool : Pool to get the buffer from
-   @param srv_rank : Server to build the message for
-   @param again : Whether this function is to be called again to complement the message
-   
-   @retval the formated buffer reference or NULL when no message is to be sent
-
-*/
-void * exp_build_dirty_cache_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx_p, 
-                                                     void                  * buf_pool, 
-						     int                     srv_rank, 
-						     int                   * again)
-{
-  void                      * buf_p = NULL;
-  exp_dirty_msg_invalidate_section_t    * header_p;
-  exp_dirty_msg_section_t   * section_start_p;
-  exp_cache_srv_front_end_t * front_end_p;
-  exp_dirty_dirty_parent_t  * pParent;
-  exp_dirty_dirty_child_t   * pChild;
-  int                         inactive_idx;
-  int                         idx;
-  int                         loop_cnt;
-  uint8_t                     chunk_u8_idx;
-  int                         bit_idx;
-  uint8_t                   * pChar = NULL;
-  int                         left_size;
-  int                         section_size;
-    
-  /*
-  ** A priori one call to get one message is enough
-  */ 
-  *again = 0;  
-    
-  /*
-  ** Retrieve front end context of this server
-  */
-  if (srv_rank >= EXP_MAX_CACHE_SRV) {
-    severe("server rank out of range %d",srv_rank);
-    return NULL;
-  }
-  front_end_p = ctx_p->srv_rank[srv_rank];
-  if (front_end_p == NULL) {
-    severe("server %d do not exist",srv_rank);
-    return NULL;
-  }
-  
-
-  /*
-  ** Check whether there has been any modification in the non active bitmaps
-  */
-  inactive_idx = 1 - front_end_p->active_idx;  
-  pParent = front_end_p->parent[inactive_idx]; 
-  if (pParent->parent_update_count == 0) {
-    return NULL;
-  }
-  
-
-  /* 
-  ** There has been some modification. Lets allocate a buffer for the message
-  */
-  buf_p = ruc_buf_getBuffer(buf_pool);
-  if (buf_p == NULL) {
-    severe("Out of buffer");
-    *again = 1;  /* Should be recalled later */  
-    return NULL;
-  }
-  left_size = ruc_buf_getMaxPayloadLen(buf_p);
-
-  
-  /*
-  ** Initialize the message header
-  */
-  header_p = (exp_dirty_msg_invalidate_section_t*)ruc_buf_getPayload(buf_p);
-  header_p->hdr.code     = EXP_DIRTY_INVALIDATE_SECTIONS;
-  header_p->hdr.srv_rank = srv_rank;  
-  header_p->hdr.nb_srv   = ctx_p->nb_cache_servers;   
-  header_p->nb_dirty_section = 0;          
-  left_size -= sizeof(exp_dirty_msg_invalidate_section_t);
- 
-  section_start_p = (exp_dirty_msg_section_t*)(header_p+1); 
-  
-  /*
-  ** Loop on the parent bit map to find out the significant childs
-  */
-  idx = 0;
-  while ((idx < EXP_PARENT_BITMAP_BIT_SZ) && (pParent->parent_update_count != 0)) {
-        
-    if (idx % 8 == 0) {
-      /*
-      ** skip the entries that have not been modified
-      */
-      idx = check_bytes_val(pParent->parent_bitmap, idx, EXP_PARENT_BITMAP_BIT_SZ, &loop_cnt, 0);
-      if (idx < 0) break;
-    }
-    
-    chunk_u8_idx = idx / 8;
-    bit_idx      = idx % 8;
-
-    /* 
-    ** Current child is not dirty
-    */
-    if ((pParent->parent_bitmap[chunk_u8_idx] & (1 << bit_idx)) == 0) {
-      idx++;
-      continue;
-    }
-
-    /* 
-    ** This child is dirty
-    */    
-    pChild = &(front_end_p->child[inactive_idx][idx]);
-        
-    /*
-    ** Check the consistency of the section information in the child
-    */
-    if (pChild->last_rel_byte <= pChild->first_rel_byte) {
-      severe("Inconsistency on srv %d child %d : first = %d last = %d",srv_rank,idx,
-              pChild->first_rel_byte,pChild->last_rel_byte);
-      /* Clear this child in the parent bitmap */	      
-      pParent->parent_bitmap[chunk_u8_idx] &= ~(1 << bit_idx);	      
-      pParent->parent_update_count--;
-      idx++;
-      continue;
-    }
-    section_size =  pChild->last_rel_byte - pChild->first_rel_byte;
-    if (section_size > EXP_CHILD_BITMAP_BYTE_SZ) {
-      severe("Inconsistency on srv %d child %d : first = %d last = %d",srv_rank,idx,
-              pChild->first_rel_byte,pChild->last_rel_byte);
-      /* Clear this child in the parent bitmap */	      
-      pParent->parent_bitmap[chunk_u8_idx] &= ~(1 << bit_idx);	      
-      pParent->parent_update_count--;
-      idx++;
-      continue;
-    }
-    
-    /*
-    ** Check enough memory is left in the buffer to write this section
-    */
-    section_size += (sizeof(exp_dirty_msg_section_t) -1);
-    if (section_size > left_size) {
-      /* Do not clear this child in the parent bitmap, so it can be processed in an other message */	      
-      idx++;
-      continue;
-    }      
-    
-    /* Clear this child in the parent bitmap */	      
-    pParent->parent_bitmap[chunk_u8_idx] &= ~(1 << bit_idx);	
-    pParent->parent_update_count--;
-    
-    /*
-    ** Let's add this section in the message
-    */      
-    section_start_p->absolute_idx = pChild->first_rel_byte + (idx * EXP_CHILD_BITMAP_BYTE_SZ);
-    section_start_p->section_sz   = pChild->last_rel_byte - pChild->first_rel_byte;
-    memcpy(section_start_p->data,&pChild->child_bitmap[pChild->first_rel_byte],section_start_p->section_sz);
-    header_p->nb_dirty_section++;
-
-    pChar = (uint8_t *) section_start_p;
-    section_start_p = (exp_dirty_msg_section_t*) (pChar+section_size);    
-    
-    /*
-    ** Update the left size and check whether there is enough space left to add a new section 
-    */
-    left_size -= section_size; 
-    if (left_size < sizeof(exp_dirty_msg_section_t)) break;
-    
-    
-    idx++;       
-  }
-  
-  
-  /*
-  ** Check that the message actualy contains some sections
-  */
-  if (pChar == NULL) {
-    /* No section has been set in the message although parent_update_count tells there should be some */
-    ruc_buf_freeBuffer( buf_p);
-    severe("srv %d parent_update_count %d inconsistent with parent_bitmap",srv_rank,pParent->parent_update_count);
-    pParent->parent_update_count = 0;    
-    return NULL;
-  }
-  
-  /*
-  ** Is there some data left to send in a next message ?
-  */
-  if (pParent->parent_update_count != 0) *again = 1;
-  
-  /*
-  ** Update the size of the message in the header
-  */
-  header_p->hdr.msgSize = pChar-(uint8_t*)header_p - sizeof(header_p->hdr.msgSize);
-  
-  /*
-  ** Set the payload length of the buffer
-  */
-  ruc_buf_setPayloadLen(buf_p,pChar-(uint8_t*)header_p);
-  return buf_p;
-} 
-#endif
 /*
 **______________________________________________________________________________
 */
@@ -725,14 +509,26 @@ void * exp_build_dirty_cache_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx
    @param ctx_p     : pointer to the dirty management context
    @param srv_rank  : Server to build the message for
    
-   @retval the message structure ready to encode
+   @retval exp_invalidate_nothing   Nothing to invalidate the message is built
+   @retval exp_invalidate_ready     The message is ready 
+   @retval exp_invalidate_too_big   The message would be too big (should invalidate everything)
+   @retval exp_invalidate_error     Some resource is missing !!!
 
 */
-gw_invalidate_sections_t gw_invalidate_sections_msg;
-gw_dirty_section_t       gw_dirty_section_table[EXP_PARENT_BITMAP_BIT_SZ];
+typedef enum _exp_invalidate_type_e {
+  exp_invalidate_nothing    = 0,
+  exp_invalidate_ready,
+  exp_invalidate_too_big,
+  exp_invalidate_error
+} exp_invalidate_type_e;
+  
 
-gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx_p,
-						                   int                     srv_rank)
+#define                  EXP_MAX_SECTION_BUFFER_SIZE    2048
+char                     gw_dirty_section_buffer[EXP_MAX_SECTION_BUFFER_SIZE];
+gw_invalidate_sections_t gw_invalidate_sections_msg;
+
+exp_invalidate_type_e exp_cache_build_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx_p,
+				            int                     srv_rank)
 {
   exp_cache_srv_front_end_t * front_end_p;
   exp_dirty_dirty_parent_t  * pParent;
@@ -742,20 +538,20 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
   int                         loop_cnt;
   uint8_t                     chunk_u8_idx;
   int                         bit_idx;
+  rozofs_section_header_u   * pSection;
+  int                         section_buffer_size;
   int                         section_size;
-  gw_dirty_section_t        * pSection;
-    
   /*
   ** Retrieve front end context of this server
   */
   if (srv_rank >= EXP_MAX_CACHE_SRV) {
     severe("server rank out of range %d",srv_rank);
-    return NULL;
+    return exp_invalidate_error;
   }
   front_end_p = ctx_p->srv_rank[srv_rank];
   if (front_end_p == NULL) {
     severe("server %d do not exist",srv_rank);
-    return NULL;
+    return exp_invalidate_error;
   }
   
 
@@ -765,7 +561,7 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
   inactive_idx = 1 - front_end_p->active_idx;  
   pParent = front_end_p->parent[inactive_idx]; 
   if (pParent->parent_update_count == 0) {
-    return NULL;
+    return exp_invalidate_nothing;
   }
  
   /*
@@ -776,8 +572,10 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
   gw_invalidate_sections_msg.hdr.nb_gateways     = ctx_p->nb_cache_servers;   
   
   gw_invalidate_sections_msg.section.section_len = 0;    
-  gw_invalidate_sections_msg.section.section_val = gw_dirty_section_table;            
-  pSection = gw_dirty_section_table;
+  gw_invalidate_sections_msg.section.section_val = gw_dirty_section_buffer;            
+  pSection = (rozofs_section_header_u *) gw_dirty_section_buffer;
+  
+  section_buffer_size = 0;
   
   /*
   ** Loop on the parent bit map to find out the significant childs
@@ -808,30 +606,7 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
     ** This child is dirty
     */    
     pChild = &(front_end_p->child[inactive_idx][idx]);
-        
-    /*
-    ** Check the consistency of the section information in the child
-    */
-    if (pChild->last_rel_byte <= pChild->first_rel_byte) {
-      severe("Inconsistency on srv %d child %d : first = %d last = %d",srv_rank,idx,
-              pChild->first_rel_byte,pChild->last_rel_byte);
-      /* Clear this child in the parent bitmap */	      
-      pParent->parent_bitmap[chunk_u8_idx] &= ~(1 << bit_idx);	      
-      pParent->parent_update_count--;
-      idx++;
-      continue;
-    }
-    section_size =  pChild->last_rel_byte - pChild->first_rel_byte;
-    if (section_size > EXP_CHILD_BITMAP_BYTE_SZ) {
-      severe("Inconsistency on srv %d child %d : first = %d last = %d",srv_rank,idx,
-              pChild->first_rel_byte,pChild->last_rel_byte);
-      /* Clear this child in the parent bitmap */	      
-      pParent->parent_bitmap[chunk_u8_idx] &= ~(1 << bit_idx);	      
-      pParent->parent_update_count--;
-      idx++;
-      continue;
-    }
-     
+             
     
     /* Clear this child in the parent bitmap */	      
     pParent->parent_bitmap[chunk_u8_idx] &= ~(1 << bit_idx);	
@@ -840,11 +615,32 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
     /*
     ** Let's add this section in the message
     */      
-    pSection->absolute_idx        = pChild->first_rel_byte + (idx * EXP_CHILD_BITMAP_BYTE_SZ);
-    pSection->bitmap.bitmap_len   = pChild->last_rel_byte - pChild->first_rel_byte;
-    pSection->bitmap.bitmap_val   = &pChild->child_bitmap[pChild->first_rel_byte];
-    gw_invalidate_sections_msg.section.section_len ++;
-    pSection++;
+    pSection->u64 = 0;
+
+    pSection->field.absolute_idx  = idx * EXP_CHILD_BITMAP_BYTE_SZ;
+    pSection->field.byte_bitmap   = pChild->bitmap;
+
+    /*
+    ** Copy the valid bytes 
+    */
+    int i;
+    section_size = 0;
+    char * pChar = (char *) (pSection+1);
+    for (i=0; i < EXP_CHILD_BITMAP_BYTE_SZ; i++) {
+      if (pChild->child_bitmap[i] !=0) {
+      
+        if ((pChar - gw_dirty_section_buffer) >= EXP_MAX_SECTION_BUFFER_SIZE) {
+	  return exp_invalidate_too_big;
+	}
+        *pChar++ = pChild->child_bitmap[i];
+	section_size++;
+      }
+    }
+    pSection->field.section_size = section_size;
+
+
+    gw_invalidate_sections_msg.section.section_len += (pChar-(char*)pSection);
+    pSection = (rozofs_section_header_u *) pChar;
     
     idx++;       
   }
@@ -853,13 +649,13 @@ gw_invalidate_sections_t * exp_cache_build_invalidate_sections_msg(exp_cache_dir
   /*
   ** Check that the message actualy contains some sections
   */
-  if (pSection == gw_dirty_section_table) {
+  if ((char *)pSection == gw_dirty_section_buffer) {
     severe("srv %d parent_update_count %d inconsistent with parent_bitmap",srv_rank,pParent->parent_update_count);
     pParent->parent_update_count = 0;    
-    return NULL;
+    return exp_invalidate_nothing;
   }
   
-  return &gw_invalidate_sections_msg;
+  return exp_invalidate_ready;
 } 
 /*
 **______________________________________________________________________________
@@ -905,7 +701,7 @@ gw_header_t * exp_cache_build_invalidate_all_msg(exp_cache_dirty_ctx_t * ctx_p,
 **______________________________________________________________________________
 */
 /**
-*   build a configurtaion message for a server
+*   build a configuration message for a server
 
    @param ctx_p     : pointer to the dirty management context
    @param srv_rank  : Server to build the message for
@@ -1099,6 +895,7 @@ void * exp_cache_encode_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx_p,
   gw_invalidate_sections_t * msg = NULL;
   void                     * xmit_buf = NULL;
   int                        ret;
+  exp_invalidate_type_e      build_msg_ret;
 
   /*
   ** allocate an xmit buffer
@@ -1112,10 +909,22 @@ void * exp_cache_encode_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx_p,
   /*
   ** Build the structure to encode from the cache data
   */    
-  msg = exp_cache_build_invalidate_sections_msg(ctx_p,srv_rank);
-  if (msg == NULL) {
+  build_msg_ret = exp_cache_build_invalidate_sections_msg(ctx_p,srv_rank);
+  
+  /*
+  ** Nothing to send 
+  */
+  if ((build_msg_ret == exp_invalidate_nothing)||(build_msg_ret == exp_invalidate_error)) {
     ruc_buf_freeBuffer(xmit_buf);    
     return NULL;
+  }
+  
+  if (build_msg_ret == exp_invalidate_too_big) {
+    /*
+    ** Well let's invalidate everything, since we can not encode the invalidate sections
+    */
+    ruc_buf_freeBuffer(xmit_buf);    
+    return exp_cache_encode_invalidate_all_msg(ctx_p,pool_ref,srv_rank);
   }
   
   /*
@@ -1123,10 +932,10 @@ void * exp_cache_encode_invalidate_sections_msg(exp_cache_dirty_ctx_t * ctx_p,
   */
   ret = exp_cache_encode_common(GW_INVALIDATE_SECTIONS,(xdrproc_t) xdr_gw_invalidate_sections_t,msg, xmit_buf);
   if (ret != 0) {
-    ruc_buf_freeBuffer(xmit_buf);    
     /*
     ** Well let's invalidate everything, since we can not encode the invalidate sections
     */
+    ruc_buf_freeBuffer(xmit_buf);    
     return exp_cache_encode_invalidate_all_msg(ctx_p,pool_ref,srv_rank);
   }
   

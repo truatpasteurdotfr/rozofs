@@ -41,21 +41,11 @@ struct gw_status_t {
 };
 typedef struct gw_status_t gw_status_t;
 
-struct gw_dirty_section_t {
-	uint32_t absolute_idx;
-	uint32_t section_sz;
-	struct {
-		u_int bitmap_len;
-		uint8_t *bitmap_val;
-	} bitmap;
-};
-typedef struct gw_dirty_section_t gw_dirty_section_t;
-
 struct gw_invalidate_sections_t {
 	gw_header_t hdr;
 	struct {
 		u_int section_len;
-		gw_dirty_section_t *section_val;
+		char *section_val;
 	} section;
 };
 typedef struct gw_invalidate_sections_t gw_invalidate_sections_t;
@@ -142,7 +132,6 @@ extern  bool_t xdr_epgw_host_t (XDR *, epgw_host_t*);
 extern  bool_t xdr_gw_status_e (XDR *, gw_status_e*);
 extern  bool_t xdr_gw_header_t (XDR *, gw_header_t*);
 extern  bool_t xdr_gw_status_t (XDR *, gw_status_t*);
-extern  bool_t xdr_gw_dirty_section_t (XDR *, gw_dirty_section_t*);
 extern  bool_t xdr_gw_invalidate_sections_t (XDR *, gw_invalidate_sections_t*);
 extern  bool_t xdr_gw_host_conf_t (XDR *, gw_host_conf_t*);
 extern  bool_t xdr_gw_configuration_t (XDR *, gw_configuration_t*);
@@ -153,7 +142,6 @@ extern bool_t xdr_epgw_host_t ();
 extern bool_t xdr_gw_status_e ();
 extern bool_t xdr_gw_header_t ();
 extern bool_t xdr_gw_status_t ();
-extern bool_t xdr_gw_dirty_section_t ();
 extern bool_t xdr_gw_invalidate_sections_t ();
 extern bool_t xdr_gw_host_conf_t ();
 extern bool_t xdr_gw_configuration_t ();

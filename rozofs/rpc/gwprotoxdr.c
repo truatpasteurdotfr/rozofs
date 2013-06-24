@@ -62,29 +62,13 @@ xdr_gw_status_t (XDR *xdrs, gw_status_t *objp)
 }
 
 bool_t
-xdr_gw_dirty_section_t (XDR *xdrs, gw_dirty_section_t *objp)
-{
-	//register int32_t *buf;
-
-	 if (!xdr_uint32_t (xdrs, &objp->absolute_idx))
-		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->section_sz))
-		 return FALSE;
-	 if (!xdr_array (xdrs, (char **)&objp->bitmap.bitmap_val, (u_int *) &objp->bitmap.bitmap_len, ~0,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
-		 return FALSE;
-	return TRUE;
-}
-
-bool_t
 xdr_gw_invalidate_sections_t (XDR *xdrs, gw_invalidate_sections_t *objp)
 {
 	//register int32_t *buf;
 
 	 if (!xdr_gw_header_t (xdrs, &objp->hdr))
 		 return FALSE;
-	 if (!xdr_array (xdrs, (char **)&objp->section.section_val, (u_int *) &objp->section.section_len, ~0,
-		sizeof (gw_dirty_section_t), (xdrproc_t) xdr_gw_dirty_section_t))
+	 if (!xdr_bytes (xdrs, (char **)&objp->section.section_val, (u_int *) &objp->section.section_len, ~0))
 		 return FALSE;
 	return TRUE;
 }

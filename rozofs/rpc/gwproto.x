@@ -43,17 +43,10 @@ union gw_status_t switch (gw_status_e status) {
     default:            void;
 };
 
-  
-struct gw_dirty_section_t {
-  uint32_t   absolute_idx;
-  uint32_t   section_sz;
-  uint8_t    bitmap<>;
-};
- 
 
 struct gw_invalidate_sections_t {
   gw_header_t        hdr;
-  gw_dirty_section_t section<>;
+  opaque             section<>;
 };  
 
 struct gw_host_conf_t  
