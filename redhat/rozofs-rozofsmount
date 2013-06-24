@@ -5,12 +5,40 @@
 #
 #chkconfig: 35 80 20
 #description: rozofs-rozofsmount
-#
+#processname: rozofsmount
+
+### BEGIN INIT INFO
+# Provides:          rozofsmount
+# Required-Start:    $network $local_fs $portmap
+# Required-Stop:     
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: RozoFS rozofsmount
+# Description:       RozoFS is a scale-out NAS file system. This service
+#                    provides the rozofsmount functionality.
+### END INIT INFO
 
 DAEMON=/bin/mount.rozofs
 
 # Source function library.
-. /etc/rc.d/init.d/functions
+if [ -f /lib/lsb/init-functions ]; then
+	. /lib/lsb/init-functions
+	alias START_DAEMON=start_daemon
+    alias STATUS=exportd_status
+    alias LOG_SUCCESS=log_success_msg
+    alias LOG_FAILURE=log_failure_msg
+    alias LOG_WARNING=log_warning_msg
+elif [ -f /etc/init.d/functions ]; then
+    . /etc/init.d/functions
+    alias START_DAEMON=daemon
+    alias STATUS=status
+    alias LOG_SUCCESS=success
+    alias LOG_FAILURE=failure
+    alias LOG_WARNING=passed
+else
+    echo "Error: your platform is not supported by $0" > /dev/stderr
+    exit 1
+fi
 
 # See how we were called.
 case "$1" in
@@ -20,10 +48,11 @@ case "$1" in
         # Start daemons.
         echo -n $"Mounting rozofs filesystems: "
         mount -a -t rozofs
-        RETVAL=$?
-        echo
-        [ $RETVAL -ne 0 ] && exit $RETVAL
-        ;;
+        case "$?" in
+            0) LOG_SUCCESS ;;
+            *) LOG_FAILURE ;;
+        esac
+    	;;
 
   stop)
         [ -f /etc/fstab ] || return
@@ -41,9 +70,11 @@ case "$1" in
                 ;;
             "rozofsmount")
                 umount $MTPT
-                RETVAL=$?
-                [ $RETVAL -ne 0 ] && exit $RETVAL
-                ;;
+        		case "$?" in
+            		0) LOG_SUCCESS ;;
+            		*) LOG_FAILURE ;;
+        		esac
+    		;;
         esac
         done
 

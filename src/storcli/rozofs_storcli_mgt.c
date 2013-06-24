@@ -419,7 +419,7 @@ void  rozofs_storcli_ctxInit(rozofs_storcli_ctx_t *p,uint8_t creation)
    /*
    ** timer cell
    */
-//   ruc_listEltInit((ruc_obj_desc_t *)&p->rpc_guard_timer);
+  ruc_listEltInitAssoc(&p->timer_list,p);
  
 }
 
@@ -482,6 +482,9 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
 {
   int i;
   int inuse;  
+  
+  rozofs_storcli_stop_read_guard_timer(ctx_p);  
+
   /*
   ** release the buffer that was carrying the initial request
   */
@@ -569,6 +572,10 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
                      
    /*
    ** check if there is request with the same fid that is waiting for execution
+   **
+   ** Note: in case of an internal read request, the request is not inserted in the
+   ** serialization queue (DO_NOT_QUEUE). The fid_key field is zero.
+   ** 
    */
    {
      rozofs_storcli_ctx_t *next_p = storcli_hash_table_search_ctx(ctx_p->fid_key);

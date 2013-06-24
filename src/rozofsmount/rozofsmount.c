@@ -753,7 +753,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     gprofiler.uptime = time(0);
     strncpy((char *) gprofiler.vers, VERSION, 20);
     /* Find a free port */
-    for (profiling_port = 50000; profiling_port < 60000; profiling_port++) {
+    for (profiling_port = 52000; profiling_port < 53000; profiling_port++) {
         if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
             severe("can't create socket: %s", strerror(errno));
             break;
