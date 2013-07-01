@@ -16,14 +16,22 @@
 #
 # dbg.sh 
 #
-. env.sh
+. env.sh 2> /dev/null
+
+
 
 fs_host="localhost"
 nb_fs=1
 nb_io=4
 
 syntax() {
-  echo "$name [verbose] [period <sec>] [exp|gw*|fs*|stc*|st*|std*|io*|all] [cmd1 [cmd2 [...]]]"
+  echo "$name [verbose] [period <sec>] [exp|gw*|fs*|stc*|st*|std*|io*|all] [cmd]"
+  echo ""
+  echo "The parameters are positional"
+  echo "verbose is just for debugging this script"
+  echo "period  is used to ask for a periodic request"
+  echo "Then comes the target of the request"
+  echo "Then comes the command" 
   exit
 }
 do_ask () {
@@ -32,9 +40,9 @@ do_ask () {
    for p in $P
    do
      printf  "\n__[%8s]___[%10s:%-5s]" "$WHAT" $h $p   
-     name=`${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 1 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
+     name=`${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 10 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
      printf "__[%s]\n" "$name"
-     ${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 1 -i $h -p $p $cmd
+     ${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 10 -i $h -p $p $cmd
    done
  done
 } 
@@ -144,19 +152,32 @@ ask () {
   esac
 }
 
+
+
+#####################################
+# M A I N    E N T R Y    P O I N T #
+#####################################
+
+
+
 name=`basename $0`
 
+# Display usage
 case "$1" in
   -*|?) syntax;;
 esac  
 
+
+# Verbose mode for debug
 if [ "$1" == "verbose" ];
 then 
   set -x
   shift 1
 fi
 
-perio=""
+
+# periodic requests 
+period=""
 if [ "$1" == "period" ];
 then 
   period=$2
@@ -172,7 +193,7 @@ port=$DBG_PORT_BASE
 exp_port=$port
 
 
-# Scan export gateway in config file
+# Scan export gateways in config file
 hosts="zero "
 for h in `cat ${LOCAL_CONF}/export.conf | grep "{gwid = " | awk -F'\"' '{print $2}'`
 do
@@ -213,19 +234,20 @@ do
 done  
 
  
-
+# Get the targeted process
 case "$1" in
   exp|gw*|fs*|stc*|std*|io*|st*|all) who=$1; shift 1;;
   *)                        who=all;;
 esac    
-    
+   
+cmd=""   
 while [ ! -z "$1" ];
 do
   cmd=`echo "$cmd $1"`
   shift 1
 done  
 case "$cmd" in
-  "") cmd="-c uptime";;
+  "");;
   *)  cmd=`echo "-c $cmd"`;;
 esac  
 

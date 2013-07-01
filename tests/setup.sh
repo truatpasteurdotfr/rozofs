@@ -18,9 +18,27 @@
 # setup.sh will generates a full working rozofs locally
 # it's a useful tool for testing and debugging purposes. 
 #
+. env.sh 2> /dev/null
 
-. env.sh
+process_killer () {
 
+  if ls /var/run/$1* > /dev/null 2>&1
+  then
+    for pid in `cat /var/run/$1* `
+    do
+      kill  $pid
+    done
+    usleep 1500000
+  fi
+    
+  if ls /var/run/$1* > /dev/null 2>&1
+  then   
+    for pid in `cat /var/run/$1* `
+    do
+      kill -9 $pid
+    done
+  fi  
+}   
 build ()
 {
     if [ ! -e "${LOCAL_SOURCE_DIR}" ]
@@ -58,60 +76,6 @@ rebuild ()
 }
 
 
-# $1 -> LAYOUT
-# $2 -> Number or serving port per storage host (nb of process)
-gen_storage_conf_old ()
-{
-    STORAGES_BY_CLUSTER=$1
-    PORT_PER_STORAGE_HOST=$2
-
-
-    let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
-
-
-	for i in $(seq ${nb_clusters}); do
-
-		for j in $(seq ${STORAGES_BY_CLUSTER}); do
-           FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${j}'.conf'
-           echo "$FILE"
-           if [ ! -e "$LOCAL_CONF" ]
-           then
-               mkdir -p $LOCAL_CONF
-           fi
-
-           if [ -e "$FILE" ]
-           then
-               rm -rf $FILE
-           fi
-
-           touch $FILE
-           echo "#${NAME_LABEL}" >> $FILE
-           echo "#${DATE_LABEL}" >> $FILE
-           #echo "ports = [ 51000, 51001] ;" >> $FILE
-	   PORT_LIST="51001"
-	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
-	   done
-	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	   
-           echo 'storages = (' >> $FILE
-		   for z in $(seq ${STORAGES_BY_CLUSTER}); do
-		    if [[ ${i} == ${nb_clusters} && ${z} == ${STORAGES_BY_CLUSTER} ]]
-		    then
-		        echo "  {cid = $i; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$i-$z\";}" >> $FILE
-		    else
-		        echo "  {cid = $i; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$i-$z\";}," >> $FILE
-		    fi
-            
-            done;
-            echo ');' >> $FILE
-
-		done;
-
-	done;
-
-
-
-}
 gen_storage_conf ()
 {
     STORAGES_BY_CLUSTER=$1
@@ -283,9 +247,32 @@ gen_export_conf ()
     echo ');' >> $FILE
 }
 
+start_one_storage() 
+{
+   case $1 in
+     "all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
+   esac
+   
+    sid=$1
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+    echo "Start storage cid $cid sid $sid"
+   ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+}
+stop_one_storage () {
+   case $1 in
+     "all") stop_storaged; return;;
+   esac
+   
+   process_killer storaged_${LOCAL_STORAGE_NAME_BASE}$1
+}   
+reset_one_storage () {
+  stop_one_storage $1
+  start_one_storage $1
+}
 # $1 = STORAGES_BY_CLUSTER
 start_storaged ()
 {
+
     STORAGES_BY_CLUSTER=$1
     
     echo "------------------------------------------------------"
@@ -307,30 +294,8 @@ start_storaged ()
 stop_storaged()
 {
    echo "Stopping the storaged"
-   for pid in `cat /var/run/storaged*.pid`
-   do
-     kill  $pid
-   done
-   sleep 1
-   for pid in `cat /var/run/storaged*`
-   do
-     kill -9 $pid
-   done
+  process_killer storaged 
 }
-
-stop_storaged_old ()
-{
-    echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" != "" ]
-    then
-        echo "Stop ${LOCAL_STORAGE_DAEMON} (PID: ${PID})"
-        kill $PID
-    else
-        echo "Unable to stop ${LOCAL_STORAGE_DAEMON} (not running)"
-    fi
-}
-
 reload_storaged ()
 {
     echo "------------------------------------------------------"
@@ -386,25 +351,43 @@ remove_storages ()
 
     done;
 }
+start_one_expgw ()
+{
+  case $1 in
+    "all") start_expgw; return;;
+  esac  
+  
+  host=${LOCAL_STORAGE_NAME_BASE}$1   
+   
+  echo "start export gateway $host"
+  ${LOCAL_BINARY_DIR}/exportd/expgateway  -L $host -P 60000 &
+}
 start_expgw ()
 {
     
-    echo "------------------------------------------------------"
-    PID=`ps ax | grep "build/src/exportd/xxxxexpgateway" | grep -v grep | awk '{print $1}'`
-    if [ "$PID" == "" ]
-    then
-        echo "Start Export Gateway(s)"
-		for j in $(seq ${NB_EXPGATEWAYS}); do
-        echo "start export gateway" ${LOCAL_BINARY_DIR}/exportd/expgateway  -L ${LOCAL_STORAGE_NAME_BASE}${j} -P 60000
-    	${LOCAL_BINARY_DIR}/exportd/expgateway  -L ${LOCAL_STORAGE_NAME_BASE}${j} -P 60000 &
-        done
-    else
-        echo "Unable to start expgateway (already running as PID: ${PID})"
-        exit 0;
-    fi
-
+   echo "Start Export Gateway(s)"
+   for j in $(seq ${NB_EXPGATEWAYS}); 
+   do
+      start_one_expgw $j
+   done
 }
+stop_one_expgw () {
 
+   case $1 in
+     "all") stop_expgw; return;;
+   esac  
+
+   process_killer expgw_${LOCAL_STORAGE_NAME_BASE}$1 
+} 
+reset_one_expgw () {  
+  stop_one_expgw  $1
+  start_one_expgw $1 
+}
+stop_expgw () {
+    echo "------------------------------------------------------"
+    echo "Killing export gateway"
+    process_killer expgw
+}
 # $1 -> LAYOUT
 # $2 -> NB STORAGES BY CLUSTER
 go_layout ()
@@ -470,17 +453,7 @@ rozofsmount_kill_best_effort()
 {
     echo "------------------------------------------------------"
     echo "Killing rozofsmount and storcli in best effort mode"
-    for pid in `cat /var/run/rozofsmount*`
-    do
-      kill  $pid
-    done
-    sleep 1
-    for pid in `cat /var/run/rozofsmount*`
-    do
-      kill -9 $pid
-    done
-
-
+    process_killer rozofsmount
 }
 
 undeploy_clients_local ()
@@ -489,6 +462,7 @@ undeploy_clients_local ()
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
         then
         echo "Unable to umount RozoFS (configuration file doesn't exist)"
+        storcli_killer.sh 
     else
         NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 	# Kill every storcli process
@@ -499,9 +473,9 @@ undeploy_clients_local ()
         for j in $(seq ${NB_EXPORTS}); do
             echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}"
             umount ${LOCAL_MNT_ROOT}${j}
-            test -d ${LOCAL_MNT_ROOT}${j} && rm -rf ${LOCAL_MNT_ROOT}${j}
-            test -d ${LOCAL_MNT_ROOT}${j} && umount -l ${LOCAL_MNT_ROOT}${j}
-            test -d ${LOCAL_MNT_ROOT}${j} && storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
+            umount -l ${LOCAL_MNT_ROOT}${j}
+            rm -rf ${LOCAL_MNT_ROOT}${j}
+            storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
         done
     sleep 2
     rozofsmount_kill_best_effort
@@ -521,40 +495,12 @@ stop_exportd ()
 {
     echo "------------------------------------------------------"
     echo "Killing exportd"
-    for pid in `cat /var/run/export*.pid`
-    do
-      kill  $pid
-    done
-    sleep 1
-    for pid in `cat /var/run/export*.pid`
-    do
-      kill -9 $pid
-    done
-    echo "------------------------------------------------------"
-    echo "Killing export gateway"
-    for pid in `cat /var/run/expgw*.pid`
-    do
-      kill  $pid
-    done
-    sleep 1
-    for pid in `cat /var/run/expgw*.pid`
-    do
-      kill -9 $pid
-    done    
+    process_killer exportd.pid 
 }
-stop_exportd_old ()
-{
-    echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" != "" ]
-    then
-        echo "Stop ${LOCAL_EXPORT_DAEMON} (PID: ${PID})"
-        kill $PID
-    else
-        echo "Unable to stop ${LOCAL_EXPORT_DAEMON} (not running)"
-    fi
+reset_exportd () {
+ stop_exportd
+ start_exportd 
 }
-
 reload_exportd ()
 {
     echo "------------------------------------------------------"
@@ -635,32 +581,19 @@ clean_all ()
     undeploy_clients_local
     stop_storaged
     stop_exportd
+    stop_expgw    
     remove_build
     remove_all
 }
-
-check_no_run_old ()
-{
-
-    PID_EXPORTD=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v "grep" | awk '{print $1}'`
-    PID_STORAGED=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v "grep" | awk '{print $1}'`
-
-    if [ "$PID_STORAGED" != "" ] || [ "$PID_EXPORTD" != "" ]
-    then
-        echo "${LOCAL_EXPORT_DAEMON} or/and ${LOCAL_STORAGE_DAEMON} already running"
-        exit 0;
-    fi
-
-}
-
 
 do_stop()
 {
         undeploy_clients_local
         stop_storaged
         stop_exportd
+	stop_expgw
         remove_all
-
+        sleep 1
 
 }
 
@@ -743,6 +676,11 @@ usage ()
     echo >&2 "Usage:"
     echo >&2 "$0 start <Layout>"
     echo >&2 "$0 stop"
+    echo >&2 "$0 storage  <sid|all> <stop|start|reset> "
+    echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
+    echo >&2 "$0 export             <stop|start|reset> "
+    echo >&2 "$0 fsmount            <stop|start|reset> "
+    echo >&2 "$0 process"    
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
     echo >&2 "$0 rebuild"    
@@ -753,7 +691,94 @@ usage ()
     echo >&2 "$0 umount"
     exit 0;
 }
+set_layout () {
 
+  # Get default layout from /tmp/rozo.layout if not given as parameter
+  ROZOFS_LAYOUT=$1
+  case "$ROZOFS_LAYOUT" in
+    "") ROZOFS_LAYOUT=`cat /tmp/rozo.layout`
+  esac
+
+  case "$ROZOFS_LAYOUT" in
+    0) {
+      STORAGES_BY_CLUSTER=4
+      NB_EXPGATEWAYS=4	
+    };;
+    1) {        
+      STORAGES_BY_CLUSTER=8
+      NB_EXPGATEWAYS=4
+    };;   
+    2) {
+      STORAGES_BY_CLUSTER=16
+      NB_EXPGATEWAYS=4
+    };;
+    *) {
+      echo >&2 "Rozofs layout must be equal to 0,1 or 2."
+      exit 1
+    };
+  esac  
+  # Save layout
+  echo $ROZOFS_LAYOUT > /tmp/rozo.layout
+}	
+show_process () {
+  cd /var/run
+  LIST=""
+  
+  file=exportd.pid
+  if [ -f $file ];
+  then
+    proc=`cat $file`
+    printf "\n[export:%d]\n" $proc
+  else
+    printf "\n[export:--]\n" 
+  fi
+  
+  for file in expgw_*.pid
+  do
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      name=`echo $file | awk -F':' '{print $1}'`
+      nb=`echo ${name: -1}`
+      printf "[expgw %d:%d] " $nb $proc
+    fi    
+  done  
+  printf "\n\n"
+  printf " cid sid storaged          storios........\n"
+  for sid in $(seq 16)
+  do
+  
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))  
+    name=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
+
+    if ls $name*.pid > /dev/null 2>&1
+    then
+
+      printf " %3d %3d " $cid $sid
+
+      file=$name.pid
+      if [ -f $file ];
+      then
+	proc=`cat $file`
+	printf " %6d     " $proc 
+      else
+	printf "     --      "         
+      fi 
+
+      for file in $name:*.pid
+      do
+	if [ -f $file ];
+	then
+          proc=`cat $file`
+	  port=`echo $file | awk -F':' '{print $2}' | awk -F'.' '{print $1}'`
+          printf "[%6d:%6d] " $port $proc
+	fi
+      done 
+      printf "\n"   
+    fi   
+  done
+  cd - 
+}
 main ()
 {
     [ $# -lt 1 ] && usage
@@ -768,37 +793,19 @@ main ()
     # to reach storio_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/storaged
 
+    set_layout
+
+    NB_EXPORTS=1
+    NB_VOLUMES=1;
+    NB_CLUSTERS_BY_VOLUME=1;
+
     if [ "$1" == "start" ]
     then
 
         [ $# -lt 2 ] && usage
-
-        if [ "$2" -eq 0 ]
-        then
-            ROZOFS_LAYOUT=$2
-            STORAGES_BY_CLUSTER=4
-            NB_EXPGATEWAYS=4	    
-        elif [ "$2" -eq 1 ]
-        then
-            ROZOFS_LAYOUT=$2
-            STORAGES_BY_CLUSTER=8
-            NB_EXPGATEWAYS=4
-        elif [ "$2" -eq 2 ]
-        then
-            ROZOFS_LAYOUT=$2
-            STORAGES_BY_CLUSTER=16
-            NB_EXPGATEWAYS=4
-        else
-	        echo >&2 "Rozofs layout must be equal to 0,1 or 2."
-	        exit 1
-        fi
-
+        set_layout $2
         check_build
         do_stop
-
-        NB_EXPORTS=1
-        NB_VOLUMES=1;
-        NB_CLUSTERS_BY_VOLUME=1;
 
         gen_storage_conf ${STORAGES_BY_CLUSTER} 4
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
@@ -813,7 +820,6 @@ main ()
         start_exportd 1
         echo "Exportd Started"
         deploy_clients_local
-
     elif [ "$1" == "stop" ]
     then
            do_stop
@@ -854,6 +860,42 @@ main ()
     elif [ "$1" == "rebuild" ]
     then
         rebuild
+    elif [ "$1" == "expgw" ]
+    then
+      case "$3" in 
+        stop)       stop_one_expgw $2;;
+	start)      start_one_expgw $2;;
+	reset)      reset_one_expgw $2;;	
+        *)          usage;;
+      esac
+    elif [ "$1" == "export" ]
+    then
+      case "$2" in 
+        stop)       stop_exportd;;
+	start)      start_exportd;;
+	reset)      reset_exportd;;	
+        *)          usage;;
+      esac
+    elif [ "$1" == "fsmount" ]
+    then
+      case "$2" in 
+        stop)       undeploy_clients_local;;
+	start)      deploy_clients_local;;
+	reset)      undeploy_clients_local;deploy_clients_local;;	
+        *)          usage;;
+      esac      
+    elif [ "$1" == "storage" ]
+    then  
+      case "$3" in 
+        stop)    stop_one_storage $2;;
+	start)   start_one_storage $2;;
+	reset)   reset_one_storage $2;;
+        *)       usage;;
+      esac
+    elif [ "$1" == "process" ]
+    then 
+       set_layout
+       show_process 
     elif [ "$1" == "clean" ]
     then
         clean_all
