@@ -576,27 +576,29 @@ remove_build ()
     rm -rf $LOCAL_BUILD_DIR
 }
 
-clean_all ()
-{
-    undeploy_clients_local
-    stop_storaged
-    stop_exportd
-    stop_expgw    
-    remove_build
-    remove_all
+do_start_all_processes() {
+     start_storaged ${STORAGES_BY_CLUSTER}
+     start_expgw
+     start_exportd 1
+     deploy_clients_local
 }
-
+do_pause() {
+     undeploy_clients_local
+     stop_storaged
+     stop_exportd
+     stop_expgw      
+}
 do_stop()
 {
-        undeploy_clients_local
-        stop_storaged
-        stop_exportd
-	stop_expgw
-        remove_all
-        sleep 1
-
+     do_pause
+     remove_all
+     sleep 1
 }
-
+clean_all ()
+{
+    do_stop
+    remove_build
+}
 
 
 
@@ -676,6 +678,8 @@ usage ()
     echo >&2 "Usage:"
     echo >&2 "$0 start <Layout>"
     echo >&2 "$0 stop"
+    echo >&2 "$0 pause"
+    echo >&2 "$0 resume"    
     echo >&2 "$0 storage  <sid|all> <stop|start|reset> "
     echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
     echo >&2 "$0 export             <stop|start|reset> "
@@ -815,14 +819,18 @@ main ()
         create_storages
         create_exports
 
-        start_storaged ${STORAGES_BY_CLUSTER}
-        start_expgw
-        start_exportd 1
-        echo "Exportd Started"
-        deploy_clients_local
+        do_start_all_processes
+	
     elif [ "$1" == "stop" ]
     then
            do_stop
+	   
+    elif [ "$1" == "pause" ]
+    then
+           do_pause
+    elif [ "$1" == "resume" ]
+    then
+           do_start_all_processes
 
     elif [ "$1" == "reload" ]
     then
