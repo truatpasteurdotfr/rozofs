@@ -105,6 +105,41 @@ StorageReset () {
   # Return reset
   return $res
 }
+########################################## 
+# RUN ELEMENTARY TESTS WHILE RESETTING THE
+# STOCLI PERIODICALY
+##########################################
+do_storcli_reset ()  {
+  for process in `ps -ef  | grep storcli | grep -v rozofsmount | grep -v grep | awk '{print $2}'`
+  do
+    echo "***** Reset storcli $process *****"
+    kill -9 $process
+  done
+}
+StorcliReset_process () {
+
+  while [ 1 ];
+  do  
+    sleep 7
+    do_storcli_reset
+  done
+}  
+StorcliReset () {
+
+  # Start process that reset the storcli
+  StorcliReset_process &
+
+  # Execute the test
+  $1   
+  res=$?
+
+  # kill the storage reset process
+  kill  $!  2> /dev/null
+  wait
+
+  # Return reset
+  return $res
+}
 #################### ELEMENTARY TESTS ##################################
 rw_close () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
@@ -131,7 +166,12 @@ link () {
   ./test_link -process $process -loop $loop -mount mnt1
   return $?  
 }
-#################### USAGE ##################################
+readdir() {
+  printf "process=%d loop=%d \n" $process $loop 
+  ./test_readdir -process $process -loop $loop -mount mnt1
+  return $?  
+}
+############### USAGE ##################################
 usage () {
   echo "$name -l"
   echo  "   Display the list of test"
@@ -142,11 +182,25 @@ usage () {
   exit -1
 }
 #################### COMPILATION ##################################
+compile_program () {
+  echo "compile $1.c"
+  gcc $1.c -o $1 -g
+}
 compile_programs () {
+  echo
   while [ ! -z "$1" ];
   do
-    echo "compile $1.c"
-    gcc $1.c -o $1 -g
+    if [ ! -f $1 ];
+    then
+      compile_program $1
+    else 
+      list=`ls -t $1.c $1`
+      recent=`echo $list | awk '{print $1}'`
+      case "$recent" in
+        "$1") ;;
+	*)    compile_program $1;;
+      esac	
+    fi
     shift 1
   done
 }
@@ -286,6 +340,10 @@ build_all_test_list () {
   do
     ALL_TST_LIST=`echo "$ALL_TST_LIST $TST/StorageReset"` 
   done  
+  for TST in $TST_STORCLI_RESET
+  do
+    ALL_TST_LIST=`echo "$ALL_TST_LIST $TST/StorcliReset"` 
+  done    
 }
 list_tests () {
   idx=0
@@ -319,18 +377,15 @@ run_some_tests() {
     # for read_parallel 1rst create the file that the processes will read
     case "$FUNC" in
       "read_parallel") dd if=/dev/zero of=mnt1/myfile bs=1M count=$fileSize;;
-    esac
-
+    esac      
+      
     # Save some rozodebug output before test    
     rozodebug_before
     avant=`date +%s`
 
     # Run the test according to the required conditions
     $COND $FUNC
-    res_tst=$?
-
-
-    
+    res_tst=$?  
           
     # Check some rozodebug output after the test    
     apres=`date +%s`
@@ -392,9 +447,10 @@ else
 fi  
 
 # List of test
-TST_BASIC="xattr link read_parallel rw_close rw_noClose"
+TST_BASIC="readdir xattr link read_parallel rw_close rw_noClose"
 TST_STORAGE_FAILED="read_parallel rw_close rw_noClose"
 TST_STORAGE_RESET="read_parallel rw_close rw_noClose"
+TST_STORCLI_RESET="read_parallel rw_close rw_noClose"
 build_all_test_list
 TSTS=""
 
@@ -438,7 +494,7 @@ then
 fi  
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir
 
 # Kill export gateway
 ./setup.sh expgw all stop

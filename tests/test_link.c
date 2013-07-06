@@ -351,10 +351,6 @@ int main(int argc, char **argv) {
     exit(-100);
   }
 
-  loop_test_process();
-  exit(0);
-
-
   result = allocate_result(4*nbProcess);
   if (result == NULL) {
     printf(" allocate_result error\n");
