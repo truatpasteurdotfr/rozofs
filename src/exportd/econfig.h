@@ -55,10 +55,31 @@ typedef struct export_config {
     list_t list;
 } export_config_t;
 
+
+
+/**< exportd expgw */
+
+typedef struct expgw_node_config {
+    int gwid;
+    char host[ROZOFS_HOSTNAME_MAX];
+    list_t list;
+} expgw_node_config_t;
+
+
+typedef struct expgw_config {
+    int daemon_id;
+    list_t expgw_node;
+    list_t list;
+} expgw_config_t;
+
+
 typedef struct econfig {
     uint8_t layout; ///< layout used for this exportd
+    char   exportd_vip[ROZOFS_HOSTNAME_MAX]; ///< virtual IP address of the exportd
     list_t volumes;
     list_t exports;
+    list_t expgw;   /*< exportd gateways */
+
 } econfig_t;
 
 int econfig_initialize(econfig_t *config);

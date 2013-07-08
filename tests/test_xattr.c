@@ -1,155 +1,193 @@
-#include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
-#include <stdarg.h>
-#include <sys/types.h>
-#include <attr/xattr.h>
-#include <errno.h>
+#include <fcntl.h>
 #include <string.h>
+#include <stdlib.h>
+#include <inttypes.h>
+#include <errno.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <attr/xattr.h>
+#include <sys/wait.h>
 
-unsigned int loop=0;
-unsigned int displayStatus=0;
+
+
+
+#define DEFAULT_NB_PROCESS    20
+#define DEFAULT_LOOP         200
+
+int shmid;
+#define SHARE_MEM_NB 7540
+
+int nbProcess       = DEFAULT_NB_PROCESS;
+int myProcId;
+int loop=DEFAULT_LOOP;
+int * result;
+char mount[128];
+
+static void usage() {
+    printf("Parameters:\n");
+    printf("-mount <mount point> ]  The mount point\n");
+    printf("[ -process <nb> ]      The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
+    printf("[ -loop <nb> ]        <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
+    exit(-100);
+}
+
+
 #define BUFFER_SIZE 1024
 char buff[BUFFER_SIZE];
 char value[BUFFER_SIZE];
-
-typedef enum  {
-  TEST_MODE_GET,
-  TEST_MODE_SET,
-  TEST_MODE_LIST,
-  TEST_MODE_ALL,
-} TEST_MODE_E;
-int test_mode = TEST_MODE_ALL;
-
+char expected_value[BUFFER_SIZE];
 
 char * myAttributes[] = {
   "user.Attr1",
   "user.attr2",
-  "user.attr3",
-  "user.attr4",
-  "user.attr5"
+  "user.cfhdqvhscvdsqvdssgfrqgtrthjytehCFREZGjlgnn3",
+  "user.@4",
+  "user.________________________________________________________5",
+  "user.66666666666666666666666",
+  "user.7.7.7.7.7",
+  "user.DSQVFDQVFDSQFDVqjkmlngqmslq_cvkfdqbvsd8",
+
 };
 int nbAttr = (sizeof(myAttributes)/sizeof(char*));
 
-void display(char *fmt, ... ) {
-  va_list         vaList;
-  
-  if (displayStatus == 0) return;
-    
-  va_start(vaList,fmt);
-  vprintf(fmt, vaList);
-  va_end(vaList);
-   
-}
-void displayErrno(char *fmt, ... ) {
-  va_list         vaList;
-  
-  if (displayStatus == 0) return;
-    
-  va_start(vaList,fmt);
-  vsprintf(buff,fmt, vaList);
-  va_end(vaList);
-  
-  perror(buff);
-  
-}
-void usage() {
-  printf("tst_xatrr [-loop <count>] [-display] [-mode <list|get|set> ] <mount point>\n");
-  exit(0);
-}
-char * read_parameters(argc, argv)
-     int	argc;
-     char	*argv[];
+static void read_parameters(argc, argv)
+int argc;
+char *argv[];
 {
-  unsigned int        idx;
-  int                 ret;
-  
-  idx = 1;
-  while (idx < argc) {
+    unsigned int idx;
+    int ret;
+    
+    mount[0] = 0;
 
-    /* -loop <count> */
-    if (strcmp(argv[idx],"-loop")==0) {
-      idx++;
-      if (idx == argc) {
-	printf ("%s option without value !!!\n",argv[idx-1]);
-	usage();
-      }
-      ret = sscanf(argv[idx],"%u",&loop);
-      if (ret != 1) {
-	printf ("%s option with bad value %s !!!\n",argv[idx-1],argv[idx]);
-	usage();
-      }
-      idx++;
-      continue;
+    idx = 1;
+    while (idx < argc) {
+	
+        /* -process <nb>  */
+        if (strcmp(argv[idx], "-process") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%u", &nbProcess);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+            idx++;
+            continue;
+        }
+        /* -mount <mount point>  */
+        if (strcmp(argv[idx], "-mount") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%s", mount);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+            idx++;
+            continue;
+        }
+        /* -loop <nb>  */
+        if (strcmp(argv[idx], "-loop") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%u", &loop);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+            idx++;
+            continue;
+        }	
+			
+        printf("Unexpected parameter %s\n", argv[idx]);
+        usage();
     }
-    
-    /* -mode <list|get|set> */
-    if (strcmp(argv[idx],"-mode")==0) {
-      idx++;
-      if (idx == argc) {
-	printf ("%s option without value !!!\n",argv[idx-1]);
-	usage();
-      }
-      if (strcmp(argv[idx],"list") == 0) {
-        test_mode = TEST_MODE_LIST;
-      }
-      else if (strcmp(argv[idx],"get") == 0) {
-        test_mode = TEST_MODE_GET;
-      }
-      else if (strcmp(argv[idx],"set") == 0) {
-        test_mode = TEST_MODE_SET;
-      }      
-      else {
-	printf ("%s option with bad value %s !!!\n",argv[idx-1],argv[idx]);
-	usage();
-      }
-      idx++;
-      continue;
-    }    
-    
-    /* -display */
-    if (strcmp(argv[idx],"-display")==0) {
-      idx++;
-      displayStatus=1;
-      continue;      
-    }    
-    
-    if (idx == (argc-1)) {
-      return argv[idx];
-    }
-    printf ("Unexpected parameter %s !!!\n",argv[idx]);
-    usage();
-  }
-  usage();
-  return NULL;
 }
-void display_attributes (char * file ) {
+int get_attribute_rank(char * name) {
+  int i;
+  
+  for (i=0; i < nbAttr; i++) {
+    if (strcmp(name,myAttributes[i]) == 0) return i;
+  }
+  return -1;
+}
+int list_xattr (char * file,int option, int exist) {
   ssize_t size;
   char *pAttr=buff,*pEnd=buff;
+  int nb;
+  int idx;
   
   size = listxattr(file,buff,BUFFER_SIZE);
-  if (size == -1)  displayErrno("listxattr");
-  else {
-    pEnd += size;
-    display("\n\nDisplay attributes\n");
+  if (size < 0)  {
+    printf("listxattr(%s) %s\n", file, strerror(errno));
+    return -1;
+  } 
+  
+  if (!exist) {
+    if (size != 0) {
+      printf("Xattr does not exist but listxattr(%s) returns %d size\n", file,(int)size);
+      return -1;
+    }
+    return 0;
+  }
+  
+  if (size == 0) {
+    printf("Xattr exist but listxattr(%s) returns 0 size\n", file);
+    return -1;
   }
 
+
+  pEnd += size;
+  nb = 0;
   while (pAttr < pEnd) {
   
-    size = getxattr(file,pAttr,value,BUFFER_SIZE);
-    if (size == -1) displayErrno("getxattr(%s)", pAttr);
-    else {
-      value[size] = 0;
-      display("- %s = %s\n", pAttr, value);
-    }
+    idx = get_attribute_rank(pAttr);
+    if (idx < 0) {
+      printf("Unexpected attribute %s on file %s\n", pAttr, file);
+      return -1;
+    }  
     
+    size = getxattr(file,pAttr,value,BUFFER_SIZE);
+    if (size == -1) {
+      printf("getxattr(%s) on file %s %s\n", pAttr, file, strerror(errno));
+      return -1;
+    }        
+
+    value[size] = 0;
+    nb++;
+    if (option == XATTR_CREATE) {
+      sprintf (expected_value, "%s.initial", myAttributes[idx]);
+    }
+    else {
+      sprintf (expected_value, "%s.modified", myAttributes[idx]);
+    }    
+    if (strcmp(expected_value,value) != 0) {
+      printf("read value %s while expecting %s for attr %s file %s\n", 
+             value, expected_value, pAttr, file);
+      return -1;
+    }           
     pAttr += (strlen(pAttr)+1);
   }
-  
-  
+  if (nb != nbAttr) {
+      printf("Read %d attr while expecting %d\n", nb, nbAttr);
+      return -1;
+  }
+  return 0;    
 }
-void set_attr (char * file, int option) {
+int set_attr (char * file, int option, int exist) {
   int idx,res;
   
   for (idx = 0 ; idx < nbAttr; idx++) {
@@ -160,97 +198,181 @@ void set_attr (char * file, int option) {
     else {
       sprintf (value, "%s.modified", myAttributes[idx]);
     }
-    display("\nSet %s to %s\n",myAttributes[idx],value);
 
     res = setxattr(file, myAttributes[idx], value, strlen(value),option);
-    if (res == -1) {
-      displayErrno("setxattr(%s,%s)",myAttributes[idx],value);
-    } 
-   
-    display_attributes (file);
+    
+    if (option == XATTR_REPLACE) {
+      if (res < 0) {
+	printf("REPLACE setxattr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
+	return -1;
+      }   
+    }
+    else {
+      if (exist) {
+	if ((res >= 0)||(errno!=EEXIST)) {
+	  printf("CREATE & exist setxattr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
+	  return -1;
+	}   
+      }
+      else {
+	if (res < 0) {
+	  printf("CREATE & !exist setxattr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
+	  return -1;
+	}   
+      }
+    }  
   }
+  return 0;
 }   
-void remove_attr (char * file) {
+int remove_attr (char * file, int exist) {
   int idx,res;
   
   for (idx = 0 ; idx < nbAttr; idx++) {
     
-    display("\nRemove %s\n",myAttributes[idx]);
     res = removexattr(file, myAttributes[idx]);
-    if (res == -1) {
-      displayErrno("removexattr(%s)",myAttributes[idx]);
-    } 
-   
-    display_attributes (file);
-  }
-}   
-void do_default_loop(char * file) {
-
-  set_attr (file,XATTR_CREATE);
-  set_attr (file,XATTR_CREATE);
-  set_attr (file,XATTR_REPLACE);
-  
-  remove_attr(file);
-}   
-void do_loop_getxattr(char * file) {
-  ssize_t size;
-
-  size = getxattr(file,myAttributes[1],value,BUFFER_SIZE);
-  if (size == -1) displayErrno("getxattr(%s)", myAttributes[1]);
-}
-void do_loop_setxattr(char * file) {
-  int idx,res;
-  
-  for (idx = 0 ; idx < nbAttr; idx++) {
-  
-    sprintf (value, "Value.%s", myAttributes[idx]);
-    res = setxattr(file, myAttributes[idx], value, strlen(value),XATTR_REPLACE);
-    if (res == -1) {
-      if (errno == ENOATTR) { 
-        res = setxattr(file, myAttributes[idx], value, strlen(value),XATTR_CREATE);        
-      }
-      else {
-        displayErrno("setxattr(%s,%s)",myAttributes[idx],value);
+    if (exist) {
+      if (res < 0) {
+	  printf("exist .remove_attr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
+	  return -1;
       }
     }
-  }   
-}
-void do_loop_listxattr(char * file) {
-  ssize_t size;
+    else {
+      if (res>= 0) {
+        printf("!exist .remove_attr(%s) on file %s\n", myAttributes[idx], file);
+        return -1; 
+      }	
+    }         
+  }
+  return 0;
+}   
+int do_one_test(char * file, int count) {
+  int ret = 0;
+
+  ret += list_xattr(file,XATTR_CREATE, 0);
   
-  size = listxattr(file,buff,BUFFER_SIZE);
-  if (size == -1)  displayErrno("listxattr");
+  ret += set_attr (file,XATTR_CREATE, 0);
+  ret += list_xattr(file,XATTR_CREATE, 1);
+  
+  ret += set_attr (file,XATTR_CREATE, 1);
+  ret += list_xattr(file,XATTR_CREATE, 1);  
+
+  ret += set_attr (file,XATTR_REPLACE, 1);
+  ret += list_xattr(file,XATTR_REPLACE, 1);
+
+  ret += remove_attr (file, 1);
+  ret += list_xattr(file,XATTR_REPLACE, 0);
+
+  ret += remove_attr (file, 0);
+  ret += list_xattr(file,XATTR_REPLACE, 0);
+  return ret;
 }
-int main(int argc, char **argv) {
-  char * mountPoint;
-  pid_t  pid;
-  char cmd[256];
-  char name[125];
-
-  mountPoint = read_parameters(argc,argv);
-  if (mountPoint == NULL) return 0;
-
+int loop_test_process() {
+  int count=0;   
+  char filename[128];
+  char cmd[128];
+  pid_t pid = getpid();
+       
   getcwd(cmd,125);
   
   pid = getpid();
-  sprintf(name, "%s/%s/test_xattr.%u", cmd, mountPoint, pid);
+  sprintf(filename, "%s/%s/test_xattr.%u", cmd, mount, pid);
   
-  sprintf(cmd, "echo HJKNKJNKNKhuezfqr > %s", name);
+  sprintf(cmd, "echo HJKNKJNKNKhuezfqr > %s", filename);
   system(cmd);  
-
+  
+          
   while (1) {
-    switch(test_mode) {
-      case TEST_MODE_LIST   : do_loop_listxattr(name);  break;
-      case TEST_MODE_GET    : do_loop_getxattr(name);   break;
-      case TEST_MODE_SET    : do_loop_setxattr(name);   break;
-      default:                do_default_loop(name);
-    }
-    if (loop !=0) {
-      loop--;
-      if (loop == 0) return 0;
-    }
-    
+    count++;    
+    if  (do_one_test(filename,count) != 0) {
+      printf("proc %3d - ERROR in loop %d\n", myProcId, count); 
+      unlink(filename);     
+      return -1;
+    } 
+    if (loop==count) {
+      unlink(filename);         
+      return 0;
+    }  
   }
 }  
-   
- 
+void free_result(void) {
+  struct shmid_ds   ds;
+  shmctl(shmid,IPC_RMID,&ds); 
+}
+int * allocate_result(int size) {
+  struct shmid_ds   ds;
+  void            * p;
+      
+  /*
+  ** Remove the block when it already exists 
+  */
+  shmid = shmget(SHARE_MEM_NB,1,0666);
+  if (shmid >= 0) {
+    shmctl(shmid,IPC_RMID,&ds);
+  }
+  
+  /* 
+  * Allocate a block 
+  */
+  shmid = shmget(SHARE_MEM_NB, size, IPC_CREAT | 0666);
+  if (shmid < 0) {
+    perror("shmget(IPC_CREAT)");
+    return 0;
+  }  
+
+  /*
+  * Map it on memory
+  */  
+  p = shmat(shmid,0,0);
+  if (p == 0) {
+    shmctl(shmid,IPC_RMID,&ds);  
+       
+  }
+  memset(p,0,size);  
+  return (int *) p;
+}
+int main(int argc, char **argv) {
+  pid_t pid[2000];
+  int proc;
+  int ret;
+    
+  read_parameters(argc, argv);
+  
+  if (mount[0] == 0) {
+    printf("B-mount is mandatory\n");
+    exit(-100);
+  }
+
+  if (nbProcess <= 0) {
+    printf("Bad -process option %d\n",nbProcess);
+    exit(-100);
+  }
+
+  result = allocate_result(4*nbProcess);
+  if (result == NULL) {
+    printf(" allocate_result error\n");
+    exit(-100);
+  }  
+  for (proc=0; proc < nbProcess; proc++) {
+  
+     pid[proc] = fork();     
+     if (pid[proc] == 0) {
+       myProcId = proc;
+       result[proc] = loop_test_process();
+       exit(0);
+     }  
+  }
+
+  for (proc=0; proc < nbProcess; proc++) {
+    waitpid(pid[proc],NULL,0);        
+  }
+  
+  ret = 0;
+  for (proc=0; proc < nbProcess; proc++) {
+    if (result[proc] != 0) {
+      ret--;
+    }
+  }
+  free_result();
+  printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
+  exit(ret);
+}

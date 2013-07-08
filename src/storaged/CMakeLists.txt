@@ -21,7 +21,6 @@ include_directories(${PTHREAD_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(storaged
-    sproto.c
     mproto.c
     spproto.c
     sconfig.h
@@ -41,7 +40,19 @@ add_executable(storaged
     storaged_nblock_init.h
     storaged_nblock_init.c
 )
+add_executable(storio
+    sproto.c
+    spproto.c
+    sconfig.h
+    sconfig.c
+    storage.h
+    storage.c
+    storaged_nblock_init.h
+    storaged_nblock_init.c
+    storio.c
+)
 target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 
 # Install
@@ -53,6 +64,11 @@ install(TARGETS storaged
     ARCHIVE DESTINATION lib
     COMPONENT storage
 )
-
+install(TARGETS storio
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT storio
+)
 install(FILES storage.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)
 install(FILES storage.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)

@@ -335,7 +335,6 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
         warning("can't lock volume %d.", volume->vid);
         goto out;
     }
-    errno = ENOSPC;
 
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);

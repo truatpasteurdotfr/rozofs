@@ -28,6 +28,7 @@
 #include <rozofs/rozofs_srv.h>
 
 #include "rozofs_storcli_transform.h"
+#include "rozofs_storcli.h"
 
 /**
 * Local variables
@@ -257,7 +258,7 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
                                        uint64_t *timestamp_p,
                                        uint16_t *effective_len_p)
 {
-    uint8_t prj_ctx_idx;
+    uint8_t prj_ctx_idx1,prj_ctx_idx2;
     uint8_t nb_projection_with_same_timestamp = 0;
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
@@ -276,9 +277,9 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
     p->timestamp = 0;
     p->count     = 0;
 
-    for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++)
+    for (prj_ctx_idx1 = 0; prj_ctx_idx1 < rozofs_safe; prj_ctx_idx1++)
     {
-      if (prj_ctx_p[prj_ctx_idx].prj_state != ROZOFS_PRJ_READ_DONE)
+      if (prj_ctx_p[prj_ctx_idx1].prj_state != ROZOFS_PRJ_READ_DONE)
       {
         /*
         ** that projection context does not contain valid data, so skip it
@@ -288,63 +289,80 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
       /*
       ** Get the pointer to the projection header
       */
-      rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)&prj_ctx_p[prj_ctx_idx].block_hdr_tab[block_idx];
-      if (ref_ctx_p->count == 0)
-      {
-        /*
-        ** first projection found
-        */
-        ref_ctx_p->timestamp     = rozofs_bins_hdr_p->s.timestamp;
-        ref_ctx_p->effective_length = rozofs_bins_hdr_p->s.effective_length;
-        ref_ctx_p->count++;
-        prj_idx_tb_p[nb_projection_with_same_timestamp++] = prj_ctx_idx; 
-        continue;            
-      }
-      /*
-      ** the entry is not empty check if the timestamp and the effective length of the block belonging to 
-      ** projection prj_ctx_idx matches
-      */
-      if ((rozofs_bins_hdr_p->s.timestamp == ref_ctx_p->timestamp) &&(rozofs_bins_hdr_p->s.effective_length == ref_ctx_p->effective_length))
-      {
-        /*
-        ** there is a match, store the projection index and check if we have reach rozofs_inverse blocks with the 
-        ** same timestamp and length
-        */
-        ref_ctx_p->count++;
-        prj_idx_tb_p[nb_projection_with_same_timestamp++] = prj_ctx_idx; 
+      rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)&prj_ctx_p[prj_ctx_idx1].block_hdr_tab[block_idx];
 
-        if (nb_projection_with_same_timestamp == rozofs_inverse)
-        {
+      /*
+      ** first projection found
+      */
+      ref_ctx_p->timestamp        = rozofs_bins_hdr_p->s.timestamp;
+      ref_ctx_p->effective_length = rozofs_bins_hdr_p->s.effective_length;
+      ref_ctx_p->count            = 1;
+
+      nb_projection_with_same_timestamp = 1;
+      prj_idx_tb_p[0] = prj_ctx_idx1; 
+     
+      
+      for (prj_ctx_idx2 = prj_ctx_idx1+1; prj_ctx_idx2 < rozofs_safe; prj_ctx_idx2++)
+      {      
+
+	if (prj_ctx_p[prj_ctx_idx2].prj_state != ROZOFS_PRJ_READ_DONE)
+	{
           /*
-          ** ok we have found all the projection for the best case
+          ** that projection context does not contain valid data, so skip it
           */
-          *timestamp_p     = ref_ctx_p->timestamp;
-          *effective_len_p = ref_ctx_p->effective_length;
+          continue;      
+	}
+	
+	/*
+	** Get the pointer to the projection header
+	*/
+	rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)&prj_ctx_p[prj_ctx_idx2].block_hdr_tab[block_idx];
+
+	/*
+	** the entry is not empty check if the timestamp and the effective length of the block belonging to 
+	** projection prj_ctx_idx matches
+	*/
+	if ((rozofs_bins_hdr_p->s.timestamp == ref_ctx_p->timestamp) &&(rozofs_bins_hdr_p->s.effective_length == ref_ctx_p->effective_length))
+	{
           /*
-          ** Mark the projection that MUST be rebuilt
+          ** there is a match, store the projection index and check if we have reach rozofs_inverse blocks with the 
+          ** same timestamp and length
           */
-          if (rozofs_storcli_timestamp_next_free_idx)
+          ref_ctx_p->count++;
+          prj_idx_tb_p[nb_projection_with_same_timestamp++] = prj_ctx_idx2; 
+
+          if (nb_projection_with_same_timestamp == rozofs_inverse)
           {
-             rozofs_storcli_mark_projection2rebuild(prj_ctx_p,
-                                                    rozofs_storcli_timestamp_tb,
-                                                    rozofs_storcli_timestamp_next_free_idx+1,
-                                                    rozofs_storcli_timestamp_next_free_idx);
+            /*
+            ** ok we have found all the projection for the best case
+            */
+            *timestamp_p     = ref_ctx_p->timestamp;
+            *effective_len_p = ref_ctx_p->effective_length;
+            /*
+            ** Mark the projection that MUST be rebuilt
+            */
+            if (rozofs_storcli_timestamp_next_free_idx)
+            {
+               rozofs_storcli_mark_projection2rebuild(prj_ctx_p,
+                                                      rozofs_storcli_timestamp_tb,
+                                                      rozofs_storcli_timestamp_next_free_idx+1,
+                                                      rozofs_storcli_timestamp_next_free_idx);
+            }
+            return (int)rozofs_inverse;        
           }
-          return (int)rozofs_inverse;        
-        }
-        continue;      
-      }
+	}
+      }	
       /*
       ** Either the length of the timestamp does not match
       ** log the reference of the projection index in order to address a potential rebuild of the
       ** projection
       */
-      p->prj_idx_tb[p->count]= prj_ctx_idx;
+      p->prj_idx_tb[p->count]= prj_ctx_idx1;
       p->count++;
       if (rozofs_storcli_timestamp_next_free_idx == 0)
       {
          rozofs_storcli_timestamp_next_free_idx = 1;
-      }        
+      }  
     }
     /*
     ** unlucky, we did not find rozof_inverse projections with the same timestamp
@@ -444,6 +462,7 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
           /*
           ** clear the memory
           */
+          ROZOFS_STORCLI_STATS(ROZOFS_STORCLI_EMPTY_READ);
           memset( data + (ROZOFS_BSIZE * (first_block_idx + block_idx)),0,ROZOFS_BSIZE);
           block_ctx_p[block_idx].state = ROZOFS_BLK_TRANSFORM_DONE;
           continue;
@@ -520,7 +539,28 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
 }
 
 
+/**
+*  That function check if the user data block to transform is empty
 
+   @param data: pointer to the user data block : must be aligned on a 8 byte boundary
+   @param size: size of the data block (must be blocksize aligned)
+  
+   @retval 0 non empty
+   @retval 1 empty
+*/
+static inline int rozofs_data_block_check_empty(char *data, int size)
+{
+  uint64_t *p64;
+  int i;
+
+  p64 = (uint64_t*) data;
+  for (i = 0; i < (size/sizeof(uint64_t));i++,p64++)
+  {
+    if (*p64 != 0) return 0;
+  }
+  ROZOFS_STORCLI_STATS(ROZOFS_STORCLI_EMPTY_WRITE);
+  return 1;
+}
 
 /** 
   Apply the transform to a buffer starting at "data". That buffer MUST be ROZOFS_BSIZE
@@ -554,6 +594,7 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
     uint32_t i = 0;    
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+    int empty_block = 0;
 
     projections = rozofs_storcli_projections;
 
@@ -568,6 +609,8 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
     // For each block to send
     for (i = 0; i < number_of_blocks; i++) 
     {
+         empty_block = rozofs_data_block_check_empty(data + (i * ROZOFS_BSIZE), ROZOFS_BSIZE);
+
         // seek bins for each projection
         for (projection_id = 0; projection_id < rozofs_forward; projection_id++) 
         {
@@ -577,6 +620,16 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
           projections[projection_id].bins = prj_ctx_p[projection_id].bins +
                                            ((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t)))* (first_block_idx+i));
           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[projection_id].bins;
+          /*
+          ** check if the user data block is empty: if the data block is empty no need to transform
+          */
+          if (empty_block)
+          {
+            rozofs_bins_hdr_p->s.projection_id = 0;
+            rozofs_bins_hdr_p->s.timestamp     = 0;          
+            rozofs_bins_hdr_p->s.effective_length = 0;    
+            continue;   
+          }
           /*
           ** fill the header of the projection
           */
@@ -600,12 +653,18 @@ int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_t *prj_
                                                      
         }
         /*
-        ** Apply the erasure code transform for the block i+first_block_idx
+        ** do not apply transform for empty block
         */
-        transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
-                rozofs_inverse,
-                ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
-                rozofs_forward, projections);
+        if (empty_block == 0)
+        {
+          /*
+          ** Apply the erasure code transform for the block i+first_block_idx
+          */
+          transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
+                  rozofs_inverse,
+                  ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                  rozofs_forward, projections);
+        }
     }
 
     return 0;

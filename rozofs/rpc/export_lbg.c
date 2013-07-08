@@ -80,7 +80,7 @@ static af_unix_socket_conf_t  af_inet_exportd_conf =
   @param prog  The program number
   @param vers  The version number of the program
 */
-int get_service_tcp_port(char *host ,unsigned long prog, unsigned long vers) {
+static int get_service_tcp_port(char *host ,unsigned long prog, unsigned long vers) {
   struct sockaddr_in server;
   struct hostent *hp;
   int port = 0;
@@ -108,7 +108,7 @@ int get_service_tcp_port(char *host ,unsigned long prog, unsigned long vers) {
 /*
   Periodic timer expiration
 */
-void export_lbg_periodic_ticker(void * param) {
+static void export_lbg_periodic_ticker(void * param) {
   int status;
   uint16_t port;
   exportclt_t *exportclt = (exportclt_t *) param;
@@ -137,7 +137,7 @@ void export_lbg_periodic_ticker(void * param) {
   When the export is restarted its port may change, and so
   the previous configuration of the LBG is not valid any more
 */
-void export_lbg_start_timer(exportclt_t *exportclt) {
+static void export_lbg_start_timer(exportclt_t *exportclt) {
   struct timer_cell * export_lbg_periodic_timer;
 
   export_lbg_periodic_timer = ruc_timer_alloc(0,0);

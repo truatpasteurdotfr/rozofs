@@ -25,6 +25,7 @@
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/expgw_common.h>
 
  
 extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
@@ -94,6 +95,8 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   
   fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer_p);
   rozofs_fuse_dbg_save_ctx(fuse_save_ctx_p);
+  if (name == NULL) fuse_save_ctx_p->fct_name[0]=0;
+  else strcpy(fuse_save_ctx_p->fct_name,name);
   /*
   ** clear the fuse context
   */
@@ -107,6 +110,7 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   /*
   ** init of the routing context
   */
+  expgw_routing_ctx_init(&fuse_save_ctx_p->expgw_routing_ctx);
   ruc_listEltInit(&fuse_save_ctx_p->link);
   
   return buffer_p;
@@ -142,6 +146,12 @@ static inline void _rozofs_fuse_release_saved_context(void *buffer_p,int line)
   if (fuse_save_ctx_p->newname != NULL) free(fuse_save_ctx_p->newname);
   if (fuse_save_ctx_p->name != NULL) free((void*)fuse_save_ctx_p->name);
   if (fuse_save_ctx_p->fi!= NULL) free(fuse_save_ctx_p->fi);
+  
+  /*
+  ** check if there is an xmit buffer to release since it might be the case
+  ** when there were 2 available load balancing groups
+  */
+  expgw_routing_release_buffer(&fuse_save_ctx_p->expgw_routing_ctx);
   
   /*
   ** now release the buffer
@@ -470,6 +480,69 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               sys_recv_pf_t recv_cbk,void *fuse_ctx_p,
 			      int lbg_id) 	;
+
+
+/**
+* API for creation a transaction towards an exportd
+
+ The reference of the north load balancing is extracted for the client structure
+ fuse_ctx_p:
+ That API needs the pointer to the current fuse context. That nformation will be
+ saved in the transaction context as userParam. It is intended to be used later when
+ the client gets the response from the server
+ encoding function;
+ For making that API generic, the caller is intended to provide the function that
+ will encode the message in XDR format. The source message that is encoded is 
+ supposed to be pointed by msg2encode_p.
+ Since the service is non-blocking, the caller MUST provide the callback function 
+ that will be used for decoding the message
+ 
+
+ @param eid        : export id
+ @param fid        : unique file id (directory, regular file, etc...)
+ @param prog       : program
+ @param vers       : program version
+ @param opcode     : metadata opcode
+ @param encode_fct : encoding function
+ @msg2encode_p     : pointer to the message to encode
+ @param recv_cbk   : receive callback function
+ @param fuse_buffer_ctx_p : pointer to the fuse context
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+int rozofs_expgateway_send_routing_common(uint32_t eid,fid_t fid,uint32_t prog,uint32_t vers,
+                              int opcode,xdrproc_t encode_fct,void *msg2encode_p,
+                              sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) ;
+
+
+
+
+/**
+* API for creation a transaction towards an exportd
+
+ The reference of the north load balancing is extracted for the client structure
+ fuse_ctx_p:
+ That API needs the pointer to the current fuse context. That nformation will be
+ saved in the transaction context as userParam. It is intended to be used later when
+ the client gets the response from the server
+ encoding function;
+ For making that API generic, the caller is intended to provide the function that
+ will encode the message in XDR format. The source message that is encoded is 
+ supposed to be pointed by msg2encode_p.
+ Since the service is non-blocking, the caller MUST provide the callback function 
+ that will be used for decoding the message
+ 
+
+ @param rozofs_tx_ctx_p        : transaction context
+ @param recv_cbk        : callback function (may be NULL)
+ @param fuse_buffer_ctx_p       : buffer containing the fuse context
+ @param vers       : program version
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+int rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_t *rozofs_tx_ctx_p, sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) ;
 
 /*
 **__________________________________________________________________

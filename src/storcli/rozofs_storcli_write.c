@@ -1665,7 +1665,6 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
      wr_proj_buf_p[match_idx].state = ROZOFS_WR_ST_ERROR;
      errcode = rozofs_status.storcli_status_ret_t_u.error;
      wr_proj_buf_p[match_idx].errcode = errcode;
-     printf("FDL errcode %s\n",strerror(errcode));
      goto write_procedure_failure;
 
    }

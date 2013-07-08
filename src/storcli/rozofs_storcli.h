@@ -359,6 +359,8 @@ typedef enum
   ROZOFS_STORCLI_DECODING_ERROR,
   ROZOFS_STORCLI_NO_CTX_ERROR,
   ROZOFS_STORCLI_NO_BUFFER_ERROR,
+  ROZOFS_STORCLI_EMPTY_READ,    /**< number of empty blocks read  (read and clear) */
+  ROZOFS_STORCLI_EMPTY_WRITE,    /**< number of empty blocks written (read and clear)  */
   ROZOFS_STORCLI_COUNTER_MAX
 }rozofs_storcli_tx_stats_e;
 
@@ -381,7 +383,6 @@ extern int rozofs_storcli_south_large_buf_sz;
 
 
 extern uint32_t rozofs_storcli_seqnum ;
-
 
 /**
 * Buffer Pools

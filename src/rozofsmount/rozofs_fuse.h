@@ -26,6 +26,7 @@
 #include <sys/types.h> 
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
+#include <rozofs/core/expgw_common.h>
 #include "rozofsmount.h"
 
 #define ROZOFS_FUSE_CTX_MAX 64
@@ -108,7 +109,11 @@ typedef struct _rozofs_fuse_save_ctx_t
    uint64_t buf_flush_offset;               /**< offset of the first byte to flush    */
    uint32_t buf_flush_len;               /**< length of the data flush to disk    */
    uint32_t readahead;                   /**< assert to 1 for readahead case */
-
+   /*
+   ** Parameters specific to the exportd gateway management
+   */
+   expgw_tx_routing_ctx_t expgw_routing_ctx; 
+   
  } rozofs_fuse_save_ctx_t;
  
  

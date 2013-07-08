@@ -1,3 +1,20 @@
+/*
+  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
+  This file is part of Rozofs.
+
+  Rozofs is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published
+  by the Free Software Foundation, version 2.
+
+  Rozofs is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see
+  <http://www.gnu.org/licenses/>.
+ */
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -9,9 +26,8 @@
 #include <errno.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-
-
-
+#include <ctype.h>
+#include <sys/wait.h>
 
 
 #define DEFAULT_FILENAME    "mnt1/this_is_the_default_rw_test_file_name"
@@ -188,41 +204,40 @@ char *argv[];
 
 int do_write_offset(int f, int offset, int blockSize) {
     ssize_t size;
-
+   
     memcpy(&pCompareBuff[offset],pBlock,blockSize);
-//    printf("PWRITE off [%x,%x] size %d\n",offset,offset+blockSize,blockSize);
+//   printf("PWRITE off [%x,%x] size %d\n",offset,offset+blockSize,blockSize);
     size = pwrite(f, pBlock, blockSize, offset);
     if (size != blockSize) {
         printf("proc %3d - pwrite %d\n",myProcId,errno);
-        printf("proc %3d - Can not write %s size at offset %d\n", myProcId, blockSize, offset);
-        return 0;
+        printf("proc %3d - Can not write %d size at offset %d\n", myProcId, blockSize, offset);
+        return -1;
     }
-    return 1;
+    return 0;
 
 }
 int do_read_and_check(int f) {
     ssize_t size;
     int idx2;
-    int res = 1;
     size = pread(f, pReadBuff, READ_BUFFER_SIZE, 0);
     if (size <= 0) {
         printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read size %d\n", myProcId, READ_BUFFER_SIZE);    
-        return 0;
+        printf("proc %3d - Can not read size %llu\n", myProcId, READ_BUFFER_SIZE);    
+        return -1;
     }
 //    printf("PREAD size = %d (%x)\n",size,size);
-    for (idx2 = 0; idx2 < READ_BUFFER_SIZE; idx2++) {
+    for (idx2 = 0; idx2 < size; idx2++) {
         if (pReadBuff[idx2] != pCompareBuff[idx2]) {
             printf("\nproc %3d - offset %d = 0x%x contains %x instead of %x\n", myProcId, idx2, idx2, pReadBuff[idx2],pCompareBuff[idx2]);
-	    printf("proc %3d - file (%d has been read)\n", myProcId,size);
+	    printf("proc %3d - file (%d has been read)\n", myProcId,(int)size);
             hexdump(pReadBuff,idx2-16, 64);	    
 	    printf("proc %3d - ref buf\n", myProcId);
             hexdump(pCompareBuff,idx2-16, 64); 
-            return 0;
+            return -1;
         }
     }
     
-    return 1;
+    return 0;
 }
 int do_one_test(char * filename, int count) {
     int f;
@@ -235,21 +250,21 @@ int do_one_test(char * filename, int count) {
     if (f == -1) {
         printf("proc %3d - open %d\n",myProcId, errno);
         printf("proc %3d - Can not open %s\n",myProcId, filename);
-        return 0;
+        return -1;
     }
 
-    nbWrite = 1 + count % 3;
-    
+//    nbWrite = 1 + count % 3;
+    nbWrite = 1 ;    
     while (nbWrite--) {
 
       offset    = (random()+offset)    % file_mb; 
       blockSize = (random()+blockSize) % RANDOM_BLOCK_SIZE;      
       if (blockSize == 0) blockSize = 1;
 
-      if (do_write_offset(f, offset, blockSize) == 0) {
+      if (do_write_offset(f, offset, blockSize) != 0) {
 	printf("proc %3d - ERROR !!! do_write_offset blocksize %6d  - offset %6d\n", myProcId, blockSize, offset);
 	close(f);      
-	return 0;
+	return -1;
       }  
     }
         
@@ -258,34 +273,29 @@ int do_one_test(char * filename, int count) {
       if (f != 0) {
           printf("proc %3d - close %d\n",myProcId,errno);
           printf("proc %3d - Can not close %s\n", myProcId, filename);
-          return 0;
+          printf("proc %3d - last offset %d size %d block %d\n", myProcId, offset,blockSize, offset/8096);
+          return -1;
       }
 
       f = open(filename, O_RDONLY);
-      if (f == -1) {
+      if (f < 0) {
           printf("proc %3d - re-open %d\n",myProcId,errno);
           printf("proc %3d - Can not re-open %s\n", myProcId,filename);
-          return 0;
+          return -1;
       }
     }
     
-    if (do_read_and_check(f) == 0) {
+    if (do_read_and_check(f) != 0) {
       close(f);      
-      return 0;
+      return -1;
     }
     
     f = close(f);
-    if (f != 0) {
-        printf("proc %3d - close %d\n",myProcId,errno);
-        printf("proc %3d - Can not close %s\n", myProcId, filename);
-    }
-    return 1;
+    return 0;
 }
 int read_empty_file(char * filename) {
     int f;
     ssize_t size;
-    int idx,idx2;
-    int res = 1;
 
 
     f = open(filename, O_RDWR | O_CREAT, 0640);
@@ -299,7 +309,7 @@ int read_empty_file(char * filename) {
     size = pread(f, pReadBuff, READ_BUFFER_SIZE, 0);
     if (size < 0) {
         printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read %s size %d\n", myProcId, filename, READ_BUFFER_SIZE);    
+        printf("proc %3d - Can not read %s size %llu\n", myProcId, filename, READ_BUFFER_SIZE);    
         close(f);
         return 0;
     }
@@ -309,7 +319,7 @@ int read_empty_file(char * filename) {
         printf("proc %3d - close %d\n",myProcId,errno);
         printf("proc %3d - Can not close %s\n", myProcId, filename);
     }
-    return res;
+    return 1;
 }
 
 int loop_test_process() {
@@ -323,7 +333,7 @@ int loop_test_process() {
   if (pBlock == NULL) {
       printf("Can not allocate %d bytes\n", RANDOM_BLOCK_SIZE+1);
       perror("malloc");
-      return 0;
+      return -1;
   }  
   c = 'A';
   int mark=0;
@@ -347,9 +357,9 @@ int loop_test_process() {
   pReadBuff = NULL;
   pReadBuff = malloc(READ_BUFFER_SIZE);
   if (pReadBuff == NULL) {
-      printf("Can not allocate %d bytes\n", READ_BUFFER_SIZE);
+      printf("Can not allocate %llu bytes\n", READ_BUFFER_SIZE);
       perror("malloc");
-      return 0;
+      return -1;
   }
   memset(pReadBuff,0,READ_BUFFER_SIZE);
 
@@ -357,38 +367,31 @@ int loop_test_process() {
   pCompareBuff = NULL;
   pCompareBuff = malloc(READ_BUFFER_SIZE);
   if (pCompareBuff == NULL) {
-      printf("Can not allocate %d bytes\n", READ_BUFFER_SIZE);
+      printf("Can not allocate %llu bytes\n", READ_BUFFER_SIZE);
       perror("malloc");
-      return 0;
+      return -1;
   }
   memset(pCompareBuff,0,READ_BUFFER_SIZE);  
     
   sprintf(filename,"%s.%d",FILENAME, myProcId);
   if (unlink(filename) == -1) {
     if (errno != ENOENT) {
-      printf("proc %3d - ERROR !!! can not remove %s %s\n", filename, strerror(errno));
-      return 0;
+      printf("proc %3d - ERROR !!! can not remove %s %s\n", myProcId, filename, strerror(errno));
+      return -1;
     }
   }
-  
-#if 0  
-  if (read_empty_file(filename) == 0) {
-    printf("proc %3d - ERROR !!! read_empty_file\n", myProcId);
-    return 0;
-  }
-  memset(pReadBuff,0,READ_BUFFER_SIZE);
-#endif
+
           
   while (1) {
     count++;    
-    if  (do_one_test(filename,count) == 0) {
+    if  (do_one_test(filename,count) != 0) {
       printf("proc %3d - ERROR in loop %d\n", myProcId, count);      
-      return 0;
+      return -1;
     } 
-    if (loop==count) return 1;
+    if (loop==count) return 0;
   }
 }  
-int free_result(void) {
+void free_result(void) {
   struct shmid_ds   ds;
   shmctl(shmid,IPC_RMID,&ds); 
 }
@@ -428,7 +431,6 @@ int main(int argc, char **argv) {
   pid_t pid[2000];
   int proc;
   int ret;
-  char cmd[128];
     
   read_parameters(argc, argv);
 
@@ -458,7 +460,7 @@ int main(int argc, char **argv) {
   
   ret = 0;
   for (proc=0; proc < nbProcess; proc++) {
-    if (result[proc] == 0) {
+    if (result[proc] != 0) {
       ret--;
     }
   }

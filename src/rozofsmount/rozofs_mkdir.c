@@ -54,7 +54,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/expgw_common.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -76,7 +76,7 @@ void rozofs_ll_mkdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
         mode_t mode) {
     ientry_t *ie = 0;
     const struct fuse_ctx *ctx;
-    ep_mkdir_arg_t arg;
+    epgw_mkdir_arg_t arg;
     int    ret;        
     void *buffer_p = NULL;
     /*
@@ -113,18 +113,24 @@ void rozofs_ll_mkdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.parent,ie->fid, sizeof (uuid_t));
-    arg.name = (char*)name;    
-    arg.uid  = ctx->uid;
-    arg.gid  = ctx->gid;
-    arg.mode = mode;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.parent,ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char*)name;    
+    arg.arg_gw.uid  = ctx->uid;
+    arg.arg_gw.gid  = ctx->gid;
+    arg.arg_gw.mode = mode;
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_MKDIR,(xdrproc_t) xdr_ep_mkdir_arg_t,(void *)&arg,
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_MKDIR,(xdrproc_t) xdr_epgw_mkdir_arg_t,(void *)&arg,
                               rozofs_ll_mkdir_cbk,buffer_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_MKDIR,(xdrproc_t) xdr_epgw_mkdir_arg_t,(void *)&arg,
+                              rozofs_ll_mkdir_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*
@@ -156,7 +162,7 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
    ientry_t *nie = 0;
    struct stat stbuf;
    fuse_req_t req; 
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -166,8 +172,11 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attrs;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
-
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
     /*
@@ -226,12 +235,48 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attrs, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding section
