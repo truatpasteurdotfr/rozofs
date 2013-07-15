@@ -20,6 +20,7 @@
 
 int shmid;
 #define SHARE_MEM_NB 7541
+#define NB_HARD_LINKS 16
 
 int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
@@ -143,6 +144,8 @@ int check_symlink_file(char * base, int nb, int line) {
   struct stat stats;
   int ret;
   char file[128];
+  char target[128];
+  char name[128];
 
   sprintf(file, "%s%d", base, nb);
     
@@ -155,6 +158,17 @@ int check_symlink_file(char * base, int nb, int line) {
     printf("%d lstat(%s) not a symbolic link\n",line,file);
     return -1;
   }  
+  ret = readlink(file,target,128);
+  if (ret < 0) {
+    printf("%d readlink(%s) %s\n",line,file, strerror(errno));
+    return -1;
+  }
+  target[ret] = 0;
+  sprintf(name, "%s%d", base, nb-NB_HARD_LINKS);
+  if (strcmp(target,name) != 0) {
+    printf("%d %s is a link to %s while expecting %s\n",line,file,target,name);
+    return -1;    
+  }
   return 0;
 }
 remove_file(char * base, int nb) {
@@ -190,8 +204,6 @@ sym_link(char * base, int nb1,int nb2) {
   system(cmd);  
 }
 
-
-#define NB_HARD_LINKS 16
 int do_one_test(char * base, int count) {
   int ret = 0;
   int nbLink=0;

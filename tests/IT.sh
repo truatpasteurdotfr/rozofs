@@ -151,8 +151,23 @@ rw_noClose () {
   ./rw -process $process -loop $loop -fileSize $fileSize -noclose
   return $?
 }
+
+prepare_file_to_read() {
+  if [ ! -f $1 ];
+  then
+    dd if=/dev/zero of=$1 bs=1M count=$fileSize
+    return
+  fi
+  size=`ls -sh $1 | awk '{print $1}' | awk -F'M' '{print $1}'`
+  if [ "$size" -ge "$fileSize" ];
+  then
+    return
+  fi
+  dd if=/dev/zero of=$1 bs=1M count=$fileSize    
+}
 read_parallel () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  prepare_file_to_read mnt1/myfile 
   ./read_parallel -process $process -loop $loop -file mnt1/myfile 
   return $?
 }
@@ -169,6 +184,21 @@ link () {
 readdir() {
   printf "process=%d loop=%d \n" $process $loop 
   ./test_readdir -process $process -loop $loop -mount mnt1
+  return $?  
+}
+rename() {
+  printf "process=%d loop=%d \n" $process $loop 
+  ./test_rename -process $process -loop $loop -mount mnt1
+  return $?  
+}
+chmod() {
+  printf "process=%d loop=%d \n" $process $loop 
+  ./test_chmod -process $process -loop $loop -mount mnt1
+  return $?  
+}
+truncate() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1
   return $?  
 }
 ############### USAGE ##################################
@@ -355,13 +385,23 @@ list_tests () {
   exit -1
 }
 #################### RUNNING A LIST OF TEST ##################################
+delay () {
+  min=$1
+  min=$((min/60))
+  sec=$1
+  sec=$((sec%60))
+  zedelay=`printf "%d min %2.2d" $min $sec`
+}
 run_some_tests() {
+
+
+  total_avant=`date +%s`
 
   FAIL=0
   SUSPECT=0
-  printf "______________________________________________._________._______.\n" >> $RESULT
-  printf   "                 TEST NAME                    |  RESULT |  Sec  |\n" >> $RESULT
-  printf "______________________________________________|_________|_______|\n" >> $RESULT
+  printf "______________________________________________._________.____________.\n" >> $RESULT
+  printf   "                 TEST NAME                    |  RESULT |  Duration  |\n" >> $RESULT
+  printf "______________________________________________|_________|____________|\n" >> $RESULT
 
   for TST in $TSTS
   do
@@ -372,12 +412,7 @@ run_some_tests() {
 
     # Split the elementary test and the test conditions
     COND=`echo $TST | awk -F'/' '{print $2}'`
-    FUNC=`echo $TST | awk -F'/' '{print $1}'`
-    
-    # for read_parallel 1rst create the file that the processes will read
-    case "$FUNC" in
-      "read_parallel") dd if=/dev/zero of=mnt1/myfile bs=1M count=$fileSize;;
-    esac      
+    FUNC=`echo $TST | awk -F'/' '{print $1}'`    
       
     # Save some rozodebug output before test    
     rozodebug_before
@@ -389,7 +424,7 @@ run_some_tests() {
           
     # Check some rozodebug output after the test    
     apres=`date +%s`
-    delay=$((apres-avant))    
+    delay $((apres-avant))    
     rozodebug_after    
     res_dbg=$?
     
@@ -398,26 +433,29 @@ run_some_tests() {
     if [ $res_tst != 0 ];
     then
       # The test returns an error code
-      printf "\n-------> !!! $TST is failed !!!\n"
-      printf "%45s | FAILED  | %5d |\n" $TST $delay >> $RESULT
+      printf "\n-------> !!! $TST is failed ($zedelay) !!!\n"
+      printf "%45s | FAILED  | %10s |\n" $TST "$zedelay" >> $RESULT
       FAIL=$((FAIL+1))
     else          
       if [ $res_dbg != 0 ];
       then
         # The test do not complain but some debug ouput change need to be checked 
         SUSPECT=$((SUSPECT+1))
-        printf "\n-------> $TST suspicion of failure !\n"
-	printf "%45s | SUSPECT | %5d |\n" $TST $delay >> $RESULT
+        printf "\n-------> $TST suspicion of failure ($zedelay) !\n"
+	printf "%45s | SUSPECT | %10s |\n" $TST "$zedelay" >> $RESULT
       else
         # The test is successfull
-        printf "\n-------> $TST success\n"      
-	printf "%45s | OK      | %5d |\n" $TST $delay >> $RESULT  
+        printf "\n-------> $TST success ($zedelay)\n"      
+	printf "%45s | OK      | %10s |\n" $TST "$zedelay" >> $RESULT  
       fi
     fi
   done
+
+  total_apres=`date +%s`
+  delay $((total_apres-total_avant))
   
-  printf "______________________________________________|_________|_______|\n" >> $RESULT
-  printf "                  FAILED TEST NUMBER          |  %5d  |\n" $FAIL >> $RESULT
+  printf "______________________________________________|_________|____________|\n" >> $RESULT
+  printf "                  FAILED TEST NUMBER          |  %5d  | %s\n" $FAIL "$zedelay" >> $RESULT
   printf "                 SUSPECT TEST NUMBER          |  %5d  |\n" $SUSPECT >> $RESULT
   printf "______________________________________________|_________|\n" >> $RESULT
   printf "(Check rozodebug outputs of SUSPECT tests to decide whether it successfull or failed)\n" >> $RESULT
@@ -437,17 +475,17 @@ printf "\n" > $RESULT
 if [ -d /mnt/hgfs/windows ];
 then
 # VEHEM OUERE
-  fileSize=30
-  loop=60
-  process=4
+  fileSize=20
+  loop=16
+  process=6
 else
   fileSize=200
-  loop=300
-  process=20
+  loop=80
+  process=12
 fi  
 
 # List of test
-TST_BASIC="readdir xattr link read_parallel rw_close rw_noClose"
+TST_BASIC="readdir xattr link rename chmod truncate read_parallel rw_close rw_noClose"
 TST_STORAGE_FAILED="read_parallel rw_close rw_noClose"
 TST_STORAGE_RESET="read_parallel rw_close rw_noClose"
 TST_STORCLI_RESET="read_parallel rw_close rw_noClose"
@@ -494,7 +532,7 @@ then
 fi  
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write test_readdir
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc
 
 # Kill export gateway
 ./setup.sh expgw all stop
