@@ -797,7 +797,7 @@ main ()
     # to reach storio_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/storaged
 
-    set_layout
+    set_layout 0
 
     NB_EXPORTS=1
     NB_VOLUMES=1;
