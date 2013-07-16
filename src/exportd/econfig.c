@@ -400,8 +400,9 @@ static int load_expgw_conf(econfig_t *ec, struct config_t *config) {
 
     // Get settings for expgw (list of expgw)
     if ((master_expgw_set = config_lookup(config, EXPORTDID)) == NULL) {
-        errno = ENOKEY;
-        severe("can't lookup expgw setting.");
+//        errno = ENOKEY;
+//        severe("can't lookup expgw setting.");
+        status = 0;
         goto out;
     }
 
@@ -695,6 +696,7 @@ int econfig_read(econfig_t *config, const char *fname) {
     }
     config->layout = (uint8_t) layout;
 
+#if 0 // not needed since exportgateway code is inactive
     if (!config_lookup_string(&cfg, EVIP, &host)) {
         errno = ENOKEY;
         severe("can't lookup exportd vip setting.");
@@ -709,6 +711,7 @@ int econfig_read(econfig_t *config, const char *fname) {
         goto out;
     }
     strncpy(config->exportd_vip, host, ROZOFS_HOSTNAME_MAX);
+#endif
     
     if (load_volumes_conf(config, &cfg) != 0) {
         severe("can't load volume config.");

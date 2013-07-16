@@ -70,11 +70,12 @@ int module_test_id = 0;
   At the start-up we just create the entry for the Master Export
   
   @param host : hostname or IP address of the exportd Master
+  @param eid : exportid associated with the rozofsmount
   
   @retval RUC_OK on success
   @retval RUC_NOK on failure
 */
-int rozofs_expgateway_init(char *host)
+int rozofs_expgateway_init(char *host,int eid)
 {
     int ret;
     
@@ -88,12 +89,12 @@ int rozofs_expgateway_init(char *host)
 
 //#warning only 1 gateway: localhost1
 
-    ret = expgw_export_add_eid(1,   // exportd id
-                               1,   // eid
+    ret = expgw_export_add_eid(eid,   // exportd id
+                               eid,   // eid
                                host,  // hostname of the Master exportd
                                0,  // port
-                               2,  // nb Gateway
-                               2   // gateway rank: not significant for an rozofsmount
+                               0,  // nb Gateway
+                               0   // gateway rank: not significant for an rozofsmount
                                );
     if (ret < 0) {
         fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
@@ -237,7 +238,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
         if (ret != RUC_OK) break;
 #endif    
         exportclt_t *exportclt = args_p->exportclt;
-        ret = rozofs_expgateway_init( exportclt->host);
+        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid);
         if (ret != RUC_OK) break;
 
         break;
