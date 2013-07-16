@@ -298,8 +298,8 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
     if (nie->size < stbuf.st_size) nie->size = stbuf.st_size;
     stbuf.st_size = nie->size;
         
-    fep.attr_timeout = attr_cache_timeo;
-    fep.entry_timeout = entry_cache_timeo;
+    fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
+    fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     nie->nlookup++;
     fuse_reply_entry(req, &fep);

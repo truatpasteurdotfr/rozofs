@@ -1,4 +1,3 @@
-
 /*
   Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
   This file is part of Rozofs.
@@ -52,14 +51,10 @@ void rozofs_tmr_init_configuration()
   DEF_TMR(TMR_STORAGED_PROFILE_PROGRAM,2,30,25,TMR_SEC);    /**< storaged profiler program                 default 25 s */
   DEF_TMR(TMR_STORCLI_PROFILE_PROGRAM,2,30,25,TMR_SEC);     /**< storaged client profiler program          default 25 s */
   /*
-  ** timer related to dirent cache
+  ** timers related to dirent cache
   */
-  DEF_TMR(TMR_FUSE_ATTR_CACHE,2,300,10,TMR_SEC);            /**< attribute cache timeout for fuse           default 10 s */
-  DEF_TMR(TMR_FUSE_ENTRY_CACHE,2,300,10,TMR_SEC);           /**< entry cache timeout for fuse               default 10 s */
-  /*
-  ** dirent cache timer
-  */
-  
+  DEF_TMR(TMR_FUSE_ATTR_CACHE,0,300,10,TMR_SEC);            /**< attribute cache timeout for fuse           default 10 s */
+  DEF_TMR(TMR_FUSE_ENTRY_CACHE,0,300,10,TMR_SEC);           /**< entry cache timeout for fuse               default 10 s */
   /*
   ** timer related to TCP connection and load balancing group
   */

@@ -59,6 +59,7 @@
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
 #include "rozofsmount.h"
+#include "rozofs_sharedmem.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -121,7 +122,38 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     args.nb_proj = nb_prj;
 
     lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
-
+    /*
+    ** allocate a shared buffer for reading
+    */
+#if 1
+    uint32_t *p32;
+    int stor_idx =storcli_get_storcli_idx_from_fid(f->fid);
+    int shared_buf_idx;
+    uint32_t length;
+    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(stor_idx);
+    if (shared_buf_ref != NULL)
+    {
+      /*
+      ** clear the first 4 bytes of the array that is supposed to contain
+      ** the reference of the transaction
+      */
+       p32 = (uint32_t *)ruc_buf_getPayload(shared_buf_ref);
+       *p32 = 0;
+       /*
+       ** get the index of the shared payload in buffer
+       */
+       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,stor_idx,&length);
+       if (shared_buf_idx != -1)
+       {
+         /*
+         ** save the reference of the shared buffer in the fuse context
+         */
+         SAVE_FUSE_PARAM(buffer_p,shared_buf_ref);
+         args.proj_id = shared_buf_idx;
+         args.spare     = 'S';
+       }
+    }
+#endif
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -532,6 +564,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    int len_zero;
    uint8_t *src_p,*dst_p;
    int len;
+   void *shared_buf_ref;
    
    int status;
    uint8_t  *payload;
@@ -542,6 +575,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_read_ret_no_data_t;
    file_t *file;
    uint32_t readahead;
+   int position ;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -549,6 +583,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    RESTORE_FUSE_PARAM(param,readahead);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
    RESTORE_FUSE_PARAM(param,off);
+   RESTORE_FUSE_PARAM(param,shared_buf_ref);
 
    file = (file_t *) (unsigned long)  fi->fh;   
    file->buf_read_pending--;
@@ -619,12 +654,31 @@ void rozofs_ll_read_cbk(void *this,void *param)
         goto error;
     }
     /*
-    ** no error, so get the length of the data part
+    ** no error, so get the length of the data part: need to consider the case
+    ** of the shared memory since for its case, the length of the returned data
+    ** is not in the rpc buffer. It is detected by th epresence of the 0x53535353
+    ** pattern in the alignment field of the rpc buffer
     */
     int received_len = ret.storcli_read_ret_no_data_t_u.len.len;
+    uint32_t alignment = (uint32_t) ret.storcli_read_ret_no_data_t_u.len.alignment;
     xdr_free((xdrproc_t) decode_proc, (char *) &ret); 
-    int position = XDR_GETPOS(&xdrs);
-    
+    if (alignment == 0x53535353)
+    {
+      /*
+      ** case of the shared memory
+      */
+      uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(shared_buf_ref);;
+      received_len = p32[1];
+      position = 0;
+      payload = (uint8_t*)&p32[2];
+    }
+    else
+    { 
+      /*
+      ** case without shared memory
+      */
+      position = XDR_GETPOS(&xdrs);
+    }
     /*
     ** check the length: caution, the received length can
     ** be zero by it might be possible that the information 
@@ -653,7 +707,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
     /*
     ** re-evalute the EOF case
     */
-    if (received_len <= 0)
+    if (received_len == 0)
     {
       /*
       ** end of filenext_read_pos

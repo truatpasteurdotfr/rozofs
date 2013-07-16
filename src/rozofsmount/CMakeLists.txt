@@ -45,6 +45,8 @@ add_executable(rozofsmount
     rozofs_read.c
     rozofs_write.c
     rozofs_readdir.c
+    rozofs_sharedmem.c
+    rozofs_sharedmem.h
     rozofs_reload_export_gateway_conf.c
     rozofs_reload_export_gateway_conf.h
     rozofs_export_gateway_conf_non_blocking.h

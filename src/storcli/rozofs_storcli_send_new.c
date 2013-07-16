@@ -262,6 +262,7 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
    int len;
    storcli_status_t status = STORCLI_SUCCESS;
    int data_len;
+   uint32_t alignment;
    uint8_t eof_flag = 0;
    
     /*
@@ -286,29 +287,57 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
                                                               p->effective_number_of_blocks,
                                                               &eof_flag);
     STORCLI_STOP_NORTH_PROF(p,read,data_len);
-    /*
-    ** skip the alignment
-    */
+
     int position;
     position = xdr_getpos(&xdrs);
-    position += sizeof(uint32_t);
-    xdr_setpos(&xdrs,position); 
-   
-    XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
     /*
-    ** round up data_len to 4 bytes alignment
+    ** check the case of the shared memory
     */
-    if ((data_len%4)!= 0) data_len = (data_len &(~0x3))+4;
-       
-    /*
-    ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
-    ** the ruc buffer to take care of the header length of the rpc message.
-    */
-    int total_len = xdr_getpos(&xdrs)+data_len ;
-    *header_len_p = htonl(0x80000000 | total_len);
-    total_len +=sizeof(uint32_t);
+    if (p->shared_mem_p != NULL)
+    {
+       uint32_t *sharedmem_p = (uint32_t*)p->shared_mem_p;
+       sharedmem_p[1] = data_len;
 
-    ruc_buf_setPayloadLen(p->xmitBuf,total_len);
+       alignment = 0x53535353;
+       data_len   = 0;
+       XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+       XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
+       /*
+       ** insert the length in the shared memory
+       */
+       /*
+       ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
+       ** the ruc buffer to take care of the header length of the rpc message.
+       */
+       int total_len = xdr_getpos(&xdrs) ;
+       *header_len_p = htonl(0x80000000 | total_len);
+       total_len +=sizeof(uint32_t);
+
+       ruc_buf_setPayloadLen(p->xmitBuf,total_len);    
+    }
+    else
+    {
+      /*
+      ** skip the alignment
+      */
+      alignment = 0;
+      XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+      XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
+      /*
+      ** round up data_len to 4 bytes alignment
+      */
+      if ((data_len%4)!= 0) data_len = (data_len &(~0x3))+4;
+
+      /*
+      ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
+      ** the ruc buffer to take care of the header length of the rpc message.
+      */
+      int total_len = xdr_getpos(&xdrs)+data_len ;
+      *header_len_p = htonl(0x80000000 | total_len);
+      total_len +=sizeof(uint32_t);
+
+      ruc_buf_setPayloadLen(p->xmitBuf,total_len);
+    }
     /*
     ** Clear the reference of the seqnum to prevent any late response to be processed
     ** by setting seqnum to 0 any late response is ignored and the associated ressources

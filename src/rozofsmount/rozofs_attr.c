@@ -299,7 +299,7 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
     if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
     stbuf.st_size = ie->size;
     
-    fuse_reply_attr(req, &stbuf, attr_cache_timeo);
+    fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
     goto out;
 error:
     fuse_reply_err(req, errno);
@@ -584,7 +584,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     if (ie->size < o_stbuf.st_size) ie->size = o_stbuf.st_size;
     o_stbuf.st_size = ie->size;
 
-    fuse_reply_attr(req, &o_stbuf, attr_cache_timeo);
+    fuse_reply_attr(req, &o_stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
 
     goto out;
 error:

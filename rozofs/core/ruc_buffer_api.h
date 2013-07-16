@@ -270,6 +270,33 @@ static inline uint32_t ruc_buf_isPoolEmpty(void * poolRef)
 }
 
 
+// 64BITS uint32_t ruc_buf_isPoolEmpty(uint32_t poolRef)
+/**
+*  that service returns the pointer to the beginning of the user data array 
+
+  @param poolRef : pointer to the pool 
+  
+  @retval NULL if it is not a pool
+  @retval <>NULL : pointer to the first byte of the user data array
+*/
+static inline void *ruc_buf_get_pool_base_data(void * poolRef)
+{
+  ruc_buf_t *p;
+
+  p = (ruc_buf_t*)poolRef;
+
+  if (p->type != BUF_POOL_HEAD)
+  {
+    /*
+    **  not a buffer pool reference
+    */
+    RUC_WARNING(p->type);
+    return NULL;
+  }
+  return p->ptr;
+}
+
+
 // 64BITS uint32_t ruc_buf_getBuffer(uint32_t poolRef)
 static inline void * ruc_buf_getBuffer(void * poolRef)
 {
@@ -386,6 +413,7 @@ static inline uint32_t ruc_buf_freeBuffer(void * bufRef)
      (*pelem->callBackFct)(pelem->callBackParam);
   }
 
+//  ruc_objInsertTail((ruc_obj_desc_t*)phead,(ruc_obj_desc_t*)pelem);
   ruc_objInsert((ruc_obj_desc_t*)phead,(ruc_obj_desc_t*)pelem);
 
   /*

@@ -61,6 +61,13 @@ int rozofs_storcli_non_blocking_init(uint16_t dbg_port, uint16_t rozofsmount_ins
 
 DEFINE_PROFILING(stcpp_profiler_t) = {0};
 
+
+/*
+** reference of the shared memory opened by rozofsmount
+*/
+storcli_shared_t storcli_rozofsmount_shared_mem;
+
+
 /**
  * data structure used to store the configuration parameter of a storcli process
  */
@@ -74,6 +81,7 @@ typedef struct storcli_conf {
     unsigned max_retry;
     unsigned dbg_port;
     unsigned rozofsmount_instance;
+    key_t sharedmem_key;
 } storcli_conf;
 
 /*
@@ -361,6 +369,28 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
    }
    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);      
 }      
+
+/*__________________________________________________________________________
+*/
+/**
+* display the configuration of the shared memory provided by rozofsmount
+*/
+void storcli_shared_mem(char * argv[], uint32_t tcpRef, void *bufRef)
+{
+    char *pChar = localBuf;
+
+    pChar += sprintf(pChar, " active |     key   |  size   | cnt  |    address     |\n");
+    pChar += sprintf(pChar, "--------+-----------+---------+------+----------------+\n");
+
+      pChar +=sprintf(pChar," %4s | %8.8d |  %6.6d | %4.4d | %p |\n",(storcli_rozofsmount_shared_mem.active==1)?"  YES ":"  NO  ",
+                      storcli_rozofsmount_shared_mem.key,
+                      storcli_rozofsmount_shared_mem.buf_sz,
+                      storcli_rozofsmount_shared_mem.buf_count,
+                      storcli_rozofsmount_shared_mem.data_p);
+                      
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+
+}
 
 /*__________________________________________________________________________
  */
@@ -737,6 +767,16 @@ int main(int argc, char *argv[]) {
     */
     rozofs_tmr_init_configuration();
     
+    /*
+    ** init of the shared memory reference
+    */
+    storcli_rozofsmount_shared_mem.key = 0;
+    storcli_rozofsmount_shared_mem.error = errno;
+    storcli_rozofsmount_shared_mem.buf_sz = 0; 
+    storcli_rozofsmount_shared_mem.buf_count = 0; 
+    storcli_rozofsmount_shared_mem.active = 0; 
+    storcli_rozofsmount_shared_mem.data_p = NULL; 
+        
     storcli_process_filename[0] = 0;
 
 
@@ -762,11 +802,12 @@ int main(int argc, char *argv[]) {
     conf.max_retry = 3;
     conf.dbg_port = 0;
     conf.rozofsmount_instance = 0;
+    conf.sharedmem_key = 0;
 
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:k:c:l:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -819,6 +860,7 @@ int main(int argc, char *argv[]) {
                 }
                 conf.rozofsmount_instance = val;
                 break;
+
             case 's':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
@@ -828,6 +870,36 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 rozofs_tmr_configure(TMR_STORAGE_PROGRAM,val);
+                break;
+            case 'k':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                storcli_rozofsmount_shared_mem.key = (key_t) val;
+                break;
+            case 'c':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                storcli_rozofsmount_shared_mem.buf_count = (key_t) val;
+                break;
+            case 'l':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                storcli_rozofsmount_shared_mem.buf_sz = (key_t) val;
                 break;
             case '?':
                 usage();
@@ -865,6 +937,44 @@ int main(int argc, char *argv[]) {
     storcli_lbg_cnx_sup_init();
 
     gprofiler.uptime = time(0);
+    
+    /*
+    ** check if the rozofsmount has provided a shared memory
+    */
+    if (storcli_rozofsmount_shared_mem.key != 0)
+    {
+      if ((storcli_rozofsmount_shared_mem.buf_count != 0)&& (storcli_rozofsmount_shared_mem.buf_sz != 0))
+      {
+         /*
+         ** init of the shared memory
+         */
+         while(1)
+         {
+           int shmid;
+           if ((shmid = shmget(storcli_rozofsmount_shared_mem.key, 
+                              storcli_rozofsmount_shared_mem.buf_count*storcli_rozofsmount_shared_mem.buf_sz, 
+                              0666)) < 0) 
+           {
+             severe("error on shmget %d : %s",storcli_rozofsmount_shared_mem.key,strerror(errno));
+             storcli_rozofsmount_shared_mem.error = errno;
+             storcli_rozofsmount_shared_mem.active = 0;
+             break;
+           }
+           /*
+           * Now we attach the segment to our data space.
+           */
+           if ((storcli_rozofsmount_shared_mem.data_p = shmat(shmid, NULL, 0)) == (char *) -1)
+           {
+             severe("error on shmat %d : %s",storcli_rozofsmount_shared_mem.key,strerror(errno));
+             storcli_rozofsmount_shared_mem.error = errno;
+             storcli_rozofsmount_shared_mem.active = 0;
+             break;        
+           }
+           storcli_rozofsmount_shared_mem.active = 1;
+           break;
+         }
+      }
+    }
 
     /*
     ** clear KPI counters
@@ -917,6 +1027,10 @@ int main(int argc, char *argv[]) {
     ** Declare the debug entry to get the currrent configuration of the storcli
     */
     uma_dbg_addTopic("storaged_status", show_storage_configuration);
+    /*
+    ** shared memory with rozofsmount
+    */
+    uma_dbg_addTopic("shared_mem", storcli_shared_mem);
     /*
      ** Init of the north interface (read/write request processing)
      */

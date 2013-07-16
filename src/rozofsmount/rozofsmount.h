@@ -75,13 +75,18 @@ typedef struct rozofsmnt_conf {
     unsigned export_timeout;
     unsigned storcli_timeout;
     unsigned storage_timeout;
+    unsigned fs_mode; /**< rozofs mode: 0-> file system/ 1-> block mode */
+    unsigned cache_mode;  /**< 0: no option, 1: direct_read, 2: keep_cache */
+    unsigned attr_timeout;
+    unsigned entry_timeout;
 } rozofsmnt_conf_t;
 
 
 extern double direntry_cache_timeo ;
 extern double entry_cache_timeo ;
 extern double attr_cache_timeo ;
-
+extern int rozofs_cache_mode;
+extern int rozofs_mode;
 
 
 

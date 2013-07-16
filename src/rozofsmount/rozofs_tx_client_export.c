@@ -41,6 +41,7 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/rpc/mclient.h>
+#include <rozofs/rpc/storcli_proto.h>
 
 //#include <rozofs/common/rozofs_stats.h>
 //#include "rozofsmount.h"
@@ -787,6 +788,24 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
     ** allocate a xid for the transaction 
     */
 	call_msg.rm_xid             = rozofs_tx_alloc_xid(rozofs_tx_ctx_p); 
+    /*
+    ** check the case of the READ since, we must set the value of the xid
+    ** at the top of the buffer
+    */
+#if 1
+    if (opcode == STORCLI_READ)
+    {
+       uint32_t *xid_p;
+       void *shared_buf_ref;
+
+        RESTORE_FUSE_PARAM(fuse_ctx_p,shared_buf_ref);
+        if (shared_buf_ref != NULL)
+        {
+           xid_p = (uint32_t*)ruc_buf_getPayload(shared_buf_ref);
+          *xid_p = (uint32_t)call_msg.rm_xid;
+        }
+    }
+#endif
 	call_msg.rm_call.cb_rpcvers = RPC_MSG_VERSION;
 	/* XXX: prog and vers have been long historically :-( */
 	call_msg.rm_call.cb_prog = (uint32_t)prog;

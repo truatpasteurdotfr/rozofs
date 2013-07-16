@@ -227,11 +227,13 @@ typedef struct _rozofs_storcli_ctx_t
   char      *data_read_p;              /**< pointer to the payload of the read data buffer-> output buffer */
   storcli_read_arg_t  storcli_read_arg;           /**< parameter of the read request received from the client (north)         */
 
+  void       *shared_mem_p;  /**< pointer to the shared memory used for reading */
   uint8_t storage_idx_tb[ROZOFS_SAFE_MAX];
 
   /*
   ** working variables for write
   */
+  uint32_t                          empty_wr_block_bitmap; /**< bitmap of the empty blocks                          */
   uint64_t                          timestamp2;
   uint64_t                          timestamp;
 //  void                              *write_rq_p;          /**< pointer to the payload of the write request       */
@@ -244,7 +246,8 @@ typedef struct _rozofs_storcli_ctx_t
   uint32_t                          wr_nb_blocks;     /**< number of blocks to write                      */
   dist_t                            wr_distribution;  /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
-  ruc_obj_desc_t                      timer_list;       /**< To chain this context on a guard timer */
+  ruc_obj_desc_t                      timer_list;    /**< timer linked list used as a guard timer upon received first projection */
+
 } rozofs_storcli_ctx_t;
 
 /*
@@ -258,6 +261,25 @@ typedef struct _storcli_kpi_t
    uint64_t  bytes_count;  /**< cumulated bytes count */
 } storcli_kpi_t;
 
+
+
+/**
+* structure for shared memory management
+*/
+typedef struct _storcli_shared_t
+{
+   int active;           /**< assert to 1 if the shared memory is in used */
+   key_t key;            /**< key of the shared memory pool */
+   uint32_t buf_sz;      /**< size of a buffer              */
+   uint32_t buf_count;   /**< number of buffer              */
+   void *data_p;         /**< pointer to the beginning of the shared memory     */
+   int   error;         /**< errno      */
+} storcli_shared_t; 
+
+/*
+** reference of the shared memory opened by rozofsmount
+*/
+extern storcli_shared_t storcli_rozofsmount_shared_mem;
 /**
 * Macro associated with KPI
 *  @param buffer : kpi buffer

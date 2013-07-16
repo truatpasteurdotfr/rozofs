@@ -322,6 +322,30 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
       pbuf +=position;      
       working_ctx_p->data_read_p        = pbuf;
    }
+   /**
+   *  check the presence of the shared memory buffer
+   *  the storcli detects that the rozofsmount has provided a shared memory when
+   *  the "spare" field contains a 'S'. However the storcli might decide to ignore it
+   *   if it fails to setup the shared memory
+   */
+   if (storcli_read_rq_p->spare =='S')
+   {
+     /*
+     ** check the presence of the shared memory on storcli
+     */
+     if (storcli_rozofsmount_shared_mem.active == 1)
+     {
+       /*
+       ** set data_read_p to point to the array where data will be returned
+       */
+       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem.data_p;
+       uint32_t buf_offset = storcli_read_rq_p->proj_id*storcli_rozofsmount_shared_mem.buf_sz;
+       uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
+       pbuffer[1] = 0; /** bin_len */
+       working_ctx_p->data_read_p  = (char*)&pbuffer[2];
+       working_ctx_p->shared_mem_p = pbuffer;           
+     }   
+   }
    /*
    ** Allocate a sequence for the context. The goal of the seqnum is to detect late
    ** rpc response. In fact when the system trigger parallel RPC requests, all the rpc requests
@@ -1237,6 +1261,21 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     ** That's fine, all the projections have been received start rebuild the initial message
     */
     STORCLI_START_KPI(storcli_kpi_transform_inverse);
+    /*
+    ** for the case of the shared memory, we must check if the rozofsmount has not aborted the request
+    */
+    if (working_ctx_p->shared_mem_p != NULL)
+    {
+      uint32_t *xid_p = (uint32_t*)working_ctx_p->shared_mem_p;
+      if (*xid_p !=  working_ctx_p->src_transaction_id)
+      {
+        /*
+        ** the source has aborted the request
+        */
+        error = EPROTO;
+        goto io_error;
+      }    
+    }    
     
     ret = rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
                                      layout,

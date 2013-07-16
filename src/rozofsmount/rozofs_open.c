@@ -311,7 +311,13 @@ void rozofs_ll_open_cbk(void *this,void *param)
     ** init of the variable used for buffer management
     */
     rozofs_file_working_var_init(file);
-
+    if (rozofs_cache_mode == 1)
+       fi->direct_io = 1;
+    else
+    {
+      if (rozofs_cache_mode == 2)
+        fi->keep_cache = 1;
+    }
     fi->fh = (unsigned long) file;
     fuse_reply_open(req, fi);
     goto out;

@@ -514,6 +514,32 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   pChar +=  sprintf(pChar,"FUSE %8s - %d/%d ctx remaining\n",
                status, buffer_count, rozofs_fuse_ctx_p->initBufCount);
+  /*
+  ** display the cache mode
+  */
+  pChar +=  sprintf(pChar,"FS Mode    : "); 
+  if (rozofs_mode== 0)
+  {
+    pChar +=  sprintf(pChar,"standard\n");    
+  }
+  else
+  {
+    pChar +=  sprintf(pChar,"Block\n");      
+  }     
+  pChar +=  sprintf(pChar,"cache Mode : ");      
+    switch (rozofs_cache_mode)
+  {
+    default:
+    case 0:
+     pChar +=  sprintf(pChar,"default\n");  
+     break;    
+   case 1:
+     pChar +=  sprintf(pChar,"direct_io\n");  
+     break;    
+   case 2:
+     pChar +=  sprintf(pChar,"keep_cache\n");  
+     break;    
+  }
   int i;
   for (i = 0; i < RZ_FUSE_WRITE_MAX; i++)
   {

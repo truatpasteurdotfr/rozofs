@@ -107,6 +107,7 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   fuse_save_ctx_p->newname = NULL;
   fuse_save_ctx_p->name    = NULL;
   fuse_save_ctx_p->fi      = NULL;
+  fuse_save_ctx_p->shared_buf_ref  = NULL;
   /*
   ** init of the routing context
   */
@@ -146,7 +147,16 @@ static inline void _rozofs_fuse_release_saved_context(void *buffer_p,int line)
   if (fuse_save_ctx_p->newname != NULL) free(fuse_save_ctx_p->newname);
   if (fuse_save_ctx_p->name != NULL) free((void*)fuse_save_ctx_p->name);
   if (fuse_save_ctx_p->fi!= NULL) free(fuse_save_ctx_p->fi);
-  
+  if (fuse_save_ctx_p->shared_buf_ref!= NULL) 
+  {
+    uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(fuse_save_ctx_p->shared_buf_ref);    
+    /*
+    ** clear the timestamp
+    */
+    *p32 = 0;
+    ruc_buf_freeBuffer(fuse_save_ctx_p->shared_buf_ref);
+  }
+
   /*
   ** check if there is an xmit buffer to release since it might be the case
   ** when there were 2 available load balancing groups

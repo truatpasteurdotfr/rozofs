@@ -125,7 +125,8 @@ int rozofs_tmr_set_to_default(int timer_id);
 
   @param timer_id: reference of the timer
 */
-static inline uint32_t ROZOFS_TMR_GET(int timer_id)
+#define ROZOFS_TMR_GET rozofs_tmr_get
+static inline uint32_t rozofs_tmr_get(int timer_id)
 {
   return rozofs_timer_conf[timer_id].cur_val;
 }

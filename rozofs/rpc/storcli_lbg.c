@@ -61,6 +61,11 @@ int storcli_lbg_get_lbg_from_fid(fid_t fid)
   return storcli_lbg_get_load_balancing_reference(idx);
 }
 
+int storcli_get_storcli_idx_from_fid(fid_t fid)
+{
+  int idx = fid[0] & (STORCLI_PER_FSMOUNT - 1);
+  return idx;
+}
  /**
  *  socket configuration for the family
  */

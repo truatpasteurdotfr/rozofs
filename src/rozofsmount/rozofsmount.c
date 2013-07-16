@@ -50,6 +50,8 @@
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
+#include "rozofs_sharedmem.h"
+
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -75,6 +77,20 @@ char localBuf[8192];
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
+void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = localBuf;
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}      
 /*
  *________________________________________________________
  */
@@ -89,17 +105,17 @@ void rozofs_exit() {
     if (semForEver != NULL) {
         sem_post(semForEver);
         for (;;) {
-            severe("RozofsMount exit required!!");
+            severe("rozofsmount exit required.");
             sleep(10);
         }
-        fatal("semForEver is not initialized !!");
+        fatal("semForEver is not initialized.");
     }
 }
 
 extern void rozofsmount_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 static void usage(const char *progname) {
-    fprintf(stderr, "Rozofs fuse mounter - %s\n", VERSION);
+    fprintf(stderr, "RozoFS fuse mounter - %s\n", VERSION);
     fprintf(stderr, "Usage: %s mountpoint [options]\n", progname);
     fprintf(stderr, "general options:\n");
     fprintf(stderr, "\t-o opt,[opt...]\tmount options\n");
@@ -115,15 +131,18 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
     fprintf(stderr, "\t-o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
     fprintf(stderr, "\t-o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 10)\n");
-    fprintf(stderr, "\t-o debug_port=N\tdefine the base debug port for Rozofsmount (default:none)\n");
-    fprintf(stderr, "\t-o instance=N\tinstance number (default:0)\n");
+    fprintf(stderr, "\t-o rozofsattrtimeout=N\tdefine timeout (s) for which file/directory attributes are cached (default: 10)\n");
+    fprintf(stderr, "\t-o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
+    fprintf(stderr, "\t-o debug_port=N\tdefine the base debug port for rozofsmount (default: none)\n");
+    fprintf(stderr, "\t-o instance=N\tinstance number (default: 0)\n");
+    fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode:0->no cache, 1: direct-io, 2: keep_cache (default :0)\n");
+    fprintf(stderr, "\t-o rozofmode=N\tdefine the operating mode:0->file system, 1: block mode(default :0)\n");
 }
 
 static rozofsmnt_conf_t conf;
 
-double direntry_cache_timeo = CACHE_TIMEOUT;
-double entry_cache_timeo = CACHE_TIMEOUT;
-double attr_cache_timeo = CACHE_TIMEOUT;
+int rozofs_cache_mode  = 0;  /**< 0: no option on open/create, 1: direct_io; 2: keep_cache */
+int rozofs_mode  = 0;  /**< 0:file system, 1: block mode */
 
 enum {
     KEY_EXPORT_HOST,
@@ -145,8 +164,12 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
     MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
     MYFS_OPT("rozofsstorclitimeout=%u", storcli_timeout, 0),
+    MYFS_OPT("rozofsattrtimeout=%u", attr_timeout, 0),
+    MYFS_OPT("rozofsentrytimeout=%u", entry_timeout, 0),
     MYFS_OPT("debug_port=%u", dbg_port, 0),
     MYFS_OPT("instance=%u", instance, 0),
+    MYFS_OPT("rozofscachemode=%u", cache_mode, 0),
+    MYFS_OPT("rozofsmode=%u", fs_mode, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -420,7 +443,35 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(ioctl);
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
+/*__________________________________________________________________________
+*/
+void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
 
+   int cache_mode;
+   
+   if (argv[1] ==NULL)
+   {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "missing parameter (%s cache_set <value>)\n",argv[0]);    
+    return;     
+   }
+   errno = 0;
+   cache_mode = (int) strtol(argv[1], (char **) NULL, 10);   
+   if (errno != 0) {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "bad cache value (%s cache_set <value>) %s\n",argv[0],strerror(errno));    
+    return;     
+   }
+   if (cache_mode > 2)
+   {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "invalid cache mode (max %d)\n",(2));    
+    return;           
+   }
+   rozofs_cache_mode = cache_mode;
+   uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
+}
+
+/*__________________________________________________________________________
+*/
 
 void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
 
@@ -440,7 +491,6 @@ void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
-
 
 typedef struct _xmalloc_stats_t {
     uint64_t count;
@@ -524,6 +574,7 @@ void rozofs_start_storcli(const char *mountpoint) {
     char cmd[1024];
 
     rozofs_kill_storcli(mountpoint);
+ 
 
     for (i = 1; i <= STORCLI_PER_FSMOUNT; i++) {
         char *cmd_p = &cmd[0];
@@ -536,6 +587,15 @@ void rozofs_start_storcli(const char *mountpoint) {
         cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
         cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
         cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+        /*
+        ** check if there is a share mem key
+        */
+        if (rozofs_storcli_shared_mem[i-1].key != 0)
+        {
+          cmd_p += sprintf(cmd_p, "-k %d ",rozofs_storcli_shared_mem[i-1].key);       
+          cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[i-1].buf_sz);       
+          cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[i-1].buf_count);       
+        }
         cmd_p += sprintf(cmd_p, "&");
         
         info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
@@ -547,9 +607,9 @@ void rozofs_start_storcli(const char *mountpoint) {
         system(cmd);
     }
 }
-
 int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     int i = 0;
+    int ret;
     int err;
     char *c;
     int piped[2];
@@ -566,9 +626,12 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
+
+
     struct timeval timeout_mproto;
-    timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
+    timeout_mproto.tv_sec = rozofs_tmr_get(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
+
 
     for (retry_count = 3; retry_count > 0; retry_count--) {
         /* Initiate the connection to the export and get informations
@@ -585,6 +648,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
         sleep(2);
     }
+
     if (retry_count == 0) {
 
         fprintf(stderr,
@@ -711,13 +775,16 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
+    uma_dbg_addTopic("uptime", show_uptime);
     uma_dbg_addTopic("exp_route", show_exp_routing_table);
     uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
+    uma_dbg_addTopic("cache_set", rozofs_set_cache);
+    uma_dbg_addTopic("shared_mem", rozofs_shared_mem_display);
 
     /*
     ** declare timer debug functions
     */
-    rozofs_timer_conf_dbg_init();    
+    rozofs_timer_conf_dbg_init();
     /*
     ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
     */
@@ -741,12 +808,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("can't create debug thread: %s", strerror(errno));
         return err;
     }
-#if 0 // not needed when export gateways are out of the system
-    /*
-    ** start the thread that supervise any change of configuration on the exportd
-    */
-    rozofs_start_exportd_config_supervision_thread(&exportclt);
-#endif
+
     /*
      * Start profiling server
      */
@@ -801,7 +863,25 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         write(ppfd, str, strlen(str));
         close(ppfd);
     }
-
+    /*
+    ** create the shared memory used by the storcli's
+    */
+    for (i = 0; i < STORCLI_PER_FSMOUNT; i++) {
+       /*
+       ** the size of the buffer is retrieved from the configuration. 1K is added for the management part of
+       ** the RPC protocol. The key_instance of the shared memory is the concatenantion of the rozofsmount instance and
+       ** storcli instance: (rozofsmount<<1 | storcli_instance) (assuming of max of 2 storclis per rozofsmount)
+       */
+       int key_instance = conf.instance<<STORCLI_PER_FSMOUNT_POWER2 | i;
+       ret = rozofs_create_shared_memory(key_instance,i,rozofs_fuse_conf.max_transactions,(conf.buf_size*1024)+1024);
+       if (ret < 0)
+       {
+         severe("Cannot create the shared memory for storcli %d\n",i);
+       }
+    }   
+    /*
+    ** start the storcli processes
+    */ 
     rozofs_start_storcli(mountpoint);
 
     for (;;) {
@@ -835,7 +915,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     return err ? 1 : 0;
 }
 
-
 void rozofs_allocate_flush_buf(int size_kB);
 
 int main(int argc, char *argv[]) {
@@ -846,12 +925,18 @@ int main(int argc, char *argv[]) {
 
     memset(&conf, 0, sizeof (conf));
     /*
+    ** init of the shared memory data structure
+    */
+    rozofs_init_shared_memory();
+    /*
     ** init of the timer configuration
     */
     rozofs_tmr_init_configuration();
-    
+
     conf.max_retry = 50;
     conf.buf_size = 0;
+    conf.attr_timeout = 10;
+    conf.entry_timeout = 10;
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
@@ -894,8 +979,6 @@ int main(int argc, char *argv[]) {
     ** allocate the common flush buffer
     */
     rozofs_allocate_flush_buf(conf.buf_size);
-    
-
 
     // Set timeout for exportd requests
     if (conf.export_timeout != 0) {
@@ -921,6 +1004,36 @@ int main(int argc, char *argv[]) {
                 "timeout for storcli requests is out of range: revert to default setting");
         }
     }
+    if (conf.cache_mode > 2) {
+
+          fprintf(stderr,
+                "cache mode out of range : revert to default setting");
+    }
+
+    if (conf.fs_mode > 1) {
+
+          fprintf(stderr,
+                "rozofs mode out of range : revert to default setting");
+          conf.fs_mode = 0;
+    }
+    
+    if (conf.attr_timeout != 10) {
+        if (rozofs_tmr_configure(TMR_FUSE_ATTR_CACHE,conf.attr_timeout) < 0)
+        {
+          fprintf(stderr,
+                "timeout for which file/directory attributes are cached is out"
+                  " of range: revert to default setting");
+        }
+    }
+    
+    if (conf.entry_timeout != 10) {
+        if (rozofs_tmr_configure(TMR_FUSE_ENTRY_CACHE,conf.entry_timeout) < 0)
+        {
+          fprintf(stderr,
+                "timeout for which name lookups will be cached is out of range:"
+                  " revert to default setting");
+        }
+    }
 
     if (fuse_version() < 28) {
         if (fuse_opt_add_arg(&args, "-o" FUSE27_DEFAULT_OPTIONS) == -1) {
@@ -942,6 +1055,31 @@ int main(int argc, char *argv[]) {
     if (!mountpoint) {
         fprintf(stderr, "no mount point\nsee: %s -h for help\n", argv[0]);
         return 1;
+    }
+    /*
+    ** assert the cache mode
+    */
+    if (conf.fs_mode == 0)
+    {
+      if (conf.cache_mode >= 2) 
+      {
+        rozofs_cache_mode = 0;
+      }
+      else
+      {
+        rozofs_cache_mode = conf.cache_mode;    
+      }
+    }
+    else
+    {
+      if (conf.cache_mode > 2) 
+      {
+        rozofs_cache_mode = 0;
+      }
+      else
+      {
+        rozofs_cache_mode = conf.cache_mode;    
+      }        
     }
 
     res = fuseloop(&args, mountpoint, fg);
