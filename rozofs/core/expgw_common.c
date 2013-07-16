@@ -416,7 +416,7 @@ int expgw_clean_up_exportd_table_dirty(uint32_t exportd_id)
 /**
 *  Add an eid entry 
 
-  @param exportd_id : reference of the exportd that mangament the eid
+  @param exportd_id : reference of the exportd that manages the eid
   @param eid: eid within the exportd
   @param hostname: hostname of the exportd
   @param port:   port of the exportd

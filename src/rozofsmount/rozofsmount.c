@@ -741,12 +741,12 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("can't create debug thread: %s", strerror(errno));
         return err;
     }
-
+#if 0 // not needed when export gateways are out of the system
     /*
     ** start the thread that supervise any change of configuration on the exportd
     */
     rozofs_start_exportd_config_supervision_thread(&exportclt);
-
+#endif
     /*
      * Start profiling server
      */

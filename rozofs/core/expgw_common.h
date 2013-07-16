@@ -627,7 +627,7 @@ static inline char *expgw_display_all_eid(char *buffer)
       nb_gateways = q->nb_gateways;
       
       buffer += sprintf(buffer,"eid %4.4d  exportd %d\n",p->eid,p->exportd_id);
-      if (nb_gateways == 0) continue;
+//      if (nb_gateways == 0) continue;
       for (j= 0; j < nb_gateways; j++)
       {
         buffer += sprintf(buffer," rank %3d : %8llu ",j,(long long unsigned int)p->gateway_send_counters[j]);              
@@ -697,6 +697,8 @@ static inline char *expgw_display_all_eid(char *buffer)
          if (north_lbg_get_state(lbg_id) != NORTH_LBG_UP)
          buffer += sprintf(buffer," lbg_id ??? state DOWN ");     
       }
+      buffer += sprintf(buffer,"\n");     
+      
    }
 
    return buffer;

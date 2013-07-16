@@ -386,7 +386,7 @@ static inline uint32_t ruc_buf_freeBuffer(void * bufRef)
      (*pelem->callBackFct)(pelem->callBackParam);
   }
 
-  ruc_objInsertTail((ruc_obj_desc_t*)phead,(ruc_obj_desc_t*)pelem);
+  ruc_objInsert((ruc_obj_desc_t*)phead,(ruc_obj_desc_t*)pelem);
 
   /*
   **update the current number of buffer in the buffer pool

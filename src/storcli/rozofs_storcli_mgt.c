@@ -567,7 +567,7 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
    }  
    ctx_p->free = TRUE;
    ctx_p->read_seqnum = 0;
-   ruc_objInsertTail((ruc_obj_desc_t*)rozofs_storcli_ctx_freeListHead,
+   ruc_objInsert((ruc_obj_desc_t*)rozofs_storcli_ctx_freeListHead,
                      (ruc_obj_desc_t*) ctx_p);
                      
    /*

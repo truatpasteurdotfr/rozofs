@@ -332,7 +332,7 @@ void rozorpc_srv_release_context(rozorpc_srv_ctx_t *ctx_p)
    */
    STOP_PROFILING_ROZORPC_SRV(ctx_p);
    
-   ruc_objInsertTail((ruc_obj_desc_t*)rozorpc_srv_ctx_freeListHead,
+   ruc_objInsert((ruc_obj_desc_t*)rozorpc_srv_ctx_freeListHead,
                      (ruc_obj_desc_t*) ctx_p);
                      
 }
