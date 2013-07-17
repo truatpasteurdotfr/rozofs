@@ -24,9 +24,9 @@
 
 
 /*
-** Max length of the USer ayload when answering to a debug command
+** Max length of the user payload when answering to a debug command
 */
-#define UMA_DBG_MAX_SEND_SIZE (8192*2)
+#define UMA_DBG_MAX_SEND_SIZE (1024*32)
 
 
 /*
