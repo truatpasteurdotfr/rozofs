@@ -135,14 +135,14 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
     fprintf(stderr, "\t-o debug_port=N\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "\t-o instance=N\tinstance number (default: 0)\n");
-    fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode:0->no cache, 1: direct-io, 2: keep_cache (default :0)\n");
-    fprintf(stderr, "\t-o rozofmode=N\tdefine the operating mode:0->file system, 1: block mode(default :0)\n");
+    fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
+    fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
 }
 
 static rozofsmnt_conf_t conf;
 
 int rozofs_cache_mode  = 0;  /**< 0: no option on open/create, 1: direct_io; 2: keep_cache */
-int rozofs_mode  = 0;  /**< 0:file system, 1: block mode */
+int rozofs_mode  = 0;  /**< 0: filesystem, 1: block mode */
 
 enum {
     KEY_EXPORT_HOST,
@@ -1007,13 +1007,13 @@ int main(int argc, char *argv[]) {
     if (conf.cache_mode > 2) {
 
           fprintf(stderr,
-                "cache mode out of range : revert to default setting");
+                "cache mode out of range: revert to default setting");
     }
 
     if (conf.fs_mode > 1) {
 
           fprintf(stderr,
-                "rozofs mode out of range : revert to default setting");
+                "rozofs mode out of range: revert to default setting");
           conf.fs_mode = 0;
     }
     
