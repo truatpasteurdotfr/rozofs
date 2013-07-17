@@ -61,9 +61,9 @@ Start
 
 Stop
 ----
-    1) [sudo] killall exportd
-    2) [sudo] killall storaged
-    3) [sudo] umount <the_mount_dir>
+    1) [sudo] umount <the_mount_dir>
+    2) [sudo] killall exportd
+    3) [sudo] killall storaged
 
 BUGS
 ====
