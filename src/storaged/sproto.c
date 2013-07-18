@@ -71,6 +71,10 @@ out:
     return &ret;
 }
 
+// Optimisation for avoid malloc on read
+// XXX: TO DO put it on start
+uint64_t sp_bins_buffer[1024 * 64];
+
 sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
     uint16_t psize = 0;
@@ -81,7 +85,10 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
             * sizeof (bin_t));
 
-    xdr_free((xdrproc_t) xdr_sp_read_ret_t, (char *) &ret);
+    // Optimisation
+    /*
+        xdr_free((xdrproc_t) xdr_sp_read_ret_t, (char *) &ret);
+     */
 
     ret.status = SP_FAILURE;
 
@@ -93,11 +100,14 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
 
     psize = rozofs_get_max_psize(args->layout);
 
-    // Allocate memory
-    ret.sp_read_ret_t_u.rsp.bins.bins_val =
-            (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
-            sizeof (rozofs_stor_bins_hdr_t)));
-
+    // Optimisation
+    /*
+        ret.sp_read_ret_t_u.rsp.bins.bins_val =
+                (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
+                sizeof (rozofs_stor_bins_hdr_t)));
+     */
+    ret.sp_read_ret_t_u.rsp.bins.bins_val = (char *) sp_bins_buffer;
+    
     // Read projections
     if (storage_read(st, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj,
