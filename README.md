@@ -65,5 +65,6 @@ make uninstall
 1. ``[sudo] umount <_the_mount_dir_>``
 2. ``[sudo] killall exportd``
 3. ``[sudo] killall storaged``
+
 ##BUGS
 See https://github.com/rozofs/rozofs/issues.
