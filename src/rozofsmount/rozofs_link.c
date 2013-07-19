@@ -290,6 +290,10 @@ void rozofs_ll_link_cbk(void *this,void *param)
     mattr_to_stat(&attrs, &stbuf);
     stbuf.st_ino = ie->inode;
     /*
+    ** update the attributes in the ientry
+    */
+    memcpy(&ie->attrs,&attrs, sizeof (mattr_t));
+    /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
@@ -723,6 +727,10 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     fep.ino = nie->inode;
     mattr_to_stat(&attrs, &stbuf);
     stbuf.st_ino = nie->inode;
+    /*
+    ** update the attributes in the ientry
+    */
+    memcpy(&nie->attrs,&attrs, sizeof (mattr_t));
     /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry

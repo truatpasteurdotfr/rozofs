@@ -38,7 +38,7 @@ extern uint64_t rozofs_write_merge_stats_tab[];
 */
 #define ROZOFS_WRITE_STATS_ARRAY(size) \
 {\
-   rozofs_write_buf_section_table[size/ROZOFS_BSIZE]++;\
+   rozofs_write_buf_section_table[(size-1)/ROZOFS_PAGE_SZ]++;\
 }
 
 /**
@@ -47,7 +47,7 @@ extern uint64_t rozofs_write_merge_stats_tab[];
 */
 #define ROZOFS_READ_STATS_ARRAY(size) \
 {\
-   rozofs_read_buf_section_table[size/ROZOFS_BSIZE]++;\
+   rozofs_read_buf_section_table[(size-1)/ROZOFS_PAGE_SZ]++;\
 }
 
 /**

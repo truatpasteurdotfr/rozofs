@@ -105,6 +105,7 @@ typedef struct ientry {
     uint64_t size;   /**< size of the file */
     dirbuf_t db; ///< buffer used for directory listing
     unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
+    mattr_t attrs;   /**< attributes caching for fs_mode = block mode   */
     list_t list;
 } ientry_t;
 

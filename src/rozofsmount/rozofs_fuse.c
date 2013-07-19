@@ -565,13 +565,13 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   for (i = 0; i < 32; i++)
   {
      if (rozofs_read_buf_section_table[i]!= 0)
-       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_BSIZE,(long long unsigned int)rozofs_read_buf_section_table[i]);  
+       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_PAGE_SZ,(long long unsigned int)rozofs_read_buf_section_table[i]);  
   }
   pChar +=sprintf(pChar,"Per Write Array statitics:\n" );  
   for (i = 0; i < 32; i++)
   {
      if (rozofs_write_buf_section_table[i]!= 0)
-       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_BSIZE,(long long unsigned int)rozofs_write_buf_section_table[i]);  
+       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_PAGE_SZ,(long long unsigned int)rozofs_write_buf_section_table[i]);  
   }
   memset (rozofs_write_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);

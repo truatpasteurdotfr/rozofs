@@ -276,8 +276,12 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
     
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
         nie = alloc_ientry(attrs.fid);
-    }
-  
+    }  
+    /*
+    ** update the attributes in the ientry
+    */
+    memcpy(&nie->attrs,&attrs, sizeof (mattr_t));
+    
     memset(&fep, 0, sizeof (fep));
     mattr_to_stat(&attrs, &stbuf);
     stbuf.st_ino = nie->inode;

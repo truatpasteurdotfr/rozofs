@@ -89,6 +89,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     int    ret;        
     void *buffer_p = NULL;
     epgw_mfile_arg_t arg;
+    file_t *file = NULL;
 
     /*
     ** allocate a context for saving the fuse parameters
@@ -112,6 +113,43 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
         errno = ENOENT;
         goto error;
     }
+    /*
+    ** check if it is configured in block mode, in that case we avoid
+    ** a transaction with the exportd
+    */
+    if (rozofs_mode == 1)
+    {
+      /*
+      ** allocate a context for the file descriptor
+      */
+      file = xmalloc(sizeof (file_t));
+      memcpy(file->fid, ie->fid, sizeof (uuid_t));
+      /*
+      ** copy the attributes of the file
+      */
+      memcpy(&file->attrs,&ie->attrs, sizeof (mattr_t));
+
+      file->mode     = S_IRWXU;
+      file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
+      file->export   =  &exportclt;   
+      /*
+      ** init of the variable used for buffer management
+      */
+      rozofs_file_working_var_init(file);
+      if (rozofs_cache_mode == 1)
+         fi->direct_io = 1;
+      else
+      {
+        if (rozofs_cache_mode == 2)
+          fi->keep_cache = 1;
+      }
+      fi->fh = (unsigned long) file;
+      /*
+      ** send back response to fuse
+      */
+      fuse_reply_open(req, fi);
+      goto out; 
+    }    
     /*
     ** get the attributes of the file
     */
@@ -140,6 +178,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+out:
     STOP_PROFILING_NB(buffer_p,rozofs_ll_open);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
@@ -297,6 +336,11 @@ void rozofs_ll_open_cbk(void *this,void *param)
     ** copy the attributes of the file
     */
     memcpy(&file->attrs,&attr, sizeof (mattr_t));
+    /*
+    ** copy them also in the ientry
+    */
+    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    
     file->mode     = S_IRWXU;
 //    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));

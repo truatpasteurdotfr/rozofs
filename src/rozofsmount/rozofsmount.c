@@ -139,10 +139,11 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
 }
 
+
 static rozofsmnt_conf_t conf;
 
 int rozofs_cache_mode  = 0;  /**< 0: no option on open/create, 1: direct_io; 2: keep_cache */
-int rozofs_mode  = 0;  /**< 0: filesystem, 1: block mode */
+int rozofs_mode  = 0;  /**< 0:filesystem, 1: block mode */
 
 enum {
     KEY_EXPORT_HOST,
@@ -392,11 +393,67 @@ void rozofmount_profiling_thread_run(void *args) {
                     gprofiler.rozofs_ll_##probe[P_ELAPSE],\
                     gprofiler.rozofs_ll_##probe[P_BYTES]);
 
+
+#define RESET_PROFILER_PROBE(probe) \
+{ \
+         gprofiler.rozofs_ll_##probe[P_COUNT] = 0;\
+         gprofiler.rozofs_ll_##probe[P_ELAPSE] = 0; \
+}
+
+#define RESET_PROFILER_PROBE_BYTE(probe) \
+{ \
+   RESET_PROFILER_PROBE(probe);\
+   gprofiler.rozofs_ll_##probe[P_BYTES] = 0; \
+}
+
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = localBuf;
 
     time_t elapse;
     int days, hours, mins, secs;
+    int reset = 0;
+    
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) reset = 1;
+    }
+    if (reset)
+    {
+      RESET_PROFILER_PROBE(lookup);
+      RESET_PROFILER_PROBE(forget);
+      RESET_PROFILER_PROBE(getattr);
+      RESET_PROFILER_PROBE(setattr);
+      RESET_PROFILER_PROBE(readlink);
+      RESET_PROFILER_PROBE(mknod);
+      RESET_PROFILER_PROBE(mkdir);
+      RESET_PROFILER_PROBE(unlink);
+      RESET_PROFILER_PROBE(rmdir);
+      RESET_PROFILER_PROBE(symlink);
+      RESET_PROFILER_PROBE(rename);
+      RESET_PROFILER_PROBE(open);
+      RESET_PROFILER_PROBE(link);
+      RESET_PROFILER_PROBE_BYTE(read);
+      RESET_PROFILER_PROBE_BYTE(write);
+      RESET_PROFILER_PROBE(flush);
+      RESET_PROFILER_PROBE(release);
+      RESET_PROFILER_PROBE(opendir);
+      RESET_PROFILER_PROBE(readdir);
+      RESET_PROFILER_PROBE(releasedir);
+      RESET_PROFILER_PROBE(fsyncdir);
+      RESET_PROFILER_PROBE(statfs);
+      RESET_PROFILER_PROBE(setxattr);
+      RESET_PROFILER_PROBE(getxattr);
+      RESET_PROFILER_PROBE(listxattr);
+      RESET_PROFILER_PROBE(removexattr);
+      RESET_PROFILER_PROBE(access);
+      RESET_PROFILER_PROBE(create);
+      RESET_PROFILER_PROBE(getlk);
+      RESET_PROFILER_PROBE(setlk);
+      RESET_PROFILER_PROBE(ioctl);
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+      return;
+      
+    }
 
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);
@@ -470,6 +527,32 @@ void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef)
    uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
 }
 
+/*__________________________________________________________________________
+*/
+void rozofs_set_fsmode(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+
+   int fs_mode;
+   
+   if (argv[1] ==NULL)
+   {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "missing parameter (%s fsmode_set <value>)\n",argv[0]);    
+    return;     
+   }
+   errno = 0;
+   fs_mode = (int) strtol(argv[1], (char **) NULL, 10);   
+   if (errno != 0) {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "bad fs_mode value (%s fsmode_set <value>) %s\n",argv[0],strerror(errno));    
+    return;     
+   }
+   if (fs_mode > 1)
+   {
+    uma_dbg_send(tcpRef, bufRef, TRUE, "invalid fs mode (max %d)\n",(2));    
+    return;           
+   }
+   rozofs_mode = fs_mode;
+   uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
+}
 /*__________________________________________________________________________
 */
 
@@ -779,6 +862,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("exp_route", show_exp_routing_table);
     uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
     uma_dbg_addTopic("cache_set", rozofs_set_cache);
+    uma_dbg_addTopic("fsmode_set", rozofs_set_fsmode);
     uma_dbg_addTopic("shared_mem", rozofs_shared_mem_display);
 
     /*

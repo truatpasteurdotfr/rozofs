@@ -85,6 +85,7 @@ DECLARE_PROFILING(mpp_profiler_t);
     ientry_t *ie = 0;
     epgw_mfile_arg_t arg;
     int ret;
+    struct stat stbuf;
 
 
     DEBUG("getattr for inode: %lu\n", (unsigned long int) ino);
@@ -107,6 +108,17 @@ DECLARE_PROFILING(mpp_profiler_t);
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
         goto error;
+    }
+    /*
+    ** check the case of the block mode: in that case the attributes are
+    ** directly retrieved from the ie entry
+    */
+    if (rozofs_mode == 1)
+    {
+      mattr_to_stat(&ie->attrs, &stbuf);
+      stbuf.st_ino = ino;   
+      fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
+      goto out;   
     }
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -137,6 +149,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+out:
     STOP_PROFILING_NB(buffer_p,rozofs_ll_getattr);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
@@ -274,6 +287,7 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         goto error;
     }
     memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of the the decoding part
@@ -293,6 +307,10 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         goto error;
     }
     /*
+    ** copy the attributes in the ientry for the case of the block mode
+    */
+    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
@@ -311,6 +329,7 @@ out:
     
     return;
 }
+
 
 
 
@@ -577,6 +596,11 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
         errno = ENOENT;
         goto error;
     }
+    /*
+    ** update the attributes in the ientry
+    */
+    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    
     /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
