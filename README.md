@@ -59,12 +59,12 @@ make uninstall
 ``
 [sudo] storaged
 ``
-7. wherever you want: `` [sudo] rozofsmount -H <_the_host_running_exportd_> -E  <_the export_path_> -P <_passwd_> <_the_mount_dir_> ``
+7. wherever you want: `` [sudo] rozofsmount -H <the_host_running_exportd> -E  <the export_path> -P <passwd> <the_mount_dir> ``
 
 ###Stop
-1. ``[sudo] killall exportd``
-2. ``[sudo] killall storaged``
-3. ``[sudo] umount <_the_mount_dir_>``
+1. ``[sudo] umount <_the_mount_dir_>``
+2. ``[sudo] killall exportd``
+3. ``[sudo] killall storaged``
 
 ##BUGS
 See https://github.com/rozofs/rozofs/issues.

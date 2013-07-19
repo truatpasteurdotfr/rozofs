@@ -297,7 +297,12 @@ void rozofs_ll_link_cbk(void *this,void *param)
     stbuf.st_size = ie->size;
     
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
-    fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
+    /*
+    Don't keep entry in cache (just for pjdtest)
+    see: http://sourceforge.net/mailarchive/message.php?msg_id=28704462
+    */
+    //fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
+    fep.entry_timeout = 0;
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     ie->nlookup++;
     fuse_reply_entry(req, &fep);

@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZOFSMOUNT 8 "MAY 2013" Rozofs "User Manuals"
+.TH ROZOFSMOUNT 8 "JULY 2013" Rozofs "User Manuals"
 .SH NAME
 rozofsmount \- rozofs fuse mount
 .SH SYNOPSIS
@@ -47,7 +47,7 @@ Address (or dns name) where exportd deamon is running (default is rozofsexport).
 \fB\-E\fP \fIEXPORT_PATH\fP, \fB-o exportpath=\fP\fIEXPORT_PATH\fP
 Root path of an export see
 .BR exportd (8)
-for further details. (default is /home/rozofs).
+for further details. (default is /srv/rozofs/exports/export).
 .TP
 \fB\-E\fP \fIEXPORT_PASSWD\fP, \fB\-o exportpasswd=\fP\fIEXPORT_PASSWD\fP
 Address (or dns name) where exportd deamon is running (default is empty).
@@ -68,6 +68,24 @@ specify timeout in seconds for IO storaged requests (default: 3)
 .TP
 \fB\-o rozofsstorclitimeout=\fP\fIN\fP
 specify timeout in seconds for storcli requests (default: 10)
+.TP
+\fB\-o rozofsattrtimeout=\fP\fIN\fP
+specify timeout in seconds for which file/directory attributes are cached (default: 10)
+.TP
+\fB\-o rozofsentrytimeout=\fP\fIN\fP
+specify timeout in seconds for which name lookups will be cached (default: 10)
+.TP
+\fB\-o debug_port=\fP\fIN\fP
+specify the base debug port for rozofsmount (default: none)
+.TP
+\fB\-o instance=\fP\fIN\fP
+specify rozofsmount instance number (default: 0)
+.TP
+\fB\-o rozofscachemode=\fP\fIN\fP
+specify the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)
+.TP
+\fB\-o rozofsmode=\fP\fIN\fP
+specify the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.

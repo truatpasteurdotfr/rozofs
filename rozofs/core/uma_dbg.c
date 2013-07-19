@@ -30,6 +30,7 @@
 #include <time.h>
  
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -255,8 +256,7 @@ void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ...
 
   if (len > (UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S)))
   {
-     ERRLOG "debug response exceeds buffer length %u/%u",len,(int)((UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S))) ENDERRLOG;
-     ERRLOG "receive cmd: %s",rcvCmdBuffer ENDERRLOG;
+    severe("debug response exceeds buffer length %u/%u",len,(int)((UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S))));
   }
 
   pHead->len = htonl(len);

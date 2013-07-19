@@ -45,7 +45,7 @@
 
 #define DEFAULT_TIMEOUT 4
 
-#define         MX_BUF (2048*8)
+#define         MX_BUF (32*1024)
 typedef struct  msg_s {
    UMA_MSGHEADER_S header;
    char            buffer[MX_BUF];
