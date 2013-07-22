@@ -51,9 +51,13 @@ add_executable(rozofsmount
     rozofs_reload_export_gateway_conf.h
     rozofs_export_gateway_conf_non_blocking.h
     rozofs_export_gateway_conf_non_blocking.c
+    rozofs_modeblock_cache.c
+    rozofs_modeblock_cache.h    
+    rozofs_cache.h    
+    rozofs_cache.c    
 )
 #pthread need by fuse
-target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${CRYPT_LIBRARY})
+target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY}  ${UUID_LIBRARY} ${CRYPT_LIBRARY})
 
 
 

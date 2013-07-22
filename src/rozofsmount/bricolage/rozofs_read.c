@@ -60,8 +60,6 @@
 #include "rozofs_fuse_api.h"
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
-#include "rozofs_modeblock_cache.h"
-#include "rozofs_cache.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -106,7 +104,11 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
 
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
-   nb_prj = len / ROZOFS_BSIZE;
+//   nb_prj = len / ROZOFS_BSIZE;
+   nb_prj = (len-1) / ROZOFS_BSIZE;
+   nb_prj +=1;
+   if (nb_prj < 4) nb_prj = 32;
+//   info("FDL read_buf_nb %llu off %d len %d nb_proj\n",off,len,nb_prj);
    if (nb_prj > 32)
    {
      severe("bad nb_prj %d bid %llu off %llu len %u",nb_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
@@ -156,8 +158,6 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
        }
     }
 #endif
-    rozofs_fuse_read_write_stats_buf.read_req_cpt++;
-
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -258,51 +258,19 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
           return 1;      
        }
        /*
-       ** check if the expected data are in the cache
-       ** need to round up the offset to a 8K boundary
-       ** adjust the length to 8K
+       ** check if partial read is possible
        */
-       uint64_t off_aligned = (off/ROZOFS_CACHE_BSIZE)*ROZOFS_CACHE_BSIZE;
-       int len_aligned = ((len/ROZOFS_CACHE_BSIZE)+1)*ROZOFS_CACHE_BSIZE;
-       if (len_aligned  < 2*ROZOFS_CACHE_BSIZE) 
+       if (off < f->read_pos)
        {
-          /*
-          ** min length is 16K
-          */
-           len_aligned =  2*ROZOFS_CACHE_BSIZE;
-       }
-       /*
-       ** we have to control the returned length because if the returned length is less than
-       ** the one expected by fuse we need to read from disk
-       */
-       int read_cache_len = rozofs_mbcache_get(f->fid,off_aligned,len_aligned,(uint8_t*)f->buffer);
-       if (read_cache_len >= 0) 
-       {         
-         /*
-         ** OK we got data from cache: now we must check that it corrsponds  to the
-         ** expected data from fuse.
-         ** if the length is less than expected, we must read from disk except
-         ** if we hit the end of file (for this we check against the size the
-         ** file
-         */
-         if (((off_aligned + read_cache_len) == f->attrs.size) || (read_cache_len >= len))
-         {
-           f->read_from = off_aligned;
-           f->read_pos = off_aligned+read_cache_len;
-           /*
-           ** give back data to the application
-           */
-           length =(len <= (f->read_pos - off )) ? len : (f->read_pos - off);
-           *buf = f->buffer + (off - f->read_from);    
-           *length_p = (size_t)length;
-            return 0; 
-          }        
-       }
+         info("FDL remaining length %d \n",(int)(f->read_pos-off));
        
+       }
        /*
-       ** either nothing in the cache or not enough data -> read from remote storage
+       ** stats
        */
-       ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
+       rozofs_fuse_read_write_stats_buf.read_req_cpt++;
+       ret = read_buf_nb(buffer_p,f,off, f->buffer, len);       
+//       ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
        if (ret < 0)
        {
          *length_p = -1;
@@ -437,29 +405,18 @@ out:
         int ret;
         off = file->read_pos;
         size_t size = file->export->bufsize;
-        ret = rozofs_mbcache_check(file->fid,off,size);
-        if (ret == 0)
+        SAVE_FUSE_PARAM(param,off);
+        SAVE_FUSE_PARAM(param,size); 
+        /*
+        ** attempt to read
+        */  
+        ret = read_buf_nb(param,file,file->read_pos, file->buffer, file->export->bufsize);      
+        if (ret < 0)
         {
-          /*
-          ** data are in the cache: we are done, release the context
-          */
-          rozofs_fuse_release_saved_context(param);
-        }
-        else
-        {
-          SAVE_FUSE_PARAM(param,off);
-          SAVE_FUSE_PARAM(param,size); 
-          /*
-          ** attempt to read
-          */  
-          ret = read_buf_nb(param,file,file->read_pos, file->buffer, file->export->bufsize);      
-          if (ret < 0)
-          {
-             /*
-             ** read error --> release the context
-             */
-             rozofs_fuse_release_saved_context(param);
-          }
+           /*
+           ** read error --> release the context
+           */
+           rozofs_fuse_release_saved_context(param);
         }   
       }
     }
@@ -577,32 +534,18 @@ out:
         int ret;
         off = file->read_pos;
         size_t size = file->export->bufsize;
-        /*
-        ** check the presence of the data in the cache
+        SAVE_FUSE_PARAM(buffer_p,off);
+        SAVE_FUSE_PARAM(buffer_p,size);      
+        /**
+        * attempt to read
         */
-        ret = rozofs_mbcache_check(file->fid,off,size);
-        if (ret == 0)
+        ret = read_buf_nb(buffer_p,file,file->read_pos, file->buffer, file->export->bufsize);      
+        if (ret < 0)
         {
-          /*
-          ** data are in the cache: we are done, release the context
-          */
-          rozofs_fuse_release_saved_context(buffer_p);
-        }
-        else
-        {
-          SAVE_FUSE_PARAM(buffer_p,off);
-          SAVE_FUSE_PARAM(buffer_p,size);      
-          /**
-          * attempt to read
-          */
-          ret = read_buf_nb(buffer_p,file,file->read_pos, file->buffer, file->export->bufsize);      
-          if (ret < 0)
-          {
-             /*
-             ** read error --> release the context
-             */
-             rozofs_fuse_release_saved_context(buffer_p);
-          }
+           /*
+           ** read error --> release the context
+           */
+           rozofs_fuse_release_saved_context(buffer_p);
         }
       }
     }
@@ -801,15 +744,6 @@ void rozofs_ll_read_cbk(void *this,void *param)
     { 
       while(1)
       {
-        /*
-        ** first of all: Put the data in the cache
-        */
-        src_p = payload+position;
-        if (received_len != 0)
-        {
-          rozofs_mbcache_insert(file->fid,next_read_from,(uint32_t)received_len,(uint8_t*)src_p);
-        } 
-
       /**
       *  wr_f                wr_p
       *   +-------------------+
@@ -1197,24 +1131,12 @@ void rozofs_ll_read_cbk(void *this,void *param)
         file->read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
         file->read_pos  = file->read_from+(uint64_t)received_len;
         buff =(char*)( src_p + (off - file->read_from));
-            
+//        info("FDL  received_len %d requested length %d \n",received_len,size);  
         if (readahead == 1)
         {
           /*
           ** set the pointer to the beginning of the data array on the rpc buffer
           */
-          /*
-          ** Put the data in the cache
-          */
-          if (received_len != 0)
-          {
-            rozofs_mbcache_insert(file->fid,file->read_from,(uint32_t)received_len,(uint8_t*)src_p);
-          } 
-          /*
-          ** when the cache is enable the memcpy is useless: may we must avoid updating
-          ** the read_from and read_pos in the file structure, and just copy the data in the cache
-          ** by this way we can avoid the extra memcpy at that time
-          */   
           memcpy(dst_p,src_p,received_len);
 
           goto out;
@@ -1231,13 +1153,6 @@ void rozofs_ll_read_cbk(void *this,void *param)
         ** provide fuse with the request data
         */
         fuse_reply_buf(req, (char *) buff, length);
-        /*
-        ** Put the data in the cache
-        */
-        if (received_len != 0)
-        {
-          rozofs_mbcache_insert(file->fid,file->read_from,(uint32_t)received_len,(uint8_t*)src_p);
-        }       
         /*
         ** copy the remaining data in the fd's buffer by taking into accuting the block size
         ** alignment

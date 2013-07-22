@@ -51,7 +51,8 @@
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
-
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_cache.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -565,12 +566,89 @@ void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
 
-
+/*__________________________________________________________________________
+*/
 void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     char *pChar = localBuf;
     
     expgw_display_all_eid(pChar);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+}
+
+/*__________________________________________________________________________
+*/
+
+void show_blockmode_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
+
+
+    char *pChar = localBuf;
+    int reset = 0;
+    int flush = 0;
+    int enable = 0;
+    int disable = 0;
+    
+    if (argv[1] != NULL)
+    {
+      while(1)
+      {
+        if (strcmp(argv[1],"reset")==0) {reset = 1; break;}
+        if (strcmp(argv[1],"flush")==0) {flush = 1; break;}
+        if (strcmp(argv[1],"enable")==0) {enable = 1; break;}
+        if (strcmp(argv[1],"disable")==0) {disable = 1; break;}
+        break;
+      }   
+    }
+    if (flush)
+    {
+      rozofs_gcache_flush();
+      rozofs_mbcache_stats_clear();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
+      return;
+      
+    }
+    if (reset)
+    {
+      rozofs_mbcache_stats_clear();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+      return;
+      
+    }
+    if (enable)
+    {
+      if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_ENABLE)
+      {
+        rozofs_mbcache_enable();
+        rozofs_mbcache_stats_clear();
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now enabled\n");    
+      }
+      else
+      {
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already enabled\n");    
+      }
+      return;
+      
+    }    
+    if (disable)
+    {
+      if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_DISABLE)
+      {
+        rozofs_mbcache_stats_clear();
+        rozofs_mbcache_disable();
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now disabled\n");    
+      }
+      else
+      {
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already disabled\n");    
+      }
+      return;
+      
+    } 
+    pChar +=sprintf(pChar,"cache state : %s\n", (rozofs_mbcache_enable_flag== ROZOFS_MBCACHE_ENABLE)?"Enabled":"Disabled"); 
+    
+    pChar = com_cache_show_cache_stats(pChar,rozofs_mbcache_cache_p,"Block mode cache");
+    rozofs_mbcache_stats_display(pChar);
 
     uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
@@ -864,7 +942,25 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("cache_set", rozofs_set_cache);
     uma_dbg_addTopic("fsmode_set", rozofs_set_fsmode);
     uma_dbg_addTopic("shared_mem", rozofs_shared_mem_display);
+    uma_dbg_addTopic("blockmode_cache", show_blockmode_cache);
+    uma_dbg_addTopic("data_cache", rozofs_gcache_show_cache_stats);
 
+    /**
+    * init of the mode block cache
+    */
+    ret = rozofs_mbcache_cache_init(ROZOFS_MBCACHE_DISABLE);
+    if (ret < 0)
+    {
+      severe("Cannot create the mode block cache, revert to non-caching mode");
+    }
+    /**
+    * init of the common cache array
+    */
+    ret = rozofs_gcache_pool_init();
+    if (ret < 0)
+    {
+      severe("Cannot create the global cache, revert to non-caching mode");
+    }
     /*
     ** declare timer debug functions
     */

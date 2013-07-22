@@ -54,7 +54,8 @@
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/expgw_common.h>
 #include <rozofs/rozofs_timer_conf.h>
-#include <rozofs/rozofs_timer_conf.h>
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_cache.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -137,6 +138,10 @@ static inline int buf_flush(void *fuse_ctx_p,file_t *p)
   rozofs_fuse_read_write_stats_buf.flush_buf_cpt++;
   
   buffer = p->buffer+flush_off_buf;
+  /*
+  ** Push the data in the cache
+  */
+  rozofs_mbcache_insert(p->fid,flush_off,(uint32_t)flush_len,(uint8_t*)buffer);  
   /*
   ** trigger the write
   */
