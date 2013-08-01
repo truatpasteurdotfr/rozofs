@@ -144,7 +144,7 @@ xdr_storcli_truncate_arg_t (XDR *xdrs, storcli_truncate_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_storcli_uuid_t (xdrs, objp->fid))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->proj_id))
+	 if (!xdr_uint16_t (xdrs, &objp->last_seg))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bid))
 		 return FALSE;

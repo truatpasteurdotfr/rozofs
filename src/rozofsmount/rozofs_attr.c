@@ -48,6 +48,7 @@
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
+#include <rozofs/rpc/storcli_proto.h>
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
@@ -364,6 +365,7 @@ out:
 *     file information filled in for ftruncate
 */
 void rozofs_ll_setattr_cbk(void *this,void *param); 
+void rozofs_ll_truncate_cbk(void *this,void *param); 
 
 
 void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
@@ -406,9 +408,55 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     */
     if (to_set & FUSE_SET_ATTR_SIZE)
     {
+      /*
+      ** case of the truncate
+      ** start by updating the storaged and then updates the exportd
+      ** need to store the setattr attributes in the fuse context
+      */
+
       if (attr.size < 0x20000000000LL) {
         ie->size = attr.size;
       }    
+
+      storcli_truncate_arg_t  args;
+      int ret;
+      int lbg_id;
+      uint64_t bid;
+      uint16_t last_seg;
+      /*
+      ** translate the size in a block index for the storaged
+      */
+      bid = attr.size / ROZOFS_BSIZE;
+      last_seg = (attr.size % ROZOFS_BSIZE);
+
+      SAVE_FUSE_PARAM(buffer_p,to_set);
+      SAVE_FUSE_STRUCT(buffer_p,stbuf,sizeof(struct stat ));      
+      /*
+      **  Fill the truncate request:
+      **  we take the file information in terms of cid, distribution from the attributes
+      **  saved in the ientry
+      */
+      args.cid = ie->attrs.cid;
+      args.layout = exportclt.layout;
+      memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+      memcpy(args.fid, ie->fid, sizeof (fid_t));
+      args.bid      = bid;
+      args.last_seg = last_seg;
+
+      lbg_id = storcli_lbg_get_lbg_from_fid(ie->fid);
+
+      /*
+      ** now initiates the transaction towards the remote end
+      */
+      ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
+                                STORCLI_TRUNCATE,(xdrproc_t) xdr_storcli_truncate_arg_t,(void *)&args,
+                                rozofs_ll_truncate_cbk,buffer_p,lbg_id); 
+      if (ret < 0) goto error;
+      /*
+      ** all is fine, wait from the response of the storcli and then updates the exportd upon
+      ** receiving the answer from storcli
+      */
+      return;
     }
     /*
     ** set the argument to encode
@@ -621,4 +669,172 @@ out:
      return;
 }
 
+
+
+/*
+**__________________________________________________________________
+*/
+/**
+* Truncate  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+void rozofs_ll_truncate_cbk(void *this,void *param) 
+{
+   struct rpc_msg  rpc_reply;
+   struct stat *stbuf;
+   fuse_ino_t ino;
+   ientry_t *ie = 0;
+   fuse_req_t req; 
+   mattr_t attr;
+   int to_set;
+   epgw_setattr_arg_t arg;
+       
+   int status;
+   uint8_t  *payload;
+   void     *recv_buf = NULL;   
+   XDR       xdrs;    
+   int      bufsize;
+   storcli_status_ret_t ret;
+   int retcode;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
+
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+
+   RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,ino);
+   RESTORE_FUSE_PARAM(param,to_set);
+   RESTORE_FUSE_STRUCT_PTR(param,stbuf);      
+
+
+    /*
+    ** get the pointer to the transaction context:
+    ** it is required to get the information related to the receive buffer
+    */
+    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+    /*    
+    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
+    */
+    status = rozofs_tx_get_status(this);
+    if (status < 0)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = rozofs_tx_get_errno(this); 
+       severe(" transaction error %s",strerror(errno));
+       goto error; 
+    }
+    /*
+    ** get the pointer to the receive buffer payload
+    */
+    recv_buf = rozofs_tx_get_recvBuf(this);
+    if (recv_buf == NULL)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = EFAULT;  
+       severe(" transaction error %s",strerror(errno));
+       goto error;         
+    }
+    payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
+    payload += sizeof(uint32_t); /* skip length*/
+    /*
+    ** OK now decode the received message
+    */
+    bufsize = (int) ruc_buf_getPayloadLen(recv_buf);
+    xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
+    /*
+    ** decode the rpc part
+    */
+    if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
+    {
+     TX_STATS(ROZOFS_TX_DECODING_ERROR);
+     errno = EPROTO;
+     severe(" transaction error %s",strerror(errno));
+     goto error;
+    }
+    /*
+    ** ok now call the procedure to encode the message
+    */
+    memset(&ret,0, sizeof(ret));                    
+    if (decode_proc(&xdrs,&ret) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_DECODING_ERROR);
+       errno = EPROTO;
+       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+       severe(" transaction error %s",strerror(errno));
+       goto error;
+    }   
+    if (ret.status == STORCLI_FAILURE) {
+        errno = ret.storcli_status_ret_t_u.error;
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+        goto error;
+    }
+    /*
+    ** no error, so get the length of the data part
+    */
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+    /*
+    ** Keep the fuse context since we need to trigger the update of 
+    ** the attributes of the file
+    */
+    rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
+    ruc_buf_freeBuffer(recv_buf);  
+    /*
+    ** Update the exportd with the filesize if that one has changed
+    */ 
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+    /*
+    ** set to attr the attributes that must be set: indicated by to_set
+    */
+    stat_to_mattr(stbuf, &attr,to_set);
+    /*
+    ** set the argument to encode
+    */
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(&arg.arg_gw.attrs, &attr, sizeof (mattr_t));
+    memcpy(arg.arg_gw.attrs.fid, ie->fid, sizeof (fid_t));
+    arg.arg_gw.to_set = to_set;
+    /*
+    ** now initiates the transaction towards the remote end
+    */
+#if 1
+    retcode = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,param); 
+
+#else
+    retcode = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,param); 
+#endif
+
+    if (retcode < 0) goto error;
+   
+    /*
+    ** now wait for the response of the exportd
+    */
+    return;
+
+error:
+    /*
+    ** reply to fuse and release the transaction context and the fuse context
+    */
+    fuse_reply_err(req, errno);
+    STOP_PROFILING_NB(param,rozofs_ll_setattr);
+    
+    rozofs_fuse_release_saved_context(param);
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
+    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
+    
+    return;
+}
 
