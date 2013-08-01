@@ -342,6 +342,7 @@ out:
 }
 // XXX Not used
 
+#if 0
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid) {
     int status = -1;
@@ -369,6 +370,108 @@ int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
 
     status = ftruncate(fd, (bid + 1) * rozofs_get_psizes(layout, proj_id)
             * sizeof (bin_t));
+out:
+    if (fd != -1) close(fd);
+    return status;
+}
+
+#endif
+
+int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
+        uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,uint16_t last_seg,uint64_t last_timestamp) {
+    int status = -1;
+    char path[FILENAME_MAX];
+    int fd = -1;
+    off_t bins_file_offset = 0;
+    uint16_t rozofs_max_psize = 0;
+    uint8_t write_file_hdr = 0;
+    bid_t bid_truncate;
+    size_t nb_write = 0;
+    size_t length_to_write = 0;
+    rozofs_stor_bins_hdr_t bins_hdr;
+    
+    // Build the full path of directory that contains the bins file
+    storage_map_distribution(st, layout, dist_set, spare, path);
+
+    // Check that this directory already exists, otherwise it will be create
+    if (access(path, F_OK) == -1) {
+        if (errno == ENOENT) {
+            // If the directory doesn't exist, create it
+            if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
+	      if (errno != EEXIST) { 
+	        // The directory is not created !!!
+                severe("mkdir failed (%s) : %s", path, strerror(errno));
+                goto out;
+	      }	
+	      // Well someone else has created the directory in the meantime
+            }
+        } else {
+            goto out;
+        }
+    }
+
+    // Build the path of bins file
+    storage_map_projection(fid, path);
+
+    // Check that this file already exists
+    if (access(path, F_OK) == -1)
+        write_file_hdr = 1; // We must write the header
+
+    // Open bins file
+    fd = open(path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+    if (fd < 0) {
+        severe("open failed (%s) : %s", path, strerror(errno));
+        goto out;
+    }
+
+    // If we write the bins file for the first time, we must write the header
+    if (write_file_hdr) {
+        // Prepare file header
+        rozofs_stor_bins_file_hdr_t file_hdr;
+        memcpy(file_hdr.dist_set_current, dist_set,
+                ROZOFS_SAFE_MAX * sizeof (sid_t));
+        memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
+        file_hdr.layout = layout;
+        file_hdr.version = version;
+
+        // Write the header for this bins file
+        nb_write = pwrite(fd, &file_hdr, sizeof (file_hdr), 0);
+        if (nb_write != sizeof (file_hdr)) {
+            severe("pwrite failed: %s", strerror(errno));
+            goto out;
+        }
+    }
+
+    // Compute the offset from the truncate
+    rozofs_max_psize = rozofs_get_max_psize(layout);
+    bid_truncate = bid;
+    if (last_seg!= 0) bid_truncate+=1;
+    bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + (bid_truncate) * (rozofs_max_psize *
+            sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
+
+    status = ftruncate(fd, bins_file_offset);
+    if (status < 0) goto out;
+    /*
+    ** Check the case of the last segment
+    */
+    if (last_seg!= 0)
+    {
+      bins_hdr.s.timestamp        = last_timestamp;
+      bins_hdr.s.effective_length = last_seg;
+      bins_hdr.s.projection_id    = proj_id;
+      bins_hdr.s.version          = version;
+      length_to_write = sizeof(rozofs_stor_bins_hdr_t);
+      
+      bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + (bid) * (rozofs_max_psize *
+              sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
+
+      nb_write = pwrite(fd, &bins_hdr, length_to_write, bins_file_offset);
+      if (nb_write != length_to_write) {
+          severe("pwrite failed on last segment: %s", strerror(errno));
+          goto out;
+      }
+      
+    }
 out:
     if (fd != -1) close(fd);
     return status;

@@ -128,7 +128,9 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
         struct svc_req * req) {
     static sp_status_ret_t ret;
     storage_t *st = 0;
-
+    // Variable to be used in a later version.
+    uint8_t version = 0;
+    
     DEBUG_FUNCTION;
 
     ret.status = SP_FAILURE;
@@ -142,7 +144,7 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
     // Truncate bins file
     if (storage_truncate(st, args->layout, (sid_t *) args->dist_set,
             args->spare, (unsigned char *) args->fid, args->proj_id,
-            args->bid) != 0) {
+            args->bid,version,args->last_seg,args->last_timestamp) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }

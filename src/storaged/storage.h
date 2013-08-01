@@ -152,11 +152,15 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
  * @param fid: unique file id.
  * @param proj_id: the projection id.
  * @param bid: first block idx (offset).
+ * @param last_seg: length of the last segment if not modulo prj. size
+ * @param last_timestamp: timestamp to associate with the last_seg
+ 
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid);
+        uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,
+         uint16_t last_seg,uint64_t last_timestamp);
 
 /** Remove a bins file
  *
@@ -164,6 +168,7 @@ int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
  * @param layout: layout used by this file.
  * @param dist_set: storages nodes used for store this file.
  * @param fid: unique file id.
+ * @param version: version of rozofs used by the client. (not used yet)
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */

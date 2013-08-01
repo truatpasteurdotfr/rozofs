@@ -29,7 +29,7 @@ add_executable(storcli
   storcli_main.h
   rozofs_storcli_send_new.c
   rozofs_storcli_lbg_cnf_supervision.c  
-  rozofs_storcli_transform.c
+ rozofs_storcli_transform.c
   rozofs_storcli_mgt.c                  
   rozofs_storcli_write.c
   rozofs_storcli_nblock_init.c          
@@ -39,9 +39,11 @@ add_executable(storcli
   rozofs_storcli_read.c                 
   rozofs_storcli_rebuild_prj.c          
   rozofs_storcli_reload_storage_config.c
-  rozofs_storcli_reload_storage_config.h  
+  rozofs_storcli_reload_storage_config.h
   storage_lbg.c  
   rozofs_storcli_cnx_supervision.c
+  rozofs_storcli_truncate.h
+  rozofs_storcli_truncate.c                 
 )
 #pthread need by fuse
 target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY})

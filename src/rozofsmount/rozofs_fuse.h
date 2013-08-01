@@ -98,6 +98,7 @@ typedef struct _rozofs_fuse_save_ctx_t
    fuse_ino_t newparent;
    char *newname;
    struct fuse_file_info *fi;
+   struct stat *stbuf;          /**< pointer to the setattr attributes */
    char *name;
    mode_t mode;
    off_t off;

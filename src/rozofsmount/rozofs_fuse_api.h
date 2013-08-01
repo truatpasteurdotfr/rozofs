@@ -107,6 +107,7 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   fuse_save_ctx_p->newname = NULL;
   fuse_save_ctx_p->name    = NULL;
   fuse_save_ctx_p->fi      = NULL;
+  fuse_save_ctx_p->stbuf   = NULL;
   fuse_save_ctx_p->shared_buf_ref  = NULL;
   /*
   ** init of the routing context
@@ -147,6 +148,7 @@ static inline void _rozofs_fuse_release_saved_context(void *buffer_p,int line)
   if (fuse_save_ctx_p->newname != NULL) free(fuse_save_ctx_p->newname);
   if (fuse_save_ctx_p->name != NULL) free((void*)fuse_save_ctx_p->name);
   if (fuse_save_ctx_p->fi!= NULL) free(fuse_save_ctx_p->fi);
+  if (fuse_save_ctx_p->stbuf!= NULL) free(fuse_save_ctx_p->stbuf);
   if (fuse_save_ctx_p->shared_buf_ref!= NULL) 
   {
     uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(fuse_save_ctx_p->shared_buf_ref);    
@@ -343,6 +345,13 @@ static inline void  *fuse_ctx_write_pending_queue_get(file_t *f)
 { \
   rozofs_fuse_save_ctx_t *fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer); \
   memcpy(str_ptr,fuse_save_ctx_p->str_ptr,str_len);\
+}
+
+
+#define RESTORE_FUSE_STRUCT_PTR(buffer,str_ptr) \
+{ \
+  rozofs_fuse_save_ctx_t *fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer); \
+  str_ptr = fuse_save_ctx_p->str_ptr;\
 }
 
 
