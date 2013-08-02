@@ -42,7 +42,6 @@ add_executable(storcli
   rozofs_storcli_reload_storage_config.h
   storage_lbg.c  
   rozofs_storcli_cnx_supervision.c
-  rozofs_storcli_truncate.h
   rozofs_storcli_truncate.c                 
 )
 #pthread need by fuse
