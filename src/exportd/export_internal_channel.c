@@ -241,9 +241,7 @@ int expgwc_internal_channel_send(uint32_t opcode,uint32_t length, void *message 
   }
   if (nBytes != effective_length)
   {
-    /*
-    **  message not sent
-    */
+    // message not sent
     severe("sent message has been truncated %d( %d)", nBytes,effective_length);
     return -1;
 

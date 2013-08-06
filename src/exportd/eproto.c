@@ -43,11 +43,9 @@ void *ep_null_1_svc(void *noargs, struct svc_req *req) {
 }
 
 
-uint32_t exportd_storage_host_count = 0;                          /**< number of host storage in the configuration of an eid  */
-ep_cnf_storage_node_t exportd_storage_host_table[STORAGE_NODES_MAX];  /**< configuration for each storage */
-
-epgw_conf_ret_t  export_storage_conf;                 /**< preallocated area to build storage configuration message */
-
+uint32_t exportd_storage_host_count = 0; /**< number of host storage in the configuration of an eid */
+ep_cnf_storage_node_t exportd_storage_host_table[STORAGE_NODES_MAX]; /**< configuration for each storage */
+epgw_conf_ret_t export_storage_conf; /**< preallocated area to build storage configuration message */
 
 /*
  *_______________________________________________________________________

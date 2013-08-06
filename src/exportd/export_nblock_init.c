@@ -624,7 +624,7 @@ int expgwc_start_nb_blocking_th(void *args) {
         return -1;
     }
     /*
-    ** add profiler subject (exportd statistics
+    ** add profiler subject (exportd statistics)
     */
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("profiler_conf", show_profiler_conf);

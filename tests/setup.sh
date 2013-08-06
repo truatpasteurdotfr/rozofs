@@ -28,7 +28,7 @@ process_killer () {
     do
       kill  $pid
     done
-    usleep 1500000
+    sleep 1.5
   fi
     
   if ls /var/run/$1* > /dev/null 2>&1
@@ -138,7 +138,7 @@ gen_storage_conf ()
 # $2 -> storages by node
 # $2 -> Nb. of exports
 # $3 -> md5 generated
-gen_export_conf ()
+gen_export_gw_conf ()
 {
 
     ROZOFS_LAYOUT=$1
@@ -247,6 +247,85 @@ gen_export_conf ()
     echo ');' >> $FILE
 }
 
+# $1 -> LAYOUT
+gen_export_conf ()
+{
+
+    ROZOFS_LAYOUT=$1
+
+    FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
+
+    if [ ! -e "$LOCAL_CONF" ]
+    then
+        mkdir -p $LOCAL_CONF
+    fi
+
+    if [ -e "$FILE" ]
+    then
+        rm -rf $FILE
+    fi
+
+    sid=0
+
+    touch $FILE
+    echo "#${NAME_LABEL}" >> $FILE
+    echo "#${DATE_LABEL}" >> $FILE
+    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo 'volumes =' >> $FILE
+    echo '      (' >> $FILE
+
+        for v in $(seq ${NB_VOLUMES}); do
+            echo '        {' >> $FILE
+            echo "            vid = $v;" >> $FILE
+            echo '            cids= ' >> $FILE
+            echo '            (' >> $FILE
+
+            for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+                let idx_cluster=(${v}-1)*${NB_CLUSTERS_BY_VOLUME}+${c}
+                echo '                   {' >> $FILE
+                echo "                       cid = $idx_cluster;" >> $FILE
+                echo '                       sids =' >> $FILE
+                echo '                       (' >> $FILE
+                for k in $(seq ${STORAGES_BY_CLUSTER}); do
+		    sid=$((sid+1))
+                    if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
+                    then
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}" >> $FILE
+                    else
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}," >> $FILE
+                    fi
+                done;
+                echo '                       );' >> $FILE
+                if [[ ${c} == ${NB_CLUSTERS_BY_VOLUME} ]]
+                then
+                    echo '                   }' >> $FILE
+                else
+                    echo '                   },' >> $FILE
+                fi
+            done;
+        echo '            );' >> $FILE
+        if [[ ${v} == ${NB_VOLUMES} ]]
+        then
+            echo '        }' >> $FILE
+        else
+            echo '        },' >> $FILE
+        fi
+        done;
+    echo '    )' >> $FILE
+    echo ';' >> $FILE
+    
+    echo 'exports = (' >> $FILE
+    for k in $(seq ${NB_EXPORTS}); do
+        if [[ ${k} == ${NB_EXPORTS} ]]
+        then
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+        else
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+        fi
+    done;
+    echo ');' >> $FILE
+}
+
 start_one_storage() 
 {
    case $1 in
@@ -258,6 +337,7 @@ start_one_storage()
     echo "Start storage cid $cid sid $sid"
    ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
 }
+
 stop_one_storage () {
    case $1 in
      "all") stop_storaged; return;;
@@ -293,8 +373,8 @@ start_storaged ()
 
 stop_storaged()
 {
-   echo "Stopping the storaged"
-  process_killer storaged 
+    echo "Stopping the storaged"
+    process_killer storaged 
 }
 reload_storaged ()
 {
@@ -485,9 +565,8 @@ undeploy_clients_local ()
 start_exportd ()
 {
     echo "------------------------------------------------------"
-
-        echo "Start ${LOCAL_EXPORT_DAEMON}"
-        ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
+    echo "Start ${LOCAL_EXPORT_DAEMON}"
+    ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
 
 }
 
@@ -497,10 +576,12 @@ stop_exportd ()
     echo "Killing exportd"
     process_killer exportd.pid 
 }
+
 reset_exportd () {
- stop_exportd
- start_exportd 
+    stop_exportd
+    start_exportd 
 }
+
 reload_exportd ()
 {
     echo "------------------------------------------------------"
@@ -578,29 +659,30 @@ remove_build ()
 
 do_start_all_processes() {
      start_storaged ${STORAGES_BY_CLUSTER}
-     start_expgw
+     #start_expgw
      start_exportd 1
      deploy_clients_local
 }
+
 do_pause() {
-     undeploy_clients_local
-     stop_storaged
-     stop_exportd
-     stop_expgw      
+    undeploy_clients_local
+    stop_storaged
+    stop_exportd
+    #stop_expgw
 }
+
 do_stop()
 {
-     do_pause
-     remove_all
-     sleep 1
+    do_pause
+    remove_all
+    sleep 1
 }
+
 clean_all ()
 {
     do_stop
     remove_build
 }
-
-
 
 check_build ()
 {
@@ -618,60 +700,59 @@ pjd_test()
 {
 
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
-        then
+    then
         echo "Unable to run pjd tests (configuration file doesn't exist)"
     else
-		NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
-		EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+        EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
 
-		for j in $(seq ${NB_EXPORTS}); do
-		    echo "------------------------------------------------------"
-		    mountpoint -q ${LOCAL_MNT_ROOT}${j}
-		    if [ "$?" -eq 0 ]
-		    then
-		        echo "Run pjd tests on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
-		        echo "------------------------------------------------------"
+        for j in $(seq ${NB_EXPORTS}); do
+            echo "------------------------------------------------------"
+            mountpoint -q ${LOCAL_MNT_ROOT}${j}
+            if [ "$?" -eq 0 ]
+            then
+                echo "Run pjd tests on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
+                echo "------------------------------------------------------"
 
-		        cd ${LOCAL_MNT_ROOT}${j}
-		        prove -r ${LOCAL_PJDTESTS}
-		        cd ..
+                cd ${LOCAL_MNT_ROOT}${j}
+                prove -r ${LOCAL_PJDTESTS}
+                cd ..
 
-		    else
-		        echo "Unable to run pjd tests (${LOCAL_MNT_PREFIX}${j} is not mounted)"
-		    fi
-		done;
-	fi
+            else
+                echo "Unable to run pjd tests (${LOCAL_MNT_PREFIX}${j} is not mounted)"
+            fi
+        done;
+    fi
 }
 
 fileop_test(){
 
-	if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
-		    then
-		    echo "Unable to run pjd tests (configuration file doesn't exist)"
-		else
-			LOWER_LMT=1
-			UPPER_LMT=4
-			INCREMENT=1
-			FILE_SIZE=2M
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+    then
+        echo "Unable to run pjd tests (configuration file doesn't exist)"
+    else
+        LOWER_LMT=1
+        UPPER_LMT=4
+        INCREMENT=1
+        FILE_SIZE=2M
 
-			NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
-			EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+        EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
 
-			for j in $(seq ${NB_EXPORTS}); do
-				echo "------------------------------------------------------"
-				mountpoint -q ${LOCAL_MNT_ROOT}${j}
-				if [ "$?" -eq 0 ]
-				then
-				    echo "Run fileop test on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
-				    echo "------------------------------------------------------"
-				    ${FSOP_BINARY} -l ${LOWER_LMT} -u ${UPPER_LMT} -i ${INCREMENT} -e -s ${FILE_SIZE} -d ${LOCAL_MNT_ROOT}${j}
-				else
-				    echo "Unable to run fileop test (${LOCAL_MNT_PREFIX}${j} is not mounted)"
-				fi
-			done;
-	fi
+        for j in $(seq ${NB_EXPORTS}); do
+                echo "------------------------------------------------------"
+                mountpoint -q ${LOCAL_MNT_ROOT}${j}
+                if [ "$?" -eq 0 ]
+                then
+                    echo "Run fileop test on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
+                    echo "------------------------------------------------------"
+                    ${FSOP_BINARY} -l ${LOWER_LMT} -u ${UPPER_LMT} -i ${INCREMENT} -e -s ${FILE_SIZE} -d ${LOCAL_MNT_ROOT}${j}
+                else
+                    echo "Unable to run fileop test (${LOCAL_MNT_PREFIX}${j} is not mounted)"
+                fi
+        done;
+    fi
 }
-
 
 usage ()
 {
@@ -695,6 +776,8 @@ usage ()
     echo >&2 "$0 umount"
     exit 0;
 }
+
+# $1 -> Layout to use
 set_layout () {
 
   # Get default layout from /tmp/rozo.layout if not given as parameter
@@ -717,13 +800,14 @@ set_layout () {
       NB_EXPGATEWAYS=4
     };;
     *) {
-      echo >&2 "Rozofs layout must be equal to 0,1 or 2."
+      echo >&2 "Rozofs layout must be equal to 0, 1 or 2."
       exit 1
     };
   esac  
   # Save layout
   echo $ROZOFS_LAYOUT > /tmp/rozo.layout
-}	
+}
+	
 show_process () {
   cd /var/run
   LIST=""
@@ -783,10 +867,10 @@ show_process () {
   done
   cd - 
 }
+
 main ()
 {
     [ $# -lt 1 ] && usage
-
 
     # to reach storcli executable
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storcli
@@ -799,20 +883,25 @@ main ()
 
     set_layout 0
 
-    NB_EXPORTS=1
+    NB_EXPORTS=1;
     NB_VOLUMES=1;
     NB_CLUSTERS_BY_VOLUME=1;
+    NB_PORTS_PER_STORAGE_HOST=4;
 
     if [ "$1" == "start" ]
     then
 
         [ $# -lt 2 ] && usage
+
+        # Set layout and computes STORAGES_BY_CLUSTER
         set_layout $2
+
         check_build
         do_stop
 
-        gen_storage_conf ${STORAGES_BY_CLUSTER} 4
-        gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
+        gen_storage_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST}
+        #gen_export_gw_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
+        gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 

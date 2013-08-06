@@ -674,10 +674,8 @@ int econfig_read(econfig_t *config, const char *fname) {
                || (LIBCONFIG_VER_MAJOR > 1))
     int layout;
 #else
-
     long int layout;
 #endif
-
 
     DEBUG_FUNCTION;
 
