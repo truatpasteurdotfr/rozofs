@@ -56,6 +56,7 @@
 #include <rozofs/rozofs_timer_conf.h>
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_cache.h"
+#include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -687,7 +688,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
    storcli_write_arg_t  args;
    int ret;
    fuse_end_tx_recv_pf_t  callback;
-   int lbg_id;
+   int storcli_idx;
 
     // Fill request
     args.cid = f->attrs.cid;
@@ -706,8 +707,11 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     else {
       args.empty_file = 0;
     }
-    
-    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+    /*
+    ** get the storcli to use for the transaction
+    */
+    storcli_idx = stclbg_storcli_idx_from_fid(f->fid);
+//    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
 
     /*
     ** now initiates the transaction towards the remote end
@@ -716,7 +720,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     f->buf_write_pending++;
     ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
-                              callback,buffer_p,lbg_id); 
+                              callback,buffer_p,storcli_idx,f->fid); 
     if (ret < 0) goto error;
     
     /*

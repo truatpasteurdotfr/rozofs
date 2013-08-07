@@ -341,6 +341,8 @@ void north_lbg_ctxInit(north_lbg_ctx_t *p, uint8_t creation) {
     p->nb_entries_conf = 0; /* number of configured entries  */
     p->nb_active_entries = 0;
     p->next_entry_idx = 0;
+    
+    p->next_global_entry_idx_p = NULL;
 
     p->state = NORTH_LBG_DOWN;
     p->userPollingCallBack = NULL;

@@ -132,7 +132,7 @@ out:
     return status;
 }
 
-static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
+static SVCXPRT *storaged_create_rpc_service(int port, char *host, int instance) {
     int sock;
     int one = 1;
     struct sockaddr_in sin;
@@ -146,6 +146,9 @@ static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
             return NULL;
         }
         bcopy((char *) hp->h_addr, (char *) &sin.sin_addr, hp->h_length);
+        uint32_t ipaddr = ntohl(sin.sin_addr.s_addr);
+        ipaddr += ((instance + 1) * 0x100);
+        sin.sin_addr.s_addr = htonl(ipaddr);
     } else {
         sin.sin_addr.s_addr = INADDR_ANY;
     }
@@ -288,7 +291,7 @@ static void rbs_process_initialize() {
 
             if ((storaged_profile_svc =
                     storaged_create_rpc_service(profil_rbs_port,
-                    storaged_hostname)) == NULL) {
+                    storaged_hostname, 0)) == NULL) {
                 fatal("can't create rebuild monitoring service on port: %d",
                         profil_rbs_port);
             }
@@ -492,7 +495,7 @@ static void on_start() {
             // the portmap service
 
             if ((storaged_svc = storaged_create_rpc_service
-                    (storaged_storage_ports[i], storaged_hostname)) == NULL) {
+                    (storaged_storage_ports[i], storaged_hostname, i)) == NULL) {
                 fatal("can't create IO storaged service on port: %d",
                         storaged_storage_ports[i]);
             }
@@ -504,7 +507,7 @@ static void on_start() {
 
             if ((storaged_profile_svc = storaged_create_rpc_service
                     (storaged_storage_ports[i] + 1000,
-                    storaged_hostname)) == NULL) {
+                    storaged_hostname, 0)) == NULL) {
                 severe("can't create IO monitoring service on port: %d",
                         storaged_storage_ports[i] + 1000);
             }

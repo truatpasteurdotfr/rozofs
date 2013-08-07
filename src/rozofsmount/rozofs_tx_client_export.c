@@ -48,6 +48,7 @@
 #include "rozofs_fuse.h"
 #include <rozofs/rpc/eproto.h>
 #include "rozofs_fuse_api.h"
+#include "rozofs_rw_load_balancing.h"
 
 
 #include <rozofs/core/rozofs_tx_common.h>
@@ -713,7 +714,8 @@ reloop:
  @msg2encode_p     : pointer to the message to encode
  @param recv_cbk   : receive callback function
  @param fuse_ctx_p : pointer to the fuse context
- @param lbg_id      : identifier of the lbg to sent on
+ @param storcli_idx      : identifier of the storcli
+ @param fid: file identifier: needed for the storcli load balancing context
  
  @retval 0 on success;
  @retval -1 on error,, errno contains the cause
@@ -722,7 +724,7 @@ reloop:
 int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               sys_recv_pf_t recv_cbk,void *fuse_ctx_p,
-			      int lbg_id) 			       
+			                  int storcli_idx,fid_t fid) 			       
 {
     DEBUG_FUNCTION;
    
@@ -736,6 +738,7 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
     XDR               xdrs;    
 	struct rpc_msg   call_msg;
     uint32_t         null_val = 0;
+    int              lbg_id;
 
     /*
     ** allocate a transaction context
@@ -750,7 +753,16 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
        TX_STATS(ROZOFS_TX_NO_CTX_ERROR);
        errno = ENOMEM;
        goto error;
-    }    
+    } 
+    /*
+    ** insert the storcli load balancing context in the  stclbg_hash_table hash table.
+    ** the context is embedded in the transaction context  
+    */
+    stclbg_hash_table_insert_ctx(&rozofs_tx_ctx_p->rw_lbg,fid,storcli_idx);
+    /*
+    ** Get the load balancing group reference associated with the storcli
+    */
+    lbg_id = storcli_lbg_get_load_balancing_reference(storcli_idx);
     /*
     ** allocate an xmit buffer
     */  

@@ -244,4 +244,6 @@ int  north_lbg_attach_application_supervision_callback(int lbg_idx,af_stream_pol
   retval -1 : error
 */
 int  north_lbg_set_application_tmo4supervision(int lbg_idx,int tmo_sec);
+
+int north_lbg_set_next_global_entry_idx_p(int lbg_idx, int * next_global_entry_idx_p);
 #endif

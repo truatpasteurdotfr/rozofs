@@ -651,6 +651,40 @@ int rozofs_mbcache_get(fid_t fid,uint64_t off,uint32_t size,uint8_t *dst_bufp)
 **______________________________________________________________________________
 */
 /**
+*  remove a fid from the mode block cache
+
+  @param fid : fid associated with the file
+  
+  @retval none
+*/
+void rozofs_mbcache_remove(fid_t fid)
+{
+    rozofs_mbcache_key_t key;
+    
+    /*
+    ** check if the cache is enabled
+    */    
+    if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_ENABLE) return;        
+
+    if (rozofs_mbcache_cache_p == NULL) return ;
+    
+    /*
+    ** OK, the fid is handled by this server, so attempt to get the child fid
+    ** from the cache
+    */
+    rozofs_mbcache_fid_build_key(&key,(unsigned char *)fid);
+   /*
+   ** remove the entry from the cache
+   */
+   com_cache_bucket_remove_entry(rozofs_mbcache_cache_p,&key); 
+
+}
+
+
+/*
+**______________________________________________________________________________
+*/
+/**
 *  check the presence of a data block in the cache
 
   @param off: offset within the file

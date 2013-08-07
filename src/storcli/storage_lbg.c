@@ -72,6 +72,8 @@ static af_unix_socket_conf_t  af_inet_storaged_conf =
   NULL   //    *recvPool; /* user pool reference or -1 */
 };
 
+int storcli_next_storio_global_index =0;
+
 int storaged_lbg_initialize(mstorage_t *s) {
     int status = -1;
     struct sockaddr_in server;
@@ -119,6 +121,7 @@ int storaged_lbg_initialize(mstorage_t *s) {
     {
       my_list[i].remote_port_host   = s->sclients[i].port;
       my_list[i].remote_ipaddr_host = ntohl(server.sin_addr.s_addr);
+      my_list[i].remote_ipaddr_host += (0x100* (i + 1));
     }
      af_inet_storaged_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_storaged_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
@@ -134,6 +137,7 @@ int storaged_lbg_initialize(mstorage_t *s) {
       severe("Cannot create Load Balancing Group %d for storaged %s",s->lbg_id,s->host);
       return status;    
      }
+     north_lbg_set_next_global_entry_idx_p(s->lbg_id,&storcli_next_storio_global_index);
      status = 0;
 
 out:

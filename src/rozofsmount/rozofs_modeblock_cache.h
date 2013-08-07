@@ -254,6 +254,18 @@ int rozofs_mbcache_insert(fid_t fid,uint64_t off,uint32_t size,uint8_t *src_bufp
 */
 int rozofs_mbcache_get(fid_t fid,uint64_t off,uint32_t size,uint8_t *dst_bufp);
 
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  remove a fid from the mode block cache
+
+  @param fid : fid associated with the file
+  
+  @retval none
+*/
+void rozofs_mbcache_remove(fid_t fid);
 /*
 **______________________________________________________________________________
 */

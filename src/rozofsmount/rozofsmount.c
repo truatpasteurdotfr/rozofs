@@ -53,6 +53,7 @@
 #include "rozofs_sharedmem.h"
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_cache.h"
+#include "rozofs_rw_load_balancing.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -928,12 +929,12 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("main() sem_init() problem : %s", strerror(errno));
     }
 
-
     /*
      ** Register these topics befora start the rozofs_stat_start that will
      ** register other topic. Topic registration is not safe in multi thread
      ** case
      */
+    uma_dbg_addTopic("stclbg", show_stclbg);
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
     uma_dbg_addTopic("uptime", show_uptime);

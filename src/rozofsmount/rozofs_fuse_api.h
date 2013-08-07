@@ -489,7 +489,8 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t pr
  @msg2encode_p     : pointer to the message to encode
  @param recv_cbk   : receive callback function
  @param fuse_ctx_p : pointer to the fuse context
- @param lbg_id      : identifier of the lbg to sent on
+  @param storcli_idx      : identifier of the storcli
+ @param fid: file identifier: needed for the storcli load balancing context
  
  @retval 0 on success;
  @retval -1 on error,, errno contains the cause
@@ -498,7 +499,7 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t pr
 int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               sys_recv_pf_t recv_cbk,void *fuse_ctx_p,
-			      int lbg_id) 	;
+			                  int storcli_idx,fid_t fid);
 
 
 /**
