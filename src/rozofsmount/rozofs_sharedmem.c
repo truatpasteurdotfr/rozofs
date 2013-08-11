@@ -87,6 +87,13 @@ int rozofs_create_shared_memory(int key_instance,int storcli_idx,uint32_t buf_nb
    rozofs_storcli_shared_mem[storcli_idx].buf_count    = buf_nb;
    rozofs_storcli_shared_mem[storcli_idx].pool_p = ruc_buf_poolCreate_shared(buf_nb,buf_sz,key);
    if (rozofs_storcli_shared_mem[storcli_idx].pool_p == NULL) return -1;
+   switch(storcli_idx) {
+     case 0: ruc_buffer_debug_register_pool("storcli_0_shared",  rozofs_storcli_shared_mem[storcli_idx].pool_p); break;
+     case 1: ruc_buffer_debug_register_pool("storcli_1_shared",  rozofs_storcli_shared_mem[storcli_idx].pool_p); break;
+     case 2: ruc_buffer_debug_register_pool("storcli_2_shared",  rozofs_storcli_shared_mem[storcli_idx].pool_p); break;
+     default:
+       break;
+   }  
    rozofs_storcli_shared_mem[storcli_idx].data_p = ruc_buf_get_pool_base_data(rozofs_storcli_shared_mem[storcli_idx].pool_p);
    return 0;
   

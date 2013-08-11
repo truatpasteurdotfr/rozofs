@@ -1040,24 +1040,28 @@ uint32_t rozofs_tx_module_init(uint32_t transaction_count,
             ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", rozofs_small_tx_xmit_count, rozofs_small_tx_xmit_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxXmitSmall", rozofs_tx_pool[_ROZOFS_TX_SMALL_TX_POOL]);	
         rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL] = ruc_buf_poolCreate(rozofs_large_tx_xmit_count, rozofs_large_tx_xmit_size);
         if (rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL] == NULL) {
             ret = RUC_NOK;
             ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", rozofs_large_tx_xmit_count, rozofs_large_tx_xmit_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxXmitLarge", rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL]);	
         rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL] = ruc_buf_poolCreate(rozofs_small_tx_recv_count, rozofs_small_tx_xmit_size);
         if (rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL] == NULL) {
             ret = RUC_NOK;
             ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", rozofs_small_tx_recv_count, rozofs_small_tx_xmit_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxRcvSmall", rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL]);	
         rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL] = ruc_buf_poolCreate(rozofs_large_tx_recv_count, rozofs_large_tx_recv_size);
         if (rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL] == NULL) {
             ret = RUC_NOK;
             ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", rozofs_large_tx_recv_count, rozofs_large_tx_recv_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxRcvLarge", rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL]);	
         break;
     }
     return ret;

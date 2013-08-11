@@ -148,6 +148,8 @@ set (librozofs_sources
     rozofs_debug_ports.c
     core/com_cache.c
     core/com_cache.h
+    core/ruc_buffer_debug.c
+    core/ruc_buffer_debug.h    
     rpc/gwprotoclt.c
     rpc/gwproto.h
     rpc/gwprotosvc.c

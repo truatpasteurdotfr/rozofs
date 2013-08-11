@@ -448,13 +448,15 @@ uint32_t expgw_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", expgw_north_small_buf_count, expgw_north_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("NorthSmall",expgw_pool[_EXPGW_NORTH_SMALL_POOL]);
       expgw_pool[_EXPGW_NORTH_LARGE_POOL] = ruc_buf_poolCreate(expgw_north_large_buf_count,expgw_north_large_buf_sz);
       if (expgw_pool[_EXPGW_NORTH_LARGE_POOL] == NULL)
       {
          ret = RUC_NOK;
          severe( "rcv ruc_buf_poolCreate(%d,%d)", expgw_north_large_buf_count, expgw_north_large_buf_sz ); 
 	 break;
-     }
+      }
+      ruc_buffer_debug_register_pool("NorthLarge",expgw_pool[_EXPGW_NORTH_LARGE_POOL]);
       expgw_pool[_EXPGW_SOUTH_SMALL_POOL]= ruc_buf_poolCreate(expgw_south_small_buf_count,expgw_south_small_buf_sz);
       if (expgw_pool[_EXPGW_SOUTH_SMALL_POOL] == NULL)
       {
@@ -462,6 +464,7 @@ uint32_t expgw_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", expgw_south_small_buf_count, expgw_south_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("SouthSmall",expgw_pool[_EXPGW_SOUTH_SMALL_POOL]);
       expgw_pool[_EXPGW_SOUTH_LARGE_POOL] = ruc_buf_poolCreate(expgw_south_large_buf_count,expgw_south_large_buf_sz);
       if (expgw_pool[_EXPGW_SOUTH_LARGE_POOL] == NULL)
       {
@@ -469,6 +472,7 @@ uint32_t expgw_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", expgw_south_large_buf_count, expgw_south_large_buf_sz ); 
 	 break;
       }
+      ruc_buffer_debug_register_pool("SouthLarge",expgw_pool[_EXPGW_SOUTH_LARGE_POOL]);      
    break;
    }
    return ret;

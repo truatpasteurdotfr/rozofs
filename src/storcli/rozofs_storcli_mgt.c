@@ -775,6 +775,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", rozofs_storcli_north_small_buf_count, rozofs_storcli_north_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("NorthSmall",rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_SMALL_POOL]);
       rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_LARGE_POOL] = ruc_buf_poolCreate(rozofs_storcli_north_large_buf_count,rozofs_storcli_north_large_buf_sz);
       if (rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_LARGE_POOL] == NULL)
       {
@@ -782,6 +783,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", rozofs_storcli_north_large_buf_count, rozofs_storcli_north_large_buf_sz ); 
 	 break;
      }
+      ruc_buffer_debug_register_pool("NorthLarge",rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_LARGE_POOL]);
       rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL]= ruc_buf_poolCreate(rozofs_storcli_south_small_buf_count,rozofs_storcli_south_small_buf_sz);
       if (rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL] == NULL)
       {
@@ -789,6 +791,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", rozofs_storcli_south_small_buf_count, rozofs_storcli_south_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("SouthSmall",rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL]);
       rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL] = ruc_buf_poolCreate(rozofs_storcli_south_large_buf_count,rozofs_storcli_south_large_buf_sz);
       if (rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL] == NULL)
       {
@@ -796,6 +799,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", rozofs_storcli_south_large_buf_count, rozofs_storcli_south_large_buf_sz ); 
 	 break;
       }
+      ruc_buffer_debug_register_pool("SouthLarge",rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL]);      
    break;
    }
    return ret;

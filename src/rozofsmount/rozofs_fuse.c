@@ -40,6 +40,7 @@
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include "rozofs_fuse.h"
 #include <rpc/rpc.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 
 #if 0
 #include "ruc_common.h"
@@ -641,6 +642,8 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
         status = -1;
         break;
      }
+     ruc_buffer_debug_register_pool("fuseCtx",  rozofs_fuse_ctx_p->fuseReqPoolRef);
+     
      /*
      ** allocate a buffer for receiving the fuse request
      */
