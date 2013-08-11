@@ -129,6 +129,7 @@ typedef struct _rozorpc_srv_ctx_t
   uint32_t            opcode;      /**< opcode associated with the request, when the key is not used the value is ROZORPC_SRV_NULL */
   uint32_t   src_transaction_id;  /**< transaction id of the source request                                       */
   uint64_t            timestamp;
+  int                 position;  /**< position of the last decoded arg in the request                 */
   void      *recv_buf;             /**< pointer to the receive buffer that carries the request        */
   uint32_t   socketRef;            /**< reference of the socket on which the answser must be sent     */
   sys_recv_pf_t    response_cbk;  /**< callback function associated with the response of the root transaction */
@@ -376,5 +377,18 @@ uint32_t rozorpc_srv_module_init();
 */
 int rozorpc_srv_getargs (void *recv_buf,xdrproc_t xdr_argument, void *argument);
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  get the arguments of the incoming request: it is mostly a rpc decode
 
+ @param recv_buf : ruc buffer that contains the request
+ @param xdr_argument : decoding procedure
+ @param argument     : pointer to the array where decoded arguments will be stored
+ 
+ @retval TRUE on success
+ @retval FALSE decoding error
+*/
+int rozorpc_srv_getargs_with_position (void *recv_buf,xdrproc_t xdr_argument, void *argument,int *position);
 #endif

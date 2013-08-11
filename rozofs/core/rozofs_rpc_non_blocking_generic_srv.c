@@ -401,6 +401,65 @@ int rozorpc_srv_getargs (void *recv_buf,xdrproc_t xdr_argument, void *argument)
 **__________________________________________________________________________
 */
 /**
+*  get the arguments of the incoming request: it is mostly a rpc decode
+
+ @param recv_buf : ruc buffer that contains the request
+ @param xdr_argument : decoding procedure
+ @param argument     : pointer to the array where decoded arguments will be stored
+ 
+ @retval TRUE on success
+ @retval FALSE decoding error
+*/
+int rozorpc_srv_getargs_with_position (void *recv_buf,xdrproc_t xdr_argument, void *argument,int *position)
+{
+   XDR xdrs;
+   uint32_t  msg_len;  /* length of the rpc messsage including the header length */
+   uint32_t header_len;
+   uint8_t  *pmsg;     /* pointer to the first available byte in the application message */
+   int      len;       /* effective length of application message               */
+   rozofs_rpc_call_hdr_with_sz_t *com_hdr_p;
+   bool_t ret;
+
+   if (position != NULL) *position = 0;
+   /*
+   ** Get the full length of the message and adjust it the the length of the applicative part (RPC header+application msg)
+   */
+   msg_len = ruc_buf_getPayloadLen(recv_buf);
+   msg_len -=sizeof(uint32_t);   
+
+   com_hdr_p  = (rozofs_rpc_call_hdr_with_sz_t*) ruc_buf_getPayload(recv_buf);  
+   pmsg = rozofs_rpc_set_ptr_on_first_byte_after_rpc_header((char*)&com_hdr_p->hdr,&header_len);
+   if (pmsg == NULL)
+   {
+      ROZORPC_SRV_STATS(ROZORPC_SRV_DECODING_ERROR);
+     errno = EFAULT;
+     return FALSE;
+   }
+   /*
+   ** map the memory on the first applicative RPC byte available and prepare to decode:
+   ** notice that we will not call XDR_FREE since the application MUST
+   ** provide a pointer for storing the file handle
+   */
+   len = msg_len - header_len;    
+   xdrmem_create(&xdrs,(char*)pmsg,len,XDR_DECODE);
+   ret = (*xdr_argument)(&xdrs,argument);
+   if (ret == TRUE)
+   {
+    if (position != NULL) *position = XDR_GETPOS(&xdrs);
+    ROZORPC_SRV_STATS(ROZORPC_SRV_RECV_OK);
+   }
+   else 
+   {
+     ROZORPC_SRV_STATS(ROZORPC_SRV_DECODING_ERROR);
+   }
+   return (int) ret;
+}
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
 * send a rpc reply: the encoding function MUST be found in xdr_result 
  of the gateway context
 
