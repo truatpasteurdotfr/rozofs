@@ -1062,7 +1062,7 @@ int main(int argc, char *argv[]) {
     /**
     * init of the traffic shaper
     */
-    trshape_module_init(80);
+    trshape_module_init(1);
     /*
      ** main loop
      */
