@@ -167,7 +167,7 @@ int loop_test_process() {
        
     ret = do_one_test(fileName);   
     if (ret < 0) {
-      printf("proc %3d - test failed in loop %d(%s) %s\n", myProcId, count);  
+      printf("proc %3d - test failed in loop %d\n", myProcId, count);  
       return ret;
     }
 
