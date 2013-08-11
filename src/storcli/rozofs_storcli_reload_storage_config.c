@@ -249,6 +249,11 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
             (!(clt->rpcclt.client) ||
             !(ret_poll_p = ep_poll_conf_1(&arg_poll, clt->rpcclt.client)))) {
 
+        /*
+        ** release the sock if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+        
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -298,6 +303,11 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
             (!(clt->rpcclt.client) ||
             !(ret_conf_p = ep_conf_storage_1(&clt->root, clt->rpcclt.client)))) {
 
+        /*
+        ** release the sock if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+        
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -373,6 +383,13 @@ int rozofs_storcli_start_exportd_config_supervision_thread(exportclt_t * clt) {
 
      pthread_t thread;
      int status = -1;
+     
+     /*
+     ** preinitialization of the rpc context of the exportd client structure
+     */
+     clt->rpcclt.sock = -1;
+     clt->rpcclt.client = NULL;
+     clt->rpcclt.lbg_id = -1;
 
      if ((errno = pthread_create(&thread, NULL, storcli_exportd_config_supervision_thread, clt)) != 0) {
          severe("can't create connexion thread: %s", strerror(errno));
