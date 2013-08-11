@@ -37,9 +37,15 @@ ruc_obj_desc_t stclbg_hash_table[STCLBG_HASH_SIZE];
 
 int stclbg_next_idx = 0; /**< index of the next storcli to use */
 int stclbg_init_done = 0;
-int stclbg_storcli_count = STORCLI_PER_FSMOUNT;
+//int stclbg_storcli_count = STORCLI_PER_FSMOUNT;
+// Only 1 storcli is used
+int stclbg_storcli_count = 1;
+
 
 uint64_t stclbg_storcli_stats[STORCLI_PER_FSMOUNT];
+uint64_t stclbg_hash_lookup_hit_count;
+uint64_t stclbg_hash_lookup_miss_count;
+uint64_t stclbg_hash_lookup_insert_count;
 /*
  **____________________________________________________
  */
@@ -89,6 +95,10 @@ void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef)
    pchar += sprintf(pchar,"number of configured storcli: %d\n",  stclbg_storcli_count);
    for (i = 0; i < STORCLI_PER_FSMOUNT; i++)
    pchar += sprintf(pchar,"storcli %d: %llu\n",i, (long long unsigned int) stclbg_storcli_stats[i]);
+   pchar += sprintf(pchar,"hit/miss/insert %llu/%llu/%llu\n",
+     (long long unsigned int) stclbg_hash_lookup_hit_count,
+     (long long unsigned int) stclbg_hash_lookup_miss_count,
+     (long long unsigned int) stclbg_hash_lookup_insert_count);
 
   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
 }
@@ -174,11 +184,11 @@ rozofs_tx_rw_lbg_t *stclbg_hash_table_search_ctx(fid_t fid)
         /* 
         ** This is our guy. Refresh this entry now
         */
-//        stclbg_hash_lookup_hit_count++;
+        stclbg_hash_lookup_hit_count++;
         return p;
       }      
    } 
-//   nfs_lbg_cache_stats_table.lookup_miss_count++;
+   stclbg_hash_lookup_miss_count++;
    return NULL;
 }
 
@@ -202,7 +212,7 @@ void stclbg_hash_table_insert_ctx(rozofs_tx_rw_lbg_t *p, fid_t fid, int storcli_
    unsigned int       hashIdx;
    ruc_obj_desc_t   * phead; 
    
-   memcpy(p->fid, fid, sizeof(fid));
+   memcpy(p->fid, fid, sizeof(fid_t));
    p->storcli_idx = storcli_idx;
 
    if (stclbg_init_done == 0)
@@ -218,7 +228,9 @@ void stclbg_hash_table_insert_ctx(rozofs_tx_rw_lbg_t *p, fid_t fid, int storcli_
    /*
    ** Get the head of list and insert the context at the tail of the queue
    */
-   phead = &stclbg_hash_table[hashIdx];  
+   stclbg_hash_lookup_insert_count++;
+   phead = &stclbg_hash_table[hashIdx]; 
+   ruc_objRemove(&p->link); 
    ruc_objInsertTail(phead,(ruc_obj_desc_t*)p);
 }
 /*
