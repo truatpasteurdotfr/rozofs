@@ -2549,6 +2549,8 @@ out:
  * On failure, -1 is returned and errno is set appropriately.
  */
 #define ROZOFS_XATTR "rozofs"
+#define ROZOFS_USER_XATTR "user.rozofs"
+#define ROZOFS_ROOT_XATTR "trusted.rozofs"
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value) {
   char    * p=value;
   uint8_t * pFid;
@@ -2597,7 +2599,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
         goto out;
     }
 
-    if (strcmp(name,ROZOFS_XATTR)==0) {
+    if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
       status = get_rozofs_xattr(e,lv2,value);
       goto out;
     }  
