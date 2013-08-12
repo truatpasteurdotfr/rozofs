@@ -1507,6 +1507,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
             struct timeval timeo;
             timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
+	    
+	    init_rpcctl_ctx(&mclt->rpcclt);
 
             if (mclient_initialize(mclt, timeo) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));

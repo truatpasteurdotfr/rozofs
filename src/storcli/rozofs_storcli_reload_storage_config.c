@@ -114,6 +114,7 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       ** attempt to get its port configuration
       */        
       mclient_t mclt;
+      init_rpcctl_ctx(&mclt.rpcclt);
       strcpy(mclt.host, mstor->host);
       uint32_t ports[STORAGE_NODE_PORTS_MAX];
       memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
@@ -249,6 +250,11 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
             (!(clt->rpcclt.client) ||
             !(ret_poll_p = ep_poll_conf_1(&arg_poll, clt->rpcclt.client)))) {
 
+        /*
+        ** release the sock if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+        
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -298,6 +304,11 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
             (!(clt->rpcclt.client) ||
             !(ret_conf_p = ep_conf_storage_1(&clt->root, clt->rpcclt.client)))) {
 
+        /*
+        ** release the sock if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+        
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -373,6 +384,11 @@ int rozofs_storcli_start_exportd_config_supervision_thread(exportclt_t * clt) {
 
      pthread_t thread;
      int status = -1;
+     
+     /*
+     ** The clt given in the interface is the one that has been set to read the configuration from 
+     ** export during initialization. Do not reset it.
+     */
 
      if ((errno = pthread_create(&thread, NULL, storcli_exportd_config_supervision_thread, clt)) != 0) {
          severe("can't create connexion thread: %s", strerror(errno));

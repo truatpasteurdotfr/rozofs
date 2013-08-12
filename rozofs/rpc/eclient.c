@@ -52,6 +52,8 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     clt->bufsize = bufsize;
     clt->timeout = timeout;
 
+    init_rpcctl_ctx(&clt->rpcclt);    
+	
     /* Initialize connection with export server */
     if (rpcclt_initialize
             (&clt->rpcclt, host, EXPORT_PROGRAM, EXPORT_VERSION,
@@ -235,6 +237,12 @@ int exportclt_stat(exportclt_t * clt, estat_t * st) {
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_statfs_1(&clt->eid, clt->rpcclt.client)))) {
+	    
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	    
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -274,6 +282,11 @@ int exportclt_lookup(exportclt_t * clt, fid_t parent, char *name,
             (!(clt->rpcclt.client) ||
             !(ret = ep_lookup_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -311,6 +324,11 @@ int exportclt_getattr(exportclt_t * clt, fid_t fid, mattr_t * attrs) {
             (!(clt->rpcclt.client) ||
             !(ret = ep_getattr_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -350,6 +368,11 @@ int exportclt_setattr(exportclt_t * clt, fid_t fid, mattr_t * attrs, int to_set)
             (!(clt->rpcclt.client) ||
             !(ret = ep_setattr_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -387,6 +410,11 @@ int exportclt_readlink(exportclt_t * clt, fid_t fid, char *link) {
             (!(clt->rpcclt.client) ||
             !(ret = ep_readlink_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -427,6 +455,11 @@ int exportclt_link(exportclt_t * clt, fid_t inode, fid_t newparent, char *newnam
             (!(clt->rpcclt.client) ||
             !(ret = ep_link_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -470,6 +503,11 @@ int exportclt_mknod(exportclt_t * clt, fid_t parent, char *name, uint32_t uid,
             (!(clt->rpcclt.client) ||
             !(ret = ep_mknod_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -513,6 +551,11 @@ int exportclt_mkdir(exportclt_t * clt, fid_t parent, char *name, uint32_t uid,
             (!(clt->rpcclt.client) ||
             !(ret = ep_mkdir_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -552,6 +595,11 @@ int exportclt_unlink(exportclt_t * clt, fid_t pfid, char *name, fid_t * fid) {
             (!(clt->rpcclt.client) ||
             !(ret = ep_unlink_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -591,6 +639,11 @@ int exportclt_rmdir(exportclt_t * clt, fid_t pfid, char *name, fid_t * fid) {
             (!(clt->rpcclt.client) ||
             !(ret = ep_rmdir_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -631,7 +684,12 @@ int exportclt_symlink(exportclt_t * clt, char *link, fid_t parent, char *name,
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_symlink_1(&arg, clt->rpcclt.client)))) {
-
+	    
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -673,6 +731,11 @@ int exportclt_rename(exportclt_t * clt, fid_t parent, char *name, fid_t newparen
             (!(clt->rpcclt.client) ||
             !(ret = ep_rename_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -754,6 +817,11 @@ dist_t * exportclt_read_block(exportclt_t * clt, fid_t fid, uint64_t off, uint32
 
     while ((retry++ < clt->retries) && (!(clt->rpcclt.client) || !(ret = ep_read_block_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize(&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
             rpcclt_release(&clt->rpcclt);
             errno = EPROTO;
@@ -839,6 +907,11 @@ int64_t exportclt_write_block(exportclt_t * clt, fid_t fid, bid_t bid, uint32_t 
             (!(clt->rpcclt.client) ||
             !(ret = ep_write_block_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -878,7 +951,12 @@ int exportclt_readdir(exportclt_t * clt, fid_t fid, uint64_t * cookie, child_t *
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
             !(ret = ep_readdir_1(&arg, clt->rpcclt.client)))) {
-
+	    
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -1015,6 +1093,11 @@ int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, void* value,
             (!(clt->rpcclt.client) ||
             !(ret = ep_setxattr_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -1055,6 +1138,11 @@ int exportclt_getxattr(exportclt_t * clt, fid_t fid, char * name, void * value,
             (!(clt->rpcclt.client) ||
             !(ret = ep_getxattr_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -1099,6 +1187,11 @@ int exportclt_removexattr(exportclt_t * clt, fid_t fid, char * name) {
             (!(clt->rpcclt.client) ||
             !(ret = ep_removexattr_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {
@@ -1138,6 +1231,11 @@ int exportclt_listxattr(exportclt_t * clt, fid_t fid, char * list,
             (!(clt->rpcclt.client) ||
             !(ret = ep_listxattr_1(&arg, clt->rpcclt.client)))) {
 
+        /*
+        ** release the socket if already configured to avoid losing fd descriptors
+        */
+        rpcclt_release(&clt->rpcclt);
+	
         if (rpcclt_initialize
                 (&clt->rpcclt, clt->host, EXPORT_PROGRAM, EXPORT_VERSION,
                 ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, clt->timeout) != 0) {

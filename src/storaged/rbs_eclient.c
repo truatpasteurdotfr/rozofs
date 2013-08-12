@@ -63,6 +63,8 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
     ret = ep_list_cluster_1(&cid, clt->client);
     if (ret == 0) {
         errno = EPROTO;
+        // Release connection
+        rpcclt_release(clt);
         goto out;
     }
 

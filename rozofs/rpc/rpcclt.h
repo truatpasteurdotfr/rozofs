@@ -27,6 +27,11 @@ typedef struct rpcclt {
     int lbg_id; /**< reference of the load balancing group */
 } rpcclt_t;
 
+static inline void init_rpcctl_ctx(rpcclt_t * clt) {
+  clt->sock   = -1;
+  clt->lbg_id = -1;
+  clt->client = NULL;
+}
 
 int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
         unsigned long vers, unsigned int sendsz, unsigned int recvsz,
