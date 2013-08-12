@@ -477,6 +477,8 @@ static int get_storage_ports(mstorage_t *s) {
     timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
     timeo.tv_usec = 0;
 
+    init_rpcctl_ctx(&mclt.rpcclt);
+
     /* Initialize connection with storage (by mproto) */
     if (mclient_initialize(&mclt, timeo) != 0) {
         severe("Warning: failed to join storage (host: %s), %s.\n",
@@ -626,7 +628,9 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     //XXX Static timeout
     timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
-
+    
+    init_rpcctl_ctx(&exportclt.rpcclt); 
+    
     /* Initiate the connection to the export and get informations
      * about exported filesystem */
     if (exportclt_initialize(
@@ -669,6 +673,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_MONITOR_PROGRAM);
         timeout_mproto.tv_usec = 0;
 
+        init_rpcctl_ctx(&mclt.rpcclt);
+	
         /* Initialize connection with storage (by mproto) */
         if (mclient_initialize(&mclt, timeout_mproto) != 0) {
             fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",

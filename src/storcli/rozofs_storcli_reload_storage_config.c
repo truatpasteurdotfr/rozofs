@@ -114,6 +114,7 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       ** attempt to get its port configuration
       */        
       mclient_t mclt;
+      init_rpcctl_ctx(&mclt.rpcclt);
       strcpy(mclt.host, mstor->host);
       uint32_t ports[STORAGE_NODE_PORTS_MAX];
       memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
@@ -385,11 +386,9 @@ int rozofs_storcli_start_exportd_config_supervision_thread(exportclt_t * clt) {
      int status = -1;
      
      /*
-     ** preinitialization of the rpc context of the exportd client structure
+     ** The clt given in the interface is the one that has been set to read the configuration from 
+     ** export during initialization. Do not reset it.
      */
-     clt->rpcclt.sock = -1;
-     clt->rpcclt.client = NULL;
-     clt->rpcclt.lbg_id = -1;
 
      if ((errno = pthread_create(&thread, NULL, storcli_exportd_config_supervision_thread, clt)) != 0) {
          severe("can't create connexion thread: %s", strerror(errno));

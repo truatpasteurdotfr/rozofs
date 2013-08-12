@@ -215,9 +215,12 @@ void volume_balance(volume_t *volume) {
             strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
             mclt.sid = vs->sid;
             mclt.cid = cluster->cid;
+	    init_rpcctl_ctx(&mclt.rpcclt);
+	    
             struct timeval timeo;
             timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
+
 
             if (mclient_initialize(&mclt, timeo) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));

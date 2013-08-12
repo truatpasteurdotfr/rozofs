@@ -149,6 +149,7 @@ int exportclt_reload_check_mstorage(ep_mount_ret_t *ret_mount_p)
       ** attempt to get its port configuration
       */        
       mclient_t mclt;
+      init_rpcctl_ctx(&mclt.rpcclt);
       strcpy(mclt.host, mstor->host);
       uint32_t ports[STORAGE_NODE_PORTS_MAX];
       memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
