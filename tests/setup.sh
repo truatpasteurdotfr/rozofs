@@ -256,7 +256,7 @@ start_one_storage()
     sid=$1
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
     echo "Start storage cid $cid sid $sid"
-   ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+   ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
 }
 stop_one_storage () {
    case $1 in
@@ -285,7 +285,7 @@ start_storaged ()
 	   for j in $(seq ${STORAGES_BY_CLUSTER}); do
 	      sid=$((sid+1))
               echo "start storaged" ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
-              ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
            done
 	done
     done
@@ -353,6 +353,12 @@ remove_storages ()
 }
 start_one_expgw ()
 {
+
+  if [ ! -f   ${LOCAL_BINARY_DIR}/exportd/expgateway ];
+  then
+    return
+  fi
+  
   case $1 in
     "all") start_expgw; return;;
   esac  
@@ -373,6 +379,11 @@ start_expgw ()
 }
 stop_one_expgw () {
 
+  if [ ! -f   ${LOCAL_BINARY_DIR}/exportd/expgateway ];
+  then
+    return
+  fi
+  
    case $1 in
      "all") stop_expgw; return;;
    esac  
@@ -785,6 +796,10 @@ show_process () {
 }
 main ()
 {
+    #storaged_dir="storaged_nb"
+    storaged_dir="storaged"
+
+        
     [ $# -lt 1 ] && usage
 
 
@@ -793,9 +808,9 @@ main ()
     # to reach storcli_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
     # to reach storio executable
-    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storaged
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
     # to reach storio_starter.sh  
-    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/storaged
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/$storaged_dir
 
     set_layout 0
 
@@ -811,7 +826,7 @@ main ()
         check_build
         do_stop
 
-        gen_storage_conf ${STORAGES_BY_CLUSTER} 4
+        gen_storage_conf ${STORAGES_BY_CLUSTER} 1
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}

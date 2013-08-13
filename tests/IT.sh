@@ -436,6 +436,7 @@ run_some_tests() {
       printf "\n-------> !!! $TST is failed ($zedelay) !!!\n"
       printf "%45s | FAILED  | %10s |\n" $TST "$zedelay" >> $RESULT
       FAIL=$((FAIL+1))
+      break
     else          
       if [ $res_dbg != 0 ];
       then
