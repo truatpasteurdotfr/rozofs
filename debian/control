@@ -23,7 +23,7 @@ Description: Rozofs filesystem (storage package).
 
 Package: rozofs-rozofsmount
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0), fuse-utils
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0), fuse | fuse-utils
 Description: Rozofs filesystem (rozofsmount package).
  Rozofs is a scale-out NAS using erasure coding.
 
