@@ -3,9 +3,11 @@ Section: admin
 Priority: optional
 Maintainer: Fizians S.A.S. <devel@rozofs.com>
 Build-Depends: debhelper, dh-make, cmake, make, libc6-dev, libfuse-dev (>= 2.9.0), libattr1-dev, uuid-dev, libconfig-dev, python-all-dev, libreadline-dev, swig
-Standards-Version: 3.8.4
+Standards-Version: 3.9.4
 X-Python-Version: = 2.7 << 3.0
 Homepage: http://www.rozofs.com
+Vcs-Git: https://github.com/rozofs/rozofs.git
+Vcs-Browser: https://github.com/rozofs/rozofs
 
 Package: rozofs-exportd
 Architecture: any
