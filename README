@@ -13,10 +13,10 @@ INSTALLATION
 Requirements
 ------------
     - cmake
+    - libfuse-dev (>= 2.9.0)
     - libattr1-dev
     - uuid-dev
     - libconfig-dev
-    - libfuse-dev
     - libreadline-dev
     - python2.7-dev
     - libpthread
