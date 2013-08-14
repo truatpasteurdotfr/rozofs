@@ -47,7 +47,7 @@ Description: Rozofs filesystem (management library package).
 
 Package: rozofs-manager-cli
 Architecture: any
-Depends: ${misc:Depends}, rozofs-manager-lib
+Depends: ${misc:Depends}, rozofs-manager-lib, python2.7
 Description: Rozofs filesystem (management cli package).
  Rozofs is a scale-out NAS using erasure coding.
 
