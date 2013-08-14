@@ -528,7 +528,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
 
-    /* Initiate the connection to the export and get informations
+    /* Initiate the connection to the export and get information
      * about exported filesystem */
     if (exportclt_initialize(
             &exportclt,

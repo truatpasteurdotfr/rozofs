@@ -563,7 +563,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
 
     for (retry_count = 3; retry_count > 0; retry_count--) {
-        /* Initiate the connection to the export and get informations
+        /* Initiate the connection to the export and get information
          * about exported filesystem */
         /// XXX: TO CHANGE
         if (exportclt_initialize(

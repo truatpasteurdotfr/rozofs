@@ -1649,7 +1649,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
-    /* Initiate the connection to the export and get informations
+    /* Initiate the connection to the export and get information
      * about exported filesystem */
     if (exportclt_initialize(
             &exportclt,
