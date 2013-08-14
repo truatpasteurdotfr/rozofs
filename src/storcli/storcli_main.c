@@ -628,7 +628,7 @@ void usage() {
     printf("Rozofs storage client daemon - %s\n", VERSION);
     printf("Usage: storcli -i <instance> [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
-    printf("\t-H,--host EXPORT_HOST\t\tdefine address (or dns name) where exportd deamon is running (default: rozofsexport) \n");
+    printf("\t-H,--host EXPORT_HOST\t\tdefine address (or dns name) where exportd daemon is running (default: rozofsexport) \n");
     printf("\t-E,--path EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export)\n");
     printf("\t-M,--mount MOUNT_POINT\t\tmount point\n");
     printf("\t-P,--pwd EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) \n");

@@ -19,7 +19,7 @@
 #ifndef _DAEMON_H
 #define _DAEMON_H
 
-/** API deamon management functions */
+/** API daemon management functions */
 
 /** start a new daemon
  *
