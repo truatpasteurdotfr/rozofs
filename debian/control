@@ -41,7 +41,7 @@ Description: Rozofs filesystem (debugging package).
 
 Package: rozofs-manager-lib
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libconfig8 | libconfig9, pyro, python-argparse
+Depends: ${shlibs:Depends}, ${misc:Depends}, libconfig8 | libconfig9, pyro, python-support (>= 0.90), python-argparse
 Description: Rozofs filesystem (management library package).
  Rozofs is a scale-out NAS using erasure coding.
 
