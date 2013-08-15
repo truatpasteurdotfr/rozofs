@@ -49,6 +49,7 @@
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/expgw_common.h>
+#include <rozofs/core/rozofs_core_files.h>
 #include "rozofs_reload_export_gateway_conf.h"
 #include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
@@ -293,7 +294,6 @@ int rozofs_stat_start(void *args) {
 
     uint16_t debug_port = args_p->debug_port;
 
-
     ret = ruc_init(FALSE, debug_port);
     if (ret != RUC_OK) {
         /*
@@ -328,6 +328,9 @@ int rozofs_stat_start(void *args) {
     if (storcli_lbg_initialize((exportclt_t*) args_p->exportclt, args_p->instance, 1, 2) != 0) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
+    
+    rozofs_signals_declare("rozofsmount", 1);
+    
     /*
      ** main loop
      */

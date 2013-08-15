@@ -49,6 +49,7 @@
 #include <rozofs/core/expgw_common.h>
 #include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
+#include <rozofs/core/rozofs_core_files.h>
 
 
 #define EXPGW_PID_FILE "expgw"
@@ -188,9 +189,6 @@ static void expgw_handle_signal(int sig) {
     if (storage_process_filename[0] != 0) {
       unlink(storage_process_filename);
     }  
-    
-    signal(sig, SIG_DFL);
-    raise(sig);
 }
 
 
@@ -313,17 +311,8 @@ int main(int argc, char *argv[]) {
     }
     openlog(name, LOG_PID, LOG_DAEMON);
 
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGTSTP, SIG_IGN);
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-    signal(SIGILL, expgw_handle_signal);
-    signal(SIGSTOP, expgw_handle_signal);
-    signal(SIGABRT, expgw_handle_signal);
-    signal(SIGSEGV, expgw_handle_signal);
-    signal(SIGKILL, expgw_handle_signal);
-    signal(SIGTERM, expgw_handle_signal);
-    signal(SIGQUIT, expgw_handle_signal);
+    rozofs_signals_declare("expgw", 1);
+    rozofs_attach_crash_cbk(expgw_handle_signal);
 
     char *pid_name_p = storage_process_filename;
     if (conf.localhost != NULL) {

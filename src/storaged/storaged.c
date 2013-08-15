@@ -47,6 +47,7 @@
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/rozofs_srv.h>
 
@@ -390,9 +391,8 @@ char storage_process_filename[NAME_MAX];
  */
 
 static void storaged_handle_signal(int sig) {
+    if (storage_process_filename[0] == 0) return;
     unlink(storage_process_filename);
-    signal(sig, SIG_DFL);
-    raise(sig);
 }
 
 static void on_start() {
@@ -450,18 +450,9 @@ static void on_start() {
 
         // Create child process
         if (!(pid = fork())) {
-
-            signal(SIGCHLD, SIG_IGN);
-            signal(SIGTSTP, SIG_IGN);
-            signal(SIGTTOU, SIG_IGN);
-            signal(SIGTTIN, SIG_IGN);
-            signal(SIGILL, storaged_handle_signal);
-            signal(SIGSTOP, storaged_handle_signal);
-            signal(SIGABRT, storaged_handle_signal);
-            signal(SIGSEGV, storaged_handle_signal);
-            signal(SIGKILL, storaged_handle_signal);
-            signal(SIGTERM, storaged_handle_signal);
-            signal(SIGQUIT, storaged_handle_signal);
+	
+            rozofs_signals_declare("storio", 1);
+	    rozofs_attach_crash_cbk(storaged_handle_signal);
 
             char *pid_name_p = storage_process_filename;
             if (storaged_hostname != NULL) {
@@ -683,7 +674,7 @@ int main(int argc, char *argv[]) {
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }
-    daemon_start(pid_name, on_start, on_stop, NULL);
+    daemon_start("storaged",1,pid_name, on_start, on_stop, NULL);
 
     exit(0);
 error:

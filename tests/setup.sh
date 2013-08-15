@@ -831,7 +831,7 @@ show_process () {
       printf "[expgw %d:%d] " $nb $proc
     fi    
   done  
-  printf "\n\n"
+  printf "\n"
   printf " cid sid storaged          storios........\n"
   for sid in $(seq 16)
   do
@@ -865,6 +865,20 @@ show_process () {
       printf "\n"   
     fi   
   done
+  
+  # Clients 
+  echo ""
+  printf "\nClients:\n"
+  for file in rozofsmount_*
+  do
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      name=`echo $file | awk -F'.' '{print $1}'`
+      printf "  %-23s %5d\n" $name $proc
+    fi    
+  done  
+  printf "\n"
   cd - 
 }
 
@@ -887,6 +901,8 @@ main ()
     NB_VOLUMES=1;
     NB_CLUSTERS_BY_VOLUME=1;
     NB_PORTS_PER_STORAGE_HOST=4;
+    
+    ulimit -c unlimited
 
     if [ "$1" == "start" ]
     then

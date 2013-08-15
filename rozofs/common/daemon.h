@@ -23,12 +23,14 @@
 
 /** start a new daemon
  *
+ * @param path: sub directory in /var/run/rozofs_core to contain core files 
+ * @param nbCoreFiles: max number of core files in this directory
  * @param name: name used to identify this daemon (e.g. pid file)
  * @param on_start: pointer to function called at start up
  * @param on_stop: pointer to function called on SIGKILL or SIGTERM before exiting
  * @param on_hup: pointer to function called on SIGHUP
  */
-void daemon_start(const char *name, void (*on_start) (void),
-                  void (*on_stop) (void), void (*on_hup) (void));
+void daemon_start(char * path, int nbCoreFiles, const char *name, void (*on_start) (void),
+        void (*on_stop) (void), void (*on_hup) (void)) ;
 
 #endif
