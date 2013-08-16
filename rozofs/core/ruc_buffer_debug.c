@@ -23,9 +23,6 @@
 #define RUC_BUFFER_DEBUG_2ND_ENTRIES_NB   16
 #define RUC_BUFFER_DEBUG_1RST_ENTRIES_NB  16
 
-#define RUC_BUFFER_DEBUF_BUF_SIZE (16*1024)
-static char localBuf[RUC_BUFFER_DEBUF_BUF_SIZE];
-
 
 typedef struct _ruc_registered_buffer_pool_t {
   char *      name;
@@ -34,53 +31,6 @@ typedef struct _ruc_registered_buffer_pool_t {
 
 ruc_registered_buffer_pool_t ** ruc_registered_buffer_pool = NULL;
 static int                      ruc_registered_buffer_pool_entries=0;
-
-#define HEXDUMP_COLS 16
-char * hexdump(void *mem, unsigned int offset, unsigned int len, char * p)
-{
-        unsigned int i, j;
-        
-        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
-        {
-                /* print offset */
-                if(i % HEXDUMP_COLS == 0)
-                {
-                        p += sprintf(p,"0x%06x: ", i+offset);
-                }
- 
-                /* print hex data */
-                if(i < len)
-                {
-                        p += sprintf(p,"%02x ", 0xFF & ((char*)mem)[i+offset]);
-                }
-                else /* end of block, just aligning for ASCII dump */
-                {
-                        p += sprintf(p,"   ");
-                }
-                
-                /* print ASCII dump */
-                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
-                {
-                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
-                        {
-                                if(j >= len) /* end of block, not really printing */
-                                {
-                                        p += sprintf(p," ");
-                                }
-                                else if(isprint(((char*)mem)[j+offset])) /* printable char */
-                                {
-					p += sprintf(p,"%c", 0xFF & ((char*)mem)[j+offset]);     
-                                }
-                                else /* other char */
-                                {
-                                        p += sprintf(p,".");
-                                }
-                        }
-                        p += sprintf(p,"\n");
-                }
-        }
-	return p;
-}
 
 
 /*
@@ -92,7 +42,7 @@ char * hexdump(void *mem, unsigned int offset, unsigned int len, char * p)
 */
 static inline char * ruc_buf_poolDisplay(ruc_buf_t* poolRef, char * displayName, char * p)
 {
-  p += sprintf(p, "%20s - user data addr/len %16.16p /%9d - nb buff %3d/%3d size %6d\n",displayName,
+  p += sprintf(p, "%20s - user data addr/len %p /%9d - nb buff %3d/%3d size %6d\n",displayName,
                poolRef->ptr, poolRef->len,
                poolRef->usrLen, poolRef->bufCount, poolRef->len/poolRef->bufCount);
   return p;	       
@@ -111,7 +61,7 @@ static inline char * ruc_buf_poolContentDisplay(ruc_buf_t* poolRef, char * p)
   pBuf++;
   
   for (i=0; i< poolRef->bufCount; i++,pBuf++) {  
-    p += sprintf(p, "%3d %s payload %16.16p len %6d/%6d in use %d\n", 
+    p += sprintf(p, "%3d %s payload %p len %6d/%6d in use %d\n", 
                  i,
                 (pBuf->state == BUF_FREE)?"free":"busy", 
 		 pBuf->ptr, pBuf->usrLen, pBuf->bufCount, pBuf->inuse);
@@ -125,7 +75,7 @@ static inline char * ruc_buf_poolContentDisplay(ruc_buf_t* poolRef, char * p)
 * @param buffIdx      Buffer index
 * @param p            Where to format the output 
 */
-#define MAX_LEN  (((RUC_BUFFER_DEBUF_BUF_SIZE-1024)/80)*16)
+#define MAX_LEN  (((UMA_DBG_MAX_SEND_SIZE-1024)/80)*16)
 static inline char * ruc_buf_bufferContentDisplay(ruc_buf_t* poolRef, int buffIdx, char * p)
 {
   int    size;
@@ -138,7 +88,7 @@ static inline char * ruc_buf_bufferContentDisplay(ruc_buf_t* poolRef, int buffId
 		 pBuf->ptr, pBuf->usrLen, pBuf->bufCount, pBuf->inuse);
   size = pBuf->usrLen;
   if (size > MAX_LEN) size = MAX_LEN;
-  p = hexdump(pBuf->ptr, 0, size, p);  	 
+  p = uma_dbg_hexdump(pBuf->ptr, size, p);  	 
   return p;	       
 }
 /*
@@ -176,7 +126,7 @@ static inline ruc_buf_t * ruc_buffer_debug_get_pool_from_name(char * name) {
 */
 void show_ruc_buffer_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   ruc_buf_t   * poolRef; 
-  char        * pChar = localBuf;
+  char        * pChar = uma_dbg_get_buffer();
   int           idx1; 
   int           idx2;  
   
@@ -200,19 +150,19 @@ void show_ruc_buffer_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
         uma_dbg_send(tcpRef, bufRef, TRUE, "bad buffer index \"%s\" %s\n",argv[2],strerror(errno));    
         return;     
       }  
-      if ((buffIdx<0) || (buffIdx > poolRef->bufCount)) {
+      if ((buffIdx<0) || (buffIdx >= poolRef->bufCount)) {
         uma_dbg_send(tcpRef, bufRef, TRUE, "buffer index out of range (%d). Should be within [0..%d[\n",buffIdx,poolRef->bufCount);    
         return;     
       }  
       pChar = ruc_buf_poolDisplay(poolRef,argv[1], pChar);
       pChar = ruc_buf_bufferContentDisplay(poolRef,buffIdx,pChar);
-      uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
       return;
     }     
     
     pChar = ruc_buf_poolDisplay(poolRef,argv[1], pChar);
     pChar = ruc_buf_poolContentDisplay(poolRef,pChar);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
     return;
   }
 
@@ -228,7 +178,7 @@ void show_ruc_buffer_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       pChar = ruc_buf_poolDisplay(ruc_registered_buffer_pool[idx1][idx2].poolRef,ruc_registered_buffer_pool[idx1][idx2].name, pChar);
     }
   }	 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;
 }
 

@@ -28,6 +28,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <time.h>
+#include <ctype.h>
  
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
@@ -77,7 +78,69 @@ typedef struct uma_dbg_session_s {
 UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
 static char rcvCmdBuffer[255];
-static char localBuf[8192];
+
+char uma_dbg_temporary_buffer[UMA_DBG_MAX_SEND_SIZE];
+
+
+/*__________________________________________________________________________
+ */
+/**
+*  Format an ASCII dump
+* @param mem   memory area to dump
+* @param len   size to dump mem on
+* @param p     where to output the dump
+*
+*  return the address of the end of the dump 
+*/
+/*__________________________________________________________________________
+ */ 
+#define HEXDUMP_COLS 16
+char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
+{
+        unsigned int i, j;
+	char * mem =(char *) ptr;
+        
+        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+        {
+                /* print offset */
+                if(i % HEXDUMP_COLS == 0)
+                {
+                        p += sprintf(p,"%8p: ", mem+i);
+                }
+ 
+                /* print hex data */
+                if(i < len)
+                {
+                        p += sprintf(p,"%02x ", 0xFF & ((char*)mem)[i]);
+                }
+                else /* end of block, just aligning for ASCII dump */
+                {
+                        p += sprintf(p,"   ");
+                }
+                
+                /* print ASCII dump */
+                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+                {
+                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+                        {
+                                if(j >= len) /* end of block, not really printing */
+                                {
+                                        p += sprintf(p," ");
+                                }
+                                else if(isprint(((char*)mem)[j])) /* printable char */
+                                {
+					p += sprintf(p,"%c", 0xFF & ((char*)mem)[j]);     
+                                }
+                                else /* other char */
+                                {
+                                        p += sprintf(p,".");
+                                }
+                        }
+                        p += sprintf(p,"\n");
+                }
+        }
+	return p;
+}
 
 /*__________________________________________________________________________
  */
@@ -104,7 +167,7 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
   }
   
   len = read(fd,result, len-1);
-  localBuf[len] = 0;
+  result[len] = 0;
   
   close(fd);
   unlink(fileName);  
@@ -129,9 +192,9 @@ void uma_dbg_system_cmd(char * argv[], uint32_t tcpRef, void *bufRef) {
   while (*cmd != 's') cmd++;
   cmd += 7;
 
-  len = uma_dbg_run_system_cmd(cmd, localBuf, sizeof(localBuf));
+  len = uma_dbg_run_system_cmd(cmd, uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
   if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
-  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",localBuf);
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",uma_dbg_get_buffer());
   return ;
 } 
 /*__________________________________________________________________________
@@ -145,12 +208,12 @@ void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   pid = getpid();
   
-  sprintf(localBuf,"ps -p %d ", pid);
-  strcat(localBuf, "-o%p -o%C -o%t -o%z -o%a");
+  sprintf(uma_dbg_get_buffer(),"ps -p %d ", pid);
+  strcat(uma_dbg_get_buffer(), "-o%p -o%C -o%t -o%z -o%a");
 
-  len = uma_dbg_run_system_cmd(localBuf, localBuf, sizeof(localBuf));
+  len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
   if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
-  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",localBuf);
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",uma_dbg_get_buffer());
   return ;
 } 
 /*__________________________________________________________________________
