@@ -20,6 +20,7 @@
 
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_buffer_api.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 
 #include "rozofs_storcli.h"
 

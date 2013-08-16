@@ -43,6 +43,7 @@
 #include "storage_proto.h"
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/ruc_timer_api.h>
+#include <rozofs/core/ruc_traffic_shaping.h>
 #include <rozofs/rozofs_srv.h>
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/sproto.h>

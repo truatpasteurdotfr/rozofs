@@ -26,6 +26,7 @@
 #include "rozofsmount.h"
 #include <rozofs/core/ruc_buffer_api.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 #include "rozofs_sharedmem.h"
 /**
 * array used for storing information related to the storcli shared memory

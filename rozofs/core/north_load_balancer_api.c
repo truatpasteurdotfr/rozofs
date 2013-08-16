@@ -1489,7 +1489,6 @@ reloop:
 int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint32_t disk_time)
 {                             
   north_lbg_ctx_t  *lbg_p;
-  int entry_idx;
   int ret = 0;
 
 

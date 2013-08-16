@@ -27,6 +27,7 @@
 #include "com_tx_timer_api.h"
 #include "rozofs_tx_api.h"
 #include "uma_dbg_api.h"
+#include "ruc_buffer_debug.h"
 
 rozofs_tx_ctx_t *rozofs_tx_context_freeListHead; /**< head of list of the free context  */
 rozofs_tx_ctx_t rozofs_tx_context_activeListHead; /**< list of the active context     */
