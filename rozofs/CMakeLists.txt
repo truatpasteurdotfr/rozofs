@@ -164,6 +164,8 @@ set (librozofs_sources
     #core/rozofs_optim.c
     core/ruc_traffic_shaping.h
     core/ruc_traffic_shaping.c
+    core/rozofs_core_files.c
+    core/rozofs_core_files.h    
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

@@ -49,6 +49,7 @@
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
+#include <rozofs/core/rozofs_core_files.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
@@ -629,8 +630,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
     
-    init_rpcctl_ctx(&exportclt.rpcclt); 
-    
+    init_rpcctl_ctx(&exportclt.rpcclt);    
+
     /* Initiate the connection to the export and get informations
      * about exported filesystem */
     if (exportclt_initialize(
@@ -674,7 +675,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         timeout_mproto.tv_usec = 0;
 
         init_rpcctl_ctx(&mclt.rpcclt);
-	
+
         /* Initialize connection with storage (by mproto) */
         if (mclient_initialize(&mclt, timeout_mproto) != 0) {
             fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
@@ -753,9 +754,8 @@ void usage() {
 
 static void storlci_handle_signal(int sig)
 {
-   unlink(storcli_process_filename); 
-   signal(sig, SIG_DFL);
-   raise(sig);
+  if (storcli_process_filename[0] == 0) return;
+  unlink(storcli_process_filename); 
 }
 
 
@@ -792,21 +792,9 @@ int main(int argc, char *argv[]) {
     storcli_rozofsmount_shared_mem.data_p = NULL; 
         
     storcli_process_filename[0] = 0;
-
-
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGTSTP, SIG_IGN);
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-    signal(SIGILL, storlci_handle_signal);
-    signal(SIGSTOP, storlci_handle_signal);
-    signal(SIGABRT, storlci_handle_signal);
-    signal(SIGSEGV, storlci_handle_signal);
-    signal(SIGKILL, storlci_handle_signal);
-    signal(SIGTERM, storlci_handle_signal);
-    signal(SIGQUIT, storlci_handle_signal);
+    rozofs_signals_declare("storcli",1);
+    rozofs_attach_crash_cbk(storlci_handle_signal);
     
-
     conf.host = NULL;
     conf.passwd = NULL;
     conf.export = NULL;
@@ -1068,7 +1056,7 @@ int main(int argc, char *argv[]) {
     /**
     * init of the traffic shaper
     */
-    trshape_module_init(1);
+    trshape_module_init(1);    
     /*
      ** main loop
      */

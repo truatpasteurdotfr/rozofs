@@ -23,5 +23,6 @@ kill_everybody ()
   done
 }
 
-kill_everybody -6
+kill_everybody 
+sleep 1
 kill_everybody -9

@@ -20,6 +20,8 @@
 #
 . env.sh 2> /dev/null
 
+COREDIR="/var/run/rozofs_core"
+
 process_killer () {
 
   if ls /var/run/$1* > /dev/null 2>&1
@@ -612,7 +614,46 @@ clean_all ()
 }
 
 
-
+do_listCore() {
+  if [ -d $COREDIR ];
+  then
+    
+    cd $COREDIR
+    for dir in `ls `
+    do
+      for file in `ls $dir`
+      do
+	ls -l $dir/$file
+      done
+    done
+    
+  fi    
+} 
+do_removeCore() {
+  if [ -d $COREDIR ];
+  then
+    cd $COREDIR
+    unlink $1
+  fi    
+}   
+do_debugCore () {
+  name=`echo $1 | awk -F'/' '{ print $1}'`
+  
+  case "$name" in
+  "storaged") bin=${LOCAL_BINARY_DIR}/$name$nb/$name;;
+  "storio")   bin=${LOCAL_BINARY_DIR}/storaged/storio;;
+  *)          bin=${LOCAL_BINARY_DIR}/$name/$name;;
+  esac
+  ddd $bin -core $COREDIR/$1 &
+}
+do_core () 
+{
+  case "$1" in
+  "")       do_listCore;;
+  "remove") do_removeCore $2;;
+  *)        do_debugCore $1;;
+  esac      
+}
 check_build ()
 {
 
@@ -695,6 +736,7 @@ usage ()
     echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
     echo >&2 "$0 export             <stop|start|reset> "
     echo >&2 "$0 fsmount            <stop|start|reset> "
+    echo >&2 "$0 core     <remove>  <coredir/corefile> "
     echo >&2 "$0 process"    
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
@@ -758,7 +800,7 @@ show_process () {
       printf "[expgw %d:%d] " $nb $proc
     fi    
   done  
-  printf "\n\n"
+  printf "\n"
   printf " cid sid storaged          storios........\n"
   for sid in $(seq 16)
   do
@@ -792,6 +834,20 @@ show_process () {
       printf "\n"   
     fi   
   done
+  
+  # Clients 
+  echo ""
+  printf "\nClients:\n"
+  for file in rozofsmount_*
+  do
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      name=`echo $file | awk -F'.' '{print $1}'`
+      printf "  %-23s %5d\n" $name $proc
+    fi    
+  done  
+  printf "\n"
   cd - 
 }
 main ()
@@ -817,6 +873,8 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1;
     NB_CLUSTERS_BY_VOLUME=1;
+    
+    ulimit -c unlimited
 
     if [ "$1" == "start" ]
     then
@@ -839,7 +897,10 @@ main ()
     elif [ "$1" == "stop" ]
     then
            do_stop
-	   
+
+    elif [ "$1" == "core" ]
+    then
+           do_core $2 $3	   
     elif [ "$1" == "pause" ]
     then
            do_pause

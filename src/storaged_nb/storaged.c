@@ -48,6 +48,7 @@
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/core/rozofs_core_files.h>
 
 #include "config.h"
 #include "sconfig.h"
@@ -616,7 +617,7 @@ int main(int argc, char *argv[]) {
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }
-    daemon_start(pid_name, on_start, on_stop, NULL);
+    daemon_start("storaged",1,pid_name, on_start, on_stop, NULL);
 
     exit(0);
 error:

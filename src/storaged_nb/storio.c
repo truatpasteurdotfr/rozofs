@@ -191,11 +191,11 @@ char storage_process_filename[NAME_MAX];
  *  Signal catching
  */
 
-static void storaged_handle_signal(int sig) {
-    unlink(storage_process_filename);
+static void on_stop(int sig) {
+    if (storage_process_filename[0] != 0) {
+      unlink(storage_process_filename);
+    }  
     closelog();
-    signal(sig, SIG_DFL);
-    raise(sig);
 }
 
 static void on_start(uint16_t port_io) {
@@ -204,18 +204,9 @@ static void on_start(uint16_t port_io) {
 
     DEBUG_FUNCTION;
 
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGTSTP, SIG_IGN);
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-    signal(SIGILL, storaged_handle_signal);
-    signal(SIGSTOP, storaged_handle_signal);
-    signal(SIGABRT, storaged_handle_signal);
-    signal(SIGSEGV, storaged_handle_signal);
-    signal(SIGKILL, storaged_handle_signal);
-    signal(SIGTERM, storaged_handle_signal);
-    signal(SIGQUIT, storaged_handle_signal);
 
+    rozofs_signals_declare("storio", 1);
+    rozofs_attach_crash_cbk(on_stop);
 
     /*
     ** Save the process PID un PID directory 
