@@ -160,6 +160,8 @@ set (librozofs_sources
     core/rozofs_rpc_non_blocking_generic_srv.h
     core/rozofs_core_files.c
     core/rozofs_core_files.h
+    core/ruc_traffic_shaping.h
+    core/ruc_traffic_shaping.c
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

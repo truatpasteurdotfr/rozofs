@@ -20,6 +20,8 @@
 #
 . env.sh 2> /dev/null
 
+COREDIR="/var/run/rozofs_core"
+
 process_killer () {
 
   if ls /var/run/$1* > /dev/null 2>&1
@@ -684,6 +686,58 @@ clean_all ()
     remove_build
 }
 
+get_bin_complete_name () {
+  case "$1" in
+  storaged|storio) bin=${LOCAL_BINARY_DIR}/$storaged_dir/$1;;
+  expgw)           bin=${LOCAL_BINARY_DIR}/exportd/$1;;
+  *)               bin=${LOCAL_BINARY_DIR}/$1/$1;;
+  esac
+}
+do_listCore() {
+  if [ -d $COREDIR ];
+  then
+    
+    cd $COREDIR
+    for dir in `ls `
+    do
+    
+      get_bin_complete_name $dir
+
+      for file in `ls $dir`
+      do
+        res=`ls -lh $dir/$file | awk '{print $5" "$6" "$7" "$8" "$9}'`
+        if [ $dir/$file -nt $bin ];
+	then
+	  echo "(NEW) $res"
+	else
+	  echo "(OLD) $res"
+	fi
+      done
+    done
+    
+  fi    
+} 
+do_removeCore() {
+  if [ -d $COREDIR ];
+  then
+    cd $COREDIR
+    unlink $1
+  fi    
+}   
+do_debugCore () {
+  name=`echo $1 | awk -F'/' '{ print $1}'`
+  
+  get_bin_complete_name $name
+  ddd $bin -core $COREDIR/$1 &
+}
+do_core () 
+{
+  case "$1" in
+  "")       do_listCore;;
+  "remove") do_removeCore $2;;
+  *)        do_debugCore $1;;
+  esac      
+}
 check_build ()
 {
 
@@ -765,6 +819,7 @@ usage ()
     echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
     echo >&2 "$0 export             <stop|start|reset> "
     echo >&2 "$0 fsmount            <stop|start|reset> "
+    echo >&2 "$0 core     <remove>  <coredir/corefile> "
     echo >&2 "$0 process"    
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
@@ -930,6 +985,9 @@ main ()
     then
            do_stop
 	   
+    elif [ "$1" == "core" ]
+    then
+           do_core $2 $3
     elif [ "$1" == "pause" ]
     then
            do_pause

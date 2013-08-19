@@ -55,6 +55,7 @@
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_reload_storage_config.h"
+#include <rozofs/core/ruc_traffic_shaping.h>
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -1052,7 +1053,10 @@ int main(int argc, char *argv[]) {
     ** declare timer debug functions
     */
     rozofs_timer_conf_dbg_init();
-    
+    /**
+    * init of the traffic shaper in by-pass mode 
+    */
+    trshape_module_init(0);    
     /*
      ** main loop
      */

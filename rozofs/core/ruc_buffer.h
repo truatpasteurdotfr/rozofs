@@ -60,12 +60,27 @@
 */
 #define RUC_BUFFER_USER_ARRAY_SIZE  64  /**< user information opaque to ruc_buffer  */
 typedef void (*ruc_pf_buf_t)(void*);
+typedef int (*sched_pf_buf_t)(int,void*);
+/**
+* structure used for traffic shaping
+*/
+typedef struct _ruc_buf_sched_t
+{
+   uint32_t            rsp_time;      /**< time of the tcp response */
+   uint32_t            disk_time;     /**< time of the disk */
+   uint64_t            lbg_id:16;        /**< reference of the load balancing group    */
+   uint64_t            filler:48;        /**< for future usage                         */
+   sched_pf_buf_t      sched_callBackFct;   /**< called upon buffer release      */
+
+} ruc_buf_shaping_ctx_t;
+
 typedef struct _ruc_buf_t
 {
    ruc_obj_desc_t    obj;          /**< link used for queueing the buffer on any kind of queue */
    uint32_t            len;          /**< max length of the payload     */
    uint8_t             *ptr;         /**< pointer to the payload of the buffer  */
    void *              opaque_ref;    /**< opaque user reference     */
+   ruc_buf_shaping_ctx_t     shaping_ctx;  /**< traffic shaping context    */
    uint32_t            retry_counter:8;  /**<buffer retry counter    */
    uint32_t            usrLen:24;  /**< user length occupied in the payload  */
    uint32_t            bufCount;   /**< BUF_ELEM-> max payload len           */
