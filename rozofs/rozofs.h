@@ -42,6 +42,8 @@
 #define ROZOFS_XATTR_VALUE_MAX 65536
 #define ROZOFS_XATTR_LIST_MAX 65536
 #define ROZOFS_FILENAME_MAX 255
+/* Maximum file size (check for truncate) */
+#define ROZOFS_FILESIZE_MAX 0x20000000000LL
 
 /* Value for rpc buffer size used for sproto */
 #define ROZOFS_RPC_STORAGE_BUFFER_SIZE (1024*300) 

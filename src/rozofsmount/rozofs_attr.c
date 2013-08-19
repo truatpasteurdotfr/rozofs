@@ -401,7 +401,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     /*
     ** set to attr the attributes that must be set: indicated by to_set
     */
-    stat_to_mattr(stbuf, &attr,to_set);
+    stat_to_mattr(stbuf, &attr, to_set);
     /*
     ** address the case of the file truncate: update the size of the ientry
     ** when the file is truncated
@@ -414,9 +414,13 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       ** need to store the setattr attributes in the fuse context
       */
 
-      if (attr.size < 0x20000000000LL) {
+      // Check file size 
+      if (attr.size < ROZOFS_FILESIZE_MAX) {
         ie->size = attr.size;
-      }    
+      }else{
+        errno = EFBIG;
+        goto error;
+      } 
 
       storcli_truncate_arg_t  args;
       int ret;

@@ -1029,7 +1029,7 @@ static void usage() {
     printf("\t-h, --help\tprint this message.\n");
     printf("\t-d,--debug <port>\t\texportd non blocking debug port(default: none) \n");
 //    printf("\t-n,--hostname <name>\t\texportd host name(default: none) \n");
-    printf("\t-i,--instance <value>\t\texportd instance id(default: 1) \n");
+    //printf("\t-i,--instance <value>\t\texportd instance id(default: 1) \n");
     printf("\t-c, --config\tconfiguration file to use (default: %s).\n",
             EXPORTD_DEFAULT_CONFIG);
 };
@@ -1041,7 +1041,7 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"help", no_argument, 0, 'h'},
         {"debug", required_argument, 0, 'd'},
-        {"instance", required_argument, 0, 'i'},
+        //{"instance", required_argument, 0, 'i'},
         {"config", required_argument, 0, 'c'},
         {0, 0, 0, 0}
     };
@@ -1128,7 +1128,7 @@ int main(int argc, char *argv[]) {
     }
     
     openlog("exportd", LOG_PID, LOG_DAEMON);
-    daemon_start("exportd",1,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
+    daemon_start("exportd", 1,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
 
     exit(0);
 error:

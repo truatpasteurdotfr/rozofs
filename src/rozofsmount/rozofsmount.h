@@ -222,10 +222,10 @@ static inline mattr_t *stat_to_mattr(struct stat *st, mattr_t * attr, int to_set
         attr->mode = st->st_mode;
     if (to_set & FUSE_SET_ATTR_SIZE)
         attr->size = st->st_size;
-    //if (to_set & FUSE_SET_ATTR_ATIME)
-    //    attr->atime = st->st_atime;
-    //if (to_set & FUSE_SET_ATTR_MTIME)
-    //    attr->mtime = st->st_mtime;
+    if (to_set & FUSE_SET_ATTR_ATIME)
+        attr->atime = st->st_atime;
+    if (to_set & FUSE_SET_ATTR_MTIME)
+        attr->mtime = st->st_mtime;
     if (to_set & FUSE_SET_ATTR_UID)
         attr->uid = st->st_uid;
     if (to_set & FUSE_SET_ATTR_GID)

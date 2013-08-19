@@ -31,6 +31,7 @@
 #include <dirent.h>
 #include <signal.h>
 #include <errno.h>
+
 #include <rozofs/common/log.h>
 #include <rozofs/core/rozofs_core_files.h>
 
@@ -303,7 +304,7 @@ void rozofs_catch_sigpipe(int s){
   Declare a list of signals and the handler to process them
   ==========================================================================
   @param application       the application name. This will be the directory
-                           name where its core files will e saved
+                           name where its core files will be saved
   @param max_core_files    maximum number of core files to keep in this
                            directory
   ==========================================================================*/
