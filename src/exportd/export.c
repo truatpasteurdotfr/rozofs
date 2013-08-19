@@ -2542,6 +2542,40 @@ out:
 /*
 **______________________________________________________________________________
 */
+/** Display RozoFS special xattribute 
+ *
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+#define ROZOFS_XATTR "rozofs"
+#define ROZOFS_USER_XATTR "user.rozofs"
+#define ROZOFS_ROOT_XATTR "trusted.rozofs"
+static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value) {
+  char    * p=value;
+  uint8_t * pFid;
+  int       idx;
+  uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  
+  pFid = (uint8_t *) lv2->attributes.fid;  
+  p += sprintf(p,"EID %d / LAYOUT %d / FID %2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x ", 
+               e->eid, e->layout,
+               pFid[0],pFid[1],pFid[2],pFid[3],
+	       pFid[4],pFid[5],
+	       pFid[6],pFid[7],
+	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
+
+  if (!S_ISDIR(lv2->attributes.mode)) {
+    p += sprintf(p, "/ CLUSTER %d / STORAGED %3.3d", lv2->attributes.cid, lv2->attributes.sids[0]);  
+    for (idx = 1; idx < rozofs_safe; idx++) {
+      p += sprintf(p,"-%3.3d", lv2->attributes.sids[idx]);
+    } 
+  } 
+  return (p-value);  
+} 
+/*
+**______________________________________________________________________________
+*/
 /** retrieve an extended attribute value.
  *
  * @param e: the export managing the file or directory.
@@ -2565,6 +2599,11 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
         goto out;
     }
 
+    if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
+      status = get_rozofs_xattr(e,lv2,value);
+      goto out;
+    }  
+    
     if ((status = export_lv2_get_xattr(lv2, name, value, size)) < 0) {
         goto out;
     }
