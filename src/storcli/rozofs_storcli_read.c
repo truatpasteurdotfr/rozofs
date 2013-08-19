@@ -43,6 +43,7 @@
 #include "storage_proto.h"
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/ruc_timer_api.h>
+#include <rozofs/core/ruc_traffic_shaping.h>
 #include <rozofs/rozofs_srv.h>
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/sproto.h>
@@ -999,6 +1000,10 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    uint64_t raw_file_size;
    int bins_len = 0;
    int lbg_id;
+   /*
+   ** take care of the rescheduling of the pending frames
+   */
+   trshape_schedule_on_response();
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 

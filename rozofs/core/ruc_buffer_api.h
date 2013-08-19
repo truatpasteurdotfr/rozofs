@@ -885,4 +885,22 @@ static inline int ruc_buf_inuse_get(void * bufRef)
 
 }
 
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+  Get the traffic shaping sub-context
+ @param bufRef: pointer to the ruc_buffer structure
+ 
+ @retval the traffic shaping subcontext address
+*/
+static inline ruc_buf_shaping_ctx_t * ruc_buffer_get_shaping_ctx(void * bufRef)
+{
+  ruc_buf_t *pelem;
+
+  pelem = (ruc_buf_t*)bufRef;
+  return &pelem->shaping_ctx;
+}
 #endif

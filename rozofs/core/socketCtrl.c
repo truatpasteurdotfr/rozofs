@@ -32,6 +32,7 @@
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define RUC_SOCKCTRL_DEBUG_TOPIC      "cpu"
 
+
 /*
 **  G L O B A L   D A T A
 */
@@ -67,6 +68,9 @@ uint32_t ruc_sockCtrl_nbTimesScheduler = 0;
 
 uint32_t ruc_sockCtrl_looptime = 0;
 uint32_t ruc_sockCtrl_looptimeMax = 0;
+
+ruc_scheduler_t ruc_applicative_traffic_shaper = NULL;
+
 
 
 
@@ -549,6 +553,9 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits()
   
   timeBefore = 0;
   timeAfter  = 0;
+  
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
 
   for (i = 0; i <RUC_SOCKCTL_MAXPRIO ; i++)
   {
@@ -563,6 +570,13 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits()
       printf("CheckRcvBits :socketId %d, name: %s\n",p->socketId,&p->name[0]);
 #endif
       socketId = p->socketId;
+      /*
+      ** check the traffic shaper
+      */
+      if (ruc_applicative_traffic_shaper != NULL)
+      {
+       (*ruc_applicative_traffic_shaper)(timeAfter);
+      }
       if(FD_ISSET(socketId, &rucRdFdSet))
       {
         /*

@@ -48,6 +48,7 @@
 #include "rozofs_storcli.h"
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/rozofs_srv.h>
 
 DECLARE_PROFILING(stcpp_profiler_t);
 
@@ -207,12 +208,26 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t 
     */
 
 //     STORCLI_STOP_NORTH_PROF_SRV((rozofs_storcli_ctx_t*)user_ctx_p,read_req,0);   // FDL  
+    /*
+    ** check the case of the read
+    */
+    if (opcode == SP_READ)
+    {
+      sp_read_arg_t *request = (sp_read_arg_t*)msg2encode_p;
+      uint32_t rozofs_max_psize = (uint32_t) rozofs_get_max_psize(request->layout); 
 
-#ifndef TEST_STORCLI_TEST
-    ret = north_lbg_send(lbg_id,xmit_buf);
-#else
-    ret = test_north_lbg_send(lbg_id,xmit_buf);
-#endif
+      uint32_t rsp_size = request->nb_proj*rozofs_max_psize*sizeof(bin_t);
+      uint32_t disk_time = 0;
+//      info("FDL nb_proj %d rozofs_max_psize %d rsp_size %d",request->nb_proj,rozofs_max_psize,rsp_size);
+      ret = north_lbg_send_with_shaping(lbg_id,xmit_buf,rsp_size,disk_time);
+    }
+    else
+    {
+      /*
+      ** case write and truncate
+      */
+       ret = north_lbg_send(lbg_id,xmit_buf);
+    }
     if (ret < 0)
     {
        TX_STATS(ROZOFS_TX_SEND_ERROR);
