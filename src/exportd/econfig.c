@@ -667,7 +667,7 @@ out:
 
 int econfig_read(econfig_t *config, const char *fname) {
     int status = -1;
-    const char *host;
+    //const char *host;
     config_t cfg;
     // Check version of libconfig
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \

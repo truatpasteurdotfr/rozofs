@@ -167,7 +167,7 @@ int export_expgw_conf_ctx_create(int rank,char *hostname,uint16_t port)
 {
   export_expgw_conf_ctx_t *p = export_expgw_conf_table;
   char bufname[32];
-  int ret;
+  int ret = 0;
 
   if (rank >= EXPGW_EXPGW_MAX_IDX) 
   {

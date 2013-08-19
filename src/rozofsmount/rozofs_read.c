@@ -648,7 +648,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
+    if (ret.status == STORCLI_FAILURE) {
         errno = ret.storcli_read_ret_no_data_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;

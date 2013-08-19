@@ -262,7 +262,7 @@ void rozofs_catch_error(int sig){
   }
   
   /* Set current directory on the core directory */
-  if (rozofs_core_file_path) {
+  if (rozofs_core_file_path[0]) {
     chdir(rozofs_core_file_path);
   }
   /* Adios */

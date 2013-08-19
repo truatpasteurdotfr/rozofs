@@ -539,7 +539,7 @@ exp_invalidate_type_e exp_cache_build_invalidate_sections_msg(exp_cache_dirty_ct
   uint8_t                     chunk_u8_idx;
   int                         bit_idx;
   rozofs_section_header_u   * pSection;
-  int                         section_buffer_size;
+  //int                         section_buffer_size;
   int                         section_size;
   /*
   ** Retrieve front end context of this server
@@ -575,7 +575,7 @@ exp_invalidate_type_e exp_cache_build_invalidate_sections_msg(exp_cache_dirty_ct
   gw_invalidate_sections_msg.section.section_val = gw_dirty_section_buffer;            
   pSection = (rozofs_section_header_u *) gw_dirty_section_buffer;
   
-  section_buffer_size = 0;
+  //section_buffer_size = 0;
   
   /*
   ** Loop on the parent bit map to find out the significant childs

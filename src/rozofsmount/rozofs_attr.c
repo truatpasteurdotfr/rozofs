@@ -49,6 +49,7 @@
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
