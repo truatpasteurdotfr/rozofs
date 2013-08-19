@@ -29,6 +29,7 @@
 #include <assert.h>
 #include <semaphore.h>
 #include <netinet/tcp.h>
+#include <sys/resource.h>
 
 #define FUSE_USE_VERSION 26
 #include <fuse/fuse_lowlevel.h>
@@ -1006,6 +1007,7 @@ int main(int argc, char *argv[]) {
     char *mountpoint;
     int fg = 0;
     int res;
+    struct rlimit core_limit;
 
     memset(&conf, 0, sizeof (conf));
     /*
@@ -1164,6 +1166,14 @@ int main(int argc, char *argv[]) {
       {
         rozofs_cache_mode = conf.cache_mode;    
       }        
+    }
+    
+    // Change the value the maximum size of core file
+    core_limit.rlim_cur = RLIM_INFINITY;
+    core_limit.rlim_max = RLIM_INFINITY;
+    if (setrlimit(RLIMIT_CORE, &core_limit) < 0) {
+        warning("Failed to change maximum size of core file: %s",
+                strerror(errno));
     }
 
     res = fuseloop(&args, mountpoint, fg);
