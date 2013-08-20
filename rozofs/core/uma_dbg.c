@@ -687,7 +687,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   if (found == 0) {
     for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
       if (uma_dbg_topic[topicNum].len > length) {
-        int order = strncmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
+        int order = strncasecmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
         if (order < 0) break;  	
 	if (order == 0) {
 	  found++;
