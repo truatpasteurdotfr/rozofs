@@ -72,3 +72,14 @@ Description: RozoFS filesystem (management daemon)
  Management daemon for RozoFS.
  .
  RozoFS is a scale-out NAS using erasure coding.
+
+Package: rozofs-dbg
+Section: debug
+Priority: extra
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozofsmount (= ${binary:Version}) | rozofs-storaged (= ${binary:Version}) | rozofs-exportd (= ${binary:Version})
+Description: RozoFS filesystem (debugging symbols)
+ Provide debugging information for the various rozofs packages.
+ Install it to get a better backtrace in the event of a crash, or to test.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
