@@ -19,3 +19,6 @@ override_dh_auto_configure:
 
 override_dh_strip:
 	dh_strip --dbg-package=rozofs-dbg
+	mkdir -p $(CURDIR)/debian/rozofs-dbg/usr/lib/debug/usr/lib/pymodules/python2.7
+	mv $(CURDIR)/debian/rozofs-dbg/usr/lib/debug/usr/lib/pyshared/python2.7/rozofs \
+	   $(CURDIR)/debian/rozofs-dbg/usr/lib/debug/usr/lib/pymodules/python2.7/rozofs
