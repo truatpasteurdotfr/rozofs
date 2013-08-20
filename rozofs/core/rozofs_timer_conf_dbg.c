@@ -51,12 +51,17 @@ void dbg_set_tmr(char * argv[], uint32_t tcpRef, void *bufRef)
     uma_dbg_send(tcpRef, bufRef, TRUE, "missing parameter (%s <tmr_idx> <value>)\n",argv[0]);    
     return;     
    }
-   errno = 0;
-   timer_id = (int) strtol(argv[1], (char **) NULL, 10);   
-   if (errno != 0) {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "bad tmr_idx (%s <tmr_idx> <value>) %s\n",argv[0],strerror(errno));    
-    return;     
-   }
+   /* Check 1rst a string name */
+   timer_id = rozofs_tmr_get_idx_from_name(argv[1]);
+   /* Check for an index */
+   if (timer_id < 0) {
+     errno = 0;
+     timer_id = (int) strtol(argv[1], (char **) NULL, 10);   
+     if (errno != 0) {
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bad tmr_idx (%s <tmr_idx> <value>) %s\n",argv[0],strerror(errno));    
+      return;     
+     }
+   }  
    if (timer_id >= TMR_MAX_ENTRY)
    {
     uma_dbg_send(tcpRef, bufRef, TRUE, "invalid tmr_idx (max %d)\n",(TMR_MAX_ENTRY-1));    
