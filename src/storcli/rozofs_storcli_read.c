@@ -1545,12 +1545,18 @@ void rozofs_storcli_stop_read_guard_timer(rozofs_storcli_ctx_t  *p)
   
    @param param: Not significant
 */
+static uint64_t ticker_count = 0;
 void rozofs_storcli_periodic_ticker(void * param) 
 {
    ruc_obj_desc_t   *bucket_head_p;
    rozofs_storcli_ctx_t   *read_ctx_p;
    ruc_obj_desc_t  *timer;
    int bucket_idx;
+   
+   ticker_count += 100;
+   if (ticker_count < ROZOFS_TMR_GET(TMR_PRJ_READ_SPARE)) return;
+   
+   ticker_count = 0;
    
    bucket_idx = rozofs_storcli_read_clk.bucket_cur;
    bucket_idx = (bucket_idx+1)%ROZOFS_STORCLI_TIMER_BUCKET;
