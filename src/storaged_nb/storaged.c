@@ -62,7 +62,7 @@
 
 static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
-static sconfig_t storaged_config;
+sconfig_t storaged_config;
 
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
     {0}
@@ -84,6 +84,8 @@ extern void storaged_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
 
+uint8_t storio_nb_threads = 0;
+uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
@@ -109,8 +111,11 @@ static int storaged_initialize() {
 
     storaged_nrstorages = 0;
 
-    storaged_nb_io_processes = storaged_config.sproto_svc_nb;
+    storaged_nb_io_processes = 1;
+    
+    storio_nb_threads = storaged_config.nb_threads;
 
+    storaged_nb_ports = storaged_config.sproto_svc_nb;
     memcpy(storaged_storage_ports, storaged_config.ports,
             STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
 
@@ -423,21 +428,20 @@ static void on_start() {
 
     SET_PROBE_VALUE(uptime, time(0));
     strncpy((char*) gprofiler.vers, VERSION, 20);
-    SET_PROBE_VALUE(nb_io_processes, storaged_nb_io_processes);
+    SET_PROBE_VALUE(nb_io_processes, storio_nb_threads);
     
-    // Create io process(es)
-    for (i = 0; i < storaged_nb_io_processes; i++) {
-       // Set monitoring values just for the master process
-       SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
-       
-       p = cmd;
-       p += sprintf(p, "storio_starter.sh storio -i %d -c %s ", i+1, storaged_config_file);
-       if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
-       p += sprintf(p, "&");
+    // Create storio process(es)
 
-       //info(cmd);
-       system(cmd);
-    }
+    // Set monitoring values just for the master process
+    //SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
+
+    p = cmd;
+    p += sprintf(p, "storio_starter.sh storio -i 1 -c %s ", storaged_config_file);
+    if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+    p += sprintf(p, "&");
+
+    //info(cmd);
+    system(cmd);
 
     /*
      ** create the debug thread of the parent

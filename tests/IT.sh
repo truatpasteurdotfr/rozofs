@@ -205,11 +205,11 @@ truncate() {
 usage () {
   echo "$name -l"
   echo  "   Display the list of test"
-  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] <test name>"      
-  echo "    Run test <test name>"
-  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] all"
-  echo "    Run all tests"
-  exit -1
+  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] <test name>..."      
+  echo "    Run testd <test name>... <times> times"
+  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] all"
+  echo "    Run all tests <times> times"
+  exit -1 
 }
 #################### COMPILATION ##################################
 compile_program () {
@@ -394,7 +394,7 @@ delay () {
 }
 run_some_tests() {
 
-
+  test_number=0
   total_avant=`date +%s`
 
   FAIL=0
@@ -405,6 +405,9 @@ run_some_tests() {
 
   for TST in $TSTS
   do
+  
+    test_number=$((test_number+1))
+    
     printf "_____________________________________________\n"
     printf "Run $TST\n"
     printf ".............................................\n"  
@@ -433,8 +436,8 @@ run_some_tests() {
     if [ $res_tst != 0 ];
     then
       # The test returns an error code
-      printf "\n-------> !!! $TST is failed ($zedelay) !!!\n"
-      printf "%45s | FAILED  | %10s |\n" $TST "$zedelay" >> $RESULT
+      printf "\n$test_number -------> !!! $TST is failed ($zedelay) !!!\n"
+      printf "%3d %41s | FAILED  | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       FAIL=$((FAIL+1))
       break
     else          
@@ -442,12 +445,12 @@ run_some_tests() {
       then
         # The test do not complain but some debug ouput change need to be checked 
         SUSPECT=$((SUSPECT+1))
-        printf "\n-------> $TST suspicion of failure ($zedelay) !\n"
-	printf "%45s | SUSPECT | %10s |\n" $TST "$zedelay" >> $RESULT
+        printf "\n$test_number -------> $TST suspicion of failure ($zedelay) !\n"
+	printf "%3d %41s | SUSPECT | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       else
         # The test is successfull
-        printf "\n-------> $TST success ($zedelay)\n"      
-	printf "%45s | OK      | %10s |\n" $TST "$zedelay" >> $RESULT  
+        printf "\n$test_number-------> $TST success ($zedelay)\n"      
+	printf "%3d %41s | OK      | %10s |\n" $test_number $TST "$zedelay" >> $RESULT  
       fi
     fi
   done
@@ -492,7 +495,7 @@ TST_STORAGE_RESET="read_parallel rw_close rw_noClose"
 TST_STORCLI_RESET="read_parallel rw_close rw_noClose"
 build_all_test_list
 TSTS=""
-
+repeated=1
 
 # Read parameters
 while [ ! -z $1 ];
@@ -506,6 +509,7 @@ do
     -process)  process=$2;             shift 2;;
     -loop)     loop=$2;                shift 2;;
     -fileSize) fileSize=$2;            shift 2;;
+    -repeated) repeated=$2;            shift 2;;
 
     # Debugging this tool
     -verbose)  set -x;                 shift 1;;
@@ -529,7 +533,7 @@ fi
 if [ -d /mnt/hgfs/windows ];
 then
   # Set big READ timers to prevent from false read errors
-  ./dbg.sh stc tmr_set 14 1000
+  ./dbg.sh stc tmr_set PRJ_READ_SPARE 3000
 fi  
 
 # Compile programs
@@ -539,6 +543,14 @@ compile_programs rw read_parallel test_xattr test_link test_write test_readdir t
 ./setup.sh expgw all stop
 
 # execute the tests
+LIST=""
+while [ $repeated -gt 0 ];
+do
+  LIST=`echo "$LIST $TSTS"`
+  repeated=$((repeated-1))
+done
+TSTS=$LIST
+
 run_some_tests 
 res=$?
 cat $RESULT

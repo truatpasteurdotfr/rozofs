@@ -97,7 +97,7 @@ mp_ports_ret_t *mp_ports_1_svc(void *args, struct svc_req * req) {
             STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
 
     if (!memcpy(&ret.mp_ports_ret_t_u.ports, storaged_storage_ports,
-            storaged_nb_io_processes * sizeof (uint32_t))) {
+            storaged_nb_ports * sizeof (uint32_t))) {
         goto out;
     }
 

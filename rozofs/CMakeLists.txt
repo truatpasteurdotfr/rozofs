@@ -166,6 +166,7 @@ set (librozofs_sources
     core/ruc_traffic_shaping.c
     core/rozofs_core_files.c
     core/rozofs_core_files.h    
+    core/rozofs_host2ip.h    
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

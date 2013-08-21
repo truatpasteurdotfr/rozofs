@@ -53,12 +53,24 @@
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
+#include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
+#include <rozofs/core/ruc_buffer_debug.h>
+#include <rozofs/core/rozofs_host2ip.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
+#include <rozofs/rpc/sproto.h>
 
 #include "storaged_nblock_init.h"
 #include "storage_north_intf.h"
 #include "storage_fd_cache.h"
+#include "storio_disk_thread_intf.h"
+#include "config.h"
+#include "sconfig.h"
+#include "storage.h"
+
+extern sconfig_t storaged_config;
+
+void * decoded_rpc_buffer_pool = NULL;
 
 DECLARE_PROFILING(spp_profiler_t);
 
@@ -172,34 +184,6 @@ struct timeval Global_timeDay;
 unsigned long long Global_timeBefore, Global_timeAfter;
 
 
-/*
- **______________________________________________________________________________
- */
-
-/**
- *  Convert a hostname into an IP v4 address in host format 
-
-@param host : hostname
-@param ipaddr_p : return IP V4 address arreay
-
-@retval 0 on success
-@retval -1 on error (see errno faor details
- */
-static int host2ip(char *host, uint32_t *ipaddr_p) {
-    struct hostent *hp;
-    /*
-     ** get the IP address of the storage node
-     */
-    if ((hp = gethostbyname(host)) == 0) {
-        severe("gethostbyname failed for host : %s, %s", host,
-                strerror(errno));
-        return -1;
-    }
-    bcopy((char *) hp->h_addr, (char *) ipaddr_p, hp->h_length);
-    *ipaddr_p = ntohl(*ipaddr_p);
-    return 0;
-
-}
 
 /*
  **
@@ -231,7 +215,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
 
     if (arg_p->hostname[0] != 0) {
-        host2ip(arg_p->hostname, &local_ip);
+      rozofs_host2ip(arg_p->hostname, &local_ip);
     }
 
     //#warning TCP configuration ressources is hardcoded!!
@@ -348,7 +332,27 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
         */
         ret = rozorpc_srv_module_init();
         if (ret != RUC_OK) break; 
-        
+
+        {
+	  int size = sizeof(sp_write_arg_no_bins_t);
+	  if (size < sizeof(sp_read_arg_t)) size = sizeof(sp_read_arg_t);
+	  if (size < sizeof(sp_truncate_arg_t)) size = sizeof(sp_truncate_arg_t);
+          decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
+	  if (decoded_rpc_buffer_pool == NULL) {
+	    fatal("Can not allocate decoded_rpc_buffer_pool");
+	    ret = RUC_NOK;
+	    break;
+	  }
+	  ruc_buffer_debug_register_pool("rpcDecodedRequest",decoded_rpc_buffer_pool);
+	}    
+	
+	ret = storio_disk_thread_intf_create(arg_p->hostname,storaged_config.nb_threads, ROZORPC_SRV_CTX_CNT) ;
+	if (ret < 0) {
+	  fatal("storio_disk_thread_intf_create");
+	  ret = RUC_NOK;
+	  break;
+	}
+
         break;
     }
 
@@ -413,17 +417,15 @@ int storaged_start_nb_blocking_th(void *args) {
     /*
      ** Init of the north interface (read/write request processing)
      */
-    uint32_t ipaddr = INADDR_ANY;
-    if (args_p->hostname[0] != 0) {
-        host2ip(args_p->hostname, &ipaddr);
-        ipaddr += ((args_p->instance_id) * 0x100);	
-    }
-    ret = storage_north_interface_init( ipaddr,
-            args_p->io_port,
-            STORAGE_BUF_RECV_CNT, STORAGE_BUF_RECV_SZ);
+    ret = storage_north_interface_buffer_init(STORAGE_BUF_RECV_CNT, STORAGE_BUF_RECV_SZ);
     if (ret < 0) {
-        fatal("Fatal error on storage_north_interface_init()\n");
-        return -1;
+      fatal("Fatal error on storage_north_interface_buffer_init()\n");
+      return -1;
+    }
+    ret = storage_north_interface_init(args_p->hostname);
+    if (ret < 0) {
+      fatal("Fatal error on storage_north_interface_init()\n");
+      return -1;
     }
     /*
     ** init of the fd cache

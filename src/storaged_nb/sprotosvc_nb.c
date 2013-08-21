@@ -22,6 +22,7 @@
 #include "sproto_nb.h"
 
 
+extern void * decoded_rpc_buffer_pool;
 
 /*
 **__________________________________________________________________________
@@ -49,6 +50,8 @@ void storage_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
     uint32_t  *com_hdr_p;
     rozofs_rpc_call_hdr_t   hdr;
     sp_status_ret_t  arg_err;
+    char * arguments;
+    int size = 0;
 
     rozorpc_srv_ctx_t *rozorpc_srv_ctx_p = NULL;
     
@@ -73,42 +76,58 @@ void storage_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
     rozorpc_srv_ctx_p->src_transaction_id = hdr.hdr.xid;
     rozorpc_srv_ctx_p->recv_buf  = recv_buf;
     rozorpc_srv_ctx_p->socketRef = socket_ctx_idx;
+    
+    /*
+    ** Allocate buffer for decoded aeguments
+    */
+    rozorpc_srv_ctx_p->decoded_arg = ruc_buf_getBuffer(decoded_rpc_buffer_pool);
+    if (rozorpc_srv_ctx_p->decoded_arg == NULL) {
+      rozorpc_srv_ctx_p->xmitBuf = rozorpc_srv_ctx_p->recv_buf;
+      rozorpc_srv_ctx_p->recv_buf = NULL;
+      rozorpc_srv_ctx_p->xdr_result =(xdrproc_t) xdr_sp_status_ret_t;
+      arg_err.status = SP_FAILURE;
+      arg_err.sp_status_ret_t_u.error = ENOMEM;        
+      rozorpc_srv_forward_reply(rozorpc_srv_ctx_p,(char*)&arg_err);
+      rozorpc_srv_release_context(rozorpc_srv_ctx_p);    
+      return;
+    }    
+    arguments = ruc_buf_getPayload(rozorpc_srv_ctx_p->decoded_arg);
 
-	union {
-		sp_write_arg_t sp_write_1_arg;
-		sp_read_arg_t sp_read_1_arg;
-		sp_truncate_arg_t sp_truncate_1_arg;
-	} argument;
-	char *result;
-	xdrproc_t _xdr_argument, _xdr_result;
-	char *(*local)(char *, struct svc_req *);
+    void (*local)(void *, rozorpc_srv_ctx_t *);
 
-	switch (hdr.proc) {
-	case SP_NULL:
-		_xdr_argument = (xdrproc_t) xdr_void;
-		_xdr_result = (xdrproc_t) xdr_void;
-		local = (char *(*)(char *, struct svc_req *)) sp_null_1_svc_nb;
-		break;
+    switch (hdr.proc) {
+    
+    case SP_NULL:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_void;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_void;
+      local = sp_null_1_svc_nb;
+      break;
 
-	case SP_WRITE:
-		_xdr_argument = (xdrproc_t) xdr_sp_write_arg_no_bins_t;
-		_xdr_result = (xdrproc_t) xdr_sp_write_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) sp_write_1_svc_nb;
-		break;
+    case SP_WRITE:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_write_arg_no_bins_t;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_write_ret_t;
+//      local = sp_write_1_svc_nb;
+      local = sp_write_1_svc_disk_thread;
+      size = sizeof (sp_write_arg_no_bins_t);
+      break;
+      
+    case SP_READ:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_read_arg_t;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_read_ret_t;
+//      local = sp_read_1_svc_nb;
+      local = sp_read_1_svc_disk_thread;
+      size = sizeof (sp_read_arg_t);
+      break;
 
-	case SP_READ:
-		_xdr_argument = (xdrproc_t) xdr_sp_read_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_read_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) sp_read_1_svc_nb;
-		break;
+    case SP_TRUNCATE:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_truncate_arg_t;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_status_ret_t;
+//      local = sp_truncate_1_svc_nb;
+      local = sp_truncate_1_svc_disk_thread;
+      size = sizeof (sp_truncate_arg_t);
+      break;
 
-	case SP_TRUNCATE:
-		_xdr_argument = (xdrproc_t) xdr_sp_truncate_arg_t;
-		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
-		local = (char *(*)(char *, struct svc_req *)) sp_truncate_1_svc_nb;
-		break;
-
-	default:
+    default:
       rozorpc_srv_ctx_p->xmitBuf = rozorpc_srv_ctx_p->recv_buf;
       rozorpc_srv_ctx_p->recv_buf = NULL;
       rozorpc_srv_ctx_p->xdr_result =(xdrproc_t) xdr_sp_status_ret_t;
@@ -116,41 +135,33 @@ void storage_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       arg_err.sp_status_ret_t_u.error = EPROTO;        
       rozorpc_srv_forward_reply(rozorpc_srv_ctx_p,(char*)&arg_err);
       rozorpc_srv_release_context(rozorpc_srv_ctx_p);    
-	  return;
-	}
-	memset((char *)&argument, 0, sizeof (argument));
-    /*
-    ** save the result encoding/decoding function
-    */
-    rozorpc_srv_ctx_p->xdr_result = _xdr_result;
+      return;
+    }
+    
+    memset(arguments,0, size);
+    ruc_buf_setPayloadLen(rozorpc_srv_ctx_p->decoded_arg,size); // for debug 
+    
     /*
     ** decode the payload of the rpc message
     */
-	if (!rozorpc_srv_getargs_with_position (recv_buf, (xdrproc_t) _xdr_argument, 
-                                            (caddr_t) &argument,
-                                            &rozorpc_srv_ctx_p->position)) 
-    {
-    
-        rozorpc_srv_ctx_p->xmitBuf = rozorpc_srv_ctx_p->recv_buf;
-        rozorpc_srv_ctx_p->recv_buf = NULL;
-        rozorpc_srv_ctx_p->xdr_result = (xdrproc_t)xdr_sp_status_ret_t;
-        arg_err.status = SP_FAILURE;
-        arg_err.sp_status_ret_t_u.error = errno;        
-        rozorpc_srv_forward_reply(rozorpc_srv_ctx_p,(char*)&arg_err);
-        /*
-        ** release the context
-        */
-        xdr_free((xdrproc_t)_xdr_argument, (caddr_t) &argument);
-        rozorpc_srv_release_context(rozorpc_srv_ctx_p);    
-		return;
-	}  
+    if (!rozorpc_srv_getargs_with_position (recv_buf, (xdrproc_t) rozorpc_srv_ctx_p->arg_decoder, 
+                                            (caddr_t) arguments, &rozorpc_srv_ctx_p->position)) 
+    {    
+      rozorpc_srv_ctx_p->xmitBuf = rozorpc_srv_ctx_p->recv_buf;
+      rozorpc_srv_ctx_p->recv_buf = NULL;
+      rozorpc_srv_ctx_p->xdr_result = (xdrproc_t)xdr_sp_status_ret_t;
+      arg_err.status = SP_FAILURE;
+      arg_err.sp_status_ret_t_u.error = errno;        
+      rozorpc_srv_forward_reply(rozorpc_srv_ctx_p,(char*)&arg_err);
+      /*
+      ** release the context
+      */
+      rozorpc_srv_release_context(rozorpc_srv_ctx_p);    
+      return;
+    }  
     
     /*
     ** call the user call-back
     */
-	(*local)((char *)&argument, (void*)rozorpc_srv_ctx_p);
-    /*
-    ** release any data allocated while decoding
-    */
-    xdr_free((xdrproc_t)_xdr_argument, (caddr_t) &argument);        
+    (*local)(arguments, rozorpc_srv_ctx_p);    
 }

@@ -28,11 +28,14 @@ process_killer () {
   then
     for pid in `cat /var/run/$1* `
     do
-      kill  $pid
+      kill $pid
     done
-    usleep 1500000
+  else
+    return  
   fi
-    
+
+  sleep 2
+      
   if ls /var/run/$1* > /dev/null 2>&1
   then   
     for pid in `cat /var/run/$1* `
@@ -109,12 +112,13 @@ gen_storage_conf ()
            touch $FILE
            echo "#${NAME_LABEL}" >> $FILE
            echo "#${DATE_LABEL}" >> $FILE
-           #echo "ports = [ 51000, 51001] ;" >> $FILE
+	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
+	   #echo "ports = [ 51000, 51002] ;" >> $FILE
 	   PORT_LIST="51001"
 	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
 	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
 	   done
-	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	   
+	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	     
            echo 'storages = (' >> $FILE
 
                 z=0
@@ -259,6 +263,7 @@ start_one_storage()
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
     echo "Start storage cid $cid sid $sid"
    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+   sleep 1
 }
 stop_one_storage () {
    case $1 in
@@ -269,6 +274,7 @@ stop_one_storage () {
 }   
 reset_one_storage () {
   stop_one_storage $1
+  sleep 1
   start_one_storage $1
 }
 # $1 = STORAGES_BY_CLUSTER
@@ -296,7 +302,16 @@ start_storaged ()
 stop_storaged()
 {
    echo "Stopping the storaged"
-  process_killer storaged 
+   sid=0
+    
+   for v in $(seq ${NB_VOLUMES}); do
+     for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+       for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	 sid=$((sid+1))
+	 stop_one_storage $sid
+       done
+    done
+  done   
 }
 reload_storaged ()
 {
@@ -613,7 +628,13 @@ clean_all ()
     remove_build
 }
 
-
+get_bin_complete_name () {
+  case "$1" in
+  storaged|storio) bin=${LOCAL_BINARY_DIR}/$storaged_dir/$1;;
+  expgw)           bin=${LOCAL_BINARY_DIR}/exportd/$1;;
+  *)               bin=${LOCAL_BINARY_DIR}/$1/$1;;
+  esac
+}
 do_listCore() {
   if [ -d $COREDIR ];
   then
@@ -621,9 +642,18 @@ do_listCore() {
     cd $COREDIR
     for dir in `ls `
     do
+    
+      get_bin_complete_name $dir
+
       for file in `ls $dir`
       do
-	ls -l $dir/$file
+        res=`ls -lh $dir/$file | awk '{print $5" "$6" "$7" "$8" "$9}'`
+        if [ $dir/$file -nt $bin ];
+	then
+	  echo "(NEW) $res"
+	else
+	  echo "(OLD) $res"
+	fi
       done
     done
     
@@ -639,11 +669,7 @@ do_removeCore() {
 do_debugCore () {
   name=`echo $1 | awk -F'/' '{ print $1}'`
   
-  case "$name" in
-  "storaged") bin=${LOCAL_BINARY_DIR}/$name$nb/$name;;
-  "storio")   bin=${LOCAL_BINARY_DIR}/storaged/storio;;
-  *)          bin=${LOCAL_BINARY_DIR}/$name/$name;;
-  esac
+  get_bin_complete_name $name
   ddd $bin -core $COREDIR/$1 &
 }
 do_core () 
@@ -873,6 +899,7 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1;
     NB_CLUSTERS_BY_VOLUME=1;
+    NB_DISK_THREADS=3;
     
     ulimit -c unlimited
 
@@ -884,7 +911,7 @@ main ()
         check_build
         do_stop
 
-        gen_storage_conf ${STORAGES_BY_CLUSTER} 1
+        gen_storage_conf ${STORAGES_BY_CLUSTER} 2
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}

@@ -324,34 +324,30 @@ int read_empty_file(char * filename) {
 
 int loop_test_process() {
   int count=0; 
-  int idx;   
   char filename[500];
   char c;
+  char * pChar;
   
   pBlock = NULL;
-  pBlock = malloc(RANDOM_BLOCK_SIZE + 1);
+  pBlock = malloc(RANDOM_BLOCK_SIZE + 10);
   if (pBlock == NULL) {
       printf("Can not allocate %d bytes\n", RANDOM_BLOCK_SIZE+1);
       perror("malloc");
       return -1;
   }  
-  c = 'A';
-  int mark=0;
-  for (idx = 0; idx < RANDOM_BLOCK_SIZE; idx++) {
-      pBlock[idx] = c;
-      if      (c == 'Z'){
-        idx++;
-	pBlock[idx] = mark++;
-        c = 'a';
-      }	
-      else if (c == 'z') {
-        idx++;
-	pBlock[idx] = mark++;
-        c = 'A';
-      }	
-      else c++;
+  
+  pChar = pBlock;
+  c = 'A'+ (myProcId%26);
+  while ((pChar - pBlock)<RANDOM_BLOCK_SIZE) {
+    pChar += sprintf(pChar,"%c%2.2d/", c,myProcId);
+    if  (c == 'Z') {
+      c = 'a';
+    }	
+    else if (c == 'z') {
+      c = 'A';
+    }	
+    else c++;    
   }
-  pBlock[RANDOM_BLOCK_SIZE] = 0;
     
   // Prepare a working buffer to read from or write to the file
   pReadBuff = NULL;

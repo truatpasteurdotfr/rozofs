@@ -42,7 +42,7 @@ static int                      ruc_registered_buffer_pool_entries=0;
 */
 static inline char * ruc_buf_poolDisplay(ruc_buf_t* poolRef, char * displayName, char * p)
 {
-  p += sprintf(p, "%20s - user data addr/len %p /%9d - nb buff %3d/%3d size %6d\n",displayName,
+  p += sprintf(p, "%20s - user data addr/len %16p /%9d - nb buff %3d/%3d size %6d\n",displayName,
                poolRef->ptr, poolRef->len,
                poolRef->usrLen, poolRef->bufCount, poolRef->len/poolRef->bufCount);
   return p;	       
@@ -61,7 +61,7 @@ static inline char * ruc_buf_poolContentDisplay(ruc_buf_t* poolRef, char * p)
   pBuf++;
   
   for (i=0; i< poolRef->bufCount; i++,pBuf++) {  
-    p += sprintf(p, "%3d %s payload %p len %6d/%6d in use %d\n", 
+    p += sprintf(p, "%3d %s payload %16p len %6d/%6d in use %d\n", 
                  i,
                 (pBuf->state == BUF_FREE)?"free":"busy", 
 		 pBuf->ptr, pBuf->usrLen, pBuf->bufCount, pBuf->inuse);
@@ -82,7 +82,7 @@ static inline char * ruc_buf_bufferContentDisplay(ruc_buf_t* poolRef, int buffId
   ruc_buf_t* pBuf = (ruc_buf_t*)poolRef;
   pBuf += (1+buffIdx),
 
-  p += sprintf(p, "%3d %s payload %p len %d/%d in use %d\n", 
+  p += sprintf(p, "%3d %s payload %16p len %d/%d in use %d\n", 
                  buffIdx,
                 (pBuf->state == BUF_FREE)?"free":"busy", 
 		 pBuf->ptr, pBuf->usrLen, pBuf->bufCount, pBuf->inuse);

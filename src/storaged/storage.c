@@ -257,7 +257,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
 
 
     // Write is successful
-    status = 0;
+    status = length_to_write;
 
 out:
     if (fd != -1) close(fd);

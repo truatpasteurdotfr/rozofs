@@ -31,8 +31,12 @@
 #include <rozofs/rpc/sproto.h>
 
 void sp_null_1_svc_nb(void *args, rozorpc_srv_ctx_t *req_ctx_p) ;
-void sp_write_1_svc_nb(sp_write_arg_t * args, rozorpc_srv_ctx_t *req_ctx_p) ;
-void sp_read_1_svc_nb(sp_read_arg_t * args, rozorpc_srv_ctx_t *req_ctx_p) ;
+void sp_write_1_svc_nb(void *args, rozorpc_srv_ctx_t *req_ctx_p) ;
+void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
 
-void sp_truncate_1_svc_nb(sp_truncate_arg_t * args,rozorpc_srv_ctx_t *req_ctx_p);
+void sp_read_1_svc_nb(void *args, rozorpc_srv_ctx_t *req_ctx_p) ;
+void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) ;
+
+void sp_truncate_1_svc_nb(void *args,rozorpc_srv_ctx_t *req_ctx_p);
+void sp_truncate_1_svc_disk_thread(void *args,rozorpc_srv_ctx_t *req_ctx_p);
 #endif

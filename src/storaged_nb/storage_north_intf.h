@@ -37,7 +37,7 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/rozofs_socket_family.h>
 #include <rozofs/core/af_inet_stream_api.h>
-
+#include "sconfig.h"
  /**
 * Buffers information
 */
@@ -49,16 +49,16 @@ extern void *storage_xmit_buffer_pool_p ;  /**< reference of the read/write buff
 
 #define STORAGE_BUF_RECV_CNT 8
 #define STORAGE_BUF_RECV_SZ  (1024*140) 
- /*
+
+
+/*
 **____________________________________________________
 */
 /**
    
 
-  Creation of the north interface for rozofsmount (AF_INET)
-
-@param     : src_ipaddr_host : source IP address in host format
-@param     : src_port_host : port in host format
+  Creation of the north interface buffers (AF_INET)
+  
 @param     : read_write_buf_count : number of read/write buffer
 @param     : read_write_buf_sz : size of a read/write buffer
 
@@ -66,9 +66,24 @@ extern void *storage_xmit_buffer_pool_p ;  /**< reference of the read/write buff
 @retval          RUC_NOK : out of memory
 */
 
-int storage_north_interface_init(uint32_t src_ipaddr_host,uint16_t src_port_host,
-                             int read_write_buf_count,int read_write_buf_sz);
+int storage_north_interface_buffer_init(int read_write_buf_count,int read_write_buf_sz);
 
+/*
+**____________________________________________________
+*/
+/**
+   
+
+  Creation of the north interface listening sockets (AF_INET)
+
+
+@param host   storaged hostname
+
+@retval   : RUC_OK : done
+@retval          RUC_NOK : out of memory
+*/
+
+int storage_north_interface_init(char * host);
 
 
 #endif

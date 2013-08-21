@@ -269,7 +269,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
 
 
     // Write is successful
-    status = 0;
+    status = length_to_write;
 
 out:
     if (fd != -1) close(fd);
@@ -329,8 +329,10 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     ** the control is done only when there is an optimization 
     ** header associated with the read request
     */
+#if 0
     memset(buf_ts_storcli_read,-1,sizeof(uint64_t)*STORIO_CACHE_BCOUNT);
     hit_counter = storio_cache_get(fid,bid,nb_proj,buf_ts_storcli_read,buf_ts_storage_before_read);
+#endif
 
     // Check that this file already exists
     if (access(path, F_OK) == -1)

@@ -23,6 +23,8 @@
 #include <fcntl.h> 
 #include <sys/un.h>             
 #include <errno.h>  
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -35,6 +37,9 @@
 #include <rozofs/core/af_inet_stream_api.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_buffer_debug.h>
+#include <rozofs/core/rozofs_host2ip.h>
+#include "sconfig.h"
+
  /**
 * Buffers information
 */
@@ -47,6 +52,7 @@ void *storage_xmit_buffer_pool_p = NULL;  /**< reference of the read/write buffe
 
 extern void storage_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf);
 
+extern sconfig_t storaged_config;
 /*
 **____________________________________________________
 */
@@ -192,18 +198,15 @@ void  storage_north_userDiscCallBack(void *userRef,uint32_t socket_context_ref,v
   NULL   //    *recvPool; /* user pool reference or -1 */
 }; 
 
-void show_pool_rcv(char * argv[], uint32_t tcpRef, void *bufRef);
-void show_pool_snd(char * argv[], uint32_t tcpRef, void *bufRef);
+
 /*
 **____________________________________________________
 */
 /**
    
 
-  Creation of the north interface for rozofsmount (AF_INET)
-
-@param     : src_ipaddr_host : source IP address in host format
-@param     : src_port_host : port in host format
+  Creation of the north interface buffers (AF_INET)
+  
 @param     : read_write_buf_count : number of read/write buffer
 @param     : read_write_buf_sz : size of a read/write buffer
 
@@ -211,54 +214,85 @@ void show_pool_snd(char * argv[], uint32_t tcpRef, void *bufRef);
 @retval          RUC_NOK : out of memory
 */
 
-int storage_north_interface_init(uint32_t src_ipaddr_host,uint16_t src_port_host,
-                             int read_write_buf_count,int read_write_buf_sz)
+int storage_north_interface_buffer_init(int read_write_buf_count,int read_write_buf_sz)
 {
-   int ret = 0;
    
-
     storage_read_write_buf_count  = read_write_buf_count;
     storage_read_write_buf_sz     = read_write_buf_sz    ;
-    while(1)
-    {
-      /*
-      ** create the pool for receiving requests from rozofsmount
-      */
-      storage_receive_buffer_pool_p = ruc_buf_poolCreate(storage_read_write_buf_count,
-                                                       storage_read_write_buf_sz);
-      if (storage_receive_buffer_pool_p == NULL)
-      {
-         ret = -1;
-         severe( "ruc_buf_poolCreate(%d,%d)", storage_read_write_buf_count, storage_read_write_buf_sz ); 
-         break;
-      }
-      
-      storage_xmit_buffer_pool_p = ruc_buf_poolCreate(storage_read_write_buf_count,
-                                                       storage_read_write_buf_sz);
-      if (storage_xmit_buffer_pool_p == NULL)
-      {
-         ret = -1;
-         severe( "ruc_buf_poolCreate(%d,%d)", storage_read_write_buf_count, storage_read_write_buf_sz ); 
-         break;
-      }
-      
-      ruc_buffer_debug_register_pool("Pool_rcv",  storage_receive_buffer_pool_p);
-      ruc_buffer_debug_register_pool("Pool_snd",  storage_xmit_buffer_pool_p);
-
-      /*
-      ** create the listening af unix socket on the north interface
-      */
-      af_inet_rozofs_north_conf.rpc_recv_max_sz = storage_read_write_buf_sz;
-      ret =  af_inet_sock_listening_create("STORAGE",
-                                            src_ipaddr_host,src_port_host, 
-                                            &af_inet_rozofs_north_conf   
-                                            );
-
-      break; 
     
+    af_inet_rozofs_north_conf.rpc_recv_max_sz = storage_read_write_buf_sz;
+    
+    /*
+    ** create the pool for receiving requests from rozofsmount
+    */
+    storage_receive_buffer_pool_p = ruc_buf_poolCreate(storage_read_write_buf_count, storage_read_write_buf_sz);
+    if (storage_receive_buffer_pool_p == NULL)
+    {
+       severe( "ruc_buf_poolCreate(%d,%d)", storage_read_write_buf_count, storage_read_write_buf_sz ); 
+       return -1;
     }
-    return ret;
+    ruc_buffer_debug_register_pool("Pool_rcv",  storage_receive_buffer_pool_p);
+
+    /*
+    ** create the pool for sending requests to rozofsmount
+    */
+    storage_xmit_buffer_pool_p = ruc_buf_poolCreate(storage_read_write_buf_count, storage_read_write_buf_sz);
+    if (storage_xmit_buffer_pool_p == NULL)
+    {
+       severe( "ruc_buf_poolCreate(%d,%d)", storage_read_write_buf_count, storage_read_write_buf_sz ); 
+       return -1;
+    }
+    ruc_buffer_debug_register_pool("Pool_snd",  storage_xmit_buffer_pool_p);
+
+    return 0;
 
 }
+/*
+**____________________________________________________
+*/
+/**
+   
 
+  Creation of the north interface listening sockets (AF_INET)
+
+
+@retval   : RUC_OK : done
+@retval          RUC_NOK : out of memory
+*/
+
+int storage_north_interface_init(char * host) {
+  int i;
+  int ret;
+  uint32_t ip;
+
+  /*
+  ** Resolve IP address 
+  */
+  ip = INADDR_ANY;
+  ret = rozofs_host2ip(host,&ip);
+  if (ret != 0) {
+    severe("storage_north_interface_init can not resolve %s",host);
+  }	
+
+  /*
+  ** create the listening af unix sockets on the north interface
+  */  
+  for (i=0; i< storaged_config.sproto_svc_nb; i++) { 
+    
+    if (ip != INADDR_ANY) {
+      ip = ip + 0x100;
+    }
+     
+    /*
+    ** Create the listening socket
+    */ 
+    ret = af_inet_sock_listening_create("IO",ip, storaged_config.ports[i],&af_inet_rozofs_north_conf);    
+    if (ret < 0) {
+      fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
+              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.ports[i]);
+      return -1;
+    }  
+  }
+  return 0;
+}
 

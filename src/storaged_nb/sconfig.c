@@ -35,6 +35,7 @@
 #define SCID	    "cid"
 #define SROOT	    "root"
 #define SPORTS      "ports"
+#define STHREADS    "threads"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root) {
@@ -77,6 +78,12 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     struct config_setting_t *ports_settings = 0;
     int i;
     DEBUG_FUNCTION;
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+    int threads;
+#else
+    long int threads;
+#endif      
 
     config_init(&cfg);
 
@@ -86,6 +93,12 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         goto out;
     }
 
+    if (!config_lookup_int(&cfg, STHREADS, &threads)) {
+       config->nb_threads = 2;
+    }
+    else {
+       config->nb_threads = threads;
+    }
     if (!(ports_settings = config_lookup(&cfg, SPORTS))) {
         errno = ENOKEY;
         severe("can't fetch ports settings.");

@@ -31,6 +31,7 @@
 #include "sproto_nb.h"
 #include "storage_north_intf.h"
 #include "storage_fd_cache.h"
+#include "storio_disk_thread_intf.h"
 
 DECLARE_PROFILING(spp_profiler_t);
 
@@ -288,7 +289,8 @@ void sp_null_1_svc_nb(void *args, rozorpc_srv_ctx_t *req_ctx_p) {
 **___________________________________________________________
 */
 
-void sp_write_1_svc_nb(sp_write_arg_t * args, rozorpc_srv_ctx_t *req_ctx_p) {
+void sp_write_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    sp_write_arg_t * args = (sp_write_arg_t *) pt;
     static sp_write_ret_t ret;
     storage_t *st = 0;
     // Variable to be used in a later version.
@@ -320,7 +322,7 @@ void sp_write_1_svc_nb(sp_write_arg_t * args, rozorpc_srv_ctx_t *req_ctx_p) {
     if (storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj, version,
             &ret.sp_write_ret_t_u.file_size,
-            (bin_t *) buf_bins) != 0) {
+            (bin_t *) buf_bins) <= 0) {
         ret.sp_write_ret_t_u.error = errno;
         goto out;
     }
@@ -342,11 +344,38 @@ out:
 **___________________________________________________________
 */
 
-static char sp_optim[512];
+void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    sp_write_arg_t * args = (sp_write_arg_t *) pt;
+    static sp_write_ret_t ret;
+
+    START_PROFILING_IO(write, args->nb_proj * rozofs_get_max_psize(args->layout)
+            * sizeof (bin_t));
+     
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_WRITE, req_ctx_p,tic) == 0) {
+      return;
+    }
+    
+    severe("sp_write_1_svc_disk_thread storio_disk_thread_intf_send %s", strerror(errno));
+    
+    ret.status                = SP_FAILURE;            
+    ret.sp_write_ret_t_u.error = errno;
+    
+    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
+    /*
+    ** release the context
+    */
+    rozorpc_srv_release_context(req_ctx_p);
+    STOP_PROFILING(read);
+    return ;
+}
+/*
+**___________________________________________________________
+*/
+
+//static char sp_optim[512];
 
 void storage_check_readahead()
 {
-   size_t nb_read;
    
    if (current_storage_fd_cache_p == NULL) return;
    
@@ -365,12 +394,11 @@ void storage_check_readahead()
 **___________________________________________________________
 */
 
-void sp_read_1_svc_nb(sp_read_arg_t * args, rozorpc_srv_ctx_t *req_ctx_p) {
+void sp_read_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    sp_read_arg_t * args = (sp_read_arg_t *) pt;
     static sp_read_ret_t ret;
     uint16_t psize = 0;
     storage_t *st = 0;
-
-    DEBUG_FUNCTION;
 
     START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
             * sizeof (bin_t));
@@ -446,8 +474,55 @@ out:
 **___________________________________________________________
 */
 
-void sp_truncate_1_svc_nb(sp_truncate_arg_t * args,
-        rozorpc_srv_ctx_t *req_ctx_p) {
+void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    sp_read_arg_t * args = (sp_read_arg_t *) pt;
+    static sp_read_ret_t ret;
+
+    START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
+            * sizeof (bin_t));
+            
+    /*
+    ** allocate a buffer for the response
+    */
+    req_ctx_p->xmitBuf = ruc_buf_getBuffer(storage_xmit_buffer_pool_p);
+    if (req_ctx_p->xmitBuf == NULL)
+    {
+      severe("sp_read_1_svc_disk_thread Out of memory STORAGE_NORTH_LARGE_POOL");
+      errno = ENOMEM;
+      req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
+      req_ctx_p->recv_buf = NULL;
+      goto error;         
+    }
+
+ 
+    /*
+    ** Set the position where the data have to be written in the xmit buffer 
+    */
+    req_ctx_p->position = storage_get_position_of_first_byte2write_from_read_req();
+     
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_READ, req_ctx_p, tic) == 0) {
+      return;
+    }
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
+    
+error:
+    ret.status                = SP_FAILURE;            
+    ret.sp_read_ret_t_u.error = errno;
+    
+    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
+    /*
+    ** release the context
+    */
+    rozorpc_srv_release_context(req_ctx_p);
+    STOP_PROFILING(read);
+    return ;
+}
+/*
+**___________________________________________________________
+*/
+
+void sp_truncate_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    sp_truncate_arg_t * args = (sp_truncate_arg_t *) pt;
     static sp_status_ret_t ret;
     storage_t *st = 0;
     // Variable to be used in a later version.
@@ -483,6 +558,33 @@ out:
     */
     rozorpc_srv_release_context(req_ctx_p);
     
+    STOP_PROFILING(truncate);
+    return ;
+}
+/*
+**___________________________________________________________
+*/
+
+void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    static sp_status_ret_t ret;
+
+    START_PROFILING(truncate);
+
+     
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_TRUNCATE, req_ctx_p,tic) == 0) {
+      return;
+    }
+    
+    severe("sp_truncate_1_svc_disk_thread storio_disk_thread_intf_send %s", strerror(errno));
+    
+    ret.status                  = SP_FAILURE;            
+    ret.sp_status_ret_t_u.error = errno;
+    
+    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
+    /*
+    ** release the context
+    */
+    rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(truncate);
     return ;
 }

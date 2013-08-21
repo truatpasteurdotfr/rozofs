@@ -60,7 +60,7 @@ sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     if (storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj, version,
             &ret.sp_write_ret_t_u.file_size,
-            (bin_t *) args->bins.bins_val) != 0) {
+            (bin_t *) args->bins.bins_val) <= 0) {
         ret.sp_write_ret_t_u.error = errno;
         goto out;
     }

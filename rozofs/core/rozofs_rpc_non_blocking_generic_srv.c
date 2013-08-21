@@ -241,6 +241,8 @@ void  rozorpc_srv_ctxInit(rozorpc_srv_ctx_t *p,uint8_t creation)
   p->src_transaction_id = 0;
   p->profiler_probe = NULL;
   p->profiler_time  = 0;
+  p->decoded_arg = NULL;
+  p->arg_decoder = NULL;
  
 }
 
@@ -315,6 +317,15 @@ void rozorpc_srv_release_context(rozorpc_srv_ctx_t *ctx_p)
   {
     ruc_buf_freeBuffer(ctx_p->xmitBuf);
     ctx_p->xmitBuf = NULL;
+  }
+
+  if ((ctx_p->arg_decoder != NULL) && (ctx_p->decoded_arg)) {
+    xdr_free(ctx_p->arg_decoder, (caddr_t) ruc_buf_getPayload(ctx_p->decoded_arg));        
+    ctx_p->arg_decoder = NULL;
+  }
+  if(ctx_p->decoded_arg) {
+     ruc_buf_freeBuffer(ctx_p->decoded_arg);
+     ctx_p->decoded_arg = NULL;
   }
 
   /*
@@ -445,7 +456,8 @@ int rozorpc_srv_getargs_with_position (void *recv_buf,xdrproc_t xdr_argument, vo
    ret = (*xdr_argument)(&xdrs,argument);
    if (ret == TRUE)
    {
-    if (position != NULL) *position = XDR_GETPOS(&xdrs);
+    // Position from begin of buffer = position in xdr + size of rpc header + size of len before rpc
+    if (position != NULL) *position = XDR_GETPOS(&xdrs)+header_len+sizeof(uint32_t);
     ROZORPC_SRV_STATS(ROZORPC_SRV_RECV_OK);
    }
    else 

@@ -48,6 +48,7 @@
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/core/rozofs_core_files.h>
 
 #include "config.h"
 #include "sconfig.h"
@@ -56,11 +57,11 @@
 #include <rozofs/rozofs_timer_conf.h>
 #include "storaged_nblock_init.h"
 
-#define STORAGED_PID_FILE "storaged"
+#define STORIO_PID_FILE "storio"
 int     storio_instance = 0;
 static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
-static sconfig_t storaged_config;
+sconfig_t storaged_config;
 
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
     {0}
@@ -70,16 +71,13 @@ static char *storaged_hostname = NULL;
 
 static uint16_t storaged_nrstorages = 0;
 
-static SVCXPRT *storaged_svc = 0;
 
 extern void storage_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
-
-static SVCXPRT *storaged_profile_svc = 0;
 
 extern void storaged_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
-
+uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
@@ -97,7 +95,8 @@ static int storaged_initialize() {
 
     storaged_nrstorages = 0;
 
-    storaged_nb_io_processes = storaged_config.sproto_svc_nb;
+    storaged_nb_io_processes = 1;
+    storaged_nb_ports        = storaged_config.sproto_svc_nb;
 
     memcpy(storaged_storage_ports, storaged_config.ports,
             STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
@@ -118,57 +117,6 @@ static int storaged_initialize() {
 out:
     return status;
 }
-
-static SVCXPRT *storaged_create_rpc_service(int port, char *host,uint32_t instance) {
-    int sock;
-    int one = 1;
-    struct sockaddr_in sin;
-    struct hostent *hp;
-    
-    
-    if (host != NULL) {
-        // get the IP address of the storage node
-        if ((hp = gethostbyname(host)) == 0) {
-            severe("gethostbyname failed for host : %s, %s", host,
-                    strerror(errno));
-            return NULL;
-        }
-        bcopy((char *) hp->h_addr, (char *) &sin.sin_addr, hp->h_length);
-        uint32_t ip_addr = ntohl(sin.sin_addr.s_addr);
-        ip_addr += ((instance + 1) * 0x100);
-        sin.sin_addr.s_addr = htonl(ip_addr);                
-    } else {
-        sin.sin_addr.s_addr = INADDR_ANY;
-    }
-    /* Give the socket a name. */
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(port);
-    ipadd_hostformat = ntohl(sin.sin_addr.s_addr);
-    port_hostformat = ntohs(sin.sin_port);
-#if 0
-    /* Create the socket. */
-    sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        severe("Can't create socket: %s.", strerror(errno));
-        return NULL;
-    }
-
-    /* Set socket options */
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
-    //setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-
-    /* Bind the socket */
-    if (bind(sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) < 0) {
-        severe("Couldn't bind to tcp port %d: %s", port, strerror(errno));
-        return NULL;
-    }
-
-    /* Creates a TCP/IP-based RPC service transport */
-    return svctcp_create(sock, ROZOFS_RPC_STORAGE_BUFFER_SIZE, ROZOFS_RPC_STORAGE_BUFFER_SIZE);
-#endif
-}
-
 
 storage_t *storaged_lookup(cid_t cid, sid_t sid) {
     storage_t *st = 0;
@@ -198,14 +146,13 @@ static void on_stop(int sig) {
     closelog();
 }
 
-static void on_start(uint16_t port_io) {
-    pthread_t thread;
+static void on_start(void) {
     storaged_start_conf_param_t conf;
 
     DEBUG_FUNCTION;
 
 
-    rozofs_signals_declare("storio", 1);
+    rozofs_signals_declare("storio", 2);
     rozofs_attach_crash_cbk(on_stop);
 
     /*
@@ -215,9 +162,9 @@ static void on_start(uint16_t port_io) {
     storage_process_filename[0] = 0;
     char *pid_name_p = storage_process_filename;
     if (storaged_hostname != NULL) {
-        sprintf(pid_name_p, "%s%s_%s:%d.pid", DAEMON_PID_DIRECTORY, STORAGED_PID_FILE, storaged_hostname, port_io);
+        sprintf(pid_name_p, "%s%s_%s.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname);
     } else {
-        sprintf(pid_name_p, "%s%s:%d.pid", DAEMON_PID_DIRECTORY, STORAGED_PID_FILE, port_io);
+        sprintf(pid_name_p, "%s%s.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE);
     }
     int ppfd;
     if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
@@ -234,49 +181,15 @@ static void on_start(uint16_t port_io) {
      */
     
     conf.instance_id = storio_instance;
-    conf.io_port     = port_io;
     conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT + storio_instance;
     if (storaged_hostname != NULL) 
       strcpy(conf.hostname, storaged_hostname);
     else 
       conf.hostname[0] = 0;
       
-      storaged_start_nb_blocking_th(&conf);
+    storaged_start_nb_blocking_th(&conf);
       
-#if 0 // FDL
-    if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf)) != 0) {
-        fatal("can't create non blocking thread: %s", strerror(errno));
-    }
-    
-    
-    // Associates STORAGE_PROGRAM, STORAGE_VERSION and
-    // STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION
-    // with their service dispatch procedure.
-    // Here protocol is zero, the service is not registered with
-    // the portmap service
-
-    if ((storaged_svc = storaged_create_rpc_service(port_io, storaged_hostname,(storio_instance-1))) == NULL) {
-        fatal("can't create IO storaged service on port: %d",port_io);
-    }
-
-    if (!svc_register(storaged_svc, STORAGE_PROGRAM, STORAGE_VERSION,storage_program_1, 0)) {
-        fatal("can't register IO service : %s", strerror(errno));
-    }
-
-    if ((storaged_profile_svc = storaged_create_rpc_service(port_io + 1000,storaged_hostname,0)) == NULL) {
-        severe("can't create IO profile service on port: %d",port_io + 1000);
-    }
-
-    if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION, storaged_profile_program_1, 0)) {
-        fatal("can't register service : %s", strerror(errno));
-    }
-
-    // Waits for RPC requests to arrive!
-    info("running io service (pid=%d, port=%d).",getpid(), port_io);
-    svc_run();
-    // NOT REACHED
-#endif
-    info("running io service (pid=%d, port=%d).",getpid(), port_io);
+    info("running io service (pid=%d).",getpid());
 
 }
 
@@ -355,9 +268,7 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    char name[32];
-    sprintf(name,"storio%d",storio_instance);
-    openlog(name, LOG_PID, LOG_DAEMON);
+    openlog("storio", LOG_PID, LOG_DAEMON);
         
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
@@ -381,6 +292,6 @@ int main(int argc, char *argv[]) {
     SET_PROBE_VALUE(nb_io_processes, storaged_nb_io_processes);
     
     
-    on_start(storaged_storage_ports[storio_instance-1]);
+    on_start();
     return 0;
 }

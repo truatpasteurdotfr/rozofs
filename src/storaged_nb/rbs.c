@@ -277,7 +277,7 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                     re->fid, first_block_idx, nb_blocks_read_distant, version,
                     &file_size, working_ctx.prj_ctx[proj_id_to_rebuild].bins);
 
-            if (ret != 0) {
+            if (ret <= 0) {
                 severe("storage_write failed: %s", strerror(errno));
                 goto out;
             }
@@ -406,7 +406,7 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                         &file_size,
                         bins_to_write);
 
-                if (ret != 0) {
+                if (ret <= 0) {
                     severe("storage_write failed: %s", strerror(errno));
                     goto out;
                 }
