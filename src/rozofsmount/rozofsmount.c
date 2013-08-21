@@ -52,6 +52,7 @@
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
+#include "rozofs_rw_load_balancing.h"
 
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
@@ -857,6 +858,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
      ** register other topic. Topic registration is not safe in multi thread
      ** case
      */
+    uma_dbg_addTopic("stclbg", show_stclbg);
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
     uma_dbg_addTopic("uptime", show_uptime);

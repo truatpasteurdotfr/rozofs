@@ -263,7 +263,10 @@ void rozofs_tx_ctxInit(rozofs_tx_ctx_t *p, uint8_t creation) {
      ** timer cell
      */
     ruc_listEltInit((ruc_obj_desc_t *) & p->rpc_guard_timer);
-
+    /*
+    ** load balancing context init
+    */
+    ruc_listEltInitAssoc( &p->rw_lbg.link,p);
 }
 
 /*-----------------------------------------------
@@ -426,6 +429,11 @@ uint32_t rozofs_tx_free_from_idx(uint32_t transaction_id) {
      */
     p->xid = 0;
     /*
+    ** remove the rw load balancing context from any list
+    */
+     ruc_objRemove(&p->rw_lbg.link);
+     
+     /*
      **  insert it in the free list
      */
     rozofs_tx_context_allocated--;

@@ -60,6 +60,7 @@
 #include "rozofs_fuse_api.h"
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
+#include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -100,7 +101,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    uint32_t nb_prj = 0;
    storcli_read_arg_t  args;
    int ret;
-   int lbg_id;
+   int storcli_idx;
 
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
@@ -121,16 +122,16 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     args.bid = bid;
     args.nb_proj = nb_prj;
 
-    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+    //lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+    storcli_idx = stclbg_storcli_idx_from_fid(f->fid);
     /*
     ** allocate a shared buffer for reading
     */
 #if 1
     uint32_t *p32;
-    int stor_idx =storcli_get_storcli_idx_from_fid(f->fid);
     int shared_buf_idx;
     uint32_t length;
-    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(stor_idx);
+    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(storcli_idx);
     if (shared_buf_ref != NULL)
     {
       /*
@@ -142,7 +143,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
        /*
        ** get the index of the shared payload in buffer
        */
-       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,stor_idx,&length);
+       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,storcli_idx,&length);
        if (shared_buf_idx != -1)
        {
          /*
@@ -154,13 +155,14 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
        }
     }
 #endif
+
     /*
     ** now initiates the transaction towards the remote end
     */
     f->buf_read_pending++;
     ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_READ,(xdrproc_t) xdr_storcli_read_arg_t,(void *)&args,
-                              rozofs_ll_read_cbk,buffer_p,lbg_id); 
+                              rozofs_ll_read_cbk,buffer_p,storcli_idx,f->fid); 
     if (ret < 0) goto error;
     
     /*
