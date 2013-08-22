@@ -439,7 +439,10 @@ run_some_tests() {
       printf "\n$test_number -------> !!! $TST is failed ($zedelay) !!!\n"
       printf "%3d %41s | FAILED  | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       FAIL=$((FAIL+1))
-      break
+      if [ $nonstop == 0 ];
+      then
+        break
+      fi	
     else          
       if [ $res_dbg != 0 ];
       then
@@ -496,6 +499,7 @@ TST_STORCLI_RESET="read_parallel rw_close rw_noClose"
 build_all_test_list
 TSTS=""
 repeated=1
+nonstop=0
 
 # Read parameters
 while [ ! -z $1 ];
@@ -510,7 +514,7 @@ do
     -loop)     loop=$2;                shift 2;;
     -fileSize) fileSize=$2;            shift 2;;
     -repeated) repeated=$2;            shift 2;;
-
+    -nonstop)  nonstop=1;              shift 1;;
     # Debugging this tool
     -verbose)  set -x;                 shift 1;;
 

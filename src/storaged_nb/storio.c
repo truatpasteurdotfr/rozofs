@@ -55,7 +55,7 @@
 #include "storage.h"
 #include "storaged.h"
 #include <rozofs/rozofs_timer_conf.h>
-#include "storaged_nblock_init.h"
+#include "storio_nblock_init.h"
 
 #define STORIO_PID_FILE "storio"
 int     storio_instance = 0;
@@ -187,10 +187,7 @@ static void on_start(void) {
     else 
       conf.hostname[0] = 0;
       
-    storaged_start_nb_blocking_th(&conf);
-      
-    info("running io service (pid=%d).",getpid());
-
+    storio_start_nb_th(&conf);
 }
 
 

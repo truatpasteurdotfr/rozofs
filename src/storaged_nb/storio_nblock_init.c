@@ -60,8 +60,8 @@
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/sproto.h>
 
-#include "storaged_nblock_init.h"
-#include "storage_north_intf.h"
+#include "storio_nblock_init.h"
+#include "storio_north_intf.h"
 #include "storage_fd_cache.h"
 #include "storio_disk_thread_intf.h"
 #include "config.h"
@@ -115,38 +115,6 @@ static char localBuf[8192];
                  #the_probe, the_profiler.the_probe[P_COUNT], \
                 rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
     }
-
-static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-
-    time_t elapse;
-    int days, hours, mins, secs;
-
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-
-
-    // Print general profiling values for storaged
-    pChar += sprintf(pChar, "storaged: %s - %"PRIu16" IO process(es),"
-            " uptime: %d days, %d:%d:%d\n\n",
-            gprofiler.vers, gprofiler.nb_io_processes, days, hours, mins, secs);
-
-    // Print header for operations profiling values for storaged
-    pChar += sprintf(pChar, " %-16s | %-12s | %-12s | %-12s |\n", "OP",
-            "CALL", "RATE(msg/s)", "CPU(us)");
-    pChar += sprintf(pChar, "------------------+--------------+--------------+--------------+\n");
-
-    // Print master storaged process profiling values
-    sp_display_probe(gprofiler, stat);
-    sp_display_probe(gprofiler, ports);
-    sp_display_probe(gprofiler, remove);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}
 
 static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, void *bufRef) {
 
@@ -227,39 +195,13 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
      ** trace buffer initialization
      */
     ruc_traceBufInit();
-#if 1
-    /*
-     ** Not needed since there is already done
-     ** by libUtil
-     */
-
-    /* catch the sigpipe signal for socket 
-     ** connections with RELC(s) in this way when a RELC
-     ** connection breaks an errno is set on a recv or send 
-     **  socket primitive 
-     */
-    struct sigaction sigAction;
-
-    sigAction.sa_flags = SA_RESTART;
-    sigAction.sa_handler = SIG_IGN; /* Mask SIGPIPE */
-    if (sigaction(SIGPIPE, &sigAction, NULL) < 0) {
-        exit(0);
-    }
-#if 0
-    sigAction.sa_flags = SA_RESTART;
-    sigAction.sa_handler = hand; /*  */
-    if (sigaction(SIGUSR1, &sigAction, NULL) < 0) {
-        exit(0);
-    }
-#endif
-#endif
 
     /*
      ** initialize the socket controller:
      **   for: NPS, Timer, Debug, etc...
      */
     //#warning set the number of contexts for socketCtrl to 256
-    ret = ruc_sockctl_init(16);
+    ret = ruc_sockctl_init(128);
     if (ret != RUC_OK) {
         fdl_debug_loop(__LINE__);
         ERRFAT " socket controller init failed" ENDERRFAT
@@ -320,11 +262,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
         {
             char name[256];
-            if (arg_p->instance_id == 0) {
-                sprintf(name, "storaged %s ", arg_p->hostname);
-            } else {
-                sprintf(name, "stor_io%d %s:%d ", arg_p->instance_id, arg_p->hostname, arg_p->io_port);
-            }
+	    sprintf(name, "storio %s", arg_p->hostname);
             uma_dbg_set_name(name);
         }
         /*
@@ -333,25 +271,6 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
         ret = rozorpc_srv_module_init();
         if (ret != RUC_OK) break; 
 
-        {
-	  int size = sizeof(sp_write_arg_no_bins_t);
-	  if (size < sizeof(sp_read_arg_t)) size = sizeof(sp_read_arg_t);
-	  if (size < sizeof(sp_truncate_arg_t)) size = sizeof(sp_truncate_arg_t);
-          decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
-	  if (decoded_rpc_buffer_pool == NULL) {
-	    fatal("Can not allocate decoded_rpc_buffer_pool");
-	    ret = RUC_NOK;
-	    break;
-	  }
-	  ruc_buffer_debug_register_pool("rpcDecodedRequest",decoded_rpc_buffer_pool);
-	}    
-	
-	ret = storio_disk_thread_intf_create(arg_p->hostname,storaged_config.nb_threads, ROZORPC_SRV_CTX_CNT) ;
-	if (ret < 0) {
-	  fatal("storio_disk_thread_intf_create");
-	  ret = RUC_NOK;
-	  break;
-	}
 
         break;
     }
@@ -360,28 +279,6 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
 
     return ret;
-}
-
-/**
- *  Init of the data structure used for the non blocking entity
-
-  @retval 0 on success
-  @retval -1 on error
- */
-int storaged_non_blocking_init(storaged_start_conf_param_t *args_p) {
-    int ret;
-    //  sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
-
-    if (args_p->instance_id == 0) {
-        //    info("FDL storaged_non_blocking_init instance 0  port %d ",args_p->debug_port);
-    }
-    ret = ruc_init(FALSE, args_p);
-
-    if (ret != RUC_OK) return -1;
-
-
-    return 0;
-
 }
 
 
@@ -400,57 +297,77 @@ int storaged_non_blocking_init(storaged_start_conf_param_t *args_p) {
    @retval : no retval -> only on fatal error
 
  */
-int storaged_start_nb_blocking_th(void *args) {
-    int ret;
-    //sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
-    storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
+int storio_start_nb_th(void *args) {
+  int ret;
+  storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
+  int size = 0;
 
-    ret = storaged_non_blocking_init(args_p);
-    if (ret != RUC_OK) {
-        /*
-         ** fatal error
-         */
-        fdl_debug_loop(__LINE__);
-        fatal("can't initialize non blocking thread");
-        return -1;
-    }
+  ret = ruc_init(FALSE, args_p);
+  if (ret != RUC_OK) {
     /*
-     ** Init of the north interface (read/write request processing)
+     ** fatal error
      */
-    ret = storage_north_interface_buffer_init(STORAGE_BUF_RECV_CNT, STORAGE_BUF_RECV_SZ);
-    if (ret < 0) {
-      fatal("Fatal error on storage_north_interface_buffer_init()\n");
-      return -1;
-    }
-    ret = storage_north_interface_init(args_p->hostname);
-    if (ret < 0) {
-      fatal("Fatal error on storage_north_interface_init()\n");
-      return -1;
-    }
-    /*
-    ** init of the fd cache
-    */
-    storage_fd_cache_init(48,16);
-
-    /*
-     ** add profiler subject 
-     */
-    if (args_p->instance_id == 0) {
-        uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
-    } else {
-        uma_dbg_addTopic("profiler", show_profile_storaged_io_display);
-    }
-
-    info("storaged non-blocking thread started "
-            "(instance: %d, host: %s, io : %d, dbg: %d).",
-            args_p->instance_id, args_p->hostname, args_p->io_port, args_p->debug_port);
-
-    /*
-     ** main loop
-     */
-    while (1) {
-        ruc_sockCtrl_selectWait();
-    }
-    fatal("Exit from ruc_sockCtrl_selectWait()");
     fdl_debug_loop(__LINE__);
+    fatal("can't initialize non blocking thread");
+    return -1;
+  }
+
+  /*
+  ** Create a buffer pool to decode spproto RPC requests
+  */
+  size = sizeof(sp_write_arg_no_bins_t);
+  if (size < sizeof(sp_read_arg_t)) size = sizeof(sp_read_arg_t);
+  if (size < sizeof(sp_truncate_arg_t)) size = sizeof(sp_truncate_arg_t);
+  decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
+  if (decoded_rpc_buffer_pool == NULL) {
+    fatal("Can not allocate decoded_rpc_buffer_pool");
+    return -1;
+  }
+  ruc_buffer_debug_register_pool("rpcDecodedRequest",decoded_rpc_buffer_pool);
+
+  /*
+  ** Initialize the disk thread interface and start the disk threads
+  */	
+  ret = storio_disk_thread_intf_create(args_p->hostname,storaged_config.nb_threads, ROZORPC_SRV_CTX_CNT) ;
+  if (ret < 0) {
+    fatal("storio_disk_thread_intf_create");
+    return -1;
+  }
+
+  /*
+  ** Init of the north interface (read/write request processing)
+  */ 
+  ret = storio_north_interface_buffer_init(STORIO_BUF_RECV_CNT, STORIO_BUF_RECV_SZ);
+  if (ret < 0) {
+    fatal("Fatal error on storio_north_interface_buffer_init()\n");
+    return -1;
+  }
+  ret = storio_north_interface_init(args_p->hostname);
+  if (ret < 0) {
+    fatal("Fatal error on storio_north_interface_init()\n");
+    return -1;
+  }
+   
+   
+  /*
+  ** init of the fd cache
+  */
+  storage_fd_cache_init(48,16);
+
+  /*
+  ** add profiler subject 
+  */
+  uma_dbg_addTopic("profiler", show_profile_storaged_io_display);
+
+  info("storio started (instance: %d, host: %s, dbg: %d).",
+       args_p->instance_id, args_p->hostname, args_p->debug_port);
+
+  /*
+   ** main loop
+   */
+  while (1) {
+      ruc_sockCtrl_selectWait();
+  }
+  fatal("Exit from ruc_sockCtrl_selectWait()");
+  fdl_debug_loop(__LINE__);
 }

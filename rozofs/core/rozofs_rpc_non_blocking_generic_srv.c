@@ -503,7 +503,11 @@ void rozorpc_srv_forward_reply (rozorpc_srv_ctx_t *p,char * arg_ret)
     ** create xdr structure on top of the buffer that will be used for sending the response
     */
     header_len_p = (uint32_t*)ruc_buf_getPayload(p->xmitBuf); 
-    pbuf = (uint8_t*) (header_len_p+1);            
+    pbuf = (uint8_t*) (header_len_p+1);  
+    
+    /* Do not forget to reset the opaque authentication part */
+    memset(pbuf,0,40);          
+ 
     len = (int)ruc_buf_getMaxPayloadLen(p->xmitBuf);
     len -= sizeof(uint32_t);
     xdrmem_create(&xdrs,(char*)pbuf,len,XDR_ENCODE); 

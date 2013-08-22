@@ -192,7 +192,7 @@ void * af_unix_disk_userRcvAllocBufCallBack(void *userRef,uint32_t socket_contex
 */
 void  af_unix_disk_disconnection_callback(void *userRef,uint32_t socket_context_ref,void *bufRef,int err_no) {
 
-  severe("af_unix_disk_disconnection_callback");
+  fatal("af_unix_disk_disconnection_callback");
   
     
 }
@@ -232,10 +232,10 @@ void af_unix_disk_response_callback(void *userRef,uint32_t  socket_ctx_idx, void
   
   switch (opcode) {
     case STORIO_DISK_THREAD_READ:
-      STOP_PROFILING(read);
+      STOP_PROFILING_IO(read,msg->size);
       break;
     case STORIO_DISK_THREAD_WRITE:
-      STOP_PROFILING(write);
+      STOP_PROFILING_IO(write,msg->size);
       break;     
     case STORIO_DISK_THREAD_TRUNCATE:
       STOP_PROFILING(truncate);
@@ -297,6 +297,7 @@ int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode,
   msg->status          = 0;
   msg->transaction_id  = transactionId++;
   msg->timeStart       = timeStart;
+  msg->size            = 0;
   msg->rpcCtx          = rpcCtx;
 
   /* Set the payload length */

@@ -52,6 +52,7 @@ typedef struct _storaged_start_conf_param_t
    @retval : no retval -> only on fatal error
 
  */
-int storaged_start_nb_blocking_th(void *args);
+int storio_start_nb_th(void *args);
+int storaged_start_nb_th(void *args) ;
 
 #endif

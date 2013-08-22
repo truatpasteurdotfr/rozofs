@@ -466,7 +466,6 @@ int rozofs_storcli_cid_table_insert(cid_t cid, sid_t sid, uint32_t lbg_id) {
  * @return 0 on success otherwise -1
  */
 static int get_storage_ports(mstorage_t *s) {
-    int status = -1;
     int i = 0;
     mclient_t mclt;
 
@@ -484,14 +483,18 @@ static int get_storage_ports(mstorage_t *s) {
     if (mclient_initialize(&mclt, timeo) != 0) {
         severe("Warning: failed to join storage (host: %s), %s.\n",
                 s->host, strerror(errno));
-        goto out;
-    } else {
-        /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, ports) != 0) {
-            severe("Warning: failed to get ports for storage (host: %s).\n",
-                    s->host);
-            goto out;
-        }
+        /* Release mclient*/
+        mclient_release(&mclt);
+        return -1;
+    }
+    
+    /* Send request to get storage TCP ports */
+    if (mclient_ports(&mclt, ports) != 0) {
+        severe("Warning: failed to get ports for storage (host: %s).\n",
+                s->host);
+        /* Release mclient*/
+        mclient_release(&mclt);
+        return -1;
     }
 
     /* Copy each TCP ports */
@@ -506,10 +509,7 @@ static int get_storage_ports(mstorage_t *s) {
 
     /* Release mclient*/
     mclient_release(&mclt);
-
-    status = 0;
-out:
-    return status;
+    return 0;
 }
 
 /*__________________________________________________________________________

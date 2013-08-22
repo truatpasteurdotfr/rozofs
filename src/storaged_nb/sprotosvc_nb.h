@@ -1,11 +1,21 @@
- General Public License for more details.
+/*
+  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
+  This file is part of Rozofs.
 
- You should have received a copy of the GNU General Public License
- along with this program.  If not, see
- <http://www.gnu.org/licenses/>.
+  Rozofs is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published
+  by the Free Software Foundation; either version 3 of the License,
+  or (at your option) any later version.
+
+  Rozofs is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see
+  <http://www.gnu.org/licenses/>.
  */
- 
- 
 #ifndef SPROTOSVC_NB_H
 #define SPROTOSVC_NB_H
 
@@ -40,6 +50,6 @@
    @retval : TRUE-> xmit ready event expected
   @retval : FALSE-> xmit  ready event not expected
 */
-void storage_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf);
+void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf);
 
 #endif

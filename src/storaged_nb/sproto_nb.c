@@ -29,7 +29,7 @@
 #include "storage.h"
 #include "storaged.h"
 #include "sproto_nb.h"
-#include "storage_north_intf.h"
+#include "storaged_north_intf.h"
 #include "storage_fd_cache.h"
 #include "storio_disk_thread_intf.h"
 
@@ -345,11 +345,9 @@ out:
 */
 
 void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
-    sp_write_arg_t * args = (sp_write_arg_t *) pt;
     static sp_write_ret_t ret;
 
-    START_PROFILING_IO(write, args->nb_proj * rozofs_get_max_psize(args->layout)
-            * sizeof (bin_t));
+    START_PROFILING(write);
      
     if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_WRITE, req_ctx_p,tic) == 0) {
       return;
@@ -365,7 +363,7 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ** release the context
     */
     rozorpc_srv_release_context(req_ctx_p);
-    STOP_PROFILING(read);
+    STOP_PROFILING(write);
     return ;
 }
 /*
@@ -475,11 +473,9 @@ out:
 */
 
 void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
-    sp_read_arg_t * args = (sp_read_arg_t *) pt;
     static sp_read_ret_t ret;
 
-    START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
-            * sizeof (bin_t));
+    START_PROFILING(read);
             
     /*
     ** allocate a buffer for the response

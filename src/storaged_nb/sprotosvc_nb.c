@@ -45,7 +45,7 @@ extern void * decoded_rpc_buffer_pool;
    @retval : TRUE-> xmit ready event expected
   @retval : FALSE-> xmit  ready event not expected
 */
-void storage_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
+void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
 {
     uint32_t  *com_hdr_p;
     rozofs_rpc_call_hdr_t   hdr;

@@ -83,6 +83,7 @@ typedef struct _storio_disk_thread_msg_t
   uint32_t            status;
   uint32_t            transaction_id;
   uint64_t            timeStart;
+  uint64_t            size;
   rozorpc_srv_ctx_t * rpcCtx;
 } storio_disk_thread_msg_t;
 

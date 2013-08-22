@@ -217,7 +217,7 @@ int storio_encode_rpc_response (rozorpc_srv_ctx_t *p,char * arg_ret) {
   
   @retval: none
 */
-void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
   storage_t *st = 0;
@@ -281,7 +281,8 @@ void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_
     return;       
   }  
  
-  ret.status = SP_SUCCESS;          
+  ret.status = SP_SUCCESS;  
+  msg->size = ret.sp_read_ret_t_u.rsp.bins.bins_len;        
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
   thread_ctx_p->diskRead_Byte_count += ret.sp_read_ret_t_u.rsp.bins.bins_len;
   storio_send_response(thread_ctx_p,msg,0);
@@ -303,7 +304,7 @@ void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_
   
   @retval: none
 */
-void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
   storage_t *st = 0;
@@ -364,6 +365,7 @@ void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread
   }
   
   ret.status = SP_SUCCESS;          
+  msg->size = size;        
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
   thread_ctx_p->diskWrite_Byte_count += size;
   storio_send_response(thread_ctx_p,msg,0);
@@ -383,7 +385,7 @@ void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread
   
   @retval: none
 */
-void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
   storage_t *st = 0;
@@ -475,6 +477,8 @@ void *storio_disk_thread(void *arg) {
       fatal("Disk Thread %d socket is dead %s !!\n",ctx_p->thread_idx,strerror(errno));
       exit(0);    
     }
+    
+    msg.size = 0;
     
     switch (msg.opcode) {
     

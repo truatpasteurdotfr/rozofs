@@ -22,6 +22,7 @@ link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(storaged
     mproto.c
+    mprotosvc.h
     spproto.c
     sconfig.h
     sconfig.c
@@ -39,6 +40,8 @@ add_executable(storaged
     storaged.c
     storaged_nblock_init.h
     storaged_nblock_init.c
+    storaged_north_intf.c
+    storaged_north_intf.h
     storage_fd_cache.c
     storage_fd_cache.h
     storio_cache.h
@@ -59,8 +62,8 @@ add_executable(storio
     sprotosvc_nb.h
     storio_nblock_init.h
     storio_nblock_init.c
-    storage_north_intf.c
-    storage_north_intf.h
+    storio_north_intf.c
+    storio_north_intf.h
     storage_fd_cache.c
     storage_fd_cache.h
     storio.c

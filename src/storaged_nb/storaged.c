@@ -72,8 +72,6 @@ static char *storaged_hostname = NULL;
 
 static uint16_t storaged_nrstorages = 0;
 
-static SVCXPRT *storaged_svc = 0;
-
 static SVCXPRT *storaged_monitoring_svc = 0;
 
 extern void monitor_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
@@ -381,13 +379,6 @@ static void on_stop() {
         storaged_profile_svc = NULL;
     }
 
-    if (storaged_svc && !storaged_monitoring_svc) {
-        svc_unregister(STORAGE_PROGRAM, STORAGE_VERSION);
-        pmap_unset(STORAGE_PROGRAM, STORAGE_VERSION);
-        svc_destroy(storaged_svc);
-        storaged_svc = NULL;
-    }
-
     rozofs_layout_release();
 
     storaged_release();
@@ -453,7 +444,9 @@ static void on_start() {
 
     if (storaged_hostname != NULL) strcpy(conf.hostname, storaged_hostname);
     else conf.hostname[0] = 0;
-
+    
+    storaged_start_nb_th(&conf);
+    
     if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf)) != 0) {
         fatal("can't create non blocking thread: %s", strerror(errno));
     }
@@ -590,6 +583,8 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
+    openlog("storaged", LOG_PID, LOG_DAEMON);
+
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
         fprintf(stderr, "Can't initialize storaged config: %s.\n",
@@ -613,7 +608,6 @@ int main(int argc, char *argv[]) {
         if (rbs_check() != 0)
             goto error;
     }
-    openlog("storaged", LOG_PID, LOG_DAEMON);
 
     char *pid_name_p = pid_name;
     if (storaged_hostname != NULL) {

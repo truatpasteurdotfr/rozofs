@@ -33,7 +33,7 @@ int mclient_initialize(mclient_t * clt, struct timeval timeout) {
 
     if (rpcclt_initialize(&clt->rpcclt, clt->host, MONITOR_PROGRAM,
             MONITOR_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
-            0, timeout) != 0) {
+            ROZOFS_MPROTO_PORT, timeout) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);
