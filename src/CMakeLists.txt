@@ -15,7 +15,7 @@
 # <http://www.gnu.org/licenses/>.
 
 add_subdirectory(exportd)
-add_subdirectory(storaged)
+add_subdirectory(storaged_nb)
 add_subdirectory(rozofsmount)
 add_subdirectory(rprof)
 add_subdirectory(storcli)

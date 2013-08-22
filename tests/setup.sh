@@ -827,19 +827,19 @@ show_process () {
     fi    
   done  
   printf "\n"
-  printf " cid sid storaged          storios........\n"
+  printf " cid sid storaged     storio\n"
   for sid in $(seq 16)
   do
   
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))  
-    name=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
+    std=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
 
-    if ls $name*.pid > /dev/null 2>&1
+    if ls stor*_${LOCAL_STORAGE_NAME_BASE}$sid.pid > /dev/null 2>&1
     then
 
       printf " %3d %3d " $cid $sid
 
-      file=$name.pid
+      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
       if [ -f $file ];
       then
 	proc=`cat $file`
@@ -848,15 +848,14 @@ show_process () {
 	printf "     --      "         
       fi 
 
-      for file in $name:*.pid
-      do
-	if [ -f $file ];
-	then
-          proc=`cat $file`
-	  port=`echo $file | awk -F':' '{print $2}' | awk -F'.' '{print $1}'`
-          printf "[%6d:%6d] " $port $proc
-	fi
-      done 
+      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
+      if [ -f $file ];
+      then
+	proc=`cat $file`
+	printf " %6d     " $proc 
+      else
+	printf "     --      "         
+      fi 
       printf "\n"   
     fi   
   done
@@ -878,8 +877,8 @@ show_process () {
 }
 main ()
 {
-    #storaged_dir="storaged_nb"
-    storaged_dir="storaged"
+    storaged_dir="storaged_nb"
+    #storaged_dir="storaged"
 
         
     [ $# -lt 1 ] && usage
