@@ -466,11 +466,12 @@ int rozofs_storcli_cid_table_insert(cid_t cid, sid_t sid, uint32_t lbg_id) {
  * @return 0 on success otherwise -1
  */
 static int get_storage_ports(mstorage_t *s) {
+    int status = -1;
     int i = 0;
     mclient_t mclt;
 
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
-    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+    mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+    //memset(io_address, 0, sizeof (io_address));
     strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
 
     struct timeval timeo;
@@ -483,25 +484,24 @@ static int get_storage_ports(mstorage_t *s) {
     if (mclient_initialize(&mclt, timeo) != 0) {
         severe("Warning: failed to join storage (host: %s), %s.\n",
                 s->host, strerror(errno));
-        /* Release mclient*/
-        mclient_release(&mclt);
-        return -1;
-    }
-    
-    /* Send request to get storage TCP ports */
-    if (mclient_ports(&mclt, ports) != 0) {
-        severe("Warning: failed to get ports for storage (host: %s).\n",
-                s->host);
-        /* Release mclient*/
-        mclient_release(&mclt);
-        return -1;
+        goto out;
+    } else {
+        /* Send request to get storage TCP ports */
+        if (mclient_ports(&mclt, io_address) != 0) {
+            severe("Warning: failed to get ports for storage (host: %s).\n",
+                    s->host);
+            goto out;
+        }
     }
 
+    
     /* Copy each TCP ports */
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (ports[i] != 0) {
-            strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
-            s->sclients[i].port = ports[i];
+        if (io_address[i].port != 0) {
+	    uint32_t ip = io_address[i].ipv4;
+            sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+	    s->sclients[i].ipv4 = ip;	    
+            s->sclients[i].port = io_address[i].port;
             s->sclients[i].status = 0;
             s->sclients_nb++;
         }
@@ -509,7 +509,10 @@ static int get_storage_ports(mstorage_t *s) {
 
     /* Release mclient*/
     mclient_release(&mclt);
-    return 0;
+
+    status = 0;
+out:
+    return status;
 }
 
 /*__________________________________________________________________________
@@ -659,8 +662,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
 
         mclient_t mclt;
         strcpy(mclt.host, s->host);
-        uint32_t ports[STORAGE_NODE_PORTS_MAX];
-        memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+        mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+        //memset(io_address, 0, sizeof (io_address));
         /*
          ** allocate the load balancing group for the mstorage
          */
@@ -682,19 +685,22 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
                     s->host, strerror(errno));
         } else {
             /* Send request to get storage TCP ports */
-            if (mclient_ports(&mclt, ports) != 0) {
+            if (mclient_ports(&mclt, io_address) != 0) {
                 fprintf(stderr,
                         "Warning: failed to get ports for storage (host: %s).\n"
                         , s->host);
             }
         }
-
+	
+     
         /* Initialize each TCP ports connection with this storage node
          *  (by sproto) */
         for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-            if (ports[i] != 0) {
-                strcpy(s->sclients[i].host, s->host);
-                s->sclients[i].port = ports[i];
+            if (io_address[i].port != 0) {
+	        uint32_t ip= io_address[i].ipv4;
+                sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+		s->sclients[i].ipv4 = ip;
+                s->sclients[i].port = io_address[i].port;
                 s->sclients[i].status = 0;
                 s->sclients_nb++;
             }
@@ -792,7 +798,7 @@ int main(int argc, char *argv[]) {
     storcli_rozofsmount_shared_mem.data_p = NULL; 
         
     storcli_process_filename[0] = 0;
-    rozofs_signals_declare("storcli",1);
+    rozofs_signals_declare("storcli",2);
     rozofs_attach_crash_cbk(storlci_handle_signal);
     
     conf.host = NULL;

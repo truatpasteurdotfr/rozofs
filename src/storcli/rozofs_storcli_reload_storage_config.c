@@ -116,8 +116,8 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       mclient_t mclt;
       init_rpcctl_ctx(&mclt.rpcclt);
       strcpy(mclt.host, mstor->host);
-      uint32_t ports[STORAGE_NODE_PORTS_MAX];
-      memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+      mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+      //memset(io_address, 0, sizeof (io_address));
       /*
       ** allocate the load balancing group for the mstorage
       */
@@ -139,7 +139,7 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       else 
       {
         /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, ports) != 0) 
+        if (mclient_ports(&mclt, io_address) != 0) 
         {
             fprintf(stderr,
                     "Warning: failed to get ports for storage (host: %s).\n"
@@ -150,10 +150,11 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
        *  (by sproto) */
       for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) 
       {
-         if (ports[i] != 0) 
+         if (io_address[i].port  != 0) 
          {
-             strcpy(mstor->sclients[i].host, mstor->host);
-             mstor->sclients[i].port = ports[i];
+	     uint32_t ip = io_address[i].ipv4;
+             sprintf(mstor->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+             mstor->sclients[i].port = io_address[i].port;
              mstor->sclients[i].status = 0;
              mstor->sclients_nb++;
          }

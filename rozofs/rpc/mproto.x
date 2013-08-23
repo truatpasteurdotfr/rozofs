@@ -54,8 +54,13 @@ union mp_stat_ret_t switch (mp_status_t status) {
     default:            void;
 };
 
+struct mp_io_address_t {
+  uint32_t ipv4;
+  uint32_t port;
+};
+
 union mp_ports_ret_t switch (mp_status_t status) {
-    case MP_SUCCESS:    uint32_t     ports[STORAGE_NODE_PORTS_MAX];
+    case MP_SUCCESS:    struct mp_io_address_t  io_addr[STORAGE_NODE_PORTS_MAX];
     case MP_FAILURE:    int         error;
     default:            void;
 };

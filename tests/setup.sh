@@ -112,13 +112,17 @@ gen_storage_conf ()
            touch $FILE
            echo "#${NAME_LABEL}" >> $FILE
            echo "#${DATE_LABEL}" >> $FILE
+	   
 	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
-	   #echo "ports = [ 51000, 51002] ;" >> $FILE
-	   PORT_LIST="51001"
-	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
-	   done
-	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	     
+	   printf "nbCores = 4;\n" >> $FILE
+	   
+	   printf "ioaddr = ( \n" >> $FILE
+	   printf "  {IPv4 = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
+           for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+	      printf " ,\n  {IPv4 = \"192.168.$((idx+1)).$sid\"; port = 41000;}" 
+	   done >>  $FILE  
+	   printf "\n);\n" >>  $FILE   
+	        
            echo 'storages = (' >> $FILE
 
                 z=0
@@ -169,6 +173,7 @@ gen_export_conf ()
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE    
+    echo "nbCores = 4;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -660,10 +665,15 @@ do_listCore() {
   fi    
 } 
 do_removeCore() {
+  shift 1
   if [ -d $COREDIR ];
   then
     cd $COREDIR
-    unlink $1
+    while [ ! -z "$1" ];
+    do
+      unlink $1
+      shift 1
+    done  
   fi    
 }   
 do_debugCore () {
@@ -674,9 +684,11 @@ do_debugCore () {
 }
 do_core () 
 {
+  shift 1
+  
   case "$1" in
   "")       do_listCore;;
-  "remove") do_removeCore $2;;
+  "remove") do_removeCore $*;;
   *)        do_debugCore $1;;
   esac      
 }
@@ -898,7 +910,7 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1;
     NB_CLUSTERS_BY_VOLUME=1;
-    NB_DISK_THREADS=3;
+    NB_DISK_THREADS=2;
     
     ulimit -c unlimited
 
@@ -910,7 +922,7 @@ main ()
         check_build
         do_stop
 
-        gen_storage_conf ${STORAGES_BY_CLUSTER} 2
+        gen_storage_conf ${STORAGES_BY_CLUSTER} 4
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
@@ -926,7 +938,7 @@ main ()
 
     elif [ "$1" == "core" ]
     then
-           do_core $2 $3	   
+           do_core $*	   
     elif [ "$1" == "pause" ]
     then
            do_pause

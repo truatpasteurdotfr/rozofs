@@ -264,33 +264,23 @@ int storio_north_interface_buffer_init(int read_write_buf_count,int read_write_b
 int storio_north_interface_init(char * host) {
   int i;
   int ret;
-  uint32_t ip;
-
-  /*
-  ** Resolve IP address 
-  */
-  ip = INADDR_ANY;
-  ret = rozofs_host2ip(host,&ip);
-  if (ret != 0) {
-    severe("storage_north_interface_init can not resolve %s",host);
-  }	
 
   /*
   ** create the listening af unix sockets on the north interface
   */  
-  for (i=0; i< storaged_config.sproto_svc_nb; i++) { 
-    
-    if (ip != INADDR_ANY) {
-      ip = ip + 0x100;
-    }
+  for (i=0; i< storaged_config.io_addr_nb; i++) {     
      
     /*
-    ** Create the listening socket
+    ** Create the listening sockets
     */ 
-    ret = af_inet_sock_listening_create("IO",ip, storaged_config.ports[i],&af_inet_rozofs_north_conf);    
+    ret = af_inet_sock_listening_create("IO",
+                                        storaged_config.io_addr[i].ipv4,
+					storaged_config.io_addr[i].port,
+					&af_inet_rozofs_north_conf);    
     if (ret < 0) {
+      uint32_t ip = storaged_config.io_addr[i].ipv4;
       fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
-              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.ports[i]);
+              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.io_addr[i].port);
       return -1;
     }  
   }

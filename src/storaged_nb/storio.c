@@ -76,7 +76,7 @@ extern void storage_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 extern void storaged_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
-uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
+//uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
 uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
 
@@ -96,10 +96,7 @@ static int storaged_initialize() {
     storaged_nrstorages = 0;
 
     storaged_nb_io_processes = 1;
-    storaged_nb_ports        = storaged_config.sproto_svc_nb;
-
-    memcpy(storaged_storage_ports, storaged_config.ports,
-            STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
+    storaged_nb_ports        = storaged_config.io_addr_nb;
 
     /* For each storage on configuration file */
     list_for_each_forward(p, &storaged_config.storages) {
@@ -152,7 +149,7 @@ static void on_start(void) {
     DEBUG_FUNCTION;
 
 
-    rozofs_signals_declare("storio", 2);
+    rozofs_signals_declare("storio", storaged_config.nb_cores);
     rozofs_attach_crash_cbk(on_stop);
 
     /*

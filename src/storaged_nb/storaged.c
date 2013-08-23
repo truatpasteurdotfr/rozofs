@@ -54,6 +54,7 @@
 #include "sconfig.h"
 #include "storage.h"
 #include "storaged.h"
+#include "sconfig.h"
 #include "rbs.h"
 #include <rozofs/rozofs_timer_conf.h>
 #include "storaged_nblock_init.h"
@@ -80,7 +81,7 @@ static SVCXPRT *storaged_profile_svc = 0;
 
 extern void storaged_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
-uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
+//uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
 
 uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
@@ -111,11 +112,9 @@ static int storaged_initialize() {
 
     storaged_nb_io_processes = 1;
     
-    storio_nb_threads = storaged_config.nb_threads;
+    storio_nb_threads = storaged_config.nb_disk_threads;
 
-    storaged_nb_ports = storaged_config.sproto_svc_nb;
-    memcpy(storaged_storage_ports, storaged_config.ports,
-            STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
+    storaged_nb_ports = storaged_config.io_addr_nb;
 
     /* For each storage on configuration file */
     list_for_each_forward(p, &storaged_config.storages) {
@@ -391,11 +390,6 @@ static void on_stop() {
 char storage_process_filename[NAME_MAX];
 
 static void on_start() {
-    int i = 0;
-    int sock;
-    int one = 1;
-    pthread_t thread;
-    int  ret;
     char cmd[128];
     char * p;
         
@@ -446,69 +440,6 @@ static void on_start() {
     else conf.hostname[0] = 0;
     
     storaged_start_nb_th(&conf);
-    
-    if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf)) != 0) {
-        fatal("can't create non blocking thread: %s", strerror(errno));
-    }
-
-    // Create internal monitoring service
-    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-
-    if ((storaged_monitoring_svc = svctcp_create(sock,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE)) == NULL) {
-        fatal("can't create internal monitoring service.");
-        return;
-    }
-
-    // Re-attempt several times for simulation case on 1 server
-    // All the storaged are in concurence to register the function
-    for (i = 0; i < 8; i++) {
-
-      // Destroy portmap mapping
-      pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION); // in case !
-
-      // Associates MONITOR_PROGRAM and MONITOR_VERSION
-      // with the service dispatch procedure, monitor_program_1.
-      // Here protocol is no zero, the service is registered with
-      // the portmap service
-      ret = svc_register(storaged_monitoring_svc, MONITOR_PROGRAM,
-              MONITOR_VERSION, monitor_program_1, IPPROTO_TCP);
-      if (ret == 1) break;	     
-    }
-    if (ret != 1) {
-      fatal("can't register service : %s", strerror(errno));
-    }
-    
-
-    // Create profiling service for main process
-    if ((storaged_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL) {
-        severe("can't create profiling service.");
-    }
-
-
-    // Re-attempt several times for simulation case on 1 server
-    // All the storaged are in concurence to register the function
-    for (i = 0; i < 8; i++) {
-    
-      pmap_unset(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION); // in case !
-
-      ret = svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
-            STORAGED_PROFILE_VERSION,
-            storaged_profile_program_1, IPPROTO_TCP);
-      if (ret == 1) break;	     
-    } 
-    if (ret != 1) {
-        severe("can't register service : %s", strerror(errno));
-    }   
-
-    // Waits for RPC requests to arrive!
-    info("running.");
-    svc_run();
-    // NOT REACHED
 }
 
 void usage() {
@@ -615,7 +546,7 @@ int main(int argc, char *argv[]) {
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }
-    daemon_start("storaged",1,pid_name, on_start, on_stop, NULL);
+    daemon_start("storaged",storaged_config.nb_cores,pid_name, on_start, on_stop, NULL);
 
     exit(0);
 error:

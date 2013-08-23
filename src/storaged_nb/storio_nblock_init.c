@@ -328,7 +328,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Initialize the disk thread interface and start the disk threads
   */	
-  ret = storio_disk_thread_intf_create(args_p->hostname,storaged_config.nb_threads, ROZORPC_SRV_CTX_CNT) ;
+  ret = storio_disk_thread_intf_create(args_p->hostname,storaged_config.nb_disk_threads, ROZORPC_SRV_CTX_CNT) ;
   if (ret < 0) {
     fatal("storio_disk_thread_intf_create");
     return -1;

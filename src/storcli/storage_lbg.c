@@ -75,25 +75,11 @@ static af_unix_socket_conf_t  af_inet_storaged_conf =
 int storcli_next_storio_global_index =0;
 
 int storaged_lbg_initialize(mstorage_t *s) {
-    int status = -1;
-    struct sockaddr_in server;
-    struct hostent *hp;
     int lbg_size;
     int ret;
     int i;
     
     DEBUG_FUNCTION;    
-
-    server.sin_family = AF_INET;
-    
-    /*
-    ** get the IP address of the storage node
-    */
-    if ((hp = gethostbyname(s->host)) == 0) {
-        severe("gethostbyname failed for host : %s, %s", s->host,
-                strerror(errno));
-        goto out;
-    }
     
     /*
     ** configure the callback that is intended to perform the polling of the storaged on each TCP connection
@@ -111,8 +97,6 @@ int storaged_lbg_initialize(mstorage_t *s) {
      severe("Cannot configure application TMO");   
    }   
 
-    bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
-
     /*
     ** store the IP address and port in the list of the endpoint
     */
@@ -120,8 +104,7 @@ int storaged_lbg_initialize(mstorage_t *s) {
     for (i = 0; i < lbg_size; i++)
     {
       my_list[i].remote_port_host   = s->sclients[i].port;
-      my_list[i].remote_ipaddr_host = ntohl(server.sin_addr.s_addr);
-      my_list[i].remote_ipaddr_host += (0x100* (i + 1));
+      my_list[i].remote_ipaddr_host = s->sclients[i].ipv4;
     }
      af_inet_storaged_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_storaged_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
@@ -133,14 +116,10 @@ int storaged_lbg_initialize(mstorage_t *s) {
                                           ROZOFS_SOCK_FAMILY_STORAGE_NORTH,lbg_size,&af_inet_storaged_conf);
      if (ret < 0)
      {
-       status = -1;
       severe("Cannot create Load Balancing Group %d for storaged %s",s->lbg_id,s->host);
-      return status;    
+      return -1;    
      }
      north_lbg_set_next_global_entry_idx_p(s->lbg_id,&storcli_next_storio_global_index);
-     status = 0;
-
-out:
-     return  status;
+     return  0;
 }     
 

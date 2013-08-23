@@ -329,7 +329,7 @@ int rozofs_stat_start(void *args) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
     
-    rozofs_signals_declare("rozofsmount", 1);
+    rozofs_signals_declare("rozofsmount", 2);
     
     /*
      ** main loop

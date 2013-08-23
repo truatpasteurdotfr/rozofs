@@ -22,10 +22,15 @@
 #include <errno.h>
 #include <libconfig.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/log.h>
+#include <rozofs/core/rozofs_host2ip.h>
 
 #include "sconfig.h"
 
@@ -35,7 +40,11 @@
 #define SCID	    "cid"
 #define SROOT	    "root"
 #define SPORTS      "ports"
+#define SIOADDR     "ioaddr"
 #define STHREADS    "threads"
+#define SIPv4       "IPv4"
+#define SPORT       "port"
+#define SCORES     "nbCores"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root) {
@@ -54,7 +63,7 @@ void storage_config_release(storage_config_t *s) {
 
 int sconfig_initialize(sconfig_t *sc) {
     DEBUG_FUNCTION;
-
+    memset(sc,0,sizeof(storage_config_t));
     list_init(&sc->storages);
     return 0;
 }
@@ -75,15 +84,15 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
     struct config_setting_t *stor_settings = 0;
-    struct config_setting_t *ports_settings = 0;
+    struct config_setting_t *ioaddr_settings = 0;
     int i;
-    DEBUG_FUNCTION;
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-    int threads;
+    int threads, port, nbCores;
 #else
-    long int threads;
+    long int threads, port, nbCores;
 #endif      
+    DEBUG_FUNCTION;
 
     config_init(&cfg);
 
@@ -94,27 +103,63 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     }
 
     if (!config_lookup_int(&cfg, STHREADS, &threads)) {
-       config->nb_threads = 2;
+       config->nb_disk_threads = 2;
     }
     else {
-       config->nb_threads = threads;
+       config->nb_disk_threads = threads;
     }
-    if (!(ports_settings = config_lookup(&cfg, SPORTS))) {
+    
+    if (!config_lookup_int(&cfg, SCORES, &nbCores)) {
+       config->nb_cores = 2;
+    }
+    else {
+       config->nb_cores = nbCores;
+    }
+    if (!(ioaddr_settings = config_lookup(&cfg, SIOADDR))) {
         errno = ENOKEY;
-        severe("can't fetch ports settings.");
+        severe("can't fetch io addresses settings.");
         goto out;
     }
-
-    for (i = 0; i < config_setting_length(ports_settings); i++) {
-
-        long int port = 0;
-
-        if ((port = config_setting_get_int_elem(ports_settings, i)) == 0) {
+    
+    config->io_addr_nb = config_setting_length(ioaddr_settings);    
+    if (config->io_addr_nb > STORAGE_NODE_PORTS_MAX) {
+        errno = EINVAL;
+        severe("Too much io addresses defined. %d while max is %d.",config->io_addr_nb,STORAGE_NODE_PORTS_MAX);
+        goto out;
+    }
+    if (config->io_addr_nb == 0) {
+        errno = EINVAL;
+        severe("No io addresses defined.");
+        goto out;
+    }
+    for (i = 0; i < config->io_addr_nb; i++) {
+        struct config_setting_t * io_addr = NULL;
+	const char * ipaddrString=NULL;
+	
+	if (!(io_addr = config_setting_get_elem(ioaddr_settings, i))) {
             errno = ENOKEY;
-            fatal("cant't lookup port at index %d.", i);
+            severe("can't fetch io addresses settings %d.",i);
+            goto out;
+	}
+    	
+        if (config_setting_lookup_string(io_addr, SIPv4, &ipaddrString) == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't lookup IPv4 in io address %d.", i);
+            goto out;
         }
-        config->ports[i] = port;
-        config->sproto_svc_nb++;
+	
+	if (rozofs_host2ip((char*)ipaddrString,&config->io_addr[i].ipv4)< 0) {
+            severe("Bad IP address \"%s\" in io address %d", ipaddrString, i);
+            goto out;
+        }
+
+        if (config_setting_lookup_int(io_addr, SPORT, &port) == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't lookup port in io address %d.", i);
+            goto out;
+        }
+	
+        config->io_addr[i].port = port;
     }
 
     if (!(stor_settings = config_lookup(&cfg, SSTORAGES))) {
@@ -140,25 +185,25 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 
         if (!(ms = config_setting_get_elem(stor_settings, i))) {
             errno = ENOKEY;
-            severe("cant't fetch storage.");
+            severe("can't fetch storage.");
             goto out;
         }
 
         if (config_setting_lookup_int(ms, SSID, &sid) == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("cant't lookup sid for storage %d.", i);
+            severe("can't lookup sid for storage %d.", i);
             goto out;
         }
 
         if (config_setting_lookup_int(ms, SCID, &cid) == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("cant't lookup cid for storage %d.", i);
+            severe("can't lookup cid for storage %d.", i);
             goto out;
         }
 
         if (config_setting_lookup_string(ms, SROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("cant't lookup root path for storage %d.", i);
+            severe("can't lookup root path for storage %d.", i);
             goto out;
         }
 
@@ -191,15 +236,6 @@ int sconfig_validate(sconfig_t *config) {
     list_t *p;
     int storages_nb = 0;
     DEBUG_FUNCTION;
-
-    /* Checking the number of process */
-    if (config->sproto_svc_nb < 1 ||
-            config->sproto_svc_nb > STORAGE_NODE_PORTS_MAX) {
-        severe("invalid number of process: %u. (minimum: 1, maximum: %d)",
-                config->sproto_svc_nb, STORAGE_NODE_PORTS_MAX);
-        errno = EINVAL;
-        goto out;
-    }
 
     list_for_each_forward(p, &config->storages) {
         list_t *q;

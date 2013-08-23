@@ -24,6 +24,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/list.h>
+#include <rozofs/rpc/mproto.h>
 
 typedef struct storage_config {
     sid_t sid;
@@ -33,10 +34,10 @@ typedef struct storage_config {
 } storage_config_t;
 
 typedef struct sconfig {
-    //int layout;
-    uint32_t nb_threads;
-    uint32_t sproto_svc_nb;
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
+    int                     nb_disk_threads; 
+    int                     nb_cores;
+    int                     io_addr_nb; 
+    struct mp_io_address_t  io_addr[STORAGE_NODE_PORTS_MAX];
     list_t storages;
 } sconfig_t;
 
@@ -47,5 +48,7 @@ void sconfig_release(sconfig_t *config);
 int sconfig_read(sconfig_t *config, const char *fname);
 
 int sconfig_validate(sconfig_t *config);
+
+extern sconfig_t storaged_config;
 
 #endif

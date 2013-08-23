@@ -510,13 +510,12 @@ out:
 int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
     int status = -1;
     int i = 0;
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
-
+    mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
     DEBUG_FUNCTION;
 
     // Copy hostname for this storage
     strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
-    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+    //memset(io_address, 0, sizeof (io_address));
 
     struct timeval timeo;
     timeo.tv_sec = RBS_TIMEOUT_MPROTO_REQUESTS;
@@ -529,7 +528,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
         goto out;
     } else {
         // Send request to get TCP ports for this storage
-        if (mclient_ports(&rb_stor->mclient, ports) != 0) {
+        if (mclient_ports(&rb_stor->mclient, io_address) != 0) {
             severe("Warning: failed to get ports for storage (host: %s)."
                     , rb_stor->host);
             goto out;
@@ -538,15 +537,16 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
 
     // Initialize each TCP ports connection with this storage (by sproto)
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (ports[i] != 0) {
+        if (io_address[i].port != 0) {
 
             struct timeval timeo;
+	    uint32_t ip;
             timeo.tv_sec = RBS_TIMEOUT_SPROTO_REQUESTS;
             timeo.tv_usec = 0;
 
-            strncpy(rb_stor->sclients[i].host, rb_stor->host,
-                    ROZOFS_HOSTNAME_MAX);
-            rb_stor->sclients[i].port = ports[i];
+            ip = io_address[i].ipv4;
+            sprintf(rb_stor->sclients[i].host, "%u.%u.%u.%u", ip>>24,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+            rb_stor->sclients[i].port = io_address[i].port;
             rb_stor->sclients[i].status = 0;
             if (sclient_initialize(&rb_stor->sclients[i], timeo) != 0) {
                 severe("failed to join storage (host: %s, port: %u), %s.",
