@@ -2573,6 +2573,83 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value) 
   } 
   return (p-value);  
 } 
+static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,int length) {
+  char       * p=value;
+  int          idx,jdx;
+  int          new_cid;
+  int          new_sids[ROZOFS_SAFE_MAX]; 
+  uint8_t      rozofs_safe;
+
+  if (S_ISDIR(lv2->attributes.mode)) {
+    errno = EISDIR;
+    return -1;
+  }
+     
+  if (S_ISLNK(lv2->attributes.mode)) {
+    errno = EMLINK;
+    return -1;
+  }
+
+  /*
+  ** File must not yet be written 
+  */
+  if (lv2->attributes.size != 0) {
+    errno = EFBIG;
+    return -1;
+  } 
+  
+  /*
+  ** Scan value
+  */
+  rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  memset (new_sids,0,sizeof(new_sids));
+  new_cid = 0;
+
+  errno = 0;
+  new_cid = strtol(p,&p,10);
+  if (errno != 0) return -1; 
+  
+  for (idx=0; idx < rozofs_safe; idx++) {
+  
+    if ((p-value)>=length) {
+      errno = EINVAL;
+      return -1;
+    }
+
+    new_sids[idx] = strtol(p,&p,10);
+    if (errno != 0) return -1;
+    if (new_sids[idx]<0) new_sids[idx] *= -1;
+  }
+  /*
+  ** Check the same sid is not set 2 times
+  */
+  for (idx=0; idx < rozofs_safe; idx++) {
+    for (jdx=idx+1; jdx < rozofs_safe; jdx++) {
+      if (new_sids[idx] == new_sids[jdx]) {
+        errno = EINVAL;
+	return -1;
+      }
+    }
+  }  
+
+  /*
+  ** Check cluster and sid exist
+  */
+  if (volume_distribution_check(e->volume, rozofs_safe, new_cid, new_sids) != 0) return -1;
+  
+  /*
+  ** OK for the new distribution
+  */
+  lv2->attributes.cid = new_cid;
+  for (idx=0; idx < rozofs_safe; idx++) {
+    lv2->attributes.sids[idx] = new_sids[idx];
+  }
+  
+  /*
+  ** Save new distribution on disk
+  */
+  return export_lv2_write_attributes(lv2);  
+} 
 /*
 **______________________________________________________________________________
 */
@@ -2638,6 +2715,12 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
         severe("export_getattr failed: %s", strerror(errno));
         goto out;
     }
+
+
+    if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
+      status = set_rozofs_xattr(e,lv2,(char *)value,size);
+      goto out;
+    }  
 
     if ((status = export_lv2_set_xattr(lv2, name, value, size, flags)) != 0) {
         goto out;
