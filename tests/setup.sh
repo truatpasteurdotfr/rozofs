@@ -124,20 +124,7 @@ gen_storage_conf ()
 	   printf "\n);\n" >>  $FILE   
 	        
            echo 'storages = (' >> $FILE
-
-                z=0
-	       for cluster in $(seq ${nb_clusters}); do
-		   for storage in $(seq ${STORAGES_BY_CLUSTER}); do
-		      z=$((z+1))
-		      if [[ ${cluster} == ${nb_clusters} && ${storage} == ${STORAGES_BY_CLUSTER} ]]
-		      then
-		        echo "  {cid = $cluster; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$cluster-$z\";}" >> $FILE
-		      else
-		        echo "  {cid = $cluster; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$cluster-$z\";}," >> $FILE
-		      fi
-		   done
-	       done     	   
-#	   echo "  {cid = $i; sid = ${sid}; root =\"${LOCAL_STORAGES_ROOT}_$i-${sid}\";}" >> $FILE
+           echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\";}" >> $FILE
            echo ');' >> $FILE
 	done; 
     done;
@@ -774,7 +761,7 @@ usage ()
     echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
     echo >&2 "$0 export             <stop|start|reset> "
     echo >&2 "$0 fsmount            <stop|start|reset> "
-    echo >&2 "$0 core     <remove>  <coredir/corefile> "
+    echo >&2 "$0 core    [<remove>] <coredir/corefile> "
     echo >&2 "$0 process"    
     echo >&2 "$0 reload"
     echo >&2 "$0 build"

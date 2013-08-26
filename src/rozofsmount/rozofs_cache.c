@@ -55,11 +55,9 @@ uint64_t rozofs_gcache_max_buf256K;       /**< max configured number of 256K buf
 */
 #define SHOW_STAT_GCACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
 
-static char localBuf[4096];
-
 void rozofs_gcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-   char *pChar = localBuf;
+   char *pChar = uma_dbg_get_buffer();
    int reset = 0;
    rozofs_gcache_stats_t *stat_p = &rozofs_gcache_stats;
 
@@ -83,7 +81,7 @@ void rozofs_gcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef
    SHOW_STAT_GCACHE(count_,buf256K );
    SHOW_STAT_GCACHE(coll_,buf256K );
 
-   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);    
+   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());    
 }
 
 /*

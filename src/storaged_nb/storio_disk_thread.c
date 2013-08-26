@@ -233,7 +233,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   /*
   ** update statistics
   */
-  thread_ctx_p->diskRead_count++;
+  thread_ctx_p->stat.diskRead_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_read_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -243,7 +243,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_read_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->diskRead_badCidSid++ ;   
+    thread_ctx_p->stat.diskRead_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -275,8 +275,8 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   {
     ret.sp_read_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret); 
-    if (args->spare) thread_ctx_p->diskRead_error++;
-    else             thread_ctx_p->diskRead_error_spare++;
+    if (args->spare) thread_ctx_p->stat.diskRead_error++;
+    else             thread_ctx_p->stat.diskRead_error_spare++;
     storio_send_response(thread_ctx_p,msg,-1);
     return;       
   }  
@@ -284,7 +284,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   ret.status = SP_SUCCESS;  
   msg->size = ret.sp_read_ret_t_u.rsp.bins.bins_len;        
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-  thread_ctx_p->diskRead_Byte_count += ret.sp_read_ret_t_u.rsp.bins.bins_len;
+  thread_ctx_p->stat.diskRead_Byte_count += ret.sp_read_ret_t_u.rsp.bins.bins_len;
   storio_send_response(thread_ctx_p,msg,0);
 
   /*
@@ -292,7 +292,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->diskRead_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.diskRead_time +=(timeAfter-timeBefore);  
 }
 /*__________________________________________________________________________
 */
@@ -322,7 +322,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   /*
   ** update statistics
   */
-  thread_ctx_p->diskWrite_count++;
+  thread_ctx_p->stat.diskWrite_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_write_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -344,7 +344,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_write_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->diskWrite_badCidSid++ ;   
+    thread_ctx_p->stat.diskWrite_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -359,7 +359,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   if (size <= 0)  {
     ret.sp_write_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->diskWrite_error++; 
+    thread_ctx_p->stat.diskWrite_error++; 
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -367,7 +367,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   ret.status = SP_SUCCESS;          
   msg->size = size;        
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-  thread_ctx_p->diskWrite_Byte_count += size;
+  thread_ctx_p->stat.diskWrite_Byte_count += size;
   storio_send_response(thread_ctx_p,msg,0);
 
   /*
@@ -375,7 +375,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->diskWrite_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.diskWrite_time +=(timeAfter-timeBefore);  
 }    
 /**
 *  Truncate a file
@@ -403,7 +403,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   /*
   ** update statistics
   */
-  thread_ctx_p->diskTruncate_count++;
+  thread_ctx_p->stat.diskTruncate_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_truncate_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -419,7 +419,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->diskTruncate_badCidSid++ ;   
+    thread_ctx_p->stat.diskTruncate_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -432,7 +432,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   if (result != 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->diskTruncate_error++; 
+    thread_ctx_p->stat.diskTruncate_error++; 
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -446,7 +446,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->diskTruncate_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.diskTruncate_time +=(timeAfter-timeBefore);  
 }    
 
 

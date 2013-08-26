@@ -26,8 +26,6 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rozofs_timer_conf.h>
 
-static char localBuf[4096];
-
 
 
 /*__________________________________________________________________________
@@ -35,8 +33,8 @@ static char localBuf[4096];
 void dbg_show_tmr(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
 
-   rozofs_tmr_display(localBuf);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+   rozofs_tmr_display(uma_dbg_get_buffer());
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*__________________________________________________________________________

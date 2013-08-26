@@ -52,7 +52,7 @@ af_unix_ctx_generic_t *af_unix_context_pfirst; /**< pointer to the first context
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define af_unix_DEBUG_TOPIC "af_unix"
-static char myBuf[UMA_DBG_MAX_SEND_SIZE * 4];
+
 /*__________________________________________________________________________
  */
 
@@ -132,7 +132,7 @@ struct tcp_info *af_inet_tcp_get_tcp_info(int socket) {
 }
 
 void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *buffer = myBuf;
+    char *buffer = uma_dbg_get_buffer();
     struct tcp_info *p;
     af_unix_ctx_generic_t *sock_p;
     ruc_obj_desc_t *pnext;
@@ -164,7 +164,7 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
 
 
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -176,7 +176,7 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
   RETURN: none
   ==========================================================================*/
 void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
     pChar += sprintf(pChar, "number of AF_UNIX contexts [size](initial/allocated) :[%u] %u/%u\n", (unsigned int) sizeof (af_unix_ctx_generic_t), (unsigned int) af_unix_context_count,
             (unsigned int) af_unix_context_allocated);
     pChar += sprintf(pChar, "Buffer Pool (name[size] :initial/current\n");
@@ -260,7 +260,7 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
 
         }
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 

@@ -72,8 +72,6 @@ DECLARE_PROFILING(epp_profiler_t);
 */
 
 
-static char localBuf[8192]; 
-
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.probe[P_COUNT],\
@@ -89,7 +87,7 @@ static char localBuf[8192];
 
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -183,13 +181,13 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_invalidate_all);
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 
 void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
     pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
@@ -200,12 +198,12 @@ void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -254,7 +252,7 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_invalidate_all);
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 *_______________________________________________________________________
@@ -269,7 +267,7 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int i, j;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
@@ -297,7 +295,7 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
         pbuf += sprintf(pbuf, "\n");
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 *_______________________________________________________________________
@@ -312,7 +310,7 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int i;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
@@ -323,7 +321,7 @@ void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
         pbuf+=sprintf(pbuf, "\n");
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 *_______________________________________________________________________
@@ -338,7 +336,7 @@ void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int i,j;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
@@ -357,7 +355,7 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
         pbuf+=sprintf(pbuf, "\n");
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
  *_______________________________________________________________________
@@ -372,7 +370,7 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat_eid(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int j;
 
         pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid","Vid", "Bsize","Blocks", "Bfree", "Files", "Ffree");
@@ -388,7 +386,7 @@ void show_vfstat_eid(char * argv[], uint32_t tcpRef, void *bufRef) {
         }
         pbuf+=sprintf(pbuf, "\n");
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 // For trace purpose

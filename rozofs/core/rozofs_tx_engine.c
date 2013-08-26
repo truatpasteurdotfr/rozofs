@@ -56,7 +56,6 @@ void *rozofs_tx_pool[_ROZOFS_TX_MAX_POOL];
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define ROZOFS_TX_DEBUG_TOPIC      "trx"
 #define ROZOFS_TX_DEBUG_TOPIC2      "tx_test"
-static char myBuf[UMA_DBG_MAX_SEND_SIZE];
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -66,7 +65,7 @@ static char myBuf[UMA_DBG_MAX_SEND_SIZE];
   RETURN: none
   ==========================================================================*/
 void rozofs_tx_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, "number of transaction contexts (initial/allocated) : %u/%u\n", rozofs_tx_context_count, rozofs_tx_context_allocated);
     pChar += sprintf(pChar, "context size (bytes)                               : %u\n", (unsigned int) sizeof (rozofs_tx_ctx_t));
@@ -96,7 +95,7 @@ void rozofs_tx_debug_show(uint32_t tcpRef, void *bufRef) {
             ruc_buf_getFreeBufferCount(ROZOFS_TX_SMALL_RX_POOL));
     pChar += sprintf(pChar, "  large[%6d]  : %6d/%d\n", rozofs_large_tx_recv_size, rozofs_large_tx_recv_count,
             ruc_buf_getFreeBufferCount(ROZOFS_TX_LARGE_RX_POOL));
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 

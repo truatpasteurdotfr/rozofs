@@ -104,8 +104,6 @@ uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
 storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
-static char localBuf[8192];
-
 #define RESET_PROFILER_PROBE(probe) \
 { \
          gprofiler.probe[P_COUNT] = 0;\
@@ -149,7 +147,7 @@ static char localBuf[8192];
 }
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     time_t elapse;
     int days, hours, mins, secs;
     int reset = 0;
@@ -206,7 +204,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(truncate_prj);
     SHOW_PROFILER_PROBE(truncate_prj_tmo);
     SHOW_PROFILER_PROBE(truncate_prj_err);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
@@ -272,7 +270,7 @@ static char *show_storcli_display_poll_state(char *buffer,int state)
 */
 void show_storcli_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
    storcli_conf_ctx_t *p = &storcli_conf_ctx ;
    rpcclt_t *client_p;
    
@@ -315,7 +313,7 @@ pchar += sprintf(pchar,"---------------------+----------+--------+-------------+
      }
      break;
   } 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*
@@ -358,7 +356,7 @@ char *display_mstorage(mstorage_t *s,char *buffer)
 */
 void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
 
    pchar +=sprintf(pchar," cid  |  sid |      hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
    pchar +=sprintf(pchar,"------+------+----------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
@@ -376,7 +374,7 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
      */
      pchar=display_mstorage(s,pchar);
    }
-   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);      
+   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());      
 }      
 
 /*__________________________________________________________________________
@@ -386,7 +384,7 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
 */
 void storcli_shared_mem(char * argv[], uint32_t tcpRef, void *bufRef)
 {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, " active |     key   |  size   | cnt  |    address     |\n");
     pChar += sprintf(pChar, "--------+-----------+---------+------+----------------+\n");
@@ -397,7 +395,7 @@ void storcli_shared_mem(char * argv[], uint32_t tcpRef, void *bufRef)
                       storcli_rozofsmount_shared_mem.buf_count,
                       storcli_rozofsmount_shared_mem.data_p);
                       
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 

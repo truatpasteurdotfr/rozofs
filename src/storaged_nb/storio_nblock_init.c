@@ -81,8 +81,6 @@ DECLARE_PROFILING(spp_profiler_t);
  */
 
 
-static char localBuf[8192];
-
 
 #define sp_display_probe(the_profiler, the_probe)\
     {\
@@ -118,7 +116,7 @@ static char localBuf[8192];
 
 static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -144,7 +142,7 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
     sp_display_io_probe(gprofiler, read);
     sp_display_io_probe(gprofiler, write);
     sp_display_io_probe(gprofiler, truncate);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 // For trace purpose

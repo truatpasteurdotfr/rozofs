@@ -33,8 +33,6 @@
 */
 rozofs_shared_pool_t rozofs_storcli_shared_mem[STORCLI_PER_FSMOUNT];
 
-static char localBuf[8192];
-
 /*__________________________________________________________________________
 */
 /**
@@ -42,7 +40,7 @@ static char localBuf[8192];
 */
 void rozofs_shared_mem_display(char * argv[], uint32_t tcpRef, void *bufRef)
 {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     int i;
 
 
@@ -57,7 +55,7 @@ void rozofs_shared_mem_display(char * argv[], uint32_t tcpRef, void *bufRef)
                       (long long unsigned int)rozofs_storcli_shared_mem[i].read_stats);    
     
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 /*

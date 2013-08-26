@@ -54,14 +54,11 @@ trshape_ctx_t *trshape_get_ctx_from_idx(int idx)
  
 }
 
-
-static char localBuf[4096];
-
 #define TRAFFIC_SHAPER_COUNTER(name) pchar += sprintf(pchar," %-20s : %llu\n",#name,(long long unsigned int)p->stats.name);
 
 void show_traffic_shaper(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
    trshape_ctx_t *p = trshape_get_ctx_from_idx(0) ;
     int byte_time = 0;
     
@@ -101,7 +98,7 @@ void show_traffic_shaper(char * argv[], uint32_t tcpRef, void *bufRef)
    TRAFFIC_SHAPER_COUNTER(send_violation_count);
       
 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*__________________________________________________________________________

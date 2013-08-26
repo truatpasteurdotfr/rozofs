@@ -74,13 +74,11 @@ static SVCXPRT *rozofsmount_profile_svc = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
 
-char localBuf[8192];
-
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
 void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     time_t elapse;
     int days, hours, mins, secs;
 
@@ -91,7 +89,7 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
     pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }      
 /*
  *________________________________________________________
@@ -409,7 +407,7 @@ void rozofmount_profiling_thread_run(void *args) {
 }
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -500,7 +498,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(getlk);
     SHOW_PROFILER_PROBE(setlk);
     SHOW_PROFILER_PROBE(ioctl);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________
 */
@@ -560,22 +558,22 @@ void rozofs_set_fsmode(char * argv[], uint32_t tcpRef, void *bufRef)
 
 void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     expgw_display_all_exportd_routing_table(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*__________________________________________________________________________
 */
 void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     expgw_display_all_eid(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*__________________________________________________________________________
@@ -584,7 +582,7 @@ void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 void show_blockmode_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     int reset = 0;
     int flush = 0;
     int enable = 0;
@@ -651,7 +649,7 @@ void show_blockmode_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar = com_cache_show_cache_stats(pChar,rozofs_mbcache_cache_p,"Block mode cache");
     rozofs_mbcache_stats_display(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 typedef struct _xmalloc_stats_t {
@@ -664,13 +662,13 @@ typedef struct _xmalloc_stats_t {
 extern xmalloc_stats_t *xmalloc_size_table_p;
 
 void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     int i;
     xmalloc_stats_t *p;
 
     if (xmalloc_size_table_p == NULL) {
         pChar += sprintf(pChar, "xmalloc stats not available\n");
-        uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
         return;
 
     }
@@ -682,7 +680,7 @@ void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
         }
         pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, (long long unsigned int) p->count);
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 static struct fuse_lowlevel_ops rozofs_ll_operations = {

@@ -49,13 +49,12 @@ uint64_t stclbg_hash_lookup_insert_count;
 /*
  **____________________________________________________
  */
-static char localBuf[4096];
 
 #define TRAFFIC_SHAPER_COUNTER(name) pchar += sprintf(pchar," %-20s : %llu\n",#name,(long long unsigned int)p->stats.name);
 
 void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
     int storcli_count = 0;
     int i;
     
@@ -100,7 +99,7 @@ void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef)
      (long long unsigned int) stclbg_hash_lookup_miss_count,
      (long long unsigned int) stclbg_hash_lookup_insert_count);
 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
  **____________________________________________________

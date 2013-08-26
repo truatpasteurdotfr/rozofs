@@ -69,9 +69,6 @@ DECLARE_PROFILING(spp_profiler_t);
  */
 
 
-static char localBuf[8192];
-
-
 #define sp_display_probe(the_profiler, the_probe)\
     {\
         uint64_t rate;\
@@ -105,7 +102,7 @@ static char localBuf[8192];
     }
 
 static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -133,7 +130,7 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
     sp_display_probe(gprofiler, stat);
     sp_display_probe(gprofiler, ports);
     sp_display_probe(gprofiler, remove);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 

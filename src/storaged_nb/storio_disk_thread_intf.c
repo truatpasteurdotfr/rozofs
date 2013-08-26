@@ -91,8 +91,8 @@ void * af_unix_disk_pool_recv = NULL;
   new_line(title);\
   sum1 = 0;\
   for (i=0; i<af_unix_disk_thread_count; i++) {\
-    sum1 += p[i].val;\
-    display_val(p[i].val);\
+    sum1 += p[i].stat.val;\
+    display_val(p[i].stat.val);\
   }
     
 #define display_line_val_and_sum(title,val) \
@@ -103,9 +103,9 @@ void * af_unix_disk_pool_recv = NULL;
   new_line(title);\
   sum1 = sum2 = 0;\
   for (i=0; i<af_unix_disk_thread_count; i++) {\
-    sum1 += p[i].val1;\
-    sum2 += p[i].val2;\
-    display_div(p[i].val1,p[i].val2);\
+    sum1 += p[i].stat.val1;\
+    sum2 += p[i].stat.val2;\
+    display_div(p[i].stat.val1,p[i].stat.val2);\
   }
   
 #define display_line_div_and_sum(title,val1,val2) \
@@ -118,7 +118,17 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint64_t        sum1,sum2;
   rozofs_disk_thread_ctx_t *p = rozofs_disk_thread_ctx_tb;
   
-  display_line_val("Thread number",thread_idx);
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"reset")==0) {
+      for (i=0; i<af_unix_disk_thread_count; i++) {
+	memset(&p[i].stat,0,sizeof(p[i].stat));
+      }          
+    }
+  }
+  new_line("Thread number");
+  for (i=0; i<af_unix_disk_thread_count; i++) {
+    display_val(p[i].thread_idx);
+  }    
   display_txt("TOTAL");
   
   display_line_topic("Read Requests");  
@@ -128,6 +138,7 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_line_val_and_sum("   error",diskRead_error);  
   display_line_val_and_sum("   Bytes",diskRead_Byte_count);      
   display_line_val_and_sum("   Cumulative Time (us)",diskRead_time);
+  display_line_div_and_sum("   Average Bytes",diskRead_Byte_count,diskRead_count);  
   display_line_div_and_sum("   Average Time (us)",diskRead_time,diskRead_count);
   display_line_div_and_sum("   Throughput (MBytes/s)",diskRead_Byte_count,diskRead_time);  
   
@@ -137,6 +148,7 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_line_val_and_sum("   error",diskWrite_error);  
   display_line_val_and_sum("   Bytes",diskWrite_Byte_count);      
   display_line_val_and_sum("   Cumulative Time (us)",diskWrite_time);
+  display_line_div_and_sum("   Average Bytes",diskWrite_Byte_count,diskWrite_count); 
   display_line_div_and_sum("   Average Time (us)",diskWrite_time,diskWrite_count);
   display_line_div_and_sum("   Throughput (MBytes/s)",diskWrite_Byte_count,diskWrite_time);  
 

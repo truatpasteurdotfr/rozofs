@@ -59,7 +59,6 @@ uint32_t expgw_seqnum = 1;
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define EXPGW_DEBUG_TOPIC      "rozofsmount_res"
-static char    myBuf[UMA_DBG_MAX_SEND_SIZE];
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -69,7 +68,7 @@ static char    myBuf[UMA_DBG_MAX_SEND_SIZE];
   RETURN: none
   ==========================================================================*/
 void expgw_debug_show(uint32_t tcpRef, void *bufRef) {
-  char           *pChar=myBuf;
+  char           *pChar=uma_dbg_get_buffer();
 
   pChar += sprintf(pChar,"number of transaction contexts (initial/allocated) : %u/%u\n",expgw_ctx_count,expgw_ctx_allocated);
   pChar += sprintf(pChar,"Statistics\n");
@@ -90,8 +89,8 @@ void expgw_debug_show(uint32_t tcpRef, void *bufRef) {
                                                          ruc_buf_getFreeBufferCount(EXPGW_SOUTH_SMALL_POOL)); 
   pChar += sprintf(pChar,"  large[%6d]  : %6d/%d\n",expgw_south_large_buf_sz,expgw_south_large_buf_count,
                                                          ruc_buf_getFreeBufferCount(EXPGW_SOUTH_LARGE_POOL)); 
-  if (bufRef != NULL) uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
-  else printf("%s",myBuf);
+  if (bufRef != NULL) uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+  else printf("%s",uma_dbg_get_buffer());
 
 }
 /*__________________________________________________________________________

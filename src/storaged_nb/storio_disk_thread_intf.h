@@ -35,16 +35,7 @@
 #include <rozofs/core/rozofs_socket_family.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 
-/*
-** Disk thread context
-*/
-typedef struct _rozofs_disk_thread_ctx_t
-{
-  pthread_t           thrdId; /* of disk thread */
-  int                 thread_idx;
-  char              * hostname;  
-  int                 sendSocket;
-  
+typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            diskRead_count;
   uint64_t            diskRead_Byte_count;
   uint64_t            diskRead_error;
@@ -62,6 +53,17 @@ typedef struct _rozofs_disk_thread_ctx_t
   uint64_t            diskTruncate_error;
   uint64_t            diskTruncate_badCidSid;  
   uint64_t            diskTruncate_time;  
+} rozofs_disk_thread_stat_t;
+/*
+** Disk thread context
+*/
+typedef struct _rozofs_disk_thread_ctx_t
+{
+  pthread_t                    thrdId; /* of disk thread */
+  int                          thread_idx;
+  char                       * hostname;  
+  int                          sendSocket;
+  rozofs_disk_thread_stat_t    stat;
 } rozofs_disk_thread_ctx_t;
 
 extern rozofs_disk_thread_ctx_t rozofs_disk_thread_ctx_tb[];

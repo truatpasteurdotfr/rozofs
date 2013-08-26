@@ -55,11 +55,9 @@ uint64_t storio_bufcache_max_buftimestamp;       /**< max configured number of 2
 */
 #define SHOW_STAT_GCACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
 
-static char localBuf[4096];
-
 void storio_bufcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-   char *pChar = localBuf;
+   char *pChar = uma_dbg_get_buffer();
    int reset = 0;
    storio_bufcache_stats_t *stat_p = &storio_bufcache_stats;
 
@@ -83,7 +81,7 @@ void storio_bufcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufR
    SHOW_STAT_GCACHE(count_,buf_timestamp );
    SHOW_STAT_GCACHE(coll_,buf_timestamp );
 
-   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);    
+   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());    
 }
 
 /*
