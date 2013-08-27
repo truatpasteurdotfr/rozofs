@@ -82,6 +82,7 @@ typedef struct storcli_conf {
     unsigned buf_size;
     unsigned max_retry;
     unsigned dbg_port;
+    unsigned nb_cores; /*< Number of cores to keep on disk */
     unsigned rozofsmount_instance;
     key_t sharedmem_key;
 } storcli_conf;
@@ -747,6 +748,7 @@ void usage() {
     printf("\t-M,--mount MOUNT_POINT\t\tmount point\n");
     printf("\t-P,--pwd EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) \n");
     printf("\t-D,--dbg DEBUG_PORT\t\tdebug port (default: none) \n");
+    printf("\t-C,--nbcores NB_CORES\t\tnumber of core files to keep on disk (default: 2) \n");
     printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
     printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
     printf("\t-s,--storagetmr \t\t define timeout (s) for IO storaged requests (default: 3)\n");
@@ -774,6 +776,7 @@ int main(int argc, char *argv[]) {
         { "path", required_argument, 0, 'E'},
         { "pwd", required_argument, 0, 'P'},
         { "dbg", required_argument, 0, 'D'},
+        { "nbcores", required_argument, 0, 'C'},
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
@@ -796,14 +799,13 @@ int main(int argc, char *argv[]) {
     storcli_rozofsmount_shared_mem.data_p = NULL; 
         
     storcli_process_filename[0] = 0;
-    rozofs_signals_declare("storcli",2);
-    rozofs_attach_crash_cbk(storlci_handle_signal);
     
     conf.host = NULL;
     conf.passwd = NULL;
     conf.export = NULL;
     conf.mount = NULL;
     conf.module_index = -1;
+    conf.nb_cores = 2;
     conf.buf_size = 256;
     conf.max_retry = 3;
     conf.dbg_port = 0;
@@ -813,7 +815,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:k:c:l:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -856,6 +858,16 @@ int main(int argc, char *argv[]) {
                 }
                 conf.dbg_port = val;
                 break;
+            case 'C':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                conf.nb_cores = val;
+                break;		
             case 'R':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
@@ -938,6 +950,9 @@ int main(int argc, char *argv[]) {
         conf.passwd = strdup("none");
     }
     openlog("storcli", LOG_PID, LOG_DAEMON);
+
+    rozofs_signals_declare("storcli",conf.nb_cores);
+    rozofs_attach_crash_cbk(storlci_handle_signal);
     
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();

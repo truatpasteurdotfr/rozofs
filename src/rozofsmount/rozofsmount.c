@@ -171,6 +171,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("instance=%u", instance, 0),
     MYFS_OPT("rozofscachemode=%u", cache_mode, 0),
     MYFS_OPT("rozofsmode=%u", fs_mode, 0),
+    MYFS_OPT("nbcores=%u", nb_cores, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -746,6 +747,7 @@ void rozofs_start_storcli(const char *mountpoint) {
         cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
         cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
         cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
+        cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
         cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
         /*
         ** check if there is a share mem key
@@ -975,8 +977,14 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     {
       rzdbg_default_base_port = conf.dbg_port;    
     }    
+    
+    if (conf.nb_cores == 0) 
+    {
+      conf.nb_cores = 2;    
+    }     
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_rozofsmount_port((uint16_t) conf.instance);
+    rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     conf.dbg_port = rozofs_fuse_conf.debug_port;
     rozofs_fuse_conf.se = se;
     rozofs_fuse_conf.ch = ch;
