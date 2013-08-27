@@ -114,7 +114,7 @@ gen_storage_conf ()
            echo "#${DATE_LABEL}" >> $FILE
 	   
 	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
-	   printf "nbCores = 4;\n" >> $FILE
+	   printf "nbCores = $NB_CORES;\n" >> $FILE
 	   
 	   printf "ioaddr = ( \n" >> $FILE
 	   printf "  {IPv4 = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
@@ -160,7 +160,7 @@ gen_export_conf ()
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE    
-    echo "nbCores = 4;" >> $FILE
+    echo "nbCores = $NB_CORES;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -455,7 +455,7 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
+               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11 -o nbcores=$NB_CORES" 
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -898,6 +898,7 @@ main ()
     NB_VOLUMES=1;
     NB_CLUSTERS_BY_VOLUME=1;
     NB_DISK_THREADS=2;
+    NB_CORES=4;
     
     ulimit -c unlimited
 
