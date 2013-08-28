@@ -114,12 +114,30 @@ DECLARE_PROFILING(spp_profiler_t);
                 rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
     }
 
+#define sp_clear_io_probe(the_profiler, the_probe)\
+    {\
+       the_profiler.the_probe[P_COUNT] = 0;\
+       the_profiler.the_probe[P_ELAPSE] = 0;\
+       the_profiler.the_probe[P_BYTES] = 0;\
+    }
+
 static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
+
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) {
+	sp_clear_io_probe(gprofiler, read);
+	sp_clear_io_probe(gprofiler, write);
+	sp_clear_io_probe(gprofiler, truncate);
+	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
+	return;      
+      }
+    }
 
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);

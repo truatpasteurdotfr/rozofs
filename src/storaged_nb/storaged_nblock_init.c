@@ -83,7 +83,12 @@ DECLARE_PROFILING(spp_profiler_t);
                 #the_probe, the_profiler.the_probe[P_COUNT], \
                 rate, cpu);\
     }
-
+#define sp_clear_probe(the_profiler, the_probe)\
+    {\
+      the_profiler.the_probe[P_COUNT] = 0;\
+      the_profiler.the_probe[P_ELAPSE] = 0;\
+    }
+    
 #define sp_display_io_probe(the_profiler, the_probe)\
     {\
         uint64_t rate;\
@@ -108,6 +113,16 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
     int days, hours, mins, secs;
 
 
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) {
+	sp_clear_probe(gprofiler, stat);
+	sp_clear_probe(gprofiler, ports);
+	sp_clear_probe(gprofiler, remove);
+	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
+	return;      
+      }
+    }
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);
     days = (int) (elapse / 86400);

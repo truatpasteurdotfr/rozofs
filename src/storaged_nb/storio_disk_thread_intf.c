@@ -123,8 +123,11 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       for (i=0; i<af_unix_disk_thread_count; i++) {
 	memset(&p[i].stat,0,sizeof(p[i].stat));
       }          
+      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
+      return;
     }
   }
+  
   new_line("Thread number");
   for (i=0; i<af_unix_disk_thread_count; i++) {
     display_val(p[i].thread_idx);

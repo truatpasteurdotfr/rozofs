@@ -51,10 +51,13 @@ typedef struct lv2_entry {
 typedef struct lv2_cache {
     int max;            ///< max entries in the cache
     int size;           ///< current number of entries
+    uint64_t   hit;
+    uint64_t   miss;
     list_t entries;     ///< entries cached
     htable_t htable;    ///< entries hashing
 } lv2_cache_t;
 
+extern lv2_cache_t cache;
 
 /** initialize a new empty lv2 cache
  *
@@ -103,4 +106,13 @@ lv2_entry_t *lv2_cache_get(lv2_cache_t *cache, fid_t fid);
  */
 void lv2_cache_del(lv2_cache_t *cache, fid_t fid);
 
+/** Format statistics information about the lv2 cache
+ *
+ *
+ * @param cache: the cache context
+ * @param pChar: where to format the output
+ *
+ * @retval the end of the output string
+ */
+char * lv2_cache_display(lv2_cache_t *cache, char * pChar) ;
 #endif

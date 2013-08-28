@@ -51,9 +51,20 @@ static inline int lv2_cmp(void *k1, void *k2) {
 #define LV2_BUKETS 128
 #define LV2_MAX_ENTRIES 256
 
+char * lv2_cache_display(lv2_cache_t *cache, char * pChar) {
+
+  pChar += sprintf(pChar, "lv2 attributes cache : current/max %u/%u\n",cache->size, cache->max);
+  pChar += sprintf(pChar, "hit %llu / miss %llu\n",cache->hit, cache->miss);
+  pChar += sprintf(pChar, "entry size %u - current size %u - maximum size %u\n", 
+                   sizeof(lv2_entry_t), sizeof(lv2_entry_t)*cache->size, sizeof(lv2_entry_t)*cache->max); 
+  return pChar;		   
+}
+
 void lv2_cache_initialize(lv2_cache_t *cache) {
     cache->max = LV2_MAX_ENTRIES;
     cache->size = 0;
+    cache->hit  = 0;
+    cache->miss = 0;
     list_init(&cache->entries);
     htable_initialize(&cache->htable, LV2_BUKETS, lv2_hash, lv2_cmp);
 }
@@ -122,6 +133,7 @@ lv2_entry_t *lv2_cache_put(lv2_cache_t *cache, fid_t fid, const char *path) {
 
     list_push_front(&cache->entries, &entry->list);
     htable_put(&cache->htable, entry->attributes.fid, entry);
+    
     if (cache->size++ >= cache->max) { // remove the lru
         lv2_entry_t *lru = list_entry(cache->entries.prev, lv2_entry_t, list);
         if (S_ISDIR(lru->attributes.mode)) {
@@ -168,6 +180,10 @@ lv2_entry_t *lv2_cache_get(lv2_cache_t *cache, fid_t fid) {
         // push the lru
         list_remove(&entry->list);
         list_push_front(&cache->entries, &entry->list);
+	cache->hit++;
+    }
+    else {
+      cache->miss++;
     }
 
     STOP_PROFILING(lv2_cache_get);
