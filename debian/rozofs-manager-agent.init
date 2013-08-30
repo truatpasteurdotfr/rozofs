@@ -27,7 +27,7 @@ SCRIPTNAME=/etc/init.d/$NAME
 
 # Default values
 AGENTS=auto
-PACEMAKER=false
+PACEMAKER=auto
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
@@ -41,6 +41,15 @@ if echo "$AGENTS" | grep -q 'auto' ; then
     done
     AGENTS=$(echo $AGENTS | sed "s/auto/$AGENTS_auto/")
 fi
+
+if [ "$PACEMAKER" = 'auto' ] ; then
+    if [ -x /usr/sbin/pacemakerd ] ; then
+        PACEMAKER=true
+    else
+        PACEMAKER=false
+    fi
+fi
+
 
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
