@@ -83,3 +83,13 @@ Description: RozoFS filesystem (debugging symbols)
  Install it to get a better backtrace in the event of a crash, or to test.
  .
  RozoFS is a scale-out NAS using erasure coding.
+
+Package: nagios-plugins-rozofs
+Section: net
+Priority: extra
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozofsmount (= ${binary:Version}) | rozofs-storaged (= ${binary:Version}) | rozofs-exportd (= ${binary:Version})
+Description: RozoFS filesystem (Nagios plugins)
+ Provide monitoring information for the various rozofs packages.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
