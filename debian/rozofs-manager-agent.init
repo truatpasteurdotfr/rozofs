@@ -28,6 +28,16 @@ SCRIPTNAME=/etc/init.d/$NAME
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
 
+if echo "$AGENTS" | grep -q 'auto' ; then
+    AGENTS_auto=''
+    for agent in exportd storaged rozofsmount; do
+        if [ -x "/usr/bin/$agent" ] ; then
+            AGENTS_auto="$AGENTS_auto $agent"
+        fi
+    done
+    AGENTS=$(echo $AGENTS | sed "s/auto/$AGENTS_auto/")
+fi
+
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
 
