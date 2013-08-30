@@ -105,6 +105,28 @@ uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
 storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
+#define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_STRING_CONFIG(field) \
+  if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
+  else                    pChar += sprintf(pChar,"%-25s = %s\n",#field,conf.field); 
+  
+void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  
+  DISPLAY_STRING_CONFIG(host);
+  DISPLAY_STRING_CONFIG(export);
+  DISPLAY_STRING_CONFIG(passwd);  
+  DISPLAY_STRING_CONFIG(mount);  
+  DISPLAY_UINT32_CONFIG(module_index);
+  DISPLAY_UINT32_CONFIG(buf_size);
+  DISPLAY_UINT32_CONFIG(max_retry);
+  DISPLAY_UINT32_CONFIG(dbg_port);
+  DISPLAY_UINT32_CONFIG(nb_cores);
+  DISPLAY_UINT32_CONFIG(rozofsmount_instance);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}    
+
+
 #define RESET_PROFILER_PROBE(probe) \
 { \
          gprofiler.probe[P_COUNT] = 0;\
@@ -642,6 +664,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
             conf->export,
             conf->passwd,
             conf->buf_size * 1024,
+            conf->buf_size * 1024,
             conf->max_retry,
             timeout_exportd) != 0) {
         fprintf(stderr,
@@ -1068,6 +1091,10 @@ int main(int argc, char *argv[]) {
      ** add the topic for the local profiler
      */
     uma_dbg_addTopic("profiler", show_profiler);
+    /*
+     ** add the topic to display the storcli configuration
+     */    
+    uma_dbg_addTopic("start_config", show_start_config);
     /*
     ** declare timer debug functions
     */

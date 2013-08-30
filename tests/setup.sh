@@ -455,7 +455,9 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11 -o nbcores=$NB_CORES" 
+               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+	       option="$option -o nbcores=$NB_CORES"
+	       option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -895,11 +897,13 @@ main ()
     set_layout 0
 
     NB_EXPORTS=1
-    NB_VOLUMES=1;
-    NB_CLUSTERS_BY_VOLUME=1;
-    NB_DISK_THREADS=2;
-    NB_CORES=4;
-    
+    NB_VOLUMES=1
+    NB_CLUSTERS_BY_VOLUME=1
+    NB_DISK_THREADS=2
+    NB_CORES=4
+    WRITE_FILE_BUFFERING_SIZE=256
+    #READ_FILE_MINIMUM_SIZE=8
+    READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
     ulimit -c unlimited
 
     if [ "$1" == "start" ]

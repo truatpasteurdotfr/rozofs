@@ -76,21 +76,7 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
-
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = uma_dbg_get_buffer();
-    time_t elapse;
-    int days, hours, mins, secs;
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-}      
+     
 /*
  *________________________________________________________
  */
@@ -127,6 +113,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "\t-P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "\t-o rozofsbufsize=N\tdefine size of I/O buffer in KiB (default: 256)\n");
+    fprintf(stderr, "\t-o rozofsminreadsize=N\tdefine minimum read size on disk (default is rozofsbufsize)\n");
     fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "\t-o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
     fprintf(stderr, "\t-o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
@@ -161,6 +148,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("exportpath=%s", export, 0),
     MYFS_OPT("exportpasswd=%s", passwd, 0),
     MYFS_OPT("rozofsbufsize=%u", buf_size, 0),
+    MYFS_OPT("rozofsminreadsize=%u", min_read_size, 0),
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
     MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
     MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
@@ -381,6 +369,33 @@ void rozofmount_profiling_thread_run(void *args) {
     DEBUG("REACHED !!!!");
     /* NOT REACHED */
 }
+#define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_STRING_CONFIG(field) \
+  if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
+  else                    pChar += sprintf(pChar,"%-25s = %s\n",#field,conf.field); 
+  
+void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  
+  DISPLAY_STRING_CONFIG(host);
+  DISPLAY_STRING_CONFIG(export);
+  DISPLAY_STRING_CONFIG(passwd);  
+  DISPLAY_UINT32_CONFIG(buf_size);
+  DISPLAY_UINT32_CONFIG(min_read_size);
+  DISPLAY_UINT32_CONFIG(max_retry);
+  DISPLAY_UINT32_CONFIG(dbg_port);
+  DISPLAY_UINT32_CONFIG(instance);  
+  DISPLAY_UINT32_CONFIG(export_timeout);
+  DISPLAY_UINT32_CONFIG(storcli_timeout);
+  DISPLAY_UINT32_CONFIG(storage_timeout);
+  DISPLAY_UINT32_CONFIG(fs_mode); 
+  DISPLAY_UINT32_CONFIG(cache_mode);  
+  DISPLAY_UINT32_CONFIG(attr_timeout);
+  DISPLAY_UINT32_CONFIG(entry_timeout);
+  DISPLAY_UINT32_CONFIG(nb_cores);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}    
+
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
@@ -805,6 +820,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
                 conf.export,
                 conf.passwd,
                 conf.buf_size * 1024,
+                conf.min_read_size * 1024,
                 conf.max_retry,
                 timeout_mproto) == 0) break;
 
@@ -937,7 +953,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("stclbg", show_stclbg);
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
-    uma_dbg_addTopic("uptime", show_uptime);
     uma_dbg_addTopic("exp_route", show_exp_routing_table);
     uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
     uma_dbg_addTopic("cache_set", rozofs_set_cache);
@@ -945,6 +960,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("shared_mem", rozofs_shared_mem_display);
     uma_dbg_addTopic("blockmode_cache", show_blockmode_cache);
     uma_dbg_addTopic("data_cache", rozofs_gcache_show_cache_stats);
+    uma_dbg_addTopic("start_config", show_start_config);
 
     /**
     * init of the mode block cache
@@ -1122,6 +1138,7 @@ int main(int argc, char *argv[]) {
 
     conf.max_retry = 50;
     conf.buf_size = 0;
+    conf.min_read_size = 0;
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
 
@@ -1162,6 +1179,22 @@ int main(int argc, char *argv[]) {
                 conf.buf_size);
         conf.buf_size = 256;
     }
+    /* Bufsize must be a multiple of the block size */
+    if ((conf.buf_size % (ROZOFS_BSIZE/1024)) != 0) {
+      conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    }
+    
+    if (conf.min_read_size == 0) {
+      conf.min_read_size = conf.buf_size;
+    }
+    if (conf.min_read_size > conf.buf_size) {
+      conf.min_read_size = conf.buf_size;
+    }
+    /* Bufsize must be a multiple of the block size */
+    if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
+      conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    }    
+
     /*
     ** allocate the common flush buffer
     */

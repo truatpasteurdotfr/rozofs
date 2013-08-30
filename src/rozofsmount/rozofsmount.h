@@ -69,6 +69,7 @@ typedef struct rozofsmnt_conf {
     char *export;
     char *passwd;
     unsigned buf_size;
+    unsigned min_read_size;
     unsigned max_retry;
     unsigned dbg_port;  /**< lnkdebug base port: rozofsmount=dbg_port, storcli(1)=dbg_port+1, ....  */
     unsigned instance;  /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */

@@ -141,17 +141,66 @@ StorcliReset () {
   return $res
 }
 #################### ELEMENTARY TESTS ##################################
-rw_close () {
+wr_rd_total () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
-  ./rw -process $process -loop $loop -fileSize $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total
   return $?
 }
-rw_noClose () {
+wr_rd_partial () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
-  ./rw -process $process -loop $loop -fileSize $fileSize -noclose
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial
   return $?
 }
-
+wr_rd_random() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random
+  return $?
+}
+wr_rd_total_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total -closeAfter
+  return $?
+}
+wr_rd_partial_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeAfter
+  return $?
+}
+wr_rd_random_close() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random -closeAfter
+  return $?
+}
+wr_close_rd_total () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total -closeBetween
+  return $?
+}
+wr_close_rd_partial () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeBetween
+  return $?
+}
+wr_close_rd_random() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random -closeBetween
+  return $?
+}
+wr_close_rd_total_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total -closeBetween -closeAfter
+  return $?
+}
+wr_close_rd_partial_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeBetween -closeAfter
+  return $?
+}
+wr_close_rd_random_close() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random -closeBetween -closeAfter
+  return $?
+}
 prepare_file_to_read() {
   if [ ! -f $1 ];
   then
@@ -207,7 +256,7 @@ usage () {
   echo  "   Display the list of test"
   echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] <test name>..."      
   echo "    Run testd <test name>... <times> times"
-  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] all"
+  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] <all|rw>"
   echo "    Run all tests <times> times"
   exit -1 
 }
@@ -492,10 +541,12 @@ else
 fi  
 
 # List of test
-TST_BASIC="readdir xattr link rename chmod truncate read_parallel rw_close rw_noClose"
-TST_STORAGE_FAILED="read_parallel rw_close rw_noClose"
-TST_STORAGE_RESET="read_parallel rw_close rw_noClose"
-TST_STORCLI_RESET="read_parallel rw_close rw_noClose"
+TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_close wr_rd_random_close wr_close_rd_total wr_close_rd_partial wr_close_rd_random wr_close_rd_total_close wr_close_rd_partial_close wr_close_rd_random_close"
+TST_STORAGE_FAILED="read_parallel $TST_RW"
+TST_STORAGE_RESET="read_parallel $TST_RW"
+TST_STORCLI_RESET="read_parallel $TST_RW"
+TST_BASIC="readdir xattr link rename chmod truncate read_parallel $TST_RW"
+
 build_all_test_list
 TSTS=""
 repeated=1
@@ -523,6 +574,7 @@ do
 
     # Read test list to execute
     all)       TSTS=$ALL_TST_LIST;     shift 1;;
+    rw)        TSTS=$TST_RW;           shift 1;;
     *)         TSTS=`echo "$TSTS $1"`; shift 1;;
   esac  
 done

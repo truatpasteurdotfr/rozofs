@@ -81,7 +81,22 @@ void rozofs_allocate_flush_buf(int size_kB)
 {
   buf_flush = xmalloc(1024*size_kB);
 }
+/**
+* Align off as well as len to read on blocksize bundary
+  @param[in]  off         : offset to read
+  @param[in]  len         : length to read
+  @param[out] off_aligned : aligned read offset
+  @param[out] len_aligned : aligned length to read  
+  
+  @retval none
+*/
+static inline void rozofs_align_off_and_len(uint64_t off, int len, uint64_t * off_aligned, int * len_aligned) {
 
+  *off_aligned = (off/ROZOFS_CACHE_BSIZE)*ROZOFS_CACHE_BSIZE;       
+  *len_aligned = len + (off-*off_aligned);
+  if ((*len_aligned % ROZOFS_CACHE_BSIZE) == 0) return;
+  *len_aligned = ((*len_aligned/ROZOFS_CACHE_BSIZE)+1)*ROZOFS_CACHE_BSIZE;
+}
 
 /** Reads the distributions on the export server,
  *  adjust the read buffer to read only whole data blocks
@@ -265,8 +280,10 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        ** adjust the length to 8K
        */
 //#warning bad instruction off_aligned = (((off-1)/ROZOFS_CACHE_BSIZE)+1)* ROZOFS_CACHE_BSIZE;
-       uint64_t off_aligned = (off/ROZOFS_CACHE_BSIZE)*ROZOFS_CACHE_BSIZE;
-       int len_aligned = ((len/ROZOFS_CACHE_BSIZE)+1)*ROZOFS_CACHE_BSIZE;
+       uint64_t off_aligned;
+       int      len_aligned;
+       rozofs_align_off_and_len(off,len, &off_aligned, &len_aligned);  
+#if 0
        if (len_aligned  < 2*ROZOFS_CACHE_BSIZE) 
        {
           /*
@@ -274,6 +291,7 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
           */
            len_aligned =  2*ROZOFS_CACHE_BSIZE;
        }
+#endif       
        /*
        ** we have to control the returned length because if the returned length is less than
        ** the one expected by fuse we need to read from disk
@@ -305,7 +323,9 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        /*
        ** either nothing in the cache or not enough data -> read from remote storage
        */
-       ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
+       //ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
+       if (len_aligned < f->export->min_read_size) len_aligned = f->export->min_read_size;
+       ret = read_buf_nb(buffer_p,f,off_aligned, f->buffer, len_aligned);
        if (ret < 0)
        {
          *length_p = -1;
@@ -455,7 +475,7 @@ out:
           /*
           ** attempt to read
           */  
-          ret = read_buf_nb(param,file,file->read_pos, file->buffer, file->export->bufsize);      
+          ret = read_buf_nb(param,file,off, file->buffer, size);      
           if (ret < 0)
           {
              /*
@@ -598,7 +618,7 @@ out:
           /**
           * attempt to read
           */
-          ret = read_buf_nb(buffer_p,file,file->read_pos, file->buffer, file->export->bufsize);      
+          ret = read_buf_nb(buffer_p,file,off, file->buffer, size);      
           if (ret < 0)
           {
              /*
