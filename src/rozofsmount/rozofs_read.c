@@ -324,7 +324,13 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        ** either nothing in the cache or not enough data -> read from remote storage
        */
        //ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
+
+       /* Let's read ahead : when half of the buffer size is requested, let's read read a whole buffer size */
+       if (len_aligned >= (f->export->bufsize/2)) len_aligned = f->export->bufsize;
+
+       /* when requested size is too small, let's read the minimum read configured size */
        if (len_aligned < f->export->min_read_size) len_aligned = f->export->min_read_size;
+       
        ret = read_buf_nb(buffer_p,f,off_aligned, f->buffer, len_aligned);
        if (ret < 0)
        {
