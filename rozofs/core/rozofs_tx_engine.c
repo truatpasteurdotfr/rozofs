@@ -1066,3 +1066,15 @@ uint32_t rozofs_tx_module_init(uint32_t transaction_count,
     }
     return ret;
 }
+/**
+**____________________________________________________
+*  Get the number of free context in the transaction context distributor
+
+  @param none
+  @retval <>NULL, success->pointer to the allocated context
+  @retval NULL, error ->out of context
+*/
+int rozofs_tx_get_free_ctx_number(void){
+  return (rozofs_tx_context_count-rozofs_tx_context_allocated);
+}
+

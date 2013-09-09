@@ -655,15 +655,30 @@ do_listCore() {
 } 
 do_removeCore() {
   shift 1
-  if [ -d $COREDIR ];
+  if [ ! -d $COREDIR ];
   then
-    cd $COREDIR
-    while [ ! -z "$1" ];
-    do
-      unlink $1
-      shift 1
-    done  
-  fi    
+    return
+  fi  
+  cd $COREDIR
+  
+  case "$1" in
+    all) {
+      for dir in `ls `
+      do
+        for file in `ls $dir`
+        do
+          unlink $dir/$file
+        done
+      done
+      return
+    };;
+  esac
+    
+  while [ ! -z "$1" ];
+  do
+    unlink $1
+    shift 1
+  done  
 }   
 do_debugCore () {
   name=`echo $1 | awk -F'/' '{ print $1}'`
@@ -899,11 +914,13 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1
     NB_CLUSTERS_BY_VOLUME=1
-    NB_DISK_THREADS=2
+    NB_DISK_THREADS=3
     NB_CORES=4
     WRITE_FILE_BUFFERING_SIZE=256
+
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
+
     ulimit -c unlimited
 
     if [ "$1" == "start" ]

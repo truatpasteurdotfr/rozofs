@@ -250,6 +250,13 @@ truncate() {
   ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1
   return $?  
 }
+file_lock() {
+  file=mnt1/lock
+  unlink $file
+  printf "process=%d loop=%d\n" $process $loop
+  ./test_file_lock -process $process -loop $loop -file $file
+  return $?    
+}
 ############### USAGE ##################################
 usage () {
   echo "$name -l"
@@ -545,7 +552,7 @@ TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_c
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate read_parallel $TST_RW"
+TST_BASIC="readdir xattr link rename chmod truncate file_lock read_parallel $TST_RW"
 
 build_all_test_list
 TSTS=""
@@ -593,10 +600,10 @@ then
 fi  
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock
 
 # Kill export gateway
-./setup.sh expgw all stop
+./setup.sh expgw all stop 
 
 # execute the tests
 LIST=""

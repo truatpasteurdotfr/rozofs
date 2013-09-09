@@ -2693,6 +2693,241 @@ out:
 /*
 **______________________________________________________________________________
 */
+/** Set a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    list_t      *p;
+    rozofs_file_lock_t *lock_elt;
+    rozofs_file_lock_t * new_lock;
+
+    START_PROFILING(export_set_file_lock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_set_lock failed: %s", strerror(errno));
+        goto out;
+    }
+
+    /*
+    ** Freeing a lock 
+    */
+    if (lock_requested->mode == EP_LOCK_FREE) {
+    
+      /* Always succcess */
+      status = 0;
+
+      /* Already free */
+      if (lv2->nb_locks == 0) {
+	goto out;
+      }
+      if (list_empty(&lv2->file_lock)) {
+	lv2->nb_locks = 0;
+	goto out;
+      }  
+      
+reloop:       
+      /* Search the given lock */
+      list_for_each_forward(p, &lv2->file_lock) {
+      
+        lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);	
+	
+	if (must_file_lock_be_removed(lock_requested, &lock_elt->lock, &new_lock)) {
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	    goto out;
+	  }
+	  goto reloop;
+	}
+
+	if (new_lock) {
+	  list_push_front(&lv2->file_lock,&new_lock->next_fid_lock);
+	  lv2->nb_locks++;
+	}
+      }
+      goto out; 
+    }
+
+    /*
+    ** Setting a new lock. Check its compatibility against every already set lock
+    */
+    list_for_each_forward(p, &lv2->file_lock) {
+    
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+      if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+        errno = EWOULDBLOCK;
+	goto out;      
+      }     
+    }
+      
+    /* Insert the lock */
+    lock_elt = lv2_cache_allocate_file_lock(lock_requested);
+    list_push_front(&lv2->file_lock,&lock_elt->next_fid_lock);
+    lv2->nb_locks++;
+    status = 0;
+    
+out:
+#if 0
+    {
+      char BuF[4096];
+      char * pChar = BuF;
+      debug_file_lock_list(pChar);
+      info("%s",BuF);
+    }
+#endif       
+    STOP_PROFILING(export_set_file_lock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Get a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_get_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    rozofs_file_lock_t *lock_elt;
+    list_t * p;
+
+    START_PROFILING(export_get_file_lock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_get_lock failed: %s", strerror(errno));
+        goto out;
+    }
+
+    /*
+    ** Freeing a lock 
+    */
+    if (lock_requested->mode == EP_LOCK_FREE) {    
+      /* Always succcess */
+      status = 0;
+      goto out; 
+    }
+
+    /*
+    ** Setting a new lock. Check its compatibility against every already set lock
+    */
+    list_for_each_forward(p, &lv2->file_lock) {
+    
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+      if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+        errno = EWOULDBLOCK;
+	goto out;      
+      }     
+    }
+    status = 0;
+    
+out:
+    STOP_PROFILING(export_get_file_lock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** reset a lock from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_client_file_lock(export_t *e, ep_lock_t * lock_requested) {
+
+    START_PROFILING(export_clearclient_flock);
+    file_lock_remove_client(lock_requested->client_ref);
+    STOP_PROFILING(export_clearclient_flock);
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
+/** reset all the locks from an owner
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_owner_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested) {
+    int status = -1;
+    lv2_entry_t *lv2 = 0;
+    list_t * p;
+    rozofs_file_lock_t *lock_elt;
+    
+    START_PROFILING(export_clearowner_flock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_lookup_fid failed: %s", strerror(errno));
+        goto out;
+    }
+    
+    status = 0;
+
+reloop:    
+    /* Search the given lock */
+    list_for_each_forward(p, &lv2->file_lock) {
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+      if ((lock_elt->lock.client_ref == lock_requested->client_ref) &&
+          (lock_elt->lock.owner_ref == lock_requested->owner_ref)) {
+	  /* Found a lock to free */
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	    break;
+	  }
+	  goto reloop;
+      }       
+    }    
+
+out:
+    STOP_PROFILING(export_clearowner_flock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Get a poll event from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested) {
+
+    START_PROFILING(export_poll_file_lock);
+    file_lock_poll_client(lock_requested->client_ref);
+    STOP_PROFILING(export_poll_file_lock);
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
 /** set an extended attribute value for a file or directory.
  *
  * @param e: the export managing the file or directory.

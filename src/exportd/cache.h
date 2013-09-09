@@ -23,10 +23,23 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/htable.h>
 #include <rozofs/common/mattr.h>
+#include <rozofs/rpc/eproto.h>
 
 #include "mreg.h"
 #include "mdir.h"
 #include "mslnk.h"
+
+#define FILE_LOCK_POLL_DELAY_MAX  480
+
+typedef struct _rozofs_file_lock_t {
+  list_t           next_fid_lock;
+  list_t           next_client_lock;
+  struct ep_lock_t lock;
+} rozofs_file_lock_t;
+
+
+void                 lv2_cache_free_file_lock(rozofs_file_lock_t * lock) ;
+rozofs_file_lock_t * lv2_cache_allocate_file_lock(ep_lock_t * lock) ;
 
 /** API lv2 cache management functions.
  *
@@ -42,6 +55,13 @@ typedef struct lv2_entry {
         mslnk_t mslnk;  ///< symlink
     } container;
     list_t list;        ///< list used by cache
+    int    lock_type;   ///< Type of lock in the list (NONE/READ/WRITE)
+    
+    /* 
+    ** File locking
+    */
+    int            nb_locks;    ///< Number of locks on the FID
+    list_t         file_lock;   ///< List of the lock on the FID
 } lv2_entry_t;
 
 /** lv2 cache
@@ -53,6 +73,7 @@ typedef struct lv2_cache {
     int size;           ///< current number of entries
     uint64_t   hit;
     uint64_t   miss;
+    uint64_t   lru_del;
     list_t entries;     ///< entries cached
     htable_t htable;    ///< entries hashing
 } lv2_cache_t;
@@ -115,4 +136,49 @@ void lv2_cache_del(lv2_cache_t *cache, fid_t fid);
  * @retval the end of the output string
  */
 char * lv2_cache_display(lv2_cache_t *cache, char * pChar) ;
+
+/*
+*___________________________________________________________________
+* Remove all the locks of a client and then remove the client 
+*
+* @param client_ref reference of the client to remove
+*___________________________________________________________________
+*/
+void file_lock_remove_client(uint64_t client_ref) ;
+/*
+*___________________________________________________________________
+* Receive a poll request from a client
+*
+* @param client_ref reference of the client to remove
+*___________________________________________________________________
+*/
+void file_lock_poll_client(uint64_t client_ref) ;
+/*
+*___________________________________________________________________
+* Check whether two locks are compatible
+*
+* @param lock1   1rst lock
+* @param lock2   2nd lock
+*
+* @retval 1 when locks are compatible, 0 else
+*___________________________________________________________________
+*/
+int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
+/*
+*___________________________________________________________________
+* Check whether two lock2 must free or update lock1
+*
+* @param lock_free   The free lock operation
+* @param lock_set    The set lock that must be checked
+*
+* @retval 1 when locks are compatible, 0 else
+*___________________________________________________________________
+*/
+int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * lock_set, rozofs_file_lock_t ** new_lock_ctx);
+/*
+*___________________________________________________________________
+* Display file lock statistics
+*___________________________________________________________________
+*/
+char * display_file_lock(char * pChar) ;
 #endif

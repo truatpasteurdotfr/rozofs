@@ -580,6 +580,7 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
      if (length == -1)
          goto error;
      fuse_reply_buf(req, (char *) buff, length);
+     file->current_pos = (off+length);
      goto out;           
 
 error:
@@ -1260,6 +1261,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         ** provide fuse with the request data
         */
         fuse_reply_buf(req, (char *) buff, length);
+        file->current_pos = (off+length);
         /*
         ** Put the data in the cache
         */

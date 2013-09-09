@@ -137,7 +137,13 @@ xdr_mpp_profiler_t (XDR *xdrs, mpp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->rozofs_ll_setlk, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rozofs_ll_setlk_int, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->rozofs_ll_ioctl, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rozofs_ll_clearlkowner, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
 	return TRUE;

@@ -146,6 +146,16 @@ struct epp_profiler_t {
 	uint64_t ep_configuration[2];
 	uint64_t ep_conf_gateway[2];
 	uint64_t ep_poll[2];
+	uint64_t export_clearclient_flock[2];
+	uint64_t export_clearowner_flock[2];
+	uint64_t export_set_file_lock[2];
+	uint64_t export_get_file_lock[2];
+	uint64_t export_poll_file_lock[2];
+	uint64_t ep_clearclient_flock[2];
+	uint64_t ep_clearowner_flock[2];
+	uint64_t ep_set_file_lock[2];
+	uint64_t ep_get_file_lock[2];
+	uint64_t ep_poll_file_lock[2];
 };
 typedef struct epp_profiler_t epp_profiler_t;
 

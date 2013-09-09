@@ -76,7 +76,35 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
-     
+
+uint64_t   rozofs_client_hash=0;
+/**______________________________________________________________________________
+*/
+/**
+*  Compute the client hash
+
+  @param h : hostanme string
+  @param instance: instance id
+  
+  @retval hash value
+*/
+static inline uint64_t rozofs_client_hash_compute(char * hostname, int instance) {
+    unsigned char *d = (unsigned char *) hostname;
+    uint64_t h;
+
+    h = 2166136261U;
+    /*
+     ** hash on hostname
+     */
+    for (; *d != 0; d++) {
+        h = (h * 16777619)^ *d;
+    }
+    /*
+     ** hash on instance id
+     */
+    h = (h * 16777619)^ instance;
+    return h;
+}     
 /*
  *________________________________________________________
  */
@@ -220,6 +248,9 @@ uint64_t rozofs_ientries_count = 0;
 
 fuse_ino_t inode_idx = 1;
 
+
+
+
 static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
     int *piped = (int *) userdata;
     char s;
@@ -257,34 +288,7 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
     fuse_reply_none(req);
 }
 
-/*
- * All below are implemented for monitoring purpose.
- */
-#warning fake untested function.
 
-void rozofs_ll_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-        struct flock *lock) {
-    START_PROFILING(rozofs_ll_getlk);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_getlk);
-}
-
-#warning fake untested function.
-
-void rozofs_ll_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-        struct flock *lock, int sleep) {
-    START_PROFILING(rozofs_ll_getlk);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_setlk);
-}
-
-#warning fake untested function.
-
-void rozofs_ll_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
-    START_PROFILING(rozofs_ll_releasedir);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_releasedir);
-}
 
 #warning fake untested function.
 
@@ -465,6 +469,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
       RESET_PROFILER_PROBE(create);
       RESET_PROFILER_PROBE(getlk);
       RESET_PROFILER_PROBE(setlk);
+      RESET_PROFILER_PROBE(setlk_int);
+      RESET_PROFILER_PROBE(clearlkowner);      
       RESET_PROFILER_PROBE(ioctl);
       uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
       return;
@@ -513,6 +519,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(create);
     SHOW_PROFILER_PROBE(getlk);
     SHOW_PROFILER_PROBE(setlk);
+    SHOW_PROFILER_PROBE(setlk_int);
+    SHOW_PROFILER_PROBE(clearlkowner);
     SHOW_PROFILER_PROBE(ioctl);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -730,8 +738,8 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .removexattr = rozofs_ll_removexattr_nb, /** non blocking */
     .access = rozofs_ll_access, /** non blocking by construction */
     .create = rozofs_ll_create_nb, /** non blocking */
-    //.getlk = rozofs_ll_getlk,
-    //.setlk = rozofs_ll_setlk,
+    .getlk = rozofs_ll_getlk_nb,
+    .setlk = rozofs_ll_setlk_nb,
     //.bmap = rozofs_ll_bmap,
     //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,
@@ -835,6 +843,19 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
                 "See log for more information\n", conf.export, conf.host,
                 mountpoint, strerror(errno));
         return 1;
+    }
+
+    /*
+    ** Send the file lock reset request to remove old locks
+    */
+    {
+      epgw_lock_arg_t     arg;
+      epgw_status_ret_t * file_lock_res;
+      
+      arg.arg_gw.eid             = exportclt.eid;
+      arg.arg_gw.lock.client_ref = rozofs_client_hash;
+      
+      file_lock_res = ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
     }
 
     /* Initialize list and htables for inode_entries */
@@ -1194,6 +1215,12 @@ int main(int argc, char *argv[]) {
     if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
       conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
     }    
+
+
+    /*
+    ** Compute the identifier of the client from host and instance id 
+    */
+    rozofs_client_hash = rozofs_client_hash_compute(conf.host,conf.instance);
 
     /*
     ** allocate the common flush buffer

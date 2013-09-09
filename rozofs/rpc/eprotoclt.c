@@ -399,3 +399,78 @@ ep_conf_expgw_1(ep_path_t *argp, CLIENT *clnt)
 	}
 	return (&clnt_res);
 }
+
+epgw_lock_ret_t *
+ep_set_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_lock_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_SET_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_lock_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_lock_ret_t *
+ep_get_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_lock_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_GET_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_lock_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_clear_owner_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CLEAR_OWNER_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_clear_client_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CLEAR_CLIENT_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_poll_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_POLL_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}

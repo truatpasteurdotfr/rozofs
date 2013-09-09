@@ -181,6 +181,16 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE(gw_invalidate_all);
 	RESET_PROFILER_PROBE(gw_configuration);
 	RESET_PROFILER_PROBE(gw_poll);              
+	RESET_PROFILER_PROBE(export_clearclient_flock)
+	RESET_PROFILER_PROBE(export_clearowner_flock)
+	RESET_PROFILER_PROBE(export_set_file_lock);
+	RESET_PROFILER_PROBE(export_get_file_lock);
+	RESET_PROFILER_PROBE(export_poll_file_lock);        
+	RESET_PROFILER_PROBE(ep_clearclient_flock);
+	RESET_PROFILER_PROBE(ep_clearowner_flock);
+	RESET_PROFILER_PROBE(ep_set_file_lock);
+	RESET_PROFILER_PROBE(ep_get_file_lock);    
+	RESET_PROFILER_PROBE(ep_poll_file_lock); 
         uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
 	return;
       }
@@ -275,6 +285,16 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_invalidate_all);
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
+    SHOW_PROFILER_PROBE(export_clearclient_flock)
+    SHOW_PROFILER_PROBE(export_clearowner_flock)
+    SHOW_PROFILER_PROBE(export_set_file_lock);
+    SHOW_PROFILER_PROBE(export_get_file_lock);
+    SHOW_PROFILER_PROBE(export_poll_file_lock);        
+    SHOW_PROFILER_PROBE(ep_clearclient_flock);
+    SHOW_PROFILER_PROBE(ep_clearowner_flock);
+    SHOW_PROFILER_PROBE(ep_set_file_lock);
+    SHOW_PROFILER_PROBE(ep_get_file_lock);    
+    SHOW_PROFILER_PROBE(ep_poll_file_lock); 
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
@@ -346,6 +366,13 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_invalidate_all);
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
+    
+    SHOW_PROFILER_PROBE(ep_clearclient_flock);
+    SHOW_PROFILER_PROBE(ep_clearowner_flock);
+    SHOW_PROFILER_PROBE(ep_set_file_lock);
+    SHOW_PROFILER_PROBE(ep_get_file_lock);    
+    SHOW_PROFILER_PROBE(ep_poll_file_lock); 
+       
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
@@ -498,7 +525,22 @@ void show_lv2_attribute_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
   lv2_cache_display( &cache, uma_dbg_get_buffer());
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   file lock
 
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
+  display_file_lock(uma_dbg_get_buffer());
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
 
 // For trace purpose
 struct timeval     Global_timeDay;
@@ -743,7 +785,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
     uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
     uma_dbg_addTopic("lv2_cache",show_lv2_attribute_cache);
-    
+    uma_dbg_addTopic("flock",    show_flock);
     expgwc_non_blocking_thread_started = 1;
     
     info("exportd non-blocking thread started (instance: %d, port: %d).",

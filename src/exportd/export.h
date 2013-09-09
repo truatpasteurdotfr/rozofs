@@ -582,4 +582,67 @@ int exportd_init_storage_configuration_message();
   @retval none
 */
 void ep_expgw_init_configuration_message(char *exportd_hostname);
+
+/*
+**______________________________________________________________________________
+*/
+/** Set a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) ;
+/*
+**______________________________________________________________________________
+*/
+/** reset all locks from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_client_file_lock(export_t *e, ep_lock_t * lock_requested);
+/*
+**______________________________________________________________________________
+*/
+/** reset all locks from an owner
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_owner_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested);
+/*
+**______________________________________________________________________________
+*/
+/** Get a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_get_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) ;
+/*
+**______________________________________________________________________________
+*/
+/** Get a poll event from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested) ;
 #endif

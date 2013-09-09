@@ -163,6 +163,7 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_line_div_and_sum("   Average Time (us)",diskTruncate_time,diskTruncate_count);
   
   display_line_topic("");  
+  pChar += sprintf(pChar,"\n");
 
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
 }

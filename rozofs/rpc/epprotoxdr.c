@@ -356,6 +356,36 @@ xdr_epp_profiler_t (XDR *xdrs, epp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->ep_poll, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->export_clearclient_flock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->export_clearowner_flock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->export_set_file_lock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->export_get_file_lock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->export_poll_file_lock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_clearclient_flock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_clearowner_flock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_set_file_lock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_get_file_lock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->ep_poll_file_lock, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	return TRUE;
 }
 
