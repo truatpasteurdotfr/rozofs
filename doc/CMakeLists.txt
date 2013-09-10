@@ -30,3 +30,12 @@ if(DOXYGEN)
 else(DOXYGEN)
     message(STATUS "doxygen not found.")
 endif(DOXYGEN)
+
+#
+# User guide
+#
+if(MAKEINFO AND TEXI2DVI)
+    add_custom_target(pdf_guide "${MAKEINFO}" -o "${CMAKE_CURRENT_BINARY_DIR}/" "${CMAKE_CURRENT_SOURCE_DIR/rozo.texi}")
+else(MAKEINFO AND TEXI2DVI)
+    message(STATUS "makeinfo not found.")
+endif(MAKEINFO AND TEXI2DVI)
