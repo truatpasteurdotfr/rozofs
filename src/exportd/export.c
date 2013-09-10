@@ -937,7 +937,9 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     }
 
     if ((to_set & EXPORT_SET_ATTR_SIZE) && S_ISREG(lv2->attributes.mode)) {
-        if (attrs->size >= 0x20000000000LL) {
+        
+        // Check new file size
+        if (attrs->size >= ROZOFS_FILESIZE_MAX) {
             errno = EFBIG;
             goto out;
         }
@@ -962,11 +964,13 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     if (to_set & EXPORT_SET_ATTR_UID)
         lv2->attributes.uid = attrs->uid;
     if (to_set & EXPORT_SET_ATTR_GID)
-        lv2->attributes.gid = attrs->gid;
-    //lv2->attributes.nlink = attrs->nlink;
+        lv2->attributes.gid = attrs->gid;    
+    if (to_set & EXPORT_SET_ATTR_ATIME)
+        lv2->attributes.atime = attrs->atime;
+    if (to_set & EXPORT_SET_ATTR_MTIME)
+        lv2->attributes.mtime = attrs->mtime;
+    
     lv2->attributes.ctime = time(NULL);
-    //lv2->attributes.atime = attrs->atime;
-    //lv2->attributes.mtime = attrs->mtime;
 
     status = export_lv2_write_attributes(lv2);
 out:
@@ -1507,6 +1511,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
             struct timeval timeo;
             timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
+	    
+	    init_rpcctl_ctx(&mclt->rpcclt);
 
 	    init_rpcctl_ctx(&mclt->rpcclt);
 

@@ -29,6 +29,7 @@
 #include <assert.h>
 #include <semaphore.h>
 #include <netinet/tcp.h>
+#include <sys/resource.h>
 
 #define FUSE_USE_VERSION 26
 #include <fuse/fuse_lowlevel.h>
@@ -137,7 +138,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-V --version\tprint rozofs version\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "ROZOFS options:\n");
-    fprintf(stderr, "\t-H EXPORT_HOST\t\tdefine address (or dns name) where exportd deamon is running (default: rozofsexport) equivalent to '-o exporthost=EXPORT_HOST'\n");
+    fprintf(stderr, "\t-H EXPORT_HOST\t\tdefine address (or dns name) where exportd daemon is running (default: rozofsexport) equivalent to '-o exporthost=EXPORT_HOST'\n");
     fprintf(stderr, "\t-E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "\t-P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "\t-o rozofsbufsize=N\tdefine size of I/O buffer in KiB (default: 256)\n");
@@ -819,7 +820,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
 
 
     for (retry_count = 3; retry_count > 0; retry_count--) {
-        /* Initiate the connection to the export and get informations
+        /* Initiate the connection to the export and get information
          * about exported filesystem */
         /// XXX: TO CHANGE
         if (exportclt_initialize(
@@ -1146,6 +1147,7 @@ int main(int argc, char *argv[]) {
     char *mountpoint;
     int fg = 0;
     int res;
+    struct rlimit core_limit;
 
     memset(&conf, 0, sizeof (conf));
     /*
@@ -1327,6 +1329,14 @@ int main(int argc, char *argv[]) {
       {
         rozofs_cache_mode = conf.cache_mode;    
       }        
+    }
+    
+    // Change the value the maximum size of core file
+    core_limit.rlim_cur = RLIM_INFINITY;
+    core_limit.rlim_max = RLIM_INFINITY;
+    if (setrlimit(RLIMIT_CORE, &core_limit) < 0) {
+        warning("Failed to change maximum size of core file: %s",
+                strerror(errno));
     }
 
     res = fuseloop(&args, mountpoint, fg);

@@ -496,10 +496,6 @@ uint32_t uma_tcp_tuneTcpSocket(int socketId)
 void uma_tcp_disconnect( uma_tcp_t *p)
 {
 
-
-
-  uint32_t ret= RUC_OK;
-
   /*
   **  close the socket
   */
@@ -518,7 +514,6 @@ void uma_tcp_disconnect( uma_tcp_t *p)
     ** there is no active connection
     */
     RUC_WARNING(p->relcRef);
-    ret = RUC_NOK;
   }
 
   /*
@@ -529,7 +524,6 @@ void uma_tcp_disconnect( uma_tcp_t *p)
     /*
     ** something wrong
     */
-    ret =  RUC_NOK;
   }
   else
   {

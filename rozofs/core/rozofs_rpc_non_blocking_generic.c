@@ -639,7 +639,7 @@ out:
 uint32_t rozofs_rpc_module_init()
 {
    rozofs_rpc_ctx_t *p;
-   uint32_t idxCur,xRefCur;
+   uint32_t idxCur;
    ruc_obj_desc_t *pnext;
    uint32_t ret = RUC_OK;
    
@@ -677,7 +677,6 @@ uint32_t rozofs_rpc_module_init()
    **  initialize each entry of the free list
    */
    idxCur = 0;
-   xRefCur = 0;
    pnext = (ruc_obj_desc_t*)NULL;
    while ((p = (rozofs_rpc_ctx_t*)ruc_objGetNext((ruc_obj_desc_t*)rozofs_rpc_ctx_freeListHead,
                                         &pnext))

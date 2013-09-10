@@ -1,0 +1,2 @@
+contrib/nagios/pluggins/*.sh /usr/lib/nagios/plugins/
+contrib/nagios/cfg/rozofs_static.cfg /etc/nagios-plugins/config/

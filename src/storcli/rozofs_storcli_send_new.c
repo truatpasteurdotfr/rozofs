@@ -303,8 +303,8 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
                                                               &eof_flag);
     STORCLI_STOP_NORTH_PROF(p,read,data_len);
 
-    int position;
-    position = xdr_getpos(&xdrs);
+    //int position;
+    //position = xdr_getpos(&xdrs);
     /*
     ** check the case of the shared memory
     */

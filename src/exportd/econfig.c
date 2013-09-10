@@ -679,7 +679,6 @@ int econfig_read(econfig_t *config, const char *fname) {
     long int layout, nbCores;
 #endif
 
-
     DEBUG_FUNCTION;
 
     config_init(&cfg);

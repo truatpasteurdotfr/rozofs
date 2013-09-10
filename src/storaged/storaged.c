@@ -42,7 +42,6 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
-#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/mproto.h>
@@ -55,7 +54,6 @@
 #include "storage.h"
 #include "storaged.h"
 #include "rbs.h"
-#include <rozofs/rozofs_timer_conf.h>
 #include "storaged_nblock_init.h"
 
 #define STORAGED_PID_FILE "storaged"
@@ -590,8 +588,8 @@ int main(int argc, char *argv[]) {
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
-        {"config", required_argument, 0, 'c'},
-        {"rebuild", required_argument, 0, 'r'},
+        { "config", required_argument, 0, 'c'},
+        { "rebuild", required_argument, 0, 'r'},
         { "host", required_argument, 0, 'H'},
         { 0, 0, 0, 0}
     };

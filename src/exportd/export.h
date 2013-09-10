@@ -50,10 +50,13 @@
 #define FSTAT_FNAME "fstat"
 #define CONST_FNAME "const"
 
+/** 'to_set' flags in setattr */
 #define EXPORT_SET_ATTR_MODE  (1 << 0)
 #define EXPORT_SET_ATTR_UID   (1 << 1)
 #define EXPORT_SET_ATTR_GID   (1 << 2)
 #define EXPORT_SET_ATTR_SIZE  (1 << 3)
+#define EXPORT_SET_ATTR_ATIME (1 << 4)
+#define EXPORT_SET_ATTR_MTIME (1 << 5)
 
 /** Variables specific to the removal of the bins files */
 /** Max nb. of subdirectories under trash directory (nb. of buckets) */

@@ -43,11 +43,9 @@ void *ep_null_1_svc(void *noargs, struct svc_req *req) {
 }
 
 
-uint32_t exportd_storage_host_count = 0;                          /**< number of host storage in the configuration of an eid  */
-ep_cnf_storage_node_t exportd_storage_host_table[STORAGE_NODES_MAX];  /**< configuration for each storage */
-
-epgw_conf_ret_t  export_storage_conf;                 /**< preallocated area to build storage configuration message */
-
+uint32_t exportd_storage_host_count = 0; /**< number of host storage in the configuration of an eid */
+ep_cnf_storage_node_t exportd_storage_host_table[STORAGE_NODES_MAX]; /**< configuration for each storage */
+epgw_conf_ret_t export_storage_conf; /**< preallocated area to build storage configuration message */
 
 /*
  *_______________________________________________________________________
@@ -334,7 +332,7 @@ ep_gw_gateway_configuration_ret_t *ep_conf_expgw_1_svc(ep_path_t * arg, struct s
     eid_t *eid = NULL;
     export_t *exp;
 
-    int err = 0;
+    //int err = 0;
     list_t *iterator;
     list_t *iterator_expgw;    
     ep_gateway_configuration_t *expgw_conf_p= &ret.status_gw.ep_gateway_configuration_ret_t_u.config;
@@ -381,8 +379,8 @@ ep_gw_gateway_configuration_ret_t *ep_conf_expgw_1_svc(ep_path_t * arg, struct s
     }
     if (expgw_conf_p->eid.eid_len == 0)
     {
-      severe(" no eid in the exportd configuration !!");
-      err = EPROTO;
+      severe("no eid in the exportd configuration !!");
+      //err = EPROTO;
       goto error;
     }
 

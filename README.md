@@ -10,10 +10,10 @@ RozoFS provide a native open source POSIX filesystem, build on top of a usual ou
 
 ###Requirements
 * cmake
+* libfuse-dev (>= 2.9.0)
 * libattr1-dev
 * uuid-dev
 * libconfig-dev
-* libfuse-dev
 * libreadline-dev
 * python2.7-dev
 * libpthread

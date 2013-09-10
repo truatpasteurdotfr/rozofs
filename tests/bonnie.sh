@@ -15,7 +15,6 @@
 
 . env.sh
 
-	
 usage() {
 	echo "$0: <mount point>"
 	exit 0
@@ -27,6 +26,15 @@ usage() {
 
 flog=${WORKING_DIR}/bonnie++_`date "+%Y%m%d_%Hh%Mm%Ss"`_`basename $1`.log
 #${BONNIE_BINARY} -d $1 -n 200 -m testedhost -s 16384 -f -u nobody 2>&1 | tee $flog
-${BONNIE_BINARY} -d $1 -n 5 -s 16384 -f -u nobody 2>&1 | tee $flog
+
+
+# -d: the directory to use for the tests
+# -n: the number of files for the file creation test. This is measured in multiples of 1024 files
+# -s: the size of the file(s) for IO performance measures in megabytes.
+# -f: fast mode control, skips per-char IO tests if no parameter, otherwise specifies the size of the tests for per-char IO tests (default 20M).
+# -u: user-id to use.
+
+
+${BONNIE_BINARY} -d $1 -n 5 -s 8192 -f -u root:root  2>&1 | tee $flog
 
 exit 0

@@ -2,55 +2,94 @@ Source: rozofs
 Section: admin
 Priority: optional
 Maintainer: Fizians S.A.S. <devel@rozofs.com>
-Build-Depends: debhelper, dh-make, cmake, make, libc6-dev, libfuse-dev (>= 2.9.0), libattr1-dev, uuid-dev, libconfig-dev, python-all-dev, libreadline-dev
-Standards-Version: 3.8.4
+Build-Depends: debhelper (>= 8), cmake, libfuse-dev (>= 2.9.0), libattr1-dev, uuid-dev, libconfig-dev, python-all-dev, libreadline-dev, swig
+Standards-Version: 3.9.4
 X-Python-Version: = 2.7 << 3.0
 Homepage: http://www.rozofs.com
+Vcs-Git: https://github.com/rozofs/rozofs.git
+Vcs-Browser: https://github.com/rozofs/rozofs
 
 Package: rozofs-exportd
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, portmap | rpcbind, libattr1, libuuid1, libconfig8 | libconfig9
-Description: Rozofs filesystem (export package).
- Rozofs is a scale-out NAS using erasure coding.
+Description: RozoFS filesystem (export daemon)
+ RozoFS exportd daemon manages metadata for the RozoFS filesystems.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-storaged
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, portmap | rpcbind, libuuid1, libconfig8 | libconfig9
-Description: Rozofs filesystem (storage package).
- Rozofs is a scale-out NAS using erasure coding.
+Description: RozoFS filesystem (storage daemon)
+ RozoFS storaged daemon stores encoded data for the RozoFS filesystems.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-rozofsmount
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0), fuse-utils
-Description: Rozofs filesystem (rozofsmount package).
- Rozofs is a scale-out NAS using erasure coding.
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0), fuse | fuse-utils
+Description: RozoFS filesystem (mount utility)
+ rozofsmount mounts RozoFS filesystems using FUSE.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-rprof
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Rozofs filesystem (monitoring package).
- Rozofs is a scale-out NAS using erasure coding.
+Description: RozoFS filesystem (monitoring package)
+ rprof allows profiling of RozoFS filesystems.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-rozodebug
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libreadline6
-Description: Rozofs filesystem (debugging package).
- Rozofs is a scale-out NAS using erasure coding.
+Description: RozoFS filesystem (debugging tools)
+ rozofsdebug allows deep audit of RozoFS filesystems.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-manager-lib
 Architecture: any
-Depends: ${misc:Depends}, libconfig8 | libconfig9, pyro, python-argparse
-Description: Rozofs filesystem (management library package).
- Rozofs is a scale-out NAS using erasure coding.
+Depends: ${shlibs:Depends}, ${misc:Depends}, libconfig8 | libconfig9, pyro, python-support (>= 0.90), python-argparse
+Description: RozoFS filesystem (management library)
+ Python management libraries for RozoFS.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-manager-cli
 Architecture: any
-Depends: ${misc:Depends}, rozofs-manager-lib
-Description: Rozofs filesystem (management cli package).
- Rozofs is a scale-out NAS using erasure coding.
+Depends: ${misc:Depends}, rozofs-manager-lib, python2.7
+Description: RozoFS filesystem (management cli)
+ Management command-line for RozoFS.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-manager-agent
 Architecture: any
 Depends: ${misc:Depends}, rozofs-manager-lib, rozofs-manager-cli
-Description: Rozofs filesystem (management agent package).
- Rozofs is a scale-out NAS using erasure coding.
+Description: RozoFS filesystem (management daemon)
+ Management daemon for RozoFS.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
+
+Package: rozofs-dbg
+Section: debug
+Priority: extra
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozofsmount (= ${binary:Version}) | rozofs-storaged (= ${binary:Version}) | rozofs-exportd (= ${binary:Version})
+Description: RozoFS filesystem (debugging symbols)
+ Provide debugging information for the various rozofs packages.
+ Install it to get a better backtrace in the event of a crash, or to test.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
+
+Package: nagios-plugins-rozofs
+Section: net
+Priority: extra
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozofsmount (= ${binary:Version}) | rozofs-storaged (= ${binary:Version}) | rozofs-exportd (= ${binary:Version})
+Description: RozoFS filesystem (Nagios plugins)
+ Provide monitoring information for the various rozofs packages.
+ .
+ RozoFS is a scale-out NAS using erasure coding.

@@ -241,9 +241,7 @@ int expgwc_internal_channel_send(uint32_t opcode,uint32_t length, void *message 
   }
   if (nBytes != effective_length)
   {
-    /*
-    **  message not sent
-    */
+    // message not sent
     severe("sent message has been truncated %d( %d)", nBytes,effective_length);
     return -1;
 
@@ -366,8 +364,8 @@ int expgwc_load_conf_proc(char *msg,int len)
     for (i = 0; i < expgw_conf_p->gateway_host.gateway_host_len; i++) 
     {
 //       info("NB host %s",(char*)expgw_conf_p->gateway_host.gateway_host_val[i].host); 
-#warning configuration port base (60000)  of the export gateway is almost hardcoded!!
-       int port = EXPGW_PORT_EXPORTD_IDX+60000;
+       //XXX: configuration port base (60000)  of the export gateway is almost hardcoded!!
+       int port = EXPGW_PORT_EXPORTD_IDX + 60000;
        ret = export_expgw_conf_ctx_create(i,(char*)expgw_conf_p->gateway_host.gateway_host_val[i].host,port);
        if (ret < 0)
        {
@@ -409,7 +407,7 @@ uint32_t expgwc_internal_channel_recv_cbk(void * not_significant,int socketId)
   int         bytesRcvd;
   char       *pchar;
   expgwc_int_chan_msg_t *msg = (expgwc_int_chan_msg_t*)expgwc_internal_channel_buf_recv;
-  int ret;
+  //int ret;
 
 
   p = &expgwc_int_chan_ctx;
@@ -461,7 +459,7 @@ uint32_t expgwc_internal_channel_recv_cbk(void * not_significant,int socketId)
 //      info(" EXPGWC_NULL received !!");
       break;
     case EXPGWC_LOAD_CONF:
-      ret = expgwc_load_conf_proc(pchar,msg->length);
+      expgwc_load_conf_proc(pchar,msg->length);
 //      info("EXPGWC_LOAD_CONF received -> length %d",msg->length);
       break;
     default:
