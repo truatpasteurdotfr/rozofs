@@ -1,0 +1,43 @@
+@c *** Chapter [Monitoring]
+@node       Monitoring, Index, Working with RozoFS, Top
+@chapter    Monitoring
+
+@menu
+* Rozodebug tools::
+* rozofsmount menu::
+@end menu
+
+@c *** Section [Rozodebug tools]
+@node       Rozodebug tools, rozofsmount menu, Monitoring, Monitoring
+@section    Rozodebug tools
+
+@menu
+* Rozodebug Usage::
+* Some common rozodebug commands::
+@end menu
+
+@c *** Subsection [Rozodebug Usage]
+@node       Rozodebug Usage, Some common rozodebug commands, Rozodebug tools, Rozodebug tools
+@subsection Rozodebug Usage
+
+@c *** Subsection [Some common rozodebug commands]
+@node       Some common rozodebug commands, Per socket controller function cpu load, Rozodebug Usage, Rozodebug tools
+@subsection Some common rozodebug commands
+
+@menu
+* Per socket controller function cpu load::
+* rozofsmount::
+@end menu
+
+@c *** Subsubsection [Per socket controller function cpu load]
+@node       Per socket controller function cpu load, rozofsmount, Some common rozodebug commands, Some common rozodebug commands
+@subsubsection Per socket controller function cpu load
+
+@c *** Subsubsection [rozofsmount]
+@node       rozofsmount, , Per socket controller function cpu load, Some common rozodebug commands
+@subsubsection rozofsmount
+
+@c *** Section [rozofsmount menu]
+@node       rozofsmount menu, , Rozodebug tools, Monitoring
+@section    rozofsmount menu
+
