@@ -13,6 +13,7 @@ from rozofs.core.daemon import DaemonManager
 from rozofs.core.constants import LAYOUT, STORAGES, STORAGE_SID, STORAGE_CID, STORAGE_ROOT, \
     LAYOUT_2_3_4, STORAGED_MANAGER, LAYOUT_4_6_8, LAYOUT_8_12_16, PORTS
 from rozofs.core.agent import Agent, ServiceStatus
+from rozofs import __sysconfdir__
 import collections
 
 
@@ -89,7 +90,7 @@ class StoragedConfigurationParser(ConfigurationParser):
 
 class StoragedAgent(Agent):
 
-    def __init__(self, config='/etc/rozofs/storage.conf', daemon='storaged'):
+    def __init__(self, config="%s%s" % (__sysconfdir__, '/rozofs/storaged.conf'), daemon='storaged'):
         Agent.__init__(self, STORAGED_MANAGER)
         self._daemon_manager = DaemonManager(daemon, ["-c", config], 1)
         self._reader = ConfigurationReader(config, StoragedConfigurationParser())
