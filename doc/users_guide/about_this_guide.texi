@@ -1,0 +1,28 @@
+@c *** Chapter [About this Guide]
+@node       About this Guide, About RozoFS, Top, Top
+@chapter    About this Guide
+@cindex     About
+
+@menu
+* Conventions Used in this Guide::
+* Organization of this Guide::
+@end menu
+
+This guide is intended to serve users of RozoFS as a definitive reference guide
+and handbook. This manual provides information for administrators who want to
+install and deploy RozoFS within their company. It describes the requirements for
+deployment, installation procedures, and general configuration. This manual
+contains the information one needs to consult before and during deployment.
+
+@noindent This guide assumes, throughout, that you are using @strong{RozoFS 
+version 1.2.0 or later}.
+
+@c *** Section [Conventions Used in this Guide]
+@node       Conventions Used in this Guide, Organization of this Guide, About this Guide, About this Guide
+@section    Conventions Used in this Guide
+@cindex     conventions
+
+@c *** Section [Organization of this Guide]
+@node       Organization of this Guide, , Conventions Used in this Guide, About this Guide
+@section    Organization of this Guide
+@cindex     organization

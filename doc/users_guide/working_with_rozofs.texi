@@ -1,0 +1,459 @@
+@c *** Chapter [Working with RozoFS]
+@node       Working with RozoFS, Monitoring, Building Installing and Configuring RozoFS, Top
+@chapter    Working with RozoFS
+
+@menu
+* Manual Managing of RozoFS Services::
+* Using the Rozo Console Manager - Command Line Utility::
+@end menu
+
+@c *** Section [Manual Managing of RozoFS Services]
+@node       Manual Managing of RozoFS Services, Using the Rozo Console Manager - Command Line Utility, Working with RozoFS, Working with RozoFS
+@section    Manual Managing of RozoFS Services
+
+@menu
+* Starting and Stopping storaged Daemon::
+* Starting and Stopping exportd Daemon::
+* Accessing Data - Setting up rozofsmount Client::
+@end menu
+
+@c *** Subsection [Starting and Stopping storaged Daemon]
+@node       Starting and Stopping storaged Daemon, Starting and Stopping exportd Daemon, Manual Managing of RozoFS Services, Manual Managing of RozoFS Services
+@subsection Starting and Stopping storaged Daemon
+
+The storaged daemon starts with the following command:
+@verbatim
+# /etc/init.d/rozofs-storaged start
+@end verbatim
+
+To stop the daemon, the following command is used:
+@verbatim
+# /etc/init.d/rozofs-storaged stop
+@end verbatim
+
+To get the current status of the daemon, the following command is used:
+@verbatim
+# /etc/init.d/rozofs-storaged status
+@end verbatim
+
+To reload the storaged configuration file (storage.conf) after a configuration
+changes, the following command is used:
+@verbatim
+# /etc/init.d/rozofs-storaged reload
+@end verbatim
+
+To automatically start the storaged daemon every time the system boots, enter
+one of the following command lines.
+
+For Red Hat based systems:
+@verbatim
+# chkconfig rozofs-storaged on
+@end verbatim
+For Debian based systems 
+@verbatim
+# update-rc.d rozofs-storaged defaults
+@end verbatim
+Systems Other than Red Hat and Debian:
+@verbatim
+# echo "storaged" >> /etc/rc.local
+@end verbatim
+
+@c *** Subsection [Starting and Stopping storaged Daemon]
+@node       Starting and Stopping exportd Daemon, Accessing Data - Setting up rozofsmount Client, Starting and Stopping storaged Daemon, Manual Managing of RozoFS Services
+@subsection Starting and Stopping exportd Daemon
+
+The exportd daemon is started with the following command:
+@verbatim
+# /etc/init.d/rozofs-exportd start
+@end verbatim
+
+To stop the daemon, the following command is used:
+@verbatim
+# /etc/init.d/rozofs-exportd stop
+@end verbatim
+
+To get the current status of the daemon, the following command is used:
+@verbatim
+# /etc/init.d/rozofs-exportd status
+@end verbatim
+
+To reload the exportd configuration file (export.conf) after a configuration
+changes, the following command is used:
+@verbatim
+# /etc/init.d/rozofs-exportd reload
+@end verbatim
+
+To automatically start the exportd daemon every time the system boots, enter
+one of the following command line.
+
+For Red Hat based systems:
+@verbatim
+# chkconfig rozofs-exportd on
+@end verbatim
+For Debian based systems 
+@verbatim
+# update-rc.d rozofs-exportd defaults
+@end verbatim
+Systems Other than Red Hat and Debian:
+@verbatim
+# echo "exportd" >> /etc/rc.local
+@end verbatim
+
+@c *** Subsection [Accessing Data - Setting up rozofsmount Client]
+@node       Accessing Data - Setting up rozofsmount Client, , Starting and Stopping exportd Daemon, Manual Managing of RozoFS Services
+@subsection Accessing Data - Setting up rozofsmount Client
+
+After installing the rozofsmount (RozoFS Client), you have to mount the RozoFS
+exported file system to access the data. 
+Two methods are possible: mount manually or automatically.
+
+To manually mount Rozo file system, use the following command:
+@verbatim
+# rozofsmount -H EXPORT_IP -E EXPORT_PATH MOUNTDIR
+@end verbatim
+
+For example, if the exported file system is: /srv/rozofs/exports/export_1 and
+IP address for export server is 192.168.1.100:
+@verbatim
+$ rozofsmount -H 192.168.1.100 -E
+/srv/rozofs/exports/export_1 /mnt/rozofs/fs-1
+@end verbatim
+
+To unmount the file system:
+@verbatim
+$ umount /mnt/rozofs/fs-1
+@end verbatim
+
+To automatically mount a Rozo file system, edit the /etc/fstab file and add the
+following line:
+@verbatim
+$ rozofsmount MOUNTDIR rozofs exporthost=EXPORT_IP,
+exportpath=EXPORT_PATH,_netdev 0  0
+@end verbatim
+
+For example, if the exported file system is /srv/rozofs/exports/export_1 and IP
+address for export server is 192.168.1.100 :
+@verbatim
+$ rozofsmount /mnt/rozofs/fs1 rozofs\
+$ exporthost=192.168.1.100,exportpath=/srv/rozofs/exports/export_1,_netdev
+0\  0
+@end verbatim
+
+@c *** Section [Using the Rozo Console Manager - Command Line Utility]
+@node       Using the Rozo Console Manager - Command Line Utility, Get the List of Nodes Belonging to a Platform, Manual Managing of RozoFS Services, Working with RozoFS
+@section    Using the Rozo Console Manager - Command Line Utility
+
+@menu
+* Get the List of Nodes Belonging to a Platform::
+* Get the Status of a Platform::
+* Stop and Start a Platform::
+* View the Platform Configuration::
+* Extend the Platform::
+* Add an Export to the Platform::
+@end menu
+
+RozoFS comes with a command line utility called rozo that aims to automate the
+management process of a RozoFS platform. Its main purpose is to chain up the
+operations required on remote nodes involved on a high level management task
+such as stopping and starting the whole platform, add new nodes to the platform
+in order to extend the capacity, add new exports on volume etc@dots
+
+Rozo is fully independant of RozoFS daemons and processes and is not required
+for a fully functional system but when installed aside RozoFS on each involved
+nodes it greatly facilitates configuration as it takes care of all the unique
+id generation of storage locations, clusters and so on. Despite not being a
+monitoring tool, rozo can be however used to get easily a description of the
+platform, its status and its configuration.
+
+Rozo uses the running exportd configuration file as a basic platform knowledge,
+you can use rozo on any nodes (even not involve in the platform).
+
+You can have an overview of rozo capabilities and get the help you need by
+using the rozo manual
+
+@verbatim
+# man rozo
+@end verbatim
+
+See below, examples of rozo usage for common management tasks on a 8 nodes
+platform. Each command is launched on the running exportd node. 
+
+@c *** Subsection [Get the List of Nodes Belonging to a Platform]
+@node       Get the List of Nodes Belonging to a Platform, Get the Status of a Platform, Using the Rozo Console Manager - Command Line Utility, Using the Rozo Console Manager - Command Line Utility
+@subsection Get the List of Nodes Belonging to a Platform
+
+To get informations about all nodes in the platform and their roles.
+
+@verbatim
+root@fec4cloud-01:~# rozo nodes -E 172.19.34.221
+NODE                 ROLES               
+172.19.34.208        ['storaged', 'rozofsmount']
+172.19.34.201        ['storaged', 'rozofsmount']
+172.19.34.202        ['storaged', 'rozofsmount']
+172.19.34.203        ['storaged', 'rozofsmount']
+172.19.34.204        ['storaged', 'rozofsmount']
+172.19.34.205        ['storaged', 'rozofsmount']
+172.19.34.206        ['storaged', 'rozofsmount']
+172.19.34.207        ['storaged', 'rozofsmount']
+fec4cloud-01         ['exportd'] 
+@end verbatim
+
+You can easily list nodes according to their roles (exportd, storaged or
+rozofsmount) using the -r option.
+
+@c *** Subsection [Get the Status of the Platform]
+@node       Get the Status of a Platform, Stop and Start a Platform, Get the List of Nodes Belonging to a Platform, Using the Rozo Console Manager - Command Line Utility
+@subsection Get the Status of a Platform
+
+To get an overview of the nodes: a RozoFS processes status.
+
+@verbatim
+root@fec4cloud-01:~# rozo status -E 172.19.34.221
+NODE: 172.19.34.208 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.201 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.202 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.203 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.204 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.205 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.206 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: 172.19.34.207 - UP
+ROLE                 STATUS              
+storaged             running             
+rozofsmount          running             
+NODE: fec4cloud-01 - UP
+ROLE                 STATUS              
+exportd              running             
+@end verbatim
+You can easily get nodes status according to their roles using the -r option or
+get statuses for a specific node using the -n option. 
+
+
+@c *** Subsection [Stop and Start a Platform]
+@node       Stop and Start a Platform, View the Platform Configuration, Get the Status of a Platform, Using the Rozo Console Manager - Command Line Utility
+@subsection Stop and Start a Platform
+
+@verbatim
+root@fec4cloud-01:~# rozo stop -E 172.19.34.221
+platform stopped
+@end verbatim
+
+@verbatim
+root@fec4cloud-01:~# rozo start -E 172.19.34.221
+platform started
+@end verbatim
+
+Given the platform described by the rozo node commands above, stop and start
+operations take care of daemons exportd and storaged stopping/starting as well
+as unmounting/mounting the exports 
+configured on every node.
+
+@c *** Subsection [View the Platform Configuration]
+@node       View the Platform Configuration, Extend the Platform, Stop and Start a Platform, Using the Rozo Console Manager - Command Line Utility
+@subsection View the Platform Configuration
+
+@verbatim
+root@fec4cloud-01:~# rozo config -E 172.19.34.221
+NODE: 172.19.34.208 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          8          /srv/rozofs/storages/storage_1_8
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.201 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          1          /srv/rozofs/storages/storage_1_1
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.202 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          2          /srv/rozofs/storages/storage_1_2
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.203 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          3          /srv/rozofs/storages/storage_1_3
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.204 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          4          /srv/rozofs/storages/storage_1_4
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.205 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          5          /srv/rozofs/storages/storage_1_5
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.206 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          6          /srv/rozofs/storages/storage_1_6
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: 172.19.34.207 - UP
+    ROLE: storaged
+        PORTS: [40001, 40002, 40003, 40004]
+        CID        SID        ROOT                          
+        1          7          /srv/rozofs/storages/storage_1_7
+
+    ROLE: rozofsmount
+        NODE                 EXPORT              
+        172.19.34.221        /srv/rozofs/exports/export_1
+
+NODE: fec4cloud-01 - UP
+    ROLE: exportd
+        LAYOUT: 1
+        VOLUME: 1
+            CLUSTER: 1
+                NODE                 SID       
+                172.19.34.201        1         
+                172.19.34.202        2         
+                172.19.34.203        3         
+                172.19.34.204        4         
+                172.19.34.205        5         
+                172.19.34.206        6         
+                172.19.34.207        7         
+                172.19.34.208        8         
+        EID  VID  ROOT                      MD5                       SQUOTA     HQUOTA    
+        1    1    /srv/rozofs/exports/export_1                                      
+@end verbatim
+
+The output of rozo config let us know each node configuration according to its
+role. We especially notice that this platform has one volume with one export
+relying on it.
+
+@c *** Subsection [Extend the Platform]
+@node       Extend the Platform, Add an Export to the Platform, View the Platform Configuration, Using the Rozo Console Manager - Command Line Utility
+@subsection Extend the Platform
+
+Extend the platform is easy (add nodes) with the rozo expand command, for
+example purpose we will add all the nodes already involved in volume 1
+
+@verbatim
+root@fec4cloud-01:~# rozo expand -E 172.19.34.221 172.19.34.201 172.19.34.202 172.19.34.203 172.19.34.204 172.19.34.205 172.19.34.206 172.19.34.207 172.19.34.208
+@end verbatim
+
+As we added nodes without indicating the volume we want to expand, rozo has
+created a new volume (with id 2) as illustrated in the rozo config output
+extract below:
+
+@verbatim
+NODE: fec4cloud-01 - UP
+    ROLE: exportd
+        LAYOUT: 1
+        VOLUME: 1
+            CLUSTER: 1
+                NODE                 SID       
+                172.19.34.201        1         
+                172.19.34.202        2         
+                172.19.34.203        3         
+                172.19.34.204        4         
+                172.19.34.205        5         
+                172.19.34.206        6         
+                172.19.34.207        7         
+                172.19.34.208        8         
+        VOLUME: 2
+            CLUSTER: 2
+                NODE                 SID       
+                172.19.34.201        1         
+                172.19.34.202        2         
+                172.19.34.203        3         
+                172.19.34.204        4         
+                172.19.34.205        5         
+                172.19.34.206        6         
+                172.19.34.207        7         
+                172.19.34.208        8         
+        EID  VID  ROOT                      MD5                       SQUOTA     HQUOTA    
+        1    1    /srv/rozofs/exports/export_1
+@end verbatim
+
+Indication of a volume id (e.g 1) would have resulted in the creation of a new
+cluster in this volume.
+
+@c *** Subsection [Add an Export to the Platform]
+@node       Add an Export to the Platform, , Extend the Platform, Using the Rozo Console Manager - Command Line Utility
+@subsection Extend the Platform
+
+rozo export and unexport commands manage the creation (and deletion) of new exports
+
+@verbatim
+root@fec4cloud-01:~# rozofs export -E 172.19.34.221 1
+@end verbatim
+
+This will create a new export on volume 1, and configure all nodes with a
+rozofsmount role to mount this new export as illustrated in the df output on
+one of the node.
+
+@verbatim
+root@fec4cloud-01:~# df
+Sys. fich.                          1K-blocks  Util. Disponible Uti% Monté sur
+rootfs                                 329233 163343     148892  53% /
+udev                                    10240      0      10240   0% /dev
+tmpfs                                 1639012    328    1638684   1% /run
+/dev/mapper/fec4cloud--01-root         329233 163343     148892  53% /
+tmpfs                                    5120      8       5112   1% /run/lock
+tmpfs                                 3278020  16416    3261604   1% /run/shm
+/dev/mapper/fec4cloud--01-home        4805760 140636    4421004   4% /home
+/dev/mapper/fec4cloud--01-storages  884414828 204964  839284120   1% /srv/rozofs/storages
+/dev/mapper/fec4cloud--01-tmp          376807  10254     347097   3% /tmp
+/dev/mapper/fec4cloud--01-usr         8647944 573772    7634876   7% /usr
+/dev/mapper/fec4cloud--01-var         2882592 307728    2428432  12% /var
+/dev/drbd10                          54045328  38259   51123665   1% /srv/rozofs/exports
+rozofs                             4867164832      0 4867164832   0% /mnt/rozofs@fec4cloud-01/export_1
+rozofs                             4867164832      0 4867164832   0% /mnt/rozofs@fec4cloud-01/export_2
+@end verbatim
+
