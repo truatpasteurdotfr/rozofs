@@ -1,0 +1,54 @@
+\input texinfo @c permet à TeX de charger les macros nécessaires (-> \)
+@setfilename rozofs_users_guide 
+@settitle @dfn{RozoFS} - User's Guide
+
+@c ***** summary and copyright
+@include copyright.texi
+
+@c ***** title, content and copyright (book)
+@titlepage
+@title RozoFS
+@subtitle User's Guide
+@author Sylvain David - @email{sylvain.david@@rozofs.com},
+@author Pierre Evenou - @email{pierre.evenou@@rozofs.com},
+@author Louis Legouriellec - @email{louis.legouriellec@@rozofs.com},
+@author Dimitri Pertin - @email{dimitri.pertin@@rozofs.org}.
+
+@c start copyright
+@page
+@vskip 0pt plus 1filll @c commande TeX
+@insertcopying
+@end titlepage
+
+@contents
+
+@c ***** document body
+@c ***** 'Top' node and master menu
+@ifnottex
+@node Top
+@top RozoFS - User's Guide
+
+@insertcopying
+@end ifnottex
+
+@menu
+* About this Guide::    some words about the guide
+* About RozoFS::        global presentation of RozoFS
+* Building Installing and Configuring RozoFS::
+* Working with RozoFS::
+* Monitoring::
+* Index::
+@end menu
+
+@include about_this_guide.texi
+@include about_rozofs.texi
+@include building_installing_configuring_rozofs.texi
+@include working_with_rozofs.texi
+@include monitoring.texi
+
+@node Index, , Monitoring, Top
+@unnumbered Index
+
+@printindex cp
+
+@bye
