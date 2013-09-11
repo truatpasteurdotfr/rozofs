@@ -741,6 +741,7 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .create = rozofs_ll_create_nb, /** non blocking */
     .getlk = rozofs_ll_getlk_nb,
     .setlk = rozofs_ll_setlk_nb,
+    //.flock = rozofs_ll_flock_nb,
     //.bmap = rozofs_ll_bmap,
     //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,

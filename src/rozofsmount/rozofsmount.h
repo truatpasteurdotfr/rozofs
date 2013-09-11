@@ -277,5 +277,10 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
                         fuse_ino_t ino, 
                         struct fuse_file_info *fi,
                         struct flock *lock,
-			int sleep);       
+			int sleep);      
+
+void rozofs_ll_flock_nb(fuse_req_t req, 
+                              fuse_ino_t ino,
+		              struct fuse_file_info *fi, 
+		              int op);			 
 #endif

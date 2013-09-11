@@ -417,8 +417,6 @@ int do_one_test(int count) {
     return -1;  
   }    
       
-  ret = flockUnflock(fd,FLOCK_MODE_READ);
-  return ret;
 
   for (posRef=SEEK_SET; posRef <= SEEK_END; posRef++) {
 
