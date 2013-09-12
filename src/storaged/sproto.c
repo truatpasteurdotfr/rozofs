@@ -60,7 +60,7 @@ sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     if (storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj, version,
             &ret.sp_write_ret_t_u.file_size,
-            (bin_t *) args->bins.bins_val) != 0) {
+            (bin_t *) args->bins.bins_val) <= 0) {
         ret.sp_write_ret_t_u.error = errno;
         goto out;
     }
@@ -77,7 +77,7 @@ uint64_t sp_bins_buffer[1024 * 64];
 
 sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
-    //uint16_t psize = 0;
+    uint16_t psize = 0;
     storage_t *st = 0;
 
     DEBUG_FUNCTION;
@@ -98,7 +98,7 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
         goto out;
     }
 
-    //psize = rozofs_get_max_psize(args->layout);
+    psize = rozofs_get_max_psize(args->layout);
 
     // Optimisation
     /*

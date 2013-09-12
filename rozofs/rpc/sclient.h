@@ -29,6 +29,7 @@
 typedef struct sclient {
     char host[ROZOFS_HOSTNAME_MAX];
     //sid_t sid;
+    uint32_t ipv4;
     uint32_t port;
     int status;
     rpcclt_t rpcclt;

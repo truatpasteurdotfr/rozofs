@@ -245,13 +245,25 @@ int  north_lbg_attach_application_supervision_callback(int lbg_idx,af_stream_pol
 */
 int  north_lbg_set_application_tmo4supervision(int lbg_idx,int tmo_sec);
 
+int north_lbg_set_next_global_entry_idx_p(int lbg_idx, int * next_global_entry_idx_p);
+
 /*__________________________________________________________________________
 */
 
 int north_lbg_send_from_shaper(int  lbg_idx,void *buf_p);
 /*__________________________________________________________________________
 */
+/**
+*  create a north load balancing object with AF_INET
 
+  @param lbg_idx : reference of the load balancing group
+  @param buf_p: pointer to the buffer to send
+  @param rsp_size : expected response size in byte
+  @param disk_time: estimated disk_time in us
+  
+  retval 0 : success
+  retval -1 : error
+*/
 int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint32_t disk_time)
 ;
 #endif

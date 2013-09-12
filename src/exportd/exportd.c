@@ -762,7 +762,7 @@ static void on_start() {
 
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
+//    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
 
 
     // Change the value of the maximum file descriptor number
@@ -1128,7 +1128,8 @@ int main(int argc, char *argv[]) {
     }
     
     openlog("exportd", LOG_PID, LOG_DAEMON);
-    daemon_start("exportd", 1,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
+    daemon_start("exportd",exportd_config.nb_cores,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
+
 
     exit(0);
 error:

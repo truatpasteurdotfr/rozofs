@@ -82,7 +82,7 @@ uint8_t expgwc_internal_channel_buf_recv[EXPORTDNB_INTERNAL_CHAN_RECV_SZ_MAX];
 *  Display of the state of the current configuration of the exportd
 
  */
-static char localBuf[8192];
+
 static char bufall[1024];
 
 static char *show_expgw_display_configuration_state(char *buffer,int state)
@@ -113,7 +113,7 @@ static char *show_expgw_display_configuration_state(char *buffer,int state)
 */
 void show_expgw_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
    export_expgw_conf_ctx_t *p = export_expgw_conf_table ;
    gw_configuration_t *expgw_conf_p= &expgw_conf_local;
    int i;
@@ -160,7 +160,7 @@ pchar += sprintf(pchar,"---------------------+----------+--------+-------------+
      }
      break;
   } 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 **________________________________________________________________________

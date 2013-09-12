@@ -36,7 +36,7 @@
  uint32_t exportd_configuration_file_hash = 0; /**< hash value of the configuration file */
 
 int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
-        const char *passwd, uint32_t bufsize,
+        const char *passwd, uint32_t bufsize, uint32_t min_read_size,
         uint32_t retries, struct timeval timeout) {
     int status = -1;
     epgw_mount_ret_t *ret = 0;
@@ -44,12 +44,14 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     int i = 0;
     DEBUG_FUNCTION;
 
+
     /* Prepare mount request */
     strncpy(clt->host, host, ROZOFS_HOSTNAME_MAX);
     clt->root = strdup(root);
     clt->passwd = strdup(passwd);
     clt->retries = retries;
     clt->bufsize = bufsize;
+    clt->min_read_size  = min_read_size;
     clt->timeout = timeout;
 
     init_rpcctl_ctx(&clt->rpcclt);    

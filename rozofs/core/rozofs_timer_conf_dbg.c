@@ -26,8 +26,6 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rozofs_timer_conf.h>
 
-static char localBuf[4096];
-
 
 
 /*__________________________________________________________________________
@@ -35,8 +33,8 @@ static char localBuf[4096];
 void dbg_show_tmr(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
 
-   rozofs_tmr_display(localBuf);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+   rozofs_tmr_display(uma_dbg_get_buffer());
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*__________________________________________________________________________
@@ -51,12 +49,17 @@ void dbg_set_tmr(char * argv[], uint32_t tcpRef, void *bufRef)
     uma_dbg_send(tcpRef, bufRef, TRUE, "missing parameter (%s <tmr_idx> <value>)\n",argv[0]);    
     return;     
    }
-   errno = 0;
-   timer_id = (int) strtol(argv[1], (char **) NULL, 10);   
-   if (errno != 0) {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "bad tmr_idx (%s <tmr_idx> <value>) %s\n",argv[0],strerror(errno));    
-    return;     
-   }
+   /* Check 1rst a string name */
+   timer_id = rozofs_tmr_get_idx_from_name(argv[1]);
+   /* Check for an index */
+   if (timer_id < 0) {
+     errno = 0;
+     timer_id = (int) strtol(argv[1], (char **) NULL, 10);   
+     if (errno != 0) {
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bad tmr_idx (%s <tmr_idx> <value>) %s\n",argv[0],strerror(errno));    
+      return;     
+     }
+   }  
    if (timer_id >= TMR_MAX_ENTRY)
    {
     uma_dbg_send(tcpRef, bufRef, TRUE, "invalid tmr_idx (max %d)\n",(TMR_MAX_ENTRY-1));    

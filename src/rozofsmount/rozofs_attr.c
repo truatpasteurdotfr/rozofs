@@ -49,7 +49,6 @@
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
@@ -58,6 +57,7 @@
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/expgw_common.h>
+#include "rozofs_modeblock_cache.h"
 #include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
@@ -378,6 +378,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     epgw_setattr_arg_t arg;
     int     ret;
     void *buffer_p = NULL;
+
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -430,6 +431,14 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       uint64_t bid;
       uint16_t last_seg;
       /*
+      ** flush the entry from the modeblock cache: to goal it to avoid returning
+      ** non zero data when the file has been truncated. Another way to do it was
+      ** to find out the 8K blocks that are impacted, but this implies more complexity
+      ** in the cache management for something with is not frequent. So it is better 
+      ** to flush the entry and keep the performance of the caceh for regular usage
+      */
+      rozofs_mbcache_remove(ie->fid);
+      /*
       ** translate the size in a block index for the storaged
       */
       bid = attr.size / ROZOFS_BSIZE;
@@ -448,6 +457,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       memcpy(args.fid, ie->fid, sizeof (fid_t));
       args.bid      = bid;
       args.last_seg = last_seg;
+//      lbg_id = storcli_lbg_get_lbg_from_fid(ie->fid);
       /*
       ** get the storcli to use for the transaction
       */      

@@ -77,6 +77,7 @@ mpp_status_ret_t *mpp_clear_1_svc(void * args,struct svc_req * req) {
     CLEAR_PROBE(rozofs_ll_create);
     CLEAR_PROBE(rozofs_ll_getlk);
     CLEAR_PROBE(rozofs_ll_setlk);
+    CLEAR_PROBE(rozofs_ll_clearlkowner);
     CLEAR_PROBE(rozofs_ll_ioctl);
 
     ret.status = MPP_SUCCESS;

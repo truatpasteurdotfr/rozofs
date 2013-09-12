@@ -40,6 +40,7 @@
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include "rozofs_fuse.h"
 #include <rpc/rpc.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 
 #if 0
 #include "ruc_common.h"
@@ -498,12 +499,11 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     
     return TRUE;
 }
-static char localBuf[4096];
 
 void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t            buffer_count=0;
   char                status[16];
-  char *pChar = localBuf;
+  char *pChar = uma_dbg_get_buffer();
   
   buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
   /*
@@ -576,7 +576,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   memset (rozofs_write_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*
@@ -641,6 +641,8 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
         status = -1;
         break;
      }
+     ruc_buffer_debug_register_pool("fuseCtx",  rozofs_fuse_ctx_p->fuseReqPoolRef);
+     
      /*
      ** allocate a buffer for receiving the fuse request
      */

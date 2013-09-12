@@ -50,12 +50,13 @@
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/core/rozofs_host2ip.h>
+#include <rozofs/core/ruc_traffic_shaping.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_reload_storage_config.h"
-#include <rozofs/core/ruc_traffic_shaping.h>
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -82,6 +83,7 @@ typedef struct storcli_conf {
     unsigned buf_size;
     unsigned max_retry;
     unsigned dbg_port;
+    unsigned nb_cores; /*< Number of cores to keep on disk */
     unsigned rozofsmount_instance;
     key_t sharedmem_key;
 } storcli_conf;
@@ -104,7 +106,27 @@ uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
 storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
-static char localBuf[8192];
+#define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_STRING_CONFIG(field) \
+  if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
+  else                    pChar += sprintf(pChar,"%-25s = %s\n",#field,conf.field); 
+  
+void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  
+  DISPLAY_STRING_CONFIG(host);
+  DISPLAY_STRING_CONFIG(export);
+  DISPLAY_STRING_CONFIG(passwd);  
+  DISPLAY_STRING_CONFIG(mount);  
+  DISPLAY_UINT32_CONFIG(module_index);
+  DISPLAY_UINT32_CONFIG(buf_size);
+  DISPLAY_UINT32_CONFIG(max_retry);
+  DISPLAY_UINT32_CONFIG(dbg_port);
+  DISPLAY_UINT32_CONFIG(nb_cores);
+  DISPLAY_UINT32_CONFIG(rozofsmount_instance);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}    
+
 
 #define RESET_PROFILER_PROBE(probe) \
 { \
@@ -149,7 +171,7 @@ static char localBuf[8192];
 }
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     time_t elapse;
     int days, hours, mins, secs;
     int reset = 0;
@@ -206,7 +228,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(truncate_prj);
     SHOW_PROFILER_PROBE(truncate_prj_tmo);
     SHOW_PROFILER_PROBE(truncate_prj_err);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
@@ -272,7 +294,7 @@ static char *show_storcli_display_poll_state(char *buffer,int state)
 */
 void show_storcli_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
    storcli_conf_ctx_t *p = &storcli_conf_ctx ;
    rpcclt_t *client_p;
    
@@ -315,7 +337,7 @@ pchar += sprintf(pchar,"---------------------+----------+--------+-------------+
      }
      break;
   } 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*
@@ -358,7 +380,7 @@ char *display_mstorage(mstorage_t *s,char *buffer)
 */
 void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
 
    pchar +=sprintf(pchar," cid  |  sid |      hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
    pchar +=sprintf(pchar,"------+------+----------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
@@ -376,7 +398,7 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
      */
      pchar=display_mstorage(s,pchar);
    }
-   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);      
+   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());      
 }      
 
 /*__________________________________________________________________________
@@ -386,7 +408,7 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
 */
 void storcli_shared_mem(char * argv[], uint32_t tcpRef, void *bufRef)
 {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, " active |     key   |  size   | cnt  |    address     |\n");
     pChar += sprintf(pChar, "--------+-----------+---------+------+----------------+\n");
@@ -397,7 +419,7 @@ void storcli_shared_mem(char * argv[], uint32_t tcpRef, void *bufRef)
                       storcli_rozofsmount_shared_mem.buf_count,
                       storcli_rozofsmount_shared_mem.data_p);
                       
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -470,8 +492,8 @@ static int get_storage_ports(mstorage_t *s) {
     int i = 0;
     mclient_t mclt;
 
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
-    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+    mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+    //memset(io_address, 0, sizeof (io_address));
     strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
 
     struct timeval timeo;
@@ -487,18 +509,21 @@ static int get_storage_ports(mstorage_t *s) {
         goto out;
     } else {
         /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, ports) != 0) {
+        if (mclient_ports(&mclt, io_address) != 0) {
             severe("Warning: failed to get ports for storage (host: %s).\n",
                     s->host);
             goto out;
         }
     }
 
+    
     /* Copy each TCP ports */
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (ports[i] != 0) {
-            strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
-            s->sclients[i].port = ports[i];
+        if (io_address[i].port != 0) {
+	    uint32_t ip = io_address[i].ipv4;
+            sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+	    s->sclients[i].ipv4 = ip;	    
+            s->sclients[i].port = io_address[i].port;
             s->sclients[i].status = 0;
             s->sclients_nb++;
         }
@@ -640,6 +665,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
             conf->export,
             conf->passwd,
             conf->buf_size * 1024,
+            conf->buf_size * 1024,
             conf->max_retry,
             timeout_exportd) != 0) {
         fprintf(stderr,
@@ -659,8 +685,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
 
         mclient_t mclt;
         strcpy(mclt.host, s->host);
-        uint32_t ports[STORAGE_NODE_PORTS_MAX];
-        memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+        mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+        //memset(io_address, 0, sizeof (io_address));
         /*
          ** allocate the load balancing group for the mstorage
          */
@@ -682,19 +708,29 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
                     s->host, strerror(errno));
         } else {
             /* Send request to get storage TCP ports */
-            if (mclient_ports(&mclt, ports) != 0) {
+            if (mclient_ports(&mclt, io_address) != 0) {
                 fprintf(stderr,
                         "Warning: failed to get ports for storage (host: %s).\n"
                         , s->host);
             }
         }
-
+	
+     
         /* Initialize each TCP ports connection with this storage node
          *  (by sproto) */
         for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-            if (ports[i] != 0) {
-                strcpy(s->sclients[i].host, s->host);
-                s->sclients[i].port = ports[i];
+            if (io_address[i].port != 0) {
+	        uint32_t ip= io_address[i].ipv4;
+                
+                if (ip == INADDR_ANY){
+                   // Copy storage hostnane and IP
+                   strcpy(s->sclients[i].host, s->host);
+                   rozofs_host2ip(s->host, &ip);
+                }else{
+                   sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+                }
+		s->sclients[i].ipv4 = ip;
+                s->sclients[i].port = io_address[i].port;
                 s->sclients[i].status = 0;
                 s->sclients_nb++;
             }
@@ -743,6 +779,7 @@ void usage() {
     printf("\t-M,--mount MOUNT_POINT\t\tmount point\n");
     printf("\t-P,--pwd EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) \n");
     printf("\t-D,--dbg DEBUG_PORT\t\tdebug port (default: none) \n");
+    printf("\t-C,--nbcores NB_CORES\t\tnumber of core files to keep on disk (default: 2) \n");
     printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
     printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
     printf("\t-s,--storagetmr \t\t define timeout (s) for IO storaged requests (default: 3)\n");
@@ -770,6 +807,7 @@ int main(int argc, char *argv[]) {
         { "path", required_argument, 0, 'E'},
         { "pwd", required_argument, 0, 'P'},
         { "dbg", required_argument, 0, 'D'},
+        { "nbcores", required_argument, 0, 'C'},
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
@@ -792,14 +830,13 @@ int main(int argc, char *argv[]) {
     storcli_rozofsmount_shared_mem.data_p = NULL; 
         
     storcli_process_filename[0] = 0;
-    rozofs_signals_declare("storcli",1);
-    rozofs_attach_crash_cbk(storlci_handle_signal);
     
     conf.host = NULL;
     conf.passwd = NULL;
     conf.export = NULL;
     conf.mount = NULL;
     conf.module_index = -1;
+    conf.nb_cores = 2;
     conf.buf_size = 256;
     conf.max_retry = 3;
     conf.dbg_port = 0;
@@ -809,7 +846,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:k:c:l:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -852,6 +889,16 @@ int main(int argc, char *argv[]) {
                 }
                 conf.dbg_port = val;
                 break;
+            case 'C':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                conf.nb_cores = val;
+                break;		
             case 'R':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
@@ -934,6 +981,9 @@ int main(int argc, char *argv[]) {
         conf.passwd = strdup("none");
     }
     openlog("storcli", LOG_PID, LOG_DAEMON);
+
+    rozofs_signals_declare("storcli",conf.nb_cores);
+    rozofs_attach_crash_cbk(storlci_handle_signal);
     
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();
@@ -1050,13 +1100,17 @@ int main(int argc, char *argv[]) {
      */
     uma_dbg_addTopic("profiler", show_profiler);
     /*
+     ** add the topic to display the storcli configuration
+     */    
+    uma_dbg_addTopic("start_config", show_start_config);
+    /*
     ** declare timer debug functions
     */
     rozofs_timer_conf_dbg_init();
     /**
-    * init of the traffic shaper in by-pass mode 
+    * init of the traffic shaper
     */
-    trshape_module_init(0);    
+    trshape_module_init(1);    
     /*
      ** main loop
      */

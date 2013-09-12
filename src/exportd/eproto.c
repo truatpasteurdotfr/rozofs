@@ -1439,4 +1439,194 @@ out:
     return &ret;
 }
 
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd set file lock 
 
+    @param args 
+    
+    @retval: EP_SUCCESS : no returned value
+    @retval: EP_FAILURE :error code associated with the operation (errno)
+*/
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd set file lock 
+
+    @param args 
+    
+    @retval: EP_SUCCESS : no returned value
+    @retval: EP_FAILURE :error code associated with the operation (errno)
+*/
+epgw_lock_ret_t * ep_set_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req * req) {
+    static epgw_lock_ret_t ret;
+    int    res;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    START_PROFILING(ep_set_file_lock);
+
+    if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
+        goto error;
+
+    res = export_set_file_lock(exp, (unsigned char *) arg->arg_gw.fid, &arg->arg_gw.lock, &ret.gw_status.ep_lock_ret_t_u.lock);
+    if(res == 0) {
+        ret.gw_status.status = EP_SUCCESS;
+	memcpy(&ret.gw_status.ep_lock_ret_t_u.lock,&arg->arg_gw.lock, sizeof(ep_lock_t));
+        goto out;
+    }
+    if (errno == EWOULDBLOCK) {
+       ret.gw_status.status = EP_EAGAIN;
+       goto out;	
+    } 
+error:    
+    ret.gw_status.status = EP_FAILURE;
+    ret.gw_status.ep_lock_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_set_file_lock);
+    return &ret;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd reset file lock 
+
+    @param args 
+    
+    @retval: EP_SUCCESS : no returned value
+    @retval: EP_FAILURE :error code associated with the operation (errno)
+*/
+epgw_status_ret_t * ep_clear_client_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req * req) {
+    static epgw_status_ret_t ret;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    START_PROFILING(ep_clearclient_flock);
+
+    if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
+        goto error;
+
+    if (export_clear_client_file_lock(exp, &arg->arg_gw.lock) != 0) {
+        goto error;
+    }
+
+    ret.status_gw.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status_gw.status = EP_FAILURE;
+    ret.status_gw.ep_status_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_clearclient_flock);
+    return &ret;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd reset all file locks of an owner 
+
+    @param args 
+    
+    @retval: EP_SUCCESS : no returned value
+    @retval: EP_FAILURE :error code associated with the operation (errno)
+*/
+epgw_status_ret_t * ep_clear_owner_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req * req) {
+    static epgw_status_ret_t ret;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    START_PROFILING(ep_clearowner_flock);
+
+    if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
+        goto error;
+
+    if (export_clear_owner_file_lock(exp, (unsigned char *) arg->arg_gw.fid, &arg->arg_gw.lock) != 0) {
+        goto error;
+    }
+
+    ret.status_gw.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status_gw.status = EP_FAILURE;
+    ret.status_gw.ep_status_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_clearowner_flock);
+    return &ret;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd set file lock 
+
+    @param args 
+    
+    @retval: EP_SUCCESS : no returned value
+    @retval: EP_FAILURE :error code associated with the operation (errno)
+*/
+epgw_lock_ret_t * ep_get_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req * req) {
+    static epgw_lock_ret_t ret;
+    int    res;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    START_PROFILING(ep_get_file_lock);
+
+    if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
+        goto error;
+
+    res = export_get_file_lock(exp, (unsigned char *) arg->arg_gw.fid, &arg->arg_gw.lock, &ret.gw_status.ep_lock_ret_t_u.lock);
+    if(res == 0) {
+        ret.gw_status.status = EP_SUCCESS;
+	memcpy(&ret.gw_status.ep_lock_ret_t_u.lock,&arg->arg_gw.lock, sizeof(ep_lock_t));
+        goto out;
+    }
+    if (errno == EWOULDBLOCK) {
+       ret.gw_status.status = EP_EAGAIN;
+       goto out;	
+    } 
+error:
+    ret.gw_status.status = EP_FAILURE;
+    ret.gw_status.ep_lock_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_get_file_lock);
+    return &ret;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd poll file lock 
+
+    @param args 
+    
+    @retval: EP_SUCCESS : no returned value
+    @retval: EP_FAILURE :error code associated with the operation (errno)
+*/
+epgw_status_ret_t * ep_poll_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req * req) {
+    static epgw_status_ret_t ret;
+    export_t *exp;
+    DEBUG_FUNCTION;
+
+    START_PROFILING(ep_poll_file_lock);
+
+    if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
+        goto error;
+
+    if (export_poll_file_lock(exp, &arg->arg_gw.lock) != 0) {
+        goto error;
+    }
+
+    ret.status_gw.status = EP_SUCCESS;
+    goto out;
+error:
+    ret.status_gw.status = EP_FAILURE;
+    ret.status_gw.ep_status_ret_t_u.error = errno;
+out:
+    STOP_PROFILING(ep_poll_file_lock);
+    return &ret;
+}

@@ -45,6 +45,7 @@
 #define EMD5        "md5"
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
+#define ECORES     "nbCores"
 /*
 ** constant for exportd gateways
 */
@@ -672,9 +673,10 @@ int econfig_read(econfig_t *config, const char *fname) {
     // Check version of libconfig
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-    int layout;
+    int layout, nbCores;
 #else
-    long int layout;
+
+    long int layout, nbCores;
 #endif
 
     DEBUG_FUNCTION;
@@ -686,7 +688,14 @@ int econfig_read(econfig_t *config, const char *fname) {
         severe("can't read %s : %s.", fname, config_error_text(&cfg));
         goto out;
     }
-
+    
+    if (!config_lookup_int(&cfg, ECORES, &nbCores)) {
+       config->nb_cores = 2;
+    }
+    else {
+       config->nb_cores = nbCores;
+    }
+    
     if (!config_lookup_int(&cfg, ELAYOUT, &layout)) {
         errno = ENOKEY;
         severe("can't lookup layout setting.");

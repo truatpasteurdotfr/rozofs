@@ -83,6 +83,7 @@ static int read_pid(const char *name, int *pid) {
 out:
     return status;
 }
+
 #if 0
 static void daemon_handle_signal(int sig) {
     DEBUG_FUNCTION;
@@ -111,6 +112,9 @@ static void daemon_handle_signal(int sig) {
     }
 }
 #endif
+static void remove_pid_file(int sig) {
+  unlink(pid_file);
+}
 void daemon_start(char * path, int nbCoreFiles, const char *name, void (*on_start) (void),
         void (*on_stop) (void), void (*on_hup) (void)) {
     int pid;
@@ -128,14 +132,16 @@ void daemon_start(char * path, int nbCoreFiles, const char *name, void (*on_star
         return;
     }
     
-    rozofs_signals_declare (path,nbCoreFiles);   
-    if (on_stop) rozofs_attach_crash_cbk((rozofs_attach_crash_cbk_t)on_stop);
-    if (on_hup)  rozofs_attach_hgup_cbk((rozofs_attach_crash_cbk_t)on_hup);
+    rozofs_signals_declare (path,nbCoreFiles); 
 
     if (write_pid(name) != 0) {
         fatal("write_pid failed: %s", strerror(errno));
         return;
-    }
+    }    
+    rozofs_attach_crash_cbk(remove_pid_file);
+          
+    if (on_stop) rozofs_attach_crash_cbk((rozofs_attach_crash_cbk_t)on_stop);
+    if (on_hup)  rozofs_attach_hgup_cbk((rozofs_attach_crash_cbk_t)on_hup);
     
     on_start();
 }

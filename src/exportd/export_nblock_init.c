@@ -72,8 +72,6 @@ DECLARE_PROFILING(epp_profiler_t);
 */
 
 
-static char localBuf[8192]; 
-
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.probe[P_COUNT],\
@@ -87,12 +85,117 @@ static char localBuf[8192];
                     gprofiler.probe[P_ELAPSE],\
                     gprofiler.probe[P_BYTES]);
 
+#define RESET_PROFILER_PROBE(probe) \
+{ \
+         gprofiler.probe[P_COUNT] = 0;\
+         gprofiler.probe[P_ELAPSE] = 0; \
+}
 
+#define RESET_PROFILER_PROBE_BYTE(probe) \
+{ \
+   RESET_PROFILER_PROBE(probe);\
+   gprofiler.probe[P_BYTES] = 0; \
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
+
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) {
+	RESET_PROFILER_PROBE(ep_mount);
+	RESET_PROFILER_PROBE(ep_umount);
+	RESET_PROFILER_PROBE(ep_statfs);
+	RESET_PROFILER_PROBE(ep_lookup);
+	RESET_PROFILER_PROBE(ep_getattr);
+	RESET_PROFILER_PROBE(ep_setattr);
+	RESET_PROFILER_PROBE(ep_readlink);
+	RESET_PROFILER_PROBE(ep_mknod);
+	RESET_PROFILER_PROBE(ep_mkdir);
+	RESET_PROFILER_PROBE(ep_unlink);
+	RESET_PROFILER_PROBE(ep_rmdir);
+	RESET_PROFILER_PROBE(ep_symlink);
+	RESET_PROFILER_PROBE(ep_rename);
+	RESET_PROFILER_PROBE(ep_readdir);
+	RESET_PROFILER_PROBE_BYTE(ep_read_block);
+	RESET_PROFILER_PROBE_BYTE(ep_write_block);
+	RESET_PROFILER_PROBE(ep_link);
+	RESET_PROFILER_PROBE(ep_setxattr);
+	RESET_PROFILER_PROBE(ep_getxattr);
+	RESET_PROFILER_PROBE(ep_removexattr);
+	RESET_PROFILER_PROBE(ep_listxattr);
+	RESET_PROFILER_PROBE(export_lv1_resolve_entry);
+	RESET_PROFILER_PROBE(export_lv2_resolve_path);
+	RESET_PROFILER_PROBE(export_lookup_fid);
+	RESET_PROFILER_PROBE(export_update_files);
+	RESET_PROFILER_PROBE(export_update_blocks);
+	RESET_PROFILER_PROBE(export_stat);
+	RESET_PROFILER_PROBE(export_lookup);
+	RESET_PROFILER_PROBE(export_getattr);
+	RESET_PROFILER_PROBE(export_setattr);
+	RESET_PROFILER_PROBE(export_link);
+	RESET_PROFILER_PROBE(export_mknod);
+	RESET_PROFILER_PROBE(export_mkdir);
+	RESET_PROFILER_PROBE(export_unlink);
+	RESET_PROFILER_PROBE(export_rmdir);
+	RESET_PROFILER_PROBE(export_symlink);
+	RESET_PROFILER_PROBE(export_readlink);
+	RESET_PROFILER_PROBE(export_rename);
+	RESET_PROFILER_PROBE_BYTE(export_read);
+	RESET_PROFILER_PROBE(export_read_block);
+	RESET_PROFILER_PROBE(export_write_block);
+	RESET_PROFILER_PROBE(export_setxattr);
+	RESET_PROFILER_PROBE(export_getxattr);
+	RESET_PROFILER_PROBE(export_removexattr);
+	RESET_PROFILER_PROBE(export_listxattr);
+	RESET_PROFILER_PROBE(export_readdir);
+	RESET_PROFILER_PROBE(lv2_cache_put);
+	RESET_PROFILER_PROBE(lv2_cache_get);
+	RESET_PROFILER_PROBE(lv2_cache_del);
+	RESET_PROFILER_PROBE(volume_balance);
+	RESET_PROFILER_PROBE(volume_distribute);
+	RESET_PROFILER_PROBE(volume_stat);
+	RESET_PROFILER_PROBE(mdir_open);
+	RESET_PROFILER_PROBE(mdir_close);
+	RESET_PROFILER_PROBE(mdir_read_attributes);
+	RESET_PROFILER_PROBE(mdir_write_attributes);
+	RESET_PROFILER_PROBE(mreg_open);
+	RESET_PROFILER_PROBE(mreg_close);
+	RESET_PROFILER_PROBE(mreg_read_attributes);
+	RESET_PROFILER_PROBE(mreg_write_attributes);
+	RESET_PROFILER_PROBE(mreg_read_dist);
+	RESET_PROFILER_PROBE(mreg_write_dist);
+	RESET_PROFILER_PROBE(mslnk_open);
+	RESET_PROFILER_PROBE(mslnk_close);
+	RESET_PROFILER_PROBE(mslnk_read_attributes);
+	RESET_PROFILER_PROBE(mslnk_write_attributes);
+	RESET_PROFILER_PROBE(mslnk_read_link);
+	RESET_PROFILER_PROBE(mslnk_write_link);
+	RESET_PROFILER_PROBE(get_mdirentry);
+	RESET_PROFILER_PROBE(put_mdirentry);
+	RESET_PROFILER_PROBE(del_mdirentry);
+	RESET_PROFILER_PROBE(list_mdirentries);
+	RESET_PROFILER_PROBE(gw_invalidate);
+	RESET_PROFILER_PROBE(gw_invalidate_all);
+	RESET_PROFILER_PROBE(gw_configuration);
+	RESET_PROFILER_PROBE(gw_poll);              
+	RESET_PROFILER_PROBE(export_clearclient_flock)
+	RESET_PROFILER_PROBE(export_clearowner_flock)
+	RESET_PROFILER_PROBE(export_set_file_lock);
+	RESET_PROFILER_PROBE(export_get_file_lock);
+	RESET_PROFILER_PROBE(export_poll_file_lock);        
+	RESET_PROFILER_PROBE(ep_clearclient_flock);
+	RESET_PROFILER_PROBE(ep_clearowner_flock);
+	RESET_PROFILER_PROBE(ep_set_file_lock);
+	RESET_PROFILER_PROBE(ep_get_file_lock);    
+	RESET_PROFILER_PROBE(ep_poll_file_lock); 
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
+	return;
+      }
+    }  
+
 
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);
@@ -100,7 +203,6 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     hours = (int) ((elapse / 3600) - (days * 24));
     mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
-
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers, days, hours, mins, secs);
     pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
@@ -183,13 +285,23 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_invalidate_all);
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    SHOW_PROFILER_PROBE(export_clearclient_flock)
+    SHOW_PROFILER_PROBE(export_clearowner_flock)
+    SHOW_PROFILER_PROBE(export_set_file_lock);
+    SHOW_PROFILER_PROBE(export_get_file_lock);
+    SHOW_PROFILER_PROBE(export_poll_file_lock);        
+    SHOW_PROFILER_PROBE(ep_clearclient_flock);
+    SHOW_PROFILER_PROBE(ep_clearowner_flock);
+    SHOW_PROFILER_PROBE(ep_set_file_lock);
+    SHOW_PROFILER_PROBE(ep_get_file_lock);    
+    SHOW_PROFILER_PROBE(ep_poll_file_lock); 
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 
 void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
     pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       \n");
@@ -200,12 +312,12 @@ void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -254,7 +366,14 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(gw_invalidate_all);
     SHOW_PROFILER_PROBE(gw_configuration);
     SHOW_PROFILER_PROBE(gw_poll);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    
+    SHOW_PROFILER_PROBE(ep_clearclient_flock);
+    SHOW_PROFILER_PROBE(ep_clearowner_flock);
+    SHOW_PROFILER_PROBE(ep_set_file_lock);
+    SHOW_PROFILER_PROBE(ep_get_file_lock);    
+    SHOW_PROFILER_PROBE(ep_poll_file_lock); 
+       
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 *_______________________________________________________________________
@@ -269,7 +388,7 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int i, j;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
@@ -297,7 +416,7 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
         pbuf += sprintf(pbuf, "\n");
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 *_______________________________________________________________________
@@ -312,7 +431,7 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int i;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
@@ -323,7 +442,7 @@ void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
         pbuf+=sprintf(pbuf, "\n");
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
 *_______________________________________________________________________
@@ -338,7 +457,7 @@ void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int i,j;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
@@ -357,7 +476,7 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
         pbuf+=sprintf(pbuf, "\n");
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
  *_______________________________________________________________________
@@ -372,7 +491,7 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
   @retval none
 */
 void show_vfstat_eid(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pbuf = localBuf;
+    char *pbuf = uma_dbg_get_buffer();
     int j;
 
         pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid","Vid", "Bsize","Blocks", "Bfree", "Files", "Ffree");
@@ -388,7 +507,39 @@ void show_vfstat_eid(char * argv[], uint32_t tcpRef, void *bufRef) {
         }
         pbuf+=sprintf(pbuf, "\n");
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   LV2 cache statistics
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_lv2_attribute_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
+  lv2_cache_display( &cache, uma_dbg_get_buffer());
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   file lock
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
+  display_file_lock(uma_dbg_get_buffer());
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 // For trace purpose
@@ -633,7 +784,8 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
     uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
     uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
-    
+    uma_dbg_addTopic("lv2_cache",show_lv2_attribute_cache);
+    uma_dbg_addTopic("flock",    show_flock);
     expgwc_non_blocking_thread_started = 1;
     
     info("exportd non-blocking thread started (instance: %d, port: %d).",

@@ -26,13 +26,12 @@
 #include "rozofsmount.h"
 #include <rozofs/core/ruc_buffer_api.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 #include "rozofs_sharedmem.h"
 /**
 * array used for storing information related to the storcli shared memory
 */
 rozofs_shared_pool_t rozofs_storcli_shared_mem[STORCLI_PER_FSMOUNT];
-
-static char localBuf[8192];
 
 /*__________________________________________________________________________
 */
@@ -41,7 +40,7 @@ static char localBuf[8192];
 */
 void rozofs_shared_mem_display(char * argv[], uint32_t tcpRef, void *bufRef)
 {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     int i;
 
 
@@ -56,7 +55,7 @@ void rozofs_shared_mem_display(char * argv[], uint32_t tcpRef, void *bufRef)
                       (long long unsigned int)rozofs_storcli_shared_mem[i].read_stats);    
     
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 /*
@@ -87,6 +86,13 @@ int rozofs_create_shared_memory(int key_instance,int storcli_idx,uint32_t buf_nb
    rozofs_storcli_shared_mem[storcli_idx].buf_count    = buf_nb;
    rozofs_storcli_shared_mem[storcli_idx].pool_p = ruc_buf_poolCreate_shared(buf_nb,buf_sz,key);
    if (rozofs_storcli_shared_mem[storcli_idx].pool_p == NULL) return -1;
+   switch(storcli_idx) {
+     case 0: ruc_buffer_debug_register_pool("storcli_0_shared",  rozofs_storcli_shared_mem[storcli_idx].pool_p); break;
+     case 1: ruc_buffer_debug_register_pool("storcli_1_shared",  rozofs_storcli_shared_mem[storcli_idx].pool_p); break;
+     case 2: ruc_buffer_debug_register_pool("storcli_2_shared",  rozofs_storcli_shared_mem[storcli_idx].pool_p); break;
+     default:
+       break;
+   }  
    rozofs_storcli_shared_mem[storcli_idx].data_p = ruc_buf_get_pool_base_data(rozofs_storcli_shared_mem[storcli_idx].pool_p);
    return 0;
   

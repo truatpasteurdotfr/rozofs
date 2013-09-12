@@ -48,14 +48,27 @@ uint64_t stclbg_hash_lookup_miss_count;
 uint64_t stclbg_hash_lookup_insert_count;
 /*
  **____________________________________________________
+ *
+ * Set the number of STORCLI
+ *
+ * @param nb number of expected STORCLI
+ *
+ * retval -1 in invalid number is given 0 else
  */
-static char localBuf[4096];
+int stclbg_set_storcli_number (int nb) {
+  if ((nb > STORCLI_PER_FSMOUNT) || (nb <= 0)) return -1;
+  stclbg_storcli_count = nb;   
+  stclbg_next_idx      = 0;
+} 
+ /*
+ **____________________________________________________
+ */
 
 #define TRAFFIC_SHAPER_COUNTER(name) pchar += sprintf(pchar," %-20s : %llu\n",#name,(long long unsigned int)p->stats.name);
 
 void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
     int storcli_count = 0;
     int i;
     
@@ -75,18 +88,10 @@ void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef)
          uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (%s set <value>) %s\n",argv[0],strerror(errno));    
          return;     
         } 
-        if ( storcli_count > STORCLI_PER_FSMOUNT)
-        {
-         uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (max is %d)\n",STORCLI_PER_FSMOUNT);    
+	if (stclbg_set_storcli_number(storcli_count) < 0) {
+         uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (range is [1..%d])\n",STORCLI_PER_FSMOUNT);    
          return;
         } 
-        if ( storcli_count ==  0)
-        {
-         uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count: unsupported value(range: 1..%d)\n",1,STORCLI_PER_FSMOUNT);    
-         return;             
-        }
-        stclbg_storcli_count = storcli_count; 
-        stclbg_next_idx = 0;
         memset(stclbg_storcli_stats,0,sizeof(stclbg_storcli_stats));  
         uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n"); 
         return;   
@@ -100,7 +105,7 @@ void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef)
      (long long unsigned int) stclbg_hash_lookup_miss_count,
      (long long unsigned int) stclbg_hash_lookup_insert_count);
 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*
  **____________________________________________________

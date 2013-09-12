@@ -51,6 +51,9 @@
 #include <rozofs/rozofs_timer_conf.h>
 DECLARE_PROFILING(stcpp_profiler_t);
 
+
+uint8_t stc_rotate_distribution = 0;
+
 /*
 **__________________________________________________________________________
 */
@@ -477,6 +480,9 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   int i;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
+  uint8_t used_dist_set[ROZOFS_SAFE_MAX];
+  uint8_t rotate_modulo;
+
      
   storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
   /*
@@ -503,6 +509,21 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
     */
     goto end ;
   }  
+  
+  /*
+  ** Rotate the distribution set for using all the first forward storages
+  */ 
+#if 1
+  stc_rotate_distribution++;
+  for (i = 0; i  <rozofs_forward ; i ++)
+  {
+    rotate_modulo = (i + stc_rotate_distribution) % rozofs_forward;
+    used_dist_set[i] = storcli_read_rq_p->dist_set[rotate_modulo];     
+  } 
+  for (; i  <rozofs_safe ; i ++) {
+    used_dist_set[i] = storcli_read_rq_p->dist_set[i];     
+  } 
+#endif  
   /*
   ** init of the load balancing group/ projection association table with the state of each lbg
   ** search in the current distribution the relative reference of the storage
@@ -519,7 +540,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
     /*
     ** Get the load balancing group associated with the sid
     */
-    int lbg_id = rozofs_storcli_get_lbg_for_sid(storcli_read_rq_p->cid,storcli_read_rq_p->dist_set[i]);
+    int lbg_id = rozofs_storcli_get_lbg_for_sid(storcli_read_rq_p->cid,used_dist_set[i]);
     if (lbg_id < 0)
     {
       /*
@@ -527,12 +548,12 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
       ** when a new cluster has been added to the configuration and the client does not
       ** know yet the configuration change
       */
-      severe("sid is unknown !! %d\n",storcli_read_rq_p->dist_set[i]);
+      severe("sid is unknown !! %d\n",used_dist_set[i]);
       continue;    
     }
     rozofs_storcli_lbg_prj_insert_lbg_and_sid(working_ctx_p->lbg_assoc_tb,lbg_in_distribution,
                                               lbg_id,
-                                              storcli_read_rq_p->dist_set[i]);   
+                                              used_dist_set[i]);   
     rozofs_storcli_lbg_prj_insert_lbg_state(lbg_assoc_p,
                                             lbg_in_distribution,
                                             NORTH_LBG_GET_STATE(lbg_assoc_p[lbg_in_distribution].lbg_id));    
@@ -1545,12 +1566,18 @@ void rozofs_storcli_stop_read_guard_timer(rozofs_storcli_ctx_t  *p)
   
    @param param: Not significant
 */
+static uint64_t ticker_count = 0;
 void rozofs_storcli_periodic_ticker(void * param) 
 {
    ruc_obj_desc_t   *bucket_head_p;
    rozofs_storcli_ctx_t   *read_ctx_p;
    ruc_obj_desc_t  *timer;
    int bucket_idx;
+   
+   ticker_count += 100;
+   if (ticker_count < ROZOFS_TMR_GET(TMR_PRJ_READ_SPARE)) return;
+   
+   ticker_count = 0;
    
    bucket_idx = rozofs_storcli_read_clk.bucket_cur;
    bucket_idx = (bucket_idx+1)%ROZOFS_STORCLI_TIMER_BUCKET;

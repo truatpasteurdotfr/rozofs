@@ -28,11 +28,14 @@ process_killer () {
   then
     for pid in `cat /var/run/$1* `
     do
-      kill  $pid
+      kill $pid
     done
-    sleep 1.5
+  else
+    return  
   fi
-    
+
+  sleep 2
+      
   if ls /var/run/$1* > /dev/null 2>&1
   then   
     for pid in `cat /var/run/$1* `
@@ -109,27 +112,23 @@ gen_storage_conf ()
            touch $FILE
            echo "#${NAME_LABEL}" >> $FILE
            echo "#${DATE_LABEL}" >> $FILE
-           #echo "ports = [ 51000, 51001] ;" >> $FILE
-	   PORT_LIST="51001"
-	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
-	   done
-	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	   
-           echo 'storages = (' >> $FILE
+	   
+	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
+	   printf "nbCores = $NB_CORES;\n" >> $FILE
+	   
+	   printf "listen = ( \n" >> $FILE
+	   printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
 
-                z=0
-	       for cluster in $(seq ${nb_clusters}); do
-		   for storage in $(seq ${STORAGES_BY_CLUSTER}); do
-		      z=$((z+1))
-		      if [[ ${cluster} == ${nb_clusters} && ${storage} == ${STORAGES_BY_CLUSTER} ]]
-		      then
-		        echo "  {cid = $cluster; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$cluster-$z\";}" >> $FILE
-		      else
-		        echo "  {cid = $cluster; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$cluster-$z\";}," >> $FILE
-		      fi
-		   done
-	       done     	   
-#	   echo "  {cid = $i; sid = ${sid}; root =\"${LOCAL_STORAGES_ROOT}_$i-${sid}\";}" >> $FILE
+       # Test for special character "*"
+	   #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
+
+           for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+	      printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000;}" 
+	   done >>  $FILE  
+	   printf "\n);\n" >>  $FILE   
+	        
+           echo 'storages = (' >> $FILE
+           echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\";}" >> $FILE
            echo ');' >> $FILE
 	done; 
     done;
@@ -165,6 +164,7 @@ gen_export_gw_conf ()
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE    
+    echo "nbCores = $NB_CORES;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -337,7 +337,8 @@ start_one_storage()
     sid=$1
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
     echo "Start storage cid $cid sid $sid"
-   ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+   ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+   sleep 1
 }
 
 stop_one_storage () {
@@ -349,6 +350,7 @@ stop_one_storage () {
 }   
 reset_one_storage () {
   stop_one_storage $1
+  sleep 1
   start_one_storage $1
 }
 # $1 = STORAGES_BY_CLUSTER
@@ -367,7 +369,8 @@ start_storaged ()
 	   for j in $(seq ${STORAGES_BY_CLUSTER}); do
 	      sid=$((sid+1))
               echo "start storaged" ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
-              ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+echo ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON}
+              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
            done
 	done
     done
@@ -375,8 +378,17 @@ start_storaged ()
 
 stop_storaged()
 {
-    echo "Stopping the storaged"
-    process_killer storaged 
+   echo "Stopping the storaged"
+   sid=0
+    
+   for v in $(seq ${NB_VOLUMES}); do
+     for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+       for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	 sid=$((sid+1))
+	 stop_one_storage $sid
+       done
+    done
+  done   
 }
 reload_storaged ()
 {
@@ -435,6 +447,12 @@ remove_storages ()
 }
 start_one_expgw ()
 {
+
+  if [ ! -f   ${LOCAL_BINARY_DIR}/exportd/expgateway ];
+  then
+    return
+  fi
+  
   case $1 in
     "all") start_expgw; return;;
   esac  
@@ -455,6 +473,11 @@ start_expgw ()
 }
 stop_one_expgw () {
 
+  if [ ! -f   ${LOCAL_BINARY_DIR}/exportd/expgateway ];
+  then
+    return
+  fi
+  
    case $1 in
      "all") stop_expgw; return;;
    esac  
@@ -517,7 +540,11 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
+               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+	       option="$option -o nbcores=$NB_CORES"
+	       option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
+	       option="$option -o rozofsnbstorcli=$NB_STORCLI"
+	       
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -718,11 +745,31 @@ do_listCore() {
   fi    
 } 
 do_removeCore() {
-  if [ -d $COREDIR ];
+  shift 1
+  if [ ! -d $COREDIR ];
   then
-    cd $COREDIR
+    return
+  fi  
+  cd $COREDIR
+  
+  case "$1" in
+    all) {
+      for dir in `ls `
+      do
+        for file in `ls $dir`
+        do
+          unlink $dir/$file
+        done
+      done
+      return
+    };;
+  esac
+    
+  while [ ! -z "$1" ];
+  do
     unlink $1
-  fi    
+    shift 1
+  done  
 }   
 do_debugCore () {
   name=`echo $1 | awk -F'/' '{ print $1}'`
@@ -732,9 +779,11 @@ do_debugCore () {
 }
 do_core () 
 {
+  shift 1
+  
   case "$1" in
   "")       do_listCore;;
-  "remove") do_removeCore $2;;
+  "remove") do_removeCore $*;;
   *)        do_debugCore $1;;
   esac      
 }
@@ -819,7 +868,7 @@ usage ()
     echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
     echo >&2 "$0 export             <stop|start|reset> "
     echo >&2 "$0 fsmount            <stop|start|reset> "
-    echo >&2 "$0 core     <remove>  <coredir/corefile> "
+    echo >&2 "$0 core    [<remove>] <coredir/corefile> "
     echo >&2 "$0 process"    
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
@@ -887,19 +936,19 @@ show_process () {
     fi    
   done  
   printf "\n"
-  printf " cid sid storaged          storios........\n"
+  printf " cid sid storaged     storio\n"
   for sid in $(seq 16)
   do
   
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))  
-    name=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
+    std=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
 
-    if ls $name*.pid > /dev/null 2>&1
+    if ls stor*_${LOCAL_STORAGE_NAME_BASE}$sid.pid > /dev/null 2>&1
     then
 
       printf " %3d %3d " $cid $sid
 
-      file=$name.pid
+      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
       if [ -f $file ];
       then
 	proc=`cat $file`
@@ -908,15 +957,14 @@ show_process () {
 	printf "     --      "         
       fi 
 
-      for file in $name:*.pid
-      do
-	if [ -f $file ];
-	then
-          proc=`cat $file`
-	  port=`echo $file | awk -F':' '{print $2}' | awk -F'.' '{print $1}'`
-          printf "[%6d:%6d] " $port $proc
-	fi
-      done 
+      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
+      if [ -f $file ];
+      then
+	proc=`cat $file`
+	printf " %6d     " $proc 
+      else
+	printf "     --      "         
+      fi 
       printf "\n"   
     fi   
   done
@@ -939,6 +987,9 @@ show_process () {
 
 main ()
 {
+    storaged_dir="storaged"
+
+        
     [ $# -lt 1 ] && usage
 
     # to reach storcli executable
@@ -946,17 +997,23 @@ main ()
     # to reach storcli_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
     # to reach storio executable
-    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storaged
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
     # to reach storio_starter.sh  
-    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/storaged
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/$storaged_dir
 
     set_layout 0
 
-    NB_EXPORTS=1;
-    NB_VOLUMES=1;
-    NB_CLUSTERS_BY_VOLUME=1;
-    NB_PORTS_PER_STORAGE_HOST=4;
-    
+    NB_EXPORTS=1
+    NB_VOLUMES=1
+    NB_CLUSTERS_BY_VOLUME=1
+    NB_DISK_THREADS=3
+    NB_CORES=4
+    WRITE_FILE_BUFFERING_SIZE=256
+    NB_STORCLI=1
+
+    #READ_FILE_MINIMUM_SIZE=8
+    READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
+
     ulimit -c unlimited
 
     if [ "$1" == "start" ]
@@ -984,10 +1041,10 @@ main ()
     elif [ "$1" == "stop" ]
     then
            do_stop
-	   
+
     elif [ "$1" == "core" ]
     then
-           do_core $2 $3
+           do_core $*	   
     elif [ "$1" == "pause" ]
     then
            do_pause

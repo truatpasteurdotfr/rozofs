@@ -374,6 +374,7 @@ error:
        int xerrno = errno;
 //       free(file->storages);
        free(file->buffer);
+       file->chekWord = 0;
        free(file);
        errno = xerrno;      
     }

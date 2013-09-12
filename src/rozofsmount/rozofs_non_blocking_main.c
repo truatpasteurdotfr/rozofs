@@ -9,7 +9,7 @@
   Rozofs is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
+  General Public License for morozofs_fuse_initre details.
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
@@ -64,6 +64,7 @@ pthread_t heartbeat_thrdId;
 
 int module_test_id = 0;
 
+void rozofs_flock_service_init(void) ;
 
 /**
 *  Init of the module that deals with the export gateways
@@ -230,7 +231,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
         ret = north_lbg_module_init(mx_lbg_north_ctx);
         if (ret != RUC_OK) break;
 
-        ret = rozofs_tx_module_init(args_p->max_transactions, // transactions count
+        ret = rozofs_tx_module_init(args_p->max_transactions+32, // fuse trx + internal trx
                 args_p->max_transactions, 2048, // xmit small [count,size]
                 args_p->max_transactions, (1024 * 258), // xmit large [count,size]
                 args_p->max_transactions, 1024, // recv small [count,size]
@@ -265,7 +266,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      ** init of the stats module
      */
     //     rozofs_stats_init();
-
+    rozofs_flock_service_init();
 
     return ret;
 }
@@ -329,7 +330,7 @@ int rozofs_stat_start(void *args) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
     
-    rozofs_signals_declare("rozofsmount", 1);
+    rozofs_signals_declare("rozofsmount",  args_p->nb_cores);
     
     /*
      ** main loop

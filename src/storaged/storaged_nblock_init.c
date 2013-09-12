@@ -53,10 +53,12 @@
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
+#include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
 
 #include "storaged_nblock_init.h"
+#include "storaged_north_intf.h"
 
 DECLARE_PROFILING(spp_profiler_t);
 
@@ -65,24 +67,6 @@ DECLARE_PROFILING(spp_profiler_t);
  *      PUBLIC FUNCTIONS
  **_________________________________________________________________________
  */
-
-
-static char localBuf[8192];
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-    time_t elapse;
-    int days, hours, mins, secs;
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}      
-
 
 
 #define sp_display_probe(the_profiler, the_probe)\
@@ -99,7 +83,12 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
                 #the_probe, the_profiler.the_probe[P_COUNT], \
                 rate, cpu);\
     }
-
+#define sp_clear_probe(the_profiler, the_probe)\
+    {\
+      the_profiler.the_probe[P_COUNT] = 0;\
+      the_profiler.the_probe[P_ELAPSE] = 0;\
+    }
+    
 #define sp_display_io_probe(the_profiler, the_probe)\
     {\
         uint64_t rate;\
@@ -118,12 +107,22 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     }
 
 static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
 
 
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) {
+	sp_clear_probe(gprofiler, stat);
+	sp_clear_probe(gprofiler, ports);
+	sp_clear_probe(gprofiler, remove);
+	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
+	return;      
+      }
+    }
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);
     days = (int) (elapse / 86400);
@@ -146,38 +145,7 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
     sp_display_probe(gprofiler, stat);
     sp_display_probe(gprofiler, ports);
     sp_display_probe(gprofiler, remove);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}
-
-static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, void *bufRef) {
-
-    char *pChar = localBuf;
-
-    time_t elapse;
-    int days, hours, mins, secs;
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-
-
-    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n\n", gprofiler.vers, days, hours, mins, secs);
-
-
-    // Print header for operations profiling values for storaged
-    pChar += sprintf(pChar, " %-16s | %-12s | %-12s | %-12s | %-12s | %-16s |\n", "OP",
-            "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MB/s)");
-    pChar += sprintf(pChar, "------------------+--------------+--------------+--------------+--------------+------------------+\n");
-
-
-    // Print master storaged process profiling values
-    sp_display_io_probe(gprofiler, read);
-    sp_display_io_probe(gprofiler, write);
-    sp_display_io_probe(gprofiler, truncate);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
@@ -241,6 +209,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
     uint32_t mx_tcp_server = 2;
     uint32_t mx_tcp_server_cnx = 10;
     uint32_t local_ip = INADDR_ANY;
+    uint32_t        mx_af_unix_ctx = 512;
 
     if (arg_p->hostname[0] != 0) {
         host2ip(arg_p->hostname, &local_ip);
@@ -255,39 +224,13 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
      ** trace buffer initialization
      */
     ruc_traceBufInit();
-#if 1
-    /*
-     ** Not needed since there is already done
-     ** by libUtil
-     */
-
-    /* catch the sigpipe signal for socket 
-     ** connections with RELC(s) in this way when a RELC
-     ** connection breaks an errno is set on a recv or send 
-     **  socket primitive 
-     */
-    struct sigaction sigAction;
-
-    sigAction.sa_flags = SA_RESTART;
-    sigAction.sa_handler = SIG_IGN; /* Mask SIGPIPE */
-    if (sigaction(SIGPIPE, &sigAction, NULL) < 0) {
-        exit(0);
-    }
-#if 0
-    sigAction.sa_flags = SA_RESTART;
-    sigAction.sa_handler = hand; /*  */
-    if (sigaction(SIGUSR1, &sigAction, NULL) < 0) {
-        exit(0);
-    }
-#endif
-#endif
 
     /*
      ** initialize the socket controller:
      **   for: NPS, Timer, Debug, etc...
      */
     //#warning set the number of contexts for socketCtrl to 256
-    ret = ruc_sockctl_init(16);
+    ret = ruc_sockctl_init(128);
     if (ret != RUC_OK) {
         fdl_debug_loop(__LINE__);
         ERRFAT " socket controller init failed" ENDERRFAT
@@ -325,6 +268,18 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
             break;
         }
         /*
+        **--------------------------------------
+        **  configure the number of AF_UNIX/AF_INET
+        **  context supported
+        **--------------------------------------   
+        **  
+        */    
+        ret = af_unix_module_init(mx_af_unix_ctx,
+                                  2,1024*1, // xmit(count,size)
+                                  2,1024*1 // recv(count,size)
+                                  );
+        if (ret != RUC_OK) break;   
+	        /*
          **--------------------------------------
          **   D E B U G   M O D U L E
          **--------------------------------------
@@ -334,13 +289,15 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
         {
             char name[256];
-            if (arg_p->instance_id == 0) {
-                sprintf(name, "storaged %s ", arg_p->hostname);
-            } else {
-                sprintf(name, "stor_io%d  %s:%d ", arg_p->instance_id, arg_p->hostname, arg_p->io_port);
-            }
+            sprintf(name, "storaged %s", arg_p->hostname);
             uma_dbg_set_name(name);
         }
+
+        /*
+        ** RPC SERVER MODULE INIT
+        */
+        ret = rozorpc_srv_module_init();
+        if (ret != RUC_OK) break;         
         break;
     }
 
@@ -349,29 +306,6 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
     return ret;
 }
-
-/**
- *  Init of the data structure used for the non blocking entity
-
-  @retval 0 on success
-  @retval -1 on error
- */
-int storaged_non_blocking_init(storaged_start_conf_param_t *args_p) {
-    int ret;
-    //  sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
-
-    if (args_p->instance_id == 0) {
-        //    info("FDL storaged_non_blocking_init instance 0  port %d ",args_p->debug_port);
-    }
-    ret = ruc_init(FALSE, args_p);
-
-    if (ret != RUC_OK) return -1;
-
-
-    return 0;
-
-}
-
 
 /*
  *_______________________________________________________________________
@@ -389,28 +323,35 @@ int storaged_non_blocking_init(storaged_start_conf_param_t *args_p) {
 
  */
 int storaged_start_nb_blocking_th(void *args) {
-    int ret;
-    //sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
-    storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
+  int ret;
+  storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
 
-    ret = storaged_non_blocking_init(args_p);
-    if (ret != RUC_OK) {
-        /*
-         ** fatal error
-         */
-        fdl_debug_loop(__LINE__);
-        fatal("can't initialize non blocking thread");
-        return -1;
-    }
+  ret = ruc_init(FALSE, args_p);
+  if (ret != RUC_OK) {
     /*
-     ** add profiler subject 
+     ** fatal error
      */
-    if (args_p->instance_id == 0) {
-        uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
-    } else {
-        uma_dbg_addTopic("profiler", show_profile_storaged_io_display);
-    }
-    uma_dbg_addTopic("uptime", show_uptime);
+    fdl_debug_loop(__LINE__);
+    fatal("can't initialize non blocking thread");
+    return -1;
+  }
+
+
+  /*
+  ** Init of the north interface (read/write request processing)
+  */ 
+  ret = storaged_north_interface_buffer_init(STORAGED_BUF_RECV_CNT, STORAGED_BUF_RECV_SZ);
+  if (ret < 0) {
+    fatal("Fatal error on storage_north_interface_buffer_init()\n");
+    return -1;
+  }
+  ret = storaged_north_interface_init(args_p->hostname);
+  if (ret < 0) {
+    fatal("Fatal error on storage_north_interface_init()\n");
+    return -1;
+  }
+   
+  uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
 
     info("storaged non-blocking thread started "
             "(instance: %d, host: %s, port: %d).",
@@ -424,4 +365,66 @@ int storaged_start_nb_blocking_th(void *args) {
     }
     fatal("Exit from ruc_sockCtrl_selectWait()");
     fdl_debug_loop(__LINE__);
+}
+
+/*
+ *_______________________________________________________________________
+ */
+
+/**
+ *  This function is the entry point for setting rozofs in non-blocking mode
+
+   @param args->ch: reference of the fuse channnel
+   @param args->se: reference of the fuse session
+   @param args->max_transactions: max number of transactions that can be handled in parallel
+   
+   @retval -1 on error
+   @retval : no retval -> only on fatal error
+
+ */
+int storaged_start_nb_th(void *args) {
+  int ret;
+  storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
+
+  ret = ruc_init(FALSE, args_p);
+  if (ret != RUC_OK) {
+      /*
+       ** fatal error
+       */
+      fdl_debug_loop(__LINE__);
+      fatal("ruc_init() can't initialize storaged non blocking thread");
+      return -1;
+  }
+
+
+  /*
+   ** Init of the north interface (read/write request processing)
+   */
+  ret = storaged_north_interface_buffer_init(STORAGED_BUF_RECV_CNT, STORAGED_BUF_RECV_SZ);
+  if (ret < 0) {
+    fatal("Fatal error on storaged_north_interface_buffer_init()\n");
+    return -1;
+  }
+  ret = storaged_north_interface_init(args_p->hostname);
+  if (ret < 0) {
+    fatal("Fatal error on storaged_north_interface_init()\n");
+    return -1;
+  }
+    
+  /*
+   ** add profiler subject 
+   */
+  uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
+
+  info("storaged non-blocking thread started (host: %s, dbg: %d).",
+        args_p->hostname, args_p->debug_port);
+
+  /*
+   ** main loop
+   */
+  while (1) {
+      ruc_sockCtrl_selectWait();
+  }
+  fatal("Exit from ruc_sockCtrl_selectWait()");
+  fdl_debug_loop(__LINE__);
 }

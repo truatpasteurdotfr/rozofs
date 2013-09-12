@@ -141,17 +141,66 @@ StorcliReset () {
   return $res
 }
 #################### ELEMENTARY TESTS ##################################
-rw_close () {
+wr_rd_total () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
-  ./rw -process $process -loop $loop -fileSize $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total
   return $?
 }
-rw_noClose () {
+wr_rd_partial () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
-  ./rw -process $process -loop $loop -fileSize $fileSize -noclose
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial
   return $?
 }
-
+wr_rd_random() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random
+  return $?
+}
+wr_rd_total_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total -closeAfter
+  return $?
+}
+wr_rd_partial_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeAfter
+  return $?
+}
+wr_rd_random_close() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random -closeAfter
+  return $?
+}
+wr_close_rd_total () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total -closeBetween
+  return $?
+}
+wr_close_rd_partial () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeBetween
+  return $?
+}
+wr_close_rd_random() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random -closeBetween
+  return $?
+}
+wr_close_rd_total_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -total -closeBetween -closeAfter
+  return $?
+}
+wr_close_rd_partial_close () {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeBetween -closeAfter
+  return $?
+}
+wr_close_rd_random_close() {
+  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
+  ./rw -process $process -loop $loop -fileSize $fileSize -random -closeBetween -closeAfter
+  return $?
+}
 prepare_file_to_read() {
   if [ ! -f $1 ];
   then
@@ -201,15 +250,22 @@ truncate() {
   ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1
   return $?  
 }
+file_lock() {
+  file=mnt1/lock
+  unlink $file
+  printf "process=%d loop=%d\n" $process $loop
+  ./test_file_lock -process $process -loop $loop -file $file
+  return $?    
+}
 ############### USAGE ##################################
 usage () {
   echo "$name -l"
   echo  "   Display the list of test"
-  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] <test name>"      
-  echo "    Run test <test name>"
-  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] all"
-  echo "    Run all tests"
-  exit -1
+  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] <test name>..."      
+  echo "    Run testd <test name>... <times> times"
+  echo "$name [-process <nb>] [-loop <nb>] [-fileSize <nb>] [-repeated <times>] <all|rw>"
+  echo "    Run all tests <times> times"
+  exit -1 
 }
 #################### COMPILATION ##################################
 compile_program () {
@@ -394,7 +450,7 @@ delay () {
 }
 run_some_tests() {
 
-
+  test_number=0
   total_avant=`date +%s`
 
   FAIL=0
@@ -405,6 +461,9 @@ run_some_tests() {
 
   for TST in $TSTS
   do
+  
+    test_number=$((test_number+1))
+    
     printf "_____________________________________________\n"
     printf "Run $TST\n"
     printf ".............................................\n"  
@@ -433,20 +492,24 @@ run_some_tests() {
     if [ $res_tst != 0 ];
     then
       # The test returns an error code
-      printf "\n-------> !!! $TST is failed ($zedelay) !!!\n"
-      printf "%45s | FAILED  | %10s |\n" $TST "$zedelay" >> $RESULT
+      printf "\n$test_number -------> !!! $TST is failed ($zedelay) !!!\n"
+      printf "%3d %41s | FAILED  | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       FAIL=$((FAIL+1))
+      if [ $nonstop == 0 ];
+      then
+        break
+      fi	
     else          
       if [ $res_dbg != 0 ];
       then
         # The test do not complain but some debug ouput change need to be checked 
         SUSPECT=$((SUSPECT+1))
-        printf "\n-------> $TST suspicion of failure ($zedelay) !\n"
-	printf "%45s | SUSPECT | %10s |\n" $TST "$zedelay" >> $RESULT
+        printf "\n$test_number -------> $TST suspicion of failure ($zedelay) !\n"
+	printf "%3d %41s | SUSPECT | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       else
         # The test is successfull
-        printf "\n-------> $TST success ($zedelay)\n"      
-	printf "%45s | OK      | %10s |\n" $TST "$zedelay" >> $RESULT  
+        printf "\n$test_number-------> $TST success ($zedelay)\n"      
+	printf "%3d %41s | OK      | %10s |\n" $test_number $TST "$zedelay" >> $RESULT  
       fi
     fi
   done
@@ -485,13 +548,16 @@ else
 fi  
 
 # List of test
-TST_BASIC="readdir xattr link rename chmod truncate read_parallel rw_close rw_noClose"
-TST_STORAGE_FAILED="read_parallel rw_close rw_noClose"
-TST_STORAGE_RESET="read_parallel rw_close rw_noClose"
-TST_STORCLI_RESET="read_parallel rw_close rw_noClose"
+TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_close wr_rd_random_close wr_close_rd_total wr_close_rd_partial wr_close_rd_random wr_close_rd_total_close wr_close_rd_partial_close wr_close_rd_random_close"
+TST_STORAGE_FAILED="read_parallel $TST_RW"
+TST_STORAGE_RESET="read_parallel $TST_RW"
+TST_STORCLI_RESET="read_parallel $TST_RW"
+TST_BASIC="readdir xattr link rename chmod truncate file_lock read_parallel $TST_RW"
+
 build_all_test_list
 TSTS=""
-
+repeated=1
+nonstop=0
 
 # Read parameters
 while [ ! -z $1 ];
@@ -505,7 +571,8 @@ do
     -process)  process=$2;             shift 2;;
     -loop)     loop=$2;                shift 2;;
     -fileSize) fileSize=$2;            shift 2;;
-
+    -repeated) repeated=$2;            shift 2;;
+    -nonstop)  nonstop=1;              shift 1;;
     # Debugging this tool
     -verbose)  set -x;                 shift 1;;
 
@@ -514,6 +581,7 @@ do
 
     # Read test list to execute
     all)       TSTS=$ALL_TST_LIST;     shift 1;;
+    rw)        TSTS=$TST_RW;           shift 1;;
     *)         TSTS=`echo "$TSTS $1"`; shift 1;;
   esac  
 done
@@ -528,16 +596,24 @@ fi
 if [ -d /mnt/hgfs/windows ];
 then
   # Set big READ timers to prevent from false read errors
-  ./dbg.sh stc tmr_set 14 1000
+  ./dbg.sh stc tmr_set PRJ_READ_SPARE 3000
 fi  
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock
 
 # Kill export gateway
-./setup.sh expgw all stop
+./setup.sh expgw all stop 
 
 # execute the tests
+LIST=""
+while [ $repeated -gt 0 ];
+do
+  LIST=`echo "$LIST $TSTS"`
+  repeated=$((repeated-1))
+done
+TSTS=$LIST
+
 run_some_tests 
 res=$?
 cat $RESULT

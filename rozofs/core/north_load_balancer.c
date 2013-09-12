@@ -48,7 +48,6 @@ north_lbg_ctx_t *north_lbg_context_pfirst; /**< pointer to the first context of 
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define NORTH_LBG_DEBUG_TOPIC      "lbg"
-static char myBuf[UMA_DBG_MAX_SEND_SIZE * 4];
 
 char * lbg_north_state2String(int x) {
 
@@ -70,7 +69,7 @@ char * lbg_north_state2String(int x) {
   RETURN: none
   ==========================================================================*/
 void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
     int state;
     pChar += sprintf(pChar, "number of North Load Balancer contexts [size](initial/allocated) :[%u] %u/%u\n",
             (unsigned int) sizeof (north_lbg_ctx_t), (unsigned int) north_lbg_context_count,
@@ -119,12 +118,12 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
             pChar += sprintf(pChar, "\n");
         }
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
 void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
     {
         north_lbg_ctx_t *lbg_p;
         ruc_obj_desc_t *pnext;
@@ -158,7 +157,7 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
 
         }
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -341,6 +340,8 @@ void north_lbg_ctxInit(north_lbg_ctx_t *p, uint8_t creation) {
     p->nb_entries_conf = 0; /* number of configured entries  */
     p->nb_active_entries = 0;
     p->next_entry_idx = 0;
+    
+    p->next_global_entry_idx_p = NULL;
 
     p->state = NORTH_LBG_DOWN;
     p->userPollingCallBack = NULL;

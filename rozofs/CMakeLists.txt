@@ -148,6 +148,8 @@ set (librozofs_sources
     rozofs_debug_ports.c
     core/com_cache.c
     core/com_cache.h
+    core/ruc_buffer_debug.c
+    core/ruc_buffer_debug.h    
     rpc/gwprotoclt.c
     rpc/gwproto.h
     rpc/gwprotosvc.c
@@ -158,10 +160,13 @@ set (librozofs_sources
     core/rozofs_rpc_non_blocking_generic.h
     core/rozofs_rpc_non_blocking_generic_srv.c
     core/rozofs_rpc_non_blocking_generic_srv.h
-    core/rozofs_core_files.c
-    core/rozofs_core_files.h
+    #core/rozofs_optim.h
+    #core/rozofs_optim.c
     core/ruc_traffic_shaping.h
     core/ruc_traffic_shaping.c
+    core/rozofs_core_files.c
+    core/rozofs_core_files.h    
+    core/rozofs_host2ip.h    
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

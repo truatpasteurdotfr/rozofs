@@ -170,4 +170,12 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
  */
 void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *volume_stat);
 
+/** Check that a given distribution is valid
+ *
+ * @param volume: the volume of the distribution
+ * @param rozofs_safe: the number of sid in sids
+ * @param cid: the cid within the volume
+ * @param sids: the sids within the cluster
+ */
+int volume_distribution_check(volume_t *volume, int rozofs_safe, int cid, int *sids);
 #endif

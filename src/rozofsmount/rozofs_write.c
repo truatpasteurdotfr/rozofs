@@ -54,6 +54,8 @@
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/expgw_common.h>
 #include <rozofs/rozofs_timer_conf.h>
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_cache.h"
 #include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
@@ -63,6 +65,7 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p);
 static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char *buf, uint32_t len);
 
 void rozofs_ll_write_cbk(void *this,void *param);
+void rozofs_clear_file_lock_owner(file_t * f);
 
 #define CLEAR_WRITE(p) \
 { \
@@ -137,6 +140,10 @@ static inline int buf_flush(void *fuse_ctx_p,file_t *p)
   rozofs_fuse_read_write_stats_buf.flush_buf_cpt++;
   
   buffer = p->buffer+flush_off_buf;
+  /*
+  ** Push the data in the cache
+  */
+  rozofs_mbcache_insert(p->fid,flush_off,(uint32_t)flush_len,(uint8_t*)buffer);  
   /*
   ** trigger the write
   */
@@ -831,6 +838,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     ** might have a write pending
     */
     fuse_reply_write(req, size);
+    file->current_pos = (off+size);
     
     if (status.status == BUF_STATUS_WR_IN_PRG)
     {
@@ -1602,6 +1610,16 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
       */
       errno = f->wr_error;
       goto error;    
+    }
+    
+    /*
+    ** Clear all the locks eventually pending on the file for this owner
+    */
+    if (f->lock_owner_ref != 0) {
+      /*
+      ** Call file lock service to clear everything about this file descriptor
+      */
+      rozofs_clear_file_lock_owner(f);
     }
 
     /*

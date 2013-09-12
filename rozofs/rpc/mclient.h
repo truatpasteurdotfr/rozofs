@@ -25,6 +25,7 @@
 #include <rozofs/rozofs.h>
 
 #include "rpcclt.h"
+#include "mproto.h"
 
 typedef struct mclient {
     char host[ROZOFS_HOSTNAME_MAX];
@@ -43,6 +44,6 @@ int mclient_stat(mclient_t *clt, sstat_t *st);
 int mclient_remove(mclient_t * clt, uint8_t layout, 
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid);
 
-int mclient_ports(mclient_t *mclt, uint32_t *ports_p);
+int mclient_ports(mclient_t * mclt, mp_io_address_t * io_address_p);
 
 #endif

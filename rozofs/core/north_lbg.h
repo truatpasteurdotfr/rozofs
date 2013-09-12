@@ -142,6 +142,7 @@ typedef struct _north_lbg_ctx_t
   int               nb_entries_conf;          /**< number of configured entries      */
   int               nb_active_entries;        /**< number of active entries          */
   int               next_entry_idx;           /**< index of the next enry to select  */
+  int             * next_global_entry_idx_p;  /**< index of the next entry in case it is shared between several lbg */
   generic_disc_CBK_t  userDiscCallBack;    /**< user disconnect call back (optional)        */
   generic_recv_CBK_t  userRcvCallBack;    /**< user receive call back (mandatory)        */
   uint8_t           entry_bitmap_state[NORTH__LBG_TB_MAX_ENTRY];
@@ -328,7 +329,18 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
   int start_idx;
   int check_idx;
 
-  check_idx = lbg_p->next_entry_idx;
+     /*
+   ** Get next enry either from value saved in this context or
+   ** from value common to several lbg
+   */
+  if (lbg_p->next_global_entry_idx_p != NULL)
+  {
+    check_idx = * lbg_p->next_global_entry_idx_p;
+  }
+  else 
+  {
+    check_idx = lbg_p->next_entry_idx;
+  }  
   for (start_idx = 0; start_idx < lbg_p->nb_entries_conf; start_idx++)
   {
      if (check_idx >= lbg_p->nb_entries_conf) check_idx = 0;
@@ -356,7 +368,14 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
      /*
      ** update for the next run
      */
-     lbg_p->next_entry_idx = check_idx+1;
+     if (lbg_p->next_global_entry_idx_p != NULL)
+     {
+        * lbg_p->next_global_entry_idx_p = check_idx+1;
+     }
+     else 
+     {
+       lbg_p->next_entry_idx = check_idx+1;
+     }    
      return check_idx;
   }
   /*

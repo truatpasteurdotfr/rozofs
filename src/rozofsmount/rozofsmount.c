@@ -52,8 +52,9 @@
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_cache.h"
 #include "rozofs_rw_load_balancing.h"
-
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -74,25 +75,37 @@ static SVCXPRT *rozofsmount_profile_svc = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
 
-char localBuf[8192];
-
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-    time_t elapse;
-    int days, hours, mins, secs;
+uint64_t   rozofs_client_hash=0;
+/**______________________________________________________________________________
+*/
+/**
+*  Compute the client hash
 
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}      
+  @param h : hostanme string
+  @param instance: instance id
+  
+  @retval hash value
+*/
+static inline uint64_t rozofs_client_hash_compute(char * hostname, int instance) {
+    unsigned char *d = (unsigned char *) hostname;
+    uint64_t h;
+
+    h = 2166136261U;
+    /*
+     ** hash on hostname
+     */
+    for (; *d != 0; d++) {
+        h = (h * 16777619)^ *d;
+    }
+    /*
+     ** hash on instance id
+     */
+    h = (h * 16777619)^ instance;
+    return h;
+}     
 /*
  *________________________________________________________
  */
@@ -129,6 +142,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "\t-P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "\t-o rozofsbufsize=N\tdefine size of I/O buffer in KiB (default: 256)\n");
+    fprintf(stderr, "\t-o rozofsminreadsize=N\tdefine minimum read size on disk (default is rozofsbufsize)\n");
     fprintf(stderr, "\t-o rozofsmaxretry=N\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "\t-o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
     fprintf(stderr, "\t-o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
@@ -139,6 +153,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o instance=N\tinstance number (default: 0)\n");
     fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
+    fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
 }
 
 
@@ -163,6 +178,8 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("exportpath=%s", export, 0),
     MYFS_OPT("exportpasswd=%s", passwd, 0),
     MYFS_OPT("rozofsbufsize=%u", buf_size, 0),
+    MYFS_OPT("rozofsminreadsize=%u", min_read_size, 0),
+    MYFS_OPT("rozofsnbstorcli=%u", nbstorcli, 0),    
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
     MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
     MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
@@ -173,6 +190,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("instance=%u", instance, 0),
     MYFS_OPT("rozofscachemode=%u", cache_mode, 0),
     MYFS_OPT("rozofsmode=%u", fs_mode, 0),
+    MYFS_OPT("nbcores=%u", nb_cores, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -233,6 +251,9 @@ uint64_t rozofs_ientries_count = 0;
 
 fuse_ino_t inode_idx = 1;
 
+
+
+
 static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
     int *piped = (int *) userdata;
     char s;
@@ -270,34 +291,7 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
     fuse_reply_none(req);
 }
 
-/*
- * All below are implemented for monitoring purpose.
- */
-#warning fake untested function.
 
-void rozofs_ll_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-        struct flock *lock) {
-    START_PROFILING(rozofs_ll_getlk);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_getlk);
-}
-
-#warning fake untested function.
-
-void rozofs_ll_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-        struct flock *lock, int sleep) {
-    START_PROFILING(rozofs_ll_getlk);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_setlk);
-}
-
-#warning fake untested function.
-
-void rozofs_ll_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
-    START_PROFILING(rozofs_ll_releasedir);
-    fuse_reply_err(req, 0);
-    STOP_PROFILING(rozofs_ll_releasedir);
-}
 
 #warning fake untested function.
 
@@ -382,6 +376,34 @@ void rozofmount_profiling_thread_run(void *args) {
     DEBUG("REACHED !!!!");
     /* NOT REACHED */
 }
+#define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_STRING_CONFIG(field) \
+  if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
+  else                    pChar += sprintf(pChar,"%-25s = %s\n",#field,conf.field); 
+  
+void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  
+  DISPLAY_STRING_CONFIG(host);
+  DISPLAY_STRING_CONFIG(export);
+  DISPLAY_STRING_CONFIG(passwd);  
+  DISPLAY_UINT32_CONFIG(buf_size);
+  DISPLAY_UINT32_CONFIG(min_read_size);
+  DISPLAY_UINT32_CONFIG(nbstorcli);
+  DISPLAY_UINT32_CONFIG(max_retry);
+  DISPLAY_UINT32_CONFIG(dbg_port);
+  DISPLAY_UINT32_CONFIG(instance);  
+  DISPLAY_UINT32_CONFIG(export_timeout);
+  DISPLAY_UINT32_CONFIG(storcli_timeout);
+  DISPLAY_UINT32_CONFIG(storage_timeout);
+  DISPLAY_UINT32_CONFIG(fs_mode); 
+  DISPLAY_UINT32_CONFIG(cache_mode);  
+  DISPLAY_UINT32_CONFIG(attr_timeout);
+  DISPLAY_UINT32_CONFIG(entry_timeout);
+  DISPLAY_UINT32_CONFIG(nb_cores);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}    
+
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
@@ -409,7 +431,7 @@ void rozofmount_profiling_thread_run(void *args) {
 }
 
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
@@ -451,6 +473,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
       RESET_PROFILER_PROBE(create);
       RESET_PROFILER_PROBE(getlk);
       RESET_PROFILER_PROBE(setlk);
+      RESET_PROFILER_PROBE(setlk_int);
+      RESET_PROFILER_PROBE(clearlkowner);      
       RESET_PROFILER_PROBE(ioctl);
       uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
       return;
@@ -499,8 +523,10 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(create);
     SHOW_PROFILER_PROBE(getlk);
     SHOW_PROFILER_PROBE(setlk);
+    SHOW_PROFILER_PROBE(setlk_int);
+    SHOW_PROFILER_PROBE(clearlkowner);
     SHOW_PROFILER_PROBE(ioctl);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________
 */
@@ -560,21 +586,98 @@ void rozofs_set_fsmode(char * argv[], uint32_t tcpRef, void *bufRef)
 
 void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     expgw_display_all_exportd_routing_table(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
-
+/*__________________________________________________________________________
+*/
 void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     expgw_display_all_eid(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+
+/*__________________________________________________________________________
+*/
+
+void show_blockmode_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
+
+
+    char *pChar = uma_dbg_get_buffer();
+    int reset = 0;
+    int flush = 0;
+    int enable = 0;
+    int disable = 0;
+    
+    if (argv[1] != NULL)
+    {
+      while(1)
+      {
+        if (strcmp(argv[1],"reset")==0) {reset = 1; break;}
+        if (strcmp(argv[1],"flush")==0) {flush = 1; break;}
+        if (strcmp(argv[1],"enable")==0) {enable = 1; break;}
+        if (strcmp(argv[1],"disable")==0) {disable = 1; break;}
+        break;
+      }   
+    }
+    if (flush)
+    {
+      rozofs_gcache_flush();
+      rozofs_mbcache_stats_clear();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
+      return;
+      
+    }
+    if (reset)
+    {
+      rozofs_mbcache_stats_clear();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+      return;
+      
+    }
+    if (enable)
+    {
+      if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_ENABLE)
+      {
+        rozofs_mbcache_enable();
+        rozofs_mbcache_stats_clear();
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now enabled\n");    
+      }
+      else
+      {
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already enabled\n");    
+      }
+      return;
+      
+    }    
+    if (disable)
+    {
+      if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_DISABLE)
+      {
+        rozofs_mbcache_stats_clear();
+        rozofs_mbcache_disable();
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now disabled\n");    
+      }
+      else
+      {
+        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already disabled\n");    
+      }
+      return;
+      
+    } 
+    pChar +=sprintf(pChar,"cache state : %s\n", (rozofs_mbcache_enable_flag== ROZOFS_MBCACHE_ENABLE)?"Enabled":"Disabled"); 
+    
+    pChar = com_cache_show_cache_stats(pChar,rozofs_mbcache_cache_p,"Block mode cache");
+    rozofs_mbcache_stats_display(pChar);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 typedef struct _xmalloc_stats_t {
@@ -587,13 +690,13 @@ typedef struct _xmalloc_stats_t {
 extern xmalloc_stats_t *xmalloc_size_table_p;
 
 void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     int i;
     xmalloc_stats_t *p;
 
     if (xmalloc_size_table_p == NULL) {
         pChar += sprintf(pChar, "xmalloc stats not available\n");
-        uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
         return;
 
     }
@@ -605,7 +708,7 @@ void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
         }
         pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, (long long unsigned int) p->count);
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 static struct fuse_lowlevel_ops rozofs_ll_operations = {
@@ -639,8 +742,9 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .removexattr = rozofs_ll_removexattr_nb, /** non blocking */
     .access = rozofs_ll_access, /** non blocking by construction */
     .create = rozofs_ll_create_nb, /** non blocking */
-    //.getlk = rozofs_ll_getlk,
-    //.setlk = rozofs_ll_setlk,
+    .getlk = rozofs_ll_getlk_nb,
+    .setlk = rozofs_ll_setlk_nb,
+    //.flock = rozofs_ll_flock_nb,
     //.bmap = rozofs_ll_bmap,
     //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,
@@ -671,6 +775,7 @@ void rozofs_start_storcli(const char *mountpoint) {
         cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
         cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
         cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
+        cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
         cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
         /*
         ** check if there is a share mem key
@@ -728,6 +833,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
                 conf.export,
                 conf.passwd,
                 conf.buf_size * 1024,
+                conf.min_read_size * 1024,
                 conf.max_retry,
                 timeout_mproto) == 0) break;
 
@@ -742,6 +848,19 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
                 "See log for more information\n", conf.export, conf.host,
                 mountpoint, strerror(errno));
         return 1;
+    }
+
+    /*
+    ** Send the file lock reset request to remove old locks
+    */
+    {
+      epgw_lock_arg_t     arg;
+      epgw_status_ret_t * file_lock_res;
+      
+      arg.arg_gw.eid             = exportclt.eid;
+      arg.arg_gw.lock.client_ref = rozofs_client_hash;
+      
+      file_lock_res = ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
     }
 
     /* Initialize list and htables for inode_entries */
@@ -852,7 +971,6 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         severe("main() sem_init() problem : %s", strerror(errno));
     }
 
-
     /*
      ** Register these topics befora start the rozofs_stat_start that will
      ** register other topic. Topic registration is not safe in multi thread
@@ -861,13 +979,31 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("stclbg", show_stclbg);
     uma_dbg_addTopic("profiler", show_profiler);
     uma_dbg_addTopic("xmalloc", show_xmalloc);
-    uma_dbg_addTopic("uptime", show_uptime);
     uma_dbg_addTopic("exp_route", show_exp_routing_table);
     uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
     uma_dbg_addTopic("cache_set", rozofs_set_cache);
     uma_dbg_addTopic("fsmode_set", rozofs_set_fsmode);
     uma_dbg_addTopic("shared_mem", rozofs_shared_mem_display);
+    uma_dbg_addTopic("blockmode_cache", show_blockmode_cache);
+    uma_dbg_addTopic("data_cache", rozofs_gcache_show_cache_stats);
+    uma_dbg_addTopic("start_config", show_start_config);
 
+    /**
+    * init of the mode block cache
+    */
+    ret = rozofs_mbcache_cache_init(ROZOFS_MBCACHE_DISABLE);
+    if (ret < 0)
+    {
+      severe("Cannot create the mode block cache, revert to non-caching mode");
+    }
+    /**
+    * init of the common cache array
+    */
+    ret = rozofs_gcache_pool_init();
+    if (ret < 0)
+    {
+      severe("Cannot create the global cache, revert to non-caching mode");
+    }
     /*
     ** declare timer debug functions
     */
@@ -883,8 +1019,14 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     {
       rzdbg_default_base_port = conf.dbg_port;    
     }    
+    
+    if (conf.nb_cores == 0) 
+    {
+      conf.nb_cores = 2;    
+    }     
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_rozofsmount_port((uint16_t) conf.instance);
+    rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     conf.dbg_port = rozofs_fuse_conf.debug_port;
     rozofs_fuse_conf.se = se;
     rozofs_fuse_conf.ch = ch;
@@ -1023,8 +1165,10 @@ int main(int argc, char *argv[]) {
 
     conf.max_retry = 50;
     conf.buf_size = 0;
+    conf.min_read_size = 0;
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
+    conf.nbstorcli = 0;
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
@@ -1063,6 +1207,34 @@ int main(int argc, char *argv[]) {
                 conf.buf_size);
         conf.buf_size = 256;
     }
+    /* Bufsize must be a multiple of the block size */
+    if ((conf.buf_size % (ROZOFS_BSIZE/1024)) != 0) {
+      conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    }
+    
+    if (conf.min_read_size == 0) {
+      conf.min_read_size = conf.buf_size;
+    }
+    if (conf.min_read_size > conf.buf_size) {
+      conf.min_read_size = conf.buf_size;
+    }
+    /* Bufsize must be a multiple of the block size */
+    if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
+      conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    }    
+    
+    if (conf.nbstorcli != 0) {
+      if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {
+          fprintf(stderr,
+                  "invalid rozofsnbstorcli parameter (%d) allowed range is [1..%d]\n",
+                  conf.nbstorcli,STORCLI_PER_FSMOUNT);
+      }
+    }
+    /*
+    ** Compute the identifier of the client from host and instance id 
+    */
+    rozofs_client_hash = rozofs_client_hash_compute(conf.host,conf.instance);
+
     /*
     ** allocate the common flush buffer
     */

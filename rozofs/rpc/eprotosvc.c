@@ -46,6 +46,11 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		ep_path_t ep_conf_storage_1_arg;
 		ep_gateway_t ep_poll_conf_1_arg;
 		ep_path_t ep_conf_expgw_1_arg;
+		epgw_lock_arg_t ep_set_file_lock_1_arg;
+		epgw_lock_arg_t ep_get_file_lock_1_arg;
+		epgw_lock_arg_t ep_clear_owner_file_lock_1_arg;
+		epgw_lock_arg_t ep_clear_client_file_lock_1_arg;
+		epgw_lock_arg_t ep_poll_file_lock_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -206,6 +211,36 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_ep_path_t;
 		_xdr_result = (xdrproc_t) xdr_ep_gw_gateway_configuration_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_conf_expgw_1_svc;
+		break;
+
+	case EP_SET_FILE_LOCK:
+		_xdr_argument = (xdrproc_t) xdr_epgw_lock_arg_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_lock_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_set_file_lock_1_svc;
+		break;
+
+	case EP_GET_FILE_LOCK:
+		_xdr_argument = (xdrproc_t) xdr_epgw_lock_arg_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_lock_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_get_file_lock_1_svc;
+		break;
+
+	case EP_CLEAR_OWNER_FILE_LOCK:
+		_xdr_argument = (xdrproc_t) xdr_epgw_lock_arg_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_clear_owner_file_lock_1_svc;
+		break;
+
+	case EP_CLEAR_CLIENT_FILE_LOCK:
+		_xdr_argument = (xdrproc_t) xdr_epgw_lock_arg_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_clear_client_file_lock_1_svc;
+		break;
+
+	case EP_POLL_FILE_LOCK:
+		_xdr_argument = (xdrproc_t) xdr_epgw_lock_arg_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) ep_poll_file_lock_1_svc;
 		break;
 
 	default:

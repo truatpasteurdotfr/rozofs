@@ -64,6 +64,18 @@ static inline void rozofs_fuse_dbg_save_ctx(rozofs_fuse_save_ctx_t *p)
    rozofs_fuse_usr_ctx_table[rozofs_fuse_usr_ctx_idx] = p;
    
 }
+/**
+**____________________________________________________
+*  Get the number of free context in the fuse context distributor
+
+  @param none
+  @retval <>NULL, success->pointer to the allocated context
+  @retval NULL, error ->out of context
+*/
+static inline int rozofs_fuse_get_free_ctx_number(void)
+{
+  return ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
+}
 /*
 **__________________________________________________________________________
 */
@@ -107,6 +119,7 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   fuse_save_ctx_p->newname = NULL;
   fuse_save_ctx_p->name    = NULL;
   fuse_save_ctx_p->fi      = NULL;
+  fuse_save_ctx_p->flock   = NULL;
   fuse_save_ctx_p->stbuf   = NULL;
   fuse_save_ctx_p->shared_buf_ref  = NULL;
   /*
@@ -148,6 +161,7 @@ static inline void _rozofs_fuse_release_saved_context(void *buffer_p,int line)
   if (fuse_save_ctx_p->newname != NULL) free(fuse_save_ctx_p->newname);
   if (fuse_save_ctx_p->name != NULL) free((void*)fuse_save_ctx_p->name);
   if (fuse_save_ctx_p->fi!= NULL) free(fuse_save_ctx_p->fi);
+  if (fuse_save_ctx_p->flock!= NULL) free(fuse_save_ctx_p->flock);
   if (fuse_save_ctx_p->stbuf!= NULL) free(fuse_save_ctx_p->stbuf);
   if (fuse_save_ctx_p->shared_buf_ref!= NULL) 
   {

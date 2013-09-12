@@ -24,6 +24,11 @@
 
 #include <config.h>
 
+/*
+** Port on which storaged services MPROTO and SPPROTO
+*/
+#define ROZOFS_MPROTO_PORT 51000
+
 #define ROZOFS_UUID_SIZE 16
 /* Instead of using an array of unsigned char for store the UUID, we use an
  * array of uint32_t in the RPC protocol to use less space (see XDR). */
