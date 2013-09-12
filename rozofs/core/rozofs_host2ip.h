@@ -41,7 +41,7 @@ extern "C" {
 @retval 0 on success
 @retval -1 on error (see errno faor details
 */
-static inline int rozofs_host2ip(char *host,uint32_t *ipaddr_p) {
+static inline int rozofs_host2ip(char *host, uint32_t *ipaddr_p) {
   struct hostent *hp;    
   /*
   ** get the IP address of the storage node

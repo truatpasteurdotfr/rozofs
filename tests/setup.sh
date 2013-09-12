@@ -116,10 +116,14 @@ gen_storage_conf ()
 	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
 	   printf "nbCores = $NB_CORES;\n" >> $FILE
 	   
-	   printf "ioaddr = ( \n" >> $FILE
-	   printf "  {IPv4 = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
+	   printf "listen = ( \n" >> $FILE
+	   printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
+
+       # Test for special character "*"
+	   #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
+
            for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-	      printf " ,\n  {IPv4 = \"192.168.$((idx+1)).$sid\"; port = 41000;}" 
+	      printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000;}" 
 	   done >>  $FILE  
 	   printf "\n);\n" >>  $FILE   
 	        
@@ -365,6 +369,7 @@ start_storaged ()
 	   for j in $(seq ${STORAGES_BY_CLUSTER}); do
 	      sid=$((sid+1))
               echo "start storaged" ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+echo ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON}
               ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
            done
 	done

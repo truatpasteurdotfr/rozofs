@@ -38,10 +38,11 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_buffer_debug.h>
 #include <rozofs/core/rozofs_host2ip.h>
+
 #include "sconfig.h"
 #include "sprotosvc_nb.h"
 
- /**
+/**
 * Buffers information
 */
 int storage_read_write_buf_count= 0;   /**< number of buffer allocated for read/write on north interface */
@@ -276,7 +277,7 @@ int storio_north_interface_init(char * host) {
     ret = af_inet_sock_listening_create("IO",
                                         storaged_config.io_addr[i].ipv4,
 					storaged_config.io_addr[i].port,
-					&af_inet_rozofs_north_conf);    
+					&af_inet_rozofs_north_conf);
     if (ret < 0) {
       uint32_t ip = storaged_config.io_addr[i].ipv4;
       fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",

@@ -50,12 +50,13 @@
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/core/rozofs_host2ip.h>
+#include <rozofs/core/ruc_traffic_shaping.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_reload_storage_config.h"
-#include <rozofs/core/ruc_traffic_shaping.h>
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -720,7 +721,14 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
             if (io_address[i].port != 0) {
 	        uint32_t ip= io_address[i].ipv4;
-                sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+                
+                if (ip == INADDR_ANY){
+                   // Copy storage hostnane and IP
+                   strcpy(s->sclients[i].host, s->host);
+                   rozofs_host2ip(s->host, &ip);
+                }else{
+                   sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+                }
 		s->sclients[i].ipv4 = ip;
                 s->sclients[i].port = io_address[i].port;
                 s->sclients[i].status = 0;

@@ -39,12 +39,11 @@
 #define SSID	    "sid"
 #define SCID	    "cid"
 #define SROOT	    "root"
-#define SPORTS      "ports"
-#define SIOADDR     "ioaddr"
 #define STHREADS    "threads"
-#define SIPv4       "IPv4"
-#define SPORT       "port"
-#define SCORES     "nbCores"
+#define SIOLISTEN   "listen"
+#define SIOADDR     "addr"
+#define SIOPORT     "port"
+#define SCORES      "nbcores"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root) {
@@ -63,7 +62,7 @@ void storage_config_release(storage_config_t *s) {
 
 int sconfig_initialize(sconfig_t *sc) {
     DEBUG_FUNCTION;
-    memset(sc,0,sizeof(storage_config_t));
+    memset(sc, 0, sizeof (storage_config_t));
     list_init(&sc->storages);
     return 0;
 }
@@ -103,62 +102,71 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     }
 
     if (!config_lookup_int(&cfg, STHREADS, &threads)) {
-       config->nb_disk_threads = 2;
+        config->nb_disk_threads = 2;
+    } else {
+        config->nb_disk_threads = threads;
     }
-    else {
-       config->nb_disk_threads = threads;
-    }
-    
+
     if (!config_lookup_int(&cfg, SCORES, &nbCores)) {
-       config->nb_cores = 2;
+        config->nb_cores = 2;
+    } else {
+        config->nb_cores = nbCores;
     }
-    else {
-       config->nb_cores = nbCores;
-    }
-    if (!(ioaddr_settings = config_lookup(&cfg, SIOADDR))) {
+
+    if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
         errno = ENOKEY;
-        severe("can't fetch io addresses settings.");
+        severe("can't fetch IO listen address settings.");
         goto out;
     }
-    
-    config->io_addr_nb = config_setting_length(ioaddr_settings);    
+
+    config->io_addr_nb = config_setting_length(ioaddr_settings);
+
     if (config->io_addr_nb > STORAGE_NODE_PORTS_MAX) {
         errno = EINVAL;
-        severe("Too much io addresses defined. %d while max is %d.",config->io_addr_nb,STORAGE_NODE_PORTS_MAX);
+        severe("too many IO listen address defined. %d while max is %d.",
+                config->io_addr_nb, STORAGE_NODE_PORTS_MAX);
         goto out;
     }
+
     if (config->io_addr_nb == 0) {
         errno = EINVAL;
-        severe("No io addresses defined.");
+        severe("no IO listen address defined.");
         goto out;
     }
+
     for (i = 0; i < config->io_addr_nb; i++) {
         struct config_setting_t * io_addr = NULL;
-	const char * ipaddrString=NULL;
-	
-	if (!(io_addr = config_setting_get_elem(ioaddr_settings, i))) {
+        const char * io_addr_str = NULL;
+
+        if (!(io_addr = config_setting_get_elem(ioaddr_settings, i))) {
             errno = ENOKEY;
-            severe("can't fetch io addresses settings %d.",i);
-            goto out;
-	}
-    	
-        if (config_setting_lookup_string(io_addr, SIPv4, &ipaddrString) == CONFIG_FALSE) {
-            errno = ENOKEY;
-            severe("can't lookup IPv4 in io address %d.", i);
-            goto out;
-        }
-	
-	if (rozofs_host2ip((char*)ipaddrString,&config->io_addr[i].ipv4)< 0) {
-            severe("Bad IP address \"%s\" in io address %d", ipaddrString, i);
+            severe("can't fetch IO listen address settings %d.", i);
             goto out;
         }
 
-        if (config_setting_lookup_int(io_addr, SPORT, &port) == CONFIG_FALSE) {
+        if (config_setting_lookup_string(io_addr, SIOADDR, &io_addr_str) == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't lookup address in IO listen address %d.", i);
+            goto out;
+        }
+        
+        // Check if the io address is specified by a single * character
+        // if * is specified storio will listen on any of the interfaces
+        if (strcmp(io_addr_str, "*") == 0) {
+            config->io_addr[i].ipv4 = INADDR_ANY;
+        } else {
+            if (rozofs_host2ip((char*) io_addr_str, &config->io_addr[i].ipv4) < 0) {
+                severe("bad address \"%s\" in io listen address %d", io_addr_str, i);
+                goto out;
+            }
+        }
+
+        if (config_setting_lookup_int(io_addr, SIOPORT, &port) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't lookup port in io address %d.", i);
             goto out;
         }
-	
+
         config->io_addr[i].port = port;
     }
 
