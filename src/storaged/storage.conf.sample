@@ -2,11 +2,14 @@
 # rozofs storage daemon configuration file.
 #
 
-# ports: 
-#   It's a list of TCP ports used for receive write and read requests
-#   from clients (rozofsmount).
+# listen: 
 
-ports = [40001, 40002, 40003, 40004 ];
+#   Specifies the list of IP address and ports that storio should listens to for
+#   receive write and read requests from clients (rozofsmount).
+
+listen = (
+    {addr = "*"; port = 41001; }
+);
 
 # storages:
 #   It's the list of local storage managed by this storaged.

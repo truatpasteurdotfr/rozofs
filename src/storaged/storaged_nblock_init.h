@@ -53,5 +53,5 @@ typedef struct _storaged_start_conf_param_t
 
  */
 int storaged_start_nb_blocking_th(void *args);
-
+int storaged_start_nb_th(void *args);
 #endif

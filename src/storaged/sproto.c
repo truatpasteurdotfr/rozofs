@@ -77,7 +77,7 @@ uint64_t sp_bins_buffer[1024 * 64];
 
 sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
-    //uint16_t psize = 0;
+    uint16_t psize = 0;
     storage_t *st = 0;
 
     DEBUG_FUNCTION;
@@ -98,7 +98,7 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
         goto out;
     }
 
-    //psize = rozofs_get_max_psize(args->layout);
+    psize = rozofs_get_max_psize(args->layout);
 
     // Optimisation
     /*

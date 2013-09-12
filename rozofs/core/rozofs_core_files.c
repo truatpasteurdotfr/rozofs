@@ -208,7 +208,7 @@ void rozofs_clean_core(void) {
     /* Maximum number of file not yet reached. Just register this one */
     if (nb < rozofs_max_core_files) {
       directories[nb].ctime = traceStat.st_ctime;
-      sprintf(directories[nb].name, buff);
+      snprintf(directories[nb].name, 256, "%s", buff);
       nb ++;
       continue;
     }
@@ -248,6 +248,7 @@ void rozofs_clean_core(void) {
   ==========================================================================*/
 void rozofs_catch_error(int sig){
   int idx;
+  int ret = -1;
 
   if  (rozofs_fatal_error_processing != 0) raise (sig);
   rozofs_fatal_error_processing++;
@@ -260,9 +261,13 @@ void rozofs_catch_error(int sig){
     rozofs_crash_cbk[idx](sig);
   }
   
-  /* Set current directory on the core directory */
-  if (rozofs_core_file_path) {
-    chdir(rozofs_core_file_path);
+/* Set current directory on the core directory */
+  if (rozofs_core_file_path[0]) {
+    ret = chdir(rozofs_core_file_path);
+    if (ret == -1){
+        severe("chdir to %s failed: %s", rozofs_core_file_path,
+                strerror(errno));
+    }
   }
   /* Adios */
   signal (sig,SIG_DFL);

@@ -38,6 +38,9 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/rozofs_srv.h>
+//#include <rozofs/core/rozofs_optim.h>
+#include "storio_cache.h"
+#include "storio_bufcache.h"
 
 #include "storage.h"
 
@@ -168,6 +171,8 @@ void storage_release(storage_t * st) {
     st->root[0] = 0;
 }
 
+uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
+
 int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
         uint64_t *file_size, const bin_t * bins) {
@@ -180,6 +185,8 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
     uint16_t rozofs_max_psize = 0;
     uint8_t write_file_hdr = 0;
     struct stat sb;
+    
+    rozofs_max_psize = rozofs_get_max_psize(layout);
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -234,7 +241,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
     }
 
     // Compute the offset and length to write
-    rozofs_max_psize = rozofs_get_max_psize(layout);
+    
     bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + bid * (rozofs_max_psize *
             sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
     length_to_write = nb_proj * (rozofs_max_psize * sizeof (bin_t)
@@ -246,7 +253,12 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         severe("pwrite failed: %s", strerror(errno));
         goto out;
     }
-
+    /**
+    * insert in the fid cache the written section
+    */
+//    storage_build_ts_table_from_prj_header((char*)bins,nb_proj,rozofs_max_psize,buf_ts_storage_write);
+//    storio_cache_insert(fid,bid,nb_proj,buf_ts_storage_write,0);
+    
     // Stat file for return the size of bins file after the write operation
     if (fstat(fd, &sb) == -1) {
         severe("fstat failed: %s", strerror(errno));
@@ -264,6 +276,31 @@ out:
     return status;
 }
 
+uint64_t buf_ts_storage_before_read[STORIO_CACHE_BCOUNT];
+uint64_t buf_ts_storage_after_read[STORIO_CACHE_BCOUNT];
+uint64_t buf_ts_storcli_read[STORIO_CACHE_BCOUNT];
+char storage_bufall[4096];
+uint8_t storage_read_optim[4096];
+
+
+/**
+*  nanosleep debug
+*/
+ #include <time.h>
+ int storage_delay_count = 0;
+void storage_delay()
+{
+struct timespec    timer;
+  timer.tv_sec=0;
+  timer.tv_nsec=40000000;
+  storage_delay_count++;
+//  if (storage_delay_count == 3)
+  {
+//   nanosleep(&timer,(struct timespec *)NULL);
+   storage_delay_count = 0;
+  }
+}
+
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
         bin_t * bins, size_t * len_read, uint64_t *file_size) {
@@ -276,12 +313,26 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     off_t bins_file_offset = 0;
     uint16_t rozofs_max_psize = 0;
     struct stat sb;
+    int hit_counter;
+    
+//#warning  FDL storage_delay()   
+//    storage_delay();
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
 
     // Build the path of bins file
     storage_map_projection(fid, path);
+    
+    /*
+    ** check if the requested blocks are in the fid cache
+    ** the control is done only when there is an optimization 
+    ** header associated with the read request
+    */
+#if 0
+    memset(buf_ts_storcli_read,-1,sizeof(uint64_t)*STORIO_CACHE_BCOUNT);
+    hit_counter = storio_cache_get(fid,bid,nb_proj,buf_ts_storcli_read,buf_ts_storage_before_read);
+#endif
 
     // Check that this file already exists
     if (access(path, F_OK) == -1)
@@ -321,7 +372,34 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         errno = EIO;
         goto out;
     }
+    /*
+    ** update the cache if the number of hits does not match the number of projections that have
+    ** been read
+    */
+#if 0      
+    {
+      uint64_t bid_return;
+      uint32_t nb_blocks_read = nb_read/(rozofs_max_psize * sizeof (bin_t) +sizeof (rozofs_stor_bins_hdr_t));
+      int nb_blocks_nomatch;
 
+
+      /*
+      ** get the timestamp from the read buffer
+      */
+      storage_build_ts_table_from_prj_header((char*)bins,nb_blocks_read,rozofs_max_psize,buf_ts_storage_after_read);
+      nb_blocks_nomatch = storio_get_block_idx_and_len(bid,nb_blocks_read,buf_ts_storage_before_read,buf_ts_storage_after_read,&bid_return);
+      severe("----->FDL storage read nb_blocks_nomatch %d ",nb_blocks_nomatch);
+      /*
+      ** build the optimization header from the timestamp tables
+      */
+      rozofs_optim_compress_timestamp_table(storage_read_optim,buf_ts_storcli_read,nb_blocks_read,buf_ts_storage_after_read);
+      /*
+      ** display the optimisation header
+      */
+      rozofs_optim_hdr_display(storage_read_optim,storage_bufall);
+      info("FDL %s",storage_bufall);
+    }
+#endif
     // Update the length read
     *len_read = nb_read;
 

@@ -987,8 +987,7 @@ show_process () {
 
 main ()
 {
-    storaged_dir="storaged_nb"
-    #storaged_dir="storaged"
+    storaged_dir="storaged"
 
         
     [ $# -lt 1 ] && usage

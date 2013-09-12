@@ -65,7 +65,7 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
         errno = EPROTO;
         // Release connection
         rpcclt_release(clt);
-        goto out;
+	goto out;
     }
 
     if (ret->status_gw.status == EP_FAILURE) {
