@@ -153,6 +153,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o instance=N\tinstance number (default: 0)\n");
     fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
+    fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
 }
 
 
@@ -178,6 +179,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("exportpasswd=%s", passwd, 0),
     MYFS_OPT("rozofsbufsize=%u", buf_size, 0),
     MYFS_OPT("rozofsminreadsize=%u", min_read_size, 0),
+    MYFS_OPT("rozofsnbstorcli=%u", nbstorcli, 0),    
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
     MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
     MYFS_OPT("rozofsstoragetimeout=%u", storage_timeout, 0),
@@ -387,6 +389,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_STRING_CONFIG(passwd);  
   DISPLAY_UINT32_CONFIG(buf_size);
   DISPLAY_UINT32_CONFIG(min_read_size);
+  DISPLAY_UINT32_CONFIG(nbstorcli);
   DISPLAY_UINT32_CONFIG(max_retry);
   DISPLAY_UINT32_CONFIG(dbg_port);
   DISPLAY_UINT32_CONFIG(instance);  
@@ -741,6 +744,7 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .create = rozofs_ll_create_nb, /** non blocking */
     .getlk = rozofs_ll_getlk_nb,
     .setlk = rozofs_ll_setlk_nb,
+    //.flock = rozofs_ll_flock_nb,
     //.bmap = rozofs_ll_bmap,
     //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,
@@ -1164,6 +1168,7 @@ int main(int argc, char *argv[]) {
     conf.min_read_size = 0;
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
+    conf.nbstorcli = 0;
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
@@ -1217,8 +1222,14 @@ int main(int argc, char *argv[]) {
     if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
       conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
     }    
-
-
+    
+    if (conf.nbstorcli != 0) {
+      if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {
+          fprintf(stderr,
+                  "invalid rozofsnbstorcli parameter (%d) allowed range is [1..%d]\n",
+                  conf.nbstorcli,STORCLI_PER_FSMOUNT);
+      }
+    }
     /*
     ** Compute the identifier of the client from host and instance id 
     */

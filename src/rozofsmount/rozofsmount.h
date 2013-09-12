@@ -70,6 +70,7 @@ typedef struct rozofsmnt_conf {
     char *passwd;
     unsigned buf_size;
     unsigned min_read_size;
+    unsigned nbstorcli;    
     unsigned max_retry;
     unsigned dbg_port;  /**< lnkdebug base port: rozofsmount=dbg_port, storcli(1)=dbg_port+1, ....  */
     unsigned instance;  /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
@@ -277,5 +278,10 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
                         fuse_ino_t ino, 
                         struct fuse_file_info *fi,
                         struct flock *lock,
-			int sleep);       
+			int sleep);      
+
+void rozofs_ll_flock_nb(fuse_req_t req, 
+                              fuse_ino_t ino,
+		              struct fuse_file_info *fi, 
+		              int op);			 
 #endif
