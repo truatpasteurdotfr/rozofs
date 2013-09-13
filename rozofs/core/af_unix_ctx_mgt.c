@@ -109,8 +109,16 @@ char *af_inet_get_tcp_state(int state) {
   
   @retval
  */
-struct tcp_info *af_inet_tcp_get_tcp_info(int socket) {
-    static struct tcp_info tcp_info_buffer;
+typedef struct my_tcp_info_t {
+  struct tcp_info tcp_info;
+  uint32_t 	  tcpi_rcv_rtt;
+  uint32_t 	  tcpi_rcv_space;  
+  uint32_t        tcpi_total_retrans;
+} MY_TCP_INFO_T;
+static MY_TCP_INFO_T tcp_info_buffer;
+     
+MY_TCP_INFO_T * af_inet_tcp_get_tcp_info(int socket) {
+    
     int optionsize = sizeof (tcp_info_buffer);
     int ret;
 
@@ -133,7 +141,8 @@ struct tcp_info *af_inet_tcp_get_tcp_info(int socket) {
 
 void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
     char *buffer = uma_dbg_get_buffer();
-    struct tcp_info *p;
+    MY_TCP_INFO_T * myp;
+    struct tcp_info * p;
     af_unix_ctx_generic_t *sock_p;
     ruc_obj_desc_t *pnext;
     buffer += sprintf(buffer, "  State      | Avail.|sock      |  retrans | probes   |  rto     | snd_mss  |  rcv_mss | unacked  |  lost    | retrans  |last_sent |   rtt    |\n");
@@ -145,13 +154,14 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
             != (af_unix_ctx_generic_t*) NULL) {
 
         if (sock_p->af_family == AF_UNIX) continue;
-        p = af_inet_tcp_get_tcp_info(sock_p->socketRef);
+        myp = af_inet_tcp_get_tcp_info(sock_p->socketRef);
+	p = &myp->tcp_info;
         if (p == NULL) continue;
 
         buffer += sprintf(buffer, " %s |", af_inet_get_tcp_state(p->tcpi_state));
         buffer += sprintf(buffer, " %5s |", (sock_p->cnx_availability_state == AF_UNIX_CNX_AVAILABLE) ? "YES" : "NO");
         buffer += sprintf(buffer, " %8d |", sock_p->socketRef);
-        buffer += sprintf(buffer, " %8d |", p->tcpi_retransmits);
+        buffer += sprintf(buffer, " %8d |", myp->tcpi_total_retrans);
         buffer += sprintf(buffer, " %8d |", p->tcpi_probes);
         buffer += sprintf(buffer, " %8d |", p->tcpi_rto);
         buffer += sprintf(buffer, " %8d |", p->tcpi_snd_mss);
