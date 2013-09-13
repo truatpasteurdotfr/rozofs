@@ -544,6 +544,7 @@ deploy_clients_local ()
 	       option="$option -o nbcores=$NB_CORES"
 	       option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
 	       option="$option -o rozofsnbstorcli=$NB_STORCLI"
+	       option="$option -o rozofsshaper=$SHAPER"
 	       
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -1010,6 +1011,7 @@ main ()
     NB_CORES=4
     WRITE_FILE_BUFFERING_SIZE=256
     NB_STORCLI=1
+    SHAPER=0
 
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE

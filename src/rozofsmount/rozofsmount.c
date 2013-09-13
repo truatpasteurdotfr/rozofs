@@ -154,6 +154,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
     fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
+    fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration\n");
 }
 
 
@@ -191,6 +192,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofscachemode=%u", cache_mode, 0),
     MYFS_OPT("rozofsmode=%u", fs_mode, 0),
     MYFS_OPT("nbcores=%u", nb_cores, 0),
+    MYFS_OPT("rozofsshaper=%u", shaper, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -401,6 +403,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(attr_timeout);
   DISPLAY_UINT32_CONFIG(entry_timeout);
   DISPLAY_UINT32_CONFIG(nb_cores);
+  DISPLAY_UINT32_CONFIG(shaper);  
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }    
 
@@ -776,6 +779,7 @@ void rozofs_start_storcli(const char *mountpoint) {
         cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
         cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
         cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
+        cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
         cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
         /*
         ** check if there is a share mem key
@@ -1169,6 +1173,7 @@ int main(int argc, char *argv[]) {
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
+    conf.shaper = 1; // Default traffic shaper value
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
@@ -1230,6 +1235,7 @@ int main(int argc, char *argv[]) {
                   conf.nbstorcli,STORCLI_PER_FSMOUNT);
       }
     }
+    
     /*
     ** Compute the identifier of the client from host and instance id 
     */

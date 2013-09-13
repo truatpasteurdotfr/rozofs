@@ -82,6 +82,7 @@ typedef struct rozofsmnt_conf {
     unsigned attr_timeout;
     unsigned entry_timeout;
     unsigned nb_cores;
+    unsigned shaper;
 } rozofsmnt_conf_t;
 
 

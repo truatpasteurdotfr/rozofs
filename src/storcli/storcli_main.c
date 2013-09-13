@@ -86,6 +86,7 @@ typedef struct storcli_conf {
     unsigned nb_cores; /*< Number of cores to keep on disk */
     unsigned rozofsmount_instance;
     key_t sharedmem_key;
+    unsigned shaper;
 } storcli_conf;
 
 /*
@@ -124,6 +125,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(dbg_port);
   DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_UINT32_CONFIG(rozofsmount_instance);
+  DISPLAY_UINT32_CONFIG(shaper);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }    
 
@@ -783,6 +785,8 @@ void usage() {
     printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
     printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
     printf("\t-s,--storagetmr \t\t define timeout (s) for IO storaged requests (default: 3)\n");
+    printf("\t-S,--shaper VALUE\t\tShaper initial value (default 1)\n");
+
 }
 
 /**
@@ -808,6 +812,7 @@ int main(int argc, char *argv[]) {
         { "pwd", required_argument, 0, 'P'},
         { "dbg", required_argument, 0, 'D'},
         { "nbcores", required_argument, 0, 'C'},
+        { "shaper", required_argument, 0, 'S'},
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
@@ -842,11 +847,12 @@ int main(int argc, char *argv[]) {
     conf.dbg_port = 0;
     conf.rozofsmount_instance = 0;
     conf.sharedmem_key = 0;
+    conf.shaper = 1; // Default value for traffic shaping 
 
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:S:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -910,7 +916,17 @@ int main(int argc, char *argv[]) {
                 conf.rozofsmount_instance = val;
                 break;
 
-            case 's':
+            case 'S':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                conf.shaper = val;
+                break;            
+	   case 's':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
                 if (errno != 0) {
@@ -1110,7 +1126,7 @@ int main(int argc, char *argv[]) {
     /**
     * init of the traffic shaper
     */
-    trshape_module_init(1);    
+    trshape_module_init(conf.shaper);    
     /*
      ** main loop
      */
