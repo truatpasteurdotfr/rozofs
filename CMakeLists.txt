@@ -42,6 +42,7 @@ find_program(DEBUILD NAMES debuild)
 find_program(DEBUILD NAMES debuild)
 find_program(MAKEINFO NAMES makeinfo)
 find_program(TEXI2DVI NAMES texi2dvi)
+find_program(TEXI2PDF NAMES texi2pdf)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fmessage-length=0")

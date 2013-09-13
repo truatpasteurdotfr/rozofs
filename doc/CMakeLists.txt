@@ -34,8 +34,13 @@ endif(DOXYGEN)
 #
 # User guide
 #
-if(MAKEINFO AND TEXI2DVI)
-    add_custom_target(pdf_guide "${MAKEINFO}" -o "${CMAKE_CURRENT_BINARY_DIR}/" "${CMAKE_CURRENT_SOURCE_DIR/rozo.texi}")
-else(MAKEINFO AND TEXI2DVI)
+if(TEXI2PDF)
+    add_custom_target(pdf_guide "${TEXI2PDF}" --build=clean "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
+else(TEXI2PDF)
+    message(STATUS "texi2pdf not found.")
+endif(TEXI2PDF)
+if(MAKEINFO)
+    add_custom_target(html_guide "${MAKEINFO}" --html --css-include=${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.css "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
+else(MAKEINFO)
     message(STATUS "makeinfo not found.")
-endif(MAKEINFO AND TEXI2DVI)
+endif(MAKEINFO)

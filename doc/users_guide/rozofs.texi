@@ -11,7 +11,6 @@
 @subtitle User's Guide
 @author Sylvain David - @email{sylvain.david@@rozofs.com},
 @author Pierre Evenou - @email{pierre.evenou@@rozofs.com},
-@author Louis Legouriellec - @email{louis.legouriellec@@rozofs.com},
 @author Dimitri Pertin - @email{dimitri.pertin@@rozofs.org}.
 
 @c start copyright

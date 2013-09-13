@@ -229,7 +229,7 @@ disk partition is used by only one server at a time (the elected master
 server), and it is on this server that the service exportd is active. The
 cluster management software Pacemaker controls the different machines in the
 cluster and takes the necessary measures in case of problem on any of them
-(failover IP address, boot order of services, etc@dots). 
+(failover IP address, boot order of services, etc@dots{}). 
 
 @c *** Subsection [Data Protection]
 @node       Data Protection, Erasure Code vs Replication, Meta Data Protection, RozoFS Data Protection
@@ -239,8 +239,8 @@ cluster and takes the necessary measures in case of problem on any of them
 A distributed system as RozoFS must protect the user data. Since this kind of
 system relies on several nodes (from tens to thousands), the risk of failures
 is a common factor. Failure sources are manifold. Hardware components might
-fail (network, disks, power management @dots) as well as software components (bugs,
-operating system, expected upgrades @dots). In order to protect data, RozoFS relies
+fail (network, disks, power management @dots{}) as well as software components (bugs,
+operating system, expected upgrades @dots{}). In order to protect data, RozoFS relies
 on an erasure code that uses the Mojette mathematic transform.
 
 @menu

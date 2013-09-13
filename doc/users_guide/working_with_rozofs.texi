@@ -156,7 +156,7 @@ RozoFS comes with a command line utility called rozo that aims to automate the
 management process of a RozoFS platform. Its main purpose is to chain up the
 operations required on remote nodes involved on a high level management task
 such as stopping and starting the whole platform, add new nodes to the platform
-in order to extend the capacity, add new exports on volume etc@dots
+in order to extend the capacity, add new exports on volume etc@dots{}
 
 Rozo is fully independant of RozoFS daemons and processes and is not required
 for a fully functional system but when installed aside RozoFS on each involved
