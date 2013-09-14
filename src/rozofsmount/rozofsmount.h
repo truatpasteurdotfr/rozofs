@@ -62,7 +62,7 @@
 
 //#define CONNECTION_THREAD_TIMESPEC  2
 
-
+extern int rozofs_rotation_read_modulo;
 
 typedef struct rozofsmnt_conf {
     char *host;
@@ -83,6 +83,7 @@ typedef struct rozofsmnt_conf {
     unsigned entry_timeout;
     unsigned nb_cores;
     unsigned shaper;
+    unsigned rotate;
 } rozofsmnt_conf_t;
 
 

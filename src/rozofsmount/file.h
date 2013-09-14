@@ -85,6 +85,8 @@ typedef struct file {
     int buf_read_pending;    /**< number of read requests that are pending */
     int wr_error;            /**< last write error code                     */
     int buf_read_wait;
+    int rotation_counter;/**< Rotation counter on file distribution. Incremented on each rotation */
+    int rotation_idx;    /**< Rotation index within the rozo forward distribution */ 
     uint64_t read_pos;  /**< absolute position of the first available byte to read*/
     uint64_t read_from; /**< absolute position of the last available byte to read */
     uint64_t write_pos;  /**< absolute position of the first available byte to read*/
@@ -135,6 +137,8 @@ static inline void rozofs_file_working_var_init(file_t *file)
     file->buf_write_wait = 0;
     file->buf_read_wait = 0;    
     file->current_pos = 0;
+    file->rotation_counter = 0;
+    file->rotation_idx = 0;
     file->lock_owner_ref = 0;
     ruc_listEltInitAssoc(&file->pending_lock,file);
     file->fuse_req = NULL;

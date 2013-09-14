@@ -72,6 +72,7 @@
 #define STORCLI_EXEC "storcli"
 
 static SVCXPRT *rozofsmount_profile_svc = 0;
+int rozofs_rotation_read_modulo = 0;
 
 DEFINE_PROFILING(mpp_profiler_t) = {0};
 
@@ -155,6 +156,7 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
     fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
     fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration\n");
+    fprintf(stderr, "\t-o rozofsrotate=N\tdefine the modulo on read distribution rotation\n");
 }
 
 
@@ -193,6 +195,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsmode=%u", fs_mode, 0),
     MYFS_OPT("nbcores=%u", nb_cores, 0),
     MYFS_OPT("rozofsshaper=%u", shaper, 0),
+    MYFS_OPT("rozofsrotate=%u", rotate, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -404,9 +407,25 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(entry_timeout);
   DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_UINT32_CONFIG(shaper);  
+  DISPLAY_UINT32_CONFIG(rotate);  
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-}    
+}  
+/*__________________________________________________________________________
+*/  
+void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
 
+   int timer_id,val;
+   
+   if (argv[1] !=NULL)
+   {
+     rozofs_rotation_read_modulo = (int) strtol(argv[1], (char **) NULL, 10);        
+    uma_dbg_send(tcpRef, bufRef, TRUE, "New rotate modulo set to %d\n",rozofs_rotation_read_modulo);    
+    return;     
+   }
+
+   uma_dbg_send(tcpRef, bufRef, TRUE, "rotation modulo is %d\n",rozofs_rotation_read_modulo);    
+  return;     
+}    
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
@@ -991,6 +1010,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("blockmode_cache", show_blockmode_cache);
     uma_dbg_addTopic("data_cache", rozofs_gcache_show_cache_stats);
     uma_dbg_addTopic("start_config", show_start_config);
+    uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
 
     /**
     * init of the mode block cache
@@ -1174,6 +1194,7 @@ int main(int argc, char *argv[]) {
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
     conf.shaper = 1; // Default traffic shaper value
+    conf.rotate = 0;
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
@@ -1235,6 +1256,9 @@ int main(int argc, char *argv[]) {
                   conf.nbstorcli,STORCLI_PER_FSMOUNT);
       }
     }
+    
+    /* Initialize the rotation modulo on distribution for read request */
+    rozofs_rotation_read_modulo = conf.rotate;
     
     /*
     ** Compute the identifier of the client from host and instance id 

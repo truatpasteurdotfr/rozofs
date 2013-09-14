@@ -52,8 +52,6 @@
 DECLARE_PROFILING(stcpp_profiler_t);
 
 
-uint8_t stc_rotate_distribution = 0;
-
 /*
 **__________________________________________________________________________
 */
@@ -478,6 +476,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   projection_id;
   int       error;
   int i;
+  int       rotate=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   uint8_t used_dist_set[ROZOFS_SAFE_MAX];
@@ -514,10 +513,10 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   ** Rotate the distribution set for using all the first forward storages
   */ 
 #if 1
-  stc_rotate_distribution++;
+  rotate = storcli_read_rq_p->sid; 
   for (i = 0; i  <rozofs_forward ; i ++)
   {
-    rotate_modulo = (i + stc_rotate_distribution) % rozofs_forward;
+    rotate_modulo = (i + rotate) % rozofs_forward;
     used_dist_set[i] = storcli_read_rq_p->dist_set[rotate_modulo];     
   } 
   for (; i  <rozofs_safe ; i ++) {

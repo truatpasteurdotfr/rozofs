@@ -127,12 +127,21 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    {
      severe("bad nb_prj %d bid %llu off %llu len %u",nb_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
    }
+   
+    if (rozofs_rotation_read_modulo == 0) {
+      f->rotation_idx = 0;
+    }
+    else {
+      f->rotation_counter++;
+      if ((f->rotation_counter % rozofs_rotation_read_modulo)==0) {
+	f->rotation_idx++;
+      }
+    }  
+    args.sid = f->rotation_idx;
 
     // Fill request
     args.cid = f->attrs.cid;
-    args.sid = 0; // NS
     args.layout = f->export->layout;
-    args.spare = 0; // NS
     memcpy(args.dist_set, f->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.proj_id = 0; // N.S
