@@ -1,7 +1,9 @@
 @c *** Chapter [About RozoFS]
 @node       About RozoFS, Building Installing and Configuring RozoFS, About this Guide, Top
 @chapter    About RozoFS
-@cindex     about
+@cindex     About
+@cindex     Scale-OUT NAS
+@cindex     POSIX
 
 @menu
 * RozoFS Fundamentals::
@@ -34,7 +36,11 @@ for large storage savings compared to traditional @emph{replication} method.
 @c *** Section [RozoFS Fundamentals]
 @node       RozoFS Fundamentals, RozoFS Data Flow, About RozoFS, About RozoFS
 @section    RozoFS Fundamentals
-@cindex     fundamentals
+@cindex     Fundamentals
+@cindex     Components
+@cindex     Exportd
+@cindex     Storaged
+@cindex     rozofsmount
 
 The file system itself comprises three components:
 @itemize
@@ -62,8 +68,11 @@ unusual to have hosts running exportd, storaged and rozofsmount.
 @c *** Subsection [Storage nodes and storaged daemon]
 @node       Storage nodes and storaged daemon, Export nodes and exportd daemon, RozoFS Fundamentals, RozoFS Fundamentals
 @subsection Storage nodes and storaged daemon
-@cindex     storage node
-@cindex     storaged daemon
+@cindex     Storage node
+@cindex     Storage server
+@cindex     Storaged
+@cindex     File system
+@cindex     Daemon
 
 Each storage node hosts a @dfn{storaged daemon} and configures itself via a
 configuration file. This daemon receives requests and stores the converted data
@@ -75,8 +84,10 @@ accessed through an usual file system (e.g. @acronym{ext4}, @acronym{btrfs},
 @c *** Subsection [Export nodes and exportd daemon]
 @node       Export nodes and exportd daemon, The rozofsmount clients, Storage nodes and storaged daemon, RozoFS Fundamentals
 @subsection Export nodes and exportd daemon
-@cindex     export node
-@cindex     exportd daemon
+@cindex     Export node
+@cindex     Export server
+@cindex     Exportd
+@cindex     Daemon
 
 An export node includes all the information needed to reconstruct all the data
 it holds. It runs an exportd daemon configured by a configuration file
@@ -91,8 +102,11 @@ describing three fundamental concepts in RozoFS : volume, layout and export.
 @c *** Subsubsection [Volumes and their clusters]
 @node       Volumes and their clusters, Layouts, Export nodes and exportd daemon, Export nodes and exportd daemon
 @subsubsection Volume and their clusters
-@cindex     volume
-@cindex     cluster
+@cindex     Volume
+@cindex     Cluster
+@cindex     Cluster
+@cindex     Scalability
+@cindex     Exportd
 
 A @dfn{volume} in RozoFS can be seen as a usable capacity. It is defined by a pool
 of storage locations. These storage locations are themselves gathered by clusters.
@@ -117,7 +131,11 @@ storage locations belonging to different volumes.
 @c *** Subsubsection [Layouts]
 @node       Layouts, Exports, Volumes and their clusters, Export nodes and exportd daemon
 @subsubsection Layouts
-@cindex     layouts
+@cindex     Layouts
+@cindex     Redundancy
+@cindex     Configuration
+@cindex     Projections
+@cindex     Availability
 
 As previously mentioned, RozoFS introduces redundancy to ensure high
 reliability. This reliability depends on the chosen configuration. The number
@@ -153,7 +171,12 @@ with the number of nodes required to start and to scale.
 @c *** Subsubsection [Exports]
 @node       Exports, , Layouts, Export nodes and exportd daemon
 @subsubsection Exports
-@cindex     export
+@cindex     Export
+@cindex     Volume
+@cindex     File system
+@cindex     Quotas
+@cindex     Hard Quotas
+@cindex     Soft Quotas
 
 @dfn{Volumes} are the raw storage space on which several file sytems can be created
 (called exports) and exposed to clients. @dfn{Exports} can be declared or removed
@@ -164,7 +187,10 @@ managed through resizable quotas (hard and soft).
 @node       The rozofsmount clients, , Export nodes and exportd daemon, RozoFS Fundamentals
 @subsection The rozofsmount clients
 @cindex     rozofsmount
-@cindex     client
+@cindex     Client
+@cindex     FUSE
+@cindex     Encoding
+@cindex     Decoding
 
 @command{rozofsmount} allows users to mount an export of the RozoFS file system on a
 local directory using the @acronym{FUSE} library. Once the file system is mounted,
@@ -175,7 +201,21 @@ operations.
 @c *** Section [RozoFS Data Flow]
 @node       RozoFS Data Flow, RozoFS Data Protection, RozoFS Fundamentals, About RozoFS
 @section    RozoFS Data Flow
-@cindex     data flow
+@cindex     Data flow
+@cindex     Encoding
+@cindex     Decoding
+@cindex     Storaged
+@cindex     Exportd
+@cindex     rozofsmount
+@cindex     Projection
+@cindex     Read
+@cindex     Write
+@cindex     File system
+@cindex     Block size
+@cindex     Availability
+@cindex     Chunks
+@cindex     Failure
+@cindex     Layout
 
 The following figures shows the read and write process in RozoFS. The
 client who wants to store a file first sends a request to the exportd to
@@ -201,6 +241,10 @@ failure of storage nodes (depending on the layout chosen for redundancy).
 @c *** Section [RozoFS Data Protection]
 @node       RozoFS Data Protection, Meta Data Protection, RozoFS Data Flow, About RozoFS
 @section    RozoFS Data Protection
+@cindex     Protection
+@cindex     Metadata
+@cindex     Data
+@cindex     Redundancy
 
 RozoFS is fully redundant. It takes care of managing both metadata and
 data with the same availability. However availability is handled in two
@@ -220,10 +264,11 @@ erasure coding.
 @c *** Subsection [Meta Data Protection]
 @node       Meta Data Protection, Data Protection, RozoFS Data Protection, RozoFS Data Protection
 @subsection Meta Data Protection
-@cindex     metadata
-@cindex     protection
-@cindex     drbd
-@cindex     pacemaker
+@cindex     Metadata
+@cindex     Protection
+@cindex     Replication
+@cindex     DRBD
+@cindex     Pacemaker
 
 The @dfn{metadata server} (exportd) is a single point of potential failure
 (@acronym{SPOF}). A high-availability strategy is necessary to be transparent to
@@ -240,7 +285,9 @@ cluster and takes the necessary measures in case of problem on any of them
 @c *** Subsection [Data Protection]
 @node       Data Protection, Erasure Code vs Replication, Meta Data Protection, RozoFS Data Protection
 @subsection Data Protection
-@cindex     data protection
+@cindex     Data
+@cindex     Protection
+@cindex     Erasure code
 
 A distributed system as RozoFS must protect the user data. Since this kind of
 system relies on several nodes (from tens to thousands), the risk of failures
