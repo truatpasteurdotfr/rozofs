@@ -2,6 +2,8 @@
 @setfilename rozofs_users_guide 
 @settitle @dfn{RozoFS} - User's Guide
 
+@finalout
+
 @c ***** summary and copyright
 @include copyright.texi
 

@@ -297,6 +297,8 @@ The following diagram describes the different resources configured and controlle
 via Pacemaker. In this case, two servers are configured and node1 is the
 master server.
 
+@center @image{pics/DRBD, , 5in, , png}
+
 Installing and Configuring Pacemaker
 The first component to configure is Corosync. It manages the infrastructure
 of the cluster, i.e. the status of nodes and their operation. For this, we

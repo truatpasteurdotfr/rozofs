@@ -185,12 +185,16 @@ this write process rozofsmount is responsible for choosing running storage
 locations among the possible ones  to ensure data availability. Failures of
 storage locations (according to layout) are transparent for upper level (OS).
 
+@center @image{pics/data_flow_read, , 3in, , png}
+
 During the read operation, the opposite process is performed. The rozofsmount
 requests the list of storage locations used for each block of data stored and
 retrieves a sufficient set of projections to rebuild the block before
 transmitting it to the application level. The redundancy introduced during the
 write operation ensures a reliable storage despite any single or multiple
 failure of storage nodes (depending on the layout chosen for redundancy).
+
+@center @image{pics/data_flow_write, , 3in, , png}
 
 @c *** Section [RozoFS Data Protection]
 @node       RozoFS Data Protection, Meta Data Protection, RozoFS Data Flow, About RozoFS
