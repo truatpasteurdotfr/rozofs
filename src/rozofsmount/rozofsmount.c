@@ -157,6 +157,9 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
     fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration\n");
     fprintf(stderr, "\t-o rozofsrotate=N\tdefine the modulo on read distribution rotation\n");
+    fprintf(stderr, "\t-o posixlock\trequire support for POSIX file lock\n");
+    fprintf(stderr, "\t-o bsdlock\trequire support for BSD file lock\n");
+
 }
 
 
@@ -196,6 +199,8 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("nbcores=%u", nb_cores, 0),
     MYFS_OPT("rozofsshaper=%u", shaper, 0),
     MYFS_OPT("rozofsrotate=%u", rotate, 0),
+    MYFS_OPT("posixlock", posix_file_lock, 1),
+    MYFS_OPT("bsdlock", bsd_file_lock, 1),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -408,6 +413,8 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_UINT32_CONFIG(shaper);  
   DISPLAY_UINT32_CONFIG(rotate);  
+  DISPLAY_UINT32_CONFIG(posix_file_lock);  
+  DISPLAY_UINT32_CONFIG(bsd_file_lock);  
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }  
 /*__________________________________________________________________________
@@ -764,9 +771,14 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .removexattr = rozofs_ll_removexattr_nb, /** non blocking */
     .access = rozofs_ll_access, /** non blocking by construction */
     .create = rozofs_ll_create_nb, /** non blocking */
+    
+    // POSIX lock to be activated thanks to -o posixlock option
     //.getlk = rozofs_ll_getlk_nb,
     //.setlk = rozofs_ll_setlk_nb,
+
+    // BSD lock to be activated thanks to -o bsdlock option
     //.flock = rozofs_ll_flock_nb,
+
     //.bmap = rozofs_ll_bmap,
     //.ioctl = rozofs_ll_ioctl,
     //.poll = rozofs_ll_poll,
@@ -936,6 +948,19 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
             close(piped[1]);
         }
         return 1;
+    }
+    /*
+    ** Are POSIX lock required ?
+    */
+    if (conf.posix_file_lock) {
+      rozofs_ll_operations.getlk = rozofs_ll_getlk_nb;
+      rozofs_ll_operations.setlk = rozofs_ll_setlk_nb;
+    }
+    /*
+    ** Are BSD lock required ?
+    */
+    if (conf.bsd_file_lock) {
+      rozofs_ll_operations.flock = rozofs_ll_flock_nb;
     }
 
     se = fuse_lowlevel_new(args, &rozofs_ll_operations,
@@ -1195,7 +1220,8 @@ int main(int argc, char *argv[]) {
     conf.nbstorcli = 0;
     conf.shaper = 1; // Default traffic shaper value
     conf.rotate = 0;
-
+    conf.posix_file_lock = 0; // No posix file lock until explicitly activated  man 2 fcntl)
+    conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
     }

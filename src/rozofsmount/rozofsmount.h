@@ -84,6 +84,8 @@ typedef struct rozofsmnt_conf {
     unsigned nb_cores;
     unsigned shaper;
     unsigned rotate;
+    unsigned posix_file_lock;    
+    unsigned bsd_file_lock;    
 } rozofsmnt_conf_t;
 
 
