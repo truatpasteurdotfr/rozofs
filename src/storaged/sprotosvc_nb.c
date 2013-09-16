@@ -20,9 +20,9 @@
 #include <rozofs/core/ruc_buffer_api.h>
 #include <rozofs/rpc/rozofs_rpc_util.h>
 #include "sproto_nb.h"
+#include "sprotosvc_nb.h"
 
 
-extern void * decoded_rpc_buffer_pool;
 
 /*
 **__________________________________________________________________________

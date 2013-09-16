@@ -334,10 +334,11 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     hit_counter = storio_cache_get(fid,bid,nb_proj,buf_ts_storcli_read,buf_ts_storage_before_read);
 #endif
 
+#if 0
     // Check that this file already exists
     if (access(path, F_OK) == -1)
         goto out;
-
+#endif
     // Open bins file
     fd = open(path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
@@ -353,6 +354,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     length_to_read = nb_proj * (rozofs_max_psize * sizeof (bin_t)
             + sizeof (rozofs_stor_bins_hdr_t));
 
+    
     // Read nb_proj * (projection + header)
     nb_read = pread(fd, bins, length_to_read, bins_file_offset);
 
@@ -400,8 +402,10 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
       info("FDL %s",storage_bufall);
     }
 #endif
+
     // Update the length read
     *len_read = nb_read;
+
 
     // Stat file for return the size of bins file after the read operation
     if (fstat(fd, &sb) == -1) {

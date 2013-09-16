@@ -35,35 +35,14 @@ static int transactionId = 1;
 int        af_unix_disk_south_socket_ref = -1;
 char       destination_socketName[128];
 int        af_unix_disk_thread_count=0;
+int        af_unix_disk_pending_req_count = 0;
 
-void   af_unix_disk_response_callback(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf);
-void * af_unix_disk_userRcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref,uint32_t len);
-void   af_unix_disk_disconnection_callback(void *userRef,uint32_t socket_context_ref,void *bufRef,int err_no);
+struct  sockaddr_un storio_south_socket_name;
+struct  sockaddr_un storio_north_socket_name;
+
  
 int storio_disk_thread_create(char * hostname, int nb_threads) ;
  
- /**
- *  socket configuration for the family
- */
- af_unix_socket_conf_t  af_unix_disk_client_conf =
-{
-  1,  //           family: identifier of the socket family    */
-  0,         /**< instance number within the family   */
-  4, //        headerSize;       /* size of the header to read                 */
-  0, //       msgLenOffset;     /* offset where the message length fits       */
-  4, //        msgLenSize;       /* size of the message length field in bytes  */
-  (1024*256), //        bufSize;         /* length of buffer (xmit and received)        */
-  (300*1024), //        so_sendbufsize;  /* length of buffer (xmit and received)        */
-  af_unix_disk_userRcvAllocBufCallBack,  //    userRcvAllocBufCallBack;   /* user callback for buffer allocation */
-  af_unix_disk_response_callback,  //    userRcvCallBack;   /* callback provided by the connection owner block */
-  af_unix_disk_disconnection_callback,  //    userDiscCallBack; /* callBack for TCP disconnection detection         */
-  NULL,  //    userRcvReadyCallBack; /* NULL for default callback                    */
-  NULL,  //    userXmitReadyCallBack; /* NULL for default callback                    */
-  NULL,  //    userXmitEventCallBack; /* NULL for default callback                    */
-  NULL,  //    *userRef;           /* user reference that must be recalled in the callbacks */
-  NULL,  //    *xmitPool; /* user pool reference or -1 */
-  NULL   //    *recvPool; /* user pool reference or -1 */
-}; 
 
 
 void * af_unix_disk_pool_send = NULL;
@@ -188,30 +167,49 @@ void * af_unix_disk_userRcvAllocBufCallBack(void *userRef,uint32_t socket_contex
   return ruc_buf_getBuffer(af_unix_disk_pool_recv);   
 }
 
-/*__________________________________________________________________________
+
+ /**
+ * prototypes
+ */
+uint32_t af_unix_disk_rcvReadysock(void * af_unix_disk_ctx_p,int socketId);
+uint32_t af_unix_disk_rcvMsgsock(void * af_unix_disk_ctx_p,int socketId);
+uint32_t af_unix_disk_xmitReadysock(void * af_unix_disk_ctx_p,int socketId);
+uint32_t af_unix_disk_xmitEvtsock(void * af_unix_disk_ctx_p,int socketId);
+
+#define DISK_SO_SENDBUF  (300*1024)
+#define DISK_SOCKET_NICKNAME "disk_resp_th"
+/*
+**  Call back function for socket controller
+*/
+ruc_sockCallBack_t af_unix_disk_callBack_sock=
+  {
+     af_unix_disk_rcvReadysock,
+     af_unix_disk_rcvMsgsock,
+     af_unix_disk_xmitReadysock,
+     af_unix_disk_xmitEvtsock
+  };
+  
+  /*
+**__________________________________________________________________________
 */
 /**
-* test function that is called upon a failure on sending
+  Application callBack:
 
- The application might use that callback if it has some other
- destination that can be used in case of failure of the current one
- If the application has no other destination to select, it is up to the
- application to release the buffer.
- 
+  Called from the socket controller. 
 
- @param userRef : pointer to a user reference: not used here
- @param socket_context_ref: socket context reference
- @param bufRef : pointer to the packet buffer on which the error has been encountered
- @param err_no : errno has reported by the sendto().
+
+  @param unused: not used
+  @param socketId: reference of the socket (not used)
  
- @retval none
+  @retval : always FALSE
 */
-void  af_unix_disk_disconnection_callback(void *userRef,uint32_t socket_context_ref,void *bufRef,int err_no) {
 
-  fatal("af_unix_disk_disconnection_callback");
-  
-    
+uint32_t af_unix_disk_xmitReadysock(void * unused,int socketId)
+{
+
+    return FALSE;
 }
+
 
 /*
 **__________________________________________________________________________
@@ -219,33 +217,71 @@ void  af_unix_disk_disconnection_callback(void *userRef,uint32_t socket_context_
 /**
   Application callBack:
 
+   Called from the socket controller upon receiving a xmit ready event
+   for the associated socket. That callback is activeted only if the application
+   has replied TRUE in rozofs_fuse_xmitReadysock().
+   
+   It typically the processing of a end of congestion on the socket
+
+    
+  @param unused: not used
+  @param socketId: reference of the socket (not used)
+ 
+   @retval :always TRUE
+*/
+uint32_t af_unix_disk_xmitEvtsock(void * unused,int socketId)
+{
+   
+    return TRUE;
+}
+/*
+**__________________________________________________________________________
+*/
+/**
+  Application callBack:
+
+   receiver ready function: called from socket controller.
+   The module is intended to return if the receiver is ready to receive a new message
+   and FALSE otherwise
+
+    
+  @param unused: not used
+  @param socketId: reference of the socket (not used)
+ 
+  @retval : TRUE-> receiver ready
+  @retval : FALSE-> receiver not ready
+*/
+
+uint32_t af_unix_disk_rcvReadysock(void * unused,int socketId)
+{
+  return TRUE;
+}
+/*
+**__________________________________________________________________________
+*/
+/**
+  Processes a disk response
+
    Called from the socket controller when there is a response from a disk thread
    the response is either for a disk read or write
     
-  @param socket_ctx_p: pointer to the af unix socket
-  @param socketId: reference of the socket (not used)
+  @param msg: pointer to disk response message
  
-   @retval : TRUE-> xmit ready event expected
-  @retval : FALSE-> xmit  ready event not expected
+  @retval :none
 */
-void af_unix_disk_response_callback(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf) {
+void af_unix_disk_response(storio_disk_thread_msg_t *msg) 
+{
+
   storio_disk_thread_request_e   opcode;
-  storio_disk_thread_msg_t     * msg;
   rozorpc_srv_ctx_t            * rpcCtx;
   int                            ret;
   uint64_t                       tic, toc;  
   struct timeval                 tv;  
   
-  msg = (storio_disk_thread_msg_t *) ruc_buf_getPayload(recv_buf);
   rpcCtx = msg->rpcCtx;
   opcode = msg->opcode;
   tic    = msg->timeStart;
 
-  /*
-  ** release the received buffer
-  */
-  ruc_buf_freeBuffer(recv_buf);
-  
   switch (opcode) {
     case STORIO_DISK_THREAD_READ:
       STOP_PROFILING_IO(read,msg->size);
@@ -259,7 +295,9 @@ void af_unix_disk_response_callback(void *userRef,uint32_t  socket_ctx_idx, void
     default:
       severe("Unexpected opcode %d", opcode);
   }
-    
+  /*
+  ** send the response towards the storcli process that initiates the disk operation
+  */
   ret = af_unix_generic_send_stream_with_idx((int)rpcCtx->socketRef,rpcCtx->xmitBuf);  
   if (ret == 0) {
     /**
@@ -276,6 +314,142 @@ void af_unix_disk_response_callback(void *userRef,uint32_t  socket_ctx_idx, void
   rozorpc_srv_release_context(rpcCtx);          
 }
 
+/*
+**__________________________________________________________________________
+*/
+/**
+  Application callBack:
+
+   Called from the socket controller when there is a message pending on the
+   socket associated with the context provide in input arguments.
+   
+   That service is intended to process a response sent by a disk thread
+
+    
+  @param unused: user parameter not used by the application
+  @param socketId: reference of the socket 
+ 
+   @retval : TRUE-> xmit ready event expected
+  @retval : FALSE-> xmit  ready event not expected
+*/
+
+uint32_t af_unix_disk_rcvMsgsock(void * unused,int socketId)
+{
+  storio_disk_thread_msg_t   msg;
+  int                        bytesRcvd;
+  int eintr_count = 0;
+  
+
+
+  /*
+  ** disk responses have the highest priority, loop on the socket until
+  ** the socket becomes empty
+  */
+  while(1) {  
+    /*
+    ** check if there are some pending requests
+    */
+    if (af_unix_disk_pending_req_count == 0)
+    {
+     return TRUE;
+    }
+    /*
+    ** read the north disk socket
+    */
+    bytesRcvd = recvfrom(socketId,
+			 &msg,sizeof(msg), 
+			 0,(struct sockaddr *)NULL,NULL);
+    if (bytesRcvd == -1) {
+     switch (errno)
+     {
+       case EAGAIN:
+        /*
+        ** the socket is empty
+        */
+        return TRUE;
+
+       case EINTR:
+         /*
+         ** re-attempt to read the socket
+         */
+         eintr_count++;
+         if (eintr_count < 3) continue;
+         /*
+         ** here we consider it as a error
+         */
+         severe ("Disk Thread Response error too many eintr_count %d",eintr_count);
+         return TRUE;
+
+       case EBADF:
+       case EFAULT:
+       case EINVAL:
+       default:
+         /*
+         ** We might need to double checl if the socket must be killed
+         */
+         fatal("Disk Thread Response error on recvfrom %s !!\n",strerror(errno));
+         exit(0);
+     }
+
+    }
+    if (bytesRcvd == 0) {
+      fatal("Disk Thread Response socket is dead %s !!\n",strerror(errno));
+      exit(0);    
+    } 
+    af_unix_disk_pending_req_count--;
+    if (  af_unix_disk_pending_req_count < 0) af_unix_disk_pending_req_count = 0;
+    af_unix_disk_response(&msg); 
+  }       
+  return TRUE;
+}
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+* fill the storio  AF_UNIX name in the global data
+
+  @param hostname
+  @param socketname : pointer to a sockaddr_un structure
+  
+  @retval none
+*/
+void storio_set_socket_name_with_hostname(struct sockaddr_un *socketname,char *name,char *hostname)
+{
+  socketname->sun_family = AF_UNIX;  
+  sprintf(socketname->sun_path,"%s_%s",name,hostname);
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Thar API is intended to be used by a disk thread for sending back a 
+   disk response (read/write or truncate) towards the main thread
+   
+   @param thread_ctx_p: pointer to the thread context (contains the thread source socket )
+   @param msg: pointer to the message that contains the disk response
+   @param status : status of the disk operation
+   
+   @retval none
+*/
+void storio_send_response (rozofs_disk_thread_ctx_t *thread_ctx_p, storio_disk_thread_msg_t * msg, int status) 
+{
+  int                     ret;
+  
+  msg->status = status;
+  
+  /*
+  ** send back the response
+  */  
+  ret = sendto(thread_ctx_p->sendSocket,msg, sizeof(*msg),0,(struct sockaddr*)&storio_south_socket_name,sizeof(storio_south_socket_name));
+  if (ret <= 0) {
+     fatal("storio_send_response %d sendto(%s) %s", thread_ctx_p->thread_idx, storio_south_socket_name.sun_path, strerror(errno));
+     exit(0);  
+  }
+}
+
 /*__________________________________________________________________________
 */
 /**
@@ -290,47 +464,113 @@ void af_unix_disk_response_callback(void *userRef,uint32_t  socket_ctx_idx, void
 */
 int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode, 
                                  rozorpc_srv_ctx_t            * rpcCtx,
-				 uint64_t                       timeStart) {
-  storio_disk_thread_msg_t  * msg;
-  char                      * dest_p;
+				                 uint64_t                       timeStart) 
+{
   int                         ret;
-  void                      * xmit_buf;
-
-  /* allocate a buffer */
-  xmit_buf = ruc_buf_getBuffer(af_unix_disk_pool_send);   
-  if (xmit_buf == NULL) {
-    errno = ENOMEM;
-    severe("storio_disk_thread_intf_send %d out of buffer",opcode);
-    return -1;
-  }
+  storio_disk_thread_msg_t    msg;
  
-  /* Get the buffer payload address*/
-  msg = (storio_disk_thread_msg_t *)ruc_buf_getPayload(xmit_buf);
-
   /* Fill the message */
-  msg->msg_len         = sizeof(storio_disk_thread_msg_t)-sizeof(msg->msg_len);
-  msg->opcode          = opcode;
-  msg->status          = 0;
-  msg->transaction_id  = transactionId++;
-  msg->timeStart       = timeStart;
-  msg->size            = 0;
-  msg->rpcCtx          = rpcCtx;
-
-  /* Set the payload length */
-  ruc_buf_setPayloadLen(xmit_buf,sizeof(storio_disk_thread_msg_t));
-
-  /* Initialize the destination address in the buffer */
-  dest_p = ruc_buf_get_usrDestInfo(xmit_buf);  
-  strcpy(dest_p,destination_socketName);
+  msg.msg_len         = sizeof(storio_disk_thread_msg_t)-sizeof(msg.msg_len);
+  msg.opcode          = opcode;
+  msg.status          = 0;
+  msg.transaction_id  = transactionId++;
+  msg.timeStart       = timeStart;
+  msg.size            = 0;
+  msg.rpcCtx          = rpcCtx;
   
   /* Send the buffer to its destination */
-  ret = af_unix_generic_send_with_idx(af_unix_disk_south_socket_ref,xmit_buf);
-  if (ret < 0) {
-    severe("storio_disk_thread_intf_send sendto(%s) %s", ROZOFS_SOCK_FAMILY_DISK_NORTH, strerror(errno));
-    return -1; 
+  ret = sendto(af_unix_disk_south_socket_ref,&msg, sizeof(msg),0,(struct sockaddr*)&storio_north_socket_name,sizeof(storio_north_socket_name));
+  if (ret <= 0) {
+     fatal("storio_disk_thread_intf_send  sendto(%s) %s", storio_north_socket_name.sun_path, strerror(errno));
+     exit(0);  
   }
+  
+  af_unix_disk_pending_req_count++;
   return 0;
 }
+
+/*
+**__________________________________________________________________________
+*/
+
+/**
+* creation of the AF_UNIX socket that is attached on the socket controller
+
+  That socket is used to receive back the response from the threads that
+  perform disk operation (read/write/truncate)
+  
+  @param socketname : name of the socket
+  
+  @retval >= 0 : reference of the socket
+  @retval < 0 : error
+*/
+int af_unix_disk_response_socket_create(char *socketname)
+{
+  int len;
+  int fd;
+  void *sockctrl_ref;
+  int ret;
+
+   len = strlen(socketname);
+   if (len >= AF_UNIX_SOCKET_NAME_SIZE)
+   {
+      /*
+      ** name is too big!!
+      */
+      severe("socket name %s is too long: %d (max is %d)",socketname,len,AF_UNIX_SOCKET_NAME_SIZE);
+      return -1;
+   }
+   while (1)
+   {
+     /*
+     ** create the socket
+     */
+     fd = af_unix_sock_create_internal(socketname,DISK_SO_SENDBUF);
+     if (fd == -1)
+     {
+       ret = -1;
+       break;
+     }
+     /*
+     ** OK, we are almost done, just need to connect with the socket controller
+     */
+     sockctrl_ref = ruc_sockctl_connect(fd,  // Reference of the socket
+                                                DISK_SOCKET_NICKNAME,   // name of the socket
+                                                3,                  // Priority within the socket controller
+                                                (void*)NULL,      // user param for socketcontroller callback
+                                                &af_unix_disk_callBack_sock);  // Default callbacks
+      if (sockctrl_ref == NULL)
+      {
+         /*
+         ** Fail to connect with the socket controller
+         */
+         fatal("error on ruc_sockctl_connect");
+         break;
+      }
+      /*
+      ** All is fine
+      */
+      break;
+    }    
+    return fd;
+}
+
+/*__________________________________________________________________________
+*/
+/**
+*   entry point for disk response socket polling
+*
+
+   @param current_time : current time provided by the socket controller
+   
+   
+   @retval none
+*/
+void af_unix_disk_scheduler_entry_point(uint64_t current_time)
+{
+  af_unix_disk_rcvMsgsock(NULL,af_unix_disk_south_socket_ref);
+}
+
 /*__________________________________________________________________________
 * Initialize the disk thread interface
 *
@@ -366,13 +606,28 @@ int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffe
   sprintf(destination_socketName,"%s_%s", ROZOFS_SOCK_FAMILY_DISK_NORTH, hostname);
   
   sprintf(socketName,"%s_%s", ROZOFS_SOCK_FAMILY_DISK_SOUTH, hostname);
-  af_unix_disk_south_socket_ref = af_unix_sock_create(socketName,&af_unix_disk_client_conf);
+  af_unix_disk_south_socket_ref = af_unix_disk_response_socket_create(socketName);
   if (af_unix_disk_south_socket_ref < 0) {
     fatal("storio_create_disk_thread_intf af_unix_sock_create(%s) %s",socketName, strerror(errno));
     return -1;
   }
-
+  /*
+  ** init of the AF_UNIX sockaddr associated with the south socket (socket used for disk response receive)
+  */
+  storio_set_socket_name_with_hostname(&storio_south_socket_name,ROZOFS_SOCK_FAMILY_DISK_SOUTH,hostname);
+  /*
+  ** init of the AF_UNIX sockaddr associated with the north socket (socket used for disk request receive)
+  */
+  storio_set_socket_name_with_hostname(&storio_north_socket_name,ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname);
+  
   uma_dbg_addTopic("diskThreads", disk_thread_debug); 
+  /*
+  ** attach the callback on socket controller
+  */
+  ruc_sockCtrl_attach_applicative_poller(af_unix_disk_scheduler_entry_point);  
    
   return storio_disk_thread_create(hostname, nb_threads);
 }
+
+
+

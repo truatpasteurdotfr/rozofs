@@ -126,37 +126,7 @@ int af_unix_disk_sock_create_internal(char *nameOfSocket,int size)
   return(fd);
 }  
 
-/*
-**__________________________________________________________________________
-*/
-/**
-* Send the response 
-    
-  @param thread_ctx_p pointer to the thread context
-  @param msg          the message to send
-  @param status       the status of the response
- 
-  @retval none
 
-*/
-static inline void storio_send_response (rozofs_disk_thread_ctx_t *thread_ctx_p, storio_disk_thread_msg_t * msg, int status) {
-  struct  sockaddr_un     dest;
-  int                     ret;
-  
-  msg->status = status;
-  
-  /*
-  ** send back the response
-  */  
-  dest.sun_family = AF_UNIX;  
-  sprintf(dest.sun_path,"%s_%s",ROZOFS_SOCK_FAMILY_DISK_SOUTH,thread_ctx_p->hostname);
-
-  ret = sendto(thread_ctx_p->sendSocket,msg, sizeof(*msg),0,(struct sockaddr*)&dest,sizeof(dest));
-  if (ret <= 0) {
-     fatal("storio_send_response %d sendto(%s) %s", thread_ctx_p->thread_idx, dest.sun_path, strerror(errno));
-     exit(0);  
-  }
-}
 /*
 **__________________________________________________________________________
 */

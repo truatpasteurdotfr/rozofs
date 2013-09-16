@@ -115,4 +115,20 @@ int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffe
 int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode, 
                                  rozorpc_srv_ctx_t            * rpcCtx,
 				 uint64_t                       timeStart) ;
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Thar API is intended to be used by a disk thread for sending back a 
+   disk response (read/write or truncate) towards the main thread
+   
+   @param thread_ctx_p: pointer to the thread context (contains the thread source socket )
+   @param msg: pointer to the message that contains the disk response
+   @param status : status of the disk operation
+   
+   @retval none
+*/
+void storio_send_response (rozofs_disk_thread_ctx_t *thread_ctx_p, storio_disk_thread_msg_t * msg, int status);
+
 #endif

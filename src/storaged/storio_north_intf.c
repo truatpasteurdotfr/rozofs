@@ -106,7 +106,12 @@ void * storio_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_re
    The module is intended to return if the receiver is ready to receive a new message
    and FALSE otherwise
    
-   The application is ready to received if the north read/write buffer pool is not empty
+   The application is ready to received if there is still some rpc decoding context
+   in the decoded_rpc_buffer_pool pool.
+   The system cannot rely on the number TCP buffer since there are less TCP receive
+   buffers than number of TCP connection. So to avoid a potential deadlockk it is better
+   to rely on the number of rpc contexts that are allocated after the full reception of
+   a rpc message.
 
 
   @param socket_ctx_p: pointer to the af unix socket
@@ -117,15 +122,7 @@ void * storio_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_re
 */
 uint32_t storio_north_userRcvReadyCallBack(void * socket_ctx_p,int socketId)
 {
-
-    uint32_t free_count = ruc_buf_getFreeBufferCount(storage_receive_buffer_pool_p);
-    
-    if (free_count < 2)
-    {
-      return FALSE;
-    }
-
-    free_count = ruc_buf_getFreeBufferCount(storage_xmit_buffer_pool_p);
+    uint32_t free_count = ruc_buf_getFreeBufferCount(decoded_rpc_buffer_pool);
     
     if (free_count < 1)
     {

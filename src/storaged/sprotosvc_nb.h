@@ -29,6 +29,8 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/sproto.h>
 #include "sproto_nb.h"
+
+extern void * decoded_rpc_buffer_pool;
 /*
 **__________________________________________________________________________
 */
