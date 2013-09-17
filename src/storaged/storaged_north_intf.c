@@ -66,7 +66,6 @@ void *storaged_buffer_pool_p = NULL;  /**< reference of the read/write buffer po
  
 */
 void spproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * hdr) {
-    int             size;
     union {
       spp_profiler_ret_t       profiler;
       spp_status_ret_t         status;
@@ -83,21 +82,18 @@ void spproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * 
       rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_void;
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_void;
       local = spp_null_1_svc_nb;
-      size = 0;
       break;
 
     case SPP_GET_PROFILER:
       rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_void;
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_spp_profiler_ret_t;
       local = spp_get_profiler_1_svc_nb;
-      size = 0;
       break;
       
     case SPP_CLEAR:
       rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_void;
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_spp_status_ret_t;
       local = spp_clear_1_svc_nb;
-      size = 0;
       break;
       
     default:
