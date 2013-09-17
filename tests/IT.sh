@@ -250,11 +250,32 @@ truncate() {
   ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1
   return $?  
 }
-file_lock() {
+lock_posix_passing() {
   file=mnt1/lock
   unlink $file
   printf "process=%d loop=%d\n" $process $loop
-  ./test_file_lock -process $process -loop $loop -file $file
+  ./test_file_lock -process $process -loop $loop -file $file -nonBlocking
+  return $?    
+}
+lock_posix_blocking() {
+  file=mnt1/lock
+  unlink $file
+  printf "process=%d loop=%d\n" $process $loop
+  ./test_file_lock -process $process -loop $loop -file $file 
+  return $?    
+}
+lock_bsd_passing() {
+  file=mnt1/lock
+  unlink $file
+  printf "process=%d loop=%d\n" $process $loop
+  ./test_file_lock -process $process -loop $loop -file $file -nonBlocking -bsd
+  return $?    
+}
+lock_bsd_blocking() {
+  file=mnt1/lock
+  unlink $file
+  printf "process=%d loop=%d\n" $process $loop
+  ./test_file_lock -process $process -loop $loop -file $file -bsd
   return $?    
 }
 ############### USAGE ##################################
@@ -552,7 +573,8 @@ TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_c
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate file_lock read_parallel $TST_RW"
+TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel $TST_RW"
+# lock_bsd_passing lock_bsd_blocking
 
 build_all_test_list
 TSTS=""

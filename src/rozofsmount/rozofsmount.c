@@ -432,7 +432,31 @@ void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
 
    uma_dbg_send(tcpRef, bufRef, TRUE, "rotation modulo is %d\n",rozofs_rotation_read_modulo);    
   return;     
+}   
+/*__________________________________________________________________________
+*/
+void reset_lock_stat(void);
+char * display_lock_stat(char * p);
+/*__________________________________________________________________________
+*/
+void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
+       
+  if (argv[1] != NULL) {
+
+    if (strcmp(argv[1],"reset")== 0) {
+      reset_lock_stat();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset done\n");    
+      return;
+    }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, "Unexpected command %s\n",argv[1]);    
+    return;     
+  }
+  display_lock_stat(uma_dbg_get_buffer());
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());      
 }    
+/*__________________________________________________________________________
+*/  
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
                     #probe,\
                     gprofiler.rozofs_ll_##probe[P_COUNT],\
@@ -1036,6 +1060,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     uma_dbg_addTopic("data_cache", rozofs_gcache_show_cache_stats);
     uma_dbg_addTopic("start_config", show_start_config);
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
+    uma_dbg_addTopic("flock", show_flock);
 
     /**
     * init of the mode block cache
