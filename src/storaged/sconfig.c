@@ -85,12 +85,12 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     config_t cfg;
     struct config_setting_t *stor_settings = 0;
     struct config_setting_t *ioaddr_settings = 0;
-    int i;
+    int i = 0;
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-    int threads, port, nbCores;
+    int threads, port, nb_cores;
 #else
-    long int threads, port, nbCores;
+    long int threads, port, nb_cores;
 #endif      
     DEBUG_FUNCTION;
 
@@ -108,10 +108,10 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         config->nb_disk_threads = threads;
     }
 
-    if (!config_lookup_int(&cfg, SCORES, &nbCores)) {
+    if (!config_lookup_int(&cfg, SCORES, &nb_cores)) {
         config->nb_cores = 2;
     } else {
-        config->nb_cores = nbCores;
+        config->nb_cores = nb_cores;
     }
 
     if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
@@ -168,7 +168,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         if (config_setting_lookup_int(io_addr, SIOPORT, &port)
                 == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("can't lookup port in io address %d.", i);
+            severe("can't lookup port in IO address %d.", i);
             goto out;
         }
 
@@ -253,13 +253,13 @@ int sconfig_validate(sconfig_t *config) {
     uint32_t ip = 0;
     DEBUG_FUNCTION;
 
-    // Check if addresses are duplicated
+    // Check if IO addresses are duplicated
     for (i = 0; i < config->io_addr_nb; i++) {
 
         if ((config->io_addr[i].ipv4 == INADDR_ANY) &&
                 (config->io_addr_nb != 1)) {
             severe("only one IO listen address can be configured if '*'"
-                    " character  is specified");
+                    " character is specified");
             errno = EINVAL;
             goto out;
         }
@@ -270,7 +270,7 @@ int sconfig_validate(sconfig_t *config) {
                     && (config->io_addr[i].port == config->io_addr[j].port)) {
 
                 ip = config->io_addr[i].ipv4;
-                severe("duplicated listen address (addr: %u.%u.%u.%u ;"
+                severe("duplicated IO listen address (addr: %u.%u.%u.%u ;"
                         " port: %"PRIu32")",
                         ip >> 24, (ip >> 16)&0xFF, (ip >> 8)&0xFF, ip & 0xFF,
                         config->io_addr[i].port);

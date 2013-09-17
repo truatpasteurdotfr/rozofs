@@ -3,7 +3,7 @@
 .\"
 .TH STORAGE.CONF 5 "SEPTEMBER 2013" Rozofs "User Manuals"
 .SH NAME
-storage.conf \- rozofs storage daemon configuration file
+storage.conf \- RozoFS storage daemon configuration file
 .SH DESCRIPTION
 .B "storage.conf"
 is manage throw 
@@ -12,7 +12,15 @@ is manage throw
 .B libconfig
 grammar.
 
-.SS listen
+.SS threads (optional)
+
+Specifies number of threads that can process the disk requests. (default: 2)
+
+.SS nbcores (optional)
+
+Maximum number of core files to keep. (default: 2)
+
+.SS listen (mandatory)
 
 Specifies list of IP(s) (or hostname(s)) and port(s) the storio process should listen on for receive write and read requests from clients.
 
@@ -22,7 +30,7 @@ Specifies list of IP(s) (or hostname(s)) and port(s) the storio process should l
 
     port: (TCP port number (in decimal) to use for storio process)
 
-.SS storages
+.SS storages (mandatory)
 
 It's the list of local storage managed by this storaged.
 Each storage is identified by the cluster to which belongs the storage (cid) 

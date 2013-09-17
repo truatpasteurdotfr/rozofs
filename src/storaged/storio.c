@@ -153,7 +153,7 @@ static void on_start(void) {
     rozofs_attach_crash_cbk(on_stop);
 
     /*
-    ** Save the process PID un PID directory 
+    ** Save the process PID in PID directory 
     */
 
     storage_process_filename[0] = 0;
