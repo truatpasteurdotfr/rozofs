@@ -27,16 +27,15 @@
 #include <pthread.h>
 
 #include <rozofs/rozofs.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
-#include <rozofs/rozofs_srv.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 
 #include "volume.h"
-
 
 DECLARE_PROFILING(epp_profiler_t);
 
@@ -129,12 +128,12 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
     list_t *p, *q;
 
     if ((errno = pthread_rwlock_rdlock(&from->lock)) != 0) {
-        severe("can't lock volume: %d", from->vid);
+        severe("can't lock volume: %u", from->vid);
         goto error;
     }
 
     if ((errno = pthread_rwlock_wrlock(&to->lock)) != 0) {
-        severe("can't lock volume: %d", to->vid);
+        severe("can't lock volume: %u", to->vid);
         goto error;
     }
 
@@ -165,12 +164,12 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
     }
 
     if ((errno = pthread_rwlock_unlock(&from->lock)) != 0) {
-        severe("can't unlock volume: %d", from->vid);
+        severe("can't unlock volume: %u", from->vid);
         goto error;
     }
 
     if ((errno = pthread_rwlock_unlock(&to->lock)) != 0) {
-        severe("can't unlock volume: %d", to->vid);
+        severe("can't unlock volume: %u", to->vid);
         goto error;
     }
 
@@ -184,6 +183,7 @@ error:
 }
 
 uint8_t export_rotate_sid = 0;
+
 void volume_balance(volume_t *volume) {
     list_t *p, *q;
     volume_t clone;
@@ -192,12 +192,12 @@ void volume_balance(volume_t *volume) {
 
     // create a working copy
     if (volume_initialize(&clone, 0) != 0) {
-        severe("can't initialize clone volume: %d", volume->vid);
+        severe("can't initialize clone volume: %u", volume->vid);
         goto out;
     }
 
     if (volume_safe_copy(&clone, volume) != 0) {
-        severe("can't clone volume: %d", volume->vid);
+        severe("can't clone volume: %u", volume->vid);
         goto out;
     }
 
@@ -216,25 +216,39 @@ void volume_balance(volume_t *volume) {
             strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
             mclt.sid = vs->sid;
             mclt.cid = cluster->cid;
-	    init_rpcctl_ctx(&mclt.rpcclt);
-	    
+            init_rpcctl_ctx(&mclt.rpcclt);
+
             struct timeval timeo;
             timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
 
-
             if (mclient_initialize(&mclt, timeo) != 0) {
-                warning("failed to join: %s,  %s", vs->host, strerror(errno));
+
+                // Log if only the storage host was reachable before
+                if (1 == vs->status)
+                    warning("storage host '%s' unreachable: %s", vs->host,
+                            strerror(errno));
+                
+                // Change status
                 vs->status = 0;
+                
             } else {
+                
+                // Log if only the storage host was not reachable before
+                if (0 == vs->status)
+                    info("storage host '%s' is now reachable", vs->host);
+
                 if (mclient_stat(&mclt, &vs->stat) != 0) {
-                    warning("failed to stat (sid: %d, host: %s)", vs->sid, vs->host);
+                    warning("failed to stat storage (cid: %u, sid: %u)"
+                            " for host: %s", cluster->cid, vs->sid, vs->host);
                     vs->status = 0;
                 } else {
+                    // Change status
                     vs->status = 1;
                 }
             }
 
+            // Update cluster stats
             cluster->free += vs->stat.free;
             cluster->size += vs->stat.size;
 
@@ -253,7 +267,7 @@ void volume_balance(volume_t *volume) {
 
     // Copy the result back to our volume
     if (volume_safe_copy(volume, &clone) != 0) {
-        severe("can't clone volume: %d", volume->vid);
+        severe("can't clone volume: %u", volume->vid);
         goto out;
     }
 
@@ -273,34 +287,6 @@ out:
     STOP_PROFILING(volume_balance);
 }
 
-/*
-char *lookup_volume_storage(volume_t *volume, sid_t sid, char *host) {
-    list_t *p, *q;
-    DEBUG_FUNCTION;
-
-    if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
-        severe("can't lock volume: %d", volume->vid);
-        goto out;
-    }
-    list_for_each_forward(p, &volume->clusters) {
-        cluster_t *cluster = list_entry(p, cluster_t, list);
-        list_for_each_forward(q, &cluster->storages) {
-            volume_storage_t *vs = list_entry(q, volume_storage_t, list);
-            if (sid == vs->sid) {
-                strcpy(host, vs->host);
-                break;
-            }
-        }
-    }
-    if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
-        severe("can't unlock volume: %d", volume->vid);
-    }
-
-out:
-    return host;
-}
- */
-
 // what if a cluster is < rozofs safe
 
 static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
@@ -315,10 +301,10 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
 
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
-    
+
     int modulo = export_rotate_sid % rozofs_safe;
     export_rotate_sid++;
-    
+
     list_for_each_forward(p, &cluster->storages) {
         volume_storage_t *vs = list_entry(p, volume_storage_t, list);
         if (vs->status != 0 || vs->stat.free != 0)
@@ -326,28 +312,28 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
         sid_local[ms_found++] = vs->sid;
 
         // When creating a file we must be sure to have rozofs_safe servers
-        // and have at least rozofs_server available for writing
+        // and have at least rozofs_forward servers available for writing
         if (ms_found == rozofs_safe && ms_ok >= rozofs_forward) {
             status = 0;
-	    for (idx=0; idx < rozofs_safe; idx++) {
-	      sids[idx] = sid_local[(idx+modulo)%rozofs_safe];
-	    }  
+            for (idx = 0; idx < rozofs_safe; idx++) {
+                sids[idx] = sid_local[(idx + modulo) % rozofs_safe];
+            }
             break;
         }
     }
-  
+
     return status;
 }
 
 int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids) {
     list_t *p;
     int xerrno = ENOSPC;
-    
+
     DEBUG_FUNCTION;
     START_PROFILING(volume_distribute);
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
-        warning("can't lock volume %d.", volume->vid);
+        warning("can't lock volume %u.", volume->vid);
         goto out;
     }
 
@@ -360,7 +346,7 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
         }
     }
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
-        warning("can't unlock volume %d.", volume->vid);
+        warning("can't unlock volume %u.", volume->vid);
         goto out;
     }
 out:
@@ -381,16 +367,16 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
-        warning("can't lock volume %d.", volume->vid);
+        warning("can't lock volume %u.", volume->vid);
     }
 
     list_for_each_forward(p, &volume->clusters) {
         stat->bfree += list_entry(p, cluster_t, list)->free / ROZOFS_BSIZE;
-        stat->blocks += list_entry(p, cluster_t, list)->size / ROZOFS_BSIZE;    
+        stat->blocks += list_entry(p, cluster_t, list)->size / ROZOFS_BSIZE;
     }
 
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
-        warning("can't unlock volume %d.", volume->vid);
+        warning("can't unlock volume %u.", volume->vid);
     }
 
     stat->bfree = (long double) stat->bfree / ((double) rozofs_forward /
@@ -402,45 +388,44 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
 }
 
 int volume_distribution_check(volume_t *volume, int rozofs_safe, int cid, int *sids) {
-    list_t    * p;
-    int         xerrno = EINVAL;
-    int         nbMatch = 0;
-    int         idx;
-    
+    list_t * p;
+    int xerrno = EINVAL;
+    int nbMatch = 0;
+    int idx;
+
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
-        warning("can't lock volume %d.", volume->vid);
+        warning("can't lock volume %u.", volume->vid);
         goto out;
     }
 
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-	
-	if (cluster->cid == cid) {
-	    
-	    list_for_each_forward(p, &cluster->storages) {
-        	volume_storage_t *vs = list_entry(p, volume_storage_t, list);
 
-                for (idx=0; idx < rozofs_safe; idx++) {
-		  if (sids[idx] == vs->sid) {
-		    nbMatch++;
-		    break;
-		  }
-        	}
-		
-		if (nbMatch == rozofs_safe) {
-                  xerrno = 0;
-                  break;		
-		}
-	    }	
+        if (cluster->cid == cid) {
+
+            list_for_each_forward(p, &cluster->storages) {
+                volume_storage_t *vs = list_entry(p, volume_storage_t, list);
+
+                for (idx = 0; idx < rozofs_safe; idx++) {
+                    if (sids[idx] == vs->sid) {
+                        nbMatch++;
+                        break;
+                    }
+                }
+
+                if (nbMatch == rozofs_safe) {
+                    xerrno = 0;
+                    break;
+                }
+            }
             break;
         }
     }
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
-        warning("can't unlock volume %d.", volume->vid);
+        warning("can't unlock volume %u.", volume->vid);
         goto out;
     }
 out:
     errno = xerrno;
     return errno == 0 ? 0 : -1;
-
 }
