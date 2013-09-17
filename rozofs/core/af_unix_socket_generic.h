@@ -669,6 +669,33 @@ uint32_t af_unix_generic_rcvMsgsock(void * socket_ctx_p,int socketId);
 */
 int af_unix_sock_set_non_blocking(int fd,int size);
 
+/**
+   Creation of a AF_UNIX socket Datagram  in non blocking mode
+
+   see /proc/sys/net/core for socket parameters:
+     - wmem_default: default xmit buffer size
+     - wmem_max : max allocatable
+     Changing the max is still possible with root privilege:
+     either edit /etc/sysctl.conf (permanent) :
+     (write):
+     net.core.wmem_default = xxxx
+     net.core.wmem_max = xxxx
+     (read):
+     net.core.rmem_default = xxxx
+     net.core.rmem_max = xxxx
+
+     or temporary with:
+     echo <new_value> > /proc/sys/net/core/<your_param>
+
+   @param name0fSocket : name of the AF_UNIX socket
+   @param size: size in byte of the xmit buffer (the service double that value
+
+    retval: >0 reference of the created AF_UNIX socket
+    retval < 0 : error on socket creation
+
+*/
+int af_unix_sock_create_internal(char *nameOfSocket,int size);
+
 
 /*
 **__________________________________________________________________________
