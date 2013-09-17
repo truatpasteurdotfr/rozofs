@@ -2627,12 +2627,12 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
 	case EP_LOCK_PARTIAL:    sizeType = "PARTIAL"; break;
 	default:                 sizeType = "??";
       }  
-      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%d:%d]\n",
+      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"]\n",
 	       (lock_elt->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",sizeType, 
 	       (long long unsigned int)lock_elt->lock.client_ref, 
 	       (long long unsigned int)lock_elt->lock.owner_ref,
-	       (long long unsigned int)lock_elt->lock.offset_start,
-	       (long long unsigned int)lock_elt->lock.offset_stop);
+	       (uint64_t) lock_elt->lock.offset_start,
+	       (uint64_t) lock_elt->lock.offset_stop);
 
     }       
   } 
