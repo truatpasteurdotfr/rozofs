@@ -507,9 +507,8 @@ int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode,
 int af_unix_disk_response_socket_create(char *socketname)
 {
   int len;
-  int fd;
+  int fd = -1;
   void *sockctrl_ref;
-  int ret;
 
    len = strlen(socketname);
    if (len >= AF_UNIX_SOCKET_NAME_SIZE)
@@ -528,7 +527,6 @@ int af_unix_disk_response_socket_create(char *socketname)
      fd = af_unix_sock_create_internal(socketname,DISK_SO_SENDBUF);
      if (fd == -1)
      {
-       ret = -1;
        break;
      }
      /*
