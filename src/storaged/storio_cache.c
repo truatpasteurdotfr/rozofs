@@ -34,10 +34,9 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/common/mattr.h>
 #include <rozofs/core/com_cache.h>
+
 #include "storio_cache.h"
 #include "storio_bufcache.h"
-
-
 
 /*
 **______________________________________________________________________________
@@ -552,7 +551,7 @@ int storio_cache_get(fid_t fid,uint64_t bid,uint32_t nb_blocks,uint64_t *src_buf
      */
      cache_data_p = pool_p->entry;
      cache_data_free_p = NULL;
-     int found = 0;
+     //int found = 0;
      /*
      ** search for  an exact match
      */
@@ -565,7 +564,7 @@ int storio_cache_get(fid_t fid,uint64_t bid,uint32_t nb_blocks,uint64_t *src_buf
        if (cache_data_p->off_bufidx_st.s.off == bid_cache) 
        {
          cache_data_free_p = cache_data_p;
-         found = 1;
+         //found = 1;
          break;     
        }
      }
