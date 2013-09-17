@@ -37,17 +37,16 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/rozofs_debug_ports.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/htable.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
-#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/expgw_common.h>
-#include "rozofs_reload_export_gateway_conf.h"
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
@@ -55,6 +54,7 @@
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_cache.h"
 #include "rozofs_rw_load_balancing.h"
+#include "rozofs_reload_export_gateway_conf.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -154,9 +154,9 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o instance=N\tinstance number (default: 0)\n");
     fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
-    fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
-    fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration\n");
-    fprintf(stderr, "\t-o rozofsrotate=N\tdefine the modulo on read distribution rotation\n");
+    fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
+    fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration (default: 1)\n");
+    fprintf(stderr, "\t-o rozofsrotate=N\tdefine the modulo on read distribution rotation (default: 0)\n");
     fprintf(stderr, "\t-o posixlock\trequire support for POSIX file lock\n");
     fprintf(stderr, "\t-o bsdlock\trequire support for BSD file lock\n");
 
