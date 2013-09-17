@@ -313,7 +313,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     off_t bins_file_offset = 0;
     uint16_t rozofs_max_psize = 0;
     struct stat sb;
-    int hit_counter;
+    //int hit_counter;
     
 //#warning  FDL storage_delay()   
 //    storage_delay();
