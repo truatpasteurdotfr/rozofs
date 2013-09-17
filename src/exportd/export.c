@@ -2557,26 +2557,86 @@ out:
 #define ROZOFS_XATTR "rozofs"
 #define ROZOFS_USER_XATTR "user.rozofs"
 #define ROZOFS_ROOT_XATTR "trusted.rozofs"
-static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value) {
+
+#define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
+#define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
+#define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
+static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
   uint8_t * pFid;
   int       idx;
+  int       left;
   uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
   
   pFid = (uint8_t *) lv2->attributes.fid;  
-  p += sprintf(p,"EID %d / LAYOUT %d / FID %2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x ", 
-               e->eid, e->layout,
-               pFid[0],pFid[1],pFid[2],pFid[3],
-	       pFid[4],pFid[5],
-	       pFid[6],pFid[7],
+  DISPLAY_ATTR_INT("EID", e->eid);
+  DISPLAY_ATTR_INT("LAYOUT", e->layout);  
+  
+  DISPLAY_ATTR_TITLE( "FID"); 
+  p += sprintf(p,"%2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x\n", 
+               pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
 
-  if (!S_ISDIR(lv2->attributes.mode)) {
-    p += sprintf(p, "/ CLUSTER %d / STORAGED %3.3d", lv2->attributes.cid, lv2->attributes.sids[0]);  
-    for (idx = 1; idx < rozofs_safe; idx++) {
-      p += sprintf(p,"-%3.3d", lv2->attributes.sids[idx]);
-    } 
+  if (S_ISDIR(lv2->attributes.mode)) {
+    DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
+    return (p-value);  
+  }
+
+  if (S_ISLNK(lv2->attributes.mode)) {
+    DISPLAY_ATTR_TXT("MODE", "SYMBOLIC LINK");
+  }  
+  else {
+    DISPLAY_ATTR_TXT("MODE", "REGULAR FILE");
+  }
+  
+  /*
+  ** File only
+  */
+  DISPLAY_ATTR_INT("CLUSTER",lv2->attributes.cid);
+  DISPLAY_ATTR_TITLE("STORAGE");
+  p += sprintf(p, "%3.3d", lv2->attributes.sids[0]);  
+  for (idx = 1; idx < rozofs_safe; idx++) {
+    p += sprintf(p,"-%3.3d", lv2->attributes.sids[idx]);
   } 
+  p += sprintf(p,"\n");
+
+
+  DISPLAY_ATTR_INT("LOCK",lv2->nb_locks);  
+  if (lv2->nb_locks != 0) {
+    rozofs_file_lock_t *lock_elt;
+    list_t             * pl;
+    char               * sizeType;
+
+
+    /* Check for left space */
+    left = size;
+    left -= ((int)(p-value));
+    if (left < 110) {
+      if (left > 4) p += sprintf(p,"...");
+      return (p-value);
+    }
+
+    /* List the locks */
+    list_for_each_forward(pl, &lv2->file_lock) {
+
+      lock_elt = list_entry(pl, rozofs_file_lock_t, next_fid_lock);	
+      switch(lock_elt->lock.size) {
+        case EP_LOCK_TOTAL:      sizeType = "TOTAL"; break;
+	case EP_LOCK_FROM_START: sizeType = "START"; break;
+	case EP_LOCK_TO_END:     sizeType = "END"; break;
+	case EP_LOCK_PARTIAL:    sizeType = "PARTIAL"; break;
+	default:                 sizeType = "??";
+      }  
+      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%d:%d]\n",
+	       (lock_elt->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",sizeType, 
+	       (long long unsigned int)lock_elt->lock.client_ref, 
+	       (long long unsigned int)lock_elt->lock.owner_ref,
+	       (long long unsigned int)lock_elt->lock.offset_start,
+	       (long long unsigned int)lock_elt->lock.offset_stop);
+
+    }       
+  } 
+
   return (p-value);  
 } 
 static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,int length) {
@@ -2683,7 +2743,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
     }
 
     if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
-      status = get_rozofs_xattr(e,lv2,value);
+      status = get_rozofs_xattr(e,lv2,value,size);
       goto out;
     }  
 
