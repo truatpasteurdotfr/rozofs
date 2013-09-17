@@ -592,21 +592,21 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
         p->rcvCount++;
         pcallBack = p->callBack;
 
-	    gettimeofday(&timeDay,(struct timezone *)0);  
-	    timeBefore = MICROLONG(timeDay);
+        gettimeofday(&timeDay,(struct timezone *)0);  
+        timeBefore = MICROLONG(timeDay);
 
-           (*(pcallBack->msgInFunc))(p->objRef,p->socketId);
-            gettimeofday(&timeDay,(struct timezone *)0);  
-	    timeAfter = MICROLONG(timeDay);
-	    p->lastTime = (uint32_t)(timeAfter - timeBefore);
-	    p->cumulatedTime += p->lastTime;
-	    p->nbTimes ++;
+        (*(pcallBack->msgInFunc))(p->objRef,p->socketId);
+        gettimeofday(&timeDay,(struct timezone *)0);  
+        timeAfter = MICROLONG(timeDay);
+        p->lastTime = (uint32_t)(timeAfter - timeBefore);
+        p->cumulatedTime += p->lastTime;
+        p->nbTimes ++;
+        /*
+        **  clear the corresponding bit
+        */
+        FD_CLR(socketId,&rucRdFdSet);
         loopcount--;
-        if (loopcount = 0) break;
-	    /*
-	    **  clear the corresponding bit
-	    */
-	    FD_CLR(socketId,&rucRdFdSet);
+        if (loopcount == 0) break;
       }
       if(FD_ISSET(socketId, &rucWrFdSet))
       {
@@ -616,27 +616,27 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
         */
         p->xmitCount++;
         pcallBack = p->callBack;
-        
-	    gettimeofday(&timeDay,(struct timezone *)0);  
-	    timeBefore = MICROLONG(timeDay);
 
-         (*(pcallBack->xmitEvtFunc))(p->objRef,p->socketId);
+        gettimeofday(&timeDay,(struct timezone *)0);  
+        timeBefore = MICROLONG(timeDay);
 
-	    timeAfter = MICROLONG(timeDay);
-	    p->lastTime = (uint32_t)(timeAfter - timeBefore);
-	    p->cumulatedTime += p->lastTime;
-	    p->nbTimes ++;
-   #if 0
-	    p->lastTimeXmit = (uint32_t)(timeAfter - timeBefore);
-	    p->cumulatedTimeXmit += p->lastTimeXmit;
-	    p->nbTimesXmit ++;
-   #endif
-	    /*
-	    **  clear the corresponding bit
-	    */
-	    FD_CLR(socketId,&rucWrFdSet);
+        (*(pcallBack->xmitEvtFunc))(p->objRef,p->socketId);
+
+        timeAfter = MICROLONG(timeDay);
+        p->lastTime = (uint32_t)(timeAfter - timeBefore);
+        p->cumulatedTime += p->lastTime;
+        p->nbTimes ++;
+#if 0
+        p->lastTimeXmit = (uint32_t)(timeAfter - timeBefore);
+        p->cumulatedTimeXmit += p->lastTimeXmit;
+        p->nbTimesXmit ++;
+#endif
+        /*
+        **  clear the corresponding bit
+        */
+	FD_CLR(socketId,&rucWrFdSet);
         loopcount--;
-        if (loopcount = 0) break;
+        if (loopcount == 0) break;
       }
     }
   }

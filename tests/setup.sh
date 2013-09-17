@@ -86,7 +86,6 @@ gen_storage_conf ()
     STORAGES_BY_CLUSTER=$1
     PORT_PER_STORAGE_HOST=$2
 
-
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
     sid=0
@@ -119,7 +118,7 @@ gen_storage_conf ()
 	   printf "listen = ( \n" >> $FILE
 	   printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
 
-       # Test for special character "*"
+           # Test for special character "*"
 	   #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
 
            for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
@@ -861,19 +860,19 @@ fileop_test(){
 usage ()
 {
     echo >&2 "Usage:"
-    echo >&2 "$0 start <Layout>"
+    echo >&2 "$0 start <layout>"
     echo >&2 "$0 stop"
     echo >&2 "$0 pause"
-    echo >&2 "$0 resume"    
-    echo >&2 "$0 storage  <sid|all> <stop|start|reset> "
-    echo >&2 "$0 expgw    <nb|all>  <stop|start|reset> "
-    echo >&2 "$0 export             <stop|start|reset> "
-    echo >&2 "$0 fsmount            <stop|start|reset> "
-    echo >&2 "$0 core    [<remove>] <coredir/corefile> "
-    echo >&2 "$0 process"    
+    echo >&2 "$0 resume"
+    echo >&2 "$0 storage <sid|all> <stop|start|reset>"
+    echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
+    echo >&2 "$0 export <stop|start|reset>"
+    echo >&2 "$0 fsmount <stop|start|reset>"
+    echo >&2 "$0 core [<remove>] <coredir/corefile>"
+    echo >&2 "$0 process"
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
-    echo >&2 "$0 rebuild"    
+    echo >&2 "$0 rebuild"
     echo >&2 "$0 clean"
     echo >&2 "$0 pjd_test"
     echo >&2 "$0 fileop_test"
@@ -1007,6 +1006,7 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1
     NB_CLUSTERS_BY_VOLUME=1
+    NB_PORTS_PER_STORAGE_HOST=1
     NB_DISK_THREADS=3
     NB_CORES=4
     WRITE_FILE_BUFFERING_SIZE=256
@@ -1023,7 +1023,7 @@ main ()
 
         [ $# -lt 2 ] && usage
 
-        # Set layout and computes STORAGES_BY_CLUSTER
+        # Set layout
         set_layout $2
 
         check_build

@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <libconfig.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -115,7 +116,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 
     if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
         errno = ENOKEY;
-        severe("can't fetch IO listen address settings.");
+        severe("can't fetch listen settings.");
         goto out;
     }
 
@@ -123,7 +124,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 
     if (config->io_addr_nb > STORAGE_NODE_PORTS_MAX) {
         errno = EINVAL;
-        severe("too many IO listen address defined. %d while max is %d.",
+        severe("too many IO listen addresses defined. %d while max is %d.",
                 config->io_addr_nb, STORAGE_NODE_PORTS_MAX);
         goto out;
     }
@@ -140,28 +141,32 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 
         if (!(io_addr = config_setting_get_elem(ioaddr_settings, i))) {
             errno = ENOKEY;
-            severe("can't fetch IO listen address settings %d.", i);
+            severe("can't fetch IO listen address(es) settings %d.", i);
             goto out;
         }
 
-        if (config_setting_lookup_string(io_addr, SIOADDR, &io_addr_str) == CONFIG_FALSE) {
+        if (config_setting_lookup_string(io_addr, SIOADDR, &io_addr_str)
+                == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't lookup address in IO listen address %d.", i);
             goto out;
         }
-        
+
         // Check if the io address is specified by a single * character
         // if * is specified storio will listen on any of the interfaces
         if (strcmp(io_addr_str, "*") == 0) {
             config->io_addr[i].ipv4 = INADDR_ANY;
         } else {
-            if (rozofs_host2ip((char*) io_addr_str, &config->io_addr[i].ipv4) < 0) {
-                severe("bad address \"%s\" in io listen address %d", io_addr_str, i);
+            if (rozofs_host2ip((char*) io_addr_str, &config->io_addr[i].ipv4)
+                    < 0) {
+                severe("bad address \"%s\" in IO listen address %d",
+                        io_addr_str, i);
                 goto out;
             }
         }
 
-        if (config_setting_lookup_int(io_addr, SIOPORT, &port) == CONFIG_FALSE) {
+        if (config_setting_lookup_int(io_addr, SIOPORT, &port)
+                == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't lookup port in io address %d.", i);
             goto out;
@@ -241,9 +246,39 @@ out:
 
 int sconfig_validate(sconfig_t *config) {
     int status = -1;
+    int i = -1;
+    int j = -1;
     list_t *p;
     int storages_nb = 0;
+    uint32_t ip = 0;
     DEBUG_FUNCTION;
+
+    // Check if addresses are duplicated
+    for (i = 0; i < config->io_addr_nb; i++) {
+
+        if ((config->io_addr[i].ipv4 == INADDR_ANY) &&
+                (config->io_addr_nb != 1)) {
+            severe("only one IO listen address can be configured if '*'"
+                    " character  is specified");
+            errno = EINVAL;
+            goto out;
+        }
+
+        for (j = i + 1; j < config->io_addr_nb; j++) {
+
+            if ((config->io_addr[i].ipv4 == config->io_addr[j].ipv4)
+                    && (config->io_addr[i].port == config->io_addr[j].port)) {
+
+                ip = config->io_addr[i].ipv4;
+                severe("duplicated listen address (addr: %u.%u.%u.%u ;"
+                        " port: %"PRIu32")",
+                        ip >> 24, (ip >> 16)&0xFF, (ip >> 8)&0xFF, ip & 0xFF,
+                        config->io_addr[i].port);
+                errno = EINVAL;
+                goto out;
+            }
+        }
+    }
 
     list_for_each_forward(p, &config->storages) {
         list_t *q;

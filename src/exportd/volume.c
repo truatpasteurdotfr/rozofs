@@ -400,6 +400,7 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
 
     STOP_PROFILING(volume_stat);
 }
+
 int volume_distribution_check(volume_t *volume, int rozofs_safe, int cid, int *sids) {
     list_t    * p;
     int         xerrno = EINVAL;
