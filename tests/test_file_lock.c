@@ -52,11 +52,13 @@ int loop=DEFAULT_LOOP;
 int * result;
 int blocking=1;
 int display=0;
+int bsd=0;
 
 static void usage() {
     printf("Parameters:\n");
     printf("-file <name>       file to do the test on\n" );
     printf("-nonBlocking       Lock in non blocking mode (default is blocking)\n");
+    printf("-bsd               BSD mode lock (default is POSIX)\n");
     printf("-display           Display lock traces\n");
     printf("[ -process <nb> ]  The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
     printf("[ -loop <nb> ]     <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
@@ -109,6 +111,13 @@ char *argv[];
             blocking = 0;
             continue;
         }
+	
+        /* -bsd   */
+        if (strcmp(argv[idx], "-bsd") == 0) {
+            idx++;
+            bsd = 1;
+            continue;
+        }	
 	
 	/* -display   */
         if (strcmp(argv[idx], "-display") == 0) {
@@ -203,7 +212,7 @@ int display_flock(int ope, struct flock * flock,int retry) {
   p += sprintf(p,"%+d len %+d pid %p", flock->l_start,flock->l_len,flock->l_pid);
   printf("%s\n",msg);
 }
-#define RETRY 1000
+#define RETRY 8000
 int set_lock (int fd, int code , int ope, int start, int stop, int posRef) {
   int ret;
   int retry=RETRY;
@@ -249,6 +258,7 @@ int set_lock (int fd, int code , int ope, int start, int stop, int posRef) {
 int lockAllUnlockByPieces (int ope, int posRef) {
   int ret;
   int fd;
+  int code= blocking?F_SETLKW:F_SETLK;
      
   fd = open(MYFILENAME, O_RDWR);
   if (fd < 0) {
@@ -257,67 +267,67 @@ int lockAllUnlockByPieces (int ope, int posRef) {
     goto out;  
   }    
     
-  ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, 0, 0, posRef);    
+  ret = set_lock(fd, code , ope, 0, 0, posRef);    
   if (ret != 0) goto out; 
       
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 1003, 0, posRef);       
+  ret = set_lock(fd, code , F_UNLCK, 1003, 0, posRef);       
   if (ret != 0) goto out; 
   
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 1003, 0, posRef);       
+  ret = set_lock(fd, code , F_UNLCK, 1003, 0, posRef);       
   if (ret != 0) goto out; 
 
-   ret = set_lock(fd, F_SETLK , F_UNLCK, 1002, 0, posRef);       
+   ret = set_lock(fd, code , F_UNLCK, 1002, 0, posRef);       
   if (ret != 0) goto out; 
 
-   ret = set_lock(fd, F_SETLK , F_UNLCK, 1001, 1543, posRef);     
+   ret = set_lock(fd, code , F_UNLCK, 1001, 1543, posRef);     
   if (ret != 0) goto out;  
     
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 497, posRef);      
+  ret = set_lock(fd, code , F_UNLCK, 0, 497, posRef);      
   if (ret != 0) goto out; 
   
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 497, posRef);     
+  ret = set_lock(fd, code , F_UNLCK, 0, 497, posRef);     
   if (ret != 0) goto out; 
     
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 498, posRef);    
+  ret = set_lock(fd, code , F_UNLCK, 0, 498, posRef);    
   if (ret != 0) goto out; 
    
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 143, 499, posRef);      
+  ret = set_lock(fd, code , F_UNLCK, 143, 499, posRef);      
   if (ret != 0) goto out; 
 
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 501, 999, posRef);       
+  ret = set_lock(fd, code , F_UNLCK, 501, 999, posRef);       
   if (ret != 0) goto out; 
   
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 100, 1999, posRef);        
+  ret = set_lock(fd, code , F_UNLCK, 100, 1999, posRef);        
   if (ret != 0) goto out; 
 
-  ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, 0, 0, posRef);     
+  ret = set_lock(fd, code , ope, 0, 0, posRef);     
   if (ret != 0) goto out; 
   
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 497, posRef);       
+  ret = set_lock(fd, code , F_UNLCK, 0, 497, posRef);       
   if (ret != 0) goto out; 
   
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 497, posRef);    
+  ret = set_lock(fd, code , F_UNLCK, 0, 497, posRef);    
   if (ret != 0) goto out; 
     
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 498, posRef);     
+  ret = set_lock(fd, code , F_UNLCK, 0, 498, posRef);     
   if (ret != 0) goto out; 
    
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 143, 499, posRef);      
+  ret = set_lock(fd, code , F_UNLCK, 143, 499, posRef);      
   if (ret != 0)goto out; 
 
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 1003, 0, posRef);    
+  ret = set_lock(fd, code , F_UNLCK, 1003, 0, posRef);    
   if (ret != 0) goto out; 
   
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 1003, 0, posRef);     
+  ret = set_lock(fd, code , F_UNLCK, 1003, 0, posRef);     
   if (ret != 0) return ret;  
 
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 1002, 0, posRef);     
+  ret = set_lock(fd, code , F_UNLCK, 1002, 0, posRef);     
   if (ret != 0) goto out;  
 
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 1001, 1543, posRef);    
+  ret = set_lock(fd, code , F_UNLCK, 1001, 1543, posRef);    
   if (ret != 0) goto out;  
  
-  ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 0, posRef);    
+  ret = set_lock(fd, code , F_UNLCK, 0, 0, posRef);    
   if (ret != 0) goto out; 
 
 out:     
@@ -327,16 +337,17 @@ out:
 int lockUnlock (int fd, int ope, int posRef) {
   int ret;
   int idx;
+  int code=blocking?F_SETLKW:F_SETLK;
 
   for (idx=0; idx < 200; idx++) { 
    
-    ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, 0, 0, posRef);     
+    ret = set_lock(fd,code , ope, 0, 0, posRef);     
     if (ret != 0) return ret;
 
-    ret = set_lock(fd, F_SETLK , F_UNLCK, 1001, 0, posRef);      
+    ret = set_lock(fd, code , F_UNLCK, 1001, 0, posRef);      
     if (ret != 0) return ret;
 
-    ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 1000, posRef); 
+    ret = set_lock(fd, code , F_UNLCK, 0, 1000, posRef); 
     if (ret != 0) return ret;
   }
   return ret;
@@ -347,28 +358,31 @@ typedef enum _flock_mode_e {
 } FLOCK_MODE_E;
 int flockUnflock (int fd, FLOCK_MODE_E mode) {
   int ret;
-  int idx;
   int opcode;
-  
+  int retry=RETRY;
+    
   if (mode == FLOCK_MODE_WRITE) opcode = LOCK_EX;
   else                          opcode = LOCK_SH;
   if (!blocking) opcode = opcode | LOCK_NB;
   
 
-  for (idx=0; idx < 200; idx++) { 
-   
-    ret = flock(fd, opcode);     
-    if (ret != 0) {
-      sprintf("flock(%x) %s\n", strerror(errno));
-      return ret;
-    }
+  while (retry) {
+    retry--;
+    ret = flock(fd, opcode);   
+    if (ret == 0) break;
+    if (blocking) {
+      printf("proc %3d - flock() errno %d %s\n", myProcId, errno, strerror(errno));
+      return -1;
+    }      
+  }
+  if (retry == 0) {
+    printf("proc %3d - flock() max retry %d %s\n", myProcId, errno, strerror(errno));
+    return -1;    
+  }
 
-    ret = flock(fd, LOCK_UN);     
-    if (ret != 0) {
-      sprintf("flock(unclok) %s\n", strerror(errno));
-      return ret;
-    }
-
+  ret = flock(fd, LOCK_UN);     
+  if (ret != 0) {
+    sprintf("flock(unclok) %s\n", strerror(errno));
   }
   return ret;
 }
@@ -376,36 +390,37 @@ int lockUnlockByOffset (int fd, int ope, int posRef) {
   int ret;
   int idx;
   int myOffset = myProcId*10;
+  int code = blocking?F_SETLKW:F_SETLK; 
 
   for (idx=0; idx < 20; idx++) {
 
-    ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, myOffset, myOffset+9, posRef);    
+    ret = set_lock(fd, code , ope, myOffset, myOffset+9, posRef);    
     if (ret != 0) return ret;
 
-    ret = set_lock(fd, F_SETLK , F_UNLCK, myOffset, myOffset+9, posRef);    
+    ret = set_lock(fd, code , F_UNLCK, myOffset, myOffset+9, posRef);    
     if (ret != 0) return ret;
 
-    ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, myOffset, myOffset+9, posRef);    
+    ret = set_lock(fd, code , ope, myOffset, myOffset+9, posRef);    
     if (ret != 0) return ret;
     
-    ret = set_lock(fd, F_SETLK , F_UNLCK, 0, 0, posRef);       
+    ret = set_lock(fd, code , F_UNLCK, 0, 0, posRef);       
     if (ret != 0) return ret;
     
-    ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, myOffset, myOffset+9, posRef);     
+    ret = set_lock(fd, code , ope, myOffset, myOffset+9, posRef);     
     if (ret != 0) return ret;    
 
-    ret = set_lock(fd, F_SETLK , F_UNLCK, 0, myOffset+9, posRef);       
+    ret = set_lock(fd, code , F_UNLCK, 0, myOffset+9, posRef);       
     if (ret != 0) return ret;
     
-    ret = set_lock(fd, blocking?F_SETLKW:F_SETLK , ope, myOffset, myOffset+9, posRef);     
+    ret = set_lock(fd, code , ope, myOffset, myOffset+9, posRef);     
     if (ret != 0) return ret;    
 
-    ret = set_lock(fd, F_SETLK , F_UNLCK, myOffset, 0, posRef);    
+    ret = set_lock(fd, code , F_UNLCK, myOffset, 0, posRef);    
     if (ret != 0) return ret;        
   }
   return ret;
 }
-int do_one_test(int count) {
+int do_posix_test(int count) {
   int fd;
   int ret;
   int idx;
@@ -444,6 +459,29 @@ int do_one_test(int count) {
   close(fd);
   return ret;
 }
+int do_bsd_test(int count) {
+  int fd;
+  int ret;
+  int idx;
+
+  fd = open(FILENAME, O_RDWR);
+  if (fd < 0) {
+    printf("proc %3d - open(%s) errno %d %s\n", myProcId, FILENAME,errno, strerror(errno));
+    return -1;  
+  }    
+
+  for (idx=0; idx < 200; idx++) {
+  
+    ret = flockUnflock(fd, FLOCK_MODE_READ);	    
+    if (ret != 0) break;
+    
+    ret = flockUnflock(fd, FLOCK_MODE_WRITE);	    
+    if (ret != 0) break;
+
+  }      
+  close(fd);
+  return ret;
+}
 int loop_test_process() {
   int count=0; 
   int ret;
@@ -453,7 +491,8 @@ int loop_test_process() {
   
   while (count<loop) {   
     count++; 
-    ret = do_one_test(count);
+    if (bsd) ret = do_bsd_test(count);
+    else     ret = do_posix_test(count);
     if(ret != 0) return ret;
   }
   return 0;

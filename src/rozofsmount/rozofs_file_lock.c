@@ -65,6 +65,62 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param);
 
 DECLARE_PROFILING(mpp_profiler_t);
 
+
+
+typedef struct _LOCK_STATISTICS_T {
+  uint64_t      bsd_set_passing_lock;
+  uint64_t      bsd_set_blocking_lock;
+  uint64_t      posix_set_passing_lock;
+  uint64_t      posix_set_blocking_lock;
+  uint64_t      posix_get_lock;
+  uint64_t      set_lock_refused;
+  uint64_t      set_lock_success;  
+  uint64_t      set_lock_error;
+  uint64_t      set_lock_interrupted;  
+  uint64_t      get_lock_refused;  
+  uint64_t      get_lock_success; 
+  uint64_t      get_lock_error;   
+  uint64_t      enoent;
+  uint64_t      enomem;  
+  uint64_t      einval;
+  uint64_t      send_common;
+} LOCK_STATISTICS_T;
+
+static LOCK_STATISTICS_T lock_stat;
+
+/*
+**____________________________________________________
+* reset lock statistics
+*
+*/
+void reset_lock_stat(void) {
+  memset((char*)&lock_stat,0,sizeof(lock_stat));
+}
+
+/*
+**____________________________________________________
+* Display lock statistics
+*
+*/
+#define DISPLAY_LOCK_STAT(name) p += sprintf(p,"%-24s = %llu\n",#name,lock_stat.name);
+char * display_lock_stat(char * p) {
+  DISPLAY_LOCK_STAT(bsd_set_passing_lock);
+  DISPLAY_LOCK_STAT(bsd_set_blocking_lock);  
+  DISPLAY_LOCK_STAT(posix_set_passing_lock);    
+  DISPLAY_LOCK_STAT(posix_set_blocking_lock);
+  DISPLAY_LOCK_STAT(set_lock_refused);
+  DISPLAY_LOCK_STAT(set_lock_success);
+  DISPLAY_LOCK_STAT(set_lock_error);
+  DISPLAY_LOCK_STAT(set_lock_interrupted);
+  DISPLAY_LOCK_STAT(posix_get_lock);  
+  DISPLAY_LOCK_STAT(get_lock_refused);
+  DISPLAY_LOCK_STAT(get_lock_success);
+  DISPLAY_LOCK_STAT(get_lock_error);
+  DISPLAY_LOCK_STAT(enoent);
+  DISPLAY_LOCK_STAT(enomem);
+  DISPLAY_LOCK_STAT(einval);
+  DISPLAY_LOCK_STAT(send_common);
+}
 /**
 **____________________________________________________
 *  Compute flocks start and stop
@@ -230,8 +286,10 @@ void rozofs_flock_service_periodic(void * ns) {
     */
     if ((file->chekWord != FILE_CHECK_WORD)
     ||  (file->fuse_req == NULL)
-    ||  (file->lock_owner_ref == 0)) continue;
-
+    ||  (file->lock_owner_ref == 0)) {
+      lock_stat.set_lock_interrupted++;    
+      continue;
+    }
     if (rozofs_ll_setlk_internal(file) != 0) {  
       /* If lock request can not be sent, rechain the lock request immediatly */
       ruc_objInsertTail(&pending_lock_list,link);
@@ -262,6 +320,8 @@ void rozofs_flock_service_periodic(void * ns) {
 */
 void rozofs_flock_service_init(void) {
   struct timer_cell * periodic_timer;
+
+  reset_lock_stat();  
   
   /*
   ** Initialize the head of list of file waiting for a blocking lock 
@@ -302,15 +362,17 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
     void *buffer_p = NULL;
     int64_t start,stop;
     file_t      * file;
-    
+
+    lock_stat.posix_get_lock++;
+        
     /*
     ** allocate a context for saving the fuse parameters
     */
     buffer_p = rozofs_fuse_alloc_saved_context();
     if (buffer_p == NULL)
     {
-      severe("out of fuse saved context");
       errno = ENOMEM;
+      lock_stat.enomem++;      
       goto error;
     }
     SAVE_FUSE_PARAM(buffer_p,req);
@@ -322,6 +384,7 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
+	lock_stat.enoent++;
         goto error;
     }
     
@@ -344,12 +407,14 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
         break;
       default:
         errno= EINVAL;
+	lock_stat.einval++;
         goto error;
     }
     arg.arg_gw.lock.client_ref   = rozofs_client_hash;
     arg.arg_gw.lock.owner_ref    = fi->lock_owner;
     arg.arg_gw.lock.size         = rozofs_flock_canonical(flock,file, &start, &stop);
     if (arg.arg_gw.lock.size == EP_LOCK_NULL) {
+      lock_stat.einval++;
       errno= EINVAL;
       goto error;
     }	
@@ -362,8 +427,10 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
                                     EP_GET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
 			            rozofs_ll_getlk_cbk,buffer_p); 
 			      
-    if (ret < 0) goto error;
-    
+    if (ret < 0) {
+      lock_stat.send_common++;    
+      goto error;
+    }
     /*
     ** no error just waiting for the answer
     */
@@ -467,6 +534,7 @@ void rozofs_ll_getlk_cbk(void *this,void *param)
         
     if (ret.gw_status.status == EP_SUCCESS) {
       flock->l_type = F_UNLCK; 
+      lock_stat.get_lock_success++;       
     }        
     else if (ret.gw_status.status == EP_EAGAIN) {
       switch (ret.gw_status.ep_lock_ret_t_u.lock.mode) {
@@ -478,6 +546,7 @@ void rozofs_ll_getlk_cbk(void *this,void *param)
       flock->l_start  = 0;
       flock->l_len    = 0;	
       flock->l_pid = ret.gw_status.ep_lock_ret_t_u.lock.owner_ref;
+      lock_stat.get_lock_refused++;       
     }
     else {  
       errno = ret.gw_status.ep_lock_ret_t_u.error;
@@ -489,6 +558,7 @@ void rozofs_ll_getlk_cbk(void *this,void *param)
     fuse_reply_lock(req, flock);
     goto out;
 error:
+    lock_stat.get_lock_error++;
     fuse_reply_err(req, errno);
 out:
     /*
@@ -519,6 +589,8 @@ void rozofs_ll_flock_nb(fuse_req_t req,
 		              int op) {
     int          sleep ;
     struct flock flock;
+
+
     
     /*
     ** Blocking or not blocking ? 
@@ -526,9 +598,11 @@ void rozofs_ll_flock_nb(fuse_req_t req,
     if ((op & LOCK_NB) == LOCK_NB) {
       sleep = 0;
       op &= ~LOCK_NB;
+      lock_stat.bsd_set_passing_lock++;
     }  
     else {
       sleep = 1;
+      lock_stat.bsd_set_blocking_lock++;      
     }
 
     /*
@@ -545,6 +619,7 @@ void rozofs_ll_flock_nb(fuse_req_t req,
         flock.l_type = LOCK_UN;
         break;
       default:
+	lock_stat.einval++;      
         fuse_reply_err(req, EINVAL);
         return;
     }
@@ -552,6 +627,9 @@ void rozofs_ll_flock_nb(fuse_req_t req,
     flock.l_start  = 0;
     flock.l_len    = 0;
     flock.l_pid    = fi->lock_owner; 
+    
+    if (sleep) lock_stat.posix_set_blocking_lock--;   
+    else       lock_stat.posix_set_passing_lock--;    
     rozofs_ll_setlk_nb( req, ino, fi, &flock, sleep);
 
 }
@@ -581,13 +659,17 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
     file_t      * file;
     int64_t start,stop;
 
+    if (sleep) lock_stat.posix_set_blocking_lock++;   
+    else       lock_stat.posix_set_passing_lock++; 
+
+
     /*
     ** allocate a context for saving the fuse parameters
     */
     buffer_p = rozofs_fuse_alloc_saved_context();
     if (buffer_p == NULL)
     {
-      severe("out of fuse saved context");
+      lock_stat.enomem++;   
       errno = ENOMEM;
       goto error;
     }
@@ -601,6 +683,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
+	lock_stat.enoent++;
         goto error;
     }
 
@@ -622,6 +705,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
         arg.arg_gw.lock.mode = EP_LOCK_FREE;
         break;
       default:
+	lock_stat.einval++;      
         errno= EINVAL;
         goto error;
     }
@@ -629,6 +713,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
     arg.arg_gw.lock.owner_ref    = fi->lock_owner;
     arg.arg_gw.lock.size         = rozofs_flock_canonical(flock,file, &start, &stop);
     if (arg.arg_gw.lock.size == EP_LOCK_NULL) {
+      lock_stat.einval++;    
       errno= EINVAL;
       goto error;
     }	
@@ -649,8 +734,10 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
                                     EP_SET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
 			            rozofs_ll_setlk_cbk,buffer_p);     
 
-    if (ret < 0) goto error;
-    
+    if (ret < 0) {
+      lock_stat.send_common++;
+      goto error;
+    }
     /*
     ** no error just waiting for the answer
     */
@@ -767,7 +854,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
         file = (file_t*) fi->fh;
         file->lock_owner_ref = fi->lock_owner;   
       } 
-      errno = 0;
+      errno = 0;      
     }
     else if (ret.gw_status.status == EP_EAGAIN) {
       errno = EAGAIN;
@@ -792,6 +879,9 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
 
 error:
+    if (errno == 0)           lock_stat.set_lock_success++;      
+    else if (errno == EAGAIN) lock_stat.set_lock_refused++;      
+    else                      lock_stat.set_lock_error++;
     fuse_reply_err(req, errno);
     
     /*
@@ -877,10 +967,12 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
     */
     if ((file->chekWord != FILE_CHECK_WORD)
     ||  (file->fuse_req == NULL)
-    ||  (file->lock_owner_ref == 0)) 
+    ||  (file->lock_owner_ref == 0)) {
+      lock_stat.set_lock_interrupted++;        
       goto out;
+    }
            
-   rpc_reply.acpted_rply.ar_results.proc = NULL;
+    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
     /*
     ** get the pointer to the transaction context:
@@ -931,7 +1023,8 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
     if (ret.gw_status.status == EP_SUCCESS) {
       fuse_reply_err(file->fuse_req, 0);
       file->fuse_req = NULL;      
-      xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+      xdr_free((xdrproc_t) decode_proc, (char *) &ret);   
+      lock_stat.set_lock_success++;         
       goto out;
     }
     
@@ -947,6 +1040,7 @@ again:
     goto out;  
     
 error:
+    lock_stat.set_lock_error++;
     fuse_reply_err(file->fuse_req, errno);
     file->fuse_req = NULL;
     
@@ -1005,7 +1099,7 @@ void rozofs_clear_file_lock_owner(file_t * f) {
     buffer_p = rozofs_fuse_alloc_saved_context();
     if (buffer_p == NULL)
     {
-      severe("out of fuse saved context");
+      lock_stat.enomem++;   
       errno = ENOMEM;
       goto error;
     }  
