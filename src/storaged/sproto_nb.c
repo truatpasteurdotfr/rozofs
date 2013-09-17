@@ -395,7 +395,6 @@ void storage_check_readahead()
 void sp_read_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     sp_read_arg_t * args = (sp_read_arg_t *) pt;
     static sp_read_ret_t ret;
-    uint16_t psize = 0;
     storage_t *st = 0;
 
     START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
@@ -422,7 +421,6 @@ void sp_read_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
         goto error;
     }
 
-    psize = rozofs_get_max_psize(args->layout);
     /*
     ** set the pointer to the bins
     */
