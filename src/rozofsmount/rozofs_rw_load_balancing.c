@@ -59,6 +59,8 @@ int stclbg_set_storcli_number (int nb) {
   if ((nb > STORCLI_PER_FSMOUNT) || (nb <= 0)) return -1;
   stclbg_storcli_count = nb;   
   stclbg_next_idx      = 0;
+  
+  return 0;
 } 
  /*
  **____________________________________________________

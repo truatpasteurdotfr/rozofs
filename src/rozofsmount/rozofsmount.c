@@ -420,8 +420,6 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
 /*__________________________________________________________________________
 */  
 void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
-
-   int timer_id,val;
    
    if (argv[1] !=NULL)
    {
@@ -914,12 +912,11 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     */
     {
       epgw_lock_arg_t     arg;
-      epgw_status_ret_t * file_lock_res;
       
       arg.arg_gw.eid             = exportclt.eid;
       arg.arg_gw.lock.client_ref = rozofs_client_hash;
       
-      file_lock_res = ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
+      ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
     }
 
     /* Initialize list and htables for inode_entries */
