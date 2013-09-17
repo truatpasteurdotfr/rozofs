@@ -142,7 +142,7 @@ static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
     if (host != NULL) {
         // get the IP address of the storage node
         if ((hp = gethostbyname(host)) == 0) {
-            severe("gethostbyname failed for host : %s, %s", host,
+            severe("gethostbyname failed for host: %s, %s", host,
                     strerror(errno));
             return NULL;
         }
@@ -296,7 +296,7 @@ static void rbs_process_initialize() {
 
             if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
                     STORAGED_PROFILE_VERSION, storaged_profile_program_1, 0)) {
-                fatal("can't register service : %s", strerror(errno));
+                fatal("can't register service: %s", strerror(errno));
             }
 
             info("create rebuild monitoring service on port: %d",
@@ -425,12 +425,10 @@ static void on_start() {
     if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
     p += sprintf(p, "&");
 
-    //info(cmd);
+    // Launch storio_starter script
     system(cmd);
 
-    /*
-     ** create the debug thread of the parent
-     */
+    // Create the debug thread of the parent
     storaged_start_conf_param_t conf;     
     conf.instance_id = 0;
     conf.io_port     = 0;
@@ -444,10 +442,10 @@ static void on_start() {
 
 void usage() {
 
-    printf("Rozofs storage daemon - %s\n", VERSION);
+    printf("RozoFS storage daemon - %s\n", VERSION);
     printf("Usage: storaged [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
-    printf("\t-H,--host storaged hostname\t\tused to build to the pid name (default: none) \n");
+    printf("\t-H, --host storaged hostname\t\tused to build to the pid name (default: none) \n");
     printf("\t-c, --config\tconfig file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
     printf("\t-r, --rebuild\t export hostname.\n");
@@ -458,15 +456,13 @@ int main(int argc, char *argv[]) {
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
-        {"config", required_argument, 0, 'c'},
-        {"rebuild", required_argument, 0, 'r'},
+        { "config", required_argument, 0, 'c'},
+        { "rebuild", required_argument, 0, 'r'},
         { "host", required_argument, 0, 'H'},
         { 0, 0, 0, 0}
     };
 
-    /*
-     ** init of the timer configuration
-     */
+    // Init of the timer configuration
     rozofs_tmr_init_configuration();
 
     storaged_hostname = NULL;
