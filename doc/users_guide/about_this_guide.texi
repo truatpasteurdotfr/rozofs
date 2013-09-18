@@ -2,6 +2,7 @@
 @node       About this Guide, About RozoFS, Top, Top
 @chapter    About this Guide
 @cindex     About
+@cindex     Version
 
 @menu
 * Conventions Used in this Guide::

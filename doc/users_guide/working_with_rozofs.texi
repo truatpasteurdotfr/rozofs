@@ -368,7 +368,7 @@ NODE: fec4cloud-01 - UP
                 172.19.34.206        6         
                 172.19.34.207        7         
                 172.19.34.208        8         
-        EID  VID  ROOT                      MD5                       SQUOTA     HQUOTA    
+        EID  VID  ROOT                          MD5   SQUOTA   HQUOTA    
         1    1    /srv/rozofs/exports/export_1                                      
 @end verbatim
 
@@ -417,7 +417,7 @@ NODE: fec4cloud-01 - UP
                 172.19.34.206        6         
                 172.19.34.207        7         
                 172.19.34.208        8         
-        EID  VID  ROOT                      MD5                       SQUOTA     HQUOTA    
+        EID  VID  ROOT                          MD5  SQUOTA   HQUOTA    
         1    1    /srv/rozofs/exports/export_1
 @end verbatim
 
