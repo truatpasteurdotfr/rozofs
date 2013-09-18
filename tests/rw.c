@@ -338,7 +338,7 @@ int do_partial_read_and_check(int f) {
       }      
       if (size != (idx-offsetStart)) {
         printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can only read size %"PRIu64"\n", myProcId, size);    
+        printf("proc %3d - Can only read size %lld\n", myProcId, (long long) size);    
         return -1;
       }            
       
