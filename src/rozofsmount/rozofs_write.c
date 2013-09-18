@@ -1522,7 +1522,7 @@ void rozofs_ll_flush_defer(void *ns,void *param)
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
-    file = (file_t *) fi->fh;   
+   file = (file_t *) (unsigned long) fi->fh;
     /*
     ** check the status of the last write operation
     */
@@ -1837,7 +1837,7 @@ void rozofs_ll_release_defer(void *ns,void *param)
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
-    file = (file_t *) fi->fh;   
+    file = (file_t *) (unsigned long) fi->fh;
     /*
     ** check the status of the last write operation
     */

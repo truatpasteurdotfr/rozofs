@@ -390,7 +390,7 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
         goto error;
     }
     
-    file = (file_t *) fi->fh;
+    file = (file_t *) (unsigned long) fi->fh;
     
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -686,7 +686,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
         goto error;
     }
 
-    file = (file_t *) fi->fh;
+    file = (file_t *) (unsigned long) fi->fh;
     
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -847,7 +847,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
 	** Lock has been set. Save the lock owner in the file structure 
 	** to release the lockwhen the file is closed
 	*/
-        file = (file_t*) fi->fh;
+        file = (file_t*) (unsigned long) fi->fh;
         file->lock_owner_ref = fi->lock_owner;   
       } 
       errno = 0;      
@@ -859,7 +859,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
       ** file locks 
       */
       if (sleep) {
-        file = (file_t*) fi->fh;      
+        file = (file_t*) (unsigned long) fi->fh;      
         file->fuse_req  = req;
 	if (flock->l_type == F_WRLCK) file->lock_type = EP_LOCK_WRITE;
 	else                          file->lock_type = EP_LOCK_READ;
