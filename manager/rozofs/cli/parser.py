@@ -37,7 +37,7 @@ __parser.add_argument('listeners', nargs='+', choices=[EXPORTD_MANAGER, STORAGED
 
 
 __parent = argparse.ArgumentParser(add_help=False)
-#__parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='running platform agent host')
+# __parent.add_argument('-E', '--exportd', default=socket.gethostname(), help='running platform agent host')
 __parent.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
 
@@ -66,9 +66,9 @@ __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be disp
 __parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
 
 # USE ROZODEBUG !!!!
-#__parser = __add_command_parser('profile', 'display nodes profiling.', platform_dispatch, [__parent])
-#__parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
-#__parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
+# __parser = __add_command_parser('profile', 'display nodes profiling.', platform_dispatch, [__parent])
+# __parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
+# __parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each nodes. If not set all roles will be displayed')
 
 __parser = __add_command_parser('layout', 'set platform layout.', platform_dispatch, [__parent])
 __parser.add_argument('layout', nargs=1, type=int, choices=[0, 1, 2], help='the layout to set.')

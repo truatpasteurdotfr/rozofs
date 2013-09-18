@@ -1,17 +1,221 @@
 #!/usr/bin/python2.7
-# -*- coding: utf-8 -*-
+# encoding: utf-8
+'''
+rozo -- shortdesc
 
-from rozofs.cli.parser import parse
+rozo is a description
+
+It defines classes_and_methods
+
+@author:     user_name
+
+@copyright:  2013 organization_name. All rights reserved.
+
+@license:    license
+
+@contact:    user_email
+@deffield    updated: Updated
+'''
+
 import sys
+import os
+from rozofs import __version__
+
+from argparse import ArgumentParser
+from argparse import RawDescriptionHelpFormatter
+from rozofs.core.constants import EXPORTD_MANAGER, STORAGED_MANAGER, \
+    ROZOFSMOUNT_MANAGER
 import traceback
+from rozofs.cli.node import STR_ROLES
 
-try:
-    parsed = parse(sys.argv[1:])
-    parsed.dispatch(parsed)
-except Exception as e:
-    if parsed.debug is True:
-        traceback.print_exc(file=sys.stderr)
-    print >> sys.stderr, '%s failed: %s' % (parsed.command, e)
-    sys.exit(2)
+__all__ = []
+# __version__ = 0.1
+__date__ = '2013-09-14'
+__updated__ = '2013-09-14'
 
-sys.exit(0)
+DEBUG = 0
+TESTRUN = 0
+PROFILE = 0
+
+
+def __add_command_parser(cmd_parser, command, helpmsg, dispatch, parents=[]):
+    parser = cmd_parser.add_parser(command, help=helpmsg, parents=parents)
+    parser.set_defaults(command=command)
+    parser.set_defaults(dispatch=dispatch)
+    return parser
+
+class CLIError(Exception):
+    '''Generic exception to raise and log different fatal errors.'''
+    def __init__(self, msg):
+        super(CLIError).__init__(type(self))
+        self.msg = "E: %s" % msg
+    def __str__(self):
+        return self.msg
+    def __unicode__(self):
+        return self.msg
+
+def main(argv=None):  # IGNORE:C0111
+    '''Command line options.'''
+
+    if argv is None:
+        argv = sys.argv
+    else:
+        sys.argv.extend(argv)
+
+    program_name = os.path.basename(sys.argv[0])
+    program_version = "v%s" % __version__
+    program_build_date = str(__updated__)
+    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
+    program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
+    program_license = '''%s %s
+
+Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+This file is part of Rozofs.
+
+Rozofs is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published
+by the Free Software Foundation, version 2.
+
+Rozofs is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see
+<http://www.gnu.org/licenses/>.
+
+USAGE
+''' % (program_shortdesc, str(__date__))
+
+    try:
+        #
+        # Global options
+        #
+        parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
+        parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument('-d', '--debug', action='store_true', help='set debugging on')
+
+        parsed = parser.parse_known_args(argv[1:])[0]
+
+        #
+        # Topic options
+        #
+        parser.add_argument('topic', help='topic', choices=["agent", "layout", "node", "volume", "export"])
+
+        parsed = parser.parse_known_args(argv[1:])[0]
+
+        #
+        # Action options
+        #
+        if parsed.topic == 'agent':
+            parser.add_argument('action', choices=['status', 'start', 'stop', 'restart'])
+            parsed = parser.parse_known_args(argv[1:])[0]
+
+            if parsed.action == 'status':
+                pass
+            if parsed.action == 'start':
+                parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
+                parser.add_argument('listeners', nargs='+', choices=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], help='list of listeners.')
+            if parsed.action == 'stop':
+                pass
+            if parsed.action == 'restart':
+                parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
+                parser.add_argument('listeners', nargs='+', choices=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], help='list of listeners.')
+
+        if parsed.topic == "layout":
+            parser.add_argument('action', choices=['get', 'set'])
+            parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+            parsed = parser.parse_known_args(argv[1:])[0]
+
+            if parsed.action == 'get':
+                pass
+            if parsed.action == 'set':
+                parser.add_argument('layout', nargs=1, type=int, choices=[0, 1, 2], help='the layout to set.')
+
+        if parsed.topic == "node":
+            parser.add_argument('action', choices=['list', 'get', 'status', 'start', 'stop'])
+            parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+            parsed = parser.parse_known_args(argv[1:])[0]
+
+            if parsed.action == 'list':
+                parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be started on nodes. If not set all roles will be started')
+            if parsed.action == 'get':
+                parser.add_argument('host', nargs=1, help='the node.')
+            if parsed.action in ['status', 'start', 'stop']:
+                parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be started on nodes. If not set all roles will be started')
+                parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
+
+        if parsed.topic == "volume":
+            parser.add_argument('action', choices=['list', 'get', 'create', 'expand', 'remove'])
+            parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+            parsed = parser.parse_known_args(argv[1:])[0]
+
+            if parsed.action == 'list':
+                pass
+            if parsed.action == 'create':
+                parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
+            if parsed.action == 'expand':
+                parser.add_argument('-v', '--vid', nargs=1, type=int, help='vid of an existing volume. If not set a new volume will be created')
+                parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
+            if parsed.action == 'remove':
+                parser.add_argument('vids', nargs='+', type=int, help='vid(s) of existing volume.')
+            if parsed.action == 'stat':
+                parser.add_argument('-v', '--vids', nargs='+', type=int, help='volume(s) to stat. If not set all volumes will be displayed')
+
+        if parsed.topic == "export":
+            parser.add_argument('action', choices=['list', 'create', 'update', 'remove', 'stat', 'mount', 'umount'])
+            parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+            parsed = parser.parse_known_args(argv[1:])[0]
+
+            if parsed.action == 'list':
+                pass
+            if parsed.action == 'create':
+                parser.add_argument('-n', '--name', default=None, help='Name of this export.')
+                parser.add_argument('-p', '--passwd', default=None, help='password to set.')
+                parser.add_argument('-s', '--squota', default="", help='soft quota to set.')
+                parser.add_argument('-a', '--hquota', default="", help='hard quota to set.')
+                parser.add_argument('vid', nargs=1, type=int, help='vid of an existing volume.')
+            if parsed.action == 'update':
+                parser.add_argument('-c', '--current', default=None, help='current password.')
+                parser.add_argument('-p', '--passwd', default=None, help='password to set.')
+                parser.add_argument('-s', '--squota', default=None, help='soft quota to set.')
+                parser.add_argument('-a', '--hquota', default=None, help='hard quota to set.')
+                parser.add_argument('eid', nargs=1, type=int, help='eid of an existing export.')
+            if parsed.action == 'remove':
+                parser.add_argument('-f', '--force', action="store_true", default=False, help='when ever to force removing.')
+                parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) of existing export.')
+            if parsed.action == 'stat':
+                parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) of existing export.')
+            if parsed.action == 'mount':
+                parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount on')
+                parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
+            if parsed.action == 'umount':
+                parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to umount from')
+                parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be umount.')
+
+        # Final parsing
+        parsed = parser.parse_args(argv[1:])
+        if parsed.debug:
+            print parsed
+
+        # Execute corresponding command
+        m = __import__('rozofs.cli.%s' % parsed.topic, globals(), locals(), ['dispatch'], -1)
+        if parsed.debug:
+            print 'module: %s' % m
+        getattr(m, 'dispatch')(parsed)
+
+        return 0
+    except KeyboardInterrupt:
+        ### handle keyboard interrupt ###
+        return 0
+    except Exception, e:
+        if parsed.debug:
+            traceback.print_exc(file=sys.stderr)
+            # raise(e)
+        indent = len(program_name) * " "
+        sys.stderr.write(program_name + ": " + str(e) + "\n")
+        return 2
+
+if __name__ == "__main__":
+    sys.exit(main())

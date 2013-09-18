@@ -65,7 +65,7 @@ class ExportdProfiler(object):
         self.vstats = []
         self.estats = []
 
-### Rozodebug will do the job
+# ## Rozodebug will do the job
 #         self.ep_mount = []
 #         self.ep_umount = []
 #         self.ep_statfs = []
@@ -190,7 +190,7 @@ class ExportdRpcProxy(RpcProxy):
             ep.estats.append(ExportStat(esa.eid, esa.vid, esa.bsize, esa.blocks,
                                         esa.bfree, esa.files, esa.ffree))
 
-### Rozodebug will do the job
+# ## Rozodebug will do the job
 #        ep.export_read = [Uint64Array_getitem(p.export_read, 0),
 #                      Uint64Array_getitem(p.export_read, 1),
 #                      Uint64Array_getitem(p.export_read, 2)]
@@ -226,8 +226,8 @@ class ExportdRpcProxy(RpcProxy):
         return ep
 
 
-### Rozodebug will do the job
-#class StoragedProfiler(object):
+# ## Rozodebug will do the job
+# class StoragedProfiler(object):
 #    def __init__(self):
 #        self.uptime = -1
 #        self.now = -1
@@ -246,7 +246,7 @@ class ExportdRpcProxy(RpcProxy):
 #        self.rb_files_total = -1
 #
 #
-#class StoragedRpcProxy(RpcProxy):
+# class StoragedRpcProxy(RpcProxy):
 #    def __init__(self, host, port=0):
 #        RpcProxy.__init__(self, host, port)
 #
@@ -298,7 +298,7 @@ class ExportdRpcProxy(RpcProxy):
 #        return sp
 #
 #
-#class MountProfiler(object):
+# class MountProfiler(object):
 #    def __init__(self):
 #        self.uptime = -1
 #        self.now = -1
@@ -336,7 +336,7 @@ class ExportdRpcProxy(RpcProxy):
 #        self.rozofs_ll_ioctl = []
 #
 #
-#class MountRpcProxy(RpcProxy):
+# class MountRpcProxy(RpcProxy):
 #    def __init__(self, host, port=0):
 #        RpcProxy.__init__(self, host, port)
 #
@@ -388,10 +388,10 @@ class Node(object):
         self._roles = roles
         # for all below key is Role
         self._proxies = {}
-        #self._rpcproxies = {}  # storaged ares arrays dues to io & rb processes
+        # self._rpcproxies = {}  # storaged ares arrays dues to io & rb processes
         # does our node is connected and running
         self._up = False
-        #self._connected = False
+        # self._connected = False
 
     def __del(self):
         self._release_proxies()
@@ -702,6 +702,12 @@ class Platform(object):
             the roles to be started
         """
 
+        # check if hosts are managed
+        if hosts is not None:
+            for h in hosts:
+                if h not in self._nodes.keys():
+                    raise Exception('unmanaged host: %s' % h)
+
         if hosts is None:
             hosts = self._nodes.keys()
 
@@ -788,19 +794,28 @@ class Platform(object):
 
     def set_layout(self, layout):
         if not layout in [0, 1, 2]:
-            raise Exception("Invalid layout: %d" % layout)
+            raise Exception("invalid layout: %d" % layout)
 
         node = self._get_exportd_node()
         configuration = node.get_configurations(Role.EXPORTD)
 
         if configuration is None:
-            raise "Exportd node is off line."
+            raise "exportd node is off line."
 
         if len(configuration[Role.EXPORTD].volumes) != 0:
             raise Exception("platform has configured volume(s) !!!")
 
         configuration[Role.EXPORTD].layout = layout
         node.set_configurations(configuration)
+
+    def get_layout(self):
+        node = self._get_exportd_node()
+        configuration = node.get_configurations(Role.EXPORTD)
+
+        if configuration is None:
+            raise "exportd node is off line."
+
+        return configuration[Role.EXPORTD].layout
 
     def add_nodes(self, hosts, vid=None):
         """ Add storaged nodes to the platform

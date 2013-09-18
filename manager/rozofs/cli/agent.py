@@ -11,22 +11,22 @@ from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.core.rozofsmount import RozofsMountAgent
 
-def agent_status(args):
+def status(args):
     (pid, listeners) = AgentServer().status()
-    if pid is None:
-        print >> sys.stdout, "Rozo agent is not running."
+    print >> sys.stdout, "pid=%s" % pid
+    if listeners is None:
+        print >> sys.stdout, "listeners=%s" % (listeners)
     else:
-        print >> sys.stdout, "Rozo agent is running with pid: %s." % pid
-        print >> sys.stdout, "%d registered listener(s) %s." % (len(listeners), listeners)
+        print >> sys.stdout, "listeners=%s" % (','.join(listeners))
 
 
-def agent_start(args):
+def start(args):
     if os.getuid() is not 0:
-        raise Exception("Only the root user can start agent.")
+        raise Exception("only the root user can start agent.")
 
     (pid, listeners) = AgentServer().status()
     if pid is not None:
-        raise Exception("Agent is running with pid: %s." % pid)
+        raise Exception("agent is running with pid: %s." % pid)
 
     syslog.openlog('rozo-agent')
 
@@ -46,19 +46,19 @@ def agent_start(args):
     if len(managers) is 0:
         raise "no suitable manager."
 
-    print >> sys.stdout, "Starting agent, with %d listener(s) %s." % (len(args.listeners), args.listeners)
+    # print >> sys.stdout, "Starting agent, with %d listener(s) %s." % (len(args.listeners), args.listeners)
     AgentServer('/var/run/rozo-agent.pid', managers).start()
 
 
-def agent_stop(args):
+def stop(args):
     AgentServer().stop()
-    print >> sys.stdout, "Agent stopped."
+    # print >> sys.stdout, "Agent stopped."
 
 
-def agent_restart(args):
-    agent_stop(args)
-    agent_start(args)
+def restart(args):
+    stop(args)
+    start(args)
 
 
-def agent_dispatch(args):
-    globals()[args.command.replace('-', '_')](args)
+def dispatch(args):
+    globals()[args.action.replace('-', '_')](args)
