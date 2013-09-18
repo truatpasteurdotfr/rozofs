@@ -18,31 +18,31 @@
 @cindex     install
 @cindex     binary package
 
-Fizians SAS provides binary packages for every component of RozoFS and various
-GNU/Linux distributions based on debian (.deb) and redhat (.rpm) package
-format. Using binary packages brings you benefits. First, you do not need a
-full development environment and other hand binary packages come with init
-script, easy dependency management etc... that can simplify deployment and
-management process. See help of your favorite GNU/Linux distribution's package
-manager for package installation.
+Fizians @acronym{SAS} provides binary packages for every component of RozoFS and
+various @acronym{GNU}/Linux distributions based on Debian (@file{.deb})
+and Redhat (@file{.rpm}) package format. Using binary packages brings you
+benefits. First, you do not need a full development environment and other hand
+binary packages come with init script, easy dependency management etc... that can
+simplify deployment and management process. See help of your favorite
+@acronym{GNU}/Linux distribution's package manager for package installation.
 According to their roles, nodes should have at least one these packages
 installed :
 
 @itemize
-@item rozofs-storaged_<version>_<arch>.<deb|rpm>
-@item rozofs-exportd_<version>_<arch>.<deb|rpm>
-@item rozofs-rozofsmount_<version>_<arch>.<deb|rpm>
+@item @file{rozofs-storaged_<version>_<arch>.<deb|rpm>}
+@item @file{rozofs-exportd_<version>_<arch>.<deb|rpm>}
+@item @file{rozofs-rozofsmount_<version>_<arch>.<deb|rpm>}
 @end itemize
 
 To help and automate management, the following optional packages should be
 installed on each node involved in a RozoFS platform:
 
 @itemize
-@item rozofs-manager-lib_<version>_<arch>.<deb|rpm>
-@item rozofs-manager-cli_<version>_<arch>.<deb|rpm>
-@item rozofs-manager-agent_<version>_<arch>.<deb|rpm>
-@item rozofs-rprof_<version>_<arch>.<deb|rpm>
-@item rozofs-rozodebug_<version>_<arch>.<deb|rpm>
+@item @file{rozofs-manager-lib_<version>_<arch>.<deb|rpm>}
+@item @file{rozofs-manager-cli_<version>_<arch>.<deb|rpm>}
+@item @file{rozofs-manager-agent_<version>_<arch>.<deb|rpm>}
+@item @file{rozofs-rprof_<version>_<arch>.<deb|rpm>}
+@item @file{rozofs-rozodebug_<version>_<arch>.<deb|rpm>}
 @end itemize
 
 @c *** Section [Building and Installing from Sources]
@@ -69,16 +69,16 @@ To build the RozoFS source code, it is necessary to install several libraries
 and tools. RozoFS uses the cross-platform build system Cmake to get you started
 quickly. RozoFS depends on the following:
 @itemize
-@item cmake
-@item libattr1-dev
-@item uuid-dev
-@item libconfig-dev
-@item libfuse-dev
-@item libreadline-dev
-@item python2.6-dev
-@item libpthread
-@item libcrypt
-@item swig
+@item @command{cmake}
+@item @command{libattr1-dev}
+@item @command{uuid-dev}
+@item @command{libconfig-dev}
+@item @command{libfuse-dev}
+@item @command{libreadline-dev}
+@item @command{python2.6-dev}
+@item @command{libpthread}
+@item @command{libcrypt}
+@item @command{swig}
 @end itemize
 
 @c *** Subsection [Build the Source]
@@ -89,13 +89,13 @@ quickly. RozoFS depends on the following:
 
 Once the required packages are installed on your appropriate system, you can
 generate the build configuration with the following commands (using default
-values compiles RozoFS in Release mode and installs it on /usr/local) :
-@verbatim
+values compiles RozoFS in Release mode and installs it on @file{/usr/local}) :
+@example
 # cmake -G "Unix Makefiles" ..
 
 -- The C compiler identification is GNU
 -- Check for working C compiler: /usr/bin/gcc
--- Check for working C compiler: /usr/bin/gcc -- works
+-- Check for working C caompiler: /usr/bin/gcc -- works
 -- Detecting C compiler ABI info
 -- Detecting C compiler ABI info - done
 -- Configuring done
@@ -103,14 +103,15 @@ values compiles RozoFS in Release mode and installs it on /usr/local) :
 -- Build files have been written to: /root/rozofs/build
 # make
 # make install
-@end verbatim
+@end example
 
-If you use default values, make will place the executables in /usr/local/bin,
-build options (CMAKE_INSTALL_PREFIX, CMAKE_BUILD_TYPE...) of generated build
-tree can be modified with the following command :
-@verbatim
+If you use default values, make will place the executables in
+@file{/usr/local/bin}, build options (@env{CMAKE_INSTALL_PREFIX},
+@env{CMAKE_BUILD_TYPE}...) of generated build tree can be modified with the
+following command :
+@example
 # make edit_cache
-@end verbatim
+@end example
 
 @c *** Section [Preparing Nodes]
 @node       Preparing Nodes, Configuring RozoFS, Building and Installing from Sources, Building Installing and Configuring RozoFS
@@ -138,32 +139,35 @@ tree can be modified with the following command :
 @cindex     replication
 @cindex     DRBD
 
-Conceptual Overview
-DRBD replicates data from the primary device to the secondary device in a way
-which ensures that both copies of the data remain identical. Think of it as a
-networked RAID 1. It mirrors data in real-time, so its replication occurs
+@c Conceptual Overview
+@acronym{DRBD} replicates data from the primary device to the secondary device in
+a way which ensures that both copies of the data remain identical. Think of it as a
+networked @acronym{RAID} 1. It mirrors data in real-time, so its replication occurs
 continuously. Applications do not need to know that in fact their data is
 stored on different disks.
 
-NOTE: You must set up the DRBD devices (for store RozoFS metadata) before
-creating file systems on them. 
-Installing and Configuring DRBD Service
-To install the needed packages for DRBD see: DRBD website.
+@strong{NOTE}: You must set up the @acronym{DRBD} devices (for store RozoFS
+metadata) before creating file systems on them. 
 
-The following procedure uses two servers named node1 and node2, and the cluster
-resource name r0. It sets up node1 as the primary node. Be sure to modify the
-instructions relative to your own nodes and filenames.
+@c Installing and Configuring DRBD Service
+To install the needed packages for @acronym{DRBD} see: @acronym{DRBD} website.
+The following procedure uses two servers named @var{node1} and @var{node2}, and
+the cluster resource name @var{r0}. It sets up @var{node1} as the primary node.
+Be sure to modify the instructions relative to your own nodes and filenames.
 
-To set up DRBD manually, proceed as follows:
-The DRBD configuration files are stored in the directory /etc/drbd.d/. There are two configuration files which are created:
+To set up @acronym{DRBD} manually, proceed as follows:
+The @acronym{DRBD} configuration files are stored in the directory
+@file{/etc/drbd.d/}. There are two configuration files which are created:
 @itemize
-@item /etc/drbd.d/r0.res corresponds to the configuration for resource r0;
-@item /etc/drbd.d/global_common.conf corresponds to the global configuration of 
-DRBD.
+@item @file{/etc/drbd.d/r0.res} corresponds to the configuration for resource
+@var{r0};
+@item @file{/etc/drbd.d/global_common.conf} corresponds to the global
+configuration of @acronym{DRBD}.
 @end itemize
 
-Create the file /etc/drbd.d/r0.res on node1, changes the lines according to your parameters, and save it:
-@verbatim
+Create the file @file{/etc/drbd.d/r0.res} on @var{node1}, changes the lines
+according to your parameters, and save it:
+@example
 resource r0 {
   protocol C;
 
@@ -181,90 +185,92 @@ resource r0 {
     meta-disk internal;
   }
 }
-@end verbatim
+@end example
 
-Copy DRBD configuration files manually to the other node:
-@verbatim
+Copy @acronym{DRBD} configuration files manually to the other node:
+@example
 # scp /etc/drbd.conf node2:/etc/drbd.d/
-@end verbatim
+@end example
 
 Initialize the metadata on both systems by entering the following command on each 
 node:
-@verbatim
+@example
 # drbdadm -- --ignore-sanity-checks create-md r0
-@end verbatim
+@end example
 
-Attach resource r0 to the backing device :
-@verbatim
+Attach resource @var{r0} to the backing device :
+@example
 # drbdadm attach r0
-@end verbatim
+@end example
 
-Set the synchronization parameters for the DRBD resource:
-@verbatim
+Set the synchronization parameters for the @acronym{DRBD} resource:
+@example
 # drbdadm syncer r0
-@end verbatim
+@end example
 
-Connect the DRBD resource with its counterpart on the peer node:
-@verbatim
+Connect the @acronym{DRBD} resource with its counterpart on the peer node:
+@example
 # drbdadm connect r0
-@end verbatim
+@end example
 
-Start the resync process on your intended primary node (node1 in this case):
-@verbatim
+Start the @dfn{resync} process on your intended primary node (@var{node1}
+in this case):
+@example
 # drbdadm -- --overwrite-data-of-peer primary r0
-@end verbatim
+@end example
 
-Set node1 as primary node:
-@verbatim
+Set @var{node1} as primary node:
+@example
 # drbdadm primary r0
-@end verbatim
+@end example
 
-Create an ext4 file system on top of your DRBD device:
-@verbatim
+Create an @acronym{ext4} file system on top of your @acronym{DRBD} device:
+@example
 # mkfs.ext4 /dev/drbd0
-@end verbatim
+@end example
 If the install and configuration procedures worked as expected, you are ready to
-run a basic test of the DRBD functionality.
-Create a mount point on node1, such as /srv/rozofs/exports:
-@verbatim
+run a basic test of the @acronym{DRBD} functionality.
+Create a mount point on @var{node1}, such as @file{/srv/rozofs/exports}:
+@example
 # mkdir -p /srv/rozofs/exports
-@end verbatim
+@end example
 
-Mount the DRBD device:
-@verbatim
+Mount the @acronym{DRBD} device:
+@example
 # mount /dev/drbd0 /srv/rozofs/exports
-@end verbatim
+@end example
 
 Write a file:
-@verbatim
+@example
 # echo “helloworld” > /srv/rozofs/exports/test
-@end verbatim
+@end example
 
-Unmount the DRBD device:
-@verbatim
+Unmount the @acronym{DRBD} device:
+@example
 # umount /srv/rozofs/exports
-@end verbatim
+@end example
 
 To verify that synchronization is performed:
-@verbatim
+@example
 # cat /proc/drbd
 version: 8.3.11 (api:88/proto:86-96)
 srcversion: 41C52C8CD882E47FB5AF767 
  0: cs:Connected ro:Primary/Secondary ds:UpToDate/UpToDate C r-----
     ns:3186507 nr:0 dw:3183477 dr:516201 al:4702 bm:163 lo:0 pe:0 ua:0
     ap:0 ep:1 wo:f oos:0
-@end verbatim
+@end example
 
 The two resources are now synchronized (UpToDate). The initial synchronization
-is performed, it is necessary to stop the DRBD service and remove the link for
-the initialization script not to start the service automatically DRBD. The service
-is now controlled by the Pacemaker service.
+is performed, it is necessary to stop the @acronym{DRBD} service and remove the
+link for the initialization script not to start the service automatically
+@acronym{DRBD}. The service is now controlled by the Pacemaker service.
 
-Disable DRBD init script (depending on your distribution, here Debian example):
-@verbatim
+Disable @acronym{DRBD} init script (depending on your distribution, here
+Debian example):
+@example
 # /etc/init.d/drbd stop
 # update-rc.d -f drbd remove
-@end verbatim
+@end example
 
 @c *** Subsubsection [Metadata Replication with Pacemaker]
 @node       High Availability with Pacemaker, , Metadata Replication with DRBD, Exportd Nodes
@@ -272,54 +278,54 @@ Disable DRBD init script (depending on your distribution, here Debian example):
 @cindex     availability
 @cindex     pacemaker
 
-Pacemaker is an open-source high availability resource management tool suitable
-for clusters of Linux machines. This tool can detect machine failures with a
-communication system based on an exchange of UDP packets and migrate services
-(resource) from one server to another.
+@dfn{Pacemaker} is an open-source high availability resource management tool
+suitable for clusters of Linux machines. This tool can detect machine failures
+with a communication system based on an exchange of @acronym{UDP} packets and
+migrate services (resource) from one server to another.
 
-The configuration of Pacemaker can be done with the crm command. It allows you
-to manage different resources and propagates changes on each server
+The configuration of Pacemaker can be done with the @command{crm} command.
+It allows you to manage different resources and propagates changes on each server
 automatically. The creation of a resource is done with an entry named primitive
 in the configuration file. This primitive uses a script corresponding to the
 application to be protected.
 
-Conceptual Overview
+@c Conceptual Overview
 In the case of the platform, Pacemaker manages the following resources:
 @itemize
 @item exportd daemon;
-@item The virtual IP address for the exportd service;
+@item The virtual @acronym{IP} address for the exportd service;
 @item Mounting the file system used to store meta-data;
-@item DRBD resources (r0), roles (master or slave);
+@item @acronym{DRBD} resources (@var{r0}), roles (master or slave);
 @item Server connectivity.
 @end itemize
 
 The following diagram describes the different resources configured and controlled
-via Pacemaker. In this case, two servers are configured and node1 is the
+via Pacemaker. In this case, two servers are configured and @var{node1} is the
 master server.
 
 @center @image{pics/DRBD, , 5in, , png}
 
-Installing and Configuring Pacemaker
-The first component to configure is Corosync. It manages the infrastructure
+@c Installing and Configuring Pacemaker
+The first component to configure is @dfn{Corosync}. It manages the infrastructure
 of the cluster, i.e. the status of nodes and their operation. For this, we
 must generate an authentication key that is shared by all the machines in the
-cluster. The corosync-keygen utility can be use to generate this key and then
-copy it to the other nodes.
+cluster. The @command{corosync-keygen} utility can be use to generate this key
+and then copy it to the other nodes.
 
-Create key on node1:
-@verbatim
+Create key on @var{node1}:
+@example
 # corosync-keygen
-@end verbatim
+@end example
 Copy the key manually to the other node:
-@verbatim
-# scp /etc/corosync/authkey root@node2:/etc/corosync/authkey
-@end verbatim
+@example
+# scp /etc/corosync/authkey root@@node2:/etc/corosync/authkey
+@end example
 
 Besides copying the key, you also have to modify the corosync configuration
-file which stored in /etc/corosync/corosync.conf. 
+file which stored in @file{/etc/corosync/corosync.conf}. 
 
-Edit your corosync.conf with the following:
-@verbatim
+Edit your @file{corosync.conf} with the following:
+@example
 interface {
    # The following values need to be set based on your environment 
    ringnumber: 1
@@ -328,34 +334,34 @@ interface {
    mcastport: 5407
    ttl: 255
 }
-@end verbatim
+@end example
 
-Copy the corosync.conf manually to the other node:
-@verbatim
-# scp /etc/corosync/corosync.conf root@node2:/etc/corosync/corosync.conf
-@end verbatim
+Copy the @file{corosync.conf} manually to the other node:
+@example
+# scp /etc/corosync/corosync.conf root@@node2:/etc/corosync/corosync.conf
+@end example
 
 Corosync is started as a regular system service. Depending on your distribution,
-it may ship with a LSB init script, an upstart job, or a systemd unit file.
-Either way, the service is usually named corosync:
-@verbatim
+it may ship with a @acronym{LSB} init script, an upstart job, or a systemd unit
+file. Either way, the service is usually named corosync:
+@example
 # /etc/init.d/corosync start
-@end verbatim
+@end example
 or:
-@verbatim
+@example
 # service corosync start
-@end verbatim
+@end example
 or:
-@verbatim
+@example
 # start corosync
-@end verbatim
+@end example
 or:
-@verbatim
+@example
 # systemctl start corosync
-@end verbatim
+@end example
 
 You can now check the Corosync connectivity by typing the following command:
-@verbatim
+@example
 # crm_mon
 ============
 Last updated: Tue May 2 03:54:44 2013
@@ -368,22 +374,22 @@ Version: 1.1.7-ee0730e13d124c3d58f00016c3376a1de5323cff
 ============
 
 Online: [ node1 node2 ]
-@end verbatim
+@end example
 
 Once the Pacemaker cluster is set up and before configuring the different
 resources and constraints of the Pacemaker cluster, it is necessary to copy
-the OCF scripts for exportd on each server. The exportd script is enable to
-start, stop and monitor the exportd daemon.
+the @acronym{OCF} scripts for exportd on each server. The exportd script is
+enable to start, stop and monitor the exportd daemon.
 
-Copy the OCF script manually to each node:
-@verbatim
-# scp exportd root@node1:/usr/lib/ocf/resource.d/heartbeat/exportd
-# scp exportd root@node1:/usr/lib/ocf/resource.d/heartbeat/exportd
-@end verbatim
+Copy the @acronym{OCF} script manually to each node:
+@example
+# scp exportd root@@node1:/usr/lib/ocf/resource.d/heartbeat/exportd
+# scp exportd root@@node1:/usr/lib/ocf/resource.d/heartbeat/exportd
+@end example
 
 To set the cluster properties, start the crm shell and enter the following commands:
-configure property stonith-enabled=false
-@verbatim
+@command{configure property stonith-enabled=false}
+@example
 configure property no-quorum-policy=ignore
 
 configure primitive p_ping ocf:pacemaker:ping params
@@ -423,11 +429,11 @@ configure order o_drbd_rU_before_grp_exportd inf: ms_drbd_r0:promote
 grp_exportd:start
 
 configure location loc_prefer_grp_exportd_on_node1 grp_exportd 100: node1
-@end verbatim
+@end example
 
 Once all the primitives and constraints are loaded, it is possible to check the
 correct operations of the cluster with the following command:
-@verbatim
+@example
 # crm_mon -1
 
 ============
@@ -451,7 +457,7 @@ Online: [ node1 node2 ]
      exportd_rozofs     (ocf::heartbeat:exportd):       Started node1
  Clone Set: c_ping [p_ping]
      Started: [ node1 node2 ]
-@end verbatim
+@end example
 
 @c *** Subsection [Storaged Nodes]
 @node       Storaged Nodes, , Exportd Nodes, Preparing Nodes
@@ -459,7 +465,7 @@ Online: [ node1 node2 ]
 @cindex     storaged daemon
 
 Storaged nodes should have appropriate free space on disks. The storaged service
-stores transformed data as files on a common file system (ext4). It is
+stores transformed data as files on a common file system (@acronym{ext4}). It is
 important to dedicate file systems used by storaged service exclusively to
 it (use a Logical Volume or dedicated partition). It is necessary to manage
 the free space properly.
@@ -479,7 +485,8 @@ the free space properly.
 @subsection Exportd Configuration File
 @cindex     exportd caonfiguration
 
-The configuration file of exportd (export.conf) consists of 3 types of information :
+The configuration file of exportd (@file{export.conf}) consists of 3 types of
+information :
 @itemize
 @item the redundancy configuration chosen (layout)
 @item the list of storage volumes used to store data (volumes)
@@ -498,19 +505,20 @@ layout allows you to specify the configuration of redundancy RozoFS. There are
 List of storage volumes (volumes):
 The list of all the storage volumes used by exportd is grouped under the
 volumes list. A volume in the list is identified by a unique identification
-number (VID) and contains one or more clusters identified by a unique
-identification number (CID) consisting of 4, 8 or 16 storage locations according
-to the layout you have chosen. Each storage location in a cluster is defined
-with the SID (the storage unique identifier within the cluster) and its
-network name (or IP address).
+number (@acronym{VID}) and contains one or more clusters identified by a unique
+identification number (@acronym{CID}) consisting of 4, 8 or 16 storage locations
+according to the layout you have chosen. Each storage location in a cluster is
+defined with the @acronym{SID} (the storage unique identifier within the cluster)
+and its network name (or @acronym{IP} address).
 
 List of exported file systems (exports):
 The exportd daemon can export one or more file systems. Each exported file
 system is defined by the absolute path to the local directory that contains
 specific metadata for this file system.
 
-Here is the an example of configuration file (export.conf) for exportd daemon:
-@verbatim
+Here is the an example of configuration file (@file{export.conf}) for
+exportd daemon:
+@example
 # rozofs export daemon configuration file
 
 layout = 0 ; # (inverse = 2, forward = 3, safe = 4)
@@ -578,14 +586,14 @@ exports = (
   squota=""; hquota = ""; vid=2;
   }
 );
-@end verbatim
+@end example
 
 @c *** Subsection [Storaged Configuration File]
 @node       Storaged Configuration File, , Exportd Configuration File, Configuring RozoFS
 @subsection Storaged Configuration File
 @cindex     storaged configuration
 
-The configuration file storaged daemon (storage.conf) must be completed on
+The configuration file storaged daemon (@file{storage.conf}) must be completed on
 each physical server storage where storaged daemon is used.
 It contains two informations:
 @itemize
@@ -598,13 +606,13 @@ data (projections)
 List of local storage locations (storages):
 All of storage locations used by the storaged daemon on a physical server are
 grouped under the storages list. The storages list consists of one or more
-storage locations. Each storage location is defined by the CID (unique
-identification number of the cluster to which it belongs) and SID (the storage
-unique identifier within the cluster) and the absolute path to the local
-directory that will contain the specific encoded data for this storage.
+storage locations. Each storage location is defined by the @acronym{CID} (unique
+identification number of the cluster to which it belongs) and @acronym{SID}
+(the storage unique identifier within the cluster) and the absolute path to the
+local directory that will contain the specific encoded data for this storage.
 
-Configuration file example (storage.conf) for one storaged daemon:
-@verbatim
+Configuration file example (@file{storage.conf}) for one storaged daemon:
+@example
 # rozofs storage daemon configuration file.
 
 # ports: 
@@ -620,4 +628,4 @@ storages = (
   {cid = 1; sid = 1; root = "/srv/rozofs/storages/storage_1-1";},
   {cid = 2; sid = 1; root = "/srv/rozofs/storages/storage_2-1";}
 );
-@end verbatim
+@end example
