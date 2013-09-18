@@ -1,12 +1,10 @@
-
 /*
  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
  This file is part of Rozofs.
 
  Rozofs is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published
- by the Free Software Foundation; either version 3 of the License,
- or (at your option) any later version.
+ by the Free Software Foundation, version 2.
 
  Rozofs is distributed in the hope that it will be useful, but
  WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,10 +16,8 @@
  <http://www.gnu.org/licenses/>.
  */
  
- 
 #ifndef STORIO_DISK_THREAD_INTF_H
 #define STORIO_DISK_THREAD_INTF_H
-
 
 #include <stdlib.h>
 #include <stddef.h>
