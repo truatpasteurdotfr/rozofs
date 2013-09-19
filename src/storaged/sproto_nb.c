@@ -124,11 +124,6 @@ void detailed_counters_init(void) {
   uma_dbg_addTopic("detailedTiming", display_detailed_counters); 
 }
 
-
-
-
-
-
 DECLARE_PROFILING(spp_profiler_t);
 
 int rozofs_storcli_fake_encode(xdrproc_t encode_fct,void *msg2encode_p)

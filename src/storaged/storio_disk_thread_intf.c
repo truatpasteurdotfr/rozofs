@@ -20,14 +20,17 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>
+
 #include <rozofs/rozofs.h>
-#include "config.h"
 #include <rozofs/common/log.h>
+#include <rozofs/common/profile.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/core/ruc_buffer_debug.h>
-#include <rozofs/common/profile.h>
+
 #include "storio_disk_thread_intf.h"
+#include "sproto_nb.h"
+#include "config.h"
 
 DECLARE_PROFILING(spp_profiler_t); 
  

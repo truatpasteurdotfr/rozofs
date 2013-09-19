@@ -64,6 +64,7 @@
 #include "storio_north_intf.h"
 #include "storage_fd_cache.h"
 #include "storio_disk_thread_intf.h"
+#include "sproto_nb.h"
 #include "config.h"
 #include "sconfig.h"
 #include "storage.h"
