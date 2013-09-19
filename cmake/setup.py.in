@@ -12,7 +12,8 @@ class version_build_py(build_py):
         # honor the --dry-run flag
         if not self.dry_run:
             with open('@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/__init__.py', 'w') as f:
-                f.write('__version__ = \"@VERSION@\"')
+                f.write('__version__ = \"@VERSION@\"\n')
+                f.write('__sysconfdir__ = \"@SYSCONFDIR@\"\n')
 
         # distutils uses old-style classes, so no super()
         build_py.run(self)

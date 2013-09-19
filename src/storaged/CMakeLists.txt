@@ -21,8 +21,8 @@ include_directories(${PTHREAD_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(storaged
-    sproto.c
     mproto.c
+    mprotosvc.h
     spproto.c
     sconfig.h
     sconfig.c
@@ -40,9 +40,44 @@ add_executable(storaged
     storaged.c
     storaged_nblock_init.h
     storaged_nblock_init.c
+    storaged_north_intf.c
+    storaged_north_intf.h
+    storage_fd_cache.c
+    storage_fd_cache.h
+    storio_cache.h
+    storio_cache.c
+    storio_bufcache.c
+    storio_bufcache.h
 )
 target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
+add_executable(storio
+    sproto.c
+    spproto.c
+    sconfig.h
+    sconfig.c
+    storage.h
+    storage.c
+    sproto_nb.h
+    sproto_nb.c
+    sprotosvc_nb.c
+    sprotosvc_nb.h
+    storio_nblock_init.h
+    storio_nblock_init.c
+    storio_north_intf.c
+    storio_north_intf.h
+    storage_fd_cache.c
+    storage_fd_cache.h
+    storio.c
+    storio_cache.h
+    storio_cache.c
+    storio_bufcache.c
+    storio_bufcache.h
+    storio_disk_thread_intf.h
+    storio_disk_thread_intf.c
+    storio_disk_thread.c
+)
+target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 # Install
 install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT storage)
@@ -53,6 +88,13 @@ install(TARGETS storaged
     ARCHIVE DESTINATION lib
     COMPONENT storage
 )
-
+install(TARGETS storio
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT storio
+)
 install(FILES storage.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)
 install(FILES storage.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)
+
+install(PROGRAMS storio_starter.sh storio_killer.sh  DESTINATION bin)

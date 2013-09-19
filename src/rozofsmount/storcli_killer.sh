@@ -15,13 +15,31 @@
 
 mountpoint=$1
 
-kill_everybody ()
+kill_starter ()
 {
-  for pid in `ps -ef | grep "storcli "| grep "M $mountpoint" | awk '{print $2}'`
+  count=0
+  for pid in `ps -ef | grep "storcli_starter.sh"| grep "M $mountpoint" | awk '{print $2}'`
   do
     kill $1 $pid
+    count=$((count+1))
   done
 }
 
-kill_everybody -6
+kill_everybody ()
+{
+  count=0
+  for pid in `ps -ef | grep "storcli "| grep "M $mountpoint" | awk '{print $2}'`
+  do
+    kill $1 $pid
+    count=$((count+1))
+  done
+  
+  case $count in
+    "0") exit;;
+  esac
+}
+
+kill_starter
+kill_everybody 
+sleep 1
 kill_everybody -9

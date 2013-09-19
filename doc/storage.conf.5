@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii storage.conf.5
 .\"
-.TH STORAGE.CONF 5 "MAY 2013" Rozofs "User Manuals"
+.TH STORAGE.CONF 5 "SEPTEMBER 2013" Rozofs "User Manuals"
 .SH NAME
-storage.conf \- rozofs storage daemon configuration file
+storage.conf \- RozoFS storage daemon configuration file
 .SH DESCRIPTION
 .B "storage.conf"
 is manage throw 
@@ -12,13 +12,25 @@ is manage throw
 .B libconfig
 grammar.
 
-.SS ports
+.SS threads (optional)
 
-It's a list of TCP ports used for receive write and read requests from clients (rozofsmount).
-A process will be created for each TCP port.
-Another process will be created to receive other requests.
+Specifies number of threads that can process the disk requests. (default: 2)
 
-.SS storages
+.SS nbcores (optional)
+
+Maximum number of core files to keep. (default: 2)
+
+.SS listen (mandatory)
+
+Specifies list of IP(s) (or hostname(s)) and port(s) the storio process should listen on for receive write and read requests from clients.
+
+    addr: (IP or hostname that the server should listens on)
+            - must be a valid IPv4 address or a valid hostname.
+            - if "*" is specified storio will listen on any of the interfaces.
+
+    port: (TCP port number (in decimal) to use for storio process)
+
+.SS storages (mandatory)
 
 It's the list of local storage managed by this storaged.
 Each storage is identified by the cluster to which belongs the storage (cid) 
@@ -42,9 +54,12 @@ unique. The root is the path where will be stored data for this storage.
 .PP
 .nf
 .ta +3i
-# sample /etc/rozofs/storage.conf file
+# sample RozoFS storage configuration file
 
-ports = [40001, 40002, 40003, 40004];  
+listen = (
+    {addr = "192.168.1.1"; port = 41001; },
+    {addr = "192.168.2.1"; port = 41001; }
+);
 
 storages = (
     {cid = 1; sid = 1; root = "/path/to/foo";},

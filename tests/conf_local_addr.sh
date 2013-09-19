@@ -33,7 +33,7 @@ main (){
 
     NB_IP_TO_SET=$2
     INTERFACE_TO_USE=$3
-    IP_BASE=192.168.2
+    IP_BASE=192.168
     NETMASK=24
 
     if [ "$1" == "set" ]
@@ -41,7 +41,11 @@ main (){
 
         for k in $(seq ${NB_IP_TO_SET}); do
 
-            ip addr add ${IP_BASE}.${k}/${NETMASK} dev ${INTERFACE_TO_USE}
+            for n in {2..6}; do
+
+                ip addr add ${IP_BASE}.${n}.${k}/${NETMASK} dev ${INTERFACE_TO_USE}
+
+            done;
 
         done;
 
@@ -50,7 +54,11 @@ main (){
 
         for k in $(seq ${NB_IP_TO_SET}); do
 
-            ip addr del ${IP_BASE}.${k}/${NETMASK} dev ${INTERFACE_TO_USE}
+            for n in {2..6}; do
+
+                ip addr del ${IP_BASE}.${n}.${k}/${NETMASK} dev ${INTERFACE_TO_USE}
+
+            done;
 
         done;
 

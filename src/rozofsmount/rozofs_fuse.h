@@ -26,6 +26,7 @@
 #include <sys/types.h> 
 #include <fuse/fuse_lowlevel.h>
 #include <fuse/fuse_opt.h>
+#include <rozofs/core/expgw_common.h>
 #include "rozofsmount.h"
 
 #define ROZOFS_FUSE_CTX_MAX 64
@@ -54,8 +55,9 @@ typedef struct _rozofs_fuse_read_write_stats
     uint64_t   read_fuse_cpt;    /**< number of times read request is received from fuse       */
 }  rozofs_fuse_read_write_stats;
 
+#define ROZOFS_PAGE_SZ  4096
 
-#define ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX  64 /**< 64 sections of BUFSIZE  */
+#define ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX  ((256*1024)/ROZOFS_PAGE_SZ) /**< 64 sections of BUFSIZE  */
 extern uint64_t rozofs_write_buf_section_table[];
 extern uint64_t rozofs_read_buf_section_table[];
 extern rozofs_fuse_read_write_stats  rozofs_fuse_read_write_stats_buf;
@@ -69,6 +71,7 @@ typedef struct _rozofs_fuse_conf_t
 {
    uint16_t debug_port;   /**< port value to be used by rmonitor  */
    uint16_t instance;     /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
+   uint16_t nb_cores;     /**< Number of core files */
    void     *se;          /**< pointer to the session context     */
    void    *ch;           /**< pointer to the channel context     */
    void    *exportclt;           /**< pointer to the exportd conf     */
@@ -96,6 +99,9 @@ typedef struct _rozofs_fuse_save_ctx_t
    fuse_ino_t newparent;
    char *newname;
    struct fuse_file_info *fi;
+   struct flock *flock;
+   int    sleep;
+   struct stat *stbuf;          /**< pointer to the setattr attributes */
    char *name;
    mode_t mode;
    off_t off;
@@ -108,7 +114,12 @@ typedef struct _rozofs_fuse_save_ctx_t
    uint64_t buf_flush_offset;               /**< offset of the first byte to flush    */
    uint32_t buf_flush_len;               /**< length of the data flush to disk    */
    uint32_t readahead;                   /**< assert to 1 for readahead case */
-
+   void     *shared_buf_ref;             /**< reference of the shared buffer (used for STORCLI READ */
+   /*
+   ** Parameters specific to the exportd gateway management
+   */
+   expgw_tx_routing_ctx_t expgw_routing_ctx; 
+   
  } rozofs_fuse_save_ctx_t;
  
  

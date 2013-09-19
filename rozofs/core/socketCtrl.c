@@ -32,6 +32,7 @@
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define RUC_SOCKCTRL_DEBUG_TOPIC      "cpu"
 
+
 /*
 **  G L O B A L   D A T A
 */
@@ -67,6 +68,9 @@ uint32_t ruc_sockCtrl_nbTimesScheduler = 0;
 
 uint32_t ruc_sockCtrl_looptime = 0;
 uint32_t ruc_sockCtrl_looptimeMax = 0;
+
+ruc_scheduler_t ruc_applicative_traffic_shaper = NULL;
+ruc_scheduler_t ruc_applicative_poller = NULL;
 
 
 
@@ -537,7 +541,7 @@ void ruc_sockCtl_checkRcvBits()
 }
 
 
-static inline void ruc_sockCtl_checkRcvAndXmitBits()
+static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
 {
 
   int i;
@@ -546,10 +550,15 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits()
   int socketId;
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
+  int loopcount;
   
   timeBefore = 0;
   timeAfter  = 0;
-
+  
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
+  
+  loopcount= nbrSelect;
   for (i = 0; i <RUC_SOCKCTL_MAXPRIO ; i++)
   {
     ruc_sockctl_pnextCur = (ruc_obj_desc_t*)NULL;
@@ -563,6 +572,17 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits()
       printf("CheckRcvBits :socketId %d, name: %s\n",p->socketId,&p->name[0]);
 #endif
       socketId = p->socketId;
+      /*
+      ** check the traffic shaper
+      */
+      if (ruc_applicative_traffic_shaper != NULL)
+      {
+       (*ruc_applicative_traffic_shaper)(timeAfter);
+      }
+      if (ruc_applicative_poller != NULL)
+      {
+       (*ruc_applicative_poller)(0);
+      }
       if(FD_ISSET(socketId, &rucRdFdSet))
       {
         /*
@@ -572,19 +592,21 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits()
         p->rcvCount++;
         pcallBack = p->callBack;
 
-	 gettimeofday(&timeDay,(struct timezone *)0);  
-	 timeBefore = MICROLONG(timeDay);
-	 
+        gettimeofday(&timeDay,(struct timezone *)0);  
+        timeBefore = MICROLONG(timeDay);
+
         (*(pcallBack->msgInFunc))(p->objRef,p->socketId);
-         gettimeofday(&timeDay,(struct timezone *)0);  
-	 timeAfter = MICROLONG(timeDay);
-	 p->lastTime = (uint32_t)(timeAfter - timeBefore);
-	 p->cumulatedTime += p->lastTime;
-	 p->nbTimes ++;
-	/*
-	**  clear the corresponding bit
-	*/
-	FD_CLR(socketId,&rucRdFdSet);
+        gettimeofday(&timeDay,(struct timezone *)0);  
+        timeAfter = MICROLONG(timeDay);
+        p->lastTime = (uint32_t)(timeAfter - timeBefore);
+        p->cumulatedTime += p->lastTime;
+        p->nbTimes ++;
+        /*
+        **  clear the corresponding bit
+        */
+        FD_CLR(socketId,&rucRdFdSet);
+        loopcount--;
+        if (loopcount == 0) break;
       }
       if(FD_ISSET(socketId, &rucWrFdSet))
       {
@@ -595,25 +617,26 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits()
         p->xmitCount++;
         pcallBack = p->callBack;
 
+        gettimeofday(&timeDay,(struct timezone *)0);  
+        timeBefore = MICROLONG(timeDay);
 
-	 gettimeofday(&timeDay,(struct timezone *)0);  
-	 timeBefore = MICROLONG(timeDay);
-	 
-      (*(pcallBack->xmitEvtFunc))(p->objRef,p->socketId);
-	  
-	 timeAfter = MICROLONG(timeDay);
-	 p->lastTime = (uint32_t)(timeAfter - timeBefore);
-	 p->cumulatedTime += p->lastTime;
-	 p->nbTimes ++;
+        (*(pcallBack->xmitEvtFunc))(p->objRef,p->socketId);
+
+        timeAfter = MICROLONG(timeDay);
+        p->lastTime = (uint32_t)(timeAfter - timeBefore);
+        p->cumulatedTime += p->lastTime;
+        p->nbTimes ++;
 #if 0
-	 p->lastTimeXmit = (uint32_t)(timeAfter - timeBefore);
-	 p->cumulatedTimeXmit += p->lastTimeXmit;
-	 p->nbTimesXmit ++;
+        p->lastTimeXmit = (uint32_t)(timeAfter - timeBefore);
+        p->cumulatedTimeXmit += p->lastTimeXmit;
+        p->nbTimesXmit ++;
 #endif
-	/*
-	**  clear the corresponding bit
-	*/
+        /*
+        **  clear the corresponding bit
+        */
 	FD_CLR(socketId,&rucWrFdSet);
+        loopcount--;
+        if (loopcount == 0) break;
       }
     }
   }
@@ -694,6 +717,11 @@ static inline void ruc_sockCtl_prepareRcvAndXmitBits()
               ruc_objGetNext((ruc_obj_desc_t*)&ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO-1-i],
                              &ruc_sockctl_pnextCur))!=(ruc_sockObj_t*)NULL) 
     {
+      if (ruc_applicative_poller != NULL)
+      {
+       (*ruc_applicative_poller)(0);
+      }
+
       FD_CLR(p->socketId,&rucWrFdSet);
       FD_CLR(p->socketId,&rucRdFdSet);
       ret = (*((p->callBack)->isRcvReadyFunc))(p->objRef,p->socketId);
@@ -1001,7 +1029,7 @@ void ruc_sockCtrl_selectWait()
 	**  check for receive bit set
 	*/
 	//ruc_sockCtl_checkRcvBits();
-	ruc_sockCtl_checkRcvAndXmitBits();
+	ruc_sockCtl_checkRcvAndXmitBits(nbrSelect);
 	/*
 	**  insert the first element of each priority list at the
 	**  tail of its priority list.

@@ -194,7 +194,10 @@ void rozofs_storcli_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *re
        case STORCLI_WRITE:
         rozofs_storcli_write_req_init(socket_ctx_idx,recv_buf,rozofs_storcli_remote_rsp_cbk);
         return;
-       
+
+       case STORCLI_TRUNCATE:
+        rozofs_storcli_truncate_req_init(socket_ctx_idx,recv_buf,rozofs_storcli_remote_rsp_cbk);
+        return;       
        
        default:
         /*
@@ -242,7 +245,7 @@ void rozofs_storcli_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *re
 **____________________________________________________
 */
 /**
-   rozofs_storcli_module_init
+   rozofs_storcli_north_interface_init
 
   create the Transaction context pool
 

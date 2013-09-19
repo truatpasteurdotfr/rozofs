@@ -18,9 +18,32 @@
 # setup.sh will generates a full working rozofs locally
 # it's a useful tool for testing and debugging purposes. 
 #
+. env.sh 2> /dev/null
 
-. env.sh
+COREDIR="/var/run/rozofs_core"
 
+process_killer () {
+
+  if ls /var/run/$1* > /dev/null 2>&1
+  then
+    for pid in `cat /var/run/$1* `
+    do
+      kill $pid
+    done
+  else
+    return  
+  fi
+
+  sleep 2
+      
+  if ls /var/run/$1* > /dev/null 2>&1
+  then   
+    for pid in `cat /var/run/$1* `
+    do
+      kill -9 $pid
+    done
+  fi  
+}   
 build ()
 {
     if [ ! -e "${LOCAL_SOURCE_DIR}" ]
@@ -58,21 +81,22 @@ rebuild ()
 }
 
 
-# $1 -> LAYOUT
-# $2 -> Number or serving port per storage host (nb of process)
 gen_storage_conf ()
 {
     STORAGES_BY_CLUSTER=$1
     PORT_PER_STORAGE_HOST=$2
 
-
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
+    sid=0
 
-	for i in $(seq ${nb_clusters}); do
+    for i in $(seq ${nb_clusters}); do
 
-		for j in $(seq ${STORAGES_BY_CLUSTER}); do
-           FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${j}'.conf'
+	for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	
+	   sid=$((sid+1))
+	
+           FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${i}'_'${sid}'.conf'
            echo "$FILE"
            if [ ! -e "$LOCAL_CONF" ]
            then
@@ -87,29 +111,26 @@ gen_storage_conf ()
            touch $FILE
            echo "#${NAME_LABEL}" >> $FILE
            echo "#${DATE_LABEL}" >> $FILE
-           #echo "ports = [ 51000, 51001] ;" >> $FILE
-	   PORT_LIST="51001"
-	   for portIdx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-	     PORT_LIST=`echo "${PORT_LIST}, 5100${portIdx}"`
-	   done
-	   echo "ports = [ ${PORT_LIST}] ;" >> $FILE	   
+	   
+	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
+	   printf "nbCores = $NB_CORES;\n" >> $FILE
+	   
+	   printf "listen = ( \n" >> $FILE
+	   printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
+
+           # Test for special character "*"
+	   #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
+
+           for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+	      printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000;}" 
+	   done >>  $FILE  
+	   printf "\n);\n" >>  $FILE   
+	        
            echo 'storages = (' >> $FILE
-		   for z in $(seq ${STORAGES_BY_CLUSTER}); do
-		    if [[ ${i} == ${nb_clusters} && ${z} == ${STORAGES_BY_CLUSTER} ]]
-		    then
-		        echo "  {cid = $i; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$i-$z\";}" >> $FILE
-		    else
-		        echo "  {cid = $i; sid = $z; root =\"${LOCAL_STORAGES_ROOT}_$i-$z\";}," >> $FILE
-		    fi
-            
-            done;
-            echo ');' >> $FILE
-
-		done;
-
-	done;
-
-
+           echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\";}" >> $FILE
+           echo ');' >> $FILE
+	done; 
+    done;
 
 }
 
@@ -117,10 +138,11 @@ gen_storage_conf ()
 # $2 -> storages by node
 # $2 -> Nb. of exports
 # $3 -> md5 generated
-gen_export_conf ()
+gen_export_gw_conf ()
 {
 
     ROZOFS_LAYOUT=$1
+    EXPORTD_VIP=$3
 
     FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
 
@@ -134,10 +156,14 @@ gen_export_conf ()
         rm -rf $FILE
     fi
 
+    sid=0
+
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE    
+    echo "nbCores = $NB_CORES;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -154,14 +180,12 @@ gen_export_conf ()
             echo '                       sids =' >> $FILE
             echo '                       (' >> $FILE
                 for k in $(seq ${STORAGES_BY_CLUSTER}); do
-                    let idx=${k}-1;
-                     idx_tmp_1=$(((${v}-1)*${NB_CLUSTERS_BY_VOLUME}*${STORAGES_BY_CLUSTER}))
-                     idx_tmp_2=$((${STORAGES_BY_CLUSTER}*(${c}-1)))
+		    sid=$((sid+1))
                     if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
                     then
-                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}${k}\";}" >> $FILE
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}" >> $FILE
                     else
-                        echo "                           {sid = ${k}; host = \"${LOCAL_STORAGE_NAME_BASE}${k}\";}," >> $FILE
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}," >> $FILE
                     fi
                 done;
                 echo '                       );' >> $FILE
@@ -182,60 +206,189 @@ gen_export_conf ()
         done;
     echo '    )' >> $FILE
     echo ';' >> $FILE
+    NB_EXPORTDS=1
 
+    echo 'export_gateways =' >> $FILE
+    echo '      (' >> $FILE
+        for k in $(seq ${NB_EXPORTDS}); do
+            echo '        {' >> $FILE
+            echo "            daemon_id = $k;" >> $FILE
+            echo '            gwids= ' >> $FILE
+            echo '            (' >> $FILE
+
+                for r in $(seq ${NB_EXPGATEWAYS}); do
+                    let idx=${r}-1;
+                    if [[ ${r} == ${NB_EXPGATEWAYS} ]]
+                    then
+                        echo "                 {gwid = ${r}; host = \"${LOCAL_STORAGE_NAME_BASE}${r}\";}" >> $FILE
+                    else
+                        echo "                 {gwid = ${r}; host = \"${LOCAL_STORAGE_NAME_BASE}${r}\";}," >> $FILE
+                    fi
+                done;
+            echo '              );' >> $FILE
+        if [[ ${k} == ${NB_EXPORTDS} ]]
+        then
+            echo '        }' >> $FILE
+        else
+            echo '        },' >> $FILE
+        fi
+        done;
+    echo '    )' >> $FILE
+    echo ';' >> $FILE
+    
     echo 'exports = (' >> $FILE
     for k in $(seq ${NB_EXPORTS}); do
         if [[ ${k} == ${NB_EXPORTS} ]]
         then
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${3}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
         else
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${3}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
         fi
     done;
     echo ');' >> $FILE
 }
 
+# $1 -> LAYOUT
+gen_export_conf ()
+{
+
+    ROZOFS_LAYOUT=$1
+
+    FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
+
+    if [ ! -e "$LOCAL_CONF" ]
+    then
+        mkdir -p $LOCAL_CONF
+    fi
+
+    if [ -e "$FILE" ]
+    then
+        rm -rf $FILE
+    fi
+
+    sid=0
+
+    touch $FILE
+    echo "#${NAME_LABEL}" >> $FILE
+    echo "#${DATE_LABEL}" >> $FILE
+    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo 'volumes =' >> $FILE
+    echo '      (' >> $FILE
+
+        for v in $(seq ${NB_VOLUMES}); do
+            echo '        {' >> $FILE
+            echo "            vid = $v;" >> $FILE
+            echo '            cids= ' >> $FILE
+            echo '            (' >> $FILE
+
+            for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+                let idx_cluster=(${v}-1)*${NB_CLUSTERS_BY_VOLUME}+${c}
+                echo '                   {' >> $FILE
+                echo "                       cid = $idx_cluster;" >> $FILE
+                echo '                       sids =' >> $FILE
+                echo '                       (' >> $FILE
+                for k in $(seq ${STORAGES_BY_CLUSTER}); do
+		    sid=$((sid+1))
+                    if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
+                    then
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}" >> $FILE
+                    else
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}," >> $FILE
+                    fi
+                done;
+                echo '                       );' >> $FILE
+                if [[ ${c} == ${NB_CLUSTERS_BY_VOLUME} ]]
+                then
+                    echo '                   }' >> $FILE
+                else
+                    echo '                   },' >> $FILE
+                fi
+            done;
+        echo '            );' >> $FILE
+        if [[ ${v} == ${NB_VOLUMES} ]]
+        then
+            echo '        }' >> $FILE
+        else
+            echo '        },' >> $FILE
+        fi
+        done;
+    echo '    )' >> $FILE
+    echo ';' >> $FILE
+    
+    echo 'exports = (' >> $FILE
+    for k in $(seq ${NB_EXPORTS}); do
+        if [[ ${k} == ${NB_EXPORTS} ]]
+        then
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+        else
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+        fi
+    done;
+    echo ');' >> $FILE
+}
+
+start_one_storage() 
+{
+   case $1 in
+     "all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
+   esac
+   
+    sid=$1
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+    echo "Start storage cid $cid sid $sid"
+   ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+   sleep 1
+}
+
+stop_one_storage () {
+   case $1 in
+     "all") stop_storaged; return;;
+   esac
+   
+   process_killer storaged_${LOCAL_STORAGE_NAME_BASE}$1
+}   
+reset_one_storage () {
+  stop_one_storage $1
+  sleep 1
+  start_one_storage $1
+}
 # $1 = STORAGES_BY_CLUSTER
 start_storaged ()
 {
+
     STORAGES_BY_CLUSTER=$1
     
     echo "------------------------------------------------------"
-
     echo "Start ${LOCAL_STORAGE_DAEMON}"
-	for j in $(seq ${STORAGES_BY_CLUSTER}); do
-    echo "start storaged" ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${j}
-    ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${j}
+
+    sid=0
+    
+    for v in $(seq ${NB_VOLUMES}); do
+        for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+	   for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	      sid=$((sid+1))
+              echo "start storaged" ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+echo ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON}
+              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+           done
+	done
     done
 }
 
 stop_storaged()
 {
    echo "Stopping the storaged"
-   for pid in `cat /var/run/storaged*.pid`
-   do
-     kill  $pid
-   done
-   sleep 1
-   for pid in `cat /var/run/storaged*`
-   do
-     kill -9 $pid
-   done
+   sid=0
+    
+   for v in $(seq ${NB_VOLUMES}); do
+     for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+       for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	 sid=$((sid+1))
+	 stop_one_storage $sid
+       done
+    done
+  done   
 }
-
-stop_storaged_old ()
-{
-    echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" != "" ]
-    then
-        echo "Stop ${LOCAL_STORAGE_DAEMON} (PID: ${PID})"
-        kill $PID
-    else
-        echo "Unable to stop ${LOCAL_STORAGE_DAEMON} (not running)"
-    fi
-}
-
 reload_storaged ()
 {
     echo "------------------------------------------------------"
@@ -249,15 +402,19 @@ create_storages ()
 
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
+    sid=0
+     
     for i in $(seq ${nb_clusters}); do
 
         for j in $(seq ${STORAGES_BY_CLUSTER}); do
 
-            if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${j}" ]
+            sid=$((sid+1))
+	    
+            if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${sid}" ]
             then
-                rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${j}/*.bins
+                rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${sid}/*.bins
             else
-                mkdir -p ${LOCAL_STORAGES_ROOT}_${i}-${j}
+                mkdir -p ${LOCAL_STORAGES_ROOT}_${i}-${sid}
             fi
 
         done;
@@ -270,20 +427,71 @@ remove_storages ()
 {
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
+    sid=0
+    
     for i in $(seq ${nb_clusters}); do
 
         for j in $(seq ${STORAGES_BY_CLUSTER}); do
 
-            if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${j}" ]
+            sid=$((sid+1))
+
+            if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${sid}" ]
             then
-                rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${j}
+                rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${sid}
             fi
 
         done;
 
     done;
 }
+start_one_expgw ()
+{
 
+  if [ ! -f   ${LOCAL_BINARY_DIR}/exportd/expgateway ];
+  then
+    return
+  fi
+  
+  case $1 in
+    "all") start_expgw; return;;
+  esac  
+  
+  host=${LOCAL_STORAGE_NAME_BASE}$1   
+   
+  echo "start export gateway $host"
+  ${LOCAL_BINARY_DIR}/exportd/expgateway  -L $host -P 60000 &
+}
+start_expgw ()
+{
+    
+   echo "Start Export Gateway(s)"
+   for j in $(seq ${NB_EXPGATEWAYS}); 
+   do
+      start_one_expgw $j
+   done
+}
+stop_one_expgw () {
+
+  if [ ! -f   ${LOCAL_BINARY_DIR}/exportd/expgateway ];
+  then
+    return
+  fi
+  
+   case $1 in
+     "all") stop_expgw; return;;
+   esac  
+
+   process_killer expgw_${LOCAL_STORAGE_NAME_BASE}$1 
+} 
+reset_one_expgw () {  
+  stop_one_expgw  $1
+  start_one_expgw $1 
+}
+stop_expgw () {
+    echo "------------------------------------------------------"
+    echo "Killing export gateway"
+    process_killer expgw
+}
 # $1 -> LAYOUT
 # $2 -> NB STORAGES BY CLUSTER
 go_layout ()
@@ -298,11 +506,17 @@ go_layout ()
     else
         ln -s -f ${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf' ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
 
-	for j in $(seq ${STORAGES_BY_CLUSTER}); do
 
-            ln -s -f ${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${j}'.conf' ${LOCAL_CONF}'_'${j}"_"${LOCAL_STORAGE_CONF_FILE}
-
-        done
+        let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+        sid=0
+    
+	for i in $(seq ${nb_clusters}); do
+            for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	    
+        	sid=$((sid+1))
+                ln -s -f ${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${i}'_'${sid}'.conf' ${LOCAL_CONF}'_'${i}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE}
+            done;
+	done;
     fi
 }
 
@@ -325,8 +539,12 @@ deploy_clients_local ()
                 then
                     mkdir -p ${LOCAL_MNT_ROOT}${j}
                 fi
-#                option="-o debug_port=610${j}0 -o instance=1 -o rozofsstorclitimeout=11 -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4" 
-               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11" 
+               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+	       option="$option -o nbcores=$NB_CORES"
+	       option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
+	       option="$option -o rozofsnbstorcli=$NB_STORCLI"
+	       option="$option -o rozofsshaper=$SHAPER"
+	       
                 
 echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
 ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
@@ -344,17 +562,7 @@ rozofsmount_kill_best_effort()
 {
     echo "------------------------------------------------------"
     echo "Killing rozofsmount and storcli in best effort mode"
-    for pid in `cat /var/run/rozofsmount*`
-    do
-      kill  $pid
-    done
-    sleep 1
-    for pid in `cat /var/run/rozofsmount*`
-    do
-      kill -9 $pid
-    done
-
-
+    process_killer rozofsmount
 }
 
 undeploy_clients_local ()
@@ -363,6 +571,7 @@ undeploy_clients_local ()
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
         then
         echo "Unable to umount RozoFS (configuration file doesn't exist)"
+        storcli_killer.sh 
     else
         NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 	# Kill every storcli process
@@ -373,9 +582,9 @@ undeploy_clients_local ()
         for j in $(seq ${NB_EXPORTS}); do
             echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}"
             umount ${LOCAL_MNT_ROOT}${j}
-            test -d ${LOCAL_MNT_ROOT}${j} && rm -rf ${LOCAL_MNT_ROOT}${j}
-            test -d ${LOCAL_MNT_ROOT}${j} && umount -l ${LOCAL_MNT_ROOT}${j}
-            test -d ${LOCAL_MNT_ROOT}${j} && storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
+            umount -l ${LOCAL_MNT_ROOT}${j}
+            rm -rf ${LOCAL_MNT_ROOT}${j}
+            storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
         done
     sleep 2
     rozofsmount_kill_best_effort
@@ -385,9 +594,8 @@ undeploy_clients_local ()
 start_exportd ()
 {
     echo "------------------------------------------------------"
-
-        echo "Start ${LOCAL_EXPORT_DAEMON}"
-        ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
+    echo "Start ${LOCAL_EXPORT_DAEMON}"
+    ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
 
 }
 
@@ -395,27 +603,12 @@ stop_exportd ()
 {
     echo "------------------------------------------------------"
     echo "Killing exportd"
-    for pid in `cat /var/run/export*.pid`
-    do
-      kill  $pid
-    done
-    sleep 1
-    for pid in `cat /var/run/export*.pid`
-    do
-      kill -9 $pid
-    done
+    process_killer exportd.pid 
 }
-stop_exportd_old ()
-{
-    echo "------------------------------------------------------"
-    PID=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v grep | awk '{print $1}'`
-    if [ "$PID" != "" ]
-    then
-        echo "Stop ${LOCAL_EXPORT_DAEMON} (PID: ${PID})"
-        kill $PID
-    else
-        echo "Unable to stop ${LOCAL_EXPORT_DAEMON} (not running)"
-    fi
+
+reset_exportd () {
+    stop_exportd
+    start_exportd 
 }
 
 reload_exportd ()
@@ -493,43 +686,107 @@ remove_build ()
     rm -rf $LOCAL_BUILD_DIR
 }
 
-clean_all ()
-{
+do_start_all_processes() {
+     start_storaged ${STORAGES_BY_CLUSTER}
+     #start_expgw
+     start_exportd 1
+     deploy_clients_local
+}
+
+do_pause() {
     undeploy_clients_local
     stop_storaged
     stop_exportd
-    remove_build
-    remove_all
+    #stop_expgw
 }
-
-check_no_run_old ()
-{
-
-    PID_EXPORTD=`ps ax | grep ${LOCAL_EXPORT_DAEMON} | grep -v "grep" | awk '{print $1}'`
-    PID_STORAGED=`ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v "grep" | awk '{print $1}'`
-
-    if [ "$PID_STORAGED" != "" ] || [ "$PID_EXPORTD" != "" ]
-    then
-        echo "${LOCAL_EXPORT_DAEMON} or/and ${LOCAL_STORAGE_DAEMON} already running"
-        exit 0;
-    fi
-
-}
-
 
 do_stop()
 {
-        undeploy_clients_local
-        stop_storaged
-        stop_exportd
-        remove_all
-
-
+    do_pause
+    remove_all
+    sleep 1
 }
 
+clean_all ()
+{
+    do_stop
+    remove_build
+}
 
+get_bin_complete_name () {
+  case "$1" in
+  storaged|storio) bin=${LOCAL_BINARY_DIR}/$storaged_dir/$1;;
+  expgw)           bin=${LOCAL_BINARY_DIR}/exportd/$1;;
+  *)               bin=${LOCAL_BINARY_DIR}/$1/$1;;
+  esac
+}
+do_listCore() {
+  if [ -d $COREDIR ];
+  then
+    
+    cd $COREDIR
+    for dir in `ls `
+    do
+    
+      get_bin_complete_name $dir
 
-
+      for file in `ls $dir`
+      do
+        res=`ls -lh $dir/$file | awk '{print $5" "$6" "$7" "$8" "$9}'`
+        if [ $dir/$file -nt $bin ];
+	then
+	  echo "(NEW) $res"
+	else
+	  echo "(OLD) $res"
+	fi
+      done
+    done
+    
+  fi    
+} 
+do_removeCore() {
+  shift 1
+  if [ ! -d $COREDIR ];
+  then
+    return
+  fi  
+  cd $COREDIR
+  
+  case "$1" in
+    all) {
+      for dir in `ls `
+      do
+        for file in `ls $dir`
+        do
+          unlink $dir/$file
+        done
+      done
+      return
+    };;
+  esac
+    
+  while [ ! -z "$1" ];
+  do
+    unlink $1
+    shift 1
+  done  
+}   
+do_debugCore () {
+  name=`echo $1 | awk -F'/' '{ print $1}'`
+  
+  get_bin_complete_name $name
+  ddd $bin -core $COREDIR/$1 &
+}
+do_core () 
+{
+  shift 1
+  
+  case "$1" in
+  "")       do_listCore;;
+  "remove") do_removeCore $*;;
+  *)        do_debugCore $1;;
+  esac      
+}
 check_build ()
 {
 
@@ -546,68 +803,76 @@ pjd_test()
 {
 
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
-        then
+    then
         echo "Unable to run pjd tests (configuration file doesn't exist)"
     else
-		NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
-		EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+        EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
 
-		for j in $(seq ${NB_EXPORTS}); do
-		    echo "------------------------------------------------------"
-		    mountpoint -q ${LOCAL_MNT_ROOT}${j}
-		    if [ "$?" -eq 0 ]
-		    then
-		        echo "Run pjd tests on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
-		        echo "------------------------------------------------------"
+        for j in $(seq ${NB_EXPORTS}); do
+            echo "------------------------------------------------------"
+            mountpoint -q ${LOCAL_MNT_ROOT}${j}
+            if [ "$?" -eq 0 ]
+            then
+                echo "Run pjd tests on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
+                echo "------------------------------------------------------"
 
-		        cd ${LOCAL_MNT_ROOT}${j}
-		        prove -r ${LOCAL_PJDTESTS}
-		        cd ..
+                cd ${LOCAL_MNT_ROOT}${j}
+                prove -r ${LOCAL_PJDTESTS}
+                cd ..
 
-		    else
-		        echo "Unable to run pjd tests (${LOCAL_MNT_PREFIX}${j} is not mounted)"
-		    fi
-		done;
-	fi
+            else
+                echo "Unable to run pjd tests (${LOCAL_MNT_PREFIX}${j} is not mounted)"
+            fi
+        done;
+    fi
 }
 
 fileop_test(){
 
-	if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
-		    then
-		    echo "Unable to run pjd tests (configuration file doesn't exist)"
-		else
-			LOWER_LMT=1
-			UPPER_LMT=4
-			INCREMENT=1
-			FILE_SIZE=2M
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+    then
+        echo "Unable to run pjd tests (configuration file doesn't exist)"
+    else
+        LOWER_LMT=1
+        UPPER_LMT=4
+        INCREMENT=1
+        FILE_SIZE=2M
 
-			NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
-			EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+        EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
 
-			for j in $(seq ${NB_EXPORTS}); do
-				echo "------------------------------------------------------"
-				mountpoint -q ${LOCAL_MNT_ROOT}${j}
-				if [ "$?" -eq 0 ]
-				then
-				    echo "Run fileop test on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
-				    echo "------------------------------------------------------"
-				    ${FSOP_BINARY} -l ${LOWER_LMT} -u ${UPPER_LMT} -i ${INCREMENT} -e -s ${FILE_SIZE} -d ${LOCAL_MNT_ROOT}${j}
-				else
-				    echo "Unable to run fileop test (${LOCAL_MNT_PREFIX}${j} is not mounted)"
-				fi
-			done;
-	fi
+        for j in $(seq ${NB_EXPORTS}); do
+                echo "------------------------------------------------------"
+                mountpoint -q ${LOCAL_MNT_ROOT}${j}
+                if [ "$?" -eq 0 ]
+                then
+                    echo "Run fileop test on ${LOCAL_MNT_PREFIX}${j} with layout $EXPORT_LAYOUT"
+                    echo "------------------------------------------------------"
+                    ${FSOP_BINARY} -l ${LOWER_LMT} -u ${UPPER_LMT} -i ${INCREMENT} -e -s ${FILE_SIZE} -d ${LOCAL_MNT_ROOT}${j}
+                else
+                    echo "Unable to run fileop test (${LOCAL_MNT_PREFIX}${j} is not mounted)"
+                fi
+        done;
+    fi
 }
-
 
 usage ()
 {
     echo >&2 "Usage:"
-    echo >&2 "$0 start <Layout>"
+    echo >&2 "$0 start <layout>"
     echo >&2 "$0 stop"
+    echo >&2 "$0 pause"
+    echo >&2 "$0 resume"
+    echo >&2 "$0 storage <sid|all> <stop|start|reset>"
+    echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
+    echo >&2 "$0 export <stop|start|reset>"
+    echo >&2 "$0 fsmount <stop|start|reset>"
+    echo >&2 "$0 core [<remove>] <coredir/corefile>"
+    echo >&2 "$0 process"
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
+    echo >&2 "$0 rebuild"
     echo >&2 "$0 clean"
     echo >&2 "$0 pjd_test"
     echo >&2 "$0 fileop_test"
@@ -616,46 +881,156 @@ usage ()
     exit 0;
 }
 
+# $1 -> Layout to use
+set_layout () {
+
+  # Get default layout from /tmp/rozo.layout if not given as parameter
+  ROZOFS_LAYOUT=$1
+  case "$ROZOFS_LAYOUT" in
+    "") ROZOFS_LAYOUT=`cat /tmp/rozo.layout`
+  esac
+
+  case "$ROZOFS_LAYOUT" in
+    0) {
+      STORAGES_BY_CLUSTER=4
+      NB_EXPGATEWAYS=4	
+    };;
+    1) {        
+      STORAGES_BY_CLUSTER=8
+      NB_EXPGATEWAYS=4
+    };;   
+    2) {
+      STORAGES_BY_CLUSTER=16
+      NB_EXPGATEWAYS=4
+    };;
+    *) {
+      echo >&2 "Rozofs layout must be equal to 0, 1 or 2."
+      exit 1
+    };
+  esac  
+  # Save layout
+  echo $ROZOFS_LAYOUT > /tmp/rozo.layout
+}
+	
+show_process () {
+  cd /var/run
+  LIST=""
+  
+  file=exportd.pid
+  if [ -f $file ];
+  then
+    proc=`cat $file`
+    printf "\n[export:%d]\n" $proc
+  else
+    printf "\n[export:--]\n" 
+  fi
+  
+  for file in expgw_*.pid
+  do
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      name=`echo $file | awk -F':' '{print $1}'`
+      nb=`echo ${name: -1}`
+      printf "[expgw %d:%d] " $nb $proc
+    fi    
+  done  
+  printf "\n"
+  printf " cid sid storaged     storio\n"
+  for sid in $(seq 16)
+  do
+  
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))  
+    std=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
+
+    if ls stor*_${LOCAL_STORAGE_NAME_BASE}$sid.pid > /dev/null 2>&1
+    then
+
+      printf " %3d %3d " $cid $sid
+
+      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
+      if [ -f $file ];
+      then
+	proc=`cat $file`
+	printf " %6d     " $proc 
+      else
+	printf "     --      "         
+      fi 
+
+      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
+      if [ -f $file ];
+      then
+	proc=`cat $file`
+	printf " %6d     " $proc 
+      else
+	printf "     --      "         
+      fi 
+      printf "\n"   
+    fi   
+  done
+  
+  # Clients 
+  echo ""
+  printf "\nClients:\n"
+  for file in rozofsmount_*
+  do
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      name=`echo $file | awk -F'.' '{print $1}'`
+      printf "  %-23s %5d\n" $name $proc
+    fi    
+  done  
+  printf "\n"
+  cd - 
+}
+
 main ()
 {
-    [ $# -lt 1 ] && usage
+    storaged_dir="storaged"
 
+        
+    [ $# -lt 1 ] && usage
 
     # to reach storcli executable
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storcli
     # to reach storcli_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
+    # to reach storio executable
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
+    # to reach storio_starter.sh  
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/$storaged_dir
+
+    set_layout 0
+
+    NB_EXPORTS=1
+    NB_VOLUMES=1
+    NB_CLUSTERS_BY_VOLUME=1
+    NB_PORTS_PER_STORAGE_HOST=1
+    NB_DISK_THREADS=3
+    NB_CORES=4
+    WRITE_FILE_BUFFERING_SIZE=256
+    NB_STORCLI=1
+    SHAPER=0
+
+    #READ_FILE_MINIMUM_SIZE=8
+    READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
+
+    ulimit -c unlimited
 
     if [ "$1" == "start" ]
     then
 
         [ $# -lt 2 ] && usage
 
-        if [ "$2" -eq 0 ]
-        then
-            ROZOFS_LAYOUT=$2
-            STORAGES_BY_CLUSTER=4
-        elif [ "$2" -eq 1 ]
-        then
-            ROZOFS_LAYOUT=$2
-            STORAGES_BY_CLUSTER=8
-        elif [ "$2" -eq 2 ]
-        then
-            ROZOFS_LAYOUT=$2
-            STORAGES_BY_CLUSTER=16
-        else
-	        echo >&2 "Rozofs layout must be equal to 0,1 or 2."
-	        exit 1
-        fi
+        # Set layout
+        set_layout $2
 
         check_build
         do_stop
 
-        NB_EXPORTS=1
-        NB_VOLUMES=1;
-        NB_CLUSTERS_BY_VOLUME=1;
-
-        gen_storage_conf ${STORAGES_BY_CLUSTER} 4
+        gen_storage_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST}
+        #gen_export_gw_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
@@ -663,14 +1038,21 @@ main ()
         create_storages
         create_exports
 
-        start_storaged ${STORAGES_BY_CLUSTER}
-        start_exportd
-
-        deploy_clients_local
-
+        do_start_all_processes
+	
     elif [ "$1" == "stop" ]
     then
            do_stop
+
+    elif [ "$1" == "core" ]
+    then
+           do_core $*	   
+    elif [ "$1" == "pause" ]
+    then
+           do_pause
+    elif [ "$1" == "resume" ]
+    then
+           do_start_all_processes
 
     elif [ "$1" == "reload" ]
     then
@@ -708,6 +1090,42 @@ main ()
     elif [ "$1" == "rebuild" ]
     then
         rebuild
+    elif [ "$1" == "expgw" ]
+    then
+      case "$3" in 
+        stop)       stop_one_expgw $2;;
+	start)      start_one_expgw $2;;
+	reset)      reset_one_expgw $2;;	
+        *)          usage;;
+      esac
+    elif [ "$1" == "export" ]
+    then
+      case "$2" in 
+        stop)       stop_exportd;;
+	start)      start_exportd;;
+	reset)      reset_exportd;;	
+        *)          usage;;
+      esac
+    elif [ "$1" == "fsmount" ]
+    then
+      case "$2" in 
+        stop)       undeploy_clients_local;;
+	start)      deploy_clients_local;;
+	reset)      undeploy_clients_local;deploy_clients_local;;	
+        *)          usage;;
+      esac      
+    elif [ "$1" == "storage" ]
+    then  
+      case "$3" in 
+        stop)    stop_one_storage $2;;
+	start)   start_one_storage $2;;
+	reset)   reset_one_storage $2;;
+        *)       usage;;
+      esac
+    elif [ "$1" == "process" ]
+    then 
+       set_layout
+       show_process 
     elif [ "$1" == "clean" ]
     then
         clean_all

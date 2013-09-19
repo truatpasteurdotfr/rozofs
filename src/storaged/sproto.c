@@ -60,7 +60,7 @@ sp_write_ret_t *sp_write_1_svc(sp_write_arg_t * args, struct svc_req * req) {
     if (storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj, version,
             &ret.sp_write_ret_t_u.file_size,
-            (bin_t *) args->bins.bins_val) != 0) {
+            (bin_t *) args->bins.bins_val) <= 0) {
         ret.sp_write_ret_t_u.error = errno;
         goto out;
     }
@@ -71,9 +71,12 @@ out:
     return &ret;
 }
 
+// Optimisation for avoid malloc on read
+// XXX: TO DO put it on start
+uint64_t sp_bins_buffer[1024 * 64];
+
 sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     static sp_read_ret_t ret;
-    uint16_t psize = 0;
     storage_t *st = 0;
 
     DEBUG_FUNCTION;
@@ -81,7 +84,10 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
     START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
             * sizeof (bin_t));
 
-    xdr_free((xdrproc_t) xdr_sp_read_ret_t, (char *) &ret);
+    // Optimisation
+    /*
+        xdr_free((xdrproc_t) xdr_sp_read_ret_t, (char *) &ret);
+     */
 
     ret.status = SP_FAILURE;
 
@@ -91,13 +97,14 @@ sp_read_ret_t *sp_read_1_svc(sp_read_arg_t * args, struct svc_req * req) {
         goto out;
     }
 
-    psize = rozofs_get_max_psize(args->layout);
-
-    // Allocate memory
-    ret.sp_read_ret_t_u.rsp.bins.bins_val =
-            (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
-            sizeof (rozofs_stor_bins_hdr_t)));
-
+    // Optimisation
+    /*
+        ret.sp_read_ret_t_u.rsp.bins.bins_val =
+                (char *) xmalloc(args->nb_proj * (psize * sizeof (bin_t) +
+                sizeof (rozofs_stor_bins_hdr_t)));
+     */
+    ret.sp_read_ret_t_u.rsp.bins.bins_val = (char *) sp_bins_buffer;
+    
     // Read projections
     if (storage_read(st, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj,
@@ -118,7 +125,9 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
         struct svc_req * req) {
     static sp_status_ret_t ret;
     storage_t *st = 0;
-
+    // Variable to be used in a later version.
+    uint8_t version = 0;
+    
     DEBUG_FUNCTION;
 
     ret.status = SP_FAILURE;
@@ -132,7 +141,7 @@ sp_status_ret_t *sp_truncate_1_svc(sp_truncate_arg_t * args,
     // Truncate bins file
     if (storage_truncate(st, args->layout, (sid_t *) args->dist_set,
             args->spare, (unsigned char *) args->fid, args->proj_id,
-            args->bid) != 0) {
+            args->bid,version,args->last_seg,args->last_timestamp) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }

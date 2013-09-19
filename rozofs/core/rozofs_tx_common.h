@@ -26,6 +26,7 @@
 #include "uma_fsm_framework.h"
 #include "com_tx_timer_api.h"
 #include <errno.h>
+#include <rozofs/rozofs.h>
 /**
  *  Common packet header for the exchange between the blocks
  */
@@ -40,7 +41,12 @@ typedef struct _rozofs_com_hdr_t
 
 } rozofs_com_hdr_t;
 
-
+typedef struct _rozofs_tx_rw_lbg_t
+{
+   ruc_obj_desc_t    link;          /* link to the r/w load balancing hash table */
+   fid_t             fid;                  /**< key for load balancing                 */
+   int               storcli_idx;          /**< index of the storcli associated with the entry */   
+} rozofs_tx_rw_lbg_t;
 
  
  #define ROZOFS_TX_OPAQUE_MAX 4 /**< size of the user opaque array   */
@@ -156,7 +162,8 @@ typedef struct _rozofs_tx_ctx_p_t
 //    int moduleId; 
     uint64_t timeStamp;
     uint32_t opaque_usr[ROZOFS_TX_OPAQUE_MAX];   /**< opaque usr data array   */
-
+    
+   rozofs_tx_rw_lbg_t  rw_lbg;      /**< context used for r/w load balancing   */
 } rozofs_tx_ctx_t;
 
 

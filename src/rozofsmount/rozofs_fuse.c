@@ -40,6 +40,7 @@
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include "rozofs_fuse.h"
 #include <rpc/rpc.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 
 #if 0
 #include "ruc_common.h"
@@ -498,12 +499,11 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     
     return TRUE;
 }
-static char localBuf[4096];
 
 void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t            buffer_count=0;
   char                status[16];
-  char *pChar = localBuf;
+  char *pChar = uma_dbg_get_buffer();
   
   buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
   /*
@@ -514,6 +514,32 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   pChar +=  sprintf(pChar,"FUSE %8s - %d/%d ctx remaining\n",
                status, buffer_count, rozofs_fuse_ctx_p->initBufCount);
+  /*
+  ** display the cache mode
+  */
+  pChar +=  sprintf(pChar,"FS Mode    : "); 
+  if (rozofs_mode== 0)
+  {
+    pChar +=  sprintf(pChar,"standard\n");    
+  }
+  else
+  {
+    pChar +=  sprintf(pChar,"Block\n");      
+  }     
+  pChar +=  sprintf(pChar,"cache Mode : ");      
+    switch (rozofs_cache_mode)
+  {
+    default:
+    case 0:
+     pChar +=  sprintf(pChar,"default\n");  
+     break;    
+   case 1:
+     pChar +=  sprintf(pChar,"direct_io\n");  
+     break;    
+   case 2:
+     pChar +=  sprintf(pChar,"keep_cache\n");  
+     break;    
+  }
   int i;
   for (i = 0; i < RZ_FUSE_WRITE_MAX; i++)
   {
@@ -539,18 +565,18 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   for (i = 0; i < 32; i++)
   {
      if (rozofs_read_buf_section_table[i]!= 0)
-       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_BSIZE,(long long unsigned int)rozofs_read_buf_section_table[i]);  
+       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_PAGE_SZ,(long long unsigned int)rozofs_read_buf_section_table[i]);  
   }
   pChar +=sprintf(pChar,"Per Write Array statitics:\n" );  
   for (i = 0; i < 32; i++)
   {
      if (rozofs_write_buf_section_table[i]!= 0)
-       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_BSIZE,(long long unsigned int)rozofs_write_buf_section_table[i]);  
+       pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_PAGE_SZ,(long long unsigned int)rozofs_write_buf_section_table[i]);  
   }
   memset (rozofs_write_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*
@@ -615,6 +641,8 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
         status = -1;
         break;
      }
+     ruc_buffer_debug_register_pool("fuseCtx",  rozofs_fuse_ctx_p->fuseReqPoolRef);
+     
      /*
      ** allocate a buffer for receiving the fuse request
      */

@@ -529,12 +529,15 @@ void uma_tcp_disconnect( uma_tcp_t *p)
   {
     ruc_sockctl_disconnect(p->connectionId);
     p->connectionId =  NULL;
+
   }
   /*
   ** call the user that has a callback on disconnectioon
   */
 //64BITS  (p->userDiscCallBack)(p->userRef,p->relcRef);
  (p->userDiscCallBack)(p->userRef,p->relcRef);
+
+
 
   return;
 }

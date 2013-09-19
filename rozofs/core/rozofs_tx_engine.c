@@ -27,6 +27,7 @@
 #include "com_tx_timer_api.h"
 #include "rozofs_tx_api.h"
 #include "uma_dbg_api.h"
+#include "ruc_buffer_debug.h"
 
 rozofs_tx_ctx_t *rozofs_tx_context_freeListHead; /**< head of list of the free context  */
 rozofs_tx_ctx_t rozofs_tx_context_activeListHead; /**< list of the active context     */
@@ -55,7 +56,6 @@ void *rozofs_tx_pool[_ROZOFS_TX_MAX_POOL];
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define ROZOFS_TX_DEBUG_TOPIC      "trx"
 #define ROZOFS_TX_DEBUG_TOPIC2      "tx_test"
-static char myBuf[UMA_DBG_MAX_SEND_SIZE];
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -65,7 +65,7 @@ static char myBuf[UMA_DBG_MAX_SEND_SIZE];
   RETURN: none
   ==========================================================================*/
 void rozofs_tx_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, "number of transaction contexts (initial/allocated) : %u/%u\n", rozofs_tx_context_count, rozofs_tx_context_allocated);
     pChar += sprintf(pChar, "context size (bytes)                               : %u\n", (unsigned int) sizeof (rozofs_tx_ctx_t));
@@ -95,7 +95,7 @@ void rozofs_tx_debug_show(uint32_t tcpRef, void *bufRef) {
             ruc_buf_getFreeBufferCount(ROZOFS_TX_SMALL_RX_POOL));
     pChar += sprintf(pChar, "  large[%6d]  : %6d/%d\n", rozofs_large_tx_recv_size, rozofs_large_tx_recv_count,
             ruc_buf_getFreeBufferCount(ROZOFS_TX_LARGE_RX_POOL));
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -263,6 +263,11 @@ void rozofs_tx_ctxInit(rozofs_tx_ctx_t *p, uint8_t creation) {
      ** timer cell
      */
     ruc_listEltInit((ruc_obj_desc_t *) & p->rpc_guard_timer);
+    /*
+    ** load balancing context init
+    */
+    ruc_listEltInitAssoc( &p->rw_lbg.link,p);
+    
 
 }
 
@@ -425,6 +430,11 @@ uint32_t rozofs_tx_free_from_idx(uint32_t transaction_id) {
      ** clear the expected xid
      */
     p->xid = 0;
+    /*
+    ** remove the rw load balancing context from any list
+    */
+     ruc_objRemove(&p->rw_lbg.link);
+   
     /*
      **  insert it in the free list
      */
@@ -1030,25 +1040,41 @@ uint32_t rozofs_tx_module_init(uint32_t transaction_count,
             ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", rozofs_small_tx_xmit_count, rozofs_small_tx_xmit_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxXmitSmall", rozofs_tx_pool[_ROZOFS_TX_SMALL_TX_POOL]);	
         rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL] = ruc_buf_poolCreate(rozofs_large_tx_xmit_count, rozofs_large_tx_xmit_size);
         if (rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL] == NULL) {
             ret = RUC_NOK;
             ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", rozofs_large_tx_xmit_count, rozofs_large_tx_xmit_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxXmitLarge", rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL]);	
         rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL] = ruc_buf_poolCreate(rozofs_small_tx_recv_count, rozofs_small_tx_xmit_size);
         if (rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL] == NULL) {
             ret = RUC_NOK;
             ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", rozofs_small_tx_recv_count, rozofs_small_tx_xmit_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxRcvSmall", rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL]);	
         rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL] = ruc_buf_poolCreate(rozofs_large_tx_recv_count, rozofs_large_tx_recv_size);
         if (rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL] == NULL) {
             ret = RUC_NOK;
             ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", rozofs_large_tx_recv_count, rozofs_large_tx_recv_size ENDERRLOG
             break;
         }
+        ruc_buffer_debug_register_pool("TxRcvLarge", rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL]);	
         break;
     }
     return ret;
 }
+/**
+**____________________________________________________
+*  Get the number of free context in the transaction context distributor
+
+  @param none
+  @retval <>NULL, success->pointer to the allocated context
+  @retval NULL, error ->out of context
+*/
+int rozofs_tx_get_free_ctx_number(void){
+  return (rozofs_tx_context_count-rozofs_tx_context_allocated);
+}
+

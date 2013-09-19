@@ -38,6 +38,16 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
     int port = 0;
     DEBUG_FUNCTION;
 
+
+    if (client->sock >= 0) {
+      /* 
+      ** socket reference should be set to -1 at initialization or when released
+      ** if rpcclt_initialize is called with socket not set to -1 we may be loosing
+      ** a socket
+      */
+      warning("rpcclt_initialize - dest %s:%d - prg 0x%8.8x - socket %d may be lost", 
+              host,port_num,(unsigned int)prog,client->sock);
+    }
     client->client = 0;
     client->sock = -1;
     server.sin_family = AF_INET;

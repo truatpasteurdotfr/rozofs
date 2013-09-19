@@ -62,26 +62,38 @@
 
 //#define CONNECTION_THREAD_TIMESPEC  2
 
-
+extern int rozofs_rotation_read_modulo;
 
 typedef struct rozofsmnt_conf {
     char *host;
     char *export;
     char *passwd;
     unsigned buf_size;
+    unsigned min_read_size;
+    unsigned nbstorcli;    
     unsigned max_retry;
     unsigned dbg_port;  /**< lnkdebug base port: rozofsmount=dbg_port, storcli(1)=dbg_port+1, ....  */
     unsigned instance;  /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
     unsigned export_timeout;
     unsigned storcli_timeout;
     unsigned storage_timeout;
+    unsigned fs_mode; /**< rozofs mode: 0-> file system/ 1-> block mode */
+    unsigned cache_mode;  /**< 0: no option, 1: direct_read, 2: keep_cache */
+    unsigned attr_timeout;
+    unsigned entry_timeout;
+    unsigned nb_cores;
+    unsigned shaper;
+    unsigned rotate;
+    unsigned posix_file_lock;    
+    unsigned bsd_file_lock;    
 } rozofsmnt_conf_t;
 
 
 extern double direntry_cache_timeo ;
 extern double entry_cache_timeo ;
 extern double attr_cache_timeo ;
-
+extern int rozofs_cache_mode;
+extern int rozofs_mode;
 
 
 
@@ -100,6 +112,7 @@ typedef struct ientry {
     uint64_t size;   /**< size of the file */
     dirbuf_t db; ///< buffer used for directory listing
     unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
+    mattr_t attrs;   /**< attributes caching for fs_mode = block mode   */
     list_t list;
 } ientry_t;
 
@@ -216,10 +229,10 @@ static inline mattr_t *stat_to_mattr(struct stat *st, mattr_t * attr, int to_set
         attr->mode = st->st_mode;
     if (to_set & FUSE_SET_ATTR_SIZE)
         attr->size = st->st_size;
-    //if (to_set & FUSE_SET_ATTR_ATIME)
-    //    attr->atime = st->st_atime;
-    //if (to_set & FUSE_SET_ATTR_MTIME)
-    //    attr->mtime = st->st_mtime;
+    if (to_set & FUSE_SET_ATTR_ATIME)
+        attr->atime = st->st_atime;
+    if (to_set & FUSE_SET_ATTR_MTIME)
+        attr->mtime = st->st_mtime;
     if (to_set & FUSE_SET_ATTR_UID)
         attr->uid = st->st_uid;
     if (to_set & FUSE_SET_ATTR_GID)
@@ -260,5 +273,19 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
         struct fuse_file_info *fi);      
 void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
         struct fuse_file_info *fi) ;
-        
+	
+void rozofs_ll_getlk_nb(fuse_req_t req, 
+                        fuse_ino_t ino, 
+                        struct fuse_file_info *fi,
+                        struct flock *lock);        
+void rozofs_ll_setlk_nb(fuse_req_t req, 
+                        fuse_ino_t ino, 
+                        struct fuse_file_info *fi,
+                        struct flock *lock,
+			int sleep);      
+
+void rozofs_ll_flock_nb(fuse_req_t req, 
+                              fuse_ino_t ino,
+		              struct fuse_file_info *fi, 
+		              int op);			 
 #endif

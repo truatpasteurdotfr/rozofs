@@ -106,6 +106,7 @@ int monitor_volume(volume_t *volume) {
         list_for_each_forward(q, &cluster->storages) {
             volume_storage_t *storage = list_entry(q, volume_storage_t, list);
 
+            gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].cid = cluster->cid;
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].sid = storage->sid;
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].status = storage->status;
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].size = storage->stat.size;

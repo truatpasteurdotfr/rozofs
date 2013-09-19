@@ -12,6 +12,7 @@ from rozofs.core.constants import LAYOUT, VOLUME, VOLUME_VID, VOLUME_CID, \
     EXPORT_MD5, EXPORT_SQUOTA, EXPORT_HQUOTA, VOLUME_CIDS, LAYOUT_2_3_4, VOLUMES, \
     EXPORTD_MANAGER, LAYOUT_4_6_8, LAYOUT_8_12_16
 from rozofs.core.daemon import DaemonManager
+from rozofs import __sysconfdir__
 import os
 from rozofs.core.agent import Agent, ServiceStatus
 import subprocess
@@ -212,7 +213,7 @@ class ExportdConfigurationParser(ConfigurationParser):
 class ExportdAgent(Agent):
     """ exportd agent """
 
-    def __init__(self, config='/etc/rozofs/export.conf', daemon='exportd'):
+    def __init__(self, config="%s%s" % (__sysconfdir__, '/rozofs/export.conf'), daemon='exportd'):
         Agent.__init__(self, EXPORTD_MANAGER)
         self._daemon_manager = DaemonManager(daemon, ["-c", config])
         self._reader = ConfigurationReader(config, ExportdConfigurationParser())
