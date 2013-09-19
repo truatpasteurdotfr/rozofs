@@ -363,7 +363,11 @@ int storio_start_nb_th(void *args) {
     fatal("Fatal error on storio_north_interface_init()\n");
     return -1;
   }
-   
+  
+  /*
+  ** A timing counter service
+  */ 
+  detailed_counters_init();
    
   /*
   ** init of the fd cache
