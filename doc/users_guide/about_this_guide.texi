@@ -21,9 +21,9 @@ version 1.2.0 or later}.
 @c *** Section [Conventions Used in this Guide]
 @node       Conventions Used in this Guide, Organization of this Guide, About this Guide, About this Guide
 @section    Conventions Used in this Guide
-@cindex     conventions
+@cindex     Conventions
 
 @c *** Section [Organization of this Guide]
 @node       Organization of this Guide, , Conventions Used in this Guide, About this Guide
 @section    Organization of this Guide
-@cindex     organization
+@cindex     Organization

@@ -15,8 +15,9 @@
 @c *** Section [Installing RozoFS from Binary Packages]
 @node       Installing RozoFS from Binary Packages, Building and Installing from Sources, Building Installing and Configuring RozoFS, Building Installing and Configuring RozoFS
 @section    Installing RozoFS from Binary Packages
-@cindex     install
-@cindex     binary package
+@cindex     Installation
+@cindex     Build
+@cindex     Binary packages
 
 Fizians @acronym{SAS} provides binary packages for every component of RozoFS and
 various @acronym{GNU}/Linux distributions based on Debian (@file{.deb})
@@ -48,9 +49,6 @@ installed on each node involved in a RozoFS platform:
 @c *** Section [Building and Installing from Sources]
 @node       Building and Installing from Sources, Preparing Nodes, Installing RozoFS from Binary Packages, Building Installing and Configuring RozoFS
 @section    Building and Installing from Sources
-@cindex     build
-@cindex     install
-@cindex     sources
 
 @menu
 * Prerequisites::
@@ -60,7 +58,7 @@ installed on each node involved in a RozoFS platform:
 @c *** Subsection [Prerequisites]
 @node       Prerequisites, Build the Source, Building and Installing from Sources, Building and Installing from Sources
 @subsection Prerequisites
-@cindex     prerequisites
+@cindex     Prerequisites
 
 The latest stable release of RozoFS can be downloaded from
 @url{http://github.com/rozofs/rozofs}.
@@ -84,8 +82,6 @@ quickly. RozoFS depends on the following:
 @c *** Subsection [Build the Source]
 @node       Build the Source, , Prerequisites, Building and Installing from Sources
 @subsection Build the Source
-@cindex     build
-@cindex     source
 
 Once the required packages are installed on your appropriate system, you can
 generate the build configuration with the following commands (using default
@@ -125,7 +121,7 @@ following command :
 @c *** Subsection [Exportd Nodes]
 @node       Exportd Nodes, Storaged Nodes, Preparing Nodes, Preparing Nodes
 @subsection Exportd Nodes
-@cindex     exportd daemon
+@cindex     Exportd daemon
 
 @menu
 * Metadata Replication with DRBD::
@@ -135,8 +131,8 @@ following command :
 @c *** Subsubsection [Metadata Replication with DRBD]
 @node       Metadata Replication with DRBD, High Availability with Pacemaker, Exportd Nodes, Exportd Nodes
 @subsubsection Metadata Replication with DRBD
-@cindex     metadata
-@cindex     replication
+@cindex     Metadata
+@cindex     Replication
 @cindex     DRBD
 
 @c Conceptual Overview
@@ -275,8 +271,9 @@ Debian example):
 @c *** Subsubsection [Metadata Replication with Pacemaker]
 @node       High Availability with Pacemaker, , Metadata Replication with DRBD, Exportd Nodes
 @subsubsection High Availability with Pacemaker
-@cindex     availability
-@cindex     pacemaker
+@cindex     High Availability
+@cindex     Availability
+@cindex     Pacemaker
 
 @dfn{Pacemaker} is an open-source high availability resource management tool
 suitable for clusters of Linux machines. This tool can detect machine failures
@@ -462,7 +459,7 @@ Online: [ node1 node2 ]
 @c *** Subsection [Storaged Nodes]
 @node       Storaged Nodes, , Exportd Nodes, Preparing Nodes
 @subsection Storaged Nodes
-@cindex     storaged daemon
+@cindex     Storaged
 
 Storaged nodes should have appropriate free space on disks. The storaged service
 stores transformed data as files on a common file system (@acronym{ext4}). It is
@@ -473,7 +470,8 @@ the free space properly.
 @c *** Section [Configuring RozoFS]
 @node       Configuring RozoFS, Exportd Configuration File, Preparing Nodes, Building Installing and Configuring RozoFS
 @section    Configuring RozoFS
-@cindex     configure
+@cindex     Configuration
+@cindex     Files of configuration
 
 @menu
 * Exportd Configuration File::
@@ -483,7 +481,7 @@ the free space properly.
 @c *** Subsection [Exportd Configuration File]
 @node       Exportd Configuration File, Storaged Configuration File, Configuring RozoFS, Configuring RozoFS
 @subsection Exportd Configuration File
-@cindex     exportd caonfiguration
+@cindex     Exportd configuration
 
 The configuration file of exportd (@file{export.conf}) consists of 3 types of
 information :
@@ -591,7 +589,7 @@ exports = (
 @c *** Subsection [Storaged Configuration File]
 @node       Storaged Configuration File, , Exportd Configuration File, Configuring RozoFS
 @subsection Storaged Configuration File
-@cindex     storaged configuration
+@cindex     Storaged configuration
 
 The configuration file storaged daemon (@file{storage.conf}) must be completed on
 each physical server storage where storaged daemon is used.
