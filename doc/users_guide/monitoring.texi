@@ -1,6 +1,7 @@
 @c *** Chapter [Monitoring]
 @node       Monitoring, Index, Working with RozoFS, Top
 @chapter    Monitoring
+@cindex Monitoring
 
 RozoFS comes with a command line tool called @command{rozodebug} that lets the
 RozoFS administrator access a huge amount of statistics. Even though these
@@ -19,6 +20,10 @@ informations related to the system health. The communication with
 @c *** Section [Rozodebug tools]
 @node       Rozodebug tools, rozofsmount menu, Monitoring, Monitoring
 @section    Rozodebug tools
+@cindex Rozodebug
+@cindex Debug
+@cindex Statistic
+@cindex Performance
 
 Each component of RozoFS (@strong{exportd}, @strong{rozofsmount},
 @strong{storcli}, @strong{storaged} and @strong{storio})
