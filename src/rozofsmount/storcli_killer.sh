@@ -14,11 +14,12 @@
 #  <http://www.gnu.org/licenses/>.
 
 mountpoint=$1
+instance=$2
 
 kill_starter ()
 {
   count=0
-  for pid in `ps -ef | grep "storcli_starter.sh"| grep "M $mountpoint" | awk '{print $2}'`
+  for pid in `ps -ef | grep "storcli_starter.sh storcli -i $instance"| grep "M $mountpoint" | awk '{print $2}'`
   do
     kill $1 $pid
     count=$((count+1))
@@ -28,7 +29,7 @@ kill_starter ()
 kill_everybody ()
 {
   count=0
-  for pid in `ps -ef | grep "storcli "| grep "M $mountpoint" | awk '{print $2}'`
+  for pid in `ps -ef | grep "storcli -i $instance" | grep "M $mountpoint" | awk '{print $2}'`
   do
     kill $1 $pid
     count=$((count+1))

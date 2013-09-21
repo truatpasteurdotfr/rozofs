@@ -105,4 +105,13 @@ int stclbg_set_storcli_number (int nb);
 */
 void stclbg_init();
 
+
+
+/*
+ **____________________________________________________
+ */
+void rozofs_kill_one_storcli(int instance);
+void rozofs_start_one_storcli(int instance);
+int stclbg_get_storcli_number (void) ;
+
 #endif
