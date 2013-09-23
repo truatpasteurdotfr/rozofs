@@ -20,6 +20,7 @@
 #define ROZOFS_IP_UTILITIES_H
 
 #include <string.h>
+#include <stdio.h>
 #include <netdb.h>
 #include <rozofs/common/log.h>
 
