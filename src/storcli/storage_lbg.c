@@ -39,6 +39,7 @@
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/rpcclt.h>
 #include "rozofs_storcli.h"
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 static north_remote_ip_list_t my_list[STORAGE_NODE_PORTS_MAX];  /**< list of the connection for the exportd */
 
@@ -78,6 +79,7 @@ int storaged_lbg_initialize(mstorage_t *s) {
     int lbg_size;
     int ret;
     int i;
+    int local=1;
     
     DEBUG_FUNCTION;    
     
@@ -105,15 +107,16 @@ int storaged_lbg_initialize(mstorage_t *s) {
     {
       my_list[i].remote_port_host   = s->sclients[i].port;
       my_list[i].remote_ipaddr_host = s->sclients[i].ipv4;
+      if (!is_this_ipV4_local(s->sclients[i].ipv4)) local = 0;
     }
      af_inet_storaged_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_storaged_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
-         
+              
      ret = north_lbg_configure_af_inet(s->lbg_id,
                                           s->host,
                                           INADDR_ANY,0,
                                           my_list,
-                                          ROZOFS_SOCK_FAMILY_STORAGE_NORTH,lbg_size,&af_inet_storaged_conf);
+                                          ROZOFS_SOCK_FAMILY_STORAGE_NORTH,lbg_size,&af_inet_storaged_conf, local);
      if (ret < 0)
      {
       severe("Cannot create Load Balancing Group %d for storaged %s",s->lbg_id,s->host);

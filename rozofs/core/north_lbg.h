@@ -159,6 +159,7 @@ typedef struct _north_lbg_ctx_t
   af_stream_poll_CBK_t       userPollingCallBack;    /**< call that permits polling at application level */
   int                        tmo_supervision_in_sec;
   int                        available_state;      /**< 0: unavailable/ 1 available */
+  int                        local; /**< 1 when the destination is local. 0 else */
 } north_lbg_ctx_t;
 
 /*

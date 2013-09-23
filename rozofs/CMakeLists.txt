@@ -140,6 +140,8 @@ set (librozofs_sources
     core/rozofs_tx_common.h
     core/rozofs_tx_engine.c
     core/com_tx_timer.c
+    core/rozofs_ip_utilities.c
+    core/rozofs_ip_utilities.h
     rozofs_timer_conf.h
     rozofs_timer_conf.c    
     core/rozofs_timer_conf_dbg.c
