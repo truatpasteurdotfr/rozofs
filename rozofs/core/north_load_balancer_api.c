@@ -1034,7 +1034,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
                                 uint32_t src_ipaddr_host,
                                 uint16_t src_port_host,
                                 north_remote_ip_list_t *remote_ip_p,
-                                int family,int  nb_instances,af_unix_socket_conf_t *usr_conf_p)
+                                int family,int  nb_instances,af_unix_socket_conf_t *usr_conf_p, int local)
 {
   north_lbg_ctx_t  *lbg_p;
   int    i;
@@ -1048,7 +1048,8 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
     warning("north_lbg_configure_af_inet: no such instance %d ",lbg_idx);
     return -1;
   }
-    
+  
+  lbg_p->local = local;  
   conf_p = &lbg_p->lbg_conf;
   memcpy(conf_p,usr_conf_p,sizeof(af_unix_socket_conf_t));
 
@@ -1539,7 +1540,28 @@ int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint3
   ret = trshape_queue_buf(0,buf_p,rsp_size,disk_time,north_lbg_send_from_shaper,lbg_idx);
   return ret;
 }
+/*__________________________________________________________________________
+*/
+/**
+*  Tells whether the lbg target is local to this server or not
 
+  @param entry_idx : index of the entry that must be set
+  @param *p  : pointer to the bitmap array
+
+  @retval none
+*/
+int north_lbg_is_local(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_is_local: no such instance %d ",lbg_idx);
+    return 0;
+  }
+  return lbg_p->local;
+}
 
 
 

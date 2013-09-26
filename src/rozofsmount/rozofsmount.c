@@ -37,17 +37,16 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/rozofs_debug_ports.h>
+#include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/htable.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
-#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/expgw_common.h>
-#include "rozofs_reload_export_gateway_conf.h"
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
@@ -55,6 +54,7 @@
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_cache.h"
 #include "rozofs_rw_load_balancing.h"
+#include "rozofs_reload_export_gateway_conf.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -73,7 +73,8 @@
 
 static SVCXPRT *rozofsmount_profile_svc = 0;
 int rozofs_rotation_read_modulo = 0;
-
+static char *mountpoint = NULL;
+    
 DEFINE_PROFILING(mpp_profiler_t) = {0};
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
@@ -154,9 +155,9 @@ static void usage(const char *progname) {
     fprintf(stderr, "\t-o instance=N\tinstance number (default: 0)\n");
     fprintf(stderr, "\t-o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "\t-o rozofsmode=N\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
-    fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of STORCLI processes to use\n");
-    fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration\n");
-    fprintf(stderr, "\t-o rozofsrotate=N\tdefine the modulo on read distribution rotation\n");
+    fprintf(stderr, "\t-o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
+    fprintf(stderr, "\t-o rozofsshaper=N\tdefine the storcli shaper configuration (default: 1)\n");
+    fprintf(stderr, "\t-o rozofsrotate=N\tdefine the modulo on read distribution rotation (default: 0)\n");
     fprintf(stderr, "\t-o posixlock\trequire support for POSIX file lock\n");
     fprintf(stderr, "\t-o bsdlock\trequire support for BSD file lock\n");
 
@@ -420,8 +421,6 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
 /*__________________________________________________________________________
 */  
 void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
-
-   int timer_id,val;
    
    if (argv[1] !=NULL)
    {
@@ -808,55 +807,67 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     //.poll = rozofs_ll_poll,
 };
 
-void rozofs_kill_storcli(const char *mountpoint) {
+void rozofs_kill_one_storcli(int instance) {
 
     char cmd[1024];
     char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s %s", STORCLI_KILLER, mountpoint);
+    cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
     system(cmd);
 }
-
-void rozofs_start_storcli(const char *mountpoint) {
-    int i;
+void rozofs_start_one_storcli(int instance) {
     char cmd[1024];
+    
+    char *cmd_p = &cmd[0];
+    cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
+    cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
+    cmd_p += sprintf(cmd_p, "-i %d ", instance);
+    cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
+    cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
+    cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
+    cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + instance);
+    cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
+    cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
+    cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
+    cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+    /*
+    ** check if there is a share mem key
+    */
+    if (rozofs_storcli_shared_mem[instance-1].key != 0)
+    {
+      cmd_p += sprintf(cmd_p, "-k %d ",rozofs_storcli_shared_mem[instance-1].key);       
+      cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[instance-1].buf_sz);       
+      cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[instance-1].buf_count);       
+    }
+    cmd_p += sprintf(cmd_p, "&");
 
-    rozofs_kill_storcli(mountpoint);
- 
+    info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
+            " profile port: %d, rozofs instance: %d, storage timeout: %d).",
+            instance, conf.host, conf.export, mountpoint,
+            conf.dbg_port + instance, conf.instance,
+            ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
+
+    system(cmd);
+}
+void rozofs_kill_storcli() {
+    int i;
 
     for (i = 1; i <= STORCLI_PER_FSMOUNT; i++) {
-        char *cmd_p = &cmd[0];
-        cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
-        cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
-        cmd_p += sprintf(cmd_p, "-i %d ", i);
-        cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
-        cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
-        cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
-        cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + i);
-        cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
-        cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
-        cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
-        cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
-        /*
-        ** check if there is a share mem key
-        */
-        if (rozofs_storcli_shared_mem[i-1].key != 0)
-        {
-          cmd_p += sprintf(cmd_p, "-k %d ",rozofs_storcli_shared_mem[i-1].key);       
-          cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[i-1].buf_sz);       
-          cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[i-1].buf_count);       
-        }
-        cmd_p += sprintf(cmd_p, "&");
-        
-        info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
-                " profile port: %d, rozofs instance: %d, storage timeout: %d).",
-                i, conf.host, conf.export, mountpoint,
-                conf.dbg_port + i, conf.instance,
-                ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
-	
-        system(cmd);
+      rozofs_kill_one_storcli(i);
     }
 }
-int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
+void rozofs_start_storcli() {
+    int i;
+
+    rozofs_kill_storcli();
+
+    i = stclbg_get_storcli_number();
+    while (i) {
+        rozofs_start_one_storcli(i);
+	i--;
+    }
+}
+
+int fuseloop(struct fuse_args *args, int fg) {
     int i = 0;
     int ret;
     int err;
@@ -914,12 +925,11 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     */
     {
       epgw_lock_arg_t     arg;
-      epgw_status_ret_t * file_lock_res;
       
       arg.arg_gw.eid             = exportclt.eid;
       arg.arg_gw.lock.client_ref = rozofs_client_hash;
       
-      file_lock_res = ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
+      ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
     }
 
     /* Initialize list and htables for inode_entries */
@@ -1185,7 +1195,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
     /*
     ** start the storcli processes
     */ 
-    rozofs_start_storcli(mountpoint);
+    rozofs_start_storcli();
 
     for (;;) {
         int ret;
@@ -1198,7 +1208,7 @@ int fuseloop(struct fuse_args *args, const char *mountpoint, int fg) {
         break;
     }
 
-    rozofs_kill_storcli(mountpoint);
+    rozofs_kill_storcli();
 
     fuse_remove_signal_handlers(se);
     fuse_session_remove_chan(ch);
@@ -1222,7 +1232,6 @@ void rozofs_allocate_flush_buf(int size_kB);
 
 int main(int argc, char *argv[]) {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-    char *mountpoint;
     int fg = 0;
     int res;
     struct rlimit core_limit;
@@ -1431,7 +1440,7 @@ int main(int argc, char *argv[]) {
                 strerror(errno));
     }
 
-    res = fuseloop(&args, mountpoint, fg);
+    res = fuseloop(&args, fg);
 
     fuse_opt_free_args(&args);
     return res;

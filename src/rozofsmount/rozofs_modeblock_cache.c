@@ -544,7 +544,6 @@ int rozofs_mbcache_get(fid_t fid,uint64_t off,uint32_t size,uint8_t *dst_bufp)
      */
      cache_data_p = pool_p->entry;
      cache_data_free_p = NULL;
-     int found = 0;
      /*
      ** search for  an exact match
      */
@@ -557,7 +556,6 @@ int rozofs_mbcache_get(fid_t fid,uint64_t off,uint32_t size,uint8_t *dst_bufp)
        if (cache_data_p->off_bufidx_st.s.off == off_cache) 
        {
          cache_data_free_p = cache_data_p;
-         found = 1;
          break;     
        }
      }
@@ -763,7 +761,6 @@ int rozofs_mbcache_check(fid_t fid,uint64_t off,uint32_t size)
      /*
      ** search for  an exact match
      */
-     int found = 0;
      for (i = 0; i < ROZOFS_MBCACHE_MX_BUF_PER_POOL ; i++,cache_data_p++) 
      {
        if (cache_data_p->off_bufidx_st.s.state == 0)
@@ -773,7 +770,6 @@ int rozofs_mbcache_check(fid_t fid,uint64_t off,uint32_t size)
        if (cache_data_p->off_bufidx_st.s.off == off_cache) 
        {
          cache_data_free_p = cache_data_p;
-         found = 1;
          break;     
        }
      }

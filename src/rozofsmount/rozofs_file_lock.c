@@ -31,6 +31,7 @@
 #include <getopt.h>
 #include <pthread.h>
 #include <assert.h>
+#include <inttypes.h>
 #include <netinet/tcp.h>
 
 #include <fuse/fuse_lowlevel.h>
@@ -102,7 +103,7 @@ void reset_lock_stat(void) {
 * Display lock statistics
 *
 */
-#define DISPLAY_LOCK_STAT(name) p += sprintf(p,"%-24s = %llu\n",#name,lock_stat.name);
+#define DISPLAY_LOCK_STAT(name) p += sprintf(p,"%-24s = %"PRIu64"\n",#name,lock_stat.name);
 char * display_lock_stat(char * p) {
   DISPLAY_LOCK_STAT(bsd_set_passing_lock);
   DISPLAY_LOCK_STAT(bsd_set_blocking_lock);  
@@ -120,6 +121,7 @@ char * display_lock_stat(char * p) {
   DISPLAY_LOCK_STAT(enomem);
   DISPLAY_LOCK_STAT(einval);
   DISPLAY_LOCK_STAT(send_common);
+  return p;
 }
 /**
 **____________________________________________________
@@ -388,7 +390,7 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
         goto error;
     }
     
-    file = (file_t *) fi->fh;
+    file = (file_t *) (unsigned long) fi->fh;
     
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -468,9 +470,6 @@ void rozofs_ll_getlk_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_lock_ret_t;
-   rozofs_fuse_save_ctx_t *fuse_ctx_p;
-    
-   GET_FUSE_CTX_P(fuse_ctx_p,param);    
     
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -687,7 +686,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
         goto error;
     }
 
-    file = (file_t *) fi->fh;
+    file = (file_t *) (unsigned long) fi->fh;
     
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -776,11 +775,8 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_lock_ret_t;
-   rozofs_fuse_save_ctx_t *fuse_ctx_p;
    struct fuse_file_info *fi;
    file_t * file;
-    
-   GET_FUSE_CTX_P(fuse_ctx_p,param);    
     
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -851,7 +847,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
 	** Lock has been set. Save the lock owner in the file structure 
 	** to release the lockwhen the file is closed
 	*/
-        file = (file_t*) fi->fh;
+        file = (file_t*) (unsigned long) fi->fh;
         file->lock_owner_ref = fi->lock_owner;   
       } 
       errno = 0;      
@@ -863,7 +859,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
       ** file locks 
       */
       if (sleep) {
-        file = (file_t*) fi->fh;      
+        file = (file_t*) (unsigned long) fi->fh;      
         file->fuse_req  = req;
 	if (flock->l_type == F_WRLCK) file->lock_type = EP_LOCK_WRITE;
 	else                          file->lock_type = EP_LOCK_READ;

@@ -60,7 +60,7 @@ uint32_t af_inet_tcp_tuneTcpSocket(int socketId,int size)
   int sockRcvdSize = size*4;
   int fileflags;
 
-#if 0
+#if 1
   int YES = 1;
   int IDLE = 2;
   int INTVL = 2;

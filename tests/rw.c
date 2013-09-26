@@ -283,7 +283,6 @@ int do_random_read_and_check(int f) {
     ssize_t      size;
     int          idx2;    
     unsigned int nbControl;
-    int          ret;
     unsigned int blockSize;
     unsigned int offset;    
 
@@ -298,7 +297,7 @@ int do_random_read_and_check(int f) {
       size = pread(f, pReadBuff, blockSize, offset);
       if (size < 0) {
         printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read offset %u size %llu\n", myProcId, offset, blockSize);    
+        printf("proc %3d - Can not read offset %u size %u\n", myProcId, offset, blockSize);
         return -1;
       }      
       for (idx2 = 0; idx2 < blockSize; idx2++) {
@@ -334,12 +333,12 @@ int do_partial_read_and_check(int f) {
       size = pread(f, pReadBuff, idx-offsetStart, offsetStart);
       if (size <= 0) {
         printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read size %llu\n", myProcId, idx-offsetStart);    
+        printf("proc %3d - Can not read size %u\n", myProcId, idx-offsetStart);    
         return -1;
       }      
       if (size != (idx-offsetStart)) {
         printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can only read size %llu\n", myProcId, size);    
+        printf("proc %3d - Can only read size %lld\n", myProcId, (long long) size);    
         return -1;
       }            
       

@@ -83,6 +83,17 @@ void stclbg_hash_table_insert_ctx(rozofs_tx_rw_lbg_t *p, fid_t fid, int storcli_
 int stclbg_storcli_idx_from_fid(fid_t fid);
 
 /*
+ **____________________________________________________
+ *
+ * Set the number of STORCLI
+ *
+ * @param nb number of expected STORCLI
+ *
+ * retval -1 in invalid number is given 0 else
+ */
+int stclbg_set_storcli_number (int nb);
+
+/*
 *________________________________________________________
 */
 /**
@@ -93,5 +104,14 @@ int stclbg_storcli_idx_from_fid(fid_t fid);
   
 */
 void stclbg_init();
+
+
+
+/*
+ **____________________________________________________
+ */
+void rozofs_kill_one_storcli(int instance);
+void rozofs_start_one_storcli(int instance);
+int stclbg_get_storcli_number (void) ;
 
 #endif

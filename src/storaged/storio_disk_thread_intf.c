@@ -4,8 +4,7 @@
 
  Rozofs is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published
- by the Free Software Foundation; either version 3 of the License,
- or (at your option) any later version.
+ by the Free Software Foundation, version 2.
 
  Rozofs is distributed in the hope that it will be useful, but
  WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -16,18 +15,22 @@
  along with this program.  If not, see
  <http://www.gnu.org/licenses/>.
  */
+
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>
+
 #include <rozofs/rozofs.h>
-#include "config.h"
 #include <rozofs/common/log.h>
+#include <rozofs/common/profile.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/core/ruc_buffer_debug.h>
-#include <rozofs/common/profile.h>
+
 #include "storio_disk_thread_intf.h"
+#include "sproto_nb.h"
+#include "config.h"
 
 DECLARE_PROFILING(spp_profiler_t); 
  
@@ -285,9 +288,11 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
   switch (opcode) {
     case STORIO_DISK_THREAD_READ:
       STOP_PROFILING_IO(read,msg->size);
+      update_read_detailed_counters(toc - tic);      
       break;
     case STORIO_DISK_THREAD_WRITE:
       STOP_PROFILING_IO(write,msg->size);
+      update_write_detailed_counters(toc - tic);            
       break;     
     case STORIO_DISK_THREAD_TRUNCATE:
       STOP_PROFILING(truncate);
@@ -507,9 +512,8 @@ int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode,
 int af_unix_disk_response_socket_create(char *socketname)
 {
   int len;
-  int fd;
+  int fd = -1;
   void *sockctrl_ref;
-  int ret;
 
    len = strlen(socketname);
    if (len >= AF_UNIX_SOCKET_NAME_SIZE)
@@ -528,7 +532,6 @@ int af_unix_disk_response_socket_create(char *socketname)
      fd = af_unix_sock_create_internal(socketname,DISK_SO_SENDBUF);
      if (fd == -1)
      {
-       ret = -1;
        break;
      }
      /*

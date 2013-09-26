@@ -151,7 +151,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
                                 uint32_t src_ipaddr_host,
                                 uint16_t src_port_host,
                                 north_remote_ip_list_t *remote_ip_p,
-                                int family,int  nb_instances,af_unix_socket_conf_t *conf_p);
+                                int family,int  nb_instances,af_unix_socket_conf_t *conf_p,int local);
 
 /*__________________________________________________________________________
 */ 
@@ -266,4 +266,15 @@ int north_lbg_send_from_shaper(int  lbg_idx,void *buf_p);
 */
 int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint32_t disk_time)
 ;
+/*__________________________________________________________________________
+*/
+/**
+*  Tells whether the lbg target is local to this server or not
+
+  @param entry_idx : index of the entry that must be set
+  @param *p  : pointer to the bitmap array
+
+  @retval none
+*/
+int north_lbg_is_local(int  lbg_idx);
 #endif

@@ -89,6 +89,7 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
 
             state = north_lbg_eval_global_state(lbg_p);
             pChar += sprintf(pChar, "NAME: %-34s %s\n", lbg_p->name, lbg_north_state2String(state));
+            pChar += sprintf(pChar, "      %-25s: %s\n", "local/remote",lbg_p->local?"local":"remote");	    
             pChar += sprintf(pChar, "      size                     : %12u\n", lbg_p->nb_entries_conf);
             pChar += sprintf(pChar, "      total Up/Down Transitions: %12llu\n", (unsigned long long int) lbg_p->stats.totalUpDownTransition);
             north_lbg_entry_ctx_t *entry_p = lbg_p->entry_tb;

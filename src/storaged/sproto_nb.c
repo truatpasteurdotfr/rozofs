@@ -19,12 +19,18 @@
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <inttypes.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/rpc/sproto.h>
+#include <rozofs/core/uma_dbg_api.h>
 
 #include "storage.h"
 #include "storaged.h"
@@ -32,6 +38,91 @@
 #include "storaged_north_intf.h"
 #include "storage_fd_cache.h"
 #include "storio_disk_thread_intf.h"
+
+/*
+** Detailed time counters for read and write operation
+*/
+#define STORIO_DETAILED_COUNTER_MAX  30
+#define STORIO_DETAILED_READ_SLICE   64
+#define STORIO_DETAILED_WRITE_SLICE 128
+typedef struct _STORIO_DETAILED_COUNTERS_T {
+  uint64_t     write[STORIO_DETAILED_COUNTER_MAX+1];
+  uint64_t     read[STORIO_DETAILED_COUNTER_MAX+1];  
+} STORIO_DETAILED_COUNTERS_T;
+static STORIO_DETAILED_COUNTERS_T storio_detailed_counters;
+
+/*_______________________________________________________________________
+* Update detailed time counters for wrtite operation
+* @param delay delay in us of the write operation
+*/
+void update_write_detailed_counters(uint64_t delay) {
+  delay = delay / STORIO_DETAILED_READ_SLICE;
+  if (delay >= STORIO_DETAILED_COUNTER_MAX) delay = STORIO_DETAILED_COUNTER_MAX;
+  storio_detailed_counters.write[delay]++;
+}
+
+/*_______________________________________________________________________
+* Update detailed time counters for wrtite operation
+* @param delay delay in us of the write operation
+*/
+void update_read_detailed_counters(uint64_t delay) {
+  delay = delay / STORIO_DETAILED_WRITE_SLICE;
+  if (delay > STORIO_DETAILED_COUNTER_MAX) delay = STORIO_DETAILED_COUNTER_MAX;
+  storio_detailed_counters.read[delay]++;
+}
+
+/*_______________________________________________________________________
+* Update detailed time counters for wrtite operation
+* @param delay delay in us of the write operation
+*/
+static inline void reset_detailed_counters(void) {
+  memset(&storio_detailed_counters,0,sizeof(storio_detailed_counters));
+}
+
+/*_______________________________________________________________________
+* Update detailed time counters for wrtite operation
+* @param delay delay in us of the write operation
+*/
+void display_detailed_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
+  char          * p = uma_dbg_get_buffer();
+  int             i;
+  int             start_read,stop_read;
+  int             start_write,stop_write;
+  
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"reset")==0) {
+      reset_detailed_counters();
+      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
+      return;
+    }
+  }  
+  
+  start_read = start_write = 0;
+  stop_read  = STORIO_DETAILED_READ_SLICE;
+  stop_write  = STORIO_DETAILED_WRITE_SLICE;
+
+  p += sprintf(p, "    READ                                 WRITE\n");  
+  for (i=0; i<=STORIO_DETAILED_COUNTER_MAX; i++) {
+  
+    p += sprintf(p, "%4d..%4d : %-16"PRIu64"        %4d..%4d : %-16"PRIu64"\n", 
+                start_read,stop_read,storio_detailed_counters.read[i],
+                start_write,stop_write,storio_detailed_counters.write[i]); 
+
+    start_read = stop_read;
+    stop_read += STORIO_DETAILED_READ_SLICE; 
+    start_write = stop_write;
+    stop_write += STORIO_DETAILED_WRITE_SLICE;       
+  }
+  uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());    
+}
+
+/*_______________________________________________________________________
+* Initialize detailed time counters service
+*/
+void detailed_counters_init(void) {
+  reset_detailed_counters();
+  uma_dbg_addTopic("detailedTiming", display_detailed_counters); 
+}
 
 DECLARE_PROFILING(spp_profiler_t);
 
@@ -395,7 +486,6 @@ void storage_check_readahead()
 void sp_read_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     sp_read_arg_t * args = (sp_read_arg_t *) pt;
     static sp_read_ret_t ret;
-    uint16_t psize = 0;
     storage_t *st = 0;
 
     START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
@@ -422,7 +512,6 @@ void sp_read_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
         goto error;
     }
 
-    psize = rozofs_get_max_psize(args->layout);
     /*
     ** set the pointer to the bins
     */

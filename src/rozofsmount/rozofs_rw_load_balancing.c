@@ -57,8 +57,52 @@ uint64_t stclbg_hash_lookup_insert_count;
  */
 int stclbg_set_storcli_number (int nb) {
   if ((nb > STORCLI_PER_FSMOUNT) || (nb <= 0)) return -1;
+  
   stclbg_storcli_count = nb;   
   stclbg_next_idx      = 0;
+  
+  return 0;
+}
+/*
+ **____________________________________________________
+ *
+ * Update the number of STORCLI
+ *
+ * @param nb number of expected STORCLI
+ *
+ * retval -1 in invalid number is given 0 else
+ */
+int stclbg_update_storcli_number (int nb) {
+  if ((nb > STORCLI_PER_FSMOUNT) || (nb <= 0)) return -1;
+  
+  if (nb == stclbg_storcli_count) return 0;
+  
+  while (nb < stclbg_storcli_count) {
+    rozofs_kill_one_storcli(stclbg_storcli_count);
+    stclbg_storcli_count--;
+  }
+  
+  while(nb > stclbg_storcli_count) {
+    stclbg_storcli_count++;
+    rozofs_start_one_storcli(stclbg_storcli_count);
+  }
+  
+  stclbg_storcli_count = nb;   
+  stclbg_next_idx      = 0;
+  
+  return 0;
+} 
+/*
+ **____________________________________________________
+ *
+ * Get the number of STORCLI
+ *
+ * @param nb number of expected STORCLI
+ *
+ * retval -1 in invalid number is given 0 else
+ */
+int stclbg_get_storcli_number (void) {
+  return stclbg_storcli_count;
 } 
  /*
  **____________________________________________________
@@ -88,7 +132,7 @@ void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef)
          uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (%s set <value>) %s\n",argv[0],strerror(errno));    
          return;     
         } 
-	if (stclbg_set_storcli_number(storcli_count) < 0) {
+	if (stclbg_update_storcli_number(storcli_count) < 0) {
          uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (range is [1..%d])\n",STORCLI_PER_FSMOUNT);    
          return;
         } 

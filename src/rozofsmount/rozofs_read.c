@@ -433,7 +433,7 @@ void rozofs_ll_read_defer(void *param)
    RESTORE_FUSE_PARAM(param,off);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
-   file = (file_t *) fi->fh;   
+   file = (file_t *) (unsigned long) fi->fh;   
 
     buff = NULL;
     read_in_progress = file_read_nb(param,file, off, &buff, size,&length);

@@ -481,6 +481,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   uint8_t used_dist_set[ROZOFS_SAFE_MAX];
   uint8_t rotate_modulo;
+  uint8_t local_storage_idx;
 
      
   storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
@@ -514,11 +515,45 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   */ 
 #if 1
   rotate = storcli_read_rq_p->sid; 
-  for (i = 0; i  <rozofs_forward ; i ++)
-  {
-    rotate_modulo = (i + rotate) % rozofs_forward;
-    used_dist_set[i] = storcli_read_rq_p->dist_set[rotate_modulo];     
-  } 
+  i = 0;
+  while (1) {
+    /*
+    ** Check whether one storage is local in the 1rst foward storages of the distribution
+    */
+    local_storage_idx = 0xFF;
+    for (i = 0; i  <rozofs_forward ; i ++)
+    {
+      int lbg_id = rozofs_storcli_get_lbg_for_sid(storcli_read_rq_p->cid,storcli_read_rq_p->dist_set[i]);
+      if (north_lbg_is_local(lbg_id)) {
+	local_storage_idx = i;
+	break;
+      }
+    } 
+    /*
+    ** One local storage is found => always use this guy 1rst
+    */ 
+    if (local_storage_idx != 0xFF) {
+      used_dist_set[0] = storcli_read_rq_p->dist_set[local_storage_idx];    
+      for (i = 1; i  <rozofs_forward ; i ++)
+      {
+	rotate_modulo = (rotate+i) % (rozofs_forward-1);
+	used_dist_set[rotate_modulo+1] = storcli_read_rq_p->dist_set[(local_storage_idx+i) % rozofs_forward]; 
+      } 
+      break;       
+    }
+    /*
+    ** No local storage is found => use every possible storage 
+    */
+    for (i = 0; i  <rozofs_forward ; i ++)
+    {
+      rotate_modulo = (i + rotate) % rozofs_forward;
+      used_dist_set[i] = storcli_read_rq_p->dist_set[rotate_modulo];     
+    } 
+    break;
+  }  
+  /*
+  ** Fullfill the distribution with the spare storages
+  */
   for (; i  <rozofs_safe ; i ++) {
     used_dist_set[i] = storcli_read_rq_p->dist_set[i];     
   } 

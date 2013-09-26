@@ -159,6 +159,7 @@ typedef struct _north_lbg_ctx_t
   af_stream_poll_CBK_t       userPollingCallBack;    /**< call that permits polling at application level */
   int                        tmo_supervision_in_sec;
   int                        available_state;      /**< 0: unavailable/ 1 available */
+  int                        local; /**< 1 when the destination is local. 0 else */
 } north_lbg_ctx_t;
 
 /*
@@ -366,15 +367,19 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
        }             
      }    
      /*
-     ** update for the next run
+     ** update for the next run when externbal line is used
      */
-     if (lbg_p->next_global_entry_idx_p != NULL)
-     {
-        * lbg_p->next_global_entry_idx_p = check_idx+1;
-     }
-     else 
-     {
-       lbg_p->next_entry_idx = check_idx+1;
+     if (lbg_p->local == 0) {
+       if (lbg_p->next_global_entry_idx_p != NULL)
+       {
+          if (lbg_p->local==0) {
+	    * lbg_p->next_global_entry_idx_p = check_idx+1;
+	  }
+       }
+       else 
+       {
+	 lbg_p->next_entry_idx = check_idx+1;
+       }  
      }    
      return check_idx;
   }

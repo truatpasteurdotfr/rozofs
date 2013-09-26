@@ -29,14 +29,13 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
 #include <rozofs/rozofs_srv.h>
-#include "storage_fd_cache.h"
 
+#include "storage_fd_cache.h"
 
 storage_fd_cache_t *storage_fd_cache_p = NULL;
 uint32_t storage_fd_cache_max = 0;
 uint32_t storage_fd_max_inuse_count = 0;
 storage_fd_cache_t *current_storage_fd_cache_p= NULL;
-
 
 /*
 **__________________________________________________________________________
@@ -130,7 +129,6 @@ storage_fd_cache_t *storage_fd_cache_insert(int fd, fid_t fid)
 storage_fd_cache_t *storage_fd_cache_search(fid_t fid)
 {
   int i;
-  int k;
   int ret;
   
   for (i = 0 ; i < storage_fd_cache_max; i ++)
@@ -162,7 +160,6 @@ storage_fd_cache_t *storage_fd_cache_search(fid_t fid)
 int storage_fd_cache_delete(fid_t fid)
 {
   int i;
-  int k;
   int ret;
   
   for (i = 0 ; i < storage_fd_cache_max; i ++)
