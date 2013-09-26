@@ -10,15 +10,16 @@ from rozofs.core.exportd import ExportdAgent, ExportdPacemakerAgent
 from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.core.rozofsmount import RozofsMountAgent
+from rozofs.cli.output import puts
 
 def status(args):
     (pid, listeners) = AgentServer().status()
-    print >> sys.stdout, "pid=%s" % pid
-    if listeners is None:
-        print >> sys.stdout, "listeners=%s" % (listeners)
-    else:
-        print >> sys.stdout, "listeners=%s" % (','.join(listeners))
-
+    if not pid:
+        raise Exception("no agent is running.")
+    puts({
+        'pid': pid,
+        'listeners': listeners
+        })
 
 def start(args):
     if os.getuid() is not 0:
