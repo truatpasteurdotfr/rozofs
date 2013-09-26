@@ -65,6 +65,8 @@
 
 #define CACHE_TIMEOUT 10.0
 
+#define ROZFSMOUNT_MAX_TX   32
+
 #define CONNECTION_THREAD_TIMESPEC  2
 
 #define STORCLI_STARTER  "storcli_starter.sh"
@@ -186,6 +188,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("exportpasswd=%s", passwd, 0),
     MYFS_OPT("rozofsbufsize=%u", buf_size, 0),
     MYFS_OPT("rozofsminreadsize=%u", min_read_size, 0),
+    MYFS_OPT("rozofsmaxwritepending=%u", max_write_pending, 0),
     MYFS_OPT("rozofsnbstorcli=%u", nbstorcli, 0),    
     MYFS_OPT("rozofsmaxretry=%u", max_retry, 0),
     MYFS_OPT("rozofsexporttimeout=%u", export_timeout, 0),
@@ -400,6 +403,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_STRING_CONFIG(passwd);  
   DISPLAY_UINT32_CONFIG(buf_size);
   DISPLAY_UINT32_CONFIG(min_read_size);
+  DISPLAY_UINT32_CONFIG(max_write_pending);
   DISPLAY_UINT32_CONFIG(nbstorcli);
   DISPLAY_UINT32_CONFIG(max_retry);
   DISPLAY_UINT32_CONFIG(dbg_port);
@@ -1072,6 +1076,13 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
     uma_dbg_addTopic("flock", show_flock);
 
+
+    /*
+    ** Initialize the number of write pending per fd
+    ** and reset statistics
+    */
+    init_write_flush_stat(conf.max_write_pending);
+
     /**
     * init of the mode block cache
     */
@@ -1115,7 +1126,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     rozofs_fuse_conf.se = se;
     rozofs_fuse_conf.ch = ch;
     rozofs_fuse_conf.exportclt = (void*) &exportclt;
-    rozofs_fuse_conf.max_transactions = 32;
+    rozofs_fuse_conf.max_transactions = ROZFSMOUNT_MAX_TX;
 
     if ((errno = pthread_create(&thread, NULL, (void*) rozofs_stat_start, &rozofs_fuse_conf)) != 0) {
         severe("can't create debug thread: %s", strerror(errno));
@@ -1249,6 +1260,7 @@ int main(int argc, char *argv[]) {
     conf.max_retry = 50;
     conf.buf_size = 0;
     conf.min_read_size = 0;
+    conf.max_write_pending = ROZFSMOUNT_MAX_TX; /* No limit */ 
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
