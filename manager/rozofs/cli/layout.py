@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 from rozofs.core.platform import Platform
 from rozofs.core.constants import LAYOUT_VALUES
-import sys
+from rozofs.cli.output import puts
 
 def set(platform, args):
     platform.set_layout(args.layout[0])
 
 def get(platform, args):
     layout = platform. get_layout()
-    print >> sys.stdout, "layout=%d" % layout
-    print >> sys.stdout, "inverse=%d" % LAYOUT_VALUES[layout][0]
-    print >> sys.stdout, "forward=%d" % LAYOUT_VALUES[layout][1]
-    print >> sys.stdout, "safe=%d" % LAYOUT_VALUES[layout][2]
+    puts({
+          "layout":layout,
+          "inverse":LAYOUT_VALUES[layout][0],
+          "forward":LAYOUT_VALUES[layout][1],
+          "safe":LAYOUT_VALUES[layout][2]
+        })
 
 def dispatch(args):
     p = Platform(args.exportd)

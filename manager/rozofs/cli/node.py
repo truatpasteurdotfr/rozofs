@@ -2,6 +2,8 @@
 import sys
 from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
+import json
+from rozofs.cli.output import puts
 
 ROLES_STR = {Role.EXPORTD: "exportd", Role.STORAGED: "storaged", Role.ROZOFSMOUNT: "rozofsmount"}
 STR_ROLES = {"exportd": Role.EXPORTD, "storaged": Role.STORAGED, "rozofsmount": Role.ROZOFSMOUNT}
@@ -44,26 +46,22 @@ def __args_to_roles(args):
 #        print >> sys.stdout, "%-20s %-20s" % (h, __roles_to_strings(r))
 
 def list(platform, args):
-    nodes = platform.list_nodes(__args_to_roles(args))
-    print >> sys.stdout, ":%s:%s" % ("node", "roles")
-    for h, r in nodes.items():
-        print >> sys.stdout, ":%s:%s" % (h, ','.join(__roles_to_strings(r)))
+#    puts([{'hostname':h, 'roles':__roles_to_strings(r)}
+#          for h, r in platform.list_nodes(__args_to_roles(args)).items()])
+    puts([{h:{'roles':__roles_to_strings(r)}}
+           for h, r in platform.list_nodes(__args_to_roles(args)).items()])
+
 
 def get(platform, args):
     nodes = platform.list_nodes()
     if args.host[0] not in nodes.keys():
         raise Exception('unmanaged node.')
-    roles = nodes[args.host[0]]
-    print >> sys.stdout, "host=%s" % (args.host[0])
-    print >> sys.stdout, "roles=%s" % (','.join(__roles_to_strings(roles)))
+    # puts(nodes)
+    puts({"hostname":args.host[0], "roles":__roles_to_strings(nodes[args.host[0]])})
 
 #
 # status related functions
 #
-def __service_status_string(service_status):
-    return "running" if service_status else "not running"
-
-
 def __print_host_statuses(host, statuses):
     if statuses is not None and not statuses:
         return
@@ -79,9 +77,10 @@ def __print_host_statuses(host, statuses):
 
 def status(platform, args):
     statuses = platform.get_statuses(args.nodes, __args_to_roles(args))
-    print >> sys.stdout, ":node:node status:roles:role statuses"
-    for h, s in statuses.items():
-        __print_host_statuses(h, s)
+    puts(statuses)
+    # print >> sys.stdout, ":node:node status:roles:role statuses"
+    # for h, s in statuses.items():
+    #    __print_host_statuses(h, s)
 
 
 def start(platform, args):

@@ -26,7 +26,9 @@ EXPORTD_HOSTNAME = "exportd_hostname"
 # PROTOCOLS_VALUES = ["nfs"]
 
 LAYOUT = "layout"
-PORTS = "ports"
+LISTEN = "listen"
+LISTEN_ADDR = "addr"
+LISTEN_PORT = "port"
 STORAGES = "storages"
 STORAGE_CID = "cid"
 STORAGE_SID = "sid"

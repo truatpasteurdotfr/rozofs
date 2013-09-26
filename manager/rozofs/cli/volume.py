@@ -5,12 +5,40 @@ from rozofs.core.agent import ServiceStatus
 
 
 def list(platform, args):
-    nodes = platform.list_nodes(__args_to_roles(args))
-    print >> sys.stdout, ":%s:%s" % ("node", "roles")
-    for h, r in nodes.items():
-        print >> sys.stdout, ":%s:%s" % (h, ','.join(__roles_to_strings(r)))
+    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
+    if configurations[args.exportd] is None:
+        raise Exception("exportd node is off line.")
+
+    configuration = configurations[args.exportd][Role.EXPORTD]
+    print >> sys.stdout, ":vid:bsize:bfree:blocks"
+    for vid in configuration.volumes.keys():
+        vstat = configuration.stats.vstats[vid]
+        print >> sys.stdout, ":%d:%d:%d:%d" % (vid, vstat.bsize, vstat.bfree, vstat.blocks)
 
 
+def get(platform, args):
+    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
+    if configurations[args.exportd] is None:
+        raise Exception("exportd node is off line.")
+
+    configuration = configurations[args.exportd][Role.EXPORTD]
+    vconfig = configuration.volumes[args.vid[0]]
+    vstat = configuration.stats.vstats[args.vid[0]]
+    print >> sys.stdout, "vid=%d" % args.vid[0]
+    print >> sys.stdout, "bsize=%d" % vstat.bsize
+    print >> sys.stdout, "bfree=%d" % vstat.bfree
+    print >> sys.stdout, "blocks=%d" % vstat.blocks
+    for cid, cconfig in vconfig.clusters.items():
+        cstat = vstat.cstats[cid]
+        print >> sys.stdout, "cluster cid=%d" % cid
+        print >> sys.stdout, "cluster size=%d" % cstat.size
+        print >> sys.stdout, "cluster free=%d" % cstat.free
+        for sid, sconfig in cconfig.storages.items():
+            sstat = cstat.sstats[sid]
+            print >> sys.stdout, "storage sid=%d" % sid
+            print >> sys.stdout, "storage host=%s" % sstat.host
+            print >> sys.stdout, "storage size=%d" % sstat.size
+            print >> sys.stdout, "storage free=%d" % sstat.free
 
 #
 # configuration related functions

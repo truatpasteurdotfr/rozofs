@@ -5,6 +5,7 @@ from rozofs.core.libconfig import config_t, config_read_file, \
     config_write_file, CONFIG_TRUE
 import time
 import shutil
+import syslog
 
 class ConfigurationParser():
 
@@ -27,7 +28,6 @@ class ConfigurationReader(object):
             error_text = c.error_text
             config_destroy(c)
             raise Exception(error_text)
-
         try:
             self._parser.unparse(c, configuration)
         finally:

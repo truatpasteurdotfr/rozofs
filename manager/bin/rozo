@@ -153,6 +153,8 @@ USAGE
 
             if parsed.action == 'list':
                 pass
+            if parsed.action == 'get':
+                parser.add_argument('vid', nargs=1, type=int, help='vid to get.')
             if parsed.action == 'create':
                 parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
             if parsed.action == 'expand':
@@ -160,8 +162,8 @@ USAGE
                 parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
             if parsed.action == 'remove':
                 parser.add_argument('vids', nargs='+', type=int, help='vid(s) of existing volume.')
-            if parsed.action == 'stat':
-                parser.add_argument('-v', '--vids', nargs='+', type=int, help='volume(s) to stat. If not set all volumes will be displayed')
+#            if parsed.action == 'stat':
+#                parser.add_argument('-v', '--vids', nargs='+', type=int, help='volume(s) to stat. If not set all volumes will be displayed')
 
         if parsed.topic == "export":
             parser.add_argument('action', choices=['list', 'create', 'update', 'remove', 'stat', 'mount', 'umount'])
