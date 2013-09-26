@@ -421,7 +421,10 @@ def stat(platform, args):
                     estat.files, estat.ffree)
 
 def expand(platform, args):
-    platform.add_nodes(args.hosts, args.vid[0])
+    if args.vid:
+        platform.add_nodes(args.hosts, args.vid[0])
+    else:
+        platform.add_nodes(args.hosts, args.vid)
 
 def shrink(platform, args):
     for vid in args.vids:
