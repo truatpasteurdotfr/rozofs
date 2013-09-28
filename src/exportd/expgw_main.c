@@ -90,6 +90,12 @@ typedef struct expgw_conf {
 					gprofiler.probe[P_ELAPSE],\
                     gprofiler.probe[P_BYTES]);
 
+static char * show_profiler_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     char *pChar = uma_dbg_get_buffer();

@@ -54,23 +54,27 @@ uint64_t storio_bufcache_max_buftimestamp;       /**< max configured number of 2
   @retval none
 */
 #define SHOW_STAT_GCACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
-
+static char * storio_bufcache_show_cache_stats_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"data_cache flush       : flush the data cache\n");
+  pChar += sprintf(pChar,"data_cache             : display statistics\n");  
+  return pChar; 
+}
 void storio_bufcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
    char *pChar = uma_dbg_get_buffer();
-   int reset = 0;
    storio_bufcache_stats_t *stat_p = &storio_bufcache_stats;
 
    if (argv[1] != NULL)
    {
-     if (strcmp(argv[1],"flush")==0) reset = 1;
-   }
-   if (reset)
-   {
-     storio_bufcache_flush();
-     uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
-     return;
-
+     if (strcmp(argv[1],"flush")==0)  {
+       storio_bufcache_flush();
+       uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
+       return;
+     }
+      pChar = storio_bufcache_show_cache_stats_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;     
    }
  
    pChar += sprintf(pChar,"%s:\n","Data Cache");

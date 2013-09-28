@@ -96,6 +96,12 @@ DECLARE_PROFILING(epp_profiler_t);
    RESET_PROFILER_PROBE(probe);\
    gprofiler.probe[P_BYTES] = 0; \
 }
+static char * show_profiler_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
 
@@ -194,6 +200,9 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
         uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
 	return;
       }
+      pChar = show_profiler_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;      
     }  
 
 

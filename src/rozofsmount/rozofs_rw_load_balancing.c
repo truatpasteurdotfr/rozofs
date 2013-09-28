@@ -108,11 +108,17 @@ int stclbg_get_storcli_number (void) {
  **____________________________________________________
  */
 
-#define TRAFFIC_SHAPER_COUNTER(name) pchar += sprintf(pchar," %-20s : %llu\n",#name,(long long unsigned int)p->stats.name);
-
+#define TRAFFIC_SHAPER_COUNTER(name) pChar += sprintf(pChar," %-20s : %llu\n",#name,(long long unsigned int)p->stats.name);
+static char * show_stclbg_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"stclbg set <value> : set new STORCLI number value\n");
+  pChar += sprintf(pChar,"stclbg reset       : reset statistics\n");
+  pChar += sprintf(pChar,"stclbg             : display statistics\n");  
+  return pChar; 
+}
 void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = uma_dbg_get_buffer();
+    char *pChar = uma_dbg_get_buffer();
     int storcli_count = 0;
     int i;
     
@@ -129,22 +135,29 @@ void show_stclbg(char * argv[], uint32_t tcpRef, void *bufRef)
         errno = 0;       
         storcli_count = (int) strtol(argv[2], (char **) NULL, 10);   
         if (errno != 0) {
-         uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (%s set <value>) %s\n",argv[0],strerror(errno));    
-         return;     
+          pChar += sprintf(pChar, "bad value %s\n",argv[2]);
+	  pChar = show_stclbg_help(pChar);
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	  return;   
         } 
 	if (stclbg_update_storcli_number(storcli_count) < 0) {
-         uma_dbg_send(tcpRef, bufRef, TRUE, "bad storcli count (range is [1..%d])\n",STORCLI_PER_FSMOUNT);    
-         return;
+          pChar += sprintf(pChar, "bad value (range is [1..%d])\n",STORCLI_PER_FSMOUNT);    
+	  pChar = show_stclbg_help(pChar);
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	  return;   
         } 
         memset(stclbg_storcli_stats,0,sizeof(stclbg_storcli_stats));  
         uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n"); 
         return;   
-      }      
+      } 
+      pChar = show_stclbg_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;           
     }
-   pchar += sprintf(pchar,"number of configured storcli: %d\n",  stclbg_storcli_count);
+   pChar += sprintf(pChar,"number of configured storcli: %d\n",  stclbg_storcli_count);
    for (i = 0; i < STORCLI_PER_FSMOUNT; i++)
-   pchar += sprintf(pchar,"storcli %d: %llu\n",i, (long long unsigned int) stclbg_storcli_stats[i]);
-   pchar += sprintf(pchar,"hit/miss/insert %llu/%llu/%llu\n",
+   pChar += sprintf(pChar,"storcli %d: %llu\n",i, (long long unsigned int) stclbg_storcli_stats[i]);
+   pChar += sprintf(pChar,"hit/miss/insert %llu/%llu/%llu\n",
      (long long unsigned int) stclbg_hash_lookup_hit_count,
      (long long unsigned int) stclbg_hash_lookup_miss_count,
      (long long unsigned int) stclbg_hash_lookup_insert_count);

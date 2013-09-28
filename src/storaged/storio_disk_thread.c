@@ -429,7 +429,7 @@ void *storio_disk_thread(void *arg) {
   rozofs_disk_thread_ctx_t * ctx_p = (rozofs_disk_thread_ctx_t*)arg;
   int                        bytesRcvd;
 
-  info("Disk Thread %d Started !!\n",ctx_p->thread_idx);
+  //info("Disk Thread %d Started !!\n",ctx_p->thread_idx);
   
   while(1) {
   

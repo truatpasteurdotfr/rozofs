@@ -424,16 +424,39 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
 }  
 /*__________________________________________________________________________
 */  
+static char * show_rotate_modulo_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"rotateModulo set <value> : set new rotate modulo value\n");
+  pChar += sprintf(pChar,"rotateModulo             : display rotate modulo value\n");  
+  return pChar; 
+}
 void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  int   new_val;
    
    if (argv[1] !=NULL)
    {
-     rozofs_rotation_read_modulo = (int) strtol(argv[1], (char **) NULL, 10);        
-    uma_dbg_send(tcpRef, bufRef, TRUE, "New rotate modulo set to %d\n",rozofs_rotation_read_modulo);    
-    return;     
+    if (strcmp(argv[1],"set")==0) {
+      errno = 0;       
+      new_val = (int) strtol(argv[2], (char **) NULL, 10);   
+      if (errno != 0) {
+        pChar += sprintf(pChar, "bad value %s\n",argv[2]);
+	pChar = show_rotate_modulo_help(pChar);
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;     
+      } 
+      rozofs_rotation_read_modulo = new_val;        
+      uma_dbg_send(tcpRef, bufRef, TRUE, "New rotate modulo set to %d\n",rozofs_rotation_read_modulo);    
+      return;     
    }
-
-   uma_dbg_send(tcpRef, bufRef, TRUE, "rotation modulo is %d\n",rozofs_rotation_read_modulo);    
+    /*
+    ** Help
+    */
+    pChar = show_rotate_modulo_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;   
+  }
+  uma_dbg_send(tcpRef, bufRef, TRUE, "rotation modulo is %d\n",rozofs_rotation_read_modulo);    
   return;     
 }   
 /*__________________________________________________________________________
@@ -442,7 +465,14 @@ void reset_lock_stat(void);
 char * display_lock_stat(char * p);
 /*__________________________________________________________________________
 */
+static char * show_flock_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"flock reset       : reset statistics\n");
+  pChar += sprintf(pChar,"flock             : display statistics\n");  
+  return pChar; 
+}
 void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
        
   if (argv[1] != NULL) {
 
@@ -452,8 +482,9 @@ void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
       return;
     }
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, "Unexpected command %s\n",argv[1]);    
-    return;     
+    pChar = show_flock_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
   }
   display_lock_stat(uma_dbg_get_buffer());
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());      
@@ -485,7 +516,12 @@ void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
    RESET_PROFILER_PROBE(probe);\
    gprofiler.rozofs_ll_##probe[P_BYTES] = 0; \
 }
-
+static char * show_profiler_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
 
@@ -495,46 +531,49 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     
     if (argv[1] != NULL)
     {
-      if (strcmp(argv[1],"reset")==0) reset = 1;
-    }
-    if (reset)
-    {
-      RESET_PROFILER_PROBE(lookup);
-      RESET_PROFILER_PROBE(forget);
-      RESET_PROFILER_PROBE(getattr);
-      RESET_PROFILER_PROBE(setattr);
-      RESET_PROFILER_PROBE(readlink);
-      RESET_PROFILER_PROBE(mknod);
-      RESET_PROFILER_PROBE(mkdir);
-      RESET_PROFILER_PROBE(unlink);
-      RESET_PROFILER_PROBE(rmdir);
-      RESET_PROFILER_PROBE(symlink);
-      RESET_PROFILER_PROBE(rename);
-      RESET_PROFILER_PROBE(open);
-      RESET_PROFILER_PROBE(link);
-      RESET_PROFILER_PROBE_BYTE(read);
-      RESET_PROFILER_PROBE_BYTE(write);
-      RESET_PROFILER_PROBE(flush);
-      RESET_PROFILER_PROBE(release);
-      RESET_PROFILER_PROBE(opendir);
-      RESET_PROFILER_PROBE(readdir);
-      RESET_PROFILER_PROBE(releasedir);
-      RESET_PROFILER_PROBE(fsyncdir);
-      RESET_PROFILER_PROBE(statfs);
-      RESET_PROFILER_PROBE(setxattr);
-      RESET_PROFILER_PROBE(getxattr);
-      RESET_PROFILER_PROBE(listxattr);
-      RESET_PROFILER_PROBE(removexattr);
-      RESET_PROFILER_PROBE(access);
-      RESET_PROFILER_PROBE(create);
-      RESET_PROFILER_PROBE(getlk);
-      RESET_PROFILER_PROBE(setlk);
-      RESET_PROFILER_PROBE(setlk_int);
-      RESET_PROFILER_PROBE(clearlkowner);      
-      RESET_PROFILER_PROBE(ioctl);
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+      if (strcmp(argv[1],"reset")==0) {
+	RESET_PROFILER_PROBE(lookup);
+	RESET_PROFILER_PROBE(forget);
+	RESET_PROFILER_PROBE(getattr);
+	RESET_PROFILER_PROBE(setattr);
+	RESET_PROFILER_PROBE(readlink);
+	RESET_PROFILER_PROBE(mknod);
+	RESET_PROFILER_PROBE(mkdir);
+	RESET_PROFILER_PROBE(unlink);
+	RESET_PROFILER_PROBE(rmdir);
+	RESET_PROFILER_PROBE(symlink);
+	RESET_PROFILER_PROBE(rename);
+	RESET_PROFILER_PROBE(open);
+	RESET_PROFILER_PROBE(link);
+	RESET_PROFILER_PROBE_BYTE(read);
+	RESET_PROFILER_PROBE_BYTE(write);
+	RESET_PROFILER_PROBE(flush);
+	RESET_PROFILER_PROBE(release);
+	RESET_PROFILER_PROBE(opendir);
+	RESET_PROFILER_PROBE(readdir);
+	RESET_PROFILER_PROBE(releasedir);
+	RESET_PROFILER_PROBE(fsyncdir);
+	RESET_PROFILER_PROBE(statfs);
+	RESET_PROFILER_PROBE(setxattr);
+	RESET_PROFILER_PROBE(getxattr);
+	RESET_PROFILER_PROBE(listxattr);
+	RESET_PROFILER_PROBE(removexattr);
+	RESET_PROFILER_PROBE(access);
+	RESET_PROFILER_PROBE(create);
+	RESET_PROFILER_PROBE(getlk);
+	RESET_PROFILER_PROBE(setlk);
+	RESET_PROFILER_PROBE(setlk_int);
+	RESET_PROFILER_PROBE(clearlkowner);      
+	RESET_PROFILER_PROBE(ioctl);
+	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+	return;
+      }
+      /*
+      ** Help
+      */
+      pChar = show_profiler_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
       return;
-      
     }
 
     // Compute uptime for storaged process
@@ -586,55 +625,69 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 }
 /*__________________________________________________________________________
 */
+static char * rozofs_set_cache_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"cache_set {0|1|2}\n");
+  pChar += sprintf(pChar,"   0: no option on open/create\n");
+  pChar += sprintf(pChar,"   1: direct_io\n");
+  pChar += sprintf(pChar,"   2: keep_cache\n");
+  return pChar; 
+}
 void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-
+   char *pChar = uma_dbg_get_buffer();
    int cache_mode;
    
    if (argv[1] ==NULL)
    {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "missing parameter (%s cache_set <value>)\n",argv[0]);    
-    return;     
+    pChar = rozofs_set_cache_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
    }
    errno = 0;
    cache_mode = (int) strtol(argv[1], (char **) NULL, 10);   
    if (errno != 0) {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "bad cache value (%s cache_set <value>) %s\n",argv[0],strerror(errno));    
-    return;     
-   }
+      pChar += sprintf(pChar, "bad value %s\n",argv[1]);
+      pChar = rozofs_set_cache_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;     
+   } 
    if (cache_mode > 2)
    {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "invalid cache mode (max %d)\n",(2));    
-    return;           
-   }
+      pChar += sprintf(pChar, "bad value %s\n",argv[1]);
+      pChar = rozofs_set_cache_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;     
+   } 
    rozofs_cache_mode = cache_mode;
    uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
 }
 
 /*__________________________________________________________________________
 */
+static char * rozofs_set_fsmode_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"fs_mode set {fs|block}   : set FS mode\n");
+  return pChar; 
+}
 void rozofs_set_fsmode(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-
-   int fs_mode;
+  char * pChar = uma_dbg_get_buffer();
    
    if (argv[1] ==NULL)
    {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "missing parameter (%s fsmode_set <value>)\n",argv[0]);    
-    return;     
+    pChar = rozofs_set_fsmode_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
    }
-   errno = 0;
-   fs_mode = (int) strtol(argv[1], (char **) NULL, 10);   
-   if (errno != 0) {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "bad fs_mode value (%s fsmode_set <value>) %s\n",argv[0],strerror(errno));    
-    return;     
+   if      (strcmp(argv[1],"fs")==0)    rozofs_mode = 0;
+   else if (strcmp(argv[1],"block")==0) rozofs_mode = 1;
+   else {
+      pChar += sprintf(pChar, "bad value %s\n",argv[1]);
+      pChar = rozofs_set_fsmode_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;       
    }
-   if (fs_mode > 1)
-   {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "invalid fs mode (max %d)\n",(2));    
-    return;           
-   }
-   rozofs_mode = fs_mode;
    uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
 }
 /*__________________________________________________________________________
@@ -662,71 +715,61 @@ void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 /*__________________________________________________________________________
 */
-
+static char * show_blockmode_cache_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"blockmode_cache reset       : reset statistics\n");
+  pChar += sprintf(pChar,"blockmode_cache flush       : flush block mode cache\n");  
+  pChar += sprintf(pChar,"blockmode_cache enable      : enable block mode cache\n");  
+  pChar += sprintf(pChar,"blockmode_cache disable     : disable block mode cache\n");  
+  pChar += sprintf(pChar,"blockmode_cache             : display statistics\n");  
+  return pChar; 
+}  
 void show_blockmode_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 
     char *pChar = uma_dbg_get_buffer();
-    int reset = 0;
-    int flush = 0;
-    int enable = 0;
-    int disable = 0;
     
     if (argv[1] != NULL)
     {
-      while(1)
-      {
-        if (strcmp(argv[1],"reset")==0) {reset = 1; break;}
-        if (strcmp(argv[1],"flush")==0) {flush = 1; break;}
-        if (strcmp(argv[1],"enable")==0) {enable = 1; break;}
-        if (strcmp(argv[1],"disable")==0) {disable = 1; break;}
-        break;
-      }   
-    }
-    if (flush)
-    {
-      rozofs_gcache_flush();
-      rozofs_mbcache_stats_clear();
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
-      return;
-      
-    }
-    if (reset)
-    {
-      rozofs_mbcache_stats_clear();
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
-      return;
-      
-    }
-    if (enable)
-    {
-      if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_ENABLE)
-      {
-        rozofs_mbcache_enable();
-        rozofs_mbcache_stats_clear();
-        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now enabled\n");    
-      }
-      else
-      {
-        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already enabled\n");    
-      }
-      return;
-      
-    }    
-    if (disable)
-    {
-      if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_DISABLE)
-      {
-        rozofs_mbcache_stats_clear();
-        rozofs_mbcache_disable();
-        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now disabled\n");    
-      }
-      else
-      {
-        uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already disabled\n");    
-      }
-      return;
-      
+        if (strcmp(argv[1],"reset")==0) {
+	  rozofs_mbcache_stats_clear();
+	  uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+	  return;
+	}
+        if (strcmp(argv[1],"flush")==0) {
+	  rozofs_gcache_flush();
+	  rozofs_mbcache_stats_clear();
+	  uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
+	  return;
+        }
+        if (strcmp(argv[1],"enable")==0) {
+	  if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_ENABLE)
+	  {
+            rozofs_mbcache_enable();
+            rozofs_mbcache_stats_clear();
+            uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now enabled\n");    
+	  }
+	  else
+	  {
+            uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already enabled\n");    
+	  }
+	}  
+        if (strcmp(argv[1],"disable")==0) {
+	  if (rozofs_mbcache_enable_flag != ROZOFS_MBCACHE_DISABLE)
+	  {
+            rozofs_mbcache_stats_clear();
+            rozofs_mbcache_disable();
+            uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is now disabled\n");    
+	  }
+	  else
+	  {
+            uma_dbg_send(tcpRef, bufRef, TRUE, "Mode Block cache is already disabled\n");    
+	  }
+	  return;
+        }
+	pChar = show_blockmode_cache_help(pChar);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	return;   	
     } 
     pChar +=sprintf(pChar,"cache state : %s\n", (rozofs_mbcache_enable_flag== ROZOFS_MBCACHE_ENABLE)?"Enabled":"Disabled"); 
     

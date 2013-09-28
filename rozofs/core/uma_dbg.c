@@ -179,12 +179,19 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
 /**
 *  Display the system name if any has been set thanks to uma_dbg_set_name()
 */
+static char * uma_dbg_system_cmd_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"system <command line> .... \n");
+  pChar += sprintf(pChar,"   runs command line debug target linux\n");  
+  return pChar; 
+}
 void uma_dbg_system_cmd(char * argv[], uint32_t tcpRef, void *bufRef) {
   char * cmd;
   int    len;
 
   if(argv[1] == NULL) {
-    uma_dbg_send(tcpRef, bufRef, TRUE, "No command\n");
+    uma_dbg_system_cmd_help( uma_dbg_get_buffer());
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
     return;
   }
   

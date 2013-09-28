@@ -83,6 +83,12 @@ static inline void reset_detailed_counters(void) {
 * Update detailed time counters for wrtite operation
 * @param delay delay in us of the write operation
 */
+static char * display_detailed_counters_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"detailedTiming reset       : reset statistics\n");
+  pChar += sprintf(pChar,"detailedTiming             : display statistics\n");  
+  return pChar; 
+}
 void display_detailed_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
   char          * p = uma_dbg_get_buffer();
   int             i;
@@ -95,6 +101,9 @@ void display_detailed_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
       uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
       return;
     }
+    p = display_detailed_counters_help(p);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;    
   }  
   
   start_read = start_write = 0;

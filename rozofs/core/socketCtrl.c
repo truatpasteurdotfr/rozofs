@@ -102,7 +102,7 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   pChar += sprintf(pChar,"select max cpu time : %u us\n",ruc_sockCtrl_looptimeMax);
   ruc_sockCtrl_looptimeMax = 0;   
   pChar += sprintf(pChar,"%-32s %4s %10s %10s %10s %10s\n","application","sock", "last","cumulated", "activation", "average");
-  pChar += sprintf(pChar,"%-32s %4s %10s %10s %10s %10s\n\n","name","nb", "cpu","cpu","times","cpu");
+  pChar += sprintf(pChar,"%-32s %4s %10s %10s %10s %10s  prio\n\n","name","nb", "cpu","cpu","times","cpu");
   
   for (i = 0; i < ruc_sockCtrl_maxConnection; i++)
   {
@@ -110,7 +110,7 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
     {
       if (p->nbTimes == 0) average = 0;
       else                 average = p->cumulatedTime/p->nbTimes;
-      pChar += sprintf(pChar, "%-32s %4d %10u %10u %10u %10u\n", &p->name[0],p->socketId, p->lastTime, p->cumulatedTime,p->nbTimes, average);
+      pChar += sprintf(pChar, "%-32s %4d %10u %10u %10u %10u %4u\n", &p->name[0],p->socketId, p->lastTime, p->cumulatedTime,p->nbTimes, average,p->priority);
       p->cumulatedTime = 0;
       p->nbTimes = 0;
     }

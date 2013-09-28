@@ -93,7 +93,12 @@ void * af_unix_disk_pool_recv = NULL;
 #define display_line_div_and_sum(title,val1,val2) \
   display_line_div(title,val1,val2);\
   display_div(sum1,sum2)
-  
+static char * disk_thread_debug_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"diskThreads reset       : reset statistics\n");
+  pChar += sprintf(pChar,"diskThreads             : display statistics\n");  
+  return pChar; 
+}  
 void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   char           *pChar=uma_dbg_get_buffer();
   int i;
@@ -108,6 +113,9 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
       return;
     }
+    pChar = disk_thread_debug_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+    return;      
   }
   
   new_line("Thread number");

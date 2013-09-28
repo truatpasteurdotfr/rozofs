@@ -172,6 +172,12 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
                     kpi_buf.bytes_count = 0; \
 }
 
+static char * show_profiler_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     time_t elapse;
@@ -180,27 +186,30 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     
     if (argv[1] != NULL)
     {
-      if (strcmp(argv[1],"reset")==0) reset = 1;
-    }
-    if (reset)
-    {
-      RESET_PROFILER_PROBE_BYTE(read);
-      RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
-      RESET_PROFILER_PROBE_BYTE(read_prj);
-      RESET_PROFILER_PROBE(read_prj_err);
-      RESET_PROFILER_PROBE(read_prj_tmo);
-      RESET_PROFILER_PROBE_BYTE(write)
-      RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
-      RESET_PROFILER_PROBE_BYTE(write_prj);
-      RESET_PROFILER_PROBE(write_prj_tmo);
-      RESET_PROFILER_PROBE(write_prj_err);    
-      RESET_PROFILER_PROBE(truncate);
-      RESET_PROFILER_PROBE_BYTE(truncate_prj);
-      RESET_PROFILER_PROBE(truncate_prj_tmo);
-      RESET_PROFILER_PROBE(truncate_prj_err);  
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
-      return;
-      
+      if (strcmp(argv[1],"reset")==0) {
+	RESET_PROFILER_PROBE_BYTE(read);
+	RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
+	RESET_PROFILER_PROBE_BYTE(read_prj);
+	RESET_PROFILER_PROBE(read_prj_err);
+	RESET_PROFILER_PROBE(read_prj_tmo);
+	RESET_PROFILER_PROBE_BYTE(write)
+	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
+	RESET_PROFILER_PROBE_BYTE(write_prj);
+	RESET_PROFILER_PROBE(write_prj_tmo);
+	RESET_PROFILER_PROBE(write_prj_err);    
+	RESET_PROFILER_PROBE(truncate);
+	RESET_PROFILER_PROBE_BYTE(truncate_prj);
+	RESET_PROFILER_PROBE(truncate_prj_tmo);
+	RESET_PROFILER_PROBE(truncate_prj_err);  
+	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+	return;
+      }
+      /*
+      ** Help
+      */
+      pChar = show_profiler_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;      
     }
 
     // Compute uptime for storaged process

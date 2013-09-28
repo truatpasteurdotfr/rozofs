@@ -121,7 +121,12 @@ DECLARE_PROFILING(spp_profiler_t);
        the_profiler.the_probe[P_ELAPSE] = 0;\
        the_profiler.the_probe[P_BYTES] = 0;\
     }
-
+static char * show_profile_storaged_io_display_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     char *pChar = uma_dbg_get_buffer();
@@ -138,6 +143,9 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
 	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
 	return;      
       }
+      pChar = show_profile_storaged_io_display_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+      return;          
     }
 
     // Compute uptime for storaged process

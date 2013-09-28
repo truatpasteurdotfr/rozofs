@@ -124,6 +124,13 @@ static inline ruc_buf_t * ruc_buffer_debug_get_pool_from_name(char * name) {
 **__________________________________________________________
 * Format debug information about a buffer pool
 */
+static char * show_ruc_buffer_debug_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"buffer                      : display list of buffer pools\n");
+  pChar += sprintf(pChar,"buffer <PoolName>           : display buffer list of a buffer pool\n");
+  pChar += sprintf(pChar,"buffer <PoolName> <buffIdx> : display buffer content of a buffer pool\n");
+  return pChar; 
+}
 void show_ruc_buffer_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   ruc_buf_t   * poolRef; 
   char        * pChar = uma_dbg_get_buffer();
@@ -139,7 +146,9 @@ void show_ruc_buffer_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   
     poolRef = ruc_buffer_debug_get_pool_from_name(argv[1]); 
     if (poolRef == NULL) {
-      uma_dbg_send(tcpRef, bufRef, TRUE, "No such pool name \"%s\"\n",argv[1]);
+      pChar += sprintf(pChar, "No such buffer pool name \"%s\"\n",argv[1]);
+      pChar = show_ruc_buffer_debug_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
       return;    
     }     
  
@@ -147,12 +156,16 @@ void show_ruc_buffer_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       errno = 0;
       int buffIdx = (int) strtol(argv[2], (char **) NULL, 10);   
       if (errno != 0) {
-        uma_dbg_send(tcpRef, bufRef, TRUE, "bad buffer index \"%s\" %s\n",argv[2],strerror(errno));    
-        return;     
+	pChar += sprintf(pChar, "bad buffer index \"%s\" \n",argv[2]); 
+	pChar = show_ruc_buffer_debug_help(pChar);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
+	return;   
       }  
       if ((buffIdx<0) || (buffIdx >= poolRef->bufCount)) {
-        uma_dbg_send(tcpRef, bufRef, TRUE, "buffer index out of range (%d). Should be within [0..%d[\n",buffIdx,poolRef->bufCount);    
-        return;     
+	pChar += sprintf(pChar, "buffer index out of range (%d). Should be within [0..%d[\n",buffIdx,poolRef->bufCount);  
+	pChar = show_ruc_buffer_debug_help(pChar);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
+	return;          
       }  
       pChar = ruc_buf_poolDisplay(poolRef,argv[1], pChar);
       pChar = ruc_buf_bufferContentDisplay(poolRef,buffIdx,pChar);

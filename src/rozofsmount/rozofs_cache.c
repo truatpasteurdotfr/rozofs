@@ -54,23 +54,30 @@ uint64_t rozofs_gcache_max_buf256K;       /**< max configured number of 256K buf
   @retval none
 */
 #define SHOW_STAT_GCACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
-
+static char * rozofs_gcache_show_cache_stats_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"data_cache flush       : flush data cache\n");  
+  pChar += sprintf(pChar,"data_cache             : display statistics\n");  
+  return pChar; 
+}
 void rozofs_gcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
    char *pChar = uma_dbg_get_buffer();
-   int reset = 0;
    rozofs_gcache_stats_t *stat_p = &rozofs_gcache_stats;
 
    if (argv[1] != NULL)
    {
-     if (strcmp(argv[1],"flush")==0) reset = 1;
-   }
-   if (reset)
-   {
-     rozofs_gcache_flush();
-     uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
-     return;
-
+     if (strcmp(argv[1],"flush")==0) {
+       rozofs_gcache_flush();
+       uma_dbg_send(tcpRef, bufRef, TRUE, "Flush Done\n");    
+       return;
+     }
+      /*
+      ** Help
+      */
+      pChar = rozofs_gcache_show_cache_stats_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;
    }
  
    pChar += sprintf(pChar,"%s:\n","Data Cache");

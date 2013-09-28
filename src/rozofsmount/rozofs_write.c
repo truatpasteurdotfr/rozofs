@@ -109,8 +109,8 @@ static inline int reset_write_flush_stat(void) {
 */
 static char * display_write_flush_stat_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"write_flush reset       : reset statistics\n");
   pChar += sprintf(pChar,"write_flush set <value> : set new write pending maximum value\n");
+  pChar += sprintf(pChar,"write_flush reset       : reset statistics\n");
   pChar += sprintf(pChar,"write_flush             : display statistics\n");  
   return pChar; 
 }
@@ -129,7 +129,7 @@ static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRe
       errno = 0;       
       new_val = (int) strtol(argv[2], (char **) NULL, 10);   
       if (errno != 0) {
-        pChar += sprintf(pChar, "bad value %s\n",argv[0]);
+        pChar += sprintf(pChar, "bad value %s\n",argv[2]);
 	pChar = display_write_flush_stat_help(pChar);
         uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
 	return;     
