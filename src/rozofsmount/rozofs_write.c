@@ -98,7 +98,7 @@ static WRITE_FLUSH_STAT_T write_flush_stat;
 /**
    Reset write synch stats
 */
-static inline int reset_write_flush_stat(void) {
+static inline void reset_write_flush_stat(void) {
   memset(&write_flush_stat,0,sizeof(write_flush_stat));
 }
 /*
