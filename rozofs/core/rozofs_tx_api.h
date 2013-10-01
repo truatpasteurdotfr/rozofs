@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "rozofs_tx_common.h"
-#include "ppu_trace.h"
 #include "ruc_buffer_api.h"
 /**
 * transaction statistics

@@ -618,7 +618,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance) {
    ret = ruc_sockctl_init(256);
    if (ret != RUC_OK)
    {
-     ERRFAT " socket controller init failed" ENDERRFAT
+     fatal( " socket controller init failed" );
    }
 
    /*

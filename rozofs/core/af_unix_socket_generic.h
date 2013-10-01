@@ -34,10 +34,10 @@
 #include <unistd.h>
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "uma_tcp.h"
 #include "ruc_common.h"
-#include "ppu_trace.h"
 
 
 /**
@@ -783,7 +783,7 @@ static inline uint32_t com_sock_extract_length_from_header_host_format(char *pbu
 
 	 return (uint32_t)word32; /*(uint32)(ntohl(word32));*/
      default:
-	ERRLOG "Bad size of header field length %d\n", fieldLen ENDERRLOG
+	severe( "Bad size of header field length %d\n", fieldLen );
 	return 0;
    }
    return 0;

@@ -31,6 +31,7 @@
 #include <string.h>
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -201,7 +202,7 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
       /*
       **  error on socket binding
       */
-      ERRLOG "fail to bind socket with IP %x and TCP %x, errno = %u",sock_p->src_ipaddr_host,sock_p->src_ipaddr_host,errno ENDERRLOG
+      severe( "fail to bind socket with IP %x and TCP %x, errno = %u",sock_p->src_ipaddr_host,sock_p->src_ipaddr_host,errno );
       close(fd);
       return ((uint32_t)-1);
     }
@@ -325,11 +326,11 @@ int af_inet_sock_stream_listen_create_internal(uint32_t ipAddr,uint16_t tcpPort)
     /*
     ** unable to create the socket
     */
-    ERRLOG "af_inet_sock_stream_listen_create socket error %u.%u.%u.%u:%u . Errno %d - %s",
+    severe( "af_inet_sock_stream_listen_create socket error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
-    ENDERRLOG;
+    );;
     return -1;
   }
 
@@ -337,11 +338,11 @@ int af_inet_sock_stream_listen_create_internal(uint32_t ipAddr,uint16_t tcpPort)
   sock_opt = 1;
   if (setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, (void *)&sock_opt,sizeof (sock_opt)) == -1)
   {
-     ERRLOG "af_inet_sock_stream_listen_create setsockopt error %u.%u.%u.%u:%u . Errno %d - %s",
+     severe( "af_inet_sock_stream_listen_create setsockopt error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
-     ENDERRLOG;
+     );
   }
 
 
@@ -359,11 +360,11 @@ int af_inet_sock_stream_listen_create_internal(uint32_t ipAddr,uint16_t tcpPort)
     /*
     **  error on socket binding
     */
-    ERRLOG "af_inet_sock_stream_listen_create BIND error %u.%u.%u.%u:%u . Errno %d - %s",
+    severe( "af_inet_sock_stream_listen_create BIND error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
-    ENDERRLOG;
+    );;
     close(socketId);
     return -1;
   }
@@ -496,7 +497,7 @@ int af_inet_sock_listening_create(char *nickname,
    */
    if((listen(sock_p->socketRef,5))==-1)
    {
-     ERRLOG " ruc_tcp_server_connect: listen fails for %s ,",sock_p->nickname ENDERRLOG
+     severe( " ruc_tcp_server_connect: listen fails for %s ,",sock_p->nickname );
      break;
    }
 

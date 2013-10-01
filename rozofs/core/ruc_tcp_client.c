@@ -33,7 +33,7 @@
 #include <string.h>
 
 #include <rozofs/common/types.h>
-
+#include <rozofs/common/log.h>
 #include "ruc_common.h"
 #include "ruc_list.h"
 #include "ruc_sockCtl_api.h"
@@ -136,7 +136,7 @@ uint32_t  ruc_tcp_client_rcvReadyCBK(void *opaque,int socketId)
    pObj = ruc_tcp_clientgetObjRef((uint32_t)tcpClientCnxRef);
    if (pObj == (ruc_tcp_client_t*)NULL)
    {
-      ERRLOG " ruc_tcp_client_rcvReadyCBK: bad TCP client reference :%d ",(int)tcpClientCnxRef ENDERRLOG
+      severe( " ruc_tcp_client_rcvReadyCBK: bad TCP client reference :%d ",(int)tcpClientCnxRef );
       return FALSE;
    }
    if (pObj->userRcvReadyCallBack != (ruc_pf_sock_t)NULL)
@@ -173,7 +173,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
    pObj = ruc_tcp_clientgetObjRef((uint32_t)tcpClientCnxRef);
    if (pObj == (ruc_tcp_client_t*)NULL)
    {
-      ERRLOG " ruc_tcp_client_connectReply_CBK: bad TCP client reference :%d ",(int)tcpClientCnxRef ENDERRLOG
+      severe( " ruc_tcp_client_connectReply_CBK: bad TCP client reference :%d ",(int)tcpClientCnxRef );
       return RUC_NOK;
    }
 
@@ -183,7 +183,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
     if (getsockopt (socketId,SOL_SOCKET,
                     SO_ERROR,&error,(socklen_t*)&len) == -1)
     {
-      ERRLOG " ruc_tcp_client_connectReply_CBK: getsockopt error for context %d errno:%d ",(int)tcpClientCnxRef,errno ENDERRLOG
+      severe( " ruc_tcp_client_connectReply_CBK: getsockopt error for context %d errno:%d ",(int)tcpClientCnxRef,errno );
       if (pObj->tcpCnxClient !=  NULL)
       {
 	 ruc_sockctl_disconnect(pObj->tcpCnxClient);
@@ -197,14 +197,14 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
     }
     if (error == 0)
     {
-
+#if 0
       INFO_PRINT "Client %u.%u.%u.%u:%u connected to %u.%u.%u.%u:%u",
 	pObj->srcIP>>24, (pObj->srcIP>>16)&0xFF, (pObj->srcIP>>8)&0xFF,pObj->srcIP&0xFF,
 	pObj->srcTcp,
 	pObj->IpAddr>>24, (pObj->IpAddr>>16)&0xFF, (pObj->IpAddr>>8)&0xFF,pObj->IpAddr&0xFF,
 	pObj->tcpDestPort
 	RUC_EINFO
-
+#endif
 	uma_tcp_monTxtCbk("TCP","Client %u.%u.%u.%u:%u connected to %u.%u.%u.%u:%u",
 			  pObj->srcIP>>24, (pObj->srcIP>>16)&0xFF, (pObj->srcIP>>8)&0xFF,pObj->srcIP&0xFF,
 			  pObj->srcTcp,
@@ -256,7 +256,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
             /*
 	    **  error on tcp connection creation
 	    */
-	    ERRLOG " ruc_tcp_client_connectReply_CBK: fail to create to create TCP connection %d",(int)tcpClientCnxRef ENDERRLOG
+	    severe( " ruc_tcp_client_connectReply_CBK: fail to create to create TCP connection %d",(int)tcpClientCnxRef );
 
             ret =  RUC_NOK;
 	    break;
@@ -278,7 +278,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
 	    pObj->tcpTimeOut = 0;
             pObj->tcpstate =UMA_TCP_IDLE;
             pObj->tcpSocketClient = -1;
-	    ERRLOG " ruc_tcp_client_connectReply_CBK: fail while tuning socket of context %d",(int)tcpClientCnxRef ENDERRLOG
+	    severe( " ruc_tcp_client_connectReply_CBK: fail while tuning socket of context %d",(int)tcpClientCnxRef );
 
 	    ret = RUC_NOK;
 	    break;
@@ -305,7 +305,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
 	 pObj->tcpTimeOut = 0;
 	 pObj->tcpstate =UMA_TCP_IDLE;
 	 pObj->tcpSocketClient = -1;
-	 ERRLOG " ruc_tcp_client_connectReply_CBK: fail to update TCP connection of context %d",(int)tcpClientCnxRef ENDERRLOG
+	 severe( " ruc_tcp_client_connectReply_CBK: fail to update TCP connection of context %d",(int)tcpClientCnxRef );
 	 ret =  RUC_NOK;
 	 break;
       }
@@ -318,6 +318,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
     /*
     ** there is an error
     */
+#if 0    
     INFO_PRINT "Client %u.%u.%u.%u:%u connection fail to %u.%u.%u.%u:%u - %s",
       pObj->srcIP>>24, (pObj->srcIP>>16)&0xFF, (pObj->srcIP>>8)&0xFF,pObj->srcIP&0xFF,
       pObj->srcTcp,
@@ -325,7 +326,7 @@ uint32_t ruc_tcp_client_connectReply_CBK(void *opaque,int socketId)
       pObj->tcpDestPort,
       strerror(error)
       RUC_EINFO;
-
+#endif
     uma_tcp_monTxtCbk("TCP","Client %u.%u.%u.%u:%u connection fail to %u.%u.%u.%u:%u - %s",
 		      pObj->srcIP>>24, (pObj->srcIP>>16)&0xFF, (pObj->srcIP>>8)&0xFF,pObj->srcIP&0xFF,
 		      pObj->srcTcp,
@@ -533,7 +534,7 @@ uint32_t ruc_tcp_client_socketCreate(ruc_tcp_client_t *pObj)
       /*
       **  error on socket binding
       */
-      ERRLOG "fail to bind socket with IP %x and TCP %x, errno = %u",pObj->srcIP,pObj->srcTcp,errno ENDERRLOG
+      severe( "fail to bind socket with IP %x and TCP %x, errno = %u",pObj->srcIP,pObj->srcTcp,errno );
       close(socketId);
       return ((uint32_t)-1);
     }
@@ -569,7 +570,7 @@ uint32_t ruc_tcp_client_socketCreate(ruc_tcp_client_t *pObj)
      /*
      **  fatal error while connecting with the socket controller
      */
-     ERRLOG " ruc_tcp_server_connect: unable to connect with the socket controller (%d) ",pObj->ref ENDERRLOG
+     severe( " ruc_tcp_server_connect: unable to connect with the socket controller (%d) ",pObj->ref );
      close (socketId);
      return (uint32_t)-1;
    }
@@ -636,12 +637,14 @@ void ruc_tcp_client_disc_CBK(void *opaque,uint32_t tcpCnxRef)
      /* FDL close(p->tcpSocketClient); */
      p->tcpSocketClient = -1;
    }
+#if 0  
    INFO_PRINT "Client %u.%u.%u.%u:%u disconnected from %u.%u.%u.%u:%u",
      p->srcIP>>24, (p->srcIP>>16)&0xFF, (p->srcIP>>8)&0xFF,p->srcIP&0xFF,
      p->srcTcp,
      p->IpAddr>>24, (p->IpAddr>>16)&0xFF, (p->IpAddr>>8)&0xFF,p->IpAddr&0xFF,
      p->tcpDestPort
      RUC_EINFO;
+#endif     
    uma_tcp_monTxtCbk("TCP","Client %u.%u.%u.%u:%u disconnected from %u.%u.%u.%u:%u",
 		     p->srcIP>>24, (p->srcIP>>16)&0xFF, (p->srcIP>>8)&0xFF,p->srcIP&0xFF,
 		     p->srcTcp,
@@ -706,7 +709,7 @@ uint32_t ruc_tcp_client_init(uint32_t nbElements)
       /*
       ** error on distributor creation
       */
-      ERRLOG "ruc_listCreate(%d,%d)", (int)nbElements,(int)sizeof(ruc_tcp_client_t) ENDERRLOG
+      severe( "ruc_listCreate(%d,%d)", (int)nbElements,(int)sizeof(ruc_tcp_client_t) );
       ret = RUC_NOK;
       break;
     }
@@ -723,7 +726,7 @@ uint32_t ruc_tcp_client_init(uint32_t nbElements)
       return RUC_NOK;
    } memory
       */
-      ERRLOG "ruc_tcp_clientactiveList = malloc(%d)", (int)sizeof(ruc_tcp_client_t) ENDERRLOG
+      severe( "ruc_tcp_clientactiveList = malloc(%d)", (int)sizeof(ruc_tcp_client_t) );
       ret = RUC_NOK;
       break;
     }
@@ -1017,13 +1020,14 @@ void ruc_tcp_client_delete_connection(uint32_t clientIdx)
    */
    if (p->tcpCnxIdx != (uint32_t)-1)
    {
-
+#if 0
      INFO_PRINT "Client %u.%u.%u.%u:%u request to disconnect from %u.%u.%u.%u:%u",
        p->srcIP>>24, (p->srcIP>>16)&0xFF, (p->srcIP>>8)&0xFF,p->srcIP&0xFF,
        p->srcTcp,
        p->IpAddr>>24, (p->IpAddr>>16)&0xFF, (p->IpAddr>>8)&0xFF,p->IpAddr&0xFF,
        p->tcpDestPort
        RUC_EINFO;
+#endif       
      uma_tcp_monTxtCbk("TCP","Client %u.%u.%u.%u:%u request to disconnect from %u.%u.%u.%u:%u",
 		       p->srcIP>>24, (p->srcIP>>16)&0xFF, (p->srcIP>>8)&0xFF,p->srcIP&0xFF,
 		       p->srcTcp,
@@ -1239,7 +1243,7 @@ uint32_t ruc_tcp_client_findTcpCnxBasedOnType(uint16_t nsei, uint8_t type,uint32
 
     default:
      *pTcpRef = -1;
-      ERRLOG "findTcpCnxBasedOnType(%d,%d): bad type",nsei,type ENDERRLOG
+      severe( "findTcpCnxBasedOnType(%d,%d): bad type",nsei,type );
       return RUC_NOK;
    }
    /*
@@ -1249,7 +1253,7 @@ uint32_t ruc_tcp_client_findTcpCnxBasedOnType(uint16_t nsei, uint8_t type,uint32
    if (pObj == (ruc_tcp_client_t*)NULL)
    {
       *pTcpRef = -1;
-      ERRLOG "findTcpCnxBasedOnType(%d,%d): bad NSEI",nsei,type ENDERRLOG
+      severe( "findTcpCnxBasedOnType(%d,%d): bad NSEI",nsei,type );
       return RUC_NOK;
    }
    *pTcpRef = pObj->tcpCnxIdx[type];

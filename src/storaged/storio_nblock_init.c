@@ -229,7 +229,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
     ret = ruc_sockctl_init(128);
     if (ret != RUC_OK) {
         fdl_debug_loop(__LINE__);
-        ERRFAT " socket controller init failed" ENDERRFAT
+        fatal( " socket controller init failed" );
     }
 
     /*

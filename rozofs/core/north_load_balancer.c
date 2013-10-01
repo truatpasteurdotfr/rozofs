@@ -26,13 +26,13 @@
 #include <sys/un.h>             
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
 #include "af_unix_socket_generic_api.h"
 #include "af_unix_socket_generic.h"
 #include "rozofs_socket_family.h"
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "north_lbg.h"
 
@@ -223,7 +223,7 @@ north_lbg_ctx_t *north_lbg_getObjCtx_p(uint32_t north_lbg_ctx_id) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count ENDERRLOG
+        severe( "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count);
         return (north_lbg_ctx_t*) NULL;
     }
     p = (north_lbg_ctx_t*) ruc_objGetRefFromIdx((ruc_obj_desc_t*) north_lbg_context_freeListHead,
@@ -268,7 +268,7 @@ uint32_t north_lbg_getObjCtx_ref(north_lbg_ctx_t *p) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count ENDERRLOG
+        severe( "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count );
         return (uint32_t) - 1;
     }
     ;
@@ -391,7 +391,7 @@ north_lbg_ctx_t *north_lbg_alloc() {
          ** out of Transaction context descriptor try to free some MS
          ** context that are out of date 
          */
-        ERRLOG "NOT ABLE TO GET an AF_UNIX CONTEXT" ENDERRLOG;
+        severe( "NOT ABLE TO GET an AF_UNIX CONTEXT" );
         return NULL;
     }
     /*
@@ -436,14 +436,14 @@ uint32_t north_lbg_createIndex(uint32_t north_lbg_ctx_id) {
      */
     p = north_lbg_getObjCtx_p(north_lbg_ctx_id);
     if (p == NULL) {
-        ERRLOG "MS ref out of range: %u", north_lbg_ctx_id ENDERRLOG;
+        severe( "MS ref out of range: %u", north_lbg_ctx_id );
         return RUC_NOK;
     }
     /*
      ** return an error if the context is not free
      */
     if (p->free == FALSE) {
-        ERRLOG "the context is not free : %u", north_lbg_ctx_id ENDERRLOG;
+        severe( "the context is not free : %u", north_lbg_ctx_id );
         return RUC_NOK;
     }
     /*

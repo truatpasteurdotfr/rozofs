@@ -94,7 +94,6 @@ set (librozofs_sources
     core/north_lbg_timer.h
     core/north_load_balancer_api.c
     core/north_load_balancer.c
-    core/ppu_trace.h
     core/rozofs_north_sock.h
     core/rozofs_socket_family.h
     core/ruc_buffer_api.h

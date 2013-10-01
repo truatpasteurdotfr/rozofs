@@ -637,7 +637,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      rozofs_fuse_ctx_p->fuseReqPoolRef = ruc_buf_poolCreate(rozofs_fuse_buffer_count,sizeof(rozofs_fuse_save_ctx_t));
      if (rozofs_fuse_ctx_p->fuseReqPoolRef == NULL)
      {
-        ERRLOG "rozofs_fuse_init buffer pool creation error(%d,%d)", (int)rozofs_fuse_buffer_count, (int)sizeof(rozofs_fuse_save_ctx_t) ENDERRLOG ;
+        severe( "rozofs_fuse_init buffer pool creation error(%d,%d)", (int)rozofs_fuse_buffer_count, (int)sizeof(rozofs_fuse_save_ctx_t) ) ;
         status = -1;
         break;
      }
@@ -649,7 +649,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      rozofs_fuse_ctx_p->buf_fuse_req_p = malloc(bufsize);
      if (rozofs_fuse_ctx_p == NULL) 
      {     
-        ERRLOG "rozofs_fuse_init out of memory %d", bufsize ENDERRLOG ;
+        severe( "rozofs_fuse_init out of memory %d", bufsize ) ;
         status = -1;
         break;     
      }
@@ -663,7 +663,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      rozofs_fuse_ctx_p->ch = fuse_chan_new(&rozofs_fuse_ch_ops,fuse_chan_fd(ch),fuse_chan_bufsize(ch),rozofs_fuse_ctx_p);  
      if (rozofs_fuse_ctx_p->ch == NULL)
      {
-        ERRLOG "rozofs_fuse_init fuse_chan_new error"  ENDERRLOG ;
+        severe( "rozofs_fuse_init fuse_chan_new error"  ) ;
         status = -1;
         break;          
      }

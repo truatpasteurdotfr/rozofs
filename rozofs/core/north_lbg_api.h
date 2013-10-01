@@ -36,7 +36,6 @@
 #include "af_unix_socket_generic_api.h"
 #include "af_unix_socket_generic.h"
 #include "rozofs_socket_family.h"
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "north_lbg.h"
 

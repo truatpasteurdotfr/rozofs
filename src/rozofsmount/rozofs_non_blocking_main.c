@@ -39,9 +39,7 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_tcpServer_api.h>
 #include <rozofs/core/ruc_tcp_client_api.h>
-#include <rozofs/core/ppu_trace.h>
 #include <rozofs/core/uma_well_known_ports_api.h>
-#include <rozofs/core/ppu_trace.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/rozofs_tx_api.h>
@@ -169,7 +167,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     //#warning set the number of contexts for socketCtrl to 100
     ret = ruc_sockctl_init(256);
     if (ret != RUC_OK) {
-        ERRFAT " socket controller init failed" ENDERRFAT
+        fatal( " socket controller init failed" );
     }
 
     /*
@@ -338,5 +336,5 @@ int rozofs_stat_start(void *args) {
     while (1) {
         ruc_sockCtrl_selectWait();
     }
-    ERRFAT "main() code is rotten" ENDERRFAT
+    fatal( "main() code is rotten" );
 }

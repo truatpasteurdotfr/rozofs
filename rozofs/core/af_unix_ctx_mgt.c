@@ -28,7 +28,6 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "af_unix_socket_generic.h"
 
@@ -337,7 +336,7 @@ af_unix_ctx_generic_t *af_unix_getObjCtx_p(uint32_t af_unix_ctx_id) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count ENDERRLOG
+        severe( "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count );
         return (af_unix_ctx_generic_t*) NULL;
     }
     p = (af_unix_ctx_generic_t*) ruc_objGetRefFromIdx((ruc_obj_desc_t*) af_unix_context_freeListHead,
@@ -370,7 +369,7 @@ uint32_t af_unix_getObjCtx_ref(af_unix_ctx_generic_t *p) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count ENDERRLOG
+        severe( "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count );
         return (uint32_t) - 1;
     }
     ;
@@ -536,7 +535,7 @@ af_unix_ctx_generic_t *af_unix_alloc() {
          ** out of Transaction context descriptor try to free some MS
          ** context that are out of date
          */
-        ERRLOG "NOT ABLE TO GET an AF_UNIX CONTEXT" ENDERRLOG;
+        severe( "NOT ABLE TO GET an AF_UNIX CONTEXT" );
         return NULL;
     }
     /*
@@ -581,14 +580,14 @@ uint32_t af_unix_createIndex(uint32_t af_unix_ctx_id) {
      */
     p = af_unix_getObjCtx_p(af_unix_ctx_id);
     if (p == NULL) {
-        ERRLOG "MS ref out of range: %u", af_unix_ctx_id ENDERRLOG;
+        severe( "MS ref out of range: %u", af_unix_ctx_id );
         return RUC_NOK;
     }
     /*
      ** return an error if the context is not free
      */
     if (p->free == FALSE) {
-        ERRLOG "the context is not free : %u", af_unix_ctx_id ENDERRLOG;
+        severe( "the context is not free : %u", af_unix_ctx_id );
         return RUC_NOK;
     }
     /*
@@ -772,13 +771,13 @@ uint32_t af_unix_module_init(uint32_t af_unix_ctx_count,
         af_unix_buffer_pool_tb[0] = ruc_buf_poolCreate(af_unix_xmit_buf_count, af_unix_xmit_buf_size);
         if (af_unix_buffer_pool_tb[0] == NULL) {
             ret = RUC_NOK;
-            ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", af_unix_xmit_buf_count, af_unix_xmit_buf_size ENDERRLOG
+            severe( "xmit ruc_buf_poolCreate(%d,%d)", af_unix_xmit_buf_count, af_unix_xmit_buf_size );
             break;
         }
         af_unix_buffer_pool_tb[1] = ruc_buf_poolCreate(af_unix_recv_buf_count, af_unix_recv_buf_size);
         if (af_unix_buffer_pool_tb[1] == NULL) {
             ret = RUC_NOK;
-            ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", af_unix_recv_buf_count, af_unix_recv_buf_size ENDERRLOG
+            severe( "rcv ruc_buf_poolCreate(%d,%d)", af_unix_recv_buf_count, af_unix_recv_buf_size );
             break;
         }
 
