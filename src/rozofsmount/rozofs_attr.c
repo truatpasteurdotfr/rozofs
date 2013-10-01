@@ -113,10 +113,11 @@ DECLARE_PROFILING(mpp_profiler_t);
         goto error;
     }
     /*
-    ** check the case of the block mode: in that case the attributes are
-    ** directly retrieved from the ie entry
+    ** In block mode the attributes of regular files are directly retrieved 
+    ** from the ie entry. For directories and links one ask to the exportd
+    ** 
     */
-    if (rozofs_mode == 1)
+    if ((rozofs_mode == 1)&&(S_ISREG(ie->attrs.mode)))
     {
       mattr_to_stat(&ie->attrs, &stbuf);
       stbuf.st_ino = ino;   

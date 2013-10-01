@@ -1421,6 +1421,7 @@ int main(int argc, char *argv[]) {
                 "rozofs mode out of range: revert to default setting");
           conf.fs_mode = 0;
     }
+    rozofs_mode = conf.fs_mode;
     
     if (conf.attr_timeout != 10) {
         if (rozofs_tmr_configure(TMR_FUSE_ATTR_CACHE,conf.attr_timeout) < 0)
