@@ -182,7 +182,6 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     time_t elapse;
     int days, hours, mins, secs;
-    int reset = 0;
     
     if (argv[1] != NULL)
     {
