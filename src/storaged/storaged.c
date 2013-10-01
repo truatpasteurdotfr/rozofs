@@ -419,7 +419,22 @@ static void on_start() {
 
     // Set monitoring values just for the master process
     //SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
+    
+    /*
+    ** 1rst kill storio in case it is already running
+    */
+    p = cmd;
+    if (storaged_hostname) 
+      sprintf(cmd,"storio_killer.sh -H %s", storaged_hostname);
+    else 
+      sprintf(cmd,"storio_killer.sh"); 
 
+    // Launch killer script
+    system(cmd);
+
+    /*
+    ** Then start storio
+    */
     p = cmd;
     p += sprintf(p, "storio_starter.sh storio -i 1 -c %s ", storaged_config_file);
     if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
