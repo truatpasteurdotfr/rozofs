@@ -290,5 +290,5 @@ void rozofs_ll_flock_nb(fuse_req_t req,
 		              struct fuse_file_info *fi, 
 		              int op);		
 			      
-int init_write_flush_stat(int max_write_pending);		      	 
+void init_write_flush_stat(int max_write_pending);
 #endif
