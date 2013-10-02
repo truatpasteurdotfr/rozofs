@@ -502,11 +502,12 @@ int storaged_north_interface_init(char * host) {
   ** Resolve IP address 
   */
   ip = INADDR_ANY;
-  ret = rozofs_host2ip(host,&ip);
-  if (ret != 0) {
-    severe("storaged_north_interface_init can not resolve %s",host);
-  }	
-
+  if (host != NULL) {
+    ret = rozofs_host2ip(host,&ip);
+    if (ret != 0) {
+      fatal("storaged_north_interface_init can not resolve host \"%s\"",host);
+    }	
+  }
   /*
   ** Create the listening socket
   */ 
