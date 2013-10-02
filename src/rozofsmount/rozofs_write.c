@@ -98,7 +98,7 @@ static WRITE_FLUSH_STAT_T write_flush_stat;
 /**
    Reset write synch stats
 */
-static inline int reset_write_flush_stat(void) {
+static inline void reset_write_flush_stat(void) {
   memset(&write_flush_stat,0,sizeof(write_flush_stat));
 }
 /*
@@ -159,11 +159,11 @@ static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRe
 /**
    Initialize write synch stat service
 */
-int init_write_flush_stat(int max_write_pending){
+void init_write_flush_stat(int max_write_pending){
   ROZOFS_MAX_WRITE_PENDING = max_write_pending;
   reset_write_flush_stat();
   uma_dbg_addTopic("write_flush", display_write_flush_stat);  
-}   
+}
 
 
 
