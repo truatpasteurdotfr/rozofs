@@ -14,6 +14,9 @@ from rozofs.cli.output import puts
 
 def status(args):
     (pid, listeners) = AgentServer().status()
+    if os.getuid() is not 0:
+        raise Exception("only the root user can start agent.")
+
     if not pid:
         raise Exception("no agent is running.")
     puts({
