@@ -504,8 +504,20 @@ int storage_stat(storage_t * st, sstat_t * sstat) {
 
     if (statfs(st->root, &sfs) == -1)
         goto out;
+
+    /*
+    ** Privileged process can use the whole free space
+    */
+    if (getuid() == 0) {
+      sstat->free = (uint64_t) sfs.f_bfree * (uint64_t) sfs.f_bsize;
+    }
+    /*
+    ** non privileged process can not use root reserved space
+    */
+    else {
+      sstat->free = (uint64_t) sfs.f_bavail * (uint64_t) sfs.f_bsize;
+    }
     sstat->size = (uint64_t) sfs.f_blocks * (uint64_t) sfs.f_bsize;
-    sstat->free = (uint64_t) sfs.f_bfree * (uint64_t) sfs.f_bsize;
     status = 0;
 out:
     return status;
