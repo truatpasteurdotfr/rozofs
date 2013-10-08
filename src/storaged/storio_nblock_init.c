@@ -388,8 +388,13 @@ int storio_start_nb_th(void *args) {
   */
   uma_dbg_addTopic("profiler", show_profile_storaged_io_display);
 
-  info("storio started (instance: %d, host: %s, dbg: %d).",
-       args_p->instance_id, args_p->hostname, args_p->debug_port);
+    if ((args_p->hostname[0] != 0)) {
+        info("storio started (instance: %d, host: %s, dbg port: %d).",
+                args_p->instance_id, args_p->hostname, args_p->debug_port);
+    } else {
+        info("storio started (instance: %d, dbg port: %d).",
+                args_p->instance_id, args_p->debug_port);
+    }
 
   /*
    ** main loop

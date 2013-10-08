@@ -379,7 +379,6 @@ int storaged_start_nb_blocking_th(void *args) {
 /*
  *_______________________________________________________________________
  */
-
 /**
  *  This function is the entry point for setting rozofs in non-blocking mode
 
@@ -392,48 +391,53 @@ int storaged_start_nb_blocking_th(void *args) {
 
  */
 int storaged_start_nb_th(void *args) {
-  int ret;
-  storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
+    int ret;
+    storaged_start_conf_param_t *args_p = (storaged_start_conf_param_t*) args;
 
-  ret = ruc_init(FALSE, args_p);
-  if (ret != RUC_OK) {
-      /*
-       ** fatal error
-       */
-      fdl_debug_loop(__LINE__);
-      fatal("ruc_init() can't initialize storaged non blocking thread");
-      return -1;
-  }
+    ret = ruc_init(FALSE, args_p);
+    if (ret != RUC_OK) {
+        /*
+         ** fatal error
+         */
+        fdl_debug_loop(__LINE__);
+        fatal("ruc_init() can't initialize storaged non blocking thread");
+        return -1;
+    }
 
 
-  /*
-   ** Init of the north interface (read/write request processing)
-   */
-  ret = storaged_north_interface_buffer_init(STORAGED_BUF_RECV_CNT, STORAGED_BUF_RECV_SZ);
-  if (ret < 0) {
-    fatal("Fatal error on storaged_north_interface_buffer_init()\n");
-    return -1;
-  }
-  ret = storaged_north_interface_init(args_p->hostname);
-  if (ret < 0) {
-    fatal("Fatal error on storaged_north_interface_init()\n");
-    return -1;
-  }
-    
-  /*
-   ** add profiler subject 
-   */
-  uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
+    /*
+     ** Init of the north interface (read/write request processing)
+     */
+    ret = storaged_north_interface_buffer_init(STORAGED_BUF_RECV_CNT, STORAGED_BUF_RECV_SZ);
+    if (ret < 0) {
+        fatal("Fatal error on storaged_north_interface_buffer_init()\n");
+        return -1;
+    }
+    ret = storaged_north_interface_init(args_p->hostname);
+    if (ret < 0) {
+        fatal("Fatal error on storaged_north_interface_init()\n");
+        return -1;
+    }
 
-  info("storaged non-blocking thread started (host: %s, dbg: %d).",
-        args_p->hostname, args_p->debug_port);
+    /*
+     ** add profiler subject 
+     */
+    uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
 
-  /*
-   ** main loop
-   */
-  while (1) {
-      ruc_sockCtrl_selectWait();
-  }
-  fatal("Exit from ruc_sockCtrl_selectWait()");
-  fdl_debug_loop(__LINE__);
+    if ((args_p->hostname[0] != 0)) {
+        info("storaged non-blocking thread started (host: %s, dbg port: %d).",
+                args_p->hostname, args_p->debug_port);
+    } else {
+        info("storaged non-blocking thread started (dbg port: %d).", 
+                args_p->debug_port);
+    }
+
+    /*
+     ** main loop
+     */
+    while (1) {
+        ruc_sockCtrl_selectWait();
+    }
+    fatal("Exit from ruc_sockCtrl_selectWait()");
+    fdl_debug_loop(__LINE__);
 }
