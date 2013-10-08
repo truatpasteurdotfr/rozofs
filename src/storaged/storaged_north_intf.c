@@ -40,20 +40,19 @@
 #include <rozofs/core/rozofs_host2ip.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/rpc/rozofs_rpc_util.h>
+
 #include "sconfig.h"
 #include "storaged_north_intf.h"
 #include "mprotosvc.h"
 #include "spprotosvc.h"
 
- /**
+/**
 * Buffers information
 */
-int storage_read_write_buf_count= 0;   /**< number of buffer allocated for read/write on north interface */
-int storage_read_write_buf_sz= 0;      /**<read:write buffer size on north interface */
+int storage_read_write_buf_count = 0;   /**< number of buffer allocated for read/write on north interface */
+int storage_read_write_buf_sz = 0;      /**<read:write buffer size on north interface */
 
 void *storaged_buffer_pool_p = NULL;  /**< reference of the read/write buffer pool */
- 
-
 
 /*
 **__________________________________________________________________________
@@ -484,40 +483,34 @@ int storaged_north_interface_buffer_init(int read_write_buf_count,int read_write
 /*
 **____________________________________________________
 */
-/**
-   
 
+/**
   Creation of the north interface listening sockets (AF_INET)
 
-
 @retval   : RUC_OK : done
-@retval          RUC_NOK : out of memory
+@retval   RUC_NOK : out of memory
 */
 
 int storaged_north_interface_init(char * host) {
-  int ret;
-  uint32_t ip;
+  int ret = -1;
+  uint32_t ip = INADDR_ANY; // Default IP to use
 
-  /*
-  ** Resolve IP address 
-  */
-  ip = INADDR_ANY;
-  if (host != NULL) {
+  // Resolve IP address
+  
+  // Check if storaged must listen on specific IP
+  if (host[0] != 0) {
     ret = rozofs_host2ip(host,&ip);
-    if (ret != 0) {
-      fatal("storaged_north_interface_init can not resolve host \"%s\"",host);
-    }	
+    if (ret != 0)
+      fatal("storaged_north_interface_init can not resolve host \"%s\"", host);
   }
-  /*
-  ** Create the listening socket
-  */ 
+
+  // Create the listening socket
   ret = af_inet_sock_listening_create("MP/SPP",ip, ROZOFS_MPROTO_PORT, &af_inet_rozofs_north_conf);    
   if (ret < 0) {
     fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
             ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, ROZOFS_MPROTO_PORT);
     return -1;
-  }  
-
+  }
+  
   return 0;
 }
-
