@@ -39,16 +39,17 @@
 #include <unistd.h>
 #include <netdb.h>
 
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
-#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
 #include "sconfig.h"
@@ -56,7 +57,6 @@
 #include "storaged.h"
 #include "sconfig.h"
 #include "rbs.h"
-#include <rozofs/rozofs_timer_conf.h>
 #include "storaged_nblock_init.h"
 
 #define STORAGED_PID_FILE "storaged"
@@ -459,11 +459,11 @@ void usage() {
 
     printf("RozoFS storage daemon - %s\n", VERSION);
     printf("Usage: storaged [OPTIONS]\n\n");
-    printf("\t-h, --help\tprint this message.\n");
-    printf("\t-H, --host storaged hostname\t\tused to build to the pid name (default: none) \n");
-    printf("\t-c, --config\tconfig file to use (default: %s).\n",
+    printf("   -h, --help\t\t\tprint this message.\n");
+    printf("   -H, --host=storaged-host\tspecify the hostname to use for build pid name (default: none).\n");
+    printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
-    printf("\t-r, --rebuild\t export hostname.\n");
+    printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
 }
 
 int main(int argc, char *argv[]) {
