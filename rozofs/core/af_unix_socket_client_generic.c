@@ -179,7 +179,7 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
     if (getsockopt (socketId,SOL_SOCKET,
                     SO_ERROR,&error,(socklen_t*)&len) == -1)
     {
-      ERRLOG " ruc_tcp_client_connectReply_CBK: getsockopt error for context %d errno:%d ",(int)sock_p->index,errno ENDERRLOG
+      severe( " ruc_tcp_client_connectReply_CBK: getsockopt error for context %d errno:%d ",(int)sock_p->index,errno );
       if (sock_p->connectionId !=  NULL)
       {
 	    ruc_sockctl_disconnect(sock_p->connectionId);
@@ -1235,3 +1235,4 @@ int af_unix_socket_client_family_create (char *nicknamebase_p, char *basename_p,
   }
   return 0;
 }
+

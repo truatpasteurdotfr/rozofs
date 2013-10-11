@@ -68,5 +68,26 @@ static inline uint64_t rozofs_get_ticker_us()
   return rozofs_ticker_microseconds;
 }
 
+/**
+* attach a traffic shaper scheduler
+
+  @param callback
+*/
+typedef void (*ruc_scheduler_t)(uint64_t cur_time);  
+
+extern ruc_scheduler_t  ruc_applicative_traffic_shaper;
+extern ruc_scheduler_t  ruc_applicative_poller;
+
+static inline void ruc_sockCtrl_attach_traffic_shaper(ruc_scheduler_t callback)
+{
+   ruc_applicative_traffic_shaper = callback;
+}
+
+
+static inline void ruc_sockCtrl_attach_applicative_poller(ruc_scheduler_t callback)
+{
+   ruc_applicative_poller = callback;
+}
+
 
 #endif

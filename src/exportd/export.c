@@ -839,7 +839,7 @@ out:
     return status;
 }
 
-int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs) {
+int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *plv2 = 0;
     lv2_entry_t *lv2 = 0;
@@ -851,6 +851,10 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs) {
     if (!(plv2 = export_lookup_fid(e, pfid))) {
         goto out;
     }
+    /*
+    ** copy the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
 
     if (get_mdirentry(plv2->container.mdir.fdp, pfid, name, child_fid, &child_type) != 0) {
         goto out;
@@ -889,7 +893,14 @@ out:
     STOP_PROFILING(export_lookup);
     return status;
 }
-
+/** get attributes of a managed file
+ *
+ * @param e: the export managing the file
+ * @param fid: the id of the file
+ * @param attrs: attributes to fill.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_getattr(export_t *e, fid_t fid, mattr_t *attrs) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -906,7 +917,15 @@ out:
     STOP_PROFILING(export_getattr);
     return status;
 }
-
+/** set attributes of a managed file
+ *
+ * @param e: the export managing the file
+ * @param fid: the id of the file
+ * @param attrs: attributes to set.
+ * @param to_set: fields to set in attributes
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -918,7 +937,9 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     }
 
     if ((to_set & EXPORT_SET_ATTR_SIZE) && S_ISREG(lv2->attributes.mode)) {
-        if (attrs->size >= 0x20000000000LL) {
+        
+        // Check new file size
+        if (attrs->size >= ROZOFS_FILESIZE_MAX) {
             errno = EFBIG;
             goto out;
         }
@@ -943,19 +964,31 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     if (to_set & EXPORT_SET_ATTR_UID)
         lv2->attributes.uid = attrs->uid;
     if (to_set & EXPORT_SET_ATTR_GID)
-        lv2->attributes.gid = attrs->gid;
-    //lv2->attributes.nlink = attrs->nlink;
+        lv2->attributes.gid = attrs->gid;    
+    if (to_set & EXPORT_SET_ATTR_ATIME)
+        lv2->attributes.atime = attrs->atime;
+    if (to_set & EXPORT_SET_ATTR_MTIME)
+        lv2->attributes.mtime = attrs->mtime;
+    
     lv2->attributes.ctime = time(NULL);
-    //lv2->attributes.atime = attrs->atime;
-    //lv2->attributes.mtime = attrs->mtime;
 
     status = export_lv2_write_attributes(lv2);
 out:
     STOP_PROFILING(export_setattr);
     return status;
 }
-
-int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_t *attrs) {
+/** create a hard link
+ *
+ * @param e: the export managing the file
+ * @param inode: the id of the file we want to be link on
+ * @param newparent: parent od the new file (the link)
+ * @param newname: the name of the new file
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *target = NULL;
     lv2_entry_t *plv2 = NULL;
@@ -1013,16 +1046,31 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
 
     // Return attributes
     memcpy(attrs, &target->attributes, sizeof (mattr_t));
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     status = 0;
 
 out:
     STOP_PROFILING(export_link);
     return status;
 }
-
+/** create a new file
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param name: the name of this file.
+ * @param uid: the user id
+ * @param gid: the group id
+ * @param mode: mode of this file
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+  
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t *attrs) {
+        uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
     fid_t node_fid;
@@ -1103,6 +1151,10 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
 
     status = 0;
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     goto out;
 
 error:
@@ -1117,9 +1169,21 @@ out:
     STOP_PROFILING(export_mknod);
     return status;
 }
-
+/** create a new directory
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param name: the name of this file.
+ * @param uid: the user id
+ * @param gid: the group id
+ * @param mode: mode of this file
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t * attrs) {
+        uint32_t gid, mode_t mode, mattr_t * attrs,mattr_t * pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
     fid_t node_fid;
@@ -1204,6 +1268,10 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     mdir_close(&node_mdir);
     status = 0;
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     goto out;
 
 error:
@@ -1229,8 +1297,17 @@ out:
     STOP_PROFILING(export_mkdir);
     return status;
 }
-
-int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
+/** remove a file
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param name: the name of this file.
+ * @param[out] fid: the fid of the removed file
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ * 
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pattrs) {
     int status = -1;
     lv2_entry_t *plv2, *lv2;
     fid_t child_fid;
@@ -1394,14 +1471,19 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid) {
     // Write attributes of parents
     if (export_lv2_write_attributes(plv2) != 0)
         goto out;
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     status = 0;
 
 out:
     STOP_PROFILING(export_unlink);
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
 static int init_storages_cnx(volume_t *volume, list_t *list) {
     list_t *p, *q;
     int status = -1;
@@ -1429,6 +1511,10 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
             struct timeval timeo;
             timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
+	    
+	    init_rpcctl_ctx(&mclt->rpcclt);
+
+	    init_rpcctl_ctx(&mclt->rpcclt);
 
             if (mclient_initialize(mclt, timeo) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
@@ -1454,7 +1540,9 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
 static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
 
     list_t *p;
@@ -1476,7 +1564,9 @@ static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
 
     return NULL;
 }
-
+/*
+**______________________________________________________________________________
+*/
 static void release_storages_cnx(list_t *list) {
 
     list_t *p, *q;
@@ -1493,7 +1583,9 @@ static void release_storages_cnx(list_t *list) {
             free(cnx_entry);
     }
 }
-
+/*
+**______________________________________________________________________________
+*/
 int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
     int status = -1;
     int rm_bins_file_nb = 0;
@@ -1661,8 +1753,22 @@ out:
     }
     return status;
 }
+/*
+**______________________________________________________________________________
+*/
+/**
+*   exportd rmdir: delete a directory
 
-int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
+    @param pfid : fid of the parent and directory  name 
+    @param name : fid of the parent and directory  name 
+    
+    @param[out] fid:  fid of the deleted directory 
+    @param[out] pattrs:  attributes of the parent 
+    
+    @retval: 0 : success
+    @retval: <0 error see errno
+*/
+int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid,mattr_t * pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
     lv2_entry_t *lv2;
@@ -1744,16 +1850,32 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid) {
      ** remove the entry from the parent directory: best effort
      */
     del_mdirentry(plv2->container.mdir.fdp, pfid, name, fake_fid, &fake_type);
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     status = 0;
 out:
     STOP_PROFILING(export_rmdir);
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** create a symlink
+ *
+ * @param e: the export managing the file
+ * @param link: target name
+ * @param pfid: the id of the parent
+ * @param name: the name of the file to link.
+ * @param[out] attrs: mattr_t to fill (child attributes used by upper level functions)
+ * @param[out] pattrs: mattr_t to fill (parent attributes)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
-        mattr_t * attrs) {
+        mattr_t * attrs,mattr_t *pattrs) {
 
     int status = -1;
     lv2_entry_t *plv2;
@@ -1832,6 +1954,10 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
         goto error;
 
     status = 0;
+    /*
+    ** return the parent attributes
+    */
+    memcpy(pattrs, &plv2->attributes, sizeof (mattr_t));
     goto out;
 
 error:
@@ -1847,7 +1973,17 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** read a symbolic link
+ *
+ * @param e: the export managing the file
+ * @param fid: file id
+ * @param link: link to fill
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_readlink(export_t *e, fid_t fid, char *link) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -1862,7 +1998,20 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** rename (move) a file
+ *
+ * @param e: the export managing the file
+ * @param pfid: parent file id
+ * @param name: file name
+ * @param npfid: target parent file id
+ * @param newname: target file name
+ * @param fid: file id
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
         char *newname, fid_t fid) {
     int status = -1;
@@ -2190,7 +2339,9 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
 int64_t export_read(export_t * e, fid_t fid, uint64_t offset, uint32_t len,
         uint64_t * first_blk, uint32_t * nb_blks) {
     lv2_entry_t *lv2 = NULL;
@@ -2242,7 +2393,9 @@ out:
 
     return length;
 }
-
+/*
+**______________________________________________________________________________
+*/
 int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d) {
     int status = 0;
     lv2_entry_t *lv2 = NULL;
@@ -2286,9 +2439,26 @@ int64_t export_write(export_t *e, fid_t fid, uint64_t off, uint32_t len) {
 
     return len;
 }*/
-
+/*
+**______________________________________________________________________________
+*/
+/**  update the file size, mtime and ctime
+ *
+ * dist is the same for all blocks
+ *
+ * @param e: the export managing the file
+ * @param fid: id of the file to read
+ * @param bid: first block address (from the start of the file)
+ * @param n: number of blocks
+ * @param d: distribution to set
+ * @param off: offset to write from
+ * @param len: length written
+ * @param[out] attrs: updated attributes of the file
+ *
+ * @return: the written length on success or -1 otherwise (errno is set)
+ */
 int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
-        dist_t d, uint64_t off, uint32_t len) {
+        dist_t d, uint64_t off, uint32_t len,mattr_t *attrs) {
     int64_t length = -1;
     lv2_entry_t *lv2 = NULL;
 
@@ -2315,14 +2485,30 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     lv2->attributes.mtime = lv2->attributes.ctime = time(NULL);
     if (export_lv2_write_attributes(lv2) != 0)
         goto out;
-
+    /*
+    ** return the parent attributes
+    */
+    memcpy(attrs, &lv2->attributes, sizeof (mattr_t));
     length = len;
+
 out:
     STOP_PROFILING(export_write_block);
 
     return length;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** read a directory
+ *
+ * @param e: the export managing the file
+ * @param fid: the id of the directory
+ * @param children: pointer to pointer where the first children we will stored
+ * @param cookie: index mdirentries where we must begin to list the mdirentries
+ * @param eof: pointer that indicates if we list all the entries or not
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
 int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
         child_t ** children, uint8_t * eof) {
     int status = -1;
@@ -2359,7 +2545,192 @@ out:
 
     return status;
 }
+/*
+**______________________________________________________________________________
+*/
+/** Display RozoFS special xattribute 
+ *
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+#define ROZOFS_XATTR "rozofs"
+#define ROZOFS_USER_XATTR "user.rozofs"
+#define ROZOFS_ROOT_XATTR "trusted.rozofs"
 
+#define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
+#define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
+#define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
+static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
+  char    * p=value;
+  uint8_t * pFid;
+  int       idx;
+  int       left;
+  uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  
+  pFid = (uint8_t *) lv2->attributes.fid;  
+  DISPLAY_ATTR_INT("EID", e->eid);
+  DISPLAY_ATTR_INT("LAYOUT", e->layout);  
+  
+  DISPLAY_ATTR_TITLE( "FID"); 
+  p += sprintf(p,"%2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x\n", 
+               pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
+	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
+
+  if (S_ISDIR(lv2->attributes.mode)) {
+    DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
+    return (p-value);  
+  }
+
+  if (S_ISLNK(lv2->attributes.mode)) {
+    DISPLAY_ATTR_TXT("MODE", "SYMBOLIC LINK");
+  }  
+  else {
+    DISPLAY_ATTR_TXT("MODE", "REGULAR FILE");
+  }
+  
+  /*
+  ** File only
+  */
+  DISPLAY_ATTR_INT("CLUSTER",lv2->attributes.cid);
+  DISPLAY_ATTR_TITLE("STORAGE");
+  p += sprintf(p, "%3.3d", lv2->attributes.sids[0]);  
+  for (idx = 1; idx < rozofs_safe; idx++) {
+    p += sprintf(p,"-%3.3d", lv2->attributes.sids[idx]);
+  } 
+  p += sprintf(p,"\n");
+
+
+  DISPLAY_ATTR_INT("LOCK",lv2->nb_locks);  
+  if (lv2->nb_locks != 0) {
+    rozofs_file_lock_t *lock_elt;
+    list_t             * pl;
+    char               * sizeType;
+
+
+    /* Check for left space */
+    left = size;
+    left -= ((int)(p-value));
+    if (left < 110) {
+      if (left > 4) p += sprintf(p,"...");
+      return (p-value);
+    }
+
+    /* List the locks */
+    list_for_each_forward(pl, &lv2->file_lock) {
+
+      lock_elt = list_entry(pl, rozofs_file_lock_t, next_fid_lock);	
+      switch(lock_elt->lock.size) {
+        case EP_LOCK_TOTAL:      sizeType = "TOTAL"; break;
+	case EP_LOCK_FROM_START: sizeType = "START"; break;
+	case EP_LOCK_TO_END:     sizeType = "END"; break;
+	case EP_LOCK_PARTIAL:    sizeType = "PARTIAL"; break;
+	default:                 sizeType = "??";
+      }  
+      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"]\n",
+	       (lock_elt->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",sizeType, 
+	       (long long unsigned int)lock_elt->lock.client_ref, 
+	       (long long unsigned int)lock_elt->lock.owner_ref,
+	       (uint64_t) lock_elt->lock.offset_start,
+	       (uint64_t) lock_elt->lock.offset_stop);
+
+    }       
+  } 
+
+  return (p-value);  
+} 
+static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,int length) {
+  char       * p=value;
+  int          idx,jdx;
+  int          new_cid;
+  int          new_sids[ROZOFS_SAFE_MAX]; 
+  uint8_t      rozofs_safe;
+
+  if (S_ISDIR(lv2->attributes.mode)) {
+    errno = EISDIR;
+    return -1;
+  }
+     
+  if (S_ISLNK(lv2->attributes.mode)) {
+    errno = EMLINK;
+    return -1;
+  }
+
+  /*
+  ** File must not yet be written 
+  */
+  if (lv2->attributes.size != 0) {
+    errno = EFBIG;
+    return -1;
+  } 
+  
+  /*
+  ** Scan value
+  */
+  rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  memset (new_sids,0,sizeof(new_sids));
+  new_cid = 0;
+
+  errno = 0;
+  new_cid = strtol(p,&p,10);
+  if (errno != 0) return -1; 
+  
+  for (idx=0; idx < rozofs_safe; idx++) {
+  
+    if ((p-value)>=length) {
+      errno = EINVAL;
+      return -1;
+    }
+
+    new_sids[idx] = strtol(p,&p,10);
+    if (errno != 0) return -1;
+    if (new_sids[idx]<0) new_sids[idx] *= -1;
+  }
+  /*
+  ** Check the same sid is not set 2 times
+  */
+  for (idx=0; idx < rozofs_safe; idx++) {
+    for (jdx=idx+1; jdx < rozofs_safe; jdx++) {
+      if (new_sids[idx] == new_sids[jdx]) {
+        errno = EINVAL;
+	return -1;
+      }
+    }
+  }  
+
+  /*
+  ** Check cluster and sid exist
+  */
+  if (volume_distribution_check(e->volume, rozofs_safe, new_cid, new_sids) != 0) return -1;
+  
+  /*
+  ** OK for the new distribution
+  */
+  lv2->attributes.cid = new_cid;
+  for (idx=0; idx < rozofs_safe; idx++) {
+    lv2->attributes.sids[idx] = new_sids[idx];
+  }
+  
+  /*
+  ** Save new distribution on disk
+  */
+  return export_lv2_write_attributes(lv2);  
+} 
+/*
+**______________________________________________________________________________
+*/
+/** retrieve an extended attribute value.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
 ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;
@@ -2371,6 +2742,11 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
         goto out;
     }
 
+    if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
+      status = get_rozofs_xattr(e,lv2,value,size);
+      goto out;
+    }  
+
     if ((status = export_lv2_get_xattr(lv2, name, value, size)) < 0) {
         goto out;
     }
@@ -2380,7 +2756,256 @@ out:
 
     return status;
 }
+/*
+**______________________________________________________________________________
+*/
+/** Set a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    list_t      *p;
+    rozofs_file_lock_t *lock_elt;
+    rozofs_file_lock_t * new_lock;
 
+    START_PROFILING(export_set_file_lock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_set_lock failed: %s", strerror(errno));
+        goto out;
+    }
+
+    /*
+    ** Freeing a lock 
+    */
+    if (lock_requested->mode == EP_LOCK_FREE) {
+    
+      /* Always succcess */
+      status = 0;
+
+      /* Already free */
+      if (lv2->nb_locks == 0) {
+	goto out;
+      }
+      if (list_empty(&lv2->file_lock)) {
+	lv2->nb_locks = 0;
+	goto out;
+      }  
+      
+reloop:       
+      /* Search the given lock */
+      list_for_each_forward(p, &lv2->file_lock) {
+      
+        lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);	
+	
+	if (must_file_lock_be_removed(lock_requested, &lock_elt->lock, &new_lock)) {
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	    goto out;
+	  }
+	  goto reloop;
+	}
+
+	if (new_lock) {
+	  list_push_front(&lv2->file_lock,&new_lock->next_fid_lock);
+	  lv2->nb_locks++;
+	}
+      }
+      goto out; 
+    }
+
+    /*
+    ** Setting a new lock. Check its compatibility against every already set lock
+    */
+    list_for_each_forward(p, &lv2->file_lock) {
+    
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+      if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+        errno = EWOULDBLOCK;
+	goto out;      
+      }     
+    }
+      
+    /* Insert the lock */
+    lock_elt = lv2_cache_allocate_file_lock(lock_requested);
+    list_push_front(&lv2->file_lock,&lock_elt->next_fid_lock);
+    lv2->nb_locks++;
+    status = 0;
+    
+out:
+#if 0
+    {
+      char BuF[4096];
+      char * pChar = BuF;
+      debug_file_lock_list(pChar);
+      info("%s",BuF);
+    }
+#endif       
+    STOP_PROFILING(export_set_file_lock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Get a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_get_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    rozofs_file_lock_t *lock_elt;
+    list_t * p;
+
+    START_PROFILING(export_get_file_lock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_get_lock failed: %s", strerror(errno));
+        goto out;
+    }
+
+    /*
+    ** Freeing a lock 
+    */
+    if (lock_requested->mode == EP_LOCK_FREE) {    
+      /* Always succcess */
+      status = 0;
+      goto out; 
+    }
+
+    /*
+    ** Setting a new lock. Check its compatibility against every already set lock
+    */
+    list_for_each_forward(p, &lv2->file_lock) {
+    
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+      if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+        errno = EWOULDBLOCK;
+	goto out;      
+      }     
+    }
+    status = 0;
+    
+out:
+    STOP_PROFILING(export_get_file_lock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** reset a lock from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_client_file_lock(export_t *e, ep_lock_t * lock_requested) {
+
+    START_PROFILING(export_clearclient_flock);
+    file_lock_remove_client(lock_requested->client_ref);
+    STOP_PROFILING(export_clearclient_flock);
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
+/** reset all the locks from an owner
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_owner_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested) {
+    int status = -1;
+    lv2_entry_t *lv2 = 0;
+    list_t * p;
+    rozofs_file_lock_t *lock_elt;
+    
+    START_PROFILING(export_clearowner_flock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_lookup_fid failed: %s", strerror(errno));
+        goto out;
+    }
+    
+    status = 0;
+
+reloop:    
+    /* Search the given lock */
+    list_for_each_forward(p, &lv2->file_lock) {
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+      if ((lock_elt->lock.client_ref == lock_requested->client_ref) &&
+          (lock_elt->lock.owner_ref == lock_requested->owner_ref)) {
+	  /* Found a lock to free */
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	    break;
+	  }
+	  goto reloop;
+      }       
+    }    
+
+out:
+    STOP_PROFILING(export_clearowner_flock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Get a poll event from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested) {
+
+    START_PROFILING(export_poll_file_lock);
+    file_lock_poll_client(lock_requested->client_ref);
+    STOP_PROFILING(export_poll_file_lock);
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
+/** set an extended attribute value for a file or directory.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * @param value: the value of this extended attribute.
+ * @param size: the size of a buffer to hold the value associated
+ *  with this extended attribute.
+ * @param flags: parameter can be used to refine the semantics of the operation.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
 int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -2392,6 +3017,12 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
         goto out;
     }
 
+
+    if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
+      status = set_rozofs_xattr(e,lv2,(char *)value,size);
+      goto out;
+    }  
+
     if ((status = export_lv2_set_xattr(lv2, name, value, size, flags)) != 0) {
         goto out;
     }
@@ -2402,7 +3033,17 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** remove an extended attribute from a file or directory.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param name: the extended attribute name.
+ * 
+ * @return: On success, zero is returned.  On failure, -1 is returned.
+ */
 int export_removexattr(export_t *e, fid_t fid, char *name) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
@@ -2424,7 +3065,19 @@ out:
 
     return status;
 }
-
+/*
+**______________________________________________________________________________
+*/
+/** list extended attribute names from the lv2 regular file.
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param list: list of extended attribute names associated with this file/dir.
+ * @param size: the size of a buffer to hold the list of extended attributes.
+ * 
+ * @return: On success, the size of the extended attribute name list.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
 ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;

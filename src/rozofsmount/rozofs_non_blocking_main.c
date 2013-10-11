@@ -9,7 +9,7 @@
   Rozofs is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
+  General Public License for morozofs_fuse_initre details.
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
@@ -39,16 +39,17 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_tcpServer_api.h>
 #include <rozofs/core/ruc_tcp_client_api.h>
-#include <rozofs/core/ppu_trace.h>
 #include <rozofs/core/uma_well_known_ports_api.h>
-#include <rozofs/core/ppu_trace.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-
+#include <rozofs/core/expgw_common.h>
+#include <rozofs/core/rozofs_core_files.h>
+#include "rozofs_reload_export_gateway_conf.h"
+#include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
 
 // For trace purpose
@@ -61,6 +62,63 @@ pthread_t heartbeat_thrdId;
 
 int module_test_id = 0;
 
+void rozofs_flock_service_init(void) ;
+
+/**
+*  Init of the module that deals with the export gateways
+
+  At the start-up we just create the entry for the Master Export
+  
+  @param host : hostname or IP address of the exportd Master
+  @param eid : exportid associated with the rozofsmount
+  
+  @retval RUC_OK on success
+  @retval RUC_NOK on failure
+*/
+int rozofs_expgateway_init(char *host,int eid)
+{
+    int ret;
+    
+    expgw_export_tableInit();
+
+    /*
+    ** init of the AF_UNIX channel used for receiving export gateway configuration changes
+    */
+    ret = rozofs_exp_moduleInit();
+    if (ret != RUC_OK) return ret;
+
+//#warning only 1 gateway: localhost1
+
+    ret = expgw_export_add_eid(eid,   // exportd id
+                               eid,   // eid
+                               host,  // hostname of the Master exportd
+                               0,  // port
+                               0,  // nb Gateway
+                               0   // gateway rank: not significant for an rozofsmount
+                               );
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
+        fatal("Fatal error on expgw_export_add_eid()");
+        goto error;
+    }
+#if 0    
+    ret = expgw_add_export_gateway(1, "localhost1",60000,0);  
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        goto error;
+    }    
+    ret = expgw_add_export_gateway(1, "localhost2",60000,1);  
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
+        goto error;
+    }  
+#endif
+    return RUC_OK;
+error: 
+   return RUC_NOK;
+
+}
+
 uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     int ret;
 
@@ -68,8 +126,8 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     uint32_t mx_tcp_client = 10;
     uint32_t mx_tcp_server = 10;
     uint32_t mx_tcp_server_cnx = 10;
-    uint32_t mx_af_unix_ctx = 8;
-    uint32_t mx_lbg_north_ctx = 8;
+    uint32_t mx_af_unix_ctx = 32;
+    uint32_t mx_lbg_north_ctx = 32;
 
     //#warning TCP configuration ressources is hardcoded!!
     /*
@@ -107,9 +165,9 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      **   for: NPS, Timer, Debug, etc...
      */
     //#warning set the number of contexts for socketCtrl to 100
-    ret = ruc_sockctl_init(100);
+    ret = ruc_sockctl_init(256);
     if (ret != RUC_OK) {
-        ERRFAT " socket controller init failed" ENDERRFAT
+        fatal( " socket controller init failed" );
     }
 
     /*
@@ -171,7 +229,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
         ret = north_lbg_module_init(mx_lbg_north_ctx);
         if (ret != RUC_OK) break;
 
-        ret = rozofs_tx_module_init(args_p->max_transactions, // transactions count
+        ret = rozofs_tx_module_init(args_p->max_transactions+32, // fuse trx + internal trx
                 args_p->max_transactions, 2048, // xmit small [count,size]
                 args_p->max_transactions, (1024 * 258), // xmit large [count,size]
                 args_p->max_transactions, 1024, // recv small [count,size]
@@ -179,6 +237,10 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
 
         if (ret != RUC_OK) break;
 #endif    
+        exportclt_t *exportclt = args_p->exportclt;
+        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid);
+        if (ret != RUC_OK) break;
+
         break;
 
     }
@@ -202,7 +264,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      ** init of the stats module
      */
     //     rozofs_stats_init();
-
+    rozofs_flock_service_init();
 
     return ret;
 }
@@ -230,7 +292,6 @@ int rozofs_stat_start(void *args) {
     args_p = args;
 
     uint16_t debug_port = args_p->debug_port;
-
 
     ret = ruc_init(FALSE, debug_port);
     if (ret != RUC_OK) {
@@ -266,11 +327,14 @@ int rozofs_stat_start(void *args) {
     if (storcli_lbg_initialize((exportclt_t*) args_p->exportclt, args_p->instance, 1, 2) != 0) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
+    
+    rozofs_signals_declare("rozofsmount",  args_p->nb_cores);
+    
     /*
      ** main loop
      */
     while (1) {
         ruc_sockCtrl_selectWait();
     }
-    ERRFAT "main() code is rotten" ENDERRFAT
+    fatal( "main() code is rotten" );
 }

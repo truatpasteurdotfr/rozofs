@@ -43,12 +43,14 @@
 #include "storage_proto.h"
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/ruc_timer_api.h>
+#include <rozofs/core/ruc_traffic_shaping.h>
 #include <rozofs/rozofs_srv.h>
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/sproto.h>
 #include "storcli_main.h"
 #include <rozofs/rozofs_timer_conf.h>
 DECLARE_PROFILING(stcpp_profiler_t);
+
 
 /*
 **__________________________________________________________________________
@@ -322,6 +324,30 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
       pbuf +=position;      
       working_ctx_p->data_read_p        = pbuf;
    }
+   /**
+   *  check the presence of the shared memory buffer
+   *  the storcli detects that the rozofsmount has provided a shared memory when
+   *  the "spare" field contains a 'S'. However the storcli might decide to ignore it
+   *   if it fails to setup the shared memory
+   */
+   if (storcli_read_rq_p->spare =='S')
+   {
+     /*
+     ** check the presence of the shared memory on storcli
+     */
+     if (storcli_rozofsmount_shared_mem.active == 1)
+     {
+       /*
+       ** set data_read_p to point to the array where data will be returned
+       */
+       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem.data_p;
+       uint32_t buf_offset = storcli_read_rq_p->proj_id*storcli_rozofsmount_shared_mem.buf_sz;
+       uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
+       pbuffer[1] = 0; /** bin_len */
+       working_ctx_p->data_read_p  = (char*)&pbuffer[2];
+       working_ctx_p->shared_mem_p = pbuffer;           
+     }   
+   }
    /*
    ** Allocate a sequence for the context. The goal of the seqnum is to detect late
    ** rpc response. In fact when the system trigger parallel RPC requests, all the rpc requests
@@ -450,8 +476,13 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   projection_id;
   int       error;
   int i;
+  int       rotate=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
+  uint8_t used_dist_set[ROZOFS_SAFE_MAX];
+  uint8_t rotate_modulo;
+  uint8_t local_storage_idx;
+
      
   storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
   /*
@@ -478,6 +509,55 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
     */
     goto end ;
   }  
+  
+  /*
+  ** Rotate the distribution set for using all the first forward storages
+  */ 
+#if 1
+  rotate = storcli_read_rq_p->sid; 
+  i = 0;
+  while (1) {
+    /*
+    ** Check whether one storage is local in the 1rst foward storages of the distribution
+    */
+    local_storage_idx = 0xFF;
+    for (i = 0; i  <rozofs_forward ; i ++)
+    {
+      int lbg_id = rozofs_storcli_get_lbg_for_sid(storcli_read_rq_p->cid,storcli_read_rq_p->dist_set[i]);
+      if (north_lbg_is_local(lbg_id)) {
+	local_storage_idx = i;
+	break;
+      }
+    } 
+    /*
+    ** One local storage is found => always use this guy 1rst
+    */ 
+    if (local_storage_idx != 0xFF) {
+      used_dist_set[0] = storcli_read_rq_p->dist_set[local_storage_idx];    
+      for (i = 1; i  <rozofs_forward ; i ++)
+      {
+	rotate_modulo = (rotate+i) % (rozofs_forward-1);
+	used_dist_set[rotate_modulo+1] = storcli_read_rq_p->dist_set[(local_storage_idx+i) % rozofs_forward]; 
+      } 
+      break;       
+    }
+    /*
+    ** No local storage is found => use every possible storage 
+    */
+    for (i = 0; i  <rozofs_forward ; i ++)
+    {
+      rotate_modulo = (i + rotate) % rozofs_forward;
+      used_dist_set[i] = storcli_read_rq_p->dist_set[rotate_modulo];     
+    } 
+    break;
+  }  
+  /*
+  ** Fullfill the distribution with the spare storages
+  */
+  for (; i  <rozofs_safe ; i ++) {
+    used_dist_set[i] = storcli_read_rq_p->dist_set[i];     
+  } 
+#endif  
   /*
   ** init of the load balancing group/ projection association table with the state of each lbg
   ** search in the current distribution the relative reference of the storage
@@ -494,7 +574,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
     /*
     ** Get the load balancing group associated with the sid
     */
-    int lbg_id = rozofs_storcli_get_lbg_for_sid(storcli_read_rq_p->cid,storcli_read_rq_p->dist_set[i]);
+    int lbg_id = rozofs_storcli_get_lbg_for_sid(storcli_read_rq_p->cid,used_dist_set[i]);
     if (lbg_id < 0)
     {
       /*
@@ -502,12 +582,12 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
       ** when a new cluster has been added to the configuration and the client does not
       ** know yet the configuration change
       */
-      severe("sid is unknown !! %d\n",storcli_read_rq_p->dist_set[i]);
+      severe("sid is unknown !! %d\n",used_dist_set[i]);
       continue;    
     }
     rozofs_storcli_lbg_prj_insert_lbg_and_sid(working_ctx_p->lbg_assoc_tb,lbg_in_distribution,
                                               lbg_id,
-                                              storcli_read_rq_p->dist_set[i]);   
+                                              used_dist_set[i]);   
     rozofs_storcli_lbg_prj_insert_lbg_state(lbg_assoc_p,
                                             lbg_in_distribution,
                                             NORTH_LBG_GET_STATE(lbg_assoc_p[lbg_in_distribution].lbg_id));    
@@ -975,6 +1055,10 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    uint64_t raw_file_size;
    int bins_len = 0;
    int lbg_id;
+   /*
+   ** take care of the rescheduling of the pending frames
+   */
+   trshape_schedule_on_response();
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
@@ -1237,6 +1321,21 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     ** That's fine, all the projections have been received start rebuild the initial message
     */
     STORCLI_START_KPI(storcli_kpi_transform_inverse);
+    /*
+    ** for the case of the shared memory, we must check if the rozofsmount has not aborted the request
+    */
+    if (working_ctx_p->shared_mem_p != NULL)
+    {
+      uint32_t *xid_p = (uint32_t*)working_ctx_p->shared_mem_p;
+      if (*xid_p !=  working_ctx_p->src_transaction_id)
+      {
+        /*
+        ** the source has aborted the request
+        */
+        error = EPROTO;
+        goto io_error;
+      }    
+    }    
     
     ret = rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
                                      layout,
@@ -1501,12 +1600,18 @@ void rozofs_storcli_stop_read_guard_timer(rozofs_storcli_ctx_t  *p)
   
    @param param: Not significant
 */
+static uint64_t ticker_count = 0;
 void rozofs_storcli_periodic_ticker(void * param) 
 {
    ruc_obj_desc_t   *bucket_head_p;
    rozofs_storcli_ctx_t   *read_ctx_p;
    ruc_obj_desc_t  *timer;
    int bucket_idx;
+   
+   ticker_count += 100;
+   if (ticker_count < ROZOFS_TMR_GET(TMR_PRJ_READ_SPARE)) return;
+   
+   ticker_count = 0;
    
    bucket_idx = rozofs_storcli_read_clk.bucket_cur;
    bucket_idx = (bucket_idx+1)%ROZOFS_STORCLI_TIMER_BUCKET;

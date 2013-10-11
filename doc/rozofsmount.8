@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZOFSMOUNT 8 "MAY 2013" Rozofs "User Manuals"
+.TH ROZOFSMOUNT 8 "OCTOBER 2013" RozoFS "User Manuals"
 .SH NAME
-rozofsmount \- rozofs fuse mount
+rozofsmount \- RozoFS fuse mount
 .SH SYNOPSIS
 .B rozofsmount
 [\fB\-f\fP]
@@ -25,49 +25,89 @@ mount a
 .BR rozofs (7) 
 filesystem exported by
 .BR exportd (8)
+.SH OPTIONS
+
+.SS "General options:"
 .PP
-General options:
 .TP
 \fB\-h\fP, \fB\-\-help
-display help and exit
+Display help and exit.
 .TP
 \fB\-V\fP, \fB\-\-version
-display version information and exit
+Display version information and exit.
 .PP
-FUSE options:
+.SS "FUSE options:"
 .TP
 \fB\-f\fP
-foreground operation
+Foreground operation.
 .PP
-RozoFS options:
+.SS "RozoFS options:"
+.PP
 .TP
 \fB\-H\fP \fIEXPORT_HOST\fP, \fB\-o exporthost=\fP\fIEXPORT_HOST\fP
-Address (or dns name) where exportd deamon is running (default is rozofsexport).
+Address (or dns name) where exportd daemon is running (default is rozofsexport).
 .TP
 \fB\-E\fP \fIEXPORT_PATH\fP, \fB-o exportpath=\fP\fIEXPORT_PATH\fP
 Root path of an export see
 .BR exportd (8)
-for further details. (default is /home/rozofs).
+for further details. (default is /srv/rozofs/exports/export).
 .TP
 \fB\-E\fP \fIEXPORT_PASSWD\fP, \fB\-o exportpasswd=\fP\fIEXPORT_PASSWD\fP
-Address (or dns name) where exportd deamon is running (default is empty).
-.TP
-
+Address (or dns name) where exportd daemon is running (default is empty).
 .TP
 \fB\-o rozofsbufsize=\fP\fIN\fP
-specify size of I/O buffer in KiB (in range: 128..8192 - default: 256)
+Specify size of I/O buffer in KiB (in range: 128..8192 - default: 256).
+.TP
+\fB\-o rozofsminreadsize=\fP\fIN\fP
+Specify minimum read size on disk in KiB (default value is same as the option rozofsbufsize).
+.TP
+\fB\-o rozofsmaxwritepending=\fP\fIN\fP
+Specify the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: 32).
 .TP
 \fB\-o rozofsmaxretry=\fP\fIN\fP
-specify number of retries before I/O error is returned (default: 50)
+Specify number of retries before I/O error is returned (default: 50).
 .TP
 \fB\-o rozofsexporttimeout=\fP\fIN\fP
-specify timeout in seconds for exportd requests (default: 25)
+Specify timeout in seconds for exportd requests (default: 25).
 .TP
 \fB\-o rozofsstoragetimeout=\fP\fIN\fP
-specify timeout in seconds for IO storaged requests (default: 3)
+Specify timeout in seconds for IO storaged requests (default: 3).
 .TP
 \fB\-o rozofsstorclitimeout=\fP\fIN\fP
-specify timeout in seconds for storcli requests (default: 10)
+Specify timeout in seconds for storcli requests (default: 10).
+.TP
+\fB\-o rozofsattrtimeout=\fP\fIN\fP
+Specify timeout in seconds for which file/directory attributes are cached (default: 10).
+.TP
+\fB\-o rozofsentrytimeout=\fP\fIN\fP
+Specify timeout in seconds for which name lookups will be cached (default: 10).
+.TP
+\fB\-o debug_port=\fP\fIN\fP
+Specify the base debug port for rozofsmount (default: none).
+.TP
+\fB\-o instance=\fP\fIN\fP
+Specify rozofsmount instance number (default: 0).
+.TP
+\fB\-o rozofscachemode=\fP\fIN\fP
+Specify the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0).
+.TP
+\fB\-o rozofsmode=\fP\fIN\fP
+Specify the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0).
+.TP
+\fB\-o rozofsnbstorcli=\fP\fIN\fP
+Specify the number of storcli process(es) to use (in range: 1..2 - default: 1).
+.TP
+\fB\-o rozofsshaper=\fP\fIN\fP
+Specify the storcli shaper configuration (default: 1).
+.TP
+\fB\-o rozofsrotate=\fP\fIN\fP
+Specify the modulo on read distribution rotation (default: 0).
+.TP
+\fB\-o posixlock
+Active support for POSIX file lock.
+.TP
+\fB\-o bsdlock
+Active support for BSD file lock.
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.

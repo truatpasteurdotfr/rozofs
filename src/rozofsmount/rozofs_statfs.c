@@ -129,9 +129,9 @@ error:
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   ep_statfs_ret_t ret;
+   epgw_statfs_ret_t ret;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_statfs_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_statfs_ret_t;
 
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
@@ -192,12 +192,12 @@ error:
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_statfs_ret_t_u.error;
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_statfs_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&estat, &ret.ep_statfs_ret_t_u.stat, sizeof (ep_statfs_t));
+    memcpy(&estat, &ret.status_gw.ep_statfs_ret_t_u.stat, sizeof (ep_statfs_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding section

@@ -24,6 +24,8 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
+#include "spprotosvc.h"
 
 DECLARE_PROFILING(spp_profiler_t);
 
@@ -58,3 +60,24 @@ spp_status_ret_t *spp_clear_1_svc(void *args,struct svc_req *req) {
     return &ret;
 }
 
+void spp_null_1_svc_nb(void * req, rozorpc_srv_ctx_t * rozorpc_srv_ctx_p, void * resp) {
+}
+void spp_get_profiler_1_svc_nb(void * req, rozorpc_srv_ctx_t * rozorpc_srv_ctx_p, void * resp) {
+  spp_profiler_ret_t * ret = (spp_profiler_ret_t *) resp;
+  
+  gprofiler.now = time(0);
+  memcpy(&ret->spp_profiler_ret_t_u.profiler, &gprofiler, sizeof(gprofiler));
+  ret->status = SPP_SUCCESS;
+}
+void spp_clear_1_svc_nb(void * req, rozorpc_srv_ctx_t * rozorpc_srv_ctx_p, void * resp) {
+  spp_status_ret_t * ret = (spp_status_ret_t*) resp;
+  
+  CLEAR_PROBE(stat);
+  CLEAR_PROBE(ports);
+  CLEAR_PROBE(remove);
+  CLEAR_PROBE(read);
+  CLEAR_PROBE(write);
+  CLEAR_PROBE(truncate);
+
+  ret->status = SPP_SUCCESS; 
+}

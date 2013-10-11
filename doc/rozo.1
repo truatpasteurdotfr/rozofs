@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZO 1 "MAY 2013" Rozofs "User Manuals"
+.TH ROZO 1 "JULY 2013" Rozofs "User Manuals"
 .SH NAME
 rozo \- rozofs management tool
 .SH SYNOPSIS
@@ -72,7 +72,7 @@ whenever
 is managed by pacemaker.
 .SS
 nodes
-\fBrozo \fPnodes [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-r\fP | \fB--roles \fP\fIrole\fP ...]
+\fBrozo \fPnodes \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-r\fP | \fB--roles \fP\fIrole\fP ...]
 .TP
 Display nodes and associated roles.
 .TP
@@ -83,7 +83,7 @@ A running exportd hostname. If not set the local hostname will be used.
 List of roles as a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
 .SS
 status
-\fBrozo \fPstatus [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+\fBrozo \fPstatus \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
 .TP
 Display nodes statuses.
 .TP
@@ -97,7 +97,7 @@ List of hosts (as hostname) to be displayed. If not set all nodes of the platfor
 List of roles as a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
 .SS
 start
-\fBrozo \fPstart [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+\fBrozo \fPstart \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
 .TP
 Start nodes services.
 .TP
@@ -111,7 +111,7 @@ List of hosts (as hostname) to be started. If not set all nodes of the platform 
 List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be started on nodes hosting these services. If not set all roles will be started.
 .SS
 stop
-\fBrozo \fPstop [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+\fBrozo \fPstop \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
 .TP
 Stop nodes services.
 .TP
@@ -125,7 +125,7 @@ List of hosts (as hostname) to be stopped. If not set all nodes of the platform 
 List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be stopped on nodes hosting these services. If not set all roles will be stopped.
 .SS
 config
-\fBrozo \fPconfig [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+\fBrozo \fPconfig \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
 .TP
 Show nodes configuration.
 .TP
@@ -139,9 +139,9 @@ List of hosts (as hostname) to be displayed. If not set all nodes of the platfor
 List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be displayed on nodes hosting these services. If not set all roles will be displayed.
 .SS
 profile
-\fBrozo \fPprofile [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
+\fBrozo \fPprofile \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--nodes\fP \fIhost\fP,...] [\fB\-r\fP | \fB--roles \fP\fIrole\fP,...]
 .TP
-Show nodes profiling informations.
+Show nodes profiling information.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname. If not set the local hostname will be used.
@@ -153,7 +153,7 @@ List of hosts (as hostname) to be displayed. If not set all nodes of the platfor
 List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be displayed on nodes hosting these services. If not set all roles will be displayed.
 .SS
 layout
-\fBrozo \fPlayout [\fB\-E\fP | \fB--exportd\fP\fI host\fP] \fIlayout\fP 
+\fBrozo \fPlayout \fB\-E\fP | \fB--exportd\fP\fI host\fP \fIlayout\fP 
 .TP
 Set storage layout for this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
 .TP
@@ -161,7 +161,7 @@ Set storage layout for this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. The
 A running exportd hostname. If not set the local hostname will be used.
 .SS
 stat
-\fBrozo \fPstat [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vids\fP \fIvid\fP,...] 
+\fBrozo \fPstat \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-v\fP | \fB\-\-vids\fP \fIvid\fP,...] 
 .TP
 Get storage stats for this platform.
 .TP
@@ -172,7 +172,7 @@ A running exportd hostname. If not set the local hostname will be used.
 List of volume id to be stated. If not set all volumes will be stated.
 .SS
 expand
-\fBrozo \fPexpand [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-v\fP | \fB\-\-vid\fP \fIvid\fP] \fIhost\fP ... 
+\fBrozo \fPexpand \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-v\fP | \fB\-\-vid\fP \fIvid\fP] \fIhost\fP ... 
 .TP
 Add storage nodes (according to the given \fIhosts\fP list) to this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP.
 .TP
@@ -180,10 +180,10 @@ Add storage nodes (according to the given \fIhosts\fP list) to this platform, se
 A running exportd hostname. If not set the local hostname will be used.
 .TP
 \fB\-v\fP, \fB--vid \fP\fIvid\fP
-Volume id to be expand. If not set a new volume will be created. In this case the number of nodes should be consistant with the platform layout.
+Volume id to be expand. If not set a new volume will be created. In this case the number of nodes should be consistent with the platform layout.
 .SS
 shrink
-\fBrozo \fPshrink [\fB\-E\fP | \fB--exportd\fP\fI host\fP] \fIvid\fP,... 
+\fBrozo \fPshrink \fB\-E\fP | \fB--exportd\fP\fI host\fP \fIvid\fP,... 
 .TP
 Remove volume(s) (according to the given \fIvid\fP list) from this platform, see \fBexportd(8)\fP, \fBrozofs(7)\fP. Volume(s) will be removed if and only if no export exists on it.
 .TP
@@ -191,7 +191,7 @@ Remove volume(s) (according to the given \fIvid\fP list) from this platform, see
 A running exportd hostname. If not set the local hostname will be used.
 .SS
 export
-\fBrozo \fPexport [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fP\-\-name\fP\fI name\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIvid\fP
+\fBrozo \fPexport \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fP\-\-name\fP\fI name\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIvid\fP
 .TP
 Export a new filesytem on the given volume.
 .TP
@@ -211,7 +211,7 @@ Soft quota to set. (value [K | M | G])
 Hard quota to set. (value [K | M | G]) 
 .SS
 update
-\fBrozo \fPupdate [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-c\fP | \fB--current\fP\fI password\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIeid\fP
+\fBrozo \fPupdate \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-c\fP | \fB--current\fP\fI password\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP] \fIeid\fP
 .TP
 Update an export according to \fIeid\fP.
 .TP
@@ -231,7 +231,7 @@ Soft quota to set. (value [K | M | G])
 Hard quota to set. (value [K | M | G]) 
 .SS
 unexport
-\fBrozo \fPunexport [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-f\fP | \fB--force\fP] \fIeid\fP,...
+\fBrozo \fPunexport \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-f\fP | \fB--force\fP] \fIeid\fP,...
 .TP
 Unexport according to \fIeid\fP,... Only empty exports will be removed. 
 .TP
@@ -242,26 +242,32 @@ A running exportd hostname. If not set the local hostname will be used.
 Force removing non empty exports.
 .SS
 mount
-\fBrozo \fPmount [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--node\fP \fIhost\fP,...] \fIeid\fP,...
+\fBrozo \fPmount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fIhost\fP,...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP,...]
 .TP
-Mount export identified by \fIeid\fP,... on nodes. 
+Mount export(s) identified by \fIeid\fP,... on nodes. 
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname. If not set the local hostname will be used.
 .TP
 \fB\-n\fP, \fB--nodes \fP\fIhost\fP,...
 List of nodes to mount on. If not set exports will be mount on all host.
+.TP
+\fB\-e\fP, \fB--eids \fP\fIeid\fP,...
+List of export(s) identified by \fIeid\fP,... to mount.
 .SS
 umount
-\fBrozo \fPumount [\fB\-E\fP | \fB--exportd\fP\fI host\fP] [\fB\-n\fP | \fB--node\fP \fhost\fP,...] \fIeid\fP,...
+\fBrozo \fPumount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fhost\fP,...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP,...]
 .TP
-Umount export identified by \fIeid\fP,... on nodes. 
+Umount export(s) identified by \fIeid\fP,... on nodes. 
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname. If not set the local hostname will be used.
 .TP
 \fB\-n\fP, \fB--nodes \fP\fIhost\fP,...
 List of nodes to umount from. If not set exports will be umount from all host.
+.TP
+\fB\-e\fP, \fB--eids \fP\fIeid\fP,...
+List of export(s) identified by \fIeid\fP,... to umount.
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.

@@ -74,7 +74,7 @@ struct storcli_truncate_arg_t {
     uint8_t     spare;
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
     storcli_uuid_t   fid; 
-    uint8_t     proj_id; 
+    uint16_t     last_seg; 
     uint64_t    bid; 
 };
 

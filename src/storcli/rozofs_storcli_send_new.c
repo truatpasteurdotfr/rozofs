@@ -48,6 +48,7 @@
 #include "rozofs_storcli.h"
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/rozofs_srv.h>
 
 DECLARE_PROFILING(stcpp_profiler_t);
 
@@ -207,12 +208,26 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t 
     */
 
 //     STORCLI_STOP_NORTH_PROF_SRV((rozofs_storcli_ctx_t*)user_ctx_p,read_req,0);   // FDL  
+    /*
+    ** check the case of the read
+    */
+    if (opcode == SP_READ)
+    {
+      sp_read_arg_t *request = (sp_read_arg_t*)msg2encode_p;
+      uint32_t rozofs_max_psize = (uint32_t) rozofs_get_max_psize(request->layout); 
 
-#ifndef TEST_STORCLI_TEST
-    ret = north_lbg_send(lbg_id,xmit_buf);
-#else
-    ret = test_north_lbg_send(lbg_id,xmit_buf);
-#endif
+      uint32_t rsp_size = request->nb_proj*rozofs_max_psize*sizeof(bin_t);
+      uint32_t disk_time = 0;
+//      info("FDL nb_proj %d rozofs_max_psize %d rsp_size %d",request->nb_proj,rozofs_max_psize,rsp_size);
+      ret = north_lbg_send_with_shaping(lbg_id,xmit_buf,rsp_size,disk_time);
+    }
+    else
+    {
+      /*
+      ** case write and truncate
+      */
+       ret = north_lbg_send(lbg_id,xmit_buf);
+    }
     if (ret < 0)
     {
        TX_STATS(ROZOFS_TX_SEND_ERROR);
@@ -262,6 +277,7 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
    int len;
    storcli_status_t status = STORCLI_SUCCESS;
    int data_len;
+   uint32_t alignment;
    uint8_t eof_flag = 0;
    
     /*
@@ -286,29 +302,57 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
                                                               p->effective_number_of_blocks,
                                                               &eof_flag);
     STORCLI_STOP_NORTH_PROF(p,read,data_len);
-    /*
-    ** skip the alignment
-    */
-    int position;
-    position = xdr_getpos(&xdrs);
-    position += sizeof(uint32_t);
-    xdr_setpos(&xdrs,position); 
-   
-    XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
-    /*
-    ** round up data_len to 4 bytes alignment
-    */
-    if ((data_len%4)!= 0) data_len = (data_len &(~0x3))+4;
-       
-    /*
-    ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
-    ** the ruc buffer to take care of the header length of the rpc message.
-    */
-    int total_len = xdr_getpos(&xdrs)+data_len ;
-    *header_len_p = htonl(0x80000000 | total_len);
-    total_len +=sizeof(uint32_t);
 
-    ruc_buf_setPayloadLen(p->xmitBuf,total_len);
+    //int position;
+    //position = xdr_getpos(&xdrs);
+    /*
+    ** check the case of the shared memory
+    */
+    if (p->shared_mem_p != NULL)
+    {
+       uint32_t *sharedmem_p = (uint32_t*)p->shared_mem_p;
+       sharedmem_p[1] = data_len;
+
+       alignment = 0x53535353;
+       data_len   = 0;
+       XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+       XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
+       /*
+       ** insert the length in the shared memory
+       */
+       /*
+       ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
+       ** the ruc buffer to take care of the header length of the rpc message.
+       */
+       int total_len = xdr_getpos(&xdrs) ;
+       *header_len_p = htonl(0x80000000 | total_len);
+       total_len +=sizeof(uint32_t);
+
+       ruc_buf_setPayloadLen(p->xmitBuf,total_len);    
+    }
+    else
+    {
+      /*
+      ** skip the alignment
+      */
+      alignment = 0;
+      XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+      XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
+      /*
+      ** round up data_len to 4 bytes alignment
+      */
+      if ((data_len%4)!= 0) data_len = (data_len &(~0x3))+4;
+
+      /*
+      ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
+      ** the ruc buffer to take care of the header length of the rpc message.
+      */
+      int total_len = xdr_getpos(&xdrs)+data_len ;
+      *header_len_p = htonl(0x80000000 | total_len);
+      total_len +=sizeof(uint32_t);
+
+      ruc_buf_setPayloadLen(p->xmitBuf,total_len);
+    }
     /*
     ** Clear the reference of the seqnum to prevent any late response to be processed
     ** by setting seqnum to 0 any late response is ignored and the associated ressources

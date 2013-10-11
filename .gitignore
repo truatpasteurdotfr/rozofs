@@ -24,6 +24,7 @@ src/exportd/exportd
 src/rozofsmount/rozofsmount
 src/rprof/rprof
 src/storaged/storaged
+src/storaged/storio
 src/storcli/storcli
 src/rozodebug/rozodebug
 tests/fs_ops/fileop/fileop
@@ -48,3 +49,15 @@ tests/test_write_all_offset
 tests/test_xattr
 tests/test_truncate
 tests/rw
+tests/test_write
+tests/test_chmod
+tests/test_link
+tests/test_rename
+tests/test_trunc
+tests/read_parallel
+tests/test_file_lock
+tests/test_readdir
+
+
+
+

@@ -112,6 +112,18 @@ xdr_mp_stat_ret_t (XDR *xdrs, mp_stat_ret_t *objp)
 }
 
 bool_t
+xdr_mp_io_address_t (XDR *xdrs, mp_io_address_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->ipv4))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->port))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_mp_ports_ret_t (XDR *xdrs, mp_ports_ret_t *objp)
 {
 	//register int32_t *buf;
@@ -120,8 +132,8 @@ xdr_mp_ports_ret_t (XDR *xdrs, mp_ports_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case MP_SUCCESS:
-		 if (!xdr_vector (xdrs, (char *)objp->mp_ports_ret_t_u.ports, STORAGE_NODE_PORTS_MAX,
-			sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
+		 if (!xdr_vector (xdrs, (char *)objp->mp_ports_ret_t_u.io_addr, STORAGE_NODE_PORTS_MAX,
+			sizeof (mp_io_address_t), (xdrproc_t) xdr_mp_io_address_t))
 			 return FALSE;
 		break;
 	case MP_FAILURE:

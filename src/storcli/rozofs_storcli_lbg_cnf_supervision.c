@@ -34,6 +34,7 @@
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/north_lbg_api.h>
 #include "storcli_main.h"
 
 
@@ -84,26 +85,25 @@ storcli_lbg_sup_conf_t *storcli_sup_getObjRef()
   return (storcli_lbg_sup_conf_t *)&storcli_sup_lbg_ctx;
 }
 
-
-/*----------------------------------------------
-**  storcli_sup_generateTicker
-**----------------------------------------------
-**
-**  that function builds the event message and
-**  sends it to the internal socket.
-**
-**
-**  IN :
-**     p : Relci object pointer
-**     evt : RUC_TIMER_TICK
-**
-**  OUT :NONE
-**
-**-----------------------------------------------
+/*
+**_________________________________________________________________________
 */
-void storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage )
+/**
+* send the configuration of a load balancing group to the non blocking side
+  It is assumed that the load balancing group has been previously created
+
+  The message is sent over the socket AF_UNIX pair.
+  
+  @param mstorage : pointer to the storage node data structure
+  
+
+  @retval 0 success
+  @retval -1 error
+*/
+int storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage )
 {
   int nBytes;
+  uint32_t  response;
   storcli_sup_msg_t msg;
   storcli_lbg_sup_conf_t *p = &storcli_sup_lbg_ctx;
 
@@ -119,9 +119,80 @@ void storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage )
     /*
     **  message not sent
     */
+    severe("storcli_sup_send_lbg_port_configuration : %s",strerror(errno));
+    return -1;
+  }
+  /*
+  ** OK now wait for the response
+  */
+    nBytes = recv(p->internalSocket[RUC_SOC_SEND],
+                   (char *)&response,
+                   sizeof(uint32_t),
+                   0);
+  if (nBytes != sizeof(uint32_t))
+  {
+    /*
+    **  something wrong : (BUG)
+    */
+    severe("storcli_sup_send_lbg_port_configuration : %s",strerror(errno));
+    return -1;
+  }
+  return (int)response;
+}
+
+/*
+**_________________________________________________________________________
+*/
+/**
+*  send a message for creating a load balancing group without any configuration
+
+  @param mstorage: pointer to the storage node data structure
+  
+  @retval 0 on success
+  @retval -1 on error
+*/
+int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage )
+{
+  int nBytes;
+  storcli_sup_msg_t msg;
+  uint32_t  response;
+  storcli_lbg_sup_conf_t *p = &storcli_sup_lbg_ctx;
+  mstorage_t *mstor = (mstorage_t*) mstorage ;
+
+  msg.opcode = opcode;
+  msg.param = mstorage;
+  mstor->lbg_id = -1;
+
+  nBytes = send(p->internalSocket[RUC_SOC_SEND],
+                (const char *)&msg,
+                sizeof(storcli_sup_msg_t),
+                0);
+  if (nBytes != sizeof(storcli_sup_msg_t))
+  {
+    /*
+    **  message not sent
+    */
+    severe("storcli_sup_send_lbg_create : %s",strerror(errno));
+    return -1;
 
   }
-}
+  /*
+  ** OK now wait for the response
+  */
+    nBytes = recv(p->internalSocket[RUC_SOC_SEND],
+                   (char *)&response,
+                   sizeof(uint32_t),
+                   0);
+  if (nBytes != sizeof(uint32_t))
+  {
+    /*
+    **  something wrong : (BUG)
+    */
+    severe("storcli_sup_send_lbg_create : %s",strerror(errno));
+    return -1;
+  }
+  return (int)response;
+}  
 /*----------------------------------------------
 **  storcli_sup_getIntSockIdxFromSocketId
 **----------------------------------------------
@@ -224,7 +295,10 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
   uint32_t      socketIdx;
   int         bytesRcvd;
   storcli_sup_msg_t msg;
+  mstorage_t *storage_p;
   int ret;
+  uint32_t retcode;
+  int nBytes;
 
   /*
   **  Get the pointer to the timer Object
@@ -274,8 +348,46 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
       if (ret < 0)
       {
         fatal("Cannot configure Load Balancing Group");                       
-      }      
+      }   
+      retcode = (uint32_t) ret;   
+      nBytes = send(p->internalSocket[RUC_SOC_RECV],
+                    (const char *)&retcode,
+                    sizeof(retcode),
+                    0);
+      if (nBytes != sizeof(retcode))
+      {
+        /*
+        **  message not sent
+        */
+        fatal("error on sending response");
+
+      }         
       break;
+      
+    case STORCLI_LBG_CREATE:
+      storage_p = (mstorage_t*)msg.param;
+      retcode = 0;
+      storage_p->lbg_id = north_lbg_create_no_conf();
+      if (storage_p->lbg_id < 0)
+      {
+        fatal("Cannot configure Load Balancing Group");      
+        retcode = (uint32_t) -1;                 
+      }  
+      
+      nBytes = send(p->internalSocket[RUC_SOC_RECV],
+                    (const char *)&retcode,
+                    sizeof(retcode),
+                    0);
+      if (nBytes != sizeof(retcode))
+      {
+        /*
+        **  message not sent
+        */
+        fatal("error on sending response");
+
+      }         
+      break;
+
     default:
       RUC_WARNING(msg.opcode);
       break;
@@ -385,7 +497,7 @@ uint32_t storcli_sup_createInternalSocket(storcli_lbg_sup_conf_t *p)
 {
   int    ret;
   uint32_t retcode = RUC_NOK;
-  int    fileflags;
+//  int    fileflags;
 
 
   /*
@@ -407,6 +519,7 @@ uint32_t storcli_sup_createInternalSocket(storcli_lbg_sup_conf_t *p)
   }
   while (1)
   {
+#if 0
     /*
     ** change socket mode to asynchronous
     */
@@ -420,6 +533,7 @@ uint32_t storcli_sup_createInternalSocket(storcli_lbg_sup_conf_t *p)
       RUC_WARNING(errno);
       break;
     }
+#endif
     /*
     ** 2 - perform the connection with the socket controller
     */

@@ -49,17 +49,27 @@
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
+#include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/core/rozofs_host2ip.h>
+#include <rozofs/core/ruc_traffic_shaping.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
-
+#include "rozofs_storcli_reload_storage_config.h"
 
 #define STORCLI_PID_FILE "storcli.pid"
 
 int rozofs_storcli_non_blocking_init(uint16_t dbg_port, uint16_t rozofsmount_instance);
 
 DEFINE_PROFILING(stcpp_profiler_t) = {0};
+
+
+/*
+** reference of the shared memory opened by rozofsmount
+*/
+storcli_shared_t storcli_rozofsmount_shared_mem;
+
 
 /**
  * data structure used to store the configuration parameter of a storcli process
@@ -73,7 +83,10 @@ typedef struct storcli_conf {
     unsigned buf_size;
     unsigned max_retry;
     unsigned dbg_port;
+    unsigned nb_cores; /*< Number of cores to keep on disk */
     unsigned rozofsmount_instance;
+    key_t sharedmem_key;
+    unsigned shaper;
 } storcli_conf;
 
 /*
@@ -83,22 +96,39 @@ typedef struct storcli_conf {
  storcli_kpi_t storcli_kpi_transform_inverse;
 
 char storcli_process_filename[NAME_MAX];
+/*__________________________________________________________________________
+ */
+/**
+ *  Global and local datas
+ */
+static storcli_conf conf;
+exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
+uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
-static char localBuf[4096];
-void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
-    time_t elapse;
-    int days, hours, mins, secs;
+storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
 
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-    pChar += sprintf(pChar, "uptime =  %d days, %d:%d:%d\n", days, hours, mins, secs);
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
-}         
+#define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_STRING_CONFIG(field) \
+  if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
+  else                    pChar += sprintf(pChar,"%-25s = %s\n",#field,conf.field); 
+  
+void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  
+  DISPLAY_STRING_CONFIG(host);
+  DISPLAY_STRING_CONFIG(export);
+  DISPLAY_STRING_CONFIG(passwd);  
+  DISPLAY_STRING_CONFIG(mount);  
+  DISPLAY_UINT32_CONFIG(module_index);
+  DISPLAY_UINT32_CONFIG(buf_size);
+  DISPLAY_UINT32_CONFIG(max_retry);
+  DISPLAY_UINT32_CONFIG(dbg_port);
+  DISPLAY_UINT32_CONFIG(nb_cores);
+  DISPLAY_UINT32_CONFIG(rozofsmount_instance);
+  DISPLAY_UINT32_CONFIG(shaper);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}    
+
 
 #define RESET_PROFILER_PROBE(probe) \
 { \
@@ -113,13 +143,13 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
 }
 
 
-#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15s |\n",\
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-16s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15s |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
 					gprofiler.probe[P_ELAPSE]," ");
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
+#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-16s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
 					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
@@ -127,7 +157,7 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
                     gprofiler.probe[P_BYTES]);
 
 
-#define SHOW_PROFILER_KPI_BYTE(probe,kpi_buf) pChar += sprintf(pChar," %-14s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
+#define SHOW_PROFILER_KPI_BYTE(probe,kpi_buf) pChar += sprintf(pChar," %-16s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
 					#probe,\
 					kpi_buf.count,\
 					kpi_buf.count?kpi_buf.elapsed_time/kpi_buf.count:0,\
@@ -142,31 +172,43 @@ void show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
                     kpi_buf.bytes_count = 0; \
 }
 
+static char * show_profiler_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     time_t elapse;
     int days, hours, mins, secs;
-    int reset = 0;
     
     if (argv[1] != NULL)
     {
-      if (strcmp(argv[1],"reset")==0) reset = 1;
-    }
-    if (reset)
-    {
-      RESET_PROFILER_PROBE_BYTE(read);
-      RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
-      RESET_PROFILER_PROBE_BYTE(read_prj);
-      RESET_PROFILER_PROBE(read_prj_err);
-      RESET_PROFILER_PROBE(read_prj_tmo);
-      RESET_PROFILER_PROBE_BYTE(write)
-      RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
-      RESET_PROFILER_PROBE_BYTE(write_prj);
-      RESET_PROFILER_PROBE(write_prj_tmo);
-      RESET_PROFILER_PROBE(write_prj_err);    
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
-      return;
-      
+      if (strcmp(argv[1],"reset")==0) {
+	RESET_PROFILER_PROBE_BYTE(read);
+	RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
+	RESET_PROFILER_PROBE_BYTE(read_prj);
+	RESET_PROFILER_PROBE(read_prj_err);
+	RESET_PROFILER_PROBE(read_prj_tmo);
+	RESET_PROFILER_PROBE_BYTE(write)
+	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
+	RESET_PROFILER_PROBE_BYTE(write_prj);
+	RESET_PROFILER_PROBE(write_prj_tmo);
+	RESET_PROFILER_PROBE(write_prj_err);    
+	RESET_PROFILER_PROBE(truncate);
+	RESET_PROFILER_PROBE_BYTE(truncate_prj);
+	RESET_PROFILER_PROBE(truncate_prj_tmo);
+	RESET_PROFILER_PROBE(truncate_prj_err);  
+	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+	return;
+      }
+      /*
+      ** Help
+      */
+      pChar = show_profiler_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;      
     }
 
     // Compute uptime for storaged process
@@ -178,8 +220,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
-    pChar += sprintf(pChar, "   procedure    |     count        |  time(us)  | cumulated time(us)  |     bytes       |\n");
-    pChar += sprintf(pChar, "----------------+------------------+------------+---------------------+-----------------+\n");
+    pChar += sprintf(pChar, "   procedure      |     count        |  time(us)  | cumulated time(us)  |     bytes       |\n");
+    pChar += sprintf(pChar, "------------------+------------------+------------+---------------------+-----------------+\n");
 
 //    SHOW_PROFILER_PROBE_BYTE(read_req);
     SHOW_PROFILER_PROBE_BYTE(read);
@@ -192,24 +234,39 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(write_prj);
     SHOW_PROFILER_PROBE(write_prj_tmo);
     SHOW_PROFILER_PROBE(write_prj_err);
-
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    SHOW_PROFILER_PROBE_BYTE(truncate);
+    SHOW_PROFILER_PROBE_BYTE(truncate_prj);
+    SHOW_PROFILER_PROBE(truncate_prj_tmo);
+    SHOW_PROFILER_PROBE(truncate_prj_err);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
-/*__________________________________________________________________________
- */
-/**
- *  Global and local datas
- */
-static storcli_conf conf;
-exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
-uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
 
-storcli_lbg_cnx_supervision_t storcli_lbg_cnx_supervision_tab[STORCLI_MAX_LBG];
-
+static char bufall[1024];
 
 /*__________________________________________________________________________
  */
+
+static char *show_storlci_display_configuration_state(char *buffer,int state)
+{
+    char *pchar = buffer;
+   switch (state)
+   {
+      default:
+      case STORCLI_CONF_UNKNOWN:
+        sprintf(pchar,"UNKNOWN   ");
+        break;
+   
+      case STORCLI_CONF_NOT_SYNCED:
+        sprintf(pchar,"NOT_SYNCED");
+        break;   
+      case STORCLI_CONF_SYNCED:
+        sprintf(pchar,"SYNCED    ");
+        break;   
+   
+   }
+   return buffer;
+}
 
 
 /**________________________________________________________________________
@@ -242,7 +299,60 @@ static char *show_storcli_display_poll_state(char *buffer,int state)
 /*
 **________________________________________________________________________
 */
-static char bufall[1024];
+/**
+*
+*/
+void show_storcli_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+    char *pchar = uma_dbg_get_buffer();
+   storcli_conf_ctx_t *p = &storcli_conf_ctx ;
+   rpcclt_t *client_p;
+   
+   client_p = &exportclt.rpcclt;
+   
+   while(1)
+   {   
+
+     pchar += sprintf(pchar,"root path    :%s  (eid:%d)\n",exportclt.root,exportclt.eid);
+     pchar += sprintf(pchar,"exportd host : %s\n",exportclt.host); 
+     pchar += sprintf(pchar,"hash config  : 0x%x\n",exportd_configuration_file_hash); 
+
+pchar += sprintf(pchar,"     hostname        |  socket  | state  | cnf. status |  poll (attps/ok/nok) | conf send (attps/ok/nok)\n");
+pchar += sprintf(pchar,"---------------------+----------+--------+-------------+----------------------+--------------------------\n");
+     while(1)
+     {
+       pchar += sprintf(pchar,"%20s |",exportclt.host);
+       if ( client_p->sock == -1)
+       {
+         pchar += sprintf(pchar,"  ???     |");
+       }
+       else
+       {
+         pchar += sprintf(pchar,"  %3d     |",client_p->sock);
+       
+       }
+       pchar += sprintf(pchar,"  %s  |",(client_p->sock !=-1)?"UP  ":"DOWN");
+       pchar += sprintf(pchar," %s  |",show_storlci_display_configuration_state(bufall,p->conf_state));
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu |",
+                (long long unsigned int)p->stats.poll_counter[STORCLI_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.poll_counter[STORCLI_STATS_SUCCESS],
+               (long long unsigned int) p->stats.poll_counter[STORCLI_STATS_FAILURE]);
+
+       pchar += sprintf(pchar," %6.6llu/%6.6llu/%6.6llu\n",
+                (long long unsigned int)p->stats.conf_counter[STORCLI_STATS_ATTEMPT],
+                (long long unsigned int)p->stats.conf_counter[STORCLI_STATS_SUCCESS],
+               (long long unsigned int) p->stats.conf_counter[STORCLI_STATS_FAILURE]);  
+
+       break;
+     }
+     break;
+  } 
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+
+/*
+**________________________________________________________________________
+*/
 char *display_mstorage(mstorage_t *s,char *buffer)
 {
 
@@ -280,7 +390,7 @@ char *display_mstorage(mstorage_t *s,char *buffer)
 */
 void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
 
    pchar +=sprintf(pchar," cid  |  sid |      hostname        |  lbg_id  | state  | Path state | Sel | tmo   | Poll. |Per.|  poll state  |\n");
    pchar +=sprintf(pchar,"------+------+----------------------+----------+--------+------------+-----+-------+-------+----+--------------+\n");
@@ -298,8 +408,30 @@ void show_storage_configuration(char * argv[], uint32_t tcpRef, void *bufRef)
      */
      pchar=display_mstorage(s,pchar);
    }
-   uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);      
+   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());      
 }      
+
+/*__________________________________________________________________________
+*/
+/**
+* display the configuration of the shared memory provided by rozofsmount
+*/
+void storcli_shared_mem(char * argv[], uint32_t tcpRef, void *bufRef)
+{
+    char *pChar = uma_dbg_get_buffer();
+
+    pChar += sprintf(pChar, " active |     key   |  size   | cnt  |    address     |\n");
+    pChar += sprintf(pChar, "--------+-----------+---------+------+----------------+\n");
+
+      pChar +=sprintf(pChar," %4s | %8.8d |  %6.6d | %4.4d | %p |\n",(storcli_rozofsmount_shared_mem.active==1)?"  YES ":"  NO  ",
+                      storcli_rozofsmount_shared_mem.key,
+                      storcli_rozofsmount_shared_mem.buf_sz,
+                      storcli_rozofsmount_shared_mem.buf_count,
+                      storcli_rozofsmount_shared_mem.data_p);
+                      
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+
+}
 
 /*__________________________________________________________________________
  */
@@ -370,13 +502,15 @@ static int get_storage_ports(mstorage_t *s) {
     int i = 0;
     mclient_t mclt;
 
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
-    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+    mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+    //memset(io_address, 0, sizeof (io_address));
     strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
 
     struct timeval timeo;
     timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
     timeo.tv_usec = 0;
+
+    init_rpcctl_ctx(&mclt.rpcclt);
 
     /* Initialize connection with storage (by mproto) */
     if (mclient_initialize(&mclt, timeo) != 0) {
@@ -385,18 +519,21 @@ static int get_storage_ports(mstorage_t *s) {
         goto out;
     } else {
         /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, ports) != 0) {
+        if (mclient_ports(&mclt, io_address) != 0) {
             severe("Warning: failed to get ports for storage (host: %s).\n",
                     s->host);
             goto out;
         }
     }
 
+    
     /* Copy each TCP ports */
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (ports[i] != 0) {
-            strncpy(s->sclients[i].host, s->host, ROZOFS_HOSTNAME_MAX);
-            s->sclients[i].port = ports[i];
+        if (io_address[i].port != 0) {
+	    uint32_t ip = io_address[i].ipv4;
+            sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+	    s->sclients[i].ipv4 = ip;	    
+            s->sclients[i].port = io_address[i].port;
             s->sclients[i].status = 0;
             s->sclients_nb++;
         }
@@ -527,14 +664,17 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     //XXX Static timeout
     timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
+    
+    init_rpcctl_ctx(&exportclt.rpcclt);    
 
-    /* Initiate the connection to the export and get informations
+    /* Initiate the connection to the export and get information
      * about exported filesystem */
     if (exportclt_initialize(
             &exportclt,
             conf->host,
             conf->export,
             conf->passwd,
+            conf->buf_size * 1024,
             conf->buf_size * 1024,
             conf->max_retry,
             timeout_exportd) != 0) {
@@ -555,8 +695,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
 
         mclient_t mclt;
         strcpy(mclt.host, s->host);
-        uint32_t ports[STORAGE_NODE_PORTS_MAX];
-        memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+        mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+        //memset(io_address, 0, sizeof (io_address));
         /*
          ** allocate the load balancing group for the mstorage
          */
@@ -570,25 +710,37 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_MONITOR_PROGRAM);
         timeout_mproto.tv_usec = 0;
 
+        init_rpcctl_ctx(&mclt.rpcclt);
+
         /* Initialize connection with storage (by mproto) */
         if (mclient_initialize(&mclt, timeout_mproto) != 0) {
             fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
                     s->host, strerror(errno));
         } else {
             /* Send request to get storage TCP ports */
-            if (mclient_ports(&mclt, ports) != 0) {
+            if (mclient_ports(&mclt, io_address) != 0) {
                 fprintf(stderr,
                         "Warning: failed to get ports for storage (host: %s).\n"
                         , s->host);
             }
         }
-
+	
+     
         /* Initialize each TCP ports connection with this storage node
          *  (by sproto) */
         for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-            if (ports[i] != 0) {
-                strcpy(s->sclients[i].host, s->host);
-                s->sclients[i].port = ports[i];
+            if (io_address[i].port != 0) {
+	        uint32_t ip= io_address[i].ipv4;
+                
+                if (ip == INADDR_ANY){
+                   // Copy storage hostnane and IP
+                   strcpy(s->sclients[i].host, s->host);
+                   rozofs_host2ip(s->host, &ip);
+                }else{
+                   sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+                }
+		s->sclients[i].ipv4 = ip;
+                s->sclients[i].port = io_address[i].port;
                 s->sclients[i].status = 0;
                 s->sclients_nb++;
             }
@@ -611,6 +763,10 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         /* Release mclient*/
         mclient_release(&mclt);
     }
+    /*
+    ** start the exportd configuration polling thread
+    */
+    rozofs_storcli_start_exportd_config_supervision_thread(&exportclt);
     return 0;
 
 
@@ -628,14 +784,17 @@ void usage() {
     printf("Rozofs storage client daemon - %s\n", VERSION);
     printf("Usage: storcli -i <instance> [OPTIONS]\n\n");
     printf("\t-h, --help\tprint this message.\n");
-    printf("\t-H,--host EXPORT_HOST\t\tdefine address (or dns name) where exportd deamon is running (default: rozofsexport) \n");
+    printf("\t-H,--host EXPORT_HOST\t\tdefine address (or dns name) where exportd daemon is running (default: rozofsexport) \n");
     printf("\t-E,--path EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export)\n");
     printf("\t-M,--mount MOUNT_POINT\t\tmount point\n");
     printf("\t-P,--pwd EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) \n");
     printf("\t-D,--dbg DEBUG_PORT\t\tdebug port (default: none) \n");
+    printf("\t-C,--nbcores NB_CORES\t\tnumber of core files to keep on disk (default: 2) \n");
     printf("\t-R,--rozo_instance ROZO_INSTANCE\t\trozofsmount instance number \n");
     printf("\t-i,--instance index\t\t unique index of the module instance related to export \n");
     printf("\t-s,--storagetmr \t\t define timeout (s) for IO storaged requests (default: 3)\n");
+    printf("\t-S,--shaper VALUE\t\tShaper initial value (default 1)\n");
+
 }
 
 /**
@@ -644,9 +803,8 @@ void usage() {
 
 static void storlci_handle_signal(int sig)
 {
-   unlink(storcli_process_filename); 
-   signal(sig, SIG_DFL);
-   raise(sig);
+  if (storcli_process_filename[0] == 0) return;
+  unlink(storcli_process_filename); 
 }
 
 
@@ -661,6 +819,8 @@ int main(int argc, char *argv[]) {
         { "path", required_argument, 0, 'E'},
         { "pwd", required_argument, 0, 'P'},
         { "dbg", required_argument, 0, 'D'},
+        { "nbcores", required_argument, 0, 'C'},
+        { "shaper", required_argument, 0, 'S'},
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
@@ -672,36 +832,35 @@ int main(int argc, char *argv[]) {
     */
     rozofs_tmr_init_configuration();
     
+    /*
+    ** init of the shared memory reference
+    */
+    storcli_rozofsmount_shared_mem.key = 0;
+    storcli_rozofsmount_shared_mem.error = errno;
+    storcli_rozofsmount_shared_mem.buf_sz = 0; 
+    storcli_rozofsmount_shared_mem.buf_count = 0; 
+    storcli_rozofsmount_shared_mem.active = 0; 
+    storcli_rozofsmount_shared_mem.data_p = NULL; 
+        
     storcli_process_filename[0] = 0;
-
-
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGTSTP, SIG_IGN);
-    signal(SIGTTOU, SIG_IGN);
-    signal(SIGTTIN, SIG_IGN);
-    signal(SIGILL, storlci_handle_signal);
-    signal(SIGSTOP, storlci_handle_signal);
-    signal(SIGABRT, storlci_handle_signal);
-    signal(SIGSEGV, storlci_handle_signal);
-    signal(SIGKILL, storlci_handle_signal);
-    signal(SIGTERM, storlci_handle_signal);
-    signal(SIGQUIT, storlci_handle_signal);
     
-
     conf.host = NULL;
     conf.passwd = NULL;
     conf.export = NULL;
     conf.mount = NULL;
     conf.module_index = -1;
+    conf.nb_cores = 2;
     conf.buf_size = 256;
     conf.max_retry = 3;
     conf.dbg_port = 0;
     conf.rozofsmount_instance = 0;
+    conf.sharedmem_key = 0;
+    conf.shaper = 1; // Default value for traffic shaping 
 
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:S:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -744,6 +903,16 @@ int main(int argc, char *argv[]) {
                 }
                 conf.dbg_port = val;
                 break;
+            case 'C':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                conf.nb_cores = val;
+                break;		
             case 'R':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
@@ -754,7 +923,18 @@ int main(int argc, char *argv[]) {
                 }
                 conf.rozofsmount_instance = val;
                 break;
-            case 's':
+
+            case 'S':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                conf.shaper = val;
+                break;            
+	   case 's':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
                 if (errno != 0) {
@@ -763,6 +943,36 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 rozofs_tmr_configure(TMR_STORAGE_PROGRAM,val);
+                break;
+            case 'k':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                storcli_rozofsmount_shared_mem.key = (key_t) val;
+                break;
+            case 'c':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                storcli_rozofsmount_shared_mem.buf_count = (key_t) val;
+                break;
+            case 'l':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                storcli_rozofsmount_shared_mem.buf_sz = (key_t) val;
                 break;
             case '?':
                 usage();
@@ -795,11 +1005,53 @@ int main(int argc, char *argv[]) {
         conf.passwd = strdup("none");
     }
     openlog("storcli", LOG_PID, LOG_DAEMON);
+
+    rozofs_signals_declare("storcli",conf.nb_cores);
+    rozofs_attach_crash_cbk(storlci_handle_signal);
     
     rozofs_storcli_cid_table_init();
     storcli_lbg_cnx_sup_init();
 
     gprofiler.uptime = time(0);
+    
+    /*
+    ** check if the rozofsmount has provided a shared memory
+    */
+    if (storcli_rozofsmount_shared_mem.key != 0)
+    {
+      if ((storcli_rozofsmount_shared_mem.buf_count != 0)&& (storcli_rozofsmount_shared_mem.buf_sz != 0))
+      {
+         /*
+         ** init of the shared memory
+         */
+         while(1)
+         {
+           int shmid;
+           if ((shmid = shmget(storcli_rozofsmount_shared_mem.key, 
+                              storcli_rozofsmount_shared_mem.buf_count*storcli_rozofsmount_shared_mem.buf_sz, 
+                              0666)) < 0) 
+           {
+             severe("error on shmget %d : %s",storcli_rozofsmount_shared_mem.key,strerror(errno));
+             storcli_rozofsmount_shared_mem.error = errno;
+             storcli_rozofsmount_shared_mem.active = 0;
+             break;
+           }
+           /*
+           * Now we attach the segment to our data space.
+           */
+           if ((storcli_rozofsmount_shared_mem.data_p = shmat(shmid, NULL, 0)) == (char *) -1)
+           {
+             severe("error on shmat %d : %s",storcli_rozofsmount_shared_mem.key,strerror(errno));
+             storcli_rozofsmount_shared_mem.error = errno;
+             storcli_rozofsmount_shared_mem.active = 0;
+             break;        
+           }
+           storcli_rozofsmount_shared_mem.active = 1;
+           break;
+         }
+      }
+    }
+
     /*
     ** clear KPI counters
     */
@@ -846,7 +1098,15 @@ int main(int argc, char *argv[]) {
     /*
     ** Declare the debug entry to get the currrent configuration of the storcli
     */
+    uma_dbg_addTopic("config_status", show_storcli_configuration);
+    /*
+    ** Declare the debug entry to get the currrent configuration of the storcli
+    */
     uma_dbg_addTopic("storaged_status", show_storage_configuration);
+    /*
+    ** shared memory with rozofsmount
+    */
+    uma_dbg_addTopic("shared_mem", storcli_shared_mem);
     /*
      ** Init of the north interface (read/write request processing)
      */
@@ -863,12 +1123,18 @@ int main(int argc, char *argv[]) {
      ** add the topic for the local profiler
      */
     uma_dbg_addTopic("profiler", show_profiler);
-    uma_dbg_addTopic("uptime", show_uptime);
+    /*
+     ** add the topic to display the storcli configuration
+     */    
+    uma_dbg_addTopic("start_config", show_start_config);
     /*
     ** declare timer debug functions
     */
     rozofs_timer_conf_dbg_init();
-    
+    /**
+    * init of the traffic shaper
+    */
+    trshape_module_init(conf.shaper);    
     /*
      ** main loop
      */

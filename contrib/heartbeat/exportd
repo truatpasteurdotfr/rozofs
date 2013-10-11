@@ -1,0 +1,254 @@
+#!/bin/sh
+#
+# Resource script for rozofs-exportd daemon
+#
+# Description: Manages RozoFS exportd daemon as an OCF resource in 
+#               an High Availability setup.
+#
+# Author: Sylvain DAVID <sylvain.david@rozofs.com>
+# License: GNU General Public License 2 (GPL 2)
+#
+#
+#	usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+#
+#	The "start" arg starts exportd.
+#
+#	The "stop" arg stops it.
+#
+# OCF parameters:
+# OCF_RESKEY_binpath
+# OCF_RESKEY_conffile
+#
+##########################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/resource.d/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/.ocf-shellfuncs
+
+USAGE="Usage: $0 {start|stop|status|monitor|validate-all|meta-data}";
+
+##########################################################################
+
+usage() {
+    echo $USAGE >&2
+}
+
+meta_data() {
+
+    cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="exportd">
+<version>1.0</version>
+<longdesc lang="en">
+This script manages rozoFS export daemon
+</longdesc>
+<shortdesc lang="en">Manages an export daemon</shortdesc>
+
+<parameters>
+
+<parameter name="binpath">
+<longdesc lang="en">
+The exportd binary path.
+For example, "/usr/bin/exportd"
+</longdesc>
+<shortdesc lang="en">Full path to the exportd binary</shortdesc>
+<content type="string" default="exportd"/>
+</parameter>
+
+<parameter name="conffile">
+<longdesc lang="en">
+The exportd daemon configuration file name with full path. 
+For example, "/etc/rozofs/export.conf"
+</longdesc>
+<shortdesc lang="en">Configuration file name with full path</shortdesc>
+<content type="string" default="/etc/rozofs/export.conf" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start" timeout="20s"/>
+<action name="stop" timeout="20s"/>
+<action name="monitor" depth="0" timeout="20s" interval="60s" />
+<action name="validate-all" timeout="20s"/>
+<action name="meta-data"  timeout="5s"/>
+</actions>
+</resource-agent>
+END
+
+    exit $OCF_SUCCESS
+
+}
+
+get_pid_and_conf_file() {
+
+    if [ -n "$OCF_RESKEY_conffile" ]; then
+            CONF_FILE=$OCF_RESKEY_conffile
+    else
+            CONF_FILE="/etc/rozofs/export.conf"
+    fi
+
+    PIDFILE="/var/run/exportd.pid"
+}
+
+exportd_status() {
+
+    if [ -n "$PIDFILE" -a -f $PIDFILE ]; then
+
+        # exportd is probably running
+        PID=`cat $PIDFILE`
+
+        if [ -n "$PID" ]; then
+
+            if ps -p $PID | grep exportd >/dev/null ; then
+                ocf_log debug "rozofs-exportd daemon running"
+                return $OCF_SUCCESS
+            else
+                ocf_log info "rozofs-exportd daemon is not running but pid file exists"
+                return $OCF_ERR_GENERIC
+            fi
+
+        else
+            ocf_log err "rozofs-exportd PID file empty!"
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+
+    # exportd is not running
+    ocf_log info "rozofs-exportd daemon is not running"
+    return $OCF_NOT_RUNNING
+}
+
+exportd_start() {
+    # if exportd is running return success
+    exportd_status
+    retVal=$?
+
+    if [ $retVal -eq $OCF_SUCCESS ]; then
+        ocf_log debug "rozofs-exportd already started"
+        exit $OCF_SUCCESS
+
+    elif [ $retVal -ne $OCF_NOT_RUNNING ]; then
+        ocf_log err "rozofs-exportd error. Unknown status."
+        exit $OCF_ERR_GENERIC
+    fi
+
+    if [ -n "$OCF_RESKEY_binpath" ]; then
+        COMMAND="$OCF_RESKEY_binpath"
+    else
+        COMMAND="exportd"
+    fi
+
+    if [ -n "$OCF_RESKEY_conffile" ]; then
+        COMMAND="$COMMAND --config $OCF_RESKEY_conffile"
+    fi
+
+    $COMMAND;
+
+    if [ $? -ne 0 ]; then
+        ocf_log err "Error. rozofs-exportd daemon returned error $?."
+        exit $OCF_ERR_GENERIC
+    fi
+
+    ocf_log info "ozofs-exportd daemon started."
+
+    exit $OCF_SUCCESS
+}
+
+
+exportd_stop() {
+
+    if exportd_status ; then
+
+        PID=`cat $PIDFILE`
+
+        if [ -n "$PID" ] ; then
+
+            kill $PID
+
+            if [ $? -ne 0 ]; then
+
+                kill -SIGKILL $PID
+
+                if [ $? -ne 0 ]; then
+                    ocf_log err "Error. Could not stop rozofs-exportd daemon."
+                    return $OCF_ERR_GENERIC
+                fi
+            fi
+
+            rm $PIDFILE 2>/dev/null
+        fi
+    fi
+
+    ocf_log info "Stopped rozofs-exportd daemon."
+    exit $OCF_SUCCESS
+}
+
+exportd_monitor() {
+    exportd_status
+}
+
+exportd_validate_all() {
+
+    if [ -n "$OCF_RESKEY_binpath" -a ! -x "$OCF_RESKEY_binpath" ]; then
+        ocf_log err "Binary path $OCF_RESKEY_binpath for rozofs-exportd does not exist."
+        exit $OCF_ERR_ARGS
+    fi
+
+    if [ -n "$OCF_RESKEY_conffile" -a ! -f "$OCF_RESKEY_conffile" ]; then
+        ocf_log err "Config file $OCF_RESKEY_conffile for rozofs-exportd does not exist."
+        exit $OCF_ERR_ARGS
+    fi
+
+    return $OCF_SUCCESS
+}
+
+#
+# Main
+#
+if [ $# -ne 1 ]; then
+    usage
+    exit $OCF_ERR_ARGS
+fi
+
+case $1 in
+    start)
+        get_pid_and_conf_file
+        exportd_start
+        ;;
+
+    stop)
+        get_pid_and_conf_file
+        exportd_stop
+        ;;
+
+    status)
+        get_pid_and_conf_file
+        exportd_status
+        ;;
+
+    monitor)
+        get_pid_and_conf_file
+        exportd_monitor
+        ;;
+
+    validate-all)
+        get_pid_and_conf_file
+        exportd_validate_all
+        ;;
+
+    meta-data)
+        meta_data
+        ;;
+
+    usage)
+        usage
+        exit $OCF_SUCCESS
+        ;;
+
+    *)
+        usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac

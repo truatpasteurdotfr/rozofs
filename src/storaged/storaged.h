@@ -28,6 +28,7 @@ extern uint8_t storaged_nb_io_processes;
 
 /** Corresponding ports */
 extern uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX];
+extern uint8_t storaged_nb_ports;
 
 /* public API */
 

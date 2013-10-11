@@ -30,7 +30,6 @@
 #include <rozofs/common/types.h>
 
 #include "ruc_common.h"
-#include "ppu_trace.h"
 #include "af_unix_socket_generic.h"
 
 
@@ -118,7 +117,7 @@ uint32_t af_unix_send_generic(int fd,
   /*
   ** For datagram type either the full message is sent or nothing!!
   */
-  ERRFAT " Cannot block in the message of a message " ENDERRFAT;
+  fatal( " Cannot block in the message of a message " );
 
   return RUC_WOULDBLOCK;
 

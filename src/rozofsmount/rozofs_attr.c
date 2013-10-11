@@ -48,6 +48,7 @@
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
+#include <rozofs/rpc/storcli_proto.h>
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
@@ -55,7 +56,9 @@
 #include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/expgw_common.h>
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -83,8 +86,9 @@ DECLARE_PROFILING(mpp_profiler_t);
 {
     (void) fi;
     ientry_t *ie = 0;
-    ep_mfile_arg_t arg;
+    epgw_mfile_arg_t arg;
     int ret;
+    struct stat stbuf;
 
 
     DEBUG("getattr for inode: %lu\n", (unsigned long int) ino);
@@ -109,16 +113,35 @@ DECLARE_PROFILING(mpp_profiler_t);
         goto error;
     }
     /*
+    ** In block mode the attributes of regular files are directly retrieved 
+    ** from the ie entry. For directories and links one ask to the exportd
+    ** 
+    */
+    if ((rozofs_mode == 1)&&(S_ISREG(ie->attrs.mode)))
+    {
+      mattr_to_stat(&ie->attrs, &stbuf);
+      stbuf.st_ino = ino;   
+      fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
+      goto out;   
+    }
+    /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid, ie->fid, sizeof (uuid_t));
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid, ie->fid, sizeof (uuid_t));
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_GETATTR,(xdrproc_t) xdr_ep_mfile_arg_t,(void *)&arg,
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_GETATTR,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
                               rozofs_ll_getattr_cbk,buffer_p); 
+    
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_GETATTR,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
+                              rozofs_ll_getattr_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;    
     /*
     ** no error just waiting for the answer
@@ -130,6 +153,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+out:
     STOP_PROFILING_NB(buffer_p,rozofs_ll_getattr);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
@@ -149,10 +173,10 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
    fuse_ino_t ino;
    struct stat stbuf;
    fuse_req_t req; 
-   ep_mattr_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    int status;
    ientry_t *ie = 0;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    
    uint8_t  *payload;
    void     *recv_buf = NULL;   
@@ -161,7 +185,10 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
    mattr_t  attr;
    struct rpc_msg  rpc_reply;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+   
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,ino);
     /*
@@ -221,12 +248,50 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+ 
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attr, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of the the decoding part
@@ -246,13 +311,17 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         goto error;
     }
     /*
+    ** copy the attributes in the ientry for the case of the block mode
+    */
+    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
     if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
     stbuf.st_size = ie->size;
     
-    fuse_reply_attr(req, &stbuf, attr_cache_timeo);
+    fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
     goto out;
 error:
     fuse_reply_err(req, errno);
@@ -264,6 +333,7 @@ out:
     
     return;
 }
+
 
 
 
@@ -298,6 +368,7 @@ out:
 *     file information filled in for ftruncate
 */
 void rozofs_ll_setattr_cbk(void *this,void *param); 
+void rozofs_ll_truncate_cbk(void *this,void *param); 
 
 
 void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
@@ -305,9 +376,10 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
 {
     ientry_t *ie = 0;
     mattr_t attr;
-    ep_setattr_arg_t arg;
+    epgw_setattr_arg_t arg;
     int     ret;
     void *buffer_p = NULL;
+
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -333,30 +405,98 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     /*
     ** set to attr the attributes that must be set: indicated by to_set
     */
-    stat_to_mattr(stbuf, &attr,to_set);
+    stat_to_mattr(stbuf, &attr, to_set);
     /*
     ** address the case of the file truncate: update the size of the ientry
     ** when the file is truncated
     */
     if (to_set & FUSE_SET_ATTR_SIZE)
     {
-      if (attr.size < 0x20000000000LL) {
+      /*
+      ** case of the truncate
+      ** start by updating the storaged and then updates the exportd
+      ** need to store the setattr attributes in the fuse context
+      */
+
+      // Check file size 
+      if (attr.size < ROZOFS_FILESIZE_MAX) {
         ie->size = attr.size;
-      }    
+      }else{
+        errno = EFBIG;
+        goto error;
+      } 
+
+      storcli_truncate_arg_t  args;
+      int ret;
+      int storcli_idx;
+      uint64_t bid;
+      uint16_t last_seg;
+      /*
+      ** flush the entry from the modeblock cache: to goal it to avoid returning
+      ** non zero data when the file has been truncated. Another way to do it was
+      ** to find out the 8K blocks that are impacted, but this implies more complexity
+      ** in the cache management for something with is not frequent. So it is better 
+      ** to flush the entry and keep the performance of the caceh for regular usage
+      */
+      rozofs_mbcache_remove(ie->fid);
+      /*
+      ** translate the size in a block index for the storaged
+      */
+      bid = attr.size / ROZOFS_BSIZE;
+      last_seg = (attr.size % ROZOFS_BSIZE);
+
+      SAVE_FUSE_PARAM(buffer_p,to_set);
+      SAVE_FUSE_STRUCT(buffer_p,stbuf,sizeof(struct stat ));      
+      /*
+      **  Fill the truncate request:
+      **  we take the file information in terms of cid, distribution from the attributes
+      **  saved in the ientry
+      */
+      args.cid = ie->attrs.cid;
+      args.layout = exportclt.layout;
+      memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+      memcpy(args.fid, ie->fid, sizeof (fid_t));
+      args.bid      = bid;
+      args.last_seg = last_seg;
+//      lbg_id = storcli_lbg_get_lbg_from_fid(ie->fid);
+      /*
+      ** get the storcli to use for the transaction
+      */      
+      storcli_idx = stclbg_storcli_idx_from_fid(ie->fid);
+      /*
+      ** now initiates the transaction towards the remote end
+      */
+      ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
+                                STORCLI_TRUNCATE,(xdrproc_t) xdr_storcli_truncate_arg_t,(void *)&args,
+                                rozofs_ll_truncate_cbk,buffer_p,storcli_idx,ie->fid); 
+      if (ret < 0) goto error;
+      /*
+      ** all is fine, wait from the response of the storcli and then updates the exportd upon
+      ** receiving the answer from storcli
+      */
+      return;
     }
     /*
     ** set the argument to encode
     */
-    arg.eid = exportclt.eid;
-    memcpy(&arg.attrs, &attr, sizeof (mattr_t));
-    memcpy(arg.attrs.fid, ie->fid, sizeof (fid_t));
-    arg.to_set = to_set;
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(&arg.arg_gw.attrs, &attr, sizeof (mattr_t));
+    memcpy(arg.arg_gw.attrs.fid, ie->fid, sizeof (fid_t));
+    arg.arg_gw.to_set = to_set;
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_SETATTR,(xdrproc_t) xdr_ep_setattr_arg_t,(void *)&arg,
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
                               rozofs_ll_setattr_cbk,buffer_p); 
+
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,buffer_p); 
+#endif
+
     if (ret < 0) goto error;
     
     /*
@@ -387,7 +527,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     ientry_t *ie = 0;
     struct stat o_stbuf;
     fuse_req_t req; 
-    ep_mattr_ret_t ret ;
+    epgw_mattr_ret_t ret ;
     mattr_t  attr;
 
     int status;
@@ -396,7 +536,10 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     XDR       xdrs;    
     int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_mattr_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
@@ -461,12 +604,49 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_mattr_ret_t_u.error;
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(&attr, &ret.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of the the decoding part
@@ -483,13 +663,18 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
         goto error;
     }
     /*
+    ** update the attributes in the ientry
+    */
+    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    
+    /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
     if (ie->size < o_stbuf.st_size) ie->size = o_stbuf.st_size;
     o_stbuf.st_size = ie->size;
 
-    fuse_reply_attr(req, &o_stbuf, attr_cache_timeo);
+    fuse_reply_attr(req, &o_stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
 
     goto out;
 error:
@@ -502,4 +687,172 @@ out:
      return;
 }
 
+
+
+/*
+**__________________________________________________________________
+*/
+/**
+* Truncate  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+void rozofs_ll_truncate_cbk(void *this,void *param) 
+{
+   struct rpc_msg  rpc_reply;
+   struct stat *stbuf;
+   fuse_ino_t ino;
+   ientry_t *ie = 0;
+   fuse_req_t req; 
+   mattr_t attr;
+   int to_set;
+   epgw_setattr_arg_t arg;
+       
+   int status;
+   uint8_t  *payload;
+   void     *recv_buf = NULL;   
+   XDR       xdrs;    
+   int      bufsize;
+   storcli_status_ret_t ret;
+   int retcode;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
+
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+
+   RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,ino);
+   RESTORE_FUSE_PARAM(param,to_set);
+   RESTORE_FUSE_STRUCT_PTR(param,stbuf);      
+
+
+    /*
+    ** get the pointer to the transaction context:
+    ** it is required to get the information related to the receive buffer
+    */
+    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+    /*    
+    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
+    */
+    status = rozofs_tx_get_status(this);
+    if (status < 0)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = rozofs_tx_get_errno(this); 
+       severe(" transaction error %s",strerror(errno));
+       goto error; 
+    }
+    /*
+    ** get the pointer to the receive buffer payload
+    */
+    recv_buf = rozofs_tx_get_recvBuf(this);
+    if (recv_buf == NULL)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = EFAULT;  
+       severe(" transaction error %s",strerror(errno));
+       goto error;         
+    }
+    payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
+    payload += sizeof(uint32_t); /* skip length*/
+    /*
+    ** OK now decode the received message
+    */
+    bufsize = (int) ruc_buf_getPayloadLen(recv_buf);
+    xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
+    /*
+    ** decode the rpc part
+    */
+    if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
+    {
+     TX_STATS(ROZOFS_TX_DECODING_ERROR);
+     errno = EPROTO;
+     severe(" transaction error %s",strerror(errno));
+     goto error;
+    }
+    /*
+    ** ok now call the procedure to encode the message
+    */
+    memset(&ret,0, sizeof(ret));                    
+    if (decode_proc(&xdrs,&ret) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_DECODING_ERROR);
+       errno = EPROTO;
+       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+       severe(" transaction error %s",strerror(errno));
+       goto error;
+    }   
+    if (ret.status == STORCLI_FAILURE) {
+        errno = ret.storcli_status_ret_t_u.error;
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+        goto error;
+    }
+    /*
+    ** no error, so get the length of the data part
+    */
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+    /*
+    ** Keep the fuse context since we need to trigger the update of 
+    ** the attributes of the file
+    */
+    rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
+    ruc_buf_freeBuffer(recv_buf);  
+    /*
+    ** Update the exportd with the filesize if that one has changed
+    */ 
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+    /*
+    ** set to attr the attributes that must be set: indicated by to_set
+    */
+    stat_to_mattr(stbuf, &attr,to_set);
+    /*
+    ** set the argument to encode
+    */
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(&arg.arg_gw.attrs, &attr, sizeof (mattr_t));
+    memcpy(arg.arg_gw.attrs.fid, ie->fid, sizeof (fid_t));
+    arg.arg_gw.to_set = to_set;
+    /*
+    ** now initiates the transaction towards the remote end
+    */
+#if 1
+    retcode = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,param); 
+
+#else
+    retcode = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,param); 
+#endif
+
+    if (retcode < 0) goto error;
+   
+    /*
+    ** now wait for the response of the exportd
+    */
+    return;
+
+error:
+    /*
+    ** reply to fuse and release the transaction context and the fuse context
+    */
+    fuse_reply_err(req, errno);
+    STOP_PROFILING_NB(param,rozofs_ll_setattr);
+    
+    rozofs_fuse_release_saved_context(param);
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
+    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
+    
+    return;
+}
 

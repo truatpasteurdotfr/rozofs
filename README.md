@@ -1,19 +1,19 @@
 ##ABOUT
 
-RozoFS is a scale-out NAS file system. RozoFS aims to provide an open source high performance and high availibility scale out storage software appliance  for  intensive disk IO data center scenario. It comes as a free software, licensed under the GNU GPL v2. RozoFS provides an easy way to scale to petabytes storage but using erasure coding it was designed to provide very high availability levels with optimized raw capacity usage on heterogenous commodity hardwares.
+RozoFS is a scale-out NAS file system. RozoFS aims to provide an open source high performance and high availability scale out storage software appliance  for  intensive disk IO data center scenario. It comes as a free software, licensed under the GNU GPL v2. RozoFS provides an easy way to scale to petabytes storage but using erasure coding it was designed to provide very high availability levels with optimized raw capacity usage on heterogenous commodity hardwares.
 
-RozoFS provide a native open source POSIX filesystem, build on top of a usual out-band scale-out storage architecture. The Rozo specificity lies in the way data is stored. The data to be stored is translated into several chunks named projections using Mojette Transform and distributed across storage devices in such a way that it can be retrieved even if several pieces are unavailable. On the other hand, chuncks are meaningless alone. Redundancy schemes based on coding techniques like the one used by RozoFS allow to achieve signiﬁcant storage savings as compared to simple replication.
+RozoFS provide a native open source POSIX file system, build on top of a usual out-band scale-out storage architecture. The RozoFS specificity lies in the way data is stored. The data to be stored is translated into several chunks named projections using Mojette Transform and distributed across storage devices in such a way that it can be retrieved even if several pieces are unavailable. On the other hand, chuncks are meaningless alone. Redundancy schemes based on coding techniques like the one used by RozoFS allow to achieve signiﬁcant storage savings as compared to simple replication.
 
-**Note**: [xxx] means optional, \<xxx\> means requiered.
+**Note**: [xxx] means optional, \<xxx\> means required.
 
 ##INSTALLATION
 
 ###Requirements
 * cmake
+* libfuse-dev (>= 2.9.0)
 * libattr1-dev
 * uuid-dev
 * libconfig-dev
-* libfuse-dev
 * libreadline-dev
 * python2.7-dev
 * libpthread
@@ -21,7 +21,7 @@ RozoFS provide a native open source POSIX filesystem, build on top of a usual ou
 * swig
 
 ###Quick start
-Using default values will compile rozofs in Release mode and install it on _/usr/local_.
+Using default values will compile RozoFS in Release mode and install it on _/usr/local_.
 ```
 mkdir build
 cd build
@@ -59,12 +59,12 @@ make uninstall
 ``
 [sudo] storaged
 ``
-7. wherever you want: `` [sudo] rozofsmount -H <_the_host_running_exportd_> -E  <_the export_path_> -P <_passwd_> <_the_mount_dir_> ``
+7. wherever you want: `` [sudo] rozofsmount -H <EXPORT_HOST> -E <EXPORT_PATH> -P <EXPORT_PASSWD> MOUNTPOINT ``
 
 ###Stop
-1. ``[sudo] killall exportd``
-2. ``[sudo] killall storaged``
-3. ``[sudo] umount <_the_mount_dir_>``
+1. ``[sudo] umount MOUNTPOINT``
+2. ``[sudo] killall exportd``
+3. ``[sudo] killall storaged``
 
 ##BUGS
 See https://github.com/rozofs/rozofs/issues.

@@ -30,6 +30,7 @@
 #include "econfig.h"
 
 #define ELAYOUT	    "layout"
+#define EVIP	    "exportd_vip"
 #define EVOLUMES    "volumes"
 #define EVID        "vid"
 #define ECIDS       "cids"
@@ -44,6 +45,14 @@
 #define EMD5        "md5"
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
+#define ECORES     "nbCores"
+/*
+** constant for exportd gateways
+*/
+#define EXPORTDID     "export_gateways"
+#define EDAEMONID     "daemon_id"
+#define EGWIDS     "gwids"
+#define EGWID     "gwid"
 
 int storage_node_config_initialize(storage_node_config_t *s, uint8_t sid,
         const char *host) {
@@ -112,6 +121,58 @@ void volume_config_release(volume_config_t *v) {
     }
 }
 
+
+/**< exportd expgw */
+int expgw_node_config_initialize(expgw_node_config_t *s, uint8_t gwid,
+        const char *host) {
+    int status = -1;
+
+    DEBUG_FUNCTION;
+
+    if (gwid > GWID_MAX || gwid < GWID_MIN) {
+        fatal("The Exportd Gateway Id value must be between %u and %u", GWID_MIN, GWID_MAX);
+        goto out;
+    }
+
+    s->gwid = gwid;
+    strcpy(s->host, host);
+    list_init(&s->list);
+
+    status = 0;
+out:
+    return status;
+}
+/**< exportd expgw */
+void expgw_node_config_release(expgw_node_config_t *s) {
+    return;
+}
+
+/**< exportd expgw */
+int expgw_config_initialize(expgw_config_t *v, int daemon_id) {
+    DEBUG_FUNCTION;
+
+    v->daemon_id = daemon_id;
+    list_init(&v->expgw_node);
+    list_init(&v->list);
+    return 0;
+}
+/**< exportd expgw */
+void expgw_config_release(expgw_config_t *c) {
+    list_t *p, *q;
+    DEBUG_FUNCTION;
+
+    list_for_each_forward_safe(p, q, &c->expgw_node) {
+        expgw_node_config_t *entry = list_entry(p, expgw_node_config_t,
+                list);
+        expgw_node_config_release(entry);
+        list_remove(p);
+        free(entry);
+    }
+}
+
+
+
+
 int export_config_initialize(export_config_t *e, eid_t eid, vid_t vid,
         const char *root, const char *md5, uint64_t squota, uint64_t hquota) {
     DEBUG_FUNCTION;
@@ -135,6 +196,7 @@ int econfig_initialize(econfig_t *ec) {
 
     list_init(&ec->volumes);
     list_init(&ec->exports);
+    list_init(&ec->expgw);
     return 0;
 }
 
@@ -152,6 +214,12 @@ void econfig_release(econfig_t *config) {
     list_for_each_forward_safe(p, q, &config->exports) {
         export_config_t *entry = list_entry(p, export_config_t, list);
         export_config_release(entry);
+        list_remove(p);
+        free(entry);
+    }
+    list_for_each_forward_safe(p, q, &config->expgw) {
+        expgw_config_t *entry = list_entry(p, expgw_config_t, list);
+        expgw_config_release(entry);
         list_remove(p);
         free(entry);
     }
@@ -325,6 +393,122 @@ out:
     return status;
 }
 
+static int load_expgw_conf(econfig_t *ec, struct config_t *config) {
+    int status = -1, v, s;
+    struct config_setting_t *master_expgw_set = NULL;
+
+    DEBUG_FUNCTION;
+
+    // Get settings for expgw (list of expgw)
+    if ((master_expgw_set = config_lookup(config, EXPORTDID)) == NULL) {
+//        errno = ENOKEY;
+//        severe("can't lookup expgw setting.");
+        status = 0;
+        goto out;
+    }
+
+    // For each expgw
+    for (v = 0; v < config_setting_length(master_expgw_set); v++) {
+
+        // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+        int daemon_id; // Replica identifier
+#else
+        long int daemon_id; // Replica identifier
+#endif
+        struct config_setting_t *expgw_set = NULL; // Settings for one volume
+        struct config_setting_t *mexpgw_set = NULL; // Settings for one volume
+        /* Settings of list of clusters for one volume */
+        expgw_config_t *rconfig = NULL;
+
+        // Get settings for the volume config
+        if ((expgw_set = config_setting_get_elem(master_expgw_set, v)) == NULL) {
+            errno = ENOKEY;
+            severe("can't get expgw setting %d.", v);
+            goto out;
+        }
+
+        // Lookup daemon_id for this volume
+        if (config_setting_lookup_int(expgw_set, EDAEMONID, &daemon_id) == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't lookup daemon_id setting for volume idx: %d.", v);
+            goto out;
+        }
+
+        // Allocate new expgw_config
+        rconfig = (expgw_config_t *) xmalloc(sizeof (expgw_config_t));
+        if (expgw_config_initialize(rconfig, (int) daemon_id) != 0) {
+            severe("can't initialize expgw.");
+            goto out;
+        }
+
+            // Get settings for gwids for this exportd expgw
+            if ((mexpgw_set = config_setting_get_member(expgw_set, EGWIDS)) == NULL) {
+                errno = ENOKEY;
+                severe("can't get gwids for daemon_id idx: %d ", v);
+                goto out;
+            }
+
+            for (s = 0; s < config_setting_length(mexpgw_set); s++) {
+
+                struct config_setting_t *node_expgw_set = NULL;
+                // Check version of libconfig
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+                int gwid;
+#else
+                long int gwid;
+#endif
+                const char *host;
+                expgw_node_config_t *snconfig = NULL;
+
+                // Get settings for the expgw_node_config_t
+                if ((node_expgw_set = config_setting_get_elem(mexpgw_set, s)) == NULL) {
+                    errno = ENOKEY;
+                    severe("can't get expgw node config for export expgw: %d\
+                             , expgw node idx: %d.", v, s);
+                    goto out;
+                }
+
+                // Lookup sid for this storage
+                if (config_setting_lookup_int(node_expgw_set, EGWID, &gwid) == CONFIG_FALSE) {
+                    errno = ENOKEY;
+                    severe("can't get gwid for export expgw: %d\
+                               , expgw node idx: %d.", v, s);
+                    goto out;
+                }
+
+                // Lookup hostname for this storage
+                if (config_setting_lookup_string(node_expgw_set, EHOST, &host) == CONFIG_FALSE) {
+                    errno = ENOKEY;
+                    severe("can't get host for export expgw: %d\
+                               , expgw node idx: %d.", v, s);
+                    goto out;
+                }
+
+                // Allocate a new expgw_node_config
+                snconfig = (expgw_node_config_t *) xmalloc(sizeof (expgw_node_config_t));
+                if (expgw_node_config_initialize(snconfig, (uint8_t) gwid, host) != 0) {
+                    severe("can't initialize storage node config.");
+                }
+
+            // Add the expgw node to the exportd expgw
+            list_push_back(&rconfig->expgw_node, &snconfig->list);
+
+        } // End add cluster
+
+        // Add this volume to the list of expgw
+        list_push_back(&ec->expgw, &rconfig->list);
+    } // End add volume
+
+    status = 0;
+out:
+    return status;
+}
+
+
+
 static int strquota_to_nbblocks(const char *str, uint64_t *blocks) {
     int status = -1;
     char *unit;
@@ -484,14 +668,15 @@ out:
 
 int econfig_read(econfig_t *config, const char *fname) {
     int status = -1;
+    //const char *host;
     config_t cfg;
     // Check version of libconfig
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-    int layout;
+    int layout, nbCores;
 #else
 
-    long int layout;
+    long int layout, nbCores;
 #endif
 
     DEBUG_FUNCTION;
@@ -503,7 +688,14 @@ int econfig_read(econfig_t *config, const char *fname) {
         severe("can't read %s : %s.", fname, config_error_text(&cfg));
         goto out;
     }
-
+    
+    if (!config_lookup_int(&cfg, ECORES, &nbCores)) {
+       config->nb_cores = 2;
+    }
+    else {
+       config->nb_cores = nbCores;
+    }
+    
     if (!config_lookup_int(&cfg, ELAYOUT, &layout)) {
         errno = ENOKEY;
         severe("can't lookup layout setting.");
@@ -511,8 +703,30 @@ int econfig_read(econfig_t *config, const char *fname) {
     }
     config->layout = (uint8_t) layout;
 
+#if 0 // not needed since exportgateway code is inactive
+    if (!config_lookup_string(&cfg, EVIP, &host)) {
+        errno = ENOKEY;
+        severe("can't lookup exportd vip setting.");
+        goto out;
+    }
+
+    // Check length of export hostname
+    if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+        errno = ENAMETOOLONG;
+        severe(" hostname length  must be lower\
+             than %d.", ROZOFS_HOSTNAME_MAX);
+        goto out;
+    }
+    strncpy(config->exportd_vip, host, ROZOFS_HOSTNAME_MAX);
+#endif
+    
     if (load_volumes_conf(config, &cfg) != 0) {
         severe("can't load volume config.");
+        goto out;
+    }
+    /**< exportd replca -> load the configuration */
+    if (load_expgw_conf(config, &cfg) != 0) {
+        severe("can't load export expgw config.");
         goto out;
     }
 
@@ -552,6 +766,31 @@ out:
     return status;
 }
 
+/**< expgw exportd */
+static int econfig_validate_expgw_node(expgw_config_t *config) {
+    int status = -1;
+    list_t *p, *q;
+    DEBUG_FUNCTION;
+
+    list_for_each_forward(p, &config->expgw_node) {
+        expgw_node_config_t *e1 = list_entry(p, expgw_node_config_t, list);
+
+        list_for_each_forward(q, &config->expgw_node) {
+            expgw_node_config_t *e2 = list_entry(q, expgw_node_config_t, list);
+            if (e1 == e2)
+                continue;
+            if (e1->gwid == e2->gwid) {
+                severe("duplicated gwid: %d", e1->gwid);
+                errno = EINVAL;
+                goto out;
+            }
+        }
+    }
+
+    status = 0;
+out:
+    return status;
+}
 static int econfig_validate_clusters(volume_config_t *config) {
     int status = -1;
     list_t *p, *q;
@@ -662,6 +901,35 @@ static int econfig_validate_storage_nb(volume_config_t *config) {
 out:
     return status;
 }
+/*< expgw exportd  */
+static int econfig_validate_expgw(econfig_t *config) {
+    int status = -1;
+    list_t *p, *q;
+    DEBUG_FUNCTION;
+
+    list_for_each_forward(p, &config->expgw) {
+        expgw_config_t *e1 = list_entry(p, expgw_config_t, list);
+
+        list_for_each_forward(q, &config->expgw) {
+            expgw_config_t *e2 = list_entry(q, expgw_config_t, list);
+            if (e1 == e2)
+                continue;
+            if (e1->daemon_id == e2->daemon_id) {
+                severe("duplicated daemon_id: %d", e1->daemon_id);
+                errno = EINVAL;
+                goto out;
+            }
+        }
+        if (econfig_validate_expgw_node(e1) != 0) {
+            severe("invalid expgw node.");
+            goto out;
+        }
+    }
+
+    status = 0;
+out:
+    return status;
+}
 
 static int econfig_validate_volumes(econfig_t *config) {
     int status = -1;
@@ -761,6 +1029,10 @@ int econfig_validate(econfig_t *config) {
         goto out;
     }
 
+    if (econfig_validate_expgw(config) != 0) {
+        severe("invalid expgw.");
+        goto out;
+    }
     if (econfig_validate_exports(config) != 0) {
         severe("invalid export.");
         goto out;

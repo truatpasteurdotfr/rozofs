@@ -10,6 +10,6 @@ if (NOT PYTHON_NOTFOUND)
 
     add_custom_target(manager ALL DEPENDS ${OUTPUT})
 
-    install(CODE "execute_process (COMMAND cmake -DSETUP=${CMAKE_BINARY_DIR}/manager/setup.py -DDEBIAN=${DEBIAN_LAYOUT} -DPREFIX=${CMAKE_INSTALL_PREFIX} -DWDIR=${CMAKE_CURRENT_BINARY_DIR} -P ${PROJECT_SOURCE_DIR}/cmake/setup.cmake)")
+    install(CODE "execute_process (COMMAND cmake -DSETUP=${CMAKE_BINARY_DIR}/manager/setup.py -DDEBIAN=${DEBIAN_LAYOUT} -DPREFIX=${CMAKE_INSTALL_PREFIX} -DMANIFEST=${PROJECT_BINARY_DIR}/manager_install_manifest.txt -DWDIR=${CMAKE_CURRENT_BINARY_DIR} -P ${PROJECT_SOURCE_DIR}/cmake/setup.cmake)")
 
 endif(NOT PYTHON_NOTFOUND)

@@ -20,8 +20,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
-set(MINOR "2")
-set(REVISION "5")
+set(MINOR "3")
+set(REVISION "alpha9")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -124,9 +124,17 @@ set(CMAKE_C_FLAGS "-D_GNU_SOURCE" CACHE STRING
     "Flags used by the compiler during all build types."
     FORCE)
 
-set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE  -g" CACHE STRING
+if(CMAKE_SIZEOF_VOID_P MATCHES 4) 
+  message("-- 32 bits target")
+  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE  -g  -Wno-int-to-pointer-cast -Wno-pointer-to-int-cast" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
+else()
+  message("-- 64 bits target")    
+  set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG -D_GNU_SOURCE  -g" CACHE STRING
+    "Flags used by the C compiler during maintainer builds."
+    FORCE)
+endif()
 
 set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE " CACHE STRING
     "Flags used by the C compiler during maintainer builds."
@@ -151,7 +159,7 @@ set(CPACK_TGZ_COMPONENT_INSTALL ON)
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Rozofs filesystem")
 set(CPACK_PACKAGE_VENDOR "Fizians SAS")
 set(CPACK_PACKAGE_CONTACT "Fizians SAS")
-set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/README")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/README.md")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/COPYING")
 set(CPACK_PACKAGE_VERSION "${VERSION}")
 set(CPACK_PACKAGE_FILE_NAME ""${ROZOFS_PACKAGE_FILE_NAME}"")

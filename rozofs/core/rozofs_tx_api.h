@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "rozofs_tx_common.h"
-#include "ppu_trace.h"
 #include "ruc_buffer_api.h"
 /**
 * transaction statistics
@@ -77,6 +76,15 @@ extern void *rozofs_tx_pool[];
 #define ROZOFS_TX_LARGE_TX_POOL rozofs_tx_pool[_ROZOFS_TX_LARGE_TX_POOL]
 #define ROZOFS_TX_SMALL_RX_POOL rozofs_tx_pool[_ROZOFS_TX_SMALL_RX_POOL]
 #define ROZOFS_TX_LARGE_RX_POOL rozofs_tx_pool[_ROZOFS_TX_LARGE_RX_POOL]
+/**
+**____________________________________________________
+*  Get the number of free context in the transaction context distributor
+
+  @param none
+  @retval <>NULL, success->pointer to the allocated context
+  @retval NULL, error ->out of context
+*/
+int rozofs_tx_get_free_ctx_number(void);
 
 /*
 **____________________________________________________
