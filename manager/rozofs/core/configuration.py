@@ -5,7 +5,6 @@ from rozofs.core.libconfig import config_t, config_read_file, \
     config_write_file, CONFIG_TRUE
 import time
 import shutil
-import syslog
 
 class ConfigurationParser():
 

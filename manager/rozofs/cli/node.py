@@ -4,6 +4,7 @@ from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
 import json
 from rozofs.cli.output import puts
+from collections import OrderedDict
 
 ROLES_STR = {Role.EXPORTD: "exportd", Role.STORAGED: "storaged", Role.ROZOFSMOUNT: "rozofsmount"}
 STR_ROLES = {"exportd": Role.EXPORTD, "storaged": Role.STORAGED, "rozofsmount": Role.ROZOFSMOUNT}
@@ -39,25 +40,17 @@ def __args_to_roles(args):
         roles = Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT
     return roles
 
-# def nodes(platform, args):
-#    nodes = platform.list_nodes(__args_to_roles(args))
-#    print >> sys.stdout, "%-20s %-20s" % ("NODE", "ROLES")
-#    for h, r in nodes.items():
-#        print >> sys.stdout, "%-20s %-20s" % (h, __roles_to_strings(r))
-
 def list(platform, args):
-#    puts([{'hostname':h, 'roles':__roles_to_strings(r)}
-#          for h, r in platform.list_nodes(__args_to_roles(args)).items()])
-    puts([{h:{'roles':__roles_to_strings(r)}}
-           for h, r in platform.list_nodes(__args_to_roles(args)).items()])
+    puts(OrderedDict([(h, {'roles':__roles_to_strings(r)})
+           for h, r in platform.list_nodes(__args_to_roles(args)).items()]))
 
 
-def get(platform, args):
-    nodes = platform.list_nodes()
-    if args.host[0] not in nodes.keys():
-        raise Exception('unmanaged node.')
-    # puts(nodes)
-    puts({"hostname":args.host[0], "roles":__roles_to_strings(nodes[args.host[0]])})
+# def get(platform, args):
+#    nodes = platform.list_nodes()
+#    if args.host[0] not in nodes.keys():
+#        raise Exception('unmanaged node.')
+#    # puts(nodes)
+#    puts({"hostname":args.host[0], "roles":__roles_to_strings(nodes[args.host[0]])})
 
 #
 # status related functions
@@ -77,7 +70,20 @@ def __print_host_statuses(host, statuses):
 
 def status(platform, args):
     statuses = platform.get_statuses(args.nodes, __args_to_roles(args))
-    puts(statuses)
+    for h, s in statuses.items():
+        if statuses is not None and not statuses:
+            continue
+
+        if statuses is None:
+            puts(OrderedDict([(h, {"node":"down"})]))
+        else:
+            d = {"node":"up"}
+            for role, status in s.items():
+                d[ROLES_STR[role]] = str(status).lower()
+            puts(OrderedDict([(h, d)]))
+            # puts(OrderedDict([(ROLES_STR[role], str(status).lower()) for role, status in s.items()]))
+
+
     # print >> sys.stdout, ":node:node status:roles:role statuses"
     # for h, s in statuses.items():
     #    __print_host_statuses(h, s)
