@@ -15,6 +15,11 @@ from collections import OrderedDict
 
 def status(args):
     (pid, listeners) = AgentServer().status()
+    if os.getuid() is not 0:
+        raise Exception("only the root user can stat agent.")
+
+    if not pid:
+        raise Exception("no agent is running.")
     puts(OrderedDict([("pid", int(pid)), ("listeners", listeners)]))
 
 def start(args):
