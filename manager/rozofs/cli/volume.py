@@ -11,13 +11,25 @@ def list(platform, args):
 
     configuration = configurations[args.exportd][Role.EXPORTD]
     
-    for vid in configuration.volumes.keys():
+    for vid, vconfig in configuration.volumes.items():
         vstat = configuration.stats.vstats[vid]
-        puts([{vid:{
-            'bsize' : vstat.bsize,
-            'bfree' : vstat.bfree,
-            'blocks' : vstat.blocks
-            }}])
+        puts([{'vid '+str(vid):
+            [{  'bsize': vstat.bsize,
+                'bfree': vstat.bfree,
+                'blocks': vstat.blocks},
+             {  'cid '+str(cid):
+                [{  'size' : cstat.size,
+                    'free' : cstat.free},
+                    {   'sid '+str(sid):
+                        {   'host': sstat.host,
+                            'size': sstat.size,
+                            'free': sstat.free}
+                            for sid, sstat in cstat.sstats.items()
+                    }
+                ] for cid, cstat in vstat.cstats.items()
+             }
+            ]},
+        ])
 
 def get(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
@@ -28,21 +40,17 @@ def get(platform, args):
     vconfig = configuration.volumes[args.vid[0]]
     vstat = configuration.stats.vstats[args.vid[0]]
 
-    puts([
-        {"vid "+str(args.vid[0]):{
-            'bsize' : vstat.bsize,
+    for cid, cconfig in vstat.cstats.items():
+        puts([{'cid '+str(cid):
+            [{'bsize' : vstat.bsize,
             'bfree' : vstat.bfree,
-            'blocks' : vstat.blocks}},
-        {"cid "+str(cid):{
-            'size' : vstat.cstats[cid].size,
-            'free' : vstat.cstats[cid].free}
-                for cid, cconfig in vconfig.clusters.items()},
-        {"sid "+str(sid):{
-            'host': vstat.cstats[cid].sstats[sid].host,
-            'size': vstat.cstats[cid].sstats[sid].size,
-            'free': vstat.cstats[cid].sstats[sid].free}
-                for cid, cconfig in vconfig.clusters.items()
-                for sid, sconfig in cconfig.storages.items()}
+            'blocks' : vstat.blocks},
+            {'sid '+str(sid):
+                {'host': sconfig.host,
+                'size': sconfig.size,
+                'free': sconfig.free}
+                    for sid, sconfig in cconfig.sstats.items()
+            }]},
         ])
 
 #
@@ -114,10 +122,13 @@ def get(platform, args):
 #        __print_host_configs(h, c)
 
 def expand(platform, args):
-    platform.add_nodes(args.hosts, args.vid)
+    if args.vid:
+        platform.add_nodes(args.hosts, args.vid[0])
+    else:
+        platform.add_nodes(args.hosts, args.vid)
 
 
-def shrink(platform, args):
+def remove(platform, args):
     for vid in args.vids:
         platform.remove_volume(vid)
 
