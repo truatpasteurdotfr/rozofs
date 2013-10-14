@@ -44,8 +44,7 @@ def stat(platform, args):
     
     for eid, estat in configuration.stats.estats.items():
         puts([{'eid '+str(eid):
-            [{  'vid': estat.vid,
-                'bsize': estat.bsize,
+            [{  'bsize': estat.bsize,
                 'blocks': estat.blocks,
                 'bfree' : estat.bfree,
                 'files' : estat.files,

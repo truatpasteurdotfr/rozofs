@@ -43,6 +43,14 @@ class VolumeStat():
         else:
             self.cstats = cstats
 
+class ExportStat():
+    def __init__(self, bsize=0, blocks=0, bfree=0, files=0, ffree=0):
+        self.bsize = bsize
+        self.blocks = blocks
+        self.bfree = bfree
+        self.files = files
+        self.ffree = ffree
+
 class ExportdStat():
     def __init__(self, vstats=None, estats=None):
         if vstats is None:
@@ -255,14 +263,30 @@ class ExportdAgent(Agent):
                         vstat.cstats[cid].sstats[sid].free = int(line.split(':')[-1])
         # return vstat
 
+    def _get_export_stat(self, eid, estat):
+        with open('/var/run/exportd/export_%d' % eid, 'r') as input:
+            for line in input:
+                if line.startswith("bsize"):
+                    estat.bsize = int(line.split(':')[-1])
+                if line.startswith("blocks"):
+                    estat.blocks = int(line.split(':')[-1])
+                if line.startswith("bfree"):
+                    estat.bfree = int(line.split(':')[-1])
+                if line.startswith("files"):
+                    estat.files = int(line.split(':')[-1])
+                if line.startswith("ffree"):
+                    estat.ffree = int(line.split(':')[-1])
+        # return estat
+
     def get_service_config(self):
         configuration = ExportdConfig()
         self._reader.read(configuration)
         for vid in configuration.volumes.keys():
             configuration.stats.vstats[vid] = VolumeStat()
             self._get_volume_stat(vid, configuration.stats.vstats[vid])
-            print configuration.stats.vstats[vid].cstats
-        print configuration.stats.vstats
+        for eid in configuration.exports.keys():
+            configuration.stats.estats[eid] = ExportStat()
+            self._get_export_stat(eid, configuration.stats.estats[eid])
         return configuration
 
     def set_service_config(self, configuration):
