@@ -156,22 +156,22 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
     case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
-      if (lock1->offset_stop < lock2->offset_start) return 1;
+      if (lock1->offset_stop <= lock2->offset_start) return 1;
       return 0;  
       
     
     case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
     case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL):   
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
-      if (lock1->offset_start > lock2->offset_stop) return 1;
+      if (lock1->offset_start >= lock2->offset_stop) return 1;
       return 0;
 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
       if (lock1->offset_start <= lock2->offset_start) {
-	if (lock1->offset_stop < lock2->offset_start) return 1;
+	if (lock1->offset_stop <= lock2->offset_start) return 1;
 	return 0;
       }
-      if (lock2->offset_stop < lock1->offset_start) return 1;
+      if (lock2->offset_stop <= lock1->offset_start) return 1;
       return 0;
              
                 
@@ -193,7 +193,7 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
 }
 /*
 *___________________________________________________________________
-* Check whether two lock2 must free or update lock1
+* Check whether two lock2 must :free or update lock1
 *
 * @param lock_free   The free lock operation
 * @param lock_set    The set lock that must be checked
