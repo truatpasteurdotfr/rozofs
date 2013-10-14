@@ -1,4 +1,3 @@
-
 /*
   Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
   This file is part of Rozofs.
@@ -20,8 +19,6 @@
 /* need for crypt */
 #define _XOPEN_SOURCE 500
 #define FUSE_USE_VERSION 26
-
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,20 +46,19 @@
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
-#include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/expgw_common.h>
+
+#include "config.h"
+#include "file.h"
+#include "rozofsmount.h"
+#include "rozofs_fuse.h"
+#include "rozofs_fuse_api.h"
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
-
-
 
 /*
 **__________________________________________________________________
@@ -525,6 +521,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 {
     fuse_ino_t ino;
     ientry_t *ie = 0;
+    struct fuse_file_info *fi = NULL;
+    file_t *file = NULL;
     struct stat o_stbuf;
     fuse_req_t req; 
     epgw_mattr_ret_t ret ;
@@ -545,6 +543,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 
     RESTORE_FUSE_PARAM(param,req);
     RESTORE_FUSE_PARAM(param,ino);
+    
+    RESTORE_FUSE_STRUCT_PTR(param,fi);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -666,6 +666,12 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     ** update the attributes in the ientry
     */
     memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    // Update also the fuse_file_info with the new size
+    // It's just for truncate operation
+    if (fi != NULL) {
+        file = (file_t *) (unsigned long) fi->fh;
+        file->attrs.size = ie->attrs.size;
+    }
     
     /*
     ** check the length of the file, and update the ientry if the file size returned
@@ -855,4 +861,3 @@ error:
     
     return;
 }
-
