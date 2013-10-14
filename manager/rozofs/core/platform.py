@@ -10,13 +10,6 @@ from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
 from rozofs.core.agent import ServiceStatus
 from rozofs.core.exportd import VolumeConfig, ClusterConfig, ExportConfig
 from rozofs.core.storaged import StorageConfig
-from rozofs.core.profile import ep_client_t, ep_client_initialize, sp_client_t, \
-    sp_client_initialize, mp_client_t, mp_client_initialize, ep_client_release, \
-    epp_profiler_t, ep_client_get_profiler, sp_client_release, spp_profiler_t, \
-    sp_client_get_profiler, mp_client_release, mpp_profiler_t, \
-    EppVstatArray_getitem, EppSstatArray_getitem, EppEstatArray_getitem, \
-    Uint64Array_getitem, mp_client_get_profiler, Uint16Array_getitem, \
-    new_Uint64Array, Uint64Array_setitem, delete_Uint64Array
 from rozofs.core.rozofsmount import RozofsMountConfig
 from socket import socket
 

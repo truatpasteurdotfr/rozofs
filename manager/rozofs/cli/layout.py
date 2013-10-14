@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from rozofs.core.platform import Platform
 from rozofs.core.constants import LAYOUT_VALUES
-from rozofs.cli.output import puts
+from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
 
 def set(platform, args):
@@ -9,7 +9,7 @@ def set(platform, args):
 
 def get(platform, args):
     layout = platform. get_layout()
-    puts(OrderedDict([
+    ordered_puts(OrderedDict([
           ("layout", layout),
           ("inverse", LAYOUT_VALUES[layout][0]),
           ("forward", LAYOUT_VALUES[layout][1]),

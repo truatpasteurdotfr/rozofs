@@ -3,7 +3,7 @@ import sys
 from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
 import json
-from rozofs.cli.output import puts
+from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
 
 ROLES_STR = {Role.EXPORTD: "exportd", Role.STORAGED: "storaged", Role.ROZOFSMOUNT: "rozofsmount"}
@@ -41,7 +41,7 @@ def __args_to_roles(args):
     return roles
 
 def list(platform, args):
-    puts(OrderedDict([(h, {'roles':__roles_to_strings(r)})
+    ordered_puts(OrderedDict([(h, {'roles':__roles_to_strings(r)})
            for h, r in platform.list_nodes(__args_to_roles(args)).items()]))
 
 
@@ -49,8 +49,8 @@ def list(platform, args):
 #    nodes = platform.list_nodes()
 #    if args.host[0] not in nodes.keys():
 #        raise Exception('unmanaged node.')
-#    # puts(nodes)
-#    puts({"hostname":args.host[0], "roles":__roles_to_strings(nodes[args.host[0]])})
+#    # ordered_puts(nodes)
+#    ordered_puts({"hostname":args.host[0], "roles":__roles_to_strings(nodes[args.host[0]])})
 
 #
 # status related functions
@@ -75,13 +75,13 @@ def status(platform, args):
             continue
 
         if statuses is None:
-            puts(OrderedDict([(h, {"node":"down"})]))
+            ordered_puts(OrderedDict([(h, {"node":"down"})]))
         else:
             d = {"node":"up"}
             for role, status in s.items():
                 d[ROLES_STR[role]] = str(status).lower()
-            puts(OrderedDict([(h, d)]))
-            # puts(OrderedDict([(ROLES_STR[role], str(status).lower()) for role, status in s.items()]))
+            ordered_puts(OrderedDict([(h, d)]))
+            # ordered_puts(OrderedDict([(ROLES_STR[role], str(status).lower()) for role, status in s.items()]))
 
 
     # print >> sys.stdout, ":node:node status:roles:role statuses"

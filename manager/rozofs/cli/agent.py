@@ -10,7 +10,7 @@ from rozofs.core.exportd import ExportdAgent, ExportdPacemakerAgent
 from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.core.rozofsmount import RozofsMountAgent
-from rozofs.cli.output import puts
+from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
 
 def status(args):
@@ -20,7 +20,7 @@ def status(args):
 
     if not pid:
         raise Exception("no agent is running.")
-    puts(OrderedDict([("pid", int(pid)), ("listeners", listeners)]))
+    ordered_puts(OrderedDict([("pid", int(pid)), ("listeners", listeners)]))
 
 def start(args):
     if os.getuid() is not 0:

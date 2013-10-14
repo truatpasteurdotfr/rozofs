@@ -36,11 +36,6 @@ setup(
     ext_modules=[Extension('rozofs.core._libconfig', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core/libconfig.i'],
                            swig_opts=['-I/usr/include'],
                            libraries=['config']),
-                 Extension('rozofs.core._profile', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core/profile.i'],
-                           swig_opts=['-I/usr/include', '-I@CMAKE_CURRENT_SOURCE_DIR@'],
-                           include_dirs=['@CMAKE_CURRENT_SOURCE_DIR@', '@CMAKE_CURRENT_BINARY_DIR@'],
-                           libraries=['rozofs'],
-                           library_dirs=['@CMAKE_CURRENT_BINARY_DIR@/rozofs'])
                    ],
     scripts=['@CMAKE_CURRENT_SOURCE_DIR@/manager/bin/rozo'],
 )
