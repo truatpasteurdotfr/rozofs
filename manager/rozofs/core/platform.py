@@ -653,9 +653,8 @@ class Platform(object):
 
         enode = self._get_exportd_node()
         econfig = enode.get_configurations(Role.EXPORTD)
-        eprofiler = ExportdRpcProxy(self._hostname).get_profiler()
 
-        if econfig is None or eprofiler is None:
+        if econfig is None:
             raise Exception("Exportd node is off line.")
 
         if eids is None:
@@ -665,12 +664,11 @@ class Platform(object):
         self.umount_export(eids)
 
         # sanity check
-        for eid in eids:
-            if eid not in econfig[Role.EXPORTD].exports.keys():
-                raise Exception("Unknown export: %d." % eid)
-
-            for estat in eprofiler.estats:
-                if estat.eid == eid and estat.files != 0 and not force:
+        for eid, estat in econfig[Role.EXPORTD].stats.estats.items():
+            for eeid in eids:
+                if eeid not in econfig[Role.EXPORTD].exports.keys():
+                    raise Exception("Unknown export: %d." % eid)
+                if eid == eeid and estat.files != 0 and not force:
                     raise Exception("Can't remove non empty export (use  force=True)")
 
 
