@@ -11,18 +11,16 @@ from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.core.rozofsmount import RozofsMountAgent
 from rozofs.cli.output import puts
+from collections import OrderedDict
 
 def status(args):
     (pid, listeners) = AgentServer().status()
     if os.getuid() is not 0:
-        raise Exception("only the root user can start agent.")
+        raise Exception("only the root user can stat agent.")
 
     if not pid:
         raise Exception("no agent is running.")
-    puts({
-        'pid': pid,
-        'listeners': listeners
-        })
+    puts(OrderedDict([("pid", int(pid)), ("listeners", listeners)]))
 
 def start(args):
     if os.getuid() is not 0:
@@ -56,7 +54,6 @@ def start(args):
 
 def stop(args):
     AgentServer().stop()
-    # print >> sys.stdout, "Agent stopped."
 
 
 def restart(args):

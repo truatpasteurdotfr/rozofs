@@ -85,7 +85,8 @@ typedef struct rozofsmnt_conf {
     unsigned shaper;
     unsigned rotate;
     unsigned posix_file_lock;    
-    unsigned bsd_file_lock;    
+    unsigned bsd_file_lock;  
+    unsigned max_write_pending ; /**< Maximum number pending write */
 } rozofsmnt_conf_t;
 
 
@@ -287,5 +288,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
 void rozofs_ll_flock_nb(fuse_req_t req, 
                               fuse_ino_t ino,
 		              struct fuse_file_info *fi, 
-		              int op);			 
+		              int op);		
+			      
+int init_write_flush_stat(int max_write_pending);		      	 
 #endif
