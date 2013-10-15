@@ -1369,8 +1369,12 @@ int main(int argc, char *argv[]) {
     /*
     ** Compute the identifier of the client from host and instance id 
     */
-    rozofs_client_hash = rozofs_client_hash_compute(conf.host,conf.instance);
-
+    {
+      char hostName[256];
+      hostName[0] = 0;
+      gethostname(hostName,256);
+      rozofs_client_hash = rozofs_client_hash_compute(hostName,conf.instance);
+    }
     /*
     ** allocate the common flush buffer
     */
