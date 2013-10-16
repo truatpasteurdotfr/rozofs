@@ -181,4 +181,26 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
 *___________________________________________________________________
 */
 char * display_file_lock(char * pChar) ;
+/*
+*___________________________________________________________________
+* Check whether two locks are overlapping
+*
+* @param lock1   1rst lock
+* @param lock2   2nd lock
+*
+* @retval 1 when locks overlap, 0 else
+*___________________________________________________________________
+*/
+int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
+/*
+*___________________________________________________________________
+* Try to concatenate overlapping locks in lock1
+*
+* @param lock1   1rst lock
+* @param lock2   2nd lock
+*
+* @retval 1 when locks overlap, 0 else
+*___________________________________________________________________
+*/
+int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
 #endif

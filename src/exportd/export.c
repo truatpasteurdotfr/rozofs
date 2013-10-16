@@ -2627,7 +2627,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
 	case EP_LOCK_PARTIAL:    sizeType = "PARTIAL"; break;
 	default:                 sizeType = "??";
       }  
-      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"]\n",
+      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"[\n",
 	       (lock_elt->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",sizeType, 
 	       (long long unsigned int)lock_elt->lock.client_ref, 
 	       (long long unsigned int)lock_elt->lock.owner_ref,
@@ -2772,8 +2772,9 @@ int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;
     list_t      *p;
-    rozofs_file_lock_t *lock_elt;
+    rozofs_file_lock_t * lock_elt;
     rozofs_file_lock_t * new_lock;
+    int                  overlap=0;
 
     START_PROFILING(export_set_file_lock);
 
@@ -2829,19 +2830,81 @@ reloop:
     list_for_each_forward(p, &lv2->file_lock) {
     
       lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+      
+      /*
+      ** Check compatibility between 2 different applications
+      */
+      if ((lock_elt->lock.client_ref != lock_requested->client_ref) 
+      ||  (lock_elt->lock.owner_ref != lock_requested->owner_ref)) { 
+      
+	if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	  memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+          errno = EWOULDBLOCK;
+	  goto out;      
+	} 
+    	continue;    
+      }
+      
+      /*
+      ** Check compatibility of 2 locks of a same application
+      */
 
+      /*
+      ** Two read or two write locks. Check whether they overlap
+      */
+      if (lock_elt->lock.mode == lock_requested->mode) {
+        if (are_file_locks_overlapping(lock_requested,&lock_elt->lock)) {
+	  overlap++;
+	}  
+        continue;
+      }
+      
+      /*
+      ** One read and one write
+      */
       if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
 	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
         errno = EWOULDBLOCK;
 	goto out;      
       }     
+      continue; 			  
     }
-      
-    /* Insert the lock */
+
+    /*
+    ** This lock overlaps with a least one existing lock of the same application.
+    ** Let's concatenate all those locks
+    */  
+concatenate:  
+    if (overlap != 0) {
+      list_for_each_forward(p, &lv2->file_lock) {
+
+	lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+	if ((lock_elt->lock.client_ref != lock_requested->client_ref) 
+	||  (lock_elt->lock.owner_ref != lock_requested->owner_ref)) continue;
+
+	if (lock_elt->lock.mode != lock_requested->mode) continue;
+
+	if (try_file_locks_concatenate(lock_requested,&lock_elt->lock)) {
+          overlap--;
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	  }
+	  goto concatenate;	  
+	}
+      } 
+    }   
+        
+    /*
+    ** Since we have reached this point all the locks are compatibles with the new one.
+    ** and it does not overlap any more with an other lock. Let's insert this new lock
+    */
     lock_elt = lv2_cache_allocate_file_lock(lock_requested);
     list_push_front(&lv2->file_lock,&lock_elt->next_fid_lock);
     lv2->nb_locks++;
-    status = 0;
+    status = 0; 
     
 out:
 #if 0

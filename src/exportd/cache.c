@@ -193,6 +193,151 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
 }
 /*
 *___________________________________________________________________
+* Check whether two locks are overlapping
+*
+* @param lock1   1rst lock
+* @param lock2   2nd lock
+*
+* @retval 1 when locks overlap, 0 else
+*___________________________________________________________________
+*/
+int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock2) {
+  int key;
+  
+  
+  key = lock1->size << 8 | lock2->size;
+  switch(key) {
+
+      return 1;
+    
+    case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
+    case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
+      if (lock1->offset_stop < lock2->offset_start) return 0;
+      return 1;
+
+    case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
+    case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL):   
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
+      if (lock1->offset_start > lock2->offset_stop) return 0;
+      return 1;        
+
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
+      if (lock1->offset_start <= lock2->offset_start) {
+	if (lock1->offset_stop < lock2->offset_start) return 0;
+	return 1;
+      }
+      if (lock2->offset_stop < lock1->offset_start) return 0;
+      return 1;
+             
+                
+    default:
+    //case (EP_LOCK_FROM_START<<8|EP_LOCK_FROM_START):
+    //case (EP_LOCK_TO_END<<8|EP_LOCK_TO_END):  
+    //case (EP_LOCK_TOTAL<<8|EP_LOCK_TOTAL):  
+    //case (EP_LOCK_TOTAL<<8|EP_LOCK_TO_END):  
+    //case (EP_LOCK_TOTAL<<8|EP_LOCK_FROM_START):  
+    //case (EP_LOCK_TOTAL<<8|EP_LOCK_PARTIAL):  
+    //case (EP_LOCK_TOTAL<<8|EP_LOCK_TOTAL):  
+    //case (EP_LOCK_TO_END<<8|EP_LOCK_TOTAL):  
+    //case (EP_LOCK_FROM_START<<8|EP_LOCK_TOTAL):  
+    //case (EP_LOCK_PARTIAL<<8|EP_LOCK_TOTAL):           
+      return 1;   
+  }   
+}
+/*
+*___________________________________________________________________
+* Try to concatenate overlapping locks in lock1
+*
+* @param lock1   1rst lock
+* @param lock2   2nd lock
+*
+* @retval 1 when locks overlap, 0 else
+*___________________________________________________________________
+*/
+#define max(a,b) (a>b?a:b)
+#define min(a,b) (a>b?b:a)
+int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock2) {
+  int key;
+  
+  
+  key = lock1->size << 8 | lock2->size;
+  switch(key) {
+
+      return 1;
+    
+    case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
+      if (lock1->offset_stop < lock2->offset_start) return 0;
+      lock1->size = EP_LOCK_TOTAL;
+      lock1->offset_stop = lock2->offset_stop;
+      return 1;    
+      
+    case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
+      if (lock1->offset_stop < lock2->offset_start) return 0;
+      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);
+      return 1; 
+      
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
+      if (lock1->offset_stop < lock2->offset_start) return 0;
+      lock1->size = EP_LOCK_TO_END;
+      lock1->offset_start = min(lock2->offset_start,lock1->offset_start);      
+      lock1->offset_stop = lock2->offset_stop;
+      return 1;
+
+    case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
+      if (lock1->offset_start > lock2->offset_stop) return 0;
+      lock1->size = EP_LOCK_TOTAL;
+      lock1->offset_start = lock2->offset_start;
+      return 1;
+
+    case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL): 
+      if (lock1->offset_start > lock2->offset_stop) return 0;
+      lock1->offset_start = min(lock2->offset_start,lock1->offset_start);      
+      return 1;
+            
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
+      if (lock1->offset_start > lock2->offset_stop) return 0;
+      lock1->size = EP_LOCK_FROM_START;
+      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);
+      lock1->offset_start = lock2->offset_start;      
+      return 1;        
+
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
+      if (lock1->offset_start <= lock2->offset_start) {
+	if (lock1->offset_stop < lock2->offset_start) return 0;
+        lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);      	
+	return 1;
+      }
+      if (lock2->offset_stop < lock1->offset_start) return 0;
+      lock1->offset_start = lock2->offset_start;      
+      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);          
+      return 1;
+      
+    case (EP_LOCK_FROM_START<<8|EP_LOCK_FROM_START):             
+      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);          
+      return 1;
+             
+    case (EP_LOCK_TO_END<<8|EP_LOCK_TO_END):  
+      lock1->offset_start = min(lock2->offset_start,lock1->offset_start);      
+      return 1;
+      
+    case (EP_LOCK_TOTAL<<8|EP_LOCK_TOTAL): 
+    case (EP_LOCK_TOTAL<<8|EP_LOCK_TO_END): 
+    case (EP_LOCK_TOTAL<<8|EP_LOCK_FROM_START):  
+    case (EP_LOCK_TOTAL<<8|EP_LOCK_PARTIAL):    
+      return 1;
+             	              
+    case (EP_LOCK_TO_END<<8|EP_LOCK_TOTAL):  
+    case (EP_LOCK_FROM_START<<8|EP_LOCK_TOTAL):  
+    case (EP_LOCK_PARTIAL<<8|EP_LOCK_TOTAL):  
+      lock1->size = EP_LOCK_TOTAL;
+      lock1->offset_start = lock2->offset_start;      
+      lock1->offset_stop  = lock2->offset_stop;                     
+      return 1;   
+  }   
+}
+/*
+*___________________________________________________________________
 * Check whether two lock2 must :free or update lock1
 *
 * @param lock_free   The free lock operation
@@ -222,7 +367,7 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #__________________#   
     //        #.......___________#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TOTAL):
-      lock_set->offset_start = lock_free->offset_stop+1; 
+      lock_set->offset_start = lock_free->offset_stop; 
       lock_set->size = EP_LOCK_TO_END;
       return 0;
 
@@ -231,7 +376,7 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //        #.......___........#         #..................#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_FROM_START):
       if (lock_free->offset_stop >= lock_set->offset_stop) return 1;
-      lock_set->offset_start = lock_free->offset_stop+1; 
+      lock_set->offset_start = lock_free->offset_stop; 
       lock_set->size = EP_LOCK_PARTIAL;  
       return 0;    
 
@@ -239,24 +384,24 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #....______________#    LOCK #........._________#  
     //        #.......___________#         #........._________#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
-      if (lock_free->offset_stop < lock_set->offset_start) return 0;
-      lock_set->offset_start = lock_free->offset_stop+1; 
+      if (lock_free->offset_stop <= lock_set->offset_start) return 0;
+      lock_set->offset_start = lock_free->offset_stop; 
       return 0;
       
     //   FREE #_______...........#    FREE #_______...........#  FREE #_______...........# 
     //   LOCK #..__..............#    LOCK #....______........#  LOCK #.........______...#  
     //        #..................#         #.......___........#       #.........______...#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
-      if (lock_free->offset_stop < lock_set->offset_start) return 0;
+      if (lock_free->offset_stop <= lock_set->offset_start) return 0;
       if (lock_set->offset_stop <= lock_free->offset_stop) return 1;
-      lock_set->offset_start = lock_free->offset_stop+1; 
+      lock_set->offset_start = lock_free->offset_stop; 
       return 0;
 
     //   FREE #..........._______# 
     //   LOCK #__________________#   
     //        #___________.......#            
     case (EP_LOCK_TO_END<<8|EP_LOCK_TOTAL):  
-      lock_set->offset_stop = lock_free->offset_start-1; 
+      lock_set->offset_stop = lock_free->offset_start; 
       lock_set->size = EP_LOCK_FROM_START;
       return 0;    
 
@@ -264,8 +409,8 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #_______________...#    LOCK #________..........#
     //        #___________.......#         #________..........#
     case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
-      if (lock_free->offset_stop < lock_set->offset_start) return 0;
-      lock_set->offset_stop = lock_free->offset_start-1; 
+      if (lock_free->offset_start >= lock_set->offset_stop) return 0;
+      lock_set->offset_stop = lock_free->offset_start; 
       return 0;
       
     //   FREE #..........._______#    FREE #.......___________# 
@@ -273,7 +418,7 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //        #...._______.......#         #..................#
     case (EP_LOCK_TO_END<<8|EP_LOCK_TO_END):
       if (lock_free->offset_start <= lock_set->offset_start) return 1;
-      lock_set->offset_stop = lock_free->offset_start-1; 
+      lock_set->offset_stop = lock_free->offset_start; 
       lock_set->size = EP_LOCK_PARTIAL;
       return 0;
       
@@ -281,9 +426,9 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #..__..............#    LOCK #....______........#  LOCK #.........______...#  
     //   LOCK #..__..............#    LOCK #....___...........#  LOCK #..................#  
     case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL):   
-      if (lock_set->offset_stop < lock_free->offset_start) return 0;
+      if (lock_set->offset_stop <= lock_free->offset_start) return 0;
       if (lock_set->offset_start >= lock_free->offset_start) return 1;
-      lock_set->offset_stop = lock_free->offset_start-1;
+      lock_set->offset_stop = lock_free->offset_start;
       return 0;      
 
     //   FREE #.........____.....#    
@@ -292,9 +437,9 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TOTAL):
       memcpy(&new_lock,lock_set, sizeof(new_lock));
       new_lock.size = EP_LOCK_FROM_START;
-      new_lock.offset_stop = lock_free->offset_start-1;
+      new_lock.offset_stop = lock_free->offset_start;
       *new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock); 
-      lock_set->offset_start = lock_free->offset_stop+1; 
+      lock_set->offset_start = lock_free->offset_stop; 
       lock_set->size = EP_LOCK_TO_END;
       return 0;
 
@@ -303,50 +448,49 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #....______________#    LOCK #........._________#    LOCK #........._________#  
     //        #...._____...._____#         #........._________#         #..........._______#
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
-      if (lock_free->offset_stop < lock_set->offset_start) return 0;
+      if (lock_free->offset_stop <= lock_set->offset_start) return 0;
       if (lock_free->offset_start > lock_set->offset_start) {
 	memcpy(&new_lock,lock_set, sizeof(new_lock));
 	new_lock.size = EP_LOCK_PARTIAL;
-	new_lock.offset_stop = lock_free->offset_start-1;
+	new_lock.offset_stop = lock_free->offset_start;
 	*new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock); 
-	return 0;
       }
-      lock_set->offset_start = lock_free->offset_stop+1;       
+      lock_set->offset_start = lock_free->offset_stop;       
       return 0;  
 
     //   FREE #...____...........#    FREE #........____......#    FREE #......_______.....# 
     //   LOCK #__________........#    LOCK #_____.............#    LOCK #__________........# 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
-      if (lock_free->offset_start > lock_set->offset_stop) return 0;
+      if (lock_free->offset_start >= lock_set->offset_stop) return 0;
       if (lock_set->offset_stop <= lock_free->offset_stop) {
-        lock_set->offset_stop = lock_free->offset_start-1;
+        lock_set->offset_stop = lock_free->offset_start;
 	return 0;
       }
       memcpy(&new_lock,lock_set, sizeof(new_lock));
       new_lock.size = EP_LOCK_PARTIAL;
-      new_lock.offset_start = lock_free->offset_stop+1;
+      new_lock.offset_start = lock_free->offset_stop;
       *new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock);
-      lock_set->offset_stop = lock_free->offset_start-1;
+      lock_set->offset_stop = lock_free->offset_start;
       return 0;    
 
     //   FREE #.......___..#    FREE #..____.........#    FREE #..._____.....#  FREE #.....______..#
     //   LOCK #..__........#    LOCK #.........____..#    LOCK #.....______..#  LOCK #..._____.....#
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
-      if (lock_free->offset_start > lock_set->offset_stop) return 0;
-      if (lock_set->offset_start > lock_free->offset_stop) return 0;      
+      if (lock_free->offset_start >= lock_set->offset_stop) return 0;
+      if (lock_set->offset_start >= lock_free->offset_stop) return 0;      
       if (lock_free->offset_start <= lock_set->offset_start) {
         if (lock_free->offset_stop >= lock_set->offset_stop) return 1;
-	lock_set->offset_start = lock_free->offset_stop+1;
+	lock_set->offset_start = lock_free->offset_stop;
 	return 0;
       }
       if (lock_free->offset_stop >= lock_set->offset_stop) {
-	lock_set->offset_stop = lock_free->offset_start-1;
+	lock_set->offset_stop = lock_free->offset_start;
 	return 0;
       }      
       memcpy(&new_lock,lock_set, sizeof(new_lock));
-      new_lock.offset_stop = lock_free->offset_start-1;
+      new_lock.offset_stop = lock_free->offset_start;
       *new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock);
-      lock_set->offset_start = lock_free->offset_stop+1;
+      lock_set->offset_start = lock_free->offset_stop;
       return 0;  
              
     default:
