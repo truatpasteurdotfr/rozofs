@@ -2,7 +2,9 @@
 import sys
 from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
+from rozofs.cli.output import ordered_puts
 from rozofs.cli.output import puts
+from collections import OrderedDict
 
 
 def list(platform, args):
@@ -13,13 +15,15 @@ def list(platform, args):
     configuration = configurations[args.exportd][Role.EXPORTD]
     
     for eid, econfig in configuration.exports.items():
-        puts([{'eid '+str(eid):
-            [{  'vid': econfig.vid,
-                'root': econfig.root,
-                'md5': econfig.md5,
-                'squota' : econfig.squota,
-                'hquota' : econfig.hquota}
-    ]}])
+        exp_l = {}
+        exp_l['eid '+str(eid)] = OrderedDict([
+            ('vid', econfig.vid),
+            ('root', econfig.root),
+            ('md5', econfig.md5),
+            ('squota', econfig.squota),
+            ('hquota', econfig.hquota)
+        ])
+        ordered_puts(exp_l)
 
 def create(platform, args):
     platform.create_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
@@ -43,13 +47,15 @@ def stat(platform, args):
     configuration = configurations[args.exportd][Role.EXPORTD]
     
     for eid, estat in configuration.stats.estats.items():
-        puts([{'eid '+str(eid):
-            [{  'bsize': estat.bsize,
-                'blocks': estat.blocks,
-                'bfree' : estat.bfree,
-                'files' : estat.files,
-                'ffree' : estat.ffree}
-    ]}])
+        exp_l = {}
+        exp_l['eid '+str(eid)] = OrderedDict([
+            ('bsize', estat.bsize),
+            ('blocks', estat.blocks),
+            ('bfree', estat.bfree),
+            ('files', estat.files),
+            ('ffree', estat.ffree)
+        ])
+        ordered_puts(exp_l)
 
 def mount(platform, args):
     if not args.eids:
