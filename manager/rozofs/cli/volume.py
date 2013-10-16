@@ -3,6 +3,8 @@ import sys
 from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
 from rozofs.cli.output import puts
+from rozofs.cli.output import ordered_puts
+from collections import OrderedDict
 
 def list(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
@@ -11,25 +13,30 @@ def list(platform, args):
 
     configuration = configurations[args.exportd][Role.EXPORTD]
     
-    for vid, vconfig in configuration.volumes.items():
-        vstat = configuration.stats.vstats[vid]
-        puts([{'vid '+str(vid):
-            [{  'bsize': vstat.bsize,
-                'bfree': vstat.bfree,
-                'blocks': vstat.blocks},
-             {  'cid '+str(cid):
-                [{  'size' : cstat.size,
-                    'free' : cstat.free},
-                    {   'sid '+str(sid):
-                        {   'host': sstat.host,
-                            'size': sstat.size,
-                            'free': sstat.free}
-                            for sid, sstat in cstat.sstats.items()
-                    }
-                ] for cid, cstat in vstat.cstats.items()
-             }
-            ]},
+    vid_l = {}
+    for vid,vstat in configuration.stats.vstats.items():
+        cid_l = {}
+        vid_l['vid '+str(vid)] = OrderedDict([
+            ('bsize', vstat.bsize),
+            ('bfree', vstat.bfree),
+            ('blocks', vstat.blocks)
         ])
+        for cid, cstat in vstat.cstats.items():
+            sid_l = {}
+            cid_l['cid '+str(cid)] = OrderedDict([
+                ('size', cstat.size),
+                ('free', cstat.free)
+            ])
+            for sid, sstat in cstat.sstats.items():
+                sid_l['sid '+str(sid)] = OrderedDict([
+                    ('host', sstat.host),
+                    ('size', sstat.size),
+                    ('free', sstat.free)
+                ])
+            cid_l['cid '+str(cid)].update(sid_l)
+        vid_l['vid '+str(vid)].update(cid_l)
+    
+    ordered_puts(vid_l)
 
 def get(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
@@ -40,18 +47,35 @@ def get(platform, args):
     vconfig = configuration.volumes[args.vid[0]]
     vstat = configuration.stats.vstats[args.vid[0]]
 
-    for cid, cconfig in vstat.cstats.items():
-        puts([{'cid '+str(cid):
-            [{'bsize' : vstat.bsize,
-            'bfree' : vstat.bfree,
-            'blocks' : vstat.blocks},
-            {'sid '+str(sid):
-                {'host': sconfig.host,
-                'size': sconfig.size,
-                'free': sconfig.free}
-                    for sid, sconfig in cconfig.sstats.items()
-            }]},
+#    for cid, cconfig in vstat.cstats.items():
+#        puts([{'cid '+str(cid):
+#            [{'bsize' : vstat.bsize,
+#            'bfree' : vstat.bfree,
+#            'blocks' : vstat.blocks},
+#            {'sid '+str(sid):
+#                {'host': sconfig.host,
+#                'size': sconfig.size,
+#                'free': sconfig.free}
+#                    for sid, sconfig in cconfig.sstats.items()
+#            }]},
+#        ])
+
+    cid_l = {}
+    for cid, cstat in vstat.cstats.items():
+        sid_l = {}
+        cid_l['cid '+str(cid)] = OrderedDict([
+            ('size', cstat.size),
+            ('free', cstat.free)
         ])
+        for sid, sstat in cstat.sstats.items():
+            sid_l['sid '+str(sid)] = OrderedDict([
+                ('host', sstat.host),
+                ('size', sstat.size),
+                ('free', sstat.free)
+            ])
+        cid_l['cid '+str(cid)].update(sid_l)
+    
+    ordered_puts(cid_l)
 
 #
 # configuration related functions
