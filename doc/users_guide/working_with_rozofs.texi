@@ -161,8 +161,8 @@ $ exporthost=192.168.1.100,exportpath=/srv/rozofs/exports/export_1,_netdev
 @end menu
 
 RozoFS comes with a command line utility called rozo that aims to automate the
-management process of a RozoFS platform. Its main purpose is to chain up the
-operations required on remote nodes involved on a high level management task
+@strong{management} process of a RozoFS platform. Its main purpose is to chain up
+the operations required on remote nodes involved on a high level management task
 such as stopping and starting the whole platform, add new nodes to the platform
 in order to extend the capacity, add new exports on volume etc@dots{}
 

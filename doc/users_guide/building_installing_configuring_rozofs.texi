@@ -19,15 +19,15 @@
 @cindex     Build
 @cindex     Binary packages
 
-Fizians @acronym{SAS} provides binary packages for every component of RozoFS and
-various @acronym{GNU}/Linux distributions based on Debian (@file{.deb})
-and Redhat (@file{.rpm}) package format. Using binary packages brings you
-benefits. First, you do not need a full development environment and other hand
-binary packages come with init script, easy dependency management etc... that can
-simplify deployment and management process. See help of your favorite
-@acronym{GNU}/Linux distribution's package manager for package installation.
-According to their roles, nodes should have at least one these packages
-installed :
+Fizians @acronym{SAS} provides @strong{binary packages} for every component of
+RozoFS and various @acronym{GNU}/Linux distributions based on Debian 
+(@file{.deb}) and Redhat (@file{.rpm}) package format. Using binary packages
+brings you benefits. First, you do not need a full development environment and
+other hand binary packages come with init script, easy dependency management 
+etc... that can simplify deployment and management process. See help of your
+favorite @acronym{GNU}/Linux distribution's package manager for package
+installation. According to their roles, nodes should have at least one these
+packages installed :
 
 @itemize
 @item @file{rozofs-storaged_<version>_<arch>.<deb|rpm>}
@@ -64,8 +64,8 @@ The latest stable release of RozoFS can be downloaded from
 @url{http://github.com/rozofs/rozofs}.
 
 To build the RozoFS source code, it is necessary to install several libraries
-and tools. RozoFS uses the cross-platform build system Cmake to get you started
-quickly. RozoFS depends on the following:
+and tools. RozoFS uses the cross-platform build system @strong{cmake} to get you
+started quickly. RozoFS @strong{dependencies} are the following:
 @itemize
 @item @command{cmake}
 @item @command{libattr1-dev}
@@ -492,8 +492,8 @@ information :
 @end itemize
 
 Redundancy Configuration (layout):
-layout allows you to specify the configuration of redundancy RozoFS. There are
-3 redundancy configurations that are possible :
+the @strong{layout} allows you to specify the configuration of redundancy RozoFS.
+There are 3 redundancy configurations that are possible :
 @itemize
 @item layout=0; cluster(s) of 4 storage locations, 3 are used for each write and 2 for each read
 @item layout=1; cluster(s) of 8 storage locations, 6 are used for each write and 4 for each read
@@ -501,13 +501,13 @@ layout allows you to specify the configuration of redundancy RozoFS. There are
 @end itemize
 
 List of storage volumes (volumes):
-The list of all the storage volumes used by exportd is grouped under the
+The list of all the storage @strong{volumes} used by exportd is grouped under the
 volumes list. A volume in the list is identified by a unique identification
-number (@acronym{VID}) and contains one or more clusters identified by a unique
-identification number (@acronym{CID}) consisting of 4, 8 or 16 storage locations
-according to the layout you have chosen. Each storage location in a cluster is
-defined with the @acronym{SID} (the storage unique identifier within the cluster)
-and its network name (or @acronym{IP} address).
+number (@acronym{VID}) and contains one or more @strong{clusters} identified by a
+unique identification number (@acronym{CID}) consisting of 4, 8 or 16 storage
+locations according to the layout you have chosen. Each storage location in a
+cluster is defined with the @acronym{SID} (the storage unique identifier within
+the cluster) and its network name (or @acronym{IP} address).
 
 List of exported file systems (exports):
 The exportd daemon can export one or more file systems. Each exported file
@@ -591,8 +591,8 @@ exports = (
 @subsection Storaged Configuration File
 @cindex     Storaged configuration
 
-The configuration file storaged daemon (@file{storage.conf}) must be completed on
-each physical server storage where storaged daemon is used.
+The configuration file of the @strong{storaged} daemon (@file{storage.conf}) must
+be completed on each physical server storage where storaged daemon is used.
 It contains two informations:
 @itemize
 @item ports; list of TCP ports used to receive requests to write and read from

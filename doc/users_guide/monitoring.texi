@@ -4,7 +4,7 @@
 @cindex Monitoring
 
 RozoFS comes with a command line tool called @command{rozodebug} that lets the
-RozoFS administrator access a huge amount of statistics. Even though these
+RozoFS administrator access a huge amount of @strong{statistics}. Even though these
 statistics are very helpful for troubleshooting and for diagnostic (see section
 below) they might be far too detailed for an everyday usage. For that purpose
 Fizians provides a simplified approach: @emph{nagios modules}. The

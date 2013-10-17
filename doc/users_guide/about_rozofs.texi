@@ -27,8 +27,8 @@ transformed using erasure coding into encoded fragments we call @dfn{projections
 These projections are then distributed and stored on different available
 storage servers. The data can then be retrieved (decoded) even if several
 projections (servers) are unavailable. Note that this mechanism adds a
-level of @emph{confidentiality} to the system: the projections are not usable
-individually.
+level of @emph{confidentiality} to the system: the projections are not
+@strong{usable individually}.
 
 The redundancy method based on coding techniques that is used by RozoFS allows
 for large storage savings compared to traditional @emph{replication} method.
@@ -57,7 +57,8 @@ performance and scalability using single­process event­driven architecture and
 non­blocking calls to perform asynchronous @acronym{I/O} operations.
 All RozoFS components can run on the same physical hosts. A RozoFS single node
 setup can be useful for testing purpose. In production environment it is not
-unusual to have hosts running exportd, storaged and rozofsmount.
+unusual to have hosts running @strong{exportd}, @strong{storaged} and
+@strong{rozofsmount}.
 
 @menu
 * Storage nodes and storaged daemon::
@@ -76,10 +77,11 @@ unusual to have hosts running exportd, storaged and rozofsmount.
 
 Each storage node hosts a @dfn{storaged daemon} and configures itself via a
 configuration file. This daemon receives requests and stores the converted data
-files. A storaged can manage several storage locations. These storage locations
-are physical storages (e.g. disks, partitions or even remote file systems)
-accessed through an usual file system (e.g. @acronym{ext4}, @acronym{btrfs},
-@acronym{zfs} @dots{}) where storaged can read and write projections.
+files. A @strong{storaged} can manage several storage locations. These storage
+locations are physical storages (e.g. disks, partitions or even remote file
+systems) accessed through an usual file system (e.g. @acronym{ext4},
+@acronym{btrfs}, @acronym{zfs} @dots{}) where storaged can read and write
+projections.
 
 @c *** Subsection [Export nodes and exportd daemon]
 @node       Export nodes and exportd daemon, The rozofsmount clients, Storage nodes and storaged daemon, RozoFS Fundamentals
@@ -91,7 +93,8 @@ accessed through an usual file system (e.g. @acronym{ext4}, @acronym{btrfs},
 
 An export node includes all the information needed to reconstruct all the data
 it holds. It runs an exportd daemon configured by a configuration file
-describing three fundamental concepts in RozoFS : volume, layout and export.
+describing three fundamental concepts in RozoFS : @strong{volume},
+@strong{layout} and @strong{export}.
 
 @menu
 * Volumes and their clusters::
@@ -109,7 +112,8 @@ describing three fundamental concepts in RozoFS : volume, layout and export.
 @cindex     Exportd
 
 A @dfn{volume} in RozoFS can be seen as a usable capacity. It is defined by a pool
-of storage locations. These storage locations are themselves gathered by clusters.
+of storage locations. These storage locations are themselves gathered by
+@strong{clusters}.
 These clusters in RozoFS provide load balancing based on effective capacity.
 When RozoFS needs to store projections on a volume, it will select the cluster
 with the larger free space and then the storage locations within this cluster
@@ -125,8 +129,8 @@ requirements. In the same way, the administrator is invited not to create
 clusters with storage locations on the same physical node, at risk of
 compromising the data availability upon node failure.
 
-An exportd can manage several volumes. Obviously, a storage node can hold
-storage locations belonging to different volumes.
+An @strong{exportd} can manage several @strong{volumes}. Obviously, a storage node
+can hold storage locations belonging to different volumes.
 
 @c *** Subsubsection [Layouts]
 @node       Layouts, Exports, Volumes and their clusters, Export nodes and exportd daemon
@@ -138,16 +142,17 @@ storage locations belonging to different volumes.
 @cindex     Availability
 
 As previously mentioned, RozoFS introduces redundancy to ensure high
-reliability. This reliability depends on the chosen configuration. The number
-of storage servers used and the reliability you need are the two criteria
-which determine the best configuration to use. While redundancy tweaking might
-be possible, in RozoFS the default redundancy level is set to 1.5 : RozoFS
-generates n projections, and only m among them are required to rebuild the data
-with n / m = 1.5. This redundancy level has been chosen for its availability
-equivalent with @emph{3-way replication}. Based on that, three redundancy
-configurations called @dfn{layout} have been defined in RozoFS. A layout in RozoFS
-is defined by a tuple (m,n,s) with m corresponding to the number of projections
-required to rebuild the data, n the number of generated projections, and s the
+@strong{reliability}. This reliability depends on the chosen configuration.
+The number of storage servers used and the reliability you need are the two
+criteria which determine the best configuration to use. While redundancy tweaking
+might be possible, in RozoFS the default redundancy level is set to @math{1.5}.
+RozoFS generates @math{n} projections, and only @math{m} among them are
+required to rebuild the data with @math{n / m = 1.5}. This redundancy level has
+been chosen for its availability equivalent with @emph{3-way replication}. Based
+on that, three redundancy configurations called @dfn{layout} have been defined
+in RozoFS. A @strong{layout} in RozoFS is defined by a tuple @math{(m,n,s)} with
+@math{m} corresponding to the number of projections required to rebuild the data,
+@math{n} the number of generated projections, and @math{s} the
 number of possible storage locations that can be used to store projections.
 The purpose of the s value is about ensuring high availability in write
 operations : RozoFS will only consider a write safe if and only if it has been
@@ -192,11 +197,11 @@ managed through resizable quotas (hard and soft).
 @cindex     Encoding
 @cindex     Decoding
 
-@command{rozofsmount} allows users to mount an export of the RozoFS file system on a
-local directory using the @acronym{FUSE} library. Once the file system is mounted,
-RozoFS usage is transparent to the user. @command{rozofsmount} is responsible for
-data transformation and determines a set of storage servers for read and write
-operations.
+@command{rozofsmount} allows users to @strong{mount an export} of the RozoFS file
+system on a local directory using the @acronym{FUSE} library. Once the file system
+is mounted, RozoFS usage is transparent to the user. @command{rozofsmount} is
+responsible for data transformation and determines a set of storage servers for
+read and write operations.
 
 @c *** Section [RozoFS Data Flow]
 @node       RozoFS Data Flow, RozoFS Data Protection, RozoFS Fundamentals, About RozoFS
@@ -218,11 +223,12 @@ operations.
 @cindex     Layout
 
 The following figures shows the read and write process in RozoFS. The
-client who wants to store a file first sends a request to the exportd to
-ask for the list of storage locations (nodes if good practices are respected)
+@strong{client} who wants to store a file first sends a request to the
+@strong{exportd} to ask for the list of @strong{storage locations} (nodes if
+good practices are respected)
 that must be used, then rozofsmount splits the file into a number of blocks
 (according to the file system block size e.g. 4096B) each block is then
-encoded and each resulting projection is sent to a storage location. During
+@strong{encoded} and each resulting projection is sent to a storage location. During
 this write process, rozofsmount is responsible for choosing running storage
 locations among the possible ones to ensure data availability. Failures of
 storage locations (according to layout) are transparent for upper level (OS).
@@ -231,7 +237,7 @@ storage locations (according to layout) are transparent for upper level (OS).
 
 During the read operation, the opposite process is performed. The rozofsmount
 requests the list of storage locations used for each block of data stored and
-retrieves a sufficient set of projections to rebuild the block before
+retrieves a sufficient set of projections to @strong{rebuild} the block before
 transmitting it to the application level. The redundancy introduced during the
 write operation ensures a reliable storage despite any single or multiple
 failure of storage nodes (depending on the layout chosen for redundancy).
@@ -280,7 +286,7 @@ servers. This disk partition is used by only one server at a time (the elected
 master server), and it is on this server that the service exportd is active. The
 cluster management software Pacemaker controls the different machines in the
 cluster and takes the necessary measures in case of problem on any of them
-(failover @acronym{IP} address, boot order of services, etc). 
+(failover @acronym{IP} address, boot order  mof services, etc). 
 
 @c *** Subsection [Data Protection]
 @node       Data Protection, Erasure Code vs Replication, Meta Data Protection, RozoFS Data Protection
@@ -314,12 +320,12 @@ RozoFS relies on an erasure code that uses the @emph{Mojette} mathematic transfo
 @cindex     Replication
 @cindex     Mojette transform
 
-Traditionally, fault-tolerance is managed by replication of data. Blocks of
-information are replicated into several copies. A @dfn{3-way replication} produces 3
-copies for each block of information. In this case the system is able to cope
-with 2 failures. These replicated fragments are then distributed to the storage
-nodes of the system. Upon user access to a file, the system reads blocks of
-information that correspond to the file. A failure occurs when a block is not
+Traditionally, fault-tolerance is managed by @strong{replication} of data. Blocks
+of information are replicated into several copies. A @dfn{3-way replication}
+produces 3 copies for each block of information. In this case the system is able
+to cope with 2 failures. These replicated fragments are then distributed to the
+storage nodes of the system. Upon user access to a file, the system reads blocks
+of information that correspond to the file. A failure occurs when a block is not
 accessible by the system. In this case, the system switches its access to
 another copy of the block, stored in another storage node.
 Consider now a system that holds 3 petabytes of data, that needs to be
@@ -328,7 +334,8 @@ requires 3 times the amount of the user data. It means that your protected
 system consumes 9 petabytes of protected data!
 
 There is an alternative, called @dfn{erasure coding}. Erasure coding aims at
-reducing the storage overhead that involves fault-tolerance up to 50% compared to
+@strong{reducing the storage overhead} that involves fault-tolerance up to
+50% compared to
 replication. Consider now that your k chunks of information are encoded into n
 fragments (k<n). These fragments are then distributed to the storage nodes of
 your system. When a user wants to access a file, the system needs to read any k
@@ -362,7 +369,7 @@ coding.
 Let consider our data set in a squared array where each row represents a block
 and where lines depend on the size of blocks. The @emph{Mojette} transform defines
 linear combinations of the data. When a user wants to write a file on RozoFS,
-the system encodes its information. Basically, the encoder simply computes
+the system @strong{encodes} its information. Basically, the encoder simply computes
 additions between different bits in this array to produce redundant data. These
 additions follow a certain pattern depending on the angles of projections. In
 RozoFS, it is the layout that defines the number of projections and their
@@ -374,13 +381,14 @@ Consider now a user that need to access some information. Reading a file is
 realised by the system as decoding information. It is possible to invert the
 transform as we know the pattern. Only a subpart of the projections is
 sufficient to retrieve the data (we saw previously the gain in storage
-capacity). If enough projections are accessible, the system is able to decode.
+capacity). If enough projections are accessible, the system is able to
+@strong{decode}.
 Decoding is the process that fills an empty array from the bins of projections,
 knowing the pattern used. We consider that the system has rebuilt the data once
 the array is fully filled.
 
-The @emph{Mojette} transform guarantees high performance. First, it relies on simple
-additions. Encoding and decoding computations are linear to the size of the
-array. This transform is a good tool to protect data as the overhead of
-computations due to encoding and decoding is low as well as the storage
-overhead.
+The @emph{Mojette} transform guarantees @strong{high performance}. First, it
+relies on simple additions. Encoding and decoding computations are linear to
+the size of the array. This transform is a good tool to protect data as the
+overhead of computations due to encoding and decoding is low as well as the
+storage overhead.
