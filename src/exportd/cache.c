@@ -335,6 +335,7 @@ int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock
       lock1->offset_stop  = lock2->offset_stop;                     
       return 1;   
   }   
+  return 0;
 }
 /*
 *___________________________________________________________________

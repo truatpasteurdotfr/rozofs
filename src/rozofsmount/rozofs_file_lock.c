@@ -47,6 +47,7 @@
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
+#include <rozofs/rpc/storcli_proto.h>
 #include "config.h"
 #include "file.h"
 #include "rozofs_fuse.h"
@@ -74,6 +75,7 @@ typedef struct _LOCK_STATISTICS_T {
   uint64_t      posix_set_passing_lock;
   uint64_t      posix_set_blocking_lock;
   uint64_t      posix_get_lock;
+  uint64_t      flush_required;
   uint64_t      set_lock_refused;
   uint64_t      set_lock_success;  
   uint64_t      set_lock_error;
@@ -82,8 +84,10 @@ typedef struct _LOCK_STATISTICS_T {
   uint64_t      get_lock_success; 
   uint64_t      get_lock_error;   
   uint64_t      enoent;
+  uint64_t      ebadf;
   uint64_t      enomem;  
   uint64_t      einval;
+  uint64_t      flush_error;
   uint64_t      send_common;
 } LOCK_STATISTICS_T;
 
@@ -114,12 +118,15 @@ char * display_lock_stat(char * p) {
   DISPLAY_LOCK_STAT(set_lock_error);
   DISPLAY_LOCK_STAT(set_lock_interrupted);
   DISPLAY_LOCK_STAT(posix_get_lock);  
+  DISPLAY_LOCK_STAT(flush_required);  
   DISPLAY_LOCK_STAT(get_lock_refused);
   DISPLAY_LOCK_STAT(get_lock_success);
   DISPLAY_LOCK_STAT(get_lock_error);
   DISPLAY_LOCK_STAT(enoent);
+  DISPLAY_LOCK_STAT(ebadf);
   DISPLAY_LOCK_STAT(enomem);
   DISPLAY_LOCK_STAT(einval);
+  DISPLAY_LOCK_STAT(flush_error);
   DISPLAY_LOCK_STAT(send_common);
   return p;
 }
@@ -633,7 +640,7 @@ void rozofs_ll_flock_nb(fuse_req_t req,
 
 }
 /**
-*  File lock setting
+*  File lock setting request toward exportd
 
  Under normal condition the service ends by calling : fuse_reply_entry
  Under error condition it calls : fuse_reply_err
@@ -645,40 +652,23 @@ void rozofs_ll_flock_nb(fuse_req_t req,
  @retval none
 */
 void rozofs_ll_setlk_cbk(void *this,void *param);
-
-void rozofs_ll_setlk_nb(fuse_req_t req, 
-                        fuse_ino_t ino, 
-                        struct fuse_file_info *fi,
-                        struct flock *flock,
-			int sleep) {
+void rozofs_ll_setlk_request_to_export(void *buffer_p) {
     ientry_t *ie = 0;
     epgw_lock_arg_t arg;
     int    ret;        
-    void *buffer_p = NULL;
-    file_t      * file;
+    file_t      * f;
     int64_t start,stop;
+    fuse_req_t req;
+    fuse_ino_t ino;
+    struct fuse_file_info * fi;
+    struct flock *flock;
+    int sleep;
 
-    if (sleep) lock_stat.posix_set_blocking_lock++;   
-    else       lock_stat.posix_set_passing_lock++; 
-
-
-    /*
-    ** allocate a context for saving the fuse parameters
-    */
-    buffer_p = rozofs_fuse_alloc_saved_context();
-    if (buffer_p == NULL)
-    {
-      lock_stat.enomem++;   
-      errno = ENOMEM;
-      goto error;
-    }
-    SAVE_FUSE_PARAM(buffer_p,req);
-    SAVE_FUSE_PARAM(buffer_p,sleep);
-    SAVE_FUSE_PARAM(buffer_p,ino);
-    SAVE_FUSE_STRUCT(buffer_p,fi,sizeof(struct fuse_file_info));    
-    SAVE_FUSE_STRUCT(buffer_p,flock,sizeof(struct flock));    
-    
-    START_PROFILING_NB(buffer_p,rozofs_ll_setlk);
+    RESTORE_FUSE_PARAM(buffer_p,req);
+    RESTORE_FUSE_PARAM(buffer_p,sleep);
+    RESTORE_FUSE_PARAM(buffer_p,ino);
+    RESTORE_FUSE_STRUCT_PTR(buffer_p,fi);    
+    RESTORE_FUSE_STRUCT_PTR(buffer_p,flock);   
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
@@ -686,7 +676,25 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
         goto error;
     }
 
-    file = (file_t *) (unsigned long) fi->fh;
+    f = (file_t *) (unsigned long) fi->fh;
+    if (f == NULL) {
+        errno = EBADF;
+	lock_stat.ebadf++;
+        goto error;
+    }
+    /*
+    ** check the status of the last write operation
+    */
+    if (f->wr_error!= 0)
+    {
+      /*
+      ** that error is permanent, once can read the file but any
+      ** attempt to write will return that error code
+      */
+      errno = f->wr_error;
+      lock_stat.ebadf++;
+      goto error;
+    }
     
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -710,7 +718,7 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
     }
     arg.arg_gw.lock.client_ref   = rozofs_client_hash;
     arg.arg_gw.lock.owner_ref    = fi->lock_owner;
-    arg.arg_gw.lock.size         = rozofs_flock_canonical(flock,file, &start, &stop);
+    arg.arg_gw.lock.size         = rozofs_flock_canonical(flock,f, &start, &stop);
     if (arg.arg_gw.lock.size == EP_LOCK_NULL) {
       lock_stat.einval++;    
       errno= EINVAL;
@@ -721,9 +729,9 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
 
     /* Save lock information for next retries when in blocking mode */
     if (sleep) {
-      file->lock_size  = arg.arg_gw.lock.size;
-      file->lock_start = start;
-      file->lock_stop	= stop; 
+      f->lock_size  = arg.arg_gw.lock.size;
+      f->lock_start = start;
+      f->lock_stop	= stop; 
     }
      	  			
     /*
@@ -752,7 +760,391 @@ error:
 
     return;
 }
+/**
+*  File lock setting
 
+ Under normal condition the service ends by calling : fuse_reply_entry
+ Under error condition it calls : fuse_reply_err
+
+ @param req: pointer to the fuse request context (must be preserved for the transaction duration
+ @param parent : inode parent provided by rozofsmount
+ @param name : name to search in the parent directory
+ 
+ @retval none
+*/
+void rozofs_ll_setlk_after_flush(void *this,void *param);
+void rozofs_ll_setlk_after_write_block(void *this,void *param) ;
+
+void rozofs_ll_setlk_nb(fuse_req_t req, 
+                        fuse_ino_t ino, 
+                        struct fuse_file_info *fi,
+                        struct flock *flock,
+			int sleep) {
+    ientry_t *ie = 0;
+    int    ret;        
+    void *buffer_p = NULL;
+    file_t      * f;
+
+    if (sleep) lock_stat.posix_set_blocking_lock++;   
+    else       lock_stat.posix_set_passing_lock++; 
+
+
+    /*
+    ** allocate a context for saving the fuse parameters
+    */
+    buffer_p = rozofs_fuse_alloc_saved_context();
+    if (buffer_p == NULL)
+    {
+      lock_stat.enomem++;   
+      errno = ENOMEM;
+      goto error;
+    }
+    SAVE_FUSE_PARAM(buffer_p,req);
+    SAVE_FUSE_PARAM(buffer_p,sleep);
+    SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_STRUCT(buffer_p,fi,sizeof(struct fuse_file_info));    
+    SAVE_FUSE_STRUCT(buffer_p,flock,sizeof(struct flock));   
+
+    START_PROFILING_NB(buffer_p,rozofs_ll_setlk);
+
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+	lock_stat.enoent++;
+        goto error;
+    }
+
+    f = (file_t *) (unsigned long) fi->fh;
+    if (f == NULL) {
+        errno = EBADF;
+	lock_stat.ebadf++;
+        goto error;
+    }
+    /*
+    ** check the status of the last write operation
+    */
+    if (f->wr_error!= 0)
+    {
+      /*
+      ** that error is permanent, once can read the file but any
+      ** attempt to write will return that error code
+      */
+      errno = f->wr_error;
+      lock_stat.ebadf++;
+      goto error;
+    }
+    
+    
+    /*
+    ** Flush the buffer if some data is pending
+    */
+    if (f->buf_write_wait!= 0) {
+      lock_stat.flush_required++;
+      /*
+      ** Install a callback to called after the flush si done
+      */ 
+      SAVE_FUSE_CALLBACK(buffer_p,rozofs_ll_setlk_after_flush);
+      ret = buf_flush(buffer_p,f);
+      if (ret < 0) {
+        lock_stat.flush_error++;      
+        goto error;
+      }	
+      /*
+      ** wait for the end of the flush: just return evreything will take palce
+      ** upon receiving the flush response (see rozofs_ll_setlk_after_flush())
+      */
+      return;
+    }    
+
+
+    /*
+    ** Request the lock to the export
+    */
+    rozofs_ll_setlk_request_to_export(buffer_p);
+    return;
+
+error:
+    fuse_reply_err(req, errno);
+    /*
+    ** release the buffer if has been allocated
+    */
+    STOP_PROFILING_NB(buffer_p,rozofs_ll_setlk);
+    if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
+}
+/*
+**__________________________________________________________________
+*/
+/**
+*  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+void rozofs_ll_setlk_after_flush(void *this,void *param) 
+{
+   fuse_req_t req; 
+   struct rpc_msg  rpc_reply;
+   struct fuse_file_info  file_info;
+   struct fuse_file_info  *fi = &file_info;
+   
+   int status;
+   uint8_t  *payload;
+   void     *recv_buf = NULL;   
+   XDR       xdrs;    
+   int      bufsize;
+   storcli_status_ret_t ret;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
+   file_t *file = NULL;
+
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+   RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_STRUCT_PTR(param,fi);    
+
+   file = (file_t *) (unsigned long)  fi->fh;   
+   file->buf_write_pending--;
+   if (file->buf_write_pending < 0)
+   {
+     severe("buf_write_pending mismatch, %d",file->buf_write_pending);
+     file->buf_write_pending = 0;     
+   }
+    /*
+    ** get the pointer to the transaction context:
+    ** it is required to get the information related to the receive buffer
+    */
+    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+    /*    
+    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
+    */
+    status = rozofs_tx_get_status(this);
+    if (status < 0)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = rozofs_tx_get_errno(this); 
+       severe(" transaction error %s",strerror(errno));
+       goto error; 
+    }
+    /*
+    ** get the pointer to the receive buffer payload
+    */
+    recv_buf = rozofs_tx_get_recvBuf(this);
+    if (recv_buf == NULL)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = EFAULT;  
+       severe(" transaction error %s",strerror(errno));
+       goto error;         
+    }
+    payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
+    payload += sizeof(uint32_t); /* skip length*/
+    /*
+    ** OK now decode the received message
+    */
+    bufsize = (int) ruc_buf_getPayloadLen(recv_buf);
+    xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
+    /*
+    ** decode the rpc part
+    */
+    if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
+    {
+     TX_STATS(ROZOFS_TX_DECODING_ERROR);
+     errno = EPROTO;
+     severe(" transaction error %s",strerror(errno));
+     goto error;
+    }
+    /*
+    ** ok now call the procedure to decode the message
+    */
+    memset(&ret,0, sizeof(ret));                    
+    if (decode_proc(&xdrs,&ret) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_DECODING_ERROR);
+       errno = EPROTO;
+       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+       severe(" transaction error %s",strerror(errno));
+       goto error;
+    }   
+    if (ret.status == STORCLI_FAILURE) {
+        errno = ret.storcli_status_ret_t_u.error;
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+        goto error;
+    }
+    /*
+    ** no error, so get the length of the data part
+    */
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+
+
+    /*
+    ** If the file size is increased, we must update the exportd
+    */
+    if (export_write_block_asynchrone(param,file,rozofs_ll_setlk_after_write_block)<0) {
+      goto error;
+    }
+    goto out;
+
+    
+error:
+    lock_stat.flush_error++;      
+
+    if (file != NULL)
+    {
+       file->wr_error = errno; 
+    }
+    fuse_reply_err(req, errno);    
+    STOP_PROFILING_NB(param,rozofs_ll_setlk);
+    rozofs_fuse_release_saved_context(param);
+    
+out:    
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
+    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
+}
+/**
+*  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+void rozofs_ll_setlk_after_write_block(void *this,void *param) {
+   epgw_io_ret_t ret ;
+   struct rpc_msg  rpc_reply;
+   fuse_req_t req; 
+   int status;
+   uint8_t  *payload;
+   void     *recv_buf = NULL;   
+   XDR       xdrs;    
+   int      bufsize;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+   
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+   RESTORE_FUSE_PARAM(param,req);
+   
+    /*
+    ** get the pointer to the transaction context:
+    ** it is required to get the information related to the receive buffer
+    */
+    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+    /*    
+    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
+    */
+    status = rozofs_tx_get_status(this);
+    if (status < 0)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = rozofs_tx_get_errno(this);  
+       goto error; 
+    }
+    /*
+    ** get the pointer to the receive buffer payload
+    */
+    recv_buf = rozofs_tx_get_recvBuf(this);
+    if (recv_buf == NULL)
+    {
+       /*
+       ** something wrong happened
+       */
+       errno = EFAULT;  
+       goto error;         
+    }
+    payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
+    payload += sizeof(uint32_t); /* skip length*/
+    /*
+    ** OK now decode the received message
+    */
+    bufsize = rozofs_tx_get_small_buffer_size();
+    xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
+    /*
+    ** decode the rpc part
+    */
+    if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
+    {
+     TX_STATS(ROZOFS_TX_DECODING_ERROR);
+     errno = EPROTO;
+     goto error;
+    }
+    /*
+    ** ok now call the procedure to encode the message
+    */
+    memset(&ret,0, sizeof(ret));                    
+    if (decode_proc(&xdrs,&ret) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_DECODING_ERROR);
+       errno = EPROTO;
+       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
+       goto error;
+    }   
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+
+
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_io_ret_t_u.error;
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+        goto error;
+    }
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);  
+      
+
+    /*
+    ** Now that the flush is done, request the lock to the export
+    */
+    rozofs_ll_setlk_request_to_export(param);
+    goto out;  
+        
+error:
+    lock_stat.flush_error++;      
+    fuse_reply_err(req, errno);
+    STOP_PROFILING_NB(param,rozofs_ll_setlk);
+    rozofs_fuse_release_saved_context(param);
+out:    
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
+    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
+}
 /**
 *  Call back function call upon a success rpc, timeout or any other rpc failure
 *
@@ -850,7 +1242,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
         file = (file_t*) (unsigned long) fi->fh;
         file->lock_owner_ref = fi->lock_owner;   
       } 
-      errno = 0;      
+      errno = 0;   
     }
     else if (ret.gw_status.status == EP_EAGAIN) {
       errno = EAGAIN;
@@ -865,6 +1257,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
 	else                          file->lock_type = EP_LOCK_READ;
         file->lock_owner_ref = fi->lock_owner;   
         ruc_objInsertTail(&pending_lock_list,&file->pending_lock);
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
 	goto out;	
       }
     }
@@ -873,6 +1266,12 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
     }
     	
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+
+    /*
+    ** The flush must have been done. Let reset the file buffer pointers
+    */
+    clear_file_buffer_after_flush(file);
 
 error:
     if (errno == 0)           lock_stat.set_lock_success++;      

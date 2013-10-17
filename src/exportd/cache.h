@@ -55,7 +55,6 @@ typedef struct lv2_entry {
         mslnk_t mslnk;  ///< symlink
     } container;
     list_t list;        ///< list used by cache
-    int    lock_type;   ///< Type of lock in the list (NONE/READ/WRITE)
     
     /* 
     ** File locking

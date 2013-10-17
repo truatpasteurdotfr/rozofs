@@ -70,7 +70,7 @@ DECLARE_PROFILING(mpp_profiler_t);
 void rozofs_ll_read_cbk(void *this,void *param);
 
 
-static char *buf_flush= NULL;  /**< flush buffer for asynchronous flush */
+static char *local_buf_flush= NULL;  /**< flush buffer for asynchronous flush */
 /**
 * Allocation of the flush buffer
   @param size_kB : size of the flush buffer in KiloBytes
@@ -79,7 +79,7 @@ static char *buf_flush= NULL;  /**< flush buffer for asynchronous flush */
 */
 void rozofs_allocate_flush_buf(int size_kB)
 {
-  buf_flush = xmalloc(1024*size_kB);
+  local_buf_flush = xmalloc(1024*size_kB);
 }
 /**
 * Align off as well as len to read on blocksize bundary
@@ -899,7 +899,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         offset_buf_wr_start =  file->write_from - file->read_from ; 
         offset_buf_wr_start +=  (next_read_from- file->write_from);
         src_p =(uint8_t *)( file->buffer + offset_buf_wr_start);
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         file->write_pos  = 0;
         file->write_from = 0;
         /*
@@ -912,7 +912,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         /**
         * merge the with the buf flush
         */
-        memcpy(file->buffer,buf_flush,len); 
+        memcpy(file->buffer,local_buf_flush,len); 
           
         file->read_from = next_read_from;
         file->read_pos  = next_read_pos;	             
@@ -954,7 +954,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         */
         len = file->write_pos - file->write_from;      
         src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         /*
         ** copy the received buffer in the file descriptor context
         */
@@ -966,7 +966,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         * merge the with the buf flush
         */
         dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
-        memcpy(dst_p,buf_flush,len); 
+        memcpy(dst_p,local_buf_flush,len); 
           
         file->read_from = next_read_from;
         file->read_pos  = next_read_pos;	  
@@ -1002,7 +1002,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
           */
           len = file->write_pos - file->write_from;      
           src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-          memcpy(buf_flush,src_p,len);   
+          memcpy(local_buf_flush,src_p,len);   
           /*
           ** copy the received buffer in the file descriptor context
           */
@@ -1014,7 +1014,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
           * merge the with the buf flush
           */
           dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
-          memcpy(dst_p,buf_flush,len); 
+          memcpy(dst_p,local_buf_flush,len); 
 
           file->read_from = next_read_from;
           file->read_pos  = file->write_pos;	  
@@ -1040,7 +1040,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         
         len = offset_end - file->write_from;      
         src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         /*
         ** copy the received buffer in the file descriptor context
         */
@@ -1052,7 +1052,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         * merge the with the buf flush
         */
         dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
-        memcpy(dst_p,buf_flush,len); 
+        memcpy(dst_p,local_buf_flush,len); 
 
         file->write_pos  = 0;
         file->write_from = 0;
@@ -1121,7 +1121,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
 
           len = offset_end - file->write_from;      
           src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-          memcpy(buf_flush,src_p,len);   
+          memcpy(local_buf_flush,src_p,len);   
           /*
           ** copy the received buffer in the file descriptor context
           */
@@ -1139,7 +1139,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
           * merge the with the buf flush
           */
           dst_p+= len_zero;
-          memcpy(dst_p,buf_flush,len); 
+          memcpy(dst_p,local_buf_flush,len); 
 
           file->write_pos  = 0;
           file->write_from = 0;
@@ -1167,7 +1167,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
 
         len = file->write_pos - file->write_from;      
         src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         /*
         ** copy the received buffer in the file descriptor context
         */
@@ -1185,7 +1185,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         * merge the with the buf flush
         */
         dst_p+= len_zero;
-        memcpy(dst_p,buf_flush,len); 
+        memcpy(dst_p,local_buf_flush,len); 
 
         file->read_from = next_read_from;
         file->read_pos  = file->write_pos;	  

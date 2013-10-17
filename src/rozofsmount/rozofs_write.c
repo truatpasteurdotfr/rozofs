@@ -165,9 +165,30 @@ void init_write_flush_stat(int max_write_pending){
   uma_dbg_addTopic("write_flush", display_write_flush_stat);  
 }
 
-
-
-
+/*
+**__________________________________________________________________
+*/
+/**
+   API to clear the buffer after a flush
+   If some data is pending in the buffer the clear is not done
+   
+   @param *f : pointer to the file structure where read buffer information can be retrieved
+   
+   @retval -1 some data to write is pending
+   @retval 0 if the read buffer is not empty
+*/
+int clear_file_buffer_after_flush(file_t *f)
+{
+  if (f->buf_write_wait != 0) {
+    warning("buf_write_wait %d read from:pos %llu:%llu write from:pos %llu:%llu ",
+             f->buf_write_wait, 
+	     (long long unsigned int)f->read_from, (long long unsigned int)f->read_pos, 
+	     (long long unsigned int)f->write_from, (long long unsigned int)f->write_pos);
+    return -1;
+  }
+  f->read_from = f->read_pos = f->write_from = f->write_pos = 0;
+  return 0;
+}
 /*
 **__________________________________________________________________
 */
@@ -212,7 +233,7 @@ static inline int write_section_empty(file_t *p)
   @retval len_write >= total data length push to the disk
   @retval < 0 --> error while attempting to initiate a write request towards storcli 
 */
-static inline int buf_flush(void *fuse_ctx_p,file_t *p)
+int buf_flush(void *fuse_ctx_p,file_t *p)
 {
 //  if (p->buf_write_wait == 0) return 0;
   
@@ -1994,9 +2015,6 @@ void rozofs_ll_release_defer(void *ns,void *param)
 }
 
 
-
-
-
 /**
 *  metadata update -> need to update the file size
 
@@ -2009,19 +2027,13 @@ void rozofs_ll_release_defer(void *ns,void *param)
  
  @retval none
 */
-void export_write_block_cbk(void *this,void *param);
-
-void export_write_block_nb(void *fuse_ctx_p, file_t *file_p) 
+int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_t recv_cbk) 
 {
     epgw_write_block_arg_t arg;
     int    ret;        
     uint64_t buf_flush_offset ;
     uint32_t buf_flush_len ;
     
-    void *buffer_p = fuse_ctx_p;
-    
-    START_PROFILING_NB(buffer_p,rozofs_ll_ioctl);
-
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
     /*
@@ -2044,21 +2056,43 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
     /*
     ** now initiates the transaction towards the remote end
     */
-
+    
 #if 1
     ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,file_p->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
-                              export_write_block_cbk,fuse_ctx_p); 
+                              recv_cbk,fuse_ctx_p); 
 #else
     ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
-                              export_write_block_cbk,fuse_ctx_p); 
+                              recv_cbk,fuse_ctx_p); 
 #endif
-    if (ret < 0) goto error;    
-    /*
-    ** no error just waiting for the answer
-    */
+    return ret;  
+}
+
+/**
+*  metadata update -> need to update the file size
+
+ Under normal condition the service ends by calling : fuse_reply_entry
+ Under error condition it calls : fuse_reply_err
+
+ @param req: pointer to the fuse request context (must be preserved for the transaction duration
+ @param parent : inode parent provided by rozofsmount
+ @param name : name to search in the parent directory
+ 
+ @retval none
+*/
+void export_write_block_cbk(void *this,void *param);
+
+void export_write_block_nb(void *fuse_ctx_p, file_t *file_p) 
+{
+    int    ret;        
+    void *buffer_p = fuse_ctx_p;
+    
+    START_PROFILING_NB(buffer_p,rozofs_ll_ioctl);
+    ret = export_write_block_asynchrone(fuse_ctx_p, file_p, export_write_block_cbk);
+    if (ret < 0) goto error; 
     return;
+
 
 error:
     /*

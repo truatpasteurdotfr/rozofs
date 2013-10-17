@@ -46,6 +46,8 @@
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/rozofs_rpc_util.h>
+#include <rozofs/core/rozofs_tx_common.h>
+
 #include "config.h"
 #include "file.h"
 
@@ -291,4 +293,33 @@ void rozofs_ll_flock_nb(fuse_req_t req,
 		              int op);		
 			      
 void init_write_flush_stat(int max_write_pending);
+/*
+**__________________________________________________________________
+*/
+/**
+*  flush the content of the buffer to the disk
+
+  @param fuse_ctx_p: pointer to the fuse transaction context
+  @param p : pointer to the file structure that contains buffer information
+  
+  @retval len_write >= total data length push to the disk
+  @retval < 0 --> error while attempting to initiate a write request towards storcli 
+*/
+int buf_flush(void *fuse_ctx_p,file_t *p);
+
+int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p,sys_recv_pf_t recv_cbk);
+
+/*
+**__________________________________________________________________
+*/
+/**
+   API to clear the buffer after a flush
+   If some data is pending in the buffer the clear is not done
+   
+   @param *p : pointer to the file structure where read buffer information can be retrieved
+   
+   @retval -1 some data to write is pending
+   @retval 0 if the read buffer is not empty
+*/
+int clear_file_buffer_after_flush(file_t *p);
 #endif
