@@ -1168,7 +1168,6 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
    int      bufsize;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_lock_ret_t;
    struct fuse_file_info *fi;
-   file_t * file;
     
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -1234,14 +1233,19 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
     
         
     if (ret.gw_status.status == EP_SUCCESS) {
+      file_t * file = NULL;
+      file = (file_t*) (unsigned long) fi->fh;
       if (flock->l_type != F_UNLCK) {
         /* 
 	** Lock has been set. Save the lock owner in the file structure 
 	** to release the lockwhen the file is closed
 	*/
-        file = (file_t*) (unsigned long) fi->fh;
         file->lock_owner_ref = fi->lock_owner;   
       } 
+      /*
+      ** The flush must have been done. Let reset the file buffer pointers
+      */
+      if (file != NULL) clear_file_buffer_after_flush(file);      
       errno = 0;   
     }
     else if (ret.gw_status.status == EP_EAGAIN) {
@@ -1251,7 +1255,7 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
       ** file locks 
       */
       if (sleep) {
-        file = (file_t*) (unsigned long) fi->fh;      
+        file_t * file = (file_t*) (unsigned long) fi->fh;      
         file->fuse_req  = req;
 	if (flock->l_type == F_WRLCK) file->lock_type = EP_LOCK_WRITE;
 	else                          file->lock_type = EP_LOCK_READ;
@@ -1266,12 +1270,6 @@ void rozofs_ll_setlk_cbk(void *this,void *param)
     }
     	
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
-
-
-    /*
-    ** The flush must have been done. Let reset the file buffer pointers
-    */
-    clear_file_buffer_after_flush(file);
 
 error:
     if (errno == 0)           lock_stat.set_lock_success++;      
