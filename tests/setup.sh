@@ -524,36 +524,52 @@ deploy_clients_local ()
 {
     echo "------------------------------------------------------"
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
-        then
+    then
         echo "Unable to mount RozoFS (configuration file doesn't exist)"
     else
+
         NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 
         for j in $(seq ${NB_EXPORTS}); do
-            mountpoint -q ${LOCAL_MNT_ROOT}${j}
-            if [ "$?" -ne 0 ]
-            then
-                echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${LOCAL_MNT_PREFIX}${j}"
 
-                if [ ! -e "${LOCAL_MNT_ROOT}${j}" ]
+
+            for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
+
+                mountpoint -q ${LOCAL_MNT_ROOT}${j}_${idx_client}
+
+                if [ "$?" -ne 0 ]
                 then
-                    mkdir -p ${LOCAL_MNT_ROOT}${j}
+
+                    echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${LOCAL_MNT_PREFIX}${j}_${idx_client}"
+
+                    if [ ! -e "${LOCAL_MNT_ROOT}${j}_${idx_client}" ]
+                    then
+                        mkdir -p ${LOCAL_MNT_ROOT}${j}_${idx_client}
+                    fi
+
+                    option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+                    option="$option -o nbcores=$NB_CORES"
+                    option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
+                    option="$option -o rozofsnbstorcli=$NB_STORCLI"
+                    option="$option -o rozofsshaper=$SHAPER"
+                    option="$option -o rozofsshaper=$SHAPER"
+                    option="$option -o posixlock"
+                    option="$option -o bsdlock"
+                    let "INSTANCE=${idx_client}-1"
+                    option="$option -o instance=$INSTANCE"
+
+                    echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} \
+                            ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
+
+                    ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
+                    #${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 1 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}_${idx_client}  -D 610${j1&
+                    #${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 2 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}_${idx_client} -D 610${j}2&
+                    
+                else
+                    echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j}_${idx_client} already mounted)"
                 fi
-               option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
-	       option="$option -o nbcores=$NB_CORES"
-	       option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
-	       option="$option -o rozofsnbstorcli=$NB_STORCLI"
-	       option="$option -o rozofsshaper=$SHAPER"
-	       
-                
-echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
-${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j} ${option}
-#                ${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 1 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}  -D 610${j}1& 
-#                ${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 2 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j} -D 610${j}2&
-                
-            else
-                echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j} already mounted)"
-            fi
+
+            done;
         done;
     fi
 }
@@ -573,21 +589,37 @@ undeploy_clients_local ()
         echo "Unable to umount RozoFS (configuration file doesn't exist)"
         storcli_killer.sh 
     else
+
         NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
-	# Kill every storcli process
-#	for pid in `ps -ef | grep storcli | grep ${LOCAL_EXPORT_NAME_BASE} | awk '{print $2 }'`
-#	do
-#	   kill -9 $pid
-#	done
+
+        # Kill every storcli process
+        #for pid in `ps -ef | grep storcli | grep ${LOCAL_EXPORT_NAME_BASE} | awk '{print $2 }'`
+        #do
+        #   kill -9 $pid
+        #done
+
         for j in $(seq ${NB_EXPORTS}); do
-            echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}"
-            umount ${LOCAL_MNT_ROOT}${j}
-            umount -l ${LOCAL_MNT_ROOT}${j}
-            rm -rf ${LOCAL_MNT_ROOT}${j}
-            storcli_killer.sh ${LOCAL_MNT_ROOT}${j}
+
+            for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
+
+                echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}_${idx_client}"
+
+                umount ${LOCAL_MNT_ROOT}${j}_${idx_client}
+
+                umount -l ${LOCAL_MNT_ROOT}${j}_${idx_client}
+
+                rm -rf ${LOCAL_MNT_ROOT}${j}_${idx_client}
+
+                storcli_killer.sh ${LOCAL_MNT_ROOT}${j}_${idx_client}
+
+            done
+
         done
+
     sleep 2
+
     rozofsmount_kill_best_effort
+
     fi
 }
 
@@ -1012,6 +1044,7 @@ main ()
     WRITE_FILE_BUFFERING_SIZE=256
     NB_STORCLI=1
     SHAPER=0
+    ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
 
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
@@ -1039,7 +1072,7 @@ main ()
         create_exports
 
         do_start_all_processes
-	
+
     elif [ "$1" == "stop" ]
     then
            do_stop
