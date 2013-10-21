@@ -43,27 +43,59 @@ int shmid;
 #define FILE_SIZE 5000
 
 char FILENAME[500];
-char MYFILENAME[500];
 char * pReadBuff    = NULL;
 char * pCompareBuff = NULL;
 int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
-int blocking=1;
 int display=0;
 int bsd=0;
+int blocking=0;
 
-static void usage() {
+
+void usage() {
     printf("Parameters:\n");
     printf("-file <name>       file to do the test on\n" );
-    printf("-nonBlocking       Lock in non blocking mode (default is blocking)\n");
-    printf("-bsd               BSD mode lock (default is POSIX)\n");
-    printf("-display           Display lock traces\n");
-    printf("[ -process <nb> ]  The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
-    printf("[ -loop <nb> ]     <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
     exit(-100);
 }
+static void read_parameters(int argc, char *argv[]) {
+    unsigned int idx;
+    int ret;
+    int val;
+
+    FILENAME[0] = 0;
+    
+    idx = 1;
+    while (idx < argc) {
+
+        /* -file <name> */
+        if (strcmp(argv[idx], "-file") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%s", FILENAME);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+            idx++;
+            continue;
+	}
+        /* -blocking */
+        if (strcmp(argv[idx], "-blocking") == 0) {
+            idx++;
+            blocking=1;
+            continue;
+	}	
+			
+        printf("Unexpected parameter %s\n", argv[idx]);
+        usage();
+   }
+}  
+
 void do_sleep_ms(int ms) {
     struct timespec req;
     req.tv_sec = 0;
@@ -81,7 +113,6 @@ int create_file(char * name, int size)  {
   char c;
   int fd;
   
-  unlink(name);
   
   fd = open(name, O_RDWR | O_CREAT, 0640);
   if (fd < 0) {
@@ -181,7 +212,7 @@ int set_lock_len (int fd,int ope, int start, int len) {
   flock.l_start  = start;
   flock.l_len    = len;
 
-  ret = fcntl(fd, F_SETLK, &flock);
+  ret = fcntl(fd, (blocking)?F_SETLKW:F_SETLK, &flock);
   if (ret<0) {
       printf("proc %3d - fnctl() errno %d %s\n", myProcId, errno, strerror(errno));
   }
@@ -200,7 +231,8 @@ int main(int argc, char **argv) {
   int fd;
   int start,len;
     
-  sprintf(FILENAME, "%s", "mnt1/lolock");
+  read_parameters(argc,argv);
+  if (FILENAME[0] == 0) usage();
    
   fd = create_file(FILENAME,10000);
   if (fd < 0) exit(-1000);

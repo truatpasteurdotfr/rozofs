@@ -220,13 +220,17 @@ enum ep_lock_size_t {
     EP_LOCK_PARTIAL
 };
 
+struct ep_lock_range_t {
+    ep_lock_size_t         size;
+    uint64_t               offset_start;
+    uint64_t               offset_stop; 
+};
 struct ep_lock_t {
     enum ep_lock_mode_t    mode;
     uint64_t               client_ref;
     uint64_t               owner_ref;
-    ep_lock_size_t         size;
-    uint64_t               offset_start;
-    uint64_t               offset_stop; 
+    ep_lock_range_t        user_range;
+    ep_lock_range_t        effective_range;
 }; 
 
 struct ep_lock_request_arg_t {

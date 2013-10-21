@@ -61,6 +61,7 @@
 extern uint64_t   rozofs_client_hash;
 static ruc_obj_desc_t pending_lock_list;  
 static int loop_count=0; 
+extern struct fuse_chan *rozofsmount_fuse_chanel;
 
 int rozofs_ll_setlk_internal(file_t * file);
 void rozofs_ll_setlk_internal_cbk(void *this,void * param);
@@ -88,6 +89,8 @@ typedef struct _LOCK_STATISTICS_T {
   uint64_t      enomem;  
   uint64_t      einval;
   uint64_t      flush_error;
+  uint64_t      buf_flush;
+  uint64_t      write_block_error;
   uint64_t      send_common;
 } LOCK_STATISTICS_T;
 
@@ -127,8 +130,48 @@ char * display_lock_stat(char * p) {
   DISPLAY_LOCK_STAT(enomem);
   DISPLAY_LOCK_STAT(einval);
   DISPLAY_LOCK_STAT(flush_error);
+  DISPLAY_LOCK_STAT(buf_flush);
+  DISPLAY_LOCK_STAT(write_block_error);
   DISPLAY_LOCK_STAT(send_common);
   return p;
+}
+/*
+*___________________________________________________________________
+* Recompute the effective range of the lock from the user range
+*___________________________________________________________________
+*/
+void compute_effective_lock_range(struct ep_lock_t * lock) {  
+
+  
+  if (lock->user_range.size == EP_LOCK_TOTAL) {
+    lock->effective_range.offset_start = 0;  
+    lock->effective_range.offset_stop = 0;
+   lock->effective_range.size = EP_LOCK_TOTAL;   
+  }
+    
+  lock->effective_range.offset_start = lock->user_range.offset_start / ROZOFS_BSIZE;
+  
+  if (lock->user_range.size == EP_LOCK_TO_END) {
+    lock->effective_range.offset_stop = 0;
+    if (lock->effective_range.offset_start == 0) lock->effective_range.size = EP_LOCK_TOTAL;   
+    else                                         lock->effective_range.size = EP_LOCK_TO_END;
+    return;   
+  }
+  
+
+  if (lock->effective_range.offset_stop % ROZOFS_BSIZE == 0) {
+    lock->effective_range.offset_stop = lock->user_range.offset_stop / ROZOFS_BSIZE;
+  }
+  else {
+    lock->effective_range.offset_stop = lock->user_range.offset_stop / ROZOFS_BSIZE + 1;  
+  }   
+
+  if (lock->effective_range.offset_start == 0) {
+    lock->effective_range.size = EP_LOCK_FROM_START;
+  }
+  else {
+    lock->effective_range.size = EP_LOCK_PARTIAL;  
+  }  
 }
 /**
 **____________________________________________________
@@ -230,7 +273,7 @@ error:
 **____________________________________________________
 */
 /*
-  Periodicaly send a pool file lock to the export
+  
 */
 char * rozofs_flock_service_display_lock_list(char * pChar) {
   file_t            * file;
@@ -261,7 +304,7 @@ char * rozofs_flock_service_display_lock_list(char * pChar) {
 void rozofs_flock_service_periodic(void * ns) {
   epgw_lock_arg_t     arg;
   file_t            * file;
-  ruc_obj_desc_t    * link;
+  ruc_obj_desc_t    * link, * linkNext;
   int                 nbTxCredits;
  
   loop_count++;  
@@ -277,17 +320,10 @@ void rozofs_flock_service_periodic(void * ns) {
   
   /* No more than 3 requests at a time */
   if (nbTxCredits > 3) nbTxCredits = 3;
-  /*
-  ** Re attemp a file lock if any is pending 
-  */
-  while (nbTxCredits) {
 
-    nbTxCredits--;
-     
-    link = ruc_objGetFirst(&pending_lock_list);
-    if (link == NULL) break;  
+  linkNext = NULL;
+  while (((link = ruc_objGetNext(&pending_lock_list, &linkNext)) != NULL) && (nbTxCredits)) {
 
-    ruc_objRemove(link);
     file = (file_t *) ruc_listGetAssoc(link);
 
     /*
@@ -296,17 +332,27 @@ void rozofs_flock_service_periodic(void * ns) {
     if ((file->chekWord != FILE_CHECK_WORD)
     ||  (file->fuse_req == NULL)
     ||  (file->lock_owner_ref == 0)) {
-      lock_stat.set_lock_interrupted++;    
+      lock_stat.set_lock_interrupted++; 
+      ruc_objRemove(link);   
       continue;
     }
-    if (rozofs_ll_setlk_internal(file) != 0) {  
-      /* If lock request can not be sent, rechain the lock request immediatly */
-      ruc_objInsertTail(&pending_lock_list,link);
-    }
+    
+    /*
+    ** Check whether it is time to process this request 
+    */
+    
+    if (file->lock_delay > 0) { 
+      file->lock_delay--; 
+      continue;
+    }        
+    
+    ruc_objRemove(link);       
+    rozofs_ll_setlk_internal(file);
+    nbTxCredits--;    
   }
   
   /* We have previously booked one credit to send the poll */
-  if (loop_count < 300) return;
+  if (loop_count < 600) return;
   
   /*
   ** Send the periodic poll message to the export in order to keep
@@ -345,7 +391,7 @@ void rozofs_flock_service_init(void) {
     severe("no timer");
     return;
   }
-  ruc_periodic_timer_start (periodic_timer, 100,rozofs_flock_service_periodic,0);
+  ruc_periodic_timer_start (periodic_timer, 50,rozofs_flock_service_periodic,0);
 }
 /**
 *  File lock testing
@@ -421,14 +467,15 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
     }
     arg.arg_gw.lock.client_ref   = rozofs_client_hash;
     arg.arg_gw.lock.owner_ref    = fi->lock_owner;
-    arg.arg_gw.lock.size         = rozofs_flock_canonical(flock,file, &start, &stop);
-    if (arg.arg_gw.lock.size == EP_LOCK_NULL) {
+    arg.arg_gw.lock.user_range.size = rozofs_flock_canonical(flock,file, &start, &stop);
+    if (arg.arg_gw.lock.user_range.size == EP_LOCK_NULL) {
       lock_stat.einval++;
       errno= EINVAL;
       goto error;
     }	
-    arg.arg_gw.lock.offset_start = start;
-    arg.arg_gw.lock.offset_stop  = stop;      			
+    arg.arg_gw.lock.user_range.offset_start = start;
+    arg.arg_gw.lock.user_range.offset_stop  = stop;      
+    compute_effective_lock_range(&arg.arg_gw.lock);    			
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -578,6 +625,47 @@ out:
     return;
 }
 /**
+*  Put a lock request in the list of pending lock for the 1rst attempt
+*
+*
+ @retval none
+*/
+int prepare_lock_for_pending_list(fuse_req_t              req,
+                                  struct fuse_file_info * fi,
+                                  struct flock          * flock,
+                                  int                     sleep) {
+  file_t                * file;
+  int64_t                 start,stop;  
+	
+  		
+  file = (file_t*) fi->fh;
+  if (file == NULL) return -1;
+  
+  file->lock_size = rozofs_flock_canonical(flock,file, &start, &stop);
+  if (file->lock_size == EP_LOCK_NULL) return -1;
+  			
+  file->fuse_req        = req;
+  file->lock_owner_ref  = fi->lock_owner;   
+  file->lock_sleep      = sleep;
+  file->lock_start      = start;
+  file->lock_stop       = stop;
+    
+  switch(flock->l_type) {
+    case F_WRLCK: 
+      file->lock_delay = 0;
+      file->lock_type = EP_LOCK_WRITE;
+      break;
+    case F_RDLCK:
+      file->lock_delay = 0;    
+      file->lock_type = EP_LOCK_READ;
+      break;
+    default:   
+      file->lock_delay = 1;    
+      file->lock_type = EP_LOCK_FREE;
+  }    
+  return 0;
+}
+/**
 *  BSD flock() File lock setting
 
  Under normal condition the service ends by calling : fuse_reply_entry
@@ -640,127 +728,6 @@ void rozofs_ll_flock_nb(fuse_req_t req,
 
 }
 /**
-*  File lock setting request toward exportd
-
- Under normal condition the service ends by calling : fuse_reply_entry
- Under error condition it calls : fuse_reply_err
-
- @param req: pointer to the fuse request context (must be preserved for the transaction duration
- @param parent : inode parent provided by rozofsmount
- @param name : name to search in the parent directory
- 
- @retval none
-*/
-void rozofs_ll_setlk_cbk(void *this,void *param);
-void rozofs_ll_setlk_request_to_export(void *buffer_p) {
-    ientry_t *ie = 0;
-    epgw_lock_arg_t arg;
-    int    ret;        
-    file_t      * f;
-    int64_t start,stop;
-    fuse_req_t req;
-    fuse_ino_t ino;
-    struct fuse_file_info * fi;
-    struct flock *flock;
-    int sleep;
-
-    RESTORE_FUSE_PARAM(buffer_p,req);
-    RESTORE_FUSE_PARAM(buffer_p,sleep);
-    RESTORE_FUSE_PARAM(buffer_p,ino);
-    RESTORE_FUSE_STRUCT_PTR(buffer_p,fi);    
-    RESTORE_FUSE_STRUCT_PTR(buffer_p,flock);   
-
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-	lock_stat.enoent++;
-        goto error;
-    }
-
-    f = (file_t *) (unsigned long) fi->fh;
-    if (f == NULL) {
-        errno = EBADF;
-	lock_stat.ebadf++;
-        goto error;
-    }
-    /*
-    ** check the status of the last write operation
-    */
-    if (f->wr_error!= 0)
-    {
-      /*
-      ** that error is permanent, once can read the file but any
-      ** attempt to write will return that error code
-      */
-      errno = f->wr_error;
-      lock_stat.ebadf++;
-      goto error;
-    }
-    
-    /*
-    ** fill up the structure that will be used for creating the xdr message
-    */    
-    arg.arg_gw.eid = exportclt.eid;
-    memcpy(arg.arg_gw.fid, ie->fid, sizeof (uuid_t));
-    switch(flock->l_type) {
-      case F_RDLCK:
-        arg.arg_gw.lock.mode = EP_LOCK_READ;
-	break;
-      case F_WRLCK:
-        arg.arg_gw.lock.mode = EP_LOCK_WRITE;
-	break;	
-      case F_UNLCK:
-        arg.arg_gw.lock.mode = EP_LOCK_FREE;
-        break;
-      default:
-	lock_stat.einval++;      
-        errno= EINVAL;
-        goto error;
-    }
-    arg.arg_gw.lock.client_ref   = rozofs_client_hash;
-    arg.arg_gw.lock.owner_ref    = fi->lock_owner;
-    arg.arg_gw.lock.size         = rozofs_flock_canonical(flock,f, &start, &stop);
-    if (arg.arg_gw.lock.size == EP_LOCK_NULL) {
-      lock_stat.einval++;    
-      errno= EINVAL;
-      goto error;
-    }	
-    arg.arg_gw.lock.offset_start = start;
-    arg.arg_gw.lock.offset_stop  = stop; 
-
-    /* Save lock information for next retries when in blocking mode */
-    if (sleep) {
-      f->lock_size  = arg.arg_gw.lock.size;
-      f->lock_start = start;
-      f->lock_stop	= stop; 
-    }
-     	  			
-    /*
-    ** now initiates the transaction towards the remote end
-    */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                                    EP_SET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
-			            rozofs_ll_setlk_cbk,buffer_p);     
-
-    if (ret < 0) {
-      lock_stat.send_common++;
-      goto error;
-    }
-    /*
-    ** no error just waiting for the answer
-    */
-    return;
-
-error:
-    fuse_reply_err(req, errno);
-    /*
-    ** release the buffer if has been allocated
-    */
-    STOP_PROFILING_NB(buffer_p,rozofs_ll_setlk);
-    if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
-
-    return;
-}
-/**
 *  File lock setting
 
  Under normal condition the service ends by calling : fuse_reply_entry
@@ -799,13 +766,13 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
       errno = ENOMEM;
       goto error;
     }
+    START_PROFILING_NB(buffer_p,rozofs_ll_setlk);
+
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,sleep);
     SAVE_FUSE_PARAM(buffer_p,ino);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof(struct fuse_file_info));    
     SAVE_FUSE_STRUCT(buffer_p,flock,sizeof(struct flock));   
-
-    START_PROFILING_NB(buffer_p,rozofs_ll_setlk);
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
@@ -819,20 +786,12 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
 	lock_stat.ebadf++;
         goto error;
     }
-    /*
-    ** check the status of the last write operation
-    */
-    if (f->wr_error!= 0)
-    {
-      /*
-      ** that error is permanent, once can read the file but any
-      ** attempt to write will return that error code
-      */
-      errno = f->wr_error;
-      lock_stat.ebadf++;
-      goto error;
+
+    if (prepare_lock_for_pending_list(req,fi,flock,sleep)<0) {
+        errno = EINVAL;
+	lock_stat.einval++;
+        goto error;
     }
-    
     
     /*
     ** Flush the buffer if some data is pending
@@ -844,26 +803,20 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
       */ 
       SAVE_FUSE_CALLBACK(buffer_p,rozofs_ll_setlk_after_flush);
       ret = buf_flush(buffer_p,f);
-      if (ret < 0) {
-        lock_stat.flush_error++;      
-        goto error;
-      }	
-      /*
-      ** wait for the end of the flush: just return evreything will take palce
-      ** upon receiving the flush response (see rozofs_ll_setlk_after_flush())
-      */
-      return;
-    }    
-
-
-    /*
-    ** Request the lock to the export
-    */
-    rozofs_ll_setlk_request_to_export(buffer_p);
-    return;
+      if (ret == 0) return;
+      
+      lock_stat.buf_flush++;  
+      warning("rozofs_ll_setlk_nb buf_flush %s",strerror(errno));      
+    }   
+    
+    clear_read_data(f);  
+    rozofs_ll_setlk_internal(f);  
+    goto out;
 
 error:
     fuse_reply_err(req, errno);
+    
+out:    
     /*
     ** release the buffer if has been allocated
     */
@@ -887,6 +840,7 @@ void rozofs_ll_setlk_after_flush(void *this,void *param)
    struct rpc_msg  rpc_reply;
    struct fuse_file_info  file_info;
    struct fuse_file_info  *fi = &file_info;
+   fuse_ino_t ino;
    
    int status;
    uint8_t  *payload;
@@ -964,13 +918,14 @@ void rozofs_ll_setlk_after_flush(void *this,void *param)
     {
        TX_STATS(ROZOFS_TX_DECODING_ERROR);
        errno = EPROTO;
-       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        severe(" transaction error %s",strerror(errno));
+       xdr_free((xdrproc_t) decode_proc, (char *) &ret);       
        goto error;
     }   
     if (ret.status == STORCLI_FAILURE) {
         errno = ret.storcli_status_ret_t_u.error;
-        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+	severe("storcli error %s", strerror(errno));    
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
         goto error;
     }
     /*
@@ -978,27 +933,25 @@ void rozofs_ll_setlk_after_flush(void *this,void *param)
     */
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);
 
-
     /*
     ** If the file size is increased, we must update the exportd
     */
-    if (export_write_block_asynchrone(param,file,rozofs_ll_setlk_after_write_block)<0) {
-      goto error;
-    }
-    goto out;
-
+    if (export_write_block_asynchrone(param,file,rozofs_ll_setlk_after_write_block)==0) {
+      goto out;
+    }    
+    severe("rozofs_ll_setlk_after_flush export_write_block_asynchrone %s",strerror(errno));
     
 error:
-    lock_stat.flush_error++;      
+    RESTORE_FUSE_PARAM(param,ino);
 
-    if (file != NULL)
-    {
-       file->wr_error = errno; 
-    }
-    fuse_reply_err(req, errno);    
+    lock_stat.flush_error++;       
+
+    clear_read_data(file);         
+    rozofs_ll_setlk_internal(file);    
     STOP_PROFILING_NB(param,rozofs_ll_setlk);
     rozofs_fuse_release_saved_context(param);
-    
+    goto out;
+     
 out:    
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
@@ -1022,6 +975,8 @@ void rozofs_ll_setlk_after_write_block(void *this,void *param) {
    int      bufsize;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   struct fuse_file_info * fi;    
+   file_t * file;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
@@ -1127,166 +1082,25 @@ void rozofs_ll_setlk_after_write_block(void *this,void *param) {
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    xdr_free((xdrproc_t) decode_proc, (char *) &ret);  
-      
-
-    /*
-    ** Now that the flush is done, request the lock to the export
-    */
-    rozofs_ll_setlk_request_to_export(param);
-    goto out;  
+    
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);       
+    goto out;
         
 error:
-    lock_stat.flush_error++;      
-    fuse_reply_err(req, errno);
+    lock_stat.write_block_error++;      
+    goto out; 
+    
+out: 
+
+    RESTORE_FUSE_STRUCT_PTR(param,fi); 
+    file = (file_t*)fi->fh;
+    clear_read_data(file);             
+    rozofs_ll_setlk_internal(file);
     STOP_PROFILING_NB(param,rozofs_ll_setlk);
-    rozofs_fuse_release_saved_context(param);
-out:    
+    rozofs_fuse_release_saved_context(param);    
+
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
-}
-/**
-*  Call back function call upon a success rpc, timeout or any other rpc failure
-*
- @param this : pointer to the transaction context
- @param param: pointer to the associated rozofs_fuse_context
- 
- @return none
- */
-
-void rozofs_ll_setlk_cbk(void *this,void *param) 
-{
-   struct flock * flock;
-   fuse_req_t req; 
-   epgw_lock_ret_t ret ;
-   int             sleep;
-   struct rpc_msg  rpc_reply;   
-   int status;
-   uint8_t  *payload;
-   void     *recv_buf = NULL;   
-   XDR       xdrs;    
-   int      bufsize;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_lock_ret_t;
-   struct fuse_file_info *fi;
-    
-   rpc_reply.acpted_rply.ar_results.proc = NULL;
-   RESTORE_FUSE_PARAM(param,req);
-   RESTORE_FUSE_PARAM(param,sleep);
-   RESTORE_FUSE_STRUCT_PTR(param,flock);
-   RESTORE_FUSE_STRUCT_PTR(param,fi);
-    /*
-    ** get the pointer to the transaction context:
-    ** it is required to get the information related to the receive buffer
-    */
-    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
-    /*    
-    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
-    */
-    status = rozofs_tx_get_status(this);
-    if (status < 0)
-    {
-       /*
-       ** something wrong happened
-       */
-       errno = rozofs_tx_get_errno(this);  
-       goto error; 
-    }
-    /*
-    ** get the pointer to the receive buffer payload
-    */
-    recv_buf = rozofs_tx_get_recvBuf(this);
-    if (recv_buf == NULL)
-    {
-       /*
-       ** something wrong happened
-       */
-       errno = EFAULT;  
-       goto error;         
-    }
-    payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
-    payload += sizeof(uint32_t); /* skip length*/
-    /*
-    ** OK now decode the received message
-    */
-    bufsize = rozofs_tx_get_small_buffer_size();
-    xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
-    /*
-    ** decode the rpc part
-    */
-    if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
-    {
-     TX_STATS(ROZOFS_TX_DECODING_ERROR);
-     errno = EPROTO;
-     goto error;
-    }
-    /*
-    ** ok now call the procedure to encode the message
-    */
-    memset(&ret,0, sizeof(ret));                    
-    if (decode_proc(&xdrs,&ret) == FALSE)
-    {
-       TX_STATS(ROZOFS_TX_DECODING_ERROR);
-       errno = EPROTO;
-       xdr_free((xdrproc_t) decode_proc, (char *) &ret);
-       goto error;
-    }   
-    
-        
-    if (ret.gw_status.status == EP_SUCCESS) {
-      file_t * file = NULL;
-      file = (file_t*) (unsigned long) fi->fh;
-      if (flock->l_type != F_UNLCK) {
-        /* 
-	** Lock has been set. Save the lock owner in the file structure 
-	** to release the lockwhen the file is closed
-	*/
-        file->lock_owner_ref = fi->lock_owner;   
-      } 
-      /*
-      ** The flush must have been done. Let reset the file buffer pointers
-      */
-      if (file != NULL) clear_file_buffer_after_flush(file);      
-      errno = 0;   
-    }
-    else if (ret.gw_status.status == EP_EAGAIN) {
-      errno = EAGAIN;
-      /*
-      ** Case of blocking mode. Put the file structrure in the list of pending
-      ** file locks 
-      */
-      if (sleep) {
-        file_t * file = (file_t*) (unsigned long) fi->fh;      
-        file->fuse_req  = req;
-	if (flock->l_type == F_WRLCK) file->lock_type = EP_LOCK_WRITE;
-	else                          file->lock_type = EP_LOCK_READ;
-        file->lock_owner_ref = fi->lock_owner;   
-        ruc_objInsertTail(&pending_lock_list,&file->pending_lock);
-        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
-	goto out;	
-      }
-    }
-    else {
-      errno = ret.gw_status.ep_lock_ret_t_u.error;
-    }
-    	
-    xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
-
-error:
-    if (errno == 0)           lock_stat.set_lock_success++;      
-    else if (errno == EAGAIN) lock_stat.set_lock_refused++;      
-    else                      lock_stat.set_lock_error++;
-    fuse_reply_err(req, errno);
-    
-    /*
-    ** release the transaction context and the fuse context
-    */
-out:    
-    STOP_PROFILING_NB(param,rozofs_ll_setlk);
-    rozofs_fuse_release_saved_context(param);
-    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
-    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
-    
-    return;
 }
 /**
 *  re attemp a blocking file lock setting
@@ -1312,14 +1126,15 @@ int rozofs_ll_setlk_internal(file_t * file) {
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.arg_gw.eid               = exportclt.eid;
+    arg.arg_gw.eid                          = exportclt.eid;
     memcpy(arg.arg_gw.fid, file->fid, sizeof (uuid_t));
-    arg.arg_gw.lock.mode         = file->lock_type;
-    arg.arg_gw.lock.client_ref   = rozofs_client_hash;
-    arg.arg_gw.lock.owner_ref    = file->lock_owner_ref;
-    arg.arg_gw.lock.size         = file->lock_size;
-    arg.arg_gw.lock.offset_start = file->lock_start;
-    arg.arg_gw.lock.offset_stop  = file->lock_stop;   
+    arg.arg_gw.lock.mode                    = file->lock_type;
+    arg.arg_gw.lock.client_ref              = rozofs_client_hash;
+    arg.arg_gw.lock.owner_ref               = file->lock_owner_ref;
+    arg.arg_gw.lock.user_range.size         = file->lock_size;
+    arg.arg_gw.lock.user_range.offset_start = file->lock_start;
+    arg.arg_gw.lock.user_range.offset_stop  = file->lock_stop;   
+    compute_effective_lock_range(&arg.arg_gw.lock);    			
 		
     /*
     ** now initiates the transaction towards the remote end
@@ -1331,7 +1146,55 @@ int rozofs_ll_setlk_internal(file_t * file) {
    if (ret == 0) return ret;
    gettimeofday(&tv,(struct timezone *)0); 
    gprofiler.rozofs_ll_setlk_int[P_ELAPSE] += (MICROLONG(tv)-file->timeStamp);  
+   /* If lock request can not be sent, rechain the lock request immediatly */
+   ruc_objInsertTail(&pending_lock_list,&file->pending_lock);
    return ret;   				         
+}
+/**
+*  Invalidate the kernel cache once the lock has been granted
+*
+
+ @return none
+ */
+void rozofs_flock_invalidate_cache(file_t * file) { 
+ 
+  ientry_t *ie = 0;
+  struct ep_lock_t flock;
+  /*
+  ** Lock has been aquired. It case it not a fre
+  ** empty the kernel cache
+  */
+  if (file->lock_type == EP_LOCK_FREE) return;
+  
+
+  ie = get_ientry_by_fid(file->fid);
+  if (ie == NULL) {
+    warning ("rozofs_flock_invalidate_cache no ie entry");
+    return;
+  }
+  
+  flock.user_range.offset_start = file->lock_start;
+  flock.user_range.offset_stop  = file->lock_stop;	
+  if (flock.user_range.offset_start == 0) {
+    if (flock.user_range.offset_stop == 0) {
+      flock.user_range.size = EP_LOCK_TOTAL;
+    }
+    else {
+      flock.user_range.size = EP_LOCK_FROM_START;
+    }  
+  }
+  else {
+    if (flock.user_range.offset_stop == 0) {
+      flock.user_range.size = EP_LOCK_TO_END;
+    }
+    else {
+      flock.user_range.size = EP_LOCK_PARTIAL;
+    }  
+  }    
+  compute_effective_lock_range(&flock);   
+  rozofs_fuse_invalidate_inode_cache(ie->inode, 
+                                     flock.effective_range.offset_start*ROZOFS_BSIZE,
+				     (flock.effective_range.offset_stop-flock.effective_range.offset_start)*ROZOFS_BSIZE);				            
 }
 /**
 *  Call back function call upon a success rpc, timeout or any other rpc failure
@@ -1417,7 +1280,12 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
       fuse_reply_err(file->fuse_req, 0);
       file->fuse_req = NULL;      
       xdr_free((xdrproc_t) decode_proc, (char *) &ret);   
-      lock_stat.set_lock_success++;         
+      lock_stat.set_lock_success++;       
+      /*
+      ** Lock has been aquired. It case it not a fre
+      ** empty the kernel cache
+      */
+      //rozofs_flock_invalidate_cache(file);				           
       goto out;
     }
     
@@ -1507,9 +1375,11 @@ void rozofs_clear_file_lock_owner(file_t * f) {
     arg.arg_gw.lock.mode         = EP_LOCK_FREE;
     arg.arg_gw.lock.client_ref   = rozofs_client_hash;
     arg.arg_gw.lock.owner_ref    = f->lock_owner_ref;
-    arg.arg_gw.lock.size         = EP_LOCK_TOTAL;    
-    arg.arg_gw.lock.offset_start = 0;
-    arg.arg_gw.lock.offset_stop  = 0;      			
+    arg.arg_gw.lock.user_range.size         = EP_LOCK_TOTAL;    
+    arg.arg_gw.lock.user_range.offset_start = 0;
+    arg.arg_gw.lock.user_range.offset_stop  = 0;      			
+    compute_effective_lock_range(&arg.arg_gw.lock);    			
+
     /*
     ** now initiates the transaction towards the remote end
     */

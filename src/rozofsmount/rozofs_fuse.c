@@ -6,7 +6,7 @@
   it under the terms of the GNU General Public License as published
   by the Free Software Foundation, version 2.
 
-  Rozofs is distributed in the hope that it will be useful, but
+  Rozofs is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
   General Public License for more details.
@@ -263,6 +263,23 @@ void rozofs_fuse_kern_chan_destroy(struct fuse_chan *ch)
     S O C K E T   C O N T R O L L E R    C A L L B A C K S
 **__________________________________________________________________________
 */
+
+/*
+**__________________________________________________________________________
+*/
+/**
+  Invalidate the linux cache of a given inode
+ 
+*/
+
+void rozofs_fuse_invalidate_inode_cache(fuse_ino_t ino, uint64_t offset, uint64_t len)
+{
+    if (rozofs_fuse_ctx_p  == NULL) {
+      warning("rozofs_fuse_invalidate_inode_cache no fuse ctx");
+      return;
+    }  
+    fuse_lowlevel_notify_inval_inode(rozofs_fuse_ctx_p->ch, ino, offset, len);
+}
 /*
 **__________________________________________________________________________
 */

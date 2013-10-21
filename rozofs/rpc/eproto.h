@@ -244,13 +244,19 @@ enum ep_lock_size_t {
 };
 typedef enum ep_lock_size_t ep_lock_size_t;
 
+struct ep_lock_range_t {
+	ep_lock_size_t size;
+	uint64_t offset_start;
+	uint64_t offset_stop;
+};
+typedef struct ep_lock_range_t ep_lock_range_t;
+
 struct ep_lock_t {
 	enum ep_lock_mode_t mode;
 	uint64_t client_ref;
 	uint64_t owner_ref;
-	ep_lock_size_t size;
-	uint64_t offset_start;
-	uint64_t offset_stop;
+	ep_lock_range_t user_range;
+	ep_lock_range_t effective_range;
 };
 typedef struct ep_lock_t ep_lock_t;
 
@@ -951,6 +957,7 @@ extern  bool_t xdr_ep_lookup_arg_t (XDR *, ep_lookup_arg_t*);
 extern  bool_t xdr_epgw_lookup_arg_t (XDR *, epgw_lookup_arg_t*);
 extern  bool_t xdr_ep_lock_mode_t (XDR *, ep_lock_mode_t*);
 extern  bool_t xdr_ep_lock_size_t (XDR *, ep_lock_size_t*);
+extern  bool_t xdr_ep_lock_range_t (XDR *, ep_lock_range_t*);
 extern  bool_t xdr_ep_lock_t (XDR *, ep_lock_t*);
 extern  bool_t xdr_ep_lock_request_arg_t (XDR *, ep_lock_request_arg_t*);
 extern  bool_t xdr_epgw_lock_arg_t (XDR *, epgw_lock_arg_t*);
@@ -1052,6 +1059,7 @@ extern bool_t xdr_ep_lookup_arg_t ();
 extern bool_t xdr_epgw_lookup_arg_t ();
 extern bool_t xdr_ep_lock_mode_t ();
 extern bool_t xdr_ep_lock_size_t ();
+extern bool_t xdr_ep_lock_range_t ();
 extern bool_t xdr_ep_lock_t ();
 extern bool_t xdr_ep_lock_request_arg_t ();
 extern bool_t xdr_epgw_lock_arg_t ();

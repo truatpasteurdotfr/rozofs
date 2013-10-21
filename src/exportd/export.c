@@ -2620,19 +2620,21 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
     list_for_each_forward(pl, &lv2->file_lock) {
 
       lock_elt = list_entry(pl, rozofs_file_lock_t, next_fid_lock);	
-      switch(lock_elt->lock.size) {
+      switch(lock_elt->lock.user_range.size) {
         case EP_LOCK_TOTAL:      sizeType = "TOTAL"; break;
 	case EP_LOCK_FROM_START: sizeType = "START"; break;
 	case EP_LOCK_TO_END:     sizeType = "END"; break;
 	case EP_LOCK_PARTIAL:    sizeType = "PARTIAL"; break;
 	default:                 sizeType = "??";
       }  
-      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"[\n",
+      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"[ [%"PRIu64":%"PRIu64"[\n",
 	       (lock_elt->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",sizeType, 
 	       (long long unsigned int)lock_elt->lock.client_ref, 
 	       (long long unsigned int)lock_elt->lock.owner_ref,
-	       (uint64_t) lock_elt->lock.offset_start,
-	       (uint64_t) lock_elt->lock.offset_stop);
+	       (uint64_t) lock_elt->lock.user_range.offset_start,
+	       (uint64_t) lock_elt->lock.user_range.offset_stop,
+	       (uint64_t) lock_elt->lock.effective_range.offset_start,
+	       (uint64_t) lock_elt->lock.effective_range.offset_stop);
 
     }       
   } 

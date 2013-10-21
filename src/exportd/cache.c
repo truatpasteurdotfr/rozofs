@@ -62,55 +62,6 @@ typedef struct _rozofs_file_lock_client_t {
   list_t           file_lock_list;     /**< List of the lock owned by this client */
 } rozofs_file_lock_client_t;
 
-
-/*
-*___________________________________________________________________
-* Display lock list
-*
-* BE CARE FULL. YOU CAN NOT EXECUTE THIS FUNCTION  
-* IN THE NON BLOCKING THREAD WHILE THE BLOCKING ONE 
-* IS MODIFYING THE LIST !!! 
-*___________________________________________________________________
-*/
-char * debug_file_lock_list(char * pChar) {
-  rozofs_file_lock_client_t * client;
-  rozofs_file_lock_t        * lock;
-  list_t                    * p, * q;
-  
-  *pChar = 0;
-  
-  /* Search the given client */
-  list_for_each_forward(p, &file_lock_client_list) {
-     
-    client = list_entry(p, rozofs_file_lock_client_t, next_client);
- 
-    pChar += sprintf(pChar," Client %16llx has %d locks\n", 
-                     (long long unsigned int)client->client_ref,
-		     (int)client->nb_lock);
-         
-    /* loop on the locks */
-    list_for_each_forward(q, &client->file_lock_list) {
-      char * size;
-      lock = list_entry(q,rozofs_file_lock_t, next_client_lock);
-  
-      switch(lock->lock.size) {
-        case EP_LOCK_TOTAL:      size = "TOTAL"; break;
-	case EP_LOCK_FROM_START: size = "START"; break;
-	case EP_LOCK_TO_END:     size = "END"; break;
-	case EP_LOCK_PARTIAL:    size = "PARTIAL"; break;
-	default:                 size = "??";
-      }      
-      pChar += sprintf(pChar,"    client %16llx owner %16llx %-5s %-7s [%llu:%llu]\n", 
-	       (long long unsigned int)lock->lock.client_ref, 
-	       (long long unsigned int)lock->lock.owner_ref,
-	       (lock->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",	
-	       size,       
-	       (long long unsigned int)lock->lock.offset_start,
-	       (long long unsigned int)lock->lock.offset_stop);
-    }       
-  } 
-  return pChar;
-}
 /*
 *___________________________________________________________________
 * Display file lock statistics
@@ -127,27 +78,70 @@ char * display_file_lock(char * pChar) {
   DISPLAY_LOCK_STAT(nb_remove_client);
   return pChar;
 }
+
 /*
 *___________________________________________________________________
-* Check whether two locks are compatible
+* Recompute the effective range of the lock from the user range
+*___________________________________________________________________
+*/
+void compute_effective_lock_range(struct ep_lock_t * lock) {  
+
+  
+  if (lock->user_range.size == EP_LOCK_TOTAL) {
+    lock->effective_range.offset_start = 0;  
+    lock->effective_range.offset_stop = 0;
+   lock->effective_range.size = EP_LOCK_TOTAL;   
+  }
+    
+  lock->effective_range.offset_start = lock->user_range.offset_start / ROZOFS_BSIZE;
+  
+  if (lock->user_range.size == EP_LOCK_TO_END) {
+    lock->effective_range.offset_stop = 0;
+    if (lock->effective_range.offset_start == 0) lock->effective_range.size = EP_LOCK_TOTAL;   
+    else                                         lock->effective_range.size = EP_LOCK_TO_END;
+    return;   
+  }
+  
+
+  if (lock->effective_range.offset_stop % ROZOFS_BSIZE == 0) {
+    lock->effective_range.offset_stop = lock->user_range.offset_stop / ROZOFS_BSIZE;
+  }
+  else {
+    lock->effective_range.offset_stop = lock->user_range.offset_stop / ROZOFS_BSIZE + 1;  
+  }   
+
+  if (lock->effective_range.offset_start == 0) {
+    lock->effective_range.size = EP_LOCK_FROM_START;
+  }
+  else {
+    lock->effective_range.size = EP_LOCK_PARTIAL;  
+  }  
+}
+/*
+*___________________________________________________________________
+* Check whether two locks are compatible in oreder to set a new one.
+* We have to check the effective range and not the user range
 *
 * @param lock1   1rst lock
 * @param lock2   2nd lock
-*
+* 
 * @retval 1 when locks are compatible, 0 else
 *___________________________________________________________________
 */
 int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2) {
   int key;
+  ep_lock_range_t * p1, * p2;  
 
   if ((lock1->mode == EP_LOCK_READ)&&(lock2->mode == EP_LOCK_READ)) return 1;
 
+  p1 = &lock1->effective_range;
+  p2 = &lock2->effective_range;
 
   /*
   ** If one of the 2 locks is a write, it must overlap with the other one
   */
   
-  key = lock1->size << 8 | lock2->size;
+  key = p1->size << 8 | p2->size;
   switch(key) {
   
 
@@ -156,22 +150,22 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
     case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
-      if (lock1->offset_stop <= lock2->offset_start) return 1;
+      if (p1->offset_stop <= p2->offset_start) return 1;
       return 0;  
       
     
     case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
     case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL):   
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
-      if (lock1->offset_start >= lock2->offset_stop) return 1;
+      if (p1->offset_start >= p2->offset_stop) return 1;
       return 0;
 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
-      if (lock1->offset_start <= lock2->offset_start) {
-	if (lock1->offset_stop <= lock2->offset_start) return 1;
+      if (p1->offset_start <= p2->offset_start) {
+	if (p1->offset_stop <= p2->offset_start) return 1;
 	return 0;
       }
-      if (lock2->offset_stop <= lock1->offset_start) return 1;
+      if (p2->offset_stop <= p1->offset_start) return 1;
       return 0;
              
                 
@@ -193,7 +187,8 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
 }
 /*
 *___________________________________________________________________
-* Check whether two locks are overlapping
+* Check whether two locks are overlapping. This has to be check at user 
+* level in order to merge the different requested locks into one.
 *
 * @param lock1   1rst lock
 * @param lock2   2nd lock
@@ -203,9 +198,12 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
 */
 int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock2) {
   int key;
+  ep_lock_range_t * p1, * p2;
+    
+  p1 = &lock1->user_range;
+  p2 = &lock2->user_range;  
   
-  
-  key = lock1->size << 8 | lock2->size;
+  key = p1->size << 8 | p2->size;
   switch(key) {
 
       return 1;
@@ -213,21 +211,21 @@ int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
     case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
-      if (lock1->offset_stop < lock2->offset_start) return 0;
+      if (p1->offset_stop < p2->offset_start) return 0;
       return 1;
 
     case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
     case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL):   
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
-      if (lock1->offset_start > lock2->offset_stop) return 0;
+      if (p1->offset_start > p2->offset_stop) return 0;
       return 1;        
 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
-      if (lock1->offset_start <= lock2->offset_start) {
-	if (lock1->offset_stop < lock2->offset_start) return 0;
+      if (p1->offset_start <= p2->offset_start) {
+	if (p1->offset_stop < p2->offset_start) return 0;
 	return 1;
       }
-      if (lock2->offset_stop < lock1->offset_start) return 0;
+      if (p2->offset_stop < p1->offset_start) return 0;
       return 1;
              
                 
@@ -247,7 +245,8 @@ int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock
 }
 /*
 *___________________________________________________________________
-* Try to concatenate overlapping locks in lock1
+* Try to concatenate overlapping locks in lock1. This has to be done
+* at user level in order to merge the different requested locks into one.
 *
 * @param lock1   1rst lock
 * @param lock2   2nd lock
@@ -259,67 +258,78 @@ int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock
 #define min(a,b) (a>b?b:a)
 int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock2) {
   int key;
+  ep_lock_range_t * p1, * p2;
   
+  p1 = &lock1->user_range;
+  p2 = &lock2->user_range;  
   
-  key = lock1->size << 8 | lock2->size;
+  key = p1->size << 8 | p2->size;
   switch(key) {
-
-      return 1;
     
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
-      if (lock1->offset_stop < lock2->offset_start) return 0;
-      lock1->size = EP_LOCK_TOTAL;
-      lock1->offset_stop = lock2->offset_stop;
-      return 1;    
+      if (p1->offset_stop < p2->offset_start) return 0;
+      p1->size = EP_LOCK_TOTAL;
+      p1->offset_stop = p2->offset_stop;
+      compute_effective_lock_range(lock1);
+      return 1;      
       
     case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
-      if (lock1->offset_stop < lock2->offset_start) return 0;
-      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);
-      return 1; 
+      if (p1->offset_stop < p2->offset_start) return 0;
+      p1->offset_stop = max(p2->offset_stop,p1->offset_stop);
+      compute_effective_lock_range(lock1);
+      return 1;      
       
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
-      if (lock1->offset_stop < lock2->offset_start) return 0;
-      lock1->size = EP_LOCK_TO_END;
-      lock1->offset_start = min(lock2->offset_start,lock1->offset_start);      
-      lock1->offset_stop = lock2->offset_stop;
-      return 1;
+      if (p1->offset_stop < p2->offset_start) return 0;
+      p1->size = EP_LOCK_TO_END;
+      p1->offset_start = min(p2->offset_start,p1->offset_start);      
+      p1->offset_stop = p2->offset_stop;
+      compute_effective_lock_range(lock1);
+      return 1;      
 
     case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
-      if (lock1->offset_start > lock2->offset_stop) return 0;
-      lock1->size = EP_LOCK_TOTAL;
-      lock1->offset_start = lock2->offset_start;
-      return 1;
+      if (p1->offset_start > p2->offset_stop) return 0;
+      p1->size = EP_LOCK_TOTAL;
+      p1->offset_start = p2->offset_start;
+      compute_effective_lock_range(lock1);
+      return 1;      
 
     case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL): 
-      if (lock1->offset_start > lock2->offset_stop) return 0;
-      lock1->offset_start = min(lock2->offset_start,lock1->offset_start);      
-      return 1;
+      if (p1->offset_start > p2->offset_stop) return 0;
+      p1->offset_start = min(p2->offset_start,p1->offset_start);      
+      compute_effective_lock_range(lock1);
+      return 1;      
             
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
-      if (lock1->offset_start > lock2->offset_stop) return 0;
-      lock1->size = EP_LOCK_FROM_START;
-      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);
-      lock1->offset_start = lock2->offset_start;      
-      return 1;        
+      if (p1->offset_start > p2->offset_stop) return 0;
+      p1->size = EP_LOCK_FROM_START;
+      p1->offset_stop = max(p2->offset_stop,p1->offset_stop);
+      p1->offset_start = p2->offset_start;  
+      compute_effective_lock_range(lock1);
+      return 1;      
 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
-      if (lock1->offset_start <= lock2->offset_start) {
-	if (lock1->offset_stop < lock2->offset_start) return 0;
-        lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);      	
-	return 1;
+      if (p1->offset_start <= p2->offset_start) {
+	if (p1->offset_stop < p2->offset_start) return 0;
+        p1->offset_stop = max(p2->offset_stop,p1->offset_stop);  
+        compute_effective_lock_range(lock1);
+        return 1;      
       }
-      if (lock2->offset_stop < lock1->offset_start) return 0;
-      lock1->offset_start = lock2->offset_start;      
-      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);          
-      return 1;
+      if (p2->offset_stop < p1->offset_start) return 0;
+      p1->offset_start = p2->offset_start;      
+      p1->offset_stop = max(p2->offset_stop,p1->offset_stop);  
+      compute_effective_lock_range(lock1);
+      return 1;      
       
     case (EP_LOCK_FROM_START<<8|EP_LOCK_FROM_START):             
-      lock1->offset_stop = max(lock2->offset_stop,lock1->offset_stop);          
-      return 1;
+      p1->offset_stop = max(p2->offset_stop,p1->offset_stop);    
+      compute_effective_lock_range(lock1);
+      return 1;      
              
     case (EP_LOCK_TO_END<<8|EP_LOCK_TO_END):  
-      lock1->offset_start = min(lock2->offset_start,lock1->offset_start);      
-      return 1;
+      p1->offset_start = min(p2->offset_start,p1->offset_start); 
+      compute_effective_lock_range(lock1);
+      return 1;      
       
     case (EP_LOCK_TOTAL<<8|EP_LOCK_TOTAL): 
     case (EP_LOCK_TOTAL<<8|EP_LOCK_TO_END): 
@@ -330,10 +340,11 @@ int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock
     case (EP_LOCK_TO_END<<8|EP_LOCK_TOTAL):  
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TOTAL):  
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TOTAL):  
-      lock1->size = EP_LOCK_TOTAL;
-      lock1->offset_start = lock2->offset_start;      
-      lock1->offset_stop  = lock2->offset_stop;                     
-      return 1;   
+      p1->size = EP_LOCK_TOTAL;
+      p1->offset_start = p2->offset_start;      
+      p1->offset_stop  = p2->offset_stop;                     
+      compute_effective_lock_range(lock1);
+      return 1;      
   }   
   return 0;
 }
@@ -350,13 +361,17 @@ int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock
 int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * lock_set, rozofs_file_lock_t ** new_lock_ctx) {
   int       key;
   ep_lock_t new_lock;
-  
+  ep_lock_range_t * pfree, * plock;
+    
   *new_lock_ctx = NULL;
 
   if (lock_free->client_ref != lock_set->client_ref) return 0;
   if (lock_free->owner_ref != lock_set->owner_ref)   return 0;  
-  
-  key = lock_free->size << 8 | lock_set->size;
+
+  pfree = &lock_free->user_range;
+  plock = &lock_set->user_range;  
+    
+  key = pfree->size << 8 | plock->size;
   switch(key) {  
     case (EP_LOCK_TOTAL<<8|EP_LOCK_TOTAL):
     case (EP_LOCK_TOTAL<<8|EP_LOCK_FROM_START):
@@ -368,68 +383,76 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #__________________#   
     //        #.......___________#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TOTAL):
-      lock_set->offset_start = lock_free->offset_stop; 
-      lock_set->size = EP_LOCK_TO_END;
+      plock->offset_start = pfree->offset_stop; 
+      plock->size = EP_LOCK_TO_END;
+      compute_effective_lock_range(lock_set);
       return 0;
 
     //   FREE #_______...........#    FREE #_______...........# 
     //   LOCK #__________........#    LOCK #_____.............#   
     //        #.......___........#         #..................#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_FROM_START):
-      if (lock_free->offset_stop >= lock_set->offset_stop) return 1;
-      lock_set->offset_start = lock_free->offset_stop; 
-      lock_set->size = EP_LOCK_PARTIAL;  
+      if (pfree->offset_stop >= plock->offset_stop) return 1;
+      plock->offset_start = pfree->offset_stop; 
+      plock->size = EP_LOCK_PARTIAL;  
+      compute_effective_lock_range(lock_set);      
       return 0;    
 
     //   FREE #_______...........#    FREE #_______...........# 
     //   LOCK #....______________#    LOCK #........._________#  
     //        #.......___________#         #........._________#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_TO_END): 
-      if (lock_free->offset_stop <= lock_set->offset_start) return 0;
-      lock_set->offset_start = lock_free->offset_stop; 
+      if (pfree->offset_stop <= plock->offset_start) return 0;
+      plock->offset_start = pfree->offset_stop; 
+      compute_effective_lock_range(lock_set);
       return 0;
       
     //   FREE #_______...........#    FREE #_______...........#  FREE #_______...........# 
     //   LOCK #..__..............#    LOCK #....______........#  LOCK #.........______...#  
     //        #..................#         #.......___........#       #.........______...#
     case (EP_LOCK_FROM_START<<8|EP_LOCK_PARTIAL): 
-      if (lock_free->offset_stop <= lock_set->offset_start) return 0;
-      if (lock_set->offset_stop <= lock_free->offset_stop) return 1;
-      lock_set->offset_start = lock_free->offset_stop; 
+      if (pfree->offset_stop <= plock->offset_start) return 0;
+      if (plock->offset_stop <= pfree->offset_stop) return 1;
+      plock->offset_start = pfree->offset_stop; 
+      compute_effective_lock_range(lock_set);
       return 0;
 
     //   FREE #..........._______# 
     //   LOCK #__________________#   
     //        #___________.......#            
     case (EP_LOCK_TO_END<<8|EP_LOCK_TOTAL):  
-      lock_set->offset_stop = lock_free->offset_start; 
-      lock_set->size = EP_LOCK_FROM_START;
+      plock->offset_stop = pfree->offset_start; 
+      plock->size = EP_LOCK_FROM_START;
+      compute_effective_lock_range(lock_set);      
       return 0;    
 
     //   FREE #..........._______#    FREE #..........._______# 
     //   LOCK #_______________...#    LOCK #________..........#
     //        #___________.......#         #________..........#
     case (EP_LOCK_TO_END<<8|EP_LOCK_FROM_START): 
-      if (lock_free->offset_start >= lock_set->offset_stop) return 0;
-      lock_set->offset_stop = lock_free->offset_start; 
+      if (pfree->offset_start >= plock->offset_stop) return 0;
+      plock->offset_stop = pfree->offset_start; 
+      compute_effective_lock_range(lock_set);      
       return 0;
       
     //   FREE #..........._______#    FREE #.......___________# 
     //   LOCK #....______________#    LOCK #........._________#  
     //        #...._______.......#         #..................#
     case (EP_LOCK_TO_END<<8|EP_LOCK_TO_END):
-      if (lock_free->offset_start <= lock_set->offset_start) return 1;
-      lock_set->offset_stop = lock_free->offset_start; 
-      lock_set->size = EP_LOCK_PARTIAL;
+      if (pfree->offset_start <= plock->offset_start) return 1;
+      plock->offset_stop = pfree->offset_start; 
+      plock->size = EP_LOCK_PARTIAL;
+      compute_effective_lock_range(lock_set);      
       return 0;
       
     //   FREE #..........._______#    FREE #.......___________#  FREE #.......___________# 
     //   LOCK #..__..............#    LOCK #....______........#  LOCK #.........______...#  
     //   LOCK #..__..............#    LOCK #....___...........#  LOCK #..................#  
     case (EP_LOCK_TO_END<<8|EP_LOCK_PARTIAL):   
-      if (lock_set->offset_stop <= lock_free->offset_start) return 0;
-      if (lock_set->offset_start >= lock_free->offset_start) return 1;
-      lock_set->offset_stop = lock_free->offset_start;
+      if (plock->offset_stop <= pfree->offset_start) return 0;
+      if (plock->offset_start >= pfree->offset_start) return 1;
+      plock->offset_stop = pfree->offset_start;
+      compute_effective_lock_range(lock_set);      
       return 0;      
 
     //   FREE #.........____.....#    
@@ -437,11 +460,13 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //        #_________...._____#   
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TOTAL):
       memcpy(&new_lock,lock_set, sizeof(new_lock));
-      new_lock.size = EP_LOCK_FROM_START;
-      new_lock.offset_stop = lock_free->offset_start;
+      new_lock.user_range.size = EP_LOCK_FROM_START;
+      new_lock.user_range.offset_stop = pfree->offset_start;
+      compute_effective_lock_range(&new_lock);
       *new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock); 
-      lock_set->offset_start = lock_free->offset_stop; 
-      lock_set->size = EP_LOCK_TO_END;
+      plock->offset_start = pfree->offset_stop; 
+      plock->size = EP_LOCK_TO_END;
+      compute_effective_lock_range(lock_set);    
       return 0;
 
       
@@ -449,49 +474,57 @@ int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * l
     //   LOCK #....______________#    LOCK #........._________#    LOCK #........._________#  
     //        #...._____...._____#         #........._________#         #..........._______#
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_TO_END):
-      if (lock_free->offset_stop <= lock_set->offset_start) return 0;
-      if (lock_free->offset_start > lock_set->offset_start) {
+      if (pfree->offset_stop <= plock->offset_start) return 0;
+      if (pfree->offset_start > plock->offset_start) {
 	memcpy(&new_lock,lock_set, sizeof(new_lock));
-	new_lock.size = EP_LOCK_PARTIAL;
-	new_lock.offset_stop = lock_free->offset_start;
+	new_lock.user_range.size = EP_LOCK_PARTIAL;
+	new_lock.user_range.offset_stop = pfree->offset_start;
+        compute_effective_lock_range(&new_lock);
 	*new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock); 
       }
-      lock_set->offset_start = lock_free->offset_stop;       
+      plock->offset_start = pfree->offset_stop;       
+      compute_effective_lock_range(lock_set);    
       return 0;  
 
     //   FREE #...____...........#    FREE #........____......#    FREE #......_______.....# 
     //   LOCK #__________........#    LOCK #_____.............#    LOCK #__________........# 
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_FROM_START):
-      if (lock_free->offset_start >= lock_set->offset_stop) return 0;
-      if (lock_set->offset_stop <= lock_free->offset_stop) {
-        lock_set->offset_stop = lock_free->offset_start;
+      if (pfree->offset_start >= plock->offset_stop) return 0;
+      if (plock->offset_stop <= pfree->offset_stop) {
+        plock->offset_stop = pfree->offset_start;
+        compute_effective_lock_range(lock_set);    	
 	return 0;
       }
       memcpy(&new_lock,lock_set, sizeof(new_lock));
-      new_lock.size = EP_LOCK_PARTIAL;
-      new_lock.offset_start = lock_free->offset_stop;
+      new_lock.user_range.size = EP_LOCK_PARTIAL;
+      new_lock.user_range.offset_start = pfree->offset_stop;
+      compute_effective_lock_range(&new_lock);
       *new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock);
-      lock_set->offset_stop = lock_free->offset_start;
+      plock->offset_stop = pfree->offset_start;
+      compute_effective_lock_range(lock_set);    
       return 0;    
 
     //   FREE #.......___..#    FREE #..____.........#    FREE #..._____.....#  FREE #.....______..#
     //   LOCK #..__........#    LOCK #.........____..#    LOCK #.....______..#  LOCK #..._____.....#
     case (EP_LOCK_PARTIAL<<8|EP_LOCK_PARTIAL):    
-      if (lock_free->offset_start >= lock_set->offset_stop) return 0;
-      if (lock_set->offset_start >= lock_free->offset_stop) return 0;      
-      if (lock_free->offset_start <= lock_set->offset_start) {
-        if (lock_free->offset_stop >= lock_set->offset_stop) return 1;
-	lock_set->offset_start = lock_free->offset_stop;
+      if (pfree->offset_start >= plock->offset_stop) return 0;
+      if (plock->offset_start >= pfree->offset_stop) return 0;      
+      if (pfree->offset_start <= plock->offset_start) {
+        if (pfree->offset_stop >= plock->offset_stop) return 1;
+	plock->offset_start = pfree->offset_stop;
+        compute_effective_lock_range(lock_set);    
 	return 0;
       }
-      if (lock_free->offset_stop >= lock_set->offset_stop) {
-	lock_set->offset_stop = lock_free->offset_start;
+      if (pfree->offset_stop >= plock->offset_stop) {
+	plock->offset_stop = pfree->offset_start;
+        compute_effective_lock_range(lock_set);    
 	return 0;
       }      
       memcpy(&new_lock,lock_set, sizeof(new_lock));
-      new_lock.offset_stop = lock_free->offset_start;
+      new_lock.user_range.offset_stop = pfree->offset_start;
+      compute_effective_lock_range(&new_lock);
       *new_lock_ctx = lv2_cache_allocate_file_lock(&new_lock);
-      lock_set->offset_start = lock_free->offset_stop;
+      plock->offset_start = pfree->offset_stop;
       return 0;  
              
     default:

@@ -544,6 +544,20 @@ xdr_ep_lock_size_t (XDR *xdrs, ep_lock_size_t *objp)
 }
 
 bool_t
+xdr_ep_lock_range_t (XDR *xdrs, ep_lock_range_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_lock_size_t (xdrs, &objp->size))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->offset_start))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->offset_stop))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_lock_t (XDR *xdrs, ep_lock_t *objp)
 {
 	//register int32_t *buf;
@@ -554,11 +568,9 @@ xdr_ep_lock_t (XDR *xdrs, ep_lock_t *objp)
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->owner_ref))
 		 return FALSE;
-	 if (!xdr_ep_lock_size_t (xdrs, &objp->size))
+	 if (!xdr_ep_lock_range_t (xdrs, &objp->user_range))
 		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->offset_start))
-		 return FALSE;
-	 if (!xdr_uint64_t (xdrs, &objp->offset_stop))
+	 if (!xdr_ep_lock_range_t (xdrs, &objp->effective_range))
 		 return FALSE;
 	return TRUE;
 }

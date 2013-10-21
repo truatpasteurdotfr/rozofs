@@ -177,16 +177,9 @@ void init_write_flush_stat(int max_write_pending){
    @retval -1 some data to write is pending
    @retval 0 if the read buffer is not empty
 */
-int clear_file_buffer_after_flush(file_t *f)
+int clear_read_data(file_t *f)
 {
-  if (f->buf_write_wait != 0) {
-    warning("buf_write_wait %d read from:pos %llu:%llu write from:pos %llu:%llu ",
-             f->buf_write_wait, 
-	     (long long unsigned int)f->read_from, (long long unsigned int)f->read_pos, 
-	     (long long unsigned int)f->write_from, (long long unsigned int)f->write_pos);
-    return -1;
-  }
-  f->read_from = f->read_pos = f->write_from = f->write_pos = 0;
+  f->read_from = f->read_pos = 0;
   return 0;
 }
 /*

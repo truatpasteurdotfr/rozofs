@@ -321,5 +321,5 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p,sys_recv_pf_t
    @retval -1 some data to write is pending
    @retval 0 if the read buffer is not empty
 */
-int clear_file_buffer_after_flush(file_t *p);
+int clear_read_data(file_t *p);
 #endif

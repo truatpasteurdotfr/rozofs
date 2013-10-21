@@ -154,17 +154,6 @@ void file_lock_remove_client(uint64_t client_ref) ;
 void file_lock_poll_client(uint64_t client_ref) ;
 /*
 *___________________________________________________________________
-* Check whether two locks are compatible
-*
-* @param lock1   1rst lock
-* @param lock2   2nd lock
-*
-* @retval 1 when locks are compatible, 0 else
-*___________________________________________________________________
-*/
-int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
-/*
-*___________________________________________________________________
 * Check whether two lock2 must free or update lock1
 *
 * @param lock_free   The free lock operation
@@ -176,13 +165,20 @@ int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2
 int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * lock_set, rozofs_file_lock_t ** new_lock_ctx);
 /*
 *___________________________________________________________________
-* Display file lock statistics
+* Check whether two locks are compatible in oreder to set a new one.
+* We have to check the effective range and not the user range
+*
+* @param lock1   1rst lock
+* @param lock2   2nd lock
+* 
+* @retval 1 when locks are compatible, 0 else
 *___________________________________________________________________
 */
-char * display_file_lock(char * pChar) ;
+int are_file_locks_compatible(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
 /*
 *___________________________________________________________________
-* Check whether two locks are overlapping
+* Check whether two locks are overlapping. This has to be check at user 
+* level in order to merge the different requested locks into one.
 *
 * @param lock1   1rst lock
 * @param lock2   2nd lock
@@ -190,7 +186,7 @@ char * display_file_lock(char * pChar) ;
 * @retval 1 when locks overlap, 0 else
 *___________________________________________________________________
 */
-int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
+int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock2);
 /*
 *___________________________________________________________________
 * Try to concatenate overlapping locks in lock1
@@ -202,4 +198,6 @@ int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock
 *___________________________________________________________________
 */
 int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
+
+char * display_file_lock(char * pChar) ;
 #endif

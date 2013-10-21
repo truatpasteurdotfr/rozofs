@@ -596,4 +596,13 @@ int rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_t *rozofs_tx_ctx_p, sy
 */
 
 int rozofs_asynchronous_flush(struct fuse_file_info *fi) ;
+/*
+**__________________________________________________________________________
+*/
+/**
+  Invalidate the linux cache of a given inode
+ 
+*/
+
+void rozofs_fuse_invalidate_inode_cache(fuse_ino_t ino, uint64_t offset, uint64_t len);
 #endif

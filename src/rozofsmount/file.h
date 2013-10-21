@@ -102,7 +102,9 @@ typedef struct file {
     int              lock_type;      /**< Type of requested lock : EP_LOCK_READ or EP_LOCK_WRITE */   
     int              lock_size;      
     uint64_t         lock_start;     
-    uint64_t         lock_stop;   
+    uint64_t         lock_stop;
+    int              lock_sleep;   
+    int              lock_delay;
     uint64_t         timeStamp;
 #if 0
     char *buffer;
