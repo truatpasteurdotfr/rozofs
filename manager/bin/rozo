@@ -1,7 +1,6 @@
 #!/usr/bin/python2.7
 # encoding: utf-8
-from rozofs.cli.node import STR_ROLES
-
+#
 # Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
 # This file is part of Rozofs.
 #
@@ -24,12 +23,15 @@ rozo -- RozoFS comand line interface
 
 import sys
 import os
+import traceback
+
 from rozofs import __version__
 
 from argparse import ArgumentParser
 from rozofs.core.constants import EXPORTD_MANAGER, STORAGED_MANAGER, \
     ROZOFSMOUNT_MANAGER
-import traceback
+from rozofs.cli.node import STR_ROLES
+
 
 __all__ = []
 # __version__ = 0.1

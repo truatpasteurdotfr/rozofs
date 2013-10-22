@@ -1,4 +1,21 @@
 # -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+
 import sys
 from rozofs.core.platform import Platform, Role
 from rozofs.core.agent import ServiceStatus
@@ -12,30 +29,30 @@ def list(platform, args):
         raise Exception("exportd node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
-    
+
     vid_l = {}
-    for vid,vstat in configuration.stats.vstats.items():
+    for vid, vstat in configuration.stats.vstats.items():
         cid_l = {}
-        vid_l['vid '+str(vid)] = OrderedDict([
+        vid_l['vid ' + str(vid)] = OrderedDict([
             ('bsize', vstat.bsize),
             ('bfree', vstat.bfree),
             ('blocks', vstat.blocks)
         ])
         for cid, cstat in vstat.cstats.items():
             sid_l = {}
-            cid_l['cid '+str(cid)] = OrderedDict([
+            cid_l['cid ' + str(cid)] = OrderedDict([
                 ('size', cstat.size),
                 ('free', cstat.free)
             ])
             for sid, sstat in cstat.sstats.items():
-                sid_l['sid '+str(sid)] = OrderedDict([
+                sid_l['sid ' + str(sid)] = OrderedDict([
                     ('host', sstat.host),
                     ('size', sstat.size),
                     ('free', sstat.free)
                 ])
-            cid_l['cid '+str(cid)].update(sid_l)
-        vid_l['vid '+str(vid)].update(cid_l)
-    
+            cid_l['cid ' + str(cid)].update(sid_l)
+        vid_l['vid ' + str(vid)].update(cid_l)
+
     ordered_puts(vid_l)
 
 def get(platform, args):
@@ -63,18 +80,18 @@ def get(platform, args):
     cid_l = {}
     for cid, cstat in vstat.cstats.items():
         sid_l = {}
-        cid_l['cid '+str(cid)] = OrderedDict([
+        cid_l['cid ' + str(cid)] = OrderedDict([
             ('size', cstat.size),
             ('free', cstat.free)
         ])
         for sid, sstat in cstat.sstats.items():
-            sid_l['sid '+str(sid)] = OrderedDict([
+            sid_l['sid ' + str(sid)] = OrderedDict([
                 ('host', sstat.host),
                 ('size', sstat.size),
                 ('free', sstat.free)
             ])
-        cid_l['cid '+str(cid)].update(sid_l)
-    
+        cid_l['cid ' + str(cid)].update(sid_l)
+
     ordered_puts(cid_l)
 
 #
