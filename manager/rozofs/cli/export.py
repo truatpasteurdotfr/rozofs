@@ -13,10 +13,10 @@ def list(platform, args):
         raise Exception("exportd node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
-    
+
     for eid, econfig in configuration.exports.items():
         exp_l = {}
-        exp_l['eid '+str(eid)] = OrderedDict([
+        exp_l['eid ' + str(eid)] = OrderedDict([
             ('vid', econfig.vid),
             ('root', econfig.root),
             ('md5', econfig.md5),
@@ -39,16 +39,16 @@ def remove(platform, args):
 
     platform.remove_export(args.eids, args.force)
 
-def stat(platform, args):
+def get(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
     if configurations[args.exportd] is None:
         raise Exception("exportd node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
-    
+
     for eid, estat in configuration.stats.estats.items():
         exp_l = {}
-        exp_l['eid '+str(eid)] = OrderedDict([
+        exp_l['eid ' + str(eid)] = OrderedDict([
             ('bsize', estat.bsize),
             ('blocks', estat.blocks),
             ('bfree', estat.bfree),

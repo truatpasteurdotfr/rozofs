@@ -164,42 +164,42 @@ def stop(platform, args):
 #    for h, c in configurations.items():
 #        __print_host_configs(h, c)
 
-def expand(platform, args):
-    platform.add_nodes(args.hosts, args.vid)
-
-
-def shrink(platform, args):
-    for vid in args.vids:
-        platform.remove_volume(vid)
-
-
-def export(platform, args):
-    platform.create_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
-
-
-def update(platform, args):
-    platform.update_export(args.eid[0], args.current, args.passwd, args.squota, args.hquota)
-
-
-def unexport(platform, args):
-    if not args.eids:
-        args.eids = None
-
-    platform.remove_export(args.eids, args.force)
-
-
-def mount(platform, args):
-    if not args.eids:
-        args.eids = None
-
-    platform.mount_export(args.eids, args.nodes)
-
-
-def umount(platform, args):
-    if not args.eids:
-        args.eids = None
-
-    platform.umount_export(args.eids, args.nodes)
+# def expand(platform, args):
+#    platform.add_nodes(args.hosts, args.vid)
+#
+#
+# def shrink(platform, args):
+#    for vid in args.vids:
+#        platform.remove_volume(vid)
+#
+#
+# def export(platform, args):
+#    platform.create_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
+#
+#
+# def update(platform, args):
+#    platform.update_export(args.eid[0], args.current, args.passwd, args.squota, args.hquota)
+#
+#
+# def unexport(platform, args):
+#    if not args.eids:
+#        args.eids = None
+#
+#    platform.remove_export(args.eids, args.force)
+#
+#
+# def mount(platform, args):
+#    if not args.eids:
+#        args.eids = None
+#
+#    platform.mount_export(args.eids, args.nodes)
+#
+#
+# def umount(platform, args):
+#    if not args.eids:
+#        args.eids = None
+#
+#    platform.umount_export(args.eids, args.nodes)
 
 
 def dispatch(args):
