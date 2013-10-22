@@ -1,8 +1,35 @@
 /* CSS RESET */
+
+
+a.summary-letter {text-decoration: none}
+blockquote.smallquotation {font-size: smaller}
+div.display {margin-left: 3.2em}
+div.example {margin-left: 3.2em}
+div.indentedblock {margin-left: 3.2em}
+div.lisp {margin-left: 3.2em}
+div.smalldisplay {margin-left: 3.2em}
+div.smallexample {margin-left: 3.2em}
+div.smallindentedblock {margin-left: 3.2em; font-size: smaller}
+div.smalllisp {margin-left: 3.2em}
+kbd {font-style:oblique}
+pre.display {font-family: inherit}
+pre.format {font-family: inherit}
+pre.menu-comment {font-family: serif}
+pre.menu-preformatted {font-family: serif}
+pre.smalldisplay {font-family: inherit; font-size: smaller}
+pre.smallexample {font-size: smaller}
+pre.smallformat {font-family: inherit; font-size: smaller}
+pre.smalllisp {font-size: smaller}
+span.nocodebreak {white-space:nowrap}
+span.nolinebreak {white-space:nowrap}
+span.roman {font-family:serif; font-weight:normal}
+span.sansserif {font-family:sans-serif; font-weight:normal}
+ul.no-bullet {list-style: none}
+
+/*
 * {
     margin: 0;
     padding: 0;
-    /*border: 0; commented out so "About this document" page drew table right*/
     vertical-align: baseline;
 }
 
@@ -80,7 +107,7 @@ blockquote {
 
 
 h1, h2, h3, h4, h5 {
-    color: #990000;
+    color: #009800;
     font-family: Arial,sans-serif;
 }
 
@@ -110,10 +137,7 @@ div.footnote h3 {
 }
 
 table.header, div.header p {
-    /*border: 1px solid black;*/
-    /*padding: .5em;*/
     white-space: nowrap;
-    /*border-radius: 4px;*/
 }
 
 table.header a, div.header p a {
@@ -250,4 +274,4 @@ span.nolinebreak {white-space:pre}
 span.roman {font-family:serif; font-weight:normal}
 span.sansserif {font-family:sans-serif; font-weight:normal}
 ul.no-bullet {list-style: none}
-
+*/
