@@ -1,5 +1,5 @@
 \input texinfo @c permet à TeX de charger les macros nécessaires (-> \)
-@setfilename rozofs_users_guide 
+@setfilename rozofs 
 @settitle @dfn{RozoFS} - User's Guide
 
 @finalout
@@ -9,12 +9,14 @@
 
 @c ***** title, content and copyright (book)
 @titlepage
-@title RozoFS
+
+@title @image{pics/rozofs, 3in, , , png}
 @subtitle User's Guide
 @author Sylvain David - @email{sylvain.david@@rozofs.com},
 @author Pierre Evenou - @email{pierre.evenou@@rozofs.com},
 @author Louis Le Gouriellec - @email{louis.legouriellec@@rozofs.com},
-@author Dimitri Pertin - @email{dimitri.pertin@@rozofs.org}.
+@author Didier Feron - @email{didier.feron@@rozofs.org},
+@author Jean-Pierre Monchanin - @email{jean-pierre.monchanin@@rozofs.org}.
 
 @c start copyright
 @page
