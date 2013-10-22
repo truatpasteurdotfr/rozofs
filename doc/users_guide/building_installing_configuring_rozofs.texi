@@ -164,23 +164,23 @@ configuration of @acronym{DRBD}.
 Create the file @file{/etc/drbd.d/r0.res} on @var{node1}, changes the lines
 according to your parameters, and save it:
 @example
-resource r0 {
+resource r0 @{
   protocol C;
 
-  on node1 {
+  on node1 @{
     device     /dev/drbd0;
     disk       /dev/mapper/vg01-exports;
     address    192.168.1.1:7788;
     meta-disk internal;
-  }
+  @}
 
-  on node2 {
+  on node2 @{
     device    /dev/drbd0;
     disk      /dev/mapper/vg01-exports;
     address   192.168.1.2:7788;
     meta-disk internal;
-  }
-}
+  @}
+@}
 @end example
 
 Copy @acronym{DRBD} configuration files manually to the other node:
@@ -323,14 +323,14 @@ file which stored in @file{/etc/corosync/corosync.conf}.
 
 Edit your @file{corosync.conf} with the following:
 @example
-interface {
+interface @{
    # The following values need to be set based on your environment 
    ringnumber: 1
    bindnetaddr:192.16.1.0
    mcastaddr: 226.94.1.2
    mcastport: 5407
    ttl: 255
-}
+@}
 @end example
 
 Copy the @file{corosync.conf} manually to the other node:
@@ -523,66 +523,64 @@ layout = 0 ; # (inverse = 2, forward = 3, safe = 4)
 
 volumes = # List of volumes
 (
-    {
+    @{
         # First volume
         vid = 1 ; # Volume identifier = 1
         cids=     # List of clusters for the volume 1
         (
-            {
+            @{
                 # First cluster of volume 1
                 cid = 1;  # Cluster identifier = 1
                 sids =    # List of storages for the cluster 1
                 (
-                    {sid = 01; host = "storage-node-1-1";},
-                    {sid = 02; host = "storage-node-1-2";},
-                    {sid = 03; host = "storage-node-1-3";},
-                    {sid = 04; host = "storage-node-1-4";}
+                    @{sid = 01; host = "storage-node-1-1";@},
+                    @{sid = 02; host = "storage-node-1-2";@},
+                    @{sid = 03; host = "storage-node-1-3";@},
+                    @{sid = 04; host = "storage-node-1-4";@}
                 );
-            },
-            {
+            @},
+            @{
                 # Second cluster of volume 1
                 cid = 2; # Cluster identifier = 2
                 sids =   # List of storages for the cluster 2
                 (
-                    {sid = 01; host = "storage-node-2-1";},
-                    {sid = 02; host = "storage-node-2-2";},
-                    {sid = 03; host = "storage-node-2-3";},
-                    {sid = 04; host = "storage-node-2-4";}
+                    @{sid = 01; host = "storage-node-2-1";@},
+                    @{sid = 02; host = "storage-node-2-2";@},
+                    @{sid = 03; host = "storage-node-2-3";@},
+                    @{sid = 04; host = "storage-node-2-4";@}
                 );
-            }
+            @}
         );
-    },
-    {
+    @},
+    @{
         # Second volume
         vid = 2; # Volume identifier = 2
         cids =   # List of clusters for the volume 2
         (
-            {
+            @{
                 # First cluster of volume 2
                 cid = 3; # Cluster identifier = 3
                 sids =   # List of storages for the cluster 3
                 (
-                    {sid = 01; host = "storage-node-3-1";},
-                    {sid = 02; host = "storage-node-3-2";},
-                    {sid = 03; host = "storage-node-3-3";},
-                    {sid = 04; host = "storage-node-3-4";}
+                    @{sid = 01; host = "storage-node-3-1";@},
+                    @{sid = 02; host = "storage-node-3-2";@},
+                    @{sid = 03; host = "storage-node-3-3";@},
+                    @{sid = 04; host = "storage-node-3-4";@}
                 );
-            }
+            @}
         );
-    }
+    @}
 );
 
 # List of exported filesystem
 exports = (
 
   # First filesystem exported
-  {eid = 1; root = "/srv/rozofs/exports/export_1"; md5="AyBvjVmNoKAkLQwNa2c";
-   squota="128G"; hquota="256G"; vid=1;
-  },
+  @{eid = 1; root = "/srv/rozofs/exports/export_1"; md5="AyBvjVmNoKAkLQwNa2c";
+   squota="128G"; hquota="256G"; vid=1;@},
   # Second filesystem exported
-  {eid = 2; root = "/srv/rozofs/exports/export_2"; md5="";
-  squota=""; hquota = ""; vid=2;
-  }
+  @{eid = 2; root = "/srv/rozofs/exports/export_2"; md5="";
+  squota=""; hquota = ""; vid=2;@}
 );
 @end example
 
@@ -623,7 +621,7 @@ ports = [40001, 40002, 40003, 40004 ];
 #   It's the list of local storage managed by this storaged.
 
 storages = (
-  {cid = 1; sid = 1; root = "/srv/rozofs/storages/storage_1-1";},
-  {cid = 2; sid = 1; root = "/srv/rozofs/storages/storage_2-1";}
+  @{cid = 1; sid = 1; root = "/srv/rozofs/storages/storage_1-1";@},
+  @{cid = 2; sid = 1; root = "/srv/rozofs/storages/storage_2-1";@}
 );
 @end example
