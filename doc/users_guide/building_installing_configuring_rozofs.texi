@@ -1,13 +1,16 @@
 @c *** Chapter [Building, Installing, and Configuring RozoFS]
 @node       Building Installing and Configuring RozoFS, Working with RozoFS, About RozoFS, Top
 @chapter    Building, Installing, and Configuring RozoFS
+@ifnotdocbook
 @cindex     build
 @cindex     install
 @cindex     configuration
+@end ifnotdocbook
 
 @menu
 * Installing RozoFS from Binary Packages::
 * Building and Installing from Sources::
+* Networking Considerations::
 * Preparing Nodes::
 * Configuring RozoFS::
 @end menu
@@ -15,9 +18,11 @@
 @c *** Section [Installing RozoFS from Binary Packages]
 @node       Installing RozoFS from Binary Packages, Building and Installing from Sources, Building Installing and Configuring RozoFS, Building Installing and Configuring RozoFS
 @section    Installing RozoFS from Binary Packages
+@ifnotdocbook
 @cindex     Installation
 @cindex     Build
 @cindex     Binary packages
+@end ifnotdocbook
 
 Fizians @acronym{SAS} provides @strong{binary packages} for every component of
 RozoFS and various @acronym{GNU}/Linux distributions based on Debian 
@@ -47,7 +52,7 @@ installed on each node involved in a RozoFS platform:
 @end itemize
 
 @c *** Section [Building and Installing from Sources]
-@node       Building and Installing from Sources, Preparing Nodes, Installing RozoFS from Binary Packages, Building Installing and Configuring RozoFS
+@node       Building and Installing from Sources, Networking Considerations, Installing RozoFS from Binary Packages, Building Installing and Configuring RozoFS
 @section    Building and Installing from Sources
 
 @menu
@@ -58,7 +63,9 @@ installed on each node involved in a RozoFS platform:
 @c *** Subsection [Prerequisites]
 @node       Prerequisites, Build the Source, Building and Installing from Sources, Building and Installing from Sources
 @subsection Prerequisites
+@ifnotdocbook
 @cindex     Prerequisites
+@end ifnotdocbook
 
 The latest stable release of RozoFS can be downloaded from
 @url{http://github.com/rozofs/rozofs}.
@@ -109,8 +116,77 @@ following command :
 # make edit_cache
 @end example
 
+@c *** Section [Networking Considerations]
+@node       Networking Considerations, Preparing Nodes, Building and Installing from Sources, Building Installing and Configuring RozoFS
+
+@section    Networking Considerations
+
+@menu
+* Vlan/port Segregation::
+* Flow Control (802.3x)::
+* Spanning-tree Protocol::
+* Storage and RozoFS Network Configuration::
+@end menu
+
+@c *** Subsection [Vlan/port Segregation]
+@node       Vlan/port Segregation, Flow Control (802.3x), Networking Considerations, Networking Considerations
+@subsection Vlan/port Segregation
+@ifnotdocbook
+@cindex     Networking
+@end ifnotdocbook
+It is recommended to separate core traffic (application) from the SAN traffic (RozoFS/Storage) with VLANs.
+It is recommended to use separate ports for application and RozoFS/Client.
+When RozoFS and Storage are co-located, they can share the same ports. However, if there are enough available ports, it is better that each entity (RozoFS, Storage) has its own set of ports.
+
+@c *** Subsection [Flow Control (802.3x)]
+@node       Flow Control (802.3x), Spanning-tree Protocol, Vlan/port Segregation, Networking Considerations
+@subsection Flow Control (802.3x)
+
+It is @strong{mandatory} to enable Flow Control on the switch ports that handle RozoFS/Storage traffic. 
+In addition, one must also enable Flow Control on the NICs used by RozoFS/Storage to obtain the performance benefit. 
+On many networks, there can be an imbalance in the network traffic between the devices that send network traffic and the devices that receive the traffic. This is often the case in SAN configurations in which many hosts (initiators such as RozoFS) are communicating with storage devices. If senders transmit data simultaneously, they may exceed the throughput capacity of the receiver. When this occurs, the receiver may drop packets, forcing senders to retransmit the data after a delay. Although this will not result in any loss of data, latency will increase because of the retransmissions, and I/O performance will degrade.
+
+@c *** Subsection [Spanning-tree Protocol]
+@node       Spanning-tree Protocol, Storage and RozoFS Network Configuration, Flow Control (802.3x), Networking Considerations
+@subsection Spanning-tree Protocol
+
+It is recommended to disable spanning-tree protocol (STP) on the switch ports that connect end nodes (RozoFS clients and storage array network interfaces). If it is still decide to enable STP on those switch ports, one need to check for a STP vendor feature, such as PortFast, which allows immediate transition of the ports into forwarding state.
+
+@c *** Subsection [Storage and RozoFS Network Configuration]
+@node       Storage and RozoFS Network Configuration, , Spanning-tree Protocol, Networking Considerations
+@subsection Storage and RozoFS Network Configuration
+
+@menu
+* Mutli-link Configuration::
+* LACP Configuration::
+@end menu
+
+RozoFS Clients/Storages node connections to the SAN network switches are always in active-active mode.  In order to leverage to Ethernet ports utilization, the balancing among the ports is under the control of the application and not under the control of a bonding driver (there is no need for bonding driver with RozoFS storage node).
+When operating in the default mode of RozoFs (no LACP), it is recommended that each SAN port belongs to different VLANs.
+Configuration with 802.3ad (LACP) trunks is supported, however the Ethernet ports usage will not be optimal since the selection of a port depends on a hash applied either an MAC or IP level.
+
+@c *** Subsubsection [Mutli-link Configuration]
+@node       Mutli-link Configuration, LACP Configuration, Storage and RozoFS Network Configuration, Storage and RozoFS Network Configuration
+@subsubsection Mutli-link Configuration
+
+That configuration is the recommended one for RozoFS where there is one separate Vlan per physical port.
+The following diagram describes how storage nodes are connected toward the ToR switches. It is assumed that the RozoFS clients reside on nodes that are connected towards the northbound of the ToR SAN switches
+
+@center @image{pics/multi_link_1, 5in, , , png}
+
+@center @image{pics/multi_link_2, 5in, , , png}
+
+@c *** Subsubsection [LACP Configuration]
+@node       LACP Configuration, , Mutli-link Configuration, Storage and RozoFS Network Configuration
+@subsubsection LACP Configuration
+
+In that case, the ports dedicated to the SAN (RozoFS and Storage) are grouped in one or two LACP groups, depending if we want to separate the RozoFS and Storage traffic or not. They can be either reside on the same or different VLANs.
+
+@center @image{pics/lacp, 5in, , , png}
+
 @c *** Section [Preparing Nodes]
-@node       Preparing Nodes, Configuring RozoFS, Building and Installing from Sources, Building Installing and Configuring RozoFS
+@node       Preparing Nodes, Configuring RozoFS, Networking Considerations, Building Installing and Configuring RozoFS
+
 @section    Preparing Nodes
 
 @menu
@@ -121,7 +197,9 @@ following command :
 @c *** Subsection [Exportd Nodes]
 @node       Exportd Nodes, Storaged Nodes, Preparing Nodes, Preparing Nodes
 @subsection Exportd Nodes
+@ifnotdocbook
 @cindex     Exportd daemon
+@end ifnotdocbook
 
 @menu
 * Metadata Replication with DRBD::
@@ -131,9 +209,11 @@ following command :
 @c *** Subsubsection [Metadata Replication with DRBD]
 @node       Metadata Replication with DRBD, High Availability with Pacemaker, Exportd Nodes, Exportd Nodes
 @subsubsection Metadata Replication with DRBD
+@ifnotdocbook
 @cindex     Metadata
 @cindex     Replication
 @cindex     DRBD
+@end ifnotdocbook
 
 @c Conceptual Overview
 @acronym{DRBD} replicates data from the primary device to the secondary device in
@@ -271,9 +351,11 @@ Debian example):
 @c *** Subsubsection [Metadata Replication with Pacemaker]
 @node       High Availability with Pacemaker, , Metadata Replication with DRBD, Exportd Nodes
 @subsubsection High Availability with Pacemaker
+@ifnotdocbook
 @cindex     High Availability
 @cindex     Availability
 @cindex     Pacemaker
+@end ifnotdocbook
 
 @dfn{Pacemaker} is an open-source high availability resource management tool
 suitable for clusters of Linux machines. This tool can detect machine failures
@@ -470,8 +552,10 @@ the free space properly.
 @c *** Section [Configuring RozoFS]
 @node       Configuring RozoFS, Exportd Configuration File, Preparing Nodes, Building Installing and Configuring RozoFS
 @section    Configuring RozoFS
+@ifnotdocbook
 @cindex     Configuration
 @cindex     Files of configuration
+@end ifnotdocbook
 
 @menu
 * Exportd Configuration File::
@@ -481,7 +565,9 @@ the free space properly.
 @c *** Subsection [Exportd Configuration File]
 @node       Exportd Configuration File, Storaged Configuration File, Configuring RozoFS, Configuring RozoFS
 @subsection Exportd Configuration File
+@ifnotdocbook
 @cindex     Exportd configuration
+@end ifnotdocbook
 
 The configuration file of exportd (@file{export.conf}) consists of 3 types of
 information :
@@ -587,7 +673,9 @@ exports = (
 @c *** Subsection [Storaged Configuration File]
 @node       Storaged Configuration File, , Exportd Configuration File, Configuring RozoFS
 @subsection Storaged Configuration File
+@ifnotdocbook
 @cindex     Storaged configuration
+@end ifnotdocbook
 
 The configuration file of the @strong{storaged} daemon (@file{storage.conf}) must
 be completed on each physical server storage where storaged daemon is used.

@@ -10,9 +10,11 @@
 @c *** Section [Manual Managing of RozoFS Services]
 @node       Manual Managing of RozoFS Services, Using the Rozo Console Manager - Command Line Utility, Working with RozoFS, Working with RozoFS
 @section    Manual Managing of RozoFS Services
+@ifnotdocbook
 @cindex Managing daemons
 @cindex Start daemons
 @cindex Stop daemons
+@end ifnotdocbook
 
 @menu
 * Starting and Stopping storaged Daemon::
@@ -23,9 +25,10 @@
 @c *** Subsection [Starting and Stopping storaged Daemon]
 @node       Starting and Stopping storaged Daemon, Starting and Stopping exportd Daemon, Manual Managing of RozoFS Services, Manual Managing of RozoFS Services
 @subsection Starting and Stopping storaged Daemon
+@ifnotdocbook
 @cindex Storaged
 @cindex Storage node
-
+@end ifnotdocbook
 
 The storaged daemon starts with the following command:
 @example
@@ -63,7 +66,9 @@ enterone of the following command lines.
 @c *** Subsection [Starting and Stopping storaged Daemon]
 @node       Starting and Stopping exportd Daemon, Accessing Data - Setting up rozofsmount Client, Starting and Stopping storaged Daemon, Manual Managing of RozoFS Services
 @subsection Starting and Stopping exportd Daemon
+@ifnotdocbook
 @cindex Exportd
+@end ifnotdocbook
 
 The exportd daemon is started with the following command:
 @example
@@ -105,8 +110,10 @@ enter one of the following command line.
 @c *** Subsection [Accessing Data - Setting up rozofsmount Client]
 @node       Accessing Data - Setting up rozofsmount Client, , Starting and Stopping exportd Daemon, Manual Managing of RozoFS Services
 @subsection Accessing Data - Setting up rozofsmount Client
+@ifnotdocbook
 @cindex Access data
 @cindex rozofsmount
+@end ifnotdocbook
 
 After installing the rozofsmount (RozoFS Client), you have to mount the RozoFS
 exported file system to access the data. 
@@ -148,8 +155,10 @@ $ exporthost=192.168.1.100,exportpath=/srv/rozofs/exports/export_1,_netdev
 @c *** Section [Using the Rozo Console Manager - Command Line Utility]
 @node       Using the Rozo Console Manager - Command Line Utility, Get the List of Nodes Belonging to a Platform, Manual Managing of RozoFS Services, Working with RozoFS
 @section    Using the Rozo Console Manager - Command Line Utility
+@ifnotdocbook
 @cindex Rozo Manager
 @cindex Management
+@end ifnotdocbook
 
 @menu
 * Get the List of Nodes Belonging to a Platform::
@@ -189,7 +198,9 @@ platform. Each command is launched on the running exportd node.
 @c *** Subsection [Get the List of Nodes Belonging to a Platform]
 @node       Get the List of Nodes Belonging to a Platform, Get the Status of a Platform, Using the Rozo Console Manager - Command Line Utility, Using the Rozo Console Manager - Command Line Utility
 @subsection Get the List of Nodes Belonging to a Platform
+@ifnotdocbook
 @cindex List of Nodes
+@end ifnotdocbook
 
 To get informations about all nodes in the platform and their roles.
 
@@ -213,7 +224,9 @@ rozofsmount) using the @option{-r} option.
 @c *** Subsection [Get the Status of the Platform]
 @node       Get the Status of a Platform, Stop and Start a Platform, Get the List of Nodes Belonging to a Platform, Using the Rozo Console Manager - Command Line Utility
 @subsection Get the Status of a Platform
+@ifnotdocbook
 @cindex Status of platform
+@end ifnotdocbook
 
 To get an overview of the nodes: a RozoFS processes status.
 
@@ -262,8 +275,10 @@ option or get statuses for a specific node using the @option{-n} option.
 @c *** Subsection [Stop and Start a Platform]
 @node       Stop and Start a Platform, View the Platform Configuration, Get the Status of a Platform, Using the Rozo Console Manager - Command Line Utility
 @subsection Stop and Start a Platform
+@ifnotdocbook
 @cindex Management of a platform
 @cindex Platform management
+@end ifnotdocbook
 
 @verbatim
 root@fec4cloud-01:~# rozo stop -E 172.19.34.221
@@ -283,8 +298,10 @@ configured on every node.
 @c *** Subsection [View the Platform Configuration]
 @node       View the Platform Configuration, Extend the Platform, Stop and Start a Platform, Using the Rozo Console Manager - Command Line Utility
 @subsection View the Platform Configuration
+@ifnotdocbook
 @cindex Overview of a platform
 @cindex Platform overview
+@end ifnotdocbook
 
 @verbatim
 root@fec4cloud-01:~# rozo config -E 172.19.34.221
@@ -393,8 +410,10 @@ relying on it.
 @c *** Subsection [Extend the Platform]
 @node       Extend the Platform, Add an Export to the Platform, View the Platform Configuration, Using the Rozo Console Manager - Command Line Utility
 @subsection Extend the Platform
+@ifnotdocbook
 @cindex Extend a platform
 @cindex Add nodes
+@end ifnotdocbook
 
 Extend the platform is easy (add nodes) with the @command{rozo expand} command, for
 example purpose we will add all the nodes already involved in volume 1
@@ -443,8 +462,10 @@ cluster in this volume.
 @c *** Subsection [Add an Export to the Platform]
 @node       Add an Export to the Platform, , Extend the Platform, Using the Rozo Console Manager - Command Line Utility
 @subsection Add an Export to the Platform
+@ifnotdocbook
 @cindex Add an export
 @cindex Delete an export
+@end ifnotdocbook
 
 rozo export and unexport commands manage the creation (and deletion) of new exports
 

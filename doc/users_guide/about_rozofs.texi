@@ -1,9 +1,11 @@
 @c *** Chapter [About RozoFS]
 @node       About RozoFS, Building Installing and Configuring RozoFS, About this Guide, Top
 @chapter    About RozoFS
+@ifnotdocbook
 @cindex     About
 @cindex     Scale-OUT NAS
 @cindex     POSIX
+@end ifnotdocbook
 
 @menu
 * RozoFS Fundamentals::
@@ -36,11 +38,13 @@ for large storage savings compared to traditional @emph{replication} method.
 @c *** Section [RozoFS Fundamentals]
 @node       RozoFS Fundamentals, RozoFS Data Flow, About RozoFS, About RozoFS
 @section    RozoFS Fundamentals
+@ifnotdocbook
 @cindex     Fundamentals
 @cindex     Components
 @cindex     Exportd
 @cindex     Storaged
 @cindex     rozofsmount
+@end ifnotdocbook
 
 The file system itself comprises three components:
 @itemize
@@ -69,11 +73,13 @@ unusual to have hosts running @strong{exportd}, @strong{storaged} and
 @c *** Subsection [Storage nodes and storaged daemon]
 @node       Storage nodes and storaged daemon, Export nodes and exportd daemon, RozoFS Fundamentals, RozoFS Fundamentals
 @subsection Storage nodes and storaged daemon
+@ifnotdocbook
 @cindex     Storage node
 @cindex     Storage server
 @cindex     Storaged
 @cindex     File system
 @cindex     Daemon
+@end ifnotdocbook
 
 Each storage node hosts a @dfn{storaged daemon} and configures itself via a
 configuration file. This daemon receives requests and stores the converted data
@@ -86,10 +92,12 @@ projections.
 @c *** Subsection [Export nodes and exportd daemon]
 @node       Export nodes and exportd daemon, The rozofsmount clients, Storage nodes and storaged daemon, RozoFS Fundamentals
 @subsection Export nodes and exportd daemon
+@ifnotdocbook
 @cindex     Export node
 @cindex     Export server
 @cindex     Exportd
 @cindex     Daemon
+@end ifnotdocbook
 
 An export node includes all the information needed to reconstruct all the data
 it holds. It runs an exportd daemon configured by a configuration file
@@ -105,11 +113,13 @@ describing three fundamental concepts in RozoFS : @strong{volume},
 @c *** Subsubsection [Volumes and their clusters]
 @node       Volumes and their clusters, Layouts, Export nodes and exportd daemon, Export nodes and exportd daemon
 @subsubsection Volume and their clusters
+@ifnotdocbook
 @cindex     Volume
 @cindex     Cluster
 @cindex     Cluster
 @cindex     Scalability
 @cindex     Exportd
+@end ifnotdocbook
 
 A @dfn{volume} in RozoFS can be seen as a usable capacity. It is defined by a pool
 of storage locations. These storage locations are themselves gathered by
@@ -135,11 +145,13 @@ can hold storage locations belonging to different volumes.
 @c *** Subsubsection [Layouts]
 @node       Layouts, Exports, Volumes and their clusters, Export nodes and exportd daemon
 @subsubsection Layouts
+@ifnotdocbook
 @cindex     Layouts
 @cindex     Redundancy
 @cindex     Configuration
 @cindex     Projections
 @cindex     Availability
+@end ifnotdocbook
 
 As previously mentioned, RozoFS introduces redundancy to ensure high
 @strong{reliability}. This reliability depends on the chosen configuration.
@@ -176,12 +188,14 @@ with the number of nodes required to start and to scale.
 @c *** Subsubsection [Exports]
 @node       Exports, , Layouts, Export nodes and exportd daemon
 @subsubsection Exports
+@ifnotdocbook
 @cindex     Export
 @cindex     Volume
 @cindex     File system
 @cindex     Quotas
 @cindex     Hard Quotas
 @cindex     Soft Quotas
+@end ifnotdocbook
 
 @dfn{Volumes} are the raw storage space on which several file sytems can be created
 (called exports) and exposed to clients. @dfn{Exports} can be declared or removed
@@ -191,11 +205,13 @@ managed through resizable quotas (hard and soft).
 @c *** Subsection [The rozofsmount clients]
 @node       The rozofsmount clients, , Export nodes and exportd daemon, RozoFS Fundamentals
 @subsection The rozofsmount clients
+@ifnotdocbook
 @cindex     rozofsmount
 @cindex     Client
 @cindex     FUSE
 @cindex     Encoding
 @cindex     Decoding
+@end ifnotdocbook
 
 @command{rozofsmount} allows users to @strong{mount an export} of the RozoFS file
 system on a local directory using the @acronym{FUSE} library. Once the file system
@@ -206,6 +222,7 @@ read and write operations.
 @c *** Section [RozoFS Data Flow]
 @node       RozoFS Data Flow, RozoFS Data Protection, RozoFS Fundamentals, About RozoFS
 @section    RozoFS Data Flow
+@ifnotdocbook
 @cindex     Data flow
 @cindex     Encoding
 @cindex     Decoding
@@ -221,6 +238,7 @@ read and write operations.
 @cindex     Chunks
 @cindex     Failure
 @cindex     Layout
+@end ifnotdocbook
 
 The following figures shows the read and write process in RozoFS. The
 @strong{client} who wants to store a file first sends a request to the
@@ -247,10 +265,12 @@ failure of storage nodes (depending on the layout chosen for redundancy).
 @c *** Section [RozoFS Data Protection]
 @node       RozoFS Data Protection, Meta Data Protection, RozoFS Data Flow, About RozoFS
 @section    RozoFS Data Protection
+@ifnotdocbook
 @cindex     Protection
 @cindex     Metadata
 @cindex     Data
 @cindex     Redundancy
+@end ifnotdocbook
 
 RozoFS is fully redundant. It takes care of managing both metadata and
 data with the same availability. However availability is handled in two
@@ -270,11 +290,13 @@ erasure coding.
 @c *** Subsection [Meta Data Protection]
 @node       Meta Data Protection, Data Protection, RozoFS Data Protection, RozoFS Data Protection
 @subsection Meta Data Protection
+@ifnotdocbook
 @cindex     Metadata
 @cindex     Protection
 @cindex     Replication
 @cindex     DRBD
 @cindex     Pacemaker
+@end ifnotdocbook
 
 The @dfn{metadata server} (exportd) is a single point of potential failure
 (@acronym{SPOF}). A high-availability strategy is necessary to be transparent to
@@ -291,9 +313,11 @@ cluster and takes the necessary measures in case of problem on any of them
 @c *** Subsection [Data Protection]
 @node       Data Protection, Erasure Code vs Replication, Meta Data Protection, RozoFS Data Protection
 @subsection Data Protection
+@ifnotdocbook
 @cindex     Data
 @cindex     Protection
 @cindex     Erasure code
+@end ifnotdocbook
 
 A distributed system as RozoFS must protect the user data. Since this kind of
 system relies on several nodes (from tens to thousands), the risk of failures
@@ -310,15 +334,16 @@ RozoFS relies on an erasure code that uses the @emph{Mojette} mathematic transfo
 @c *** Subsubsection [Erasure Code vs Replication]
 @node       Erasure Code vs Replication, Mojette Transform, Data Protection, Data Protection
 @subsubsection Erasure Code vs Replication
+@ifnotdocbook
 @cindex     Data protection
 @cindex     Protection of data
 @cindex     High Availability
 @cindex     Availability
 @cindex     Fault-Tolerance
-
 @cindex     Erasure code
 @cindex     Replication
 @cindex     Mojette transform
+@end ifnotdocbook
 
 Traditionally, fault-tolerance is managed by @strong{replication} of data. Blocks
 of information are replicated into several copies. A @dfn{3-way replication}
@@ -349,6 +374,7 @@ to replication
 @c *** Subsubsection [Mojette Transform]
 @node       Mojette Transform, , Erasure Code vs Replication, Data Protection
 @subsubsection Mojette Transform
+@ifnotdocbook
 @cindex     Erasure Code
 @cindex     Encoding
 @cindex     Decoding
@@ -358,6 +384,7 @@ to replication
 @cindex     Mojette
 
 @cindex     Discrete geometry
+@end ifnotdocbook
 
 Different kinds of erasure codes exist. The most popular ones are the
 @dfn{Reed-Solomon} codes, but their implementations often lack performance. RozoFS

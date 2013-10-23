@@ -1,8 +1,10 @@
 @c *** Chapter [About this Guide]
 @node       About this Guide, About RozoFS, Top, Top
 @chapter    About this Guide
+@ifnotdocbook
 @cindex     About
 @cindex     Version
+@end ifnotdocbook
 
 This guide is intended to serve users of RozoFS as a definitive reference guide
 and handbook. This manual provides information for administrators who want to
