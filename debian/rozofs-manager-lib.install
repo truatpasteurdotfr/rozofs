@@ -2,7 +2,7 @@
 /usr/lib/python2.7/dist-packages/rozofs/cli/node.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/agent.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/__init__.py
-/usr/lib/python2.7/dist-packages/rozofs/cli/parser.py
+#/usr/lib/python2.7/dist-packages/rozofs/cli/parser.py
 /usr/lib/python2.7/dist-packages/rozofs/ext/__init__.py
 /usr/lib/python2.7/dist-packages/rozofs/ext/fstab.py
 /usr/lib/python2.7/dist-packages/rozofs/__init__.py
