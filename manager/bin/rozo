@@ -27,7 +27,7 @@ import traceback
 
 from rozofs import __version__
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from rozofs.core.constants import EXPORTD_MANAGER, STORAGED_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.cli.node import STR_ROLES
@@ -82,28 +82,28 @@ def main(argv=None):  # IGNORE:C0111
         # We use a global parser just to be able to have rozo -h without args
         global_parser = ArgumentParser(add_help=False)
         global_parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        global_parser.add_argument('-d', '--debug', action='store_true', help='set debugging on')
-        global_parser.add_argument('-h', '--help', nargs='*', help='get help')
+        global_parser.add_argument('-d', '--debug', action='store_true', default=False, help='set debugging on')
+        global_parser.add_argument('-h', '--help', action='store_true', default=False, help='get help')
 
         #
         # Topics
         #
-        topic_parser = ArgumentParser(description=program_desc, add_help=False, parents=[global_parser])
+        topic_parser = ArgumentParser(description=program_desc, add_help=False)
 
         topic_subparsers = topic_parser.add_subparsers(help='available topics', dest='topic')
 
-        topic_agent_parser = topic_subparsers.add_parser('agent', help='agent commands')
+        topic_agent_parser = topic_subparsers.add_parser('agent', help='agent commands', add_help=False)
 
-        topic_layout_parser = topic_subparsers.add_parser('layout', help='layout commands')
+        topic_layout_parser = topic_subparsers.add_parser('layout', help='layout commands', add_help=False)
         topic_layout_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
-        topic_node_parser = topic_subparsers.add_parser('node', help='node commands')
+        topic_node_parser = topic_subparsers.add_parser('node', help='node commands', add_help=False)
         topic_node_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
-        topic_volume_parser = topic_subparsers.add_parser('volume', help='volume commands')
+        topic_volume_parser = topic_subparsers.add_parser('volume', help='volume commands', add_help=False)
         topic_volume_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
-        topic_export_parser = topic_subparsers.add_parser('export', help='export commands')
+        topic_export_parser = topic_subparsers.add_parser('export', help='export commands', add_help=False)
         topic_export_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
         #
@@ -213,28 +213,26 @@ def main(argv=None):  # IGNORE:C0111
         # Parsing
         #
         global_namespace, extra = global_parser.parse_known_args()
-
         # help wanted
-        if global_namespace.help is not None:
-            if len(global_namespace.help) == 0:
-                topic_parser.print_help()
-                return 0
-            if len(global_namespace.help) == 1:
+        if global_namespace.help:
+            if len(extra) == 0 or len(extra) > 2:
+                parser = ArgumentParser(add_help=False, parents=[global_parser, topic_parser])
+            if len(extra) == 1:
                 try:
-                    locals()['action_%s_parser' % global_namespace.help[0]].print_help()
+                    parser = ArgumentParser(prog='rozo %s' % extra[0], add_help=False, parents=[global_parser, locals()['topic_%s_parser' % (extra[0])], locals()['action_%s_parser' % (extra[0])]])
                 except KeyError as ke:
-                    raise Exception("invalid topic: %s" % global_namespace.help[0])
-                return 0
-            if len(global_namespace.help) == 2:
+                    raise Exception("invalid topic: %s" % extra[0])
+            if len(extra) == 2:
                 try:
-                    locals()['action_%s_%s_parser' % (global_namespace.help[0], global_namespace.help[1])].print_help()
+                    parser = ArgumentParser(prog='rozo %s %s' % (extra[0], extra[1]), add_help=False, parents=[global_parser, locals()['topic_%s_parser' % (extra[0])], locals()['action_%s_parser' % (extra[0])], locals()['action_%s_%s_parser' % (extra[0], extra[1])]])
                 except KeyError as ke:
-                    raise Exception("invalid topic: %s or command: %s" % (global_namespace.help[0], global_namespace.help[1]))
-                return 0
+                    raise Exception("invalid topic: %s or command: %s" % (extra[0], extra[1]))
+            parser.print_help()
+            return 0
 
         # command execution wanted
         topic_namespace, extra = topic_parser.parse_known_args(extra)
-        action_namespace = locals()['action_%s_parser' % topic_namespace.topic].parse_args(extra)
+        action_namespace = locals()['action_%s_parser' % topic_namespace.topic].parse_args(extra, topic_namespace)
         m = __import__('rozofs.cli.%s' % topic_namespace.topic, globals(), locals(), ['dispatch'], -1)
         getattr(m, 'dispatch')(action_namespace)
 
@@ -245,8 +243,8 @@ def main(argv=None):  # IGNORE:C0111
     except Exception, e:
         if global_namespace.debug:
             traceback.print_exc(file=sys.stderr)
-            # raise(e)
-        indent = len(program_name) * " "
+            raise(e)
+        # indent = len(program_name) * " "
         sys.stderr.write(program_name + ": " + str(e) + "\n")
         return 2
 
