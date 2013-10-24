@@ -38,7 +38,8 @@
 @menu
 * About this Guide::    some words about the guide
 * About RozoFS::        global presentation of RozoFS
-* Building Installing and Configuring RozoFS::
+* Installing RozoFS::
+* Setting up RozoFS::
 * Working with RozoFS::
 * Monitoring::
 * Index::
@@ -46,9 +47,10 @@
 
 @include about_this_guide.texi
 @include about_rozofs.texi
-@include building_installing_configuring_rozofs.texi
+@include installing_rozofs.texi
+@include setting_up_rozofs.texi
 @include working_with_rozofs.texi
-@include monitoring.texi
+@include monitoring_rozofs.texi
 
 @node Index, , Monitoring, Top
 @unnumbered Index

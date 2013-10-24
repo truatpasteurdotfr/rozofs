@@ -1,14 +1,14 @@
 @c *** Chapter [Working with RozoFS]
-@node       Working with RozoFS, Monitoring, Building Installing and Configuring RozoFS, Top
+@node       Working with RozoFS, Monitoring, Setting up RozoFS, Top
 @chapter    Working with RozoFS
 
 @menu
 * Manual Managing of RozoFS Services::
-* Using the Rozo Console Manager - Command Line Utility::
+* Using the Rozo Console Manager::
 @end menu
 
 @c *** Section [Manual Managing of RozoFS Services]
-@node       Manual Managing of RozoFS Services, Using the Rozo Console Manager - Command Line Utility, Working with RozoFS, Working with RozoFS
+@node       Manual Managing of RozoFS Services, Using the Rozo Console Manager, Working with RozoFS, Working with RozoFS
 @section    Manual Managing of RozoFS Services
 @ifnotdocbook
 @cindex Managing daemons
@@ -152,9 +152,9 @@ $ exporthost=192.168.1.100,exportpath=/srv/rozofs/exports/export_1,_netdev
 0\  0
 @end example
 
-@c *** Section [Using the Rozo Console Manager - Command Line Utility]
-@node       Using the Rozo Console Manager - Command Line Utility, Get the List of Nodes Belonging to a Platform, Manual Managing of RozoFS Services, Working with RozoFS
-@section    Using the Rozo Console Manager - Command Line Utility
+@c *** Section [Using the Rozo Console Manager]
+@node       Using the Rozo Console Manager, Get the List of Nodes Belonging to a Platform, Manual Managing of RozoFS Services, Working with RozoFS
+@section    Using the Rozo Console Manager
 @ifnotdocbook
 @cindex Rozo Manager
 @cindex Management
@@ -196,7 +196,7 @@ See below, examples of @command{rozo} usage for common management tasks on a 8 n
 platform. Each command is launched on the running exportd node. 
 
 @c *** Subsection [Get the List of Nodes Belonging to a Platform]
-@node       Get the List of Nodes Belonging to a Platform, Get the Status of a Platform, Using the Rozo Console Manager - Command Line Utility, Using the Rozo Console Manager - Command Line Utility
+@node       Get the List of Nodes Belonging to a Platform, Get the Status of a Platform, Using the Rozo Console Manager, Using the Rozo Console Manager
 @subsection Get the List of Nodes Belonging to a Platform
 @ifnotdocbook
 @cindex List of Nodes
@@ -222,7 +222,7 @@ You can easily list nodes according to their roles (exportd, storaged or
 rozofsmount) using the @option{-r} option.
 
 @c *** Subsection [Get the Status of the Platform]
-@node       Get the Status of a Platform, Stop and Start a Platform, Get the List of Nodes Belonging to a Platform, Using the Rozo Console Manager - Command Line Utility
+@node       Get the Status of a Platform, Stop and Start a Platform, Get the List of Nodes Belonging to a Platform, Using the Rozo Console Manager
 @subsection Get the Status of a Platform
 @ifnotdocbook
 @cindex Status of platform
@@ -273,7 +273,7 @@ option or get statuses for a specific node using the @option{-n} option.
 
 
 @c *** Subsection [Stop and Start a Platform]
-@node       Stop and Start a Platform, View the Platform Configuration, Get the Status of a Platform, Using the Rozo Console Manager - Command Line Utility
+@node       Stop and Start a Platform, View the Platform Configuration, Get the Status of a Platform, Using the Rozo Console Manager
 @subsection Stop and Start a Platform
 @ifnotdocbook
 @cindex Management of a platform
@@ -296,7 +296,7 @@ as unmounting/mounting the exports
 configured on every node.
 
 @c *** Subsection [View the Platform Configuration]
-@node       View the Platform Configuration, Extend the Platform, Stop and Start a Platform, Using the Rozo Console Manager - Command Line Utility
+@node       View the Platform Configuration, Extend the Platform, Stop and Start a Platform, Using the Rozo Console Manager
 @subsection View the Platform Configuration
 @ifnotdocbook
 @cindex Overview of a platform
@@ -408,7 +408,7 @@ role. We especially notice that this platform has one volume with one export
 relying on it.
 
 @c *** Subsection [Extend the Platform]
-@node       Extend the Platform, Add an Export to the Platform, View the Platform Configuration, Using the Rozo Console Manager - Command Line Utility
+@node       Extend the Platform, Add an Export to the Platform, View the Platform Configuration, Using the Rozo Console Manager
 @subsection Extend the Platform
 @ifnotdocbook
 @cindex Extend a platform
@@ -460,7 +460,7 @@ Indication of a volume id (e.g 1) would have resulted in the creation of a new
 cluster in this volume.
 
 @c *** Subsection [Add an Export to the Platform]
-@node       Add an Export to the Platform, , Extend the Platform, Using the Rozo Console Manager - Command Line Utility
+@node       Add an Export to the Platform, , Extend the Platform, Using the Rozo Console Manager
 @subsection Add an Export to the Platform
 @ifnotdocbook
 @cindex Add an export

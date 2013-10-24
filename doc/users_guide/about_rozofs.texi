@@ -1,5 +1,5 @@
 @c *** Chapter [About RozoFS]
-@node       About RozoFS, Building Installing and Configuring RozoFS, About this Guide, Top
+@node       About RozoFS, Installing RozoFS, About this Guide, Top
 @chapter    About RozoFS
 @ifnotdocbook
 @cindex     About
