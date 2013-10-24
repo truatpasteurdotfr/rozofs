@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+
 from rozofs.core.agent import Agent, ServiceStatus
 from rozofs.core.constants import ROZOFSMOUNT_MANAGER
 import os
@@ -97,7 +115,7 @@ class RozofsMountAgent(Agent):
     def set_service_config(self, configurations):
         instance = 0
         currents = self.get_service_config()
-        #find an instance
+        # find an instance
         if currents:
             instance = max([int(c.instance) for c in currents]) + 1
         for config in [c for c in configurations if c not in currents]:
