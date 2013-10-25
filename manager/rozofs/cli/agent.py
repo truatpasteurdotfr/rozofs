@@ -48,9 +48,10 @@ def start(args):
 
     syslog.openlog('rozo-agent')
 
+    if not args.listeners:
+        args.listeners = [EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER]
+
     managers = []
-#    if PLATFORM_MANAGER in args.listeners:
-#        managers.append(PlatformAgent())
     if STORAGED_MANAGER in args.listeners:
         managers.append(StoragedAgent())
     if EXPORTD_MANAGER in args.listeners:

@@ -88,7 +88,7 @@ def main(argv=None):  # IGNORE:C0111
         #
         # Topics
         #
-        topic_parser = ArgumentParser(description=program_desc, add_help=False)
+        topic_parser = ArgumentParser(description=program_desc, add_help=False, parents=[global_parser])
 
         topic_subparsers = topic_parser.add_subparsers(help='available topics', dest='topic')
 
@@ -119,7 +119,7 @@ def main(argv=None):  # IGNORE:C0111
 
         action_agent_start_parser = action_agent_subparsers.add_parser('start', add_help=False, help='start agent')
         action_agent_start_parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
-        action_agent_start_parser.add_argument('listeners', nargs='*', choices=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], help='list of listeners.')
+        action_agent_start_parser.add_argument('listeners', nargs='*', choices=[[], EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[], help='list of listeners.')
 
         action_agent_stop_parser = action_agent_subparsers.add_parser('stop', add_help=False, help='stop agent')
 
@@ -216,18 +216,19 @@ def main(argv=None):  # IGNORE:C0111
         # help wanted
         if global_namespace.help:
             if len(extra) == 0 or len(extra) > 2:
-                parser = ArgumentParser(add_help=False, parents=[global_parser, topic_parser])
+                topic_parser.print_help()
+                return 0
             if len(extra) == 1:
                 try:
-                    parser = ArgumentParser(prog='rozo %s' % extra[0], add_help=False, parents=[global_parser, locals()['topic_%s_parser' % (extra[0])], locals()['action_%s_parser' % (extra[0])]])
+                    locals()['action_%s_parser' % (extra[0])].print_help()
                 except KeyError as ke:
                     raise Exception("invalid topic: %s" % extra[0])
             if len(extra) == 2:
                 try:
-                    parser = ArgumentParser(prog='rozo %s %s' % (extra[0], extra[1]), add_help=False, parents=[global_parser, locals()['topic_%s_parser' % (extra[0])], locals()['action_%s_parser' % (extra[0])], locals()['action_%s_%s_parser' % (extra[0], extra[1])]])
+                    locals()['action_%s_%s_parser' % (extra[0], extra[1])].print_help()
+                    return 0
                 except KeyError as ke:
                     raise Exception("invalid topic: %s or command: %s" % (extra[0], extra[1]))
-            parser.print_help()
             return 0
 
         # command execution wanted
