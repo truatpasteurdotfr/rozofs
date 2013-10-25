@@ -164,8 +164,8 @@ def main(argv=None):  # IGNORE:C0111
         action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get a volume')
         action_volume_get_parser.add_argument('vid', nargs=1, type=int, help='vid to get.')
 
-        action_volume_create_parser = action_volume_subparsers.add_parser('create', add_help=False, help='create a volume')
-        action_volume_create_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
+        # action_volume_create_parser = action_volume_subparsers.add_parser('create', add_help=False, help='create a volume')
+        # action_volume_create_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
 
         action_volume_expand_parser = action_volume_subparsers.add_parser('expand', add_help=False, help='expand a volume')
         action_volume_expand_parser.add_argument('-v', '--vid', nargs=1, type=int, help='vid of an existing volume. If not set a new volume will be created')
