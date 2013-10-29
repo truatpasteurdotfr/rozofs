@@ -4,6 +4,7 @@
 /usr/lib/python2.7/dist-packages/rozofs/cli/layout.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/node.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/output.py
+/usr/lib/python2.7/dist-packages/rozofs/cli/storage.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/volume.py
 /usr/lib/python2.7/dist-packages/rozofs/ext/__init__.py
 /usr/lib/python2.7/dist-packages/rozofs/ext/fstab.py
