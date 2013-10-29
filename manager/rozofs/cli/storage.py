@@ -18,6 +18,7 @@
 
 import sys
 from rozofs.core.platform import Platform, Role
+from rozofs.core.storaged import ListenConfig
 from rozofs.core.agent import ServiceStatus
 from rozofs.cli.output import puts
 from rozofs.cli.output import ordered_puts
@@ -59,11 +60,40 @@ def get(platform, args):
         ordered_puts(sid_l)
 
 def add(platform, args):
-    if args.vid:
-        platform.add_nodes(args.hosts, args.vid[0])
-    else:
-        platform.add_nodes(args.hosts, args.vid)
+    print args
+    
+    for host in args.hosts:
+        if not host in platform.get_configurations([args.exportd],Role.STORAGED):
+                raise Exception('%s: invalid storaged server.' % host)
+        
+        configurations = platform._get_nodes(host)[host].get_configurations()
+        configuration = configurations[Role.STORAGED]
+        for listener in configuration.listens:
+            if listener.addr == '*':
+                raise Exception('entry *:%s already exists.' % listener.port)
+            if args.interface == listener.addr:
+                if args.port == listener.port:
+                    raise Exception('entry %s:%s already exists.' %
+                            (args.interface, args.port))
+        sid_l={}
+        sid_l[host]=[]
+        lid_l={}
+        lconfig = ListenConfig(args.interface, args.port)
+        configuration.listens.append(lconfig)
+        configurations[Role.STORAGED] = configuration
+        print configuration
+        print configurations
 
+        platform._get_nodes(host)[host].set_configurations(configurations)
+
+        for lconfig in configuration.listens:
+            lid_l = OrderedDict([
+                ('addr', lconfig.addr),
+                ('port', lconfig.port)
+            ])
+            sid_l[host].append(lid_l)
+
+        ordered_puts(sid_l)
 
 def remove(platform, args):
 
