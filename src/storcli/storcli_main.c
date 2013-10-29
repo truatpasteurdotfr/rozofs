@@ -503,7 +503,8 @@ static int get_storage_ports(mstorage_t *s) {
     mclient_t mclt;
 
     mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
-    //memset(io_address, 0, sizeof (io_address));
+    memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
+
     strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
 
     struct timeval timeo;
@@ -514,30 +515,38 @@ static int get_storage_ports(mstorage_t *s) {
 
     /* Initialize connection with storage (by mproto) */
     if (mclient_initialize(&mclt, timeo) != 0) {
-        severe("Warning: failed to join storage (host: %s), %s.\n",
+        DEBUG("Warning: failed to join storage (host: %s), %s.\n",
                 s->host, strerror(errno));
         goto out;
     } else {
         /* Send request to get storage TCP ports */
         if (mclient_ports(&mclt, io_address) != 0) {
-            severe("Warning: failed to get ports for storage (host: %s).\n",
+            DEBUG("Warning: failed to get ports for storage (host: %s).\n",
                     s->host);
             goto out;
         }
     }
 
-    
     /* Copy each TCP ports */
-    for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (io_address[i].port != 0) {
-	    uint32_t ip = io_address[i].ipv4;
-            sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
-	    s->sclients[i].ipv4 = ip;	    
-            s->sclients[i].port = io_address[i].port;
-            s->sclients[i].status = 0;
-            s->sclients_nb++;
-        }
-    }
+	for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+
+		if (io_address[i].port != 0) {
+			uint32_t ip = io_address[i].ipv4;
+
+			if (ip == INADDR_ANY) {
+				// Copy storage hostnane and IP
+				strcpy(s->sclients[i].host, s->host);
+				rozofs_host2ip(s->host, &ip);
+			} else {
+				sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
+						(ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+			}
+			s->sclients[i].ipv4 = ip;
+			s->sclients[i].port = io_address[i].port;
+			s->sclients[i].status = 0;
+			s->sclients_nb++;
+		}
+	}
 
     /* Release mclient*/
     mclient_release(&mclt);
@@ -556,47 +565,47 @@ out:
 #define CONNECTION_THREAD_TIMESPEC  2
 
 void *connect_storage(void *v) {
-    mstorage_t *mstorage = (mstorage_t*) v;
-    int configuration_done = 0;
+	mstorage_t *mstorage = (mstorage_t*) v;
+	int configuration_done = 0;
 
-    struct timespec ts = {CONNECTION_THREAD_TIMESPEC, 0};
+	struct timespec ts = { CONNECTION_THREAD_TIMESPEC, 0 };
 
-    if (mstorage->sclients_nb != 0) {
-        configuration_done = 1;
-        ts.tv_sec = CONNECTION_THREAD_TIMESPEC * 20;
-    }
+	if (mstorage->sclients_nb != 0) {
+		configuration_done = 1;
+		ts.tv_sec = CONNECTION_THREAD_TIMESPEC * 20;
+	}
 
-    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
-    for (;;) {
-        if (configuration_done == 0) {
-            /* We don't have the ports for this storage node */
-            if (mstorage->sclients_nb == 0) {
-                /* Get ports for this storage node */
-                if (get_storage_ports(mstorage) != 0) {
-                    DEBUG("Cannot get ports for host: %s", mstorage->host);
-                }
-            }
-            if (mstorage->sclients_nb != 0) {
-                /*
-                 ** configure the load balancing group is not yet done:
-                 ** here we have to address the race competition case since
-                 ** that thread runs in parallel with the socket controller, so
-                 ** we cannot configure the load balancing group from that thread
-                 ** we just can assert a flag to indicate that the configuration
-                 ** data of the lbg are available.S
-                 */
-                storcli_sup_send_lbg_port_configuration(STORCLI_LBG_ADD, (void *) mstorage);
-                configuration_done = 1;
+	for (;;) {
+		if (configuration_done == 0) {
+			/* We don't have the ports for this storage node */
+			if (mstorage->sclients_nb == 0) {
+				/* Get ports for this storage node */
+				if (get_storage_ports(mstorage) != 0) {
+					DEBUG("Cannot get ports for host: %s", mstorage->host);
+				}
+			}
+			if (mstorage->sclients_nb != 0) {
+				/*
+				 ** configure the load balancing group is not yet done:
+				 ** here we have to address the race competition case since
+				 ** that thread runs in parallel with the socket controller, so
+				 ** we cannot configure the load balancing group from that thread
+				 ** we just can assert a flag to indicate that the configuration
+				 ** data of the lbg are available.
+				 */
+				storcli_sup_send_lbg_port_configuration(STORCLI_LBG_ADD,
+						(void *) mstorage);
+				configuration_done = 1;
 
-                ts.tv_sec = CONNECTION_THREAD_TIMESPEC * 20;
+				ts.tv_sec = CONNECTION_THREAD_TIMESPEC * 20;
+			}
+		}
 
-            }
-        }
-
-        nanosleep(&ts, NULL);
-    }
-    return 0;
+		nanosleep(&ts, NULL);
+	}
+	return 0;
 }
 /*__________________________________________________________________________
  */
@@ -629,7 +638,7 @@ void rozofs_storcli_start_connect_storage_thread() {
         pthread_t thread;
 
         if ((errno = pthread_create(&thread, NULL, connect_storage, storage)) != 0) {
-            severe("can't create connexion thread: %s", strerror(errno));
+            severe("can't create connection thread: %s", strerror(errno));
         }
         storage->thread_started = 1;
     }
@@ -660,8 +669,6 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     rozofs_layout_initialize();
 
     struct timeval timeout_exportd;
-
-    //XXX Static timeout
     timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
     timeout_exportd.tv_usec = 0;
     
@@ -696,7 +703,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         mclient_t mclt;
         strcpy(mclt.host, s->host);
         mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
-        //memset(io_address, 0, sizeof (io_address));
+        memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
         /*
          ** allocate the load balancing group for the mstorage
          */
@@ -724,27 +731,28 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
                         , s->host);
             }
         }
-	
+
      
         /* Initialize each TCP ports connection with this storage node
          *  (by sproto) */
-        for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-            if (io_address[i].port != 0) {
-	        uint32_t ip= io_address[i].ipv4;
-                
-                if (ip == INADDR_ANY){
-                   // Copy storage hostnane and IP
-                   strcpy(s->sclients[i].host, s->host);
-                   rozofs_host2ip(s->host, &ip);
-                }else{
-                   sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
-                }
-		s->sclients[i].ipv4 = ip;
-                s->sclients[i].port = io_address[i].port;
-                s->sclients[i].status = 0;
-                s->sclients_nb++;
-            }
-        }
+		for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+			if (io_address[i].port != 0) {
+				uint32_t ip = io_address[i].ipv4;
+
+				if (ip == INADDR_ANY) {
+					// Copy storage hostnane and IP
+					strcpy(s->sclients[i].host, s->host);
+					rozofs_host2ip(s->host, &ip);
+				} else {
+					sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
+							(ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+				}
+				s->sclients[i].ipv4 = ip;
+				s->sclients[i].port = io_address[i].port;
+				s->sclients[i].status = 0;
+				s->sclients_nb++;
+			}
+		}
         /*
          ** proceed with storage configuration if the number of port is different from 0
          */

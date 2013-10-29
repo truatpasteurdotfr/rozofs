@@ -852,6 +852,7 @@ void rozofs_kill_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
     system(cmd);
 }
+
 void rozofs_start_one_storcli(int instance) {
     char cmd[1024];
     
@@ -894,15 +895,15 @@ void rozofs_kill_storcli() {
     }
 }
 void rozofs_start_storcli() {
-    int i;
+	int i;
 
-    rozofs_kill_storcli();
+	rozofs_kill_storcli();
 
-    i = stclbg_get_storcli_number();
-    while (i) {
-        rozofs_start_one_storcli(i);
-	i--;
-    }
+	i = stclbg_get_storcli_number();
+	while (i) {
+		rozofs_start_one_storcli(i);
+		i--;
+	}
 }
 
 int fuseloop(struct fuse_args *args, int fg) {
@@ -962,12 +963,12 @@ int fuseloop(struct fuse_args *args, int fg) {
     ** Send the file lock reset request to remove old locks
     */
     {
-      epgw_lock_arg_t     arg;
-      
-      arg.arg_gw.eid             = exportclt.eid;
-      arg.arg_gw.lock.client_ref = rozofs_client_hash;
-      
-      ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
+    	epgw_lock_arg_t     arg;
+
+    	arg.arg_gw.eid             = exportclt.eid;
+    	arg.arg_gw.lock.client_ref = rozofs_client_hash;
+
+    	ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
     }
 
     /* Initialize list and htables for inode_entries */
@@ -1092,8 +1093,8 @@ int fuseloop(struct fuse_args *args, int fg) {
     }
 
     /*
-     ** Register these topics befora start the rozofs_stat_start that will
-     ** register other topic. Topic registration is not safe in multi thread
+     ** Register these topics before start the rozofs_stat_start that will
+     ** register other topic. Topic registration is not safe in multi-thread
      ** case
      */
     uma_dbg_addTopic("stclbg", show_stclbg);
@@ -1109,7 +1110,6 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("start_config", show_start_config);
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
     uma_dbg_addTopic("flock", show_flock);
-
 
     /*
     ** Initialize the number of write pending per fd
@@ -1483,7 +1483,7 @@ int main(int argc, char *argv[]) {
       }        
     }
     
-    // Change the value the maximum size of core file
+    // Change the value of maximum size of core file
     core_limit.rlim_cur = RLIM_INFINITY;
     core_limit.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &core_limit) < 0) {
