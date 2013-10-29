@@ -40,23 +40,23 @@ def list(platform, args):
     ordered_puts(sid_l)
 
 def get(platform, args):
-    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
-    if configurations[args.exportd] is None:
-        raise Exception("exportd node is off line.")
 
-    configuration = configurations[args.exportd][Role.EXPORTD]
-    vconfig = configuration.volumes[args.vid[0]]
-    vstat = configuration.stats.vstats[args.vid[0]]
-
-    cid_l = {}
-    for vid, vstat in configuration.stats.vstats.items():
-        for cid, cstat in vstat.cstats.items():
-            for sid, sstat in cstat.sstats.items():
-                sid_l['cid/sid ' + str(cid) + '/' + str(sid)] = OrderedDict([
-                ('host', sstat.host),
-                ('size', sstat.size),
-                ('free', sstat.free)
+    for host in args.hosts:
+        if not host in platform.get_configurations([args.exportd],Role.STORAGED):
+                raise Exception('%s: invalid storaged server.' % host)
+        configuration = platform.get_configurations([args.exportd],
+                Role.STORAGED)[host][Role.STORAGED]
+        sid_l={}
+        sid_l[host]=[]
+        lid_l={}
+        for lconfig in configuration.listens:
+            lid_l = OrderedDict([
+                ('addr', lconfig.addr),
+                ('port', lconfig.port)
             ])
+            sid_l[host].append(lid_l)
+
+        ordered_puts(sid_l)
 
 def add(platform, args):
     if args.vid:
@@ -66,6 +66,7 @@ def add(platform, args):
 
 
 def remove(platform, args):
+
     for vid in args.vids:
         platform.remove_volume(vid)
 
