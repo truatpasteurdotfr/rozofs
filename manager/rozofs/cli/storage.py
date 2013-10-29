@@ -60,7 +60,6 @@ def get(platform, args):
         ordered_puts(sid_l)
 
 def add(platform, args):
-    print args
     
     for host in args.hosts:
         if not host in platform.get_configurations([args.exportd],Role.STORAGED):
@@ -69,21 +68,23 @@ def add(platform, args):
         configurations = platform._get_nodes(host)[host].get_configurations()
         configuration = configurations[Role.STORAGED]
         for listener in configuration.listens:
-            if listener.addr == '*':
-                raise Exception('entry *:%s already exists.' % listener.port)
-            if args.interface == listener.addr:
+            # if given interface is '*', remove existing interfaces
+            if args.interface == "*":
+                configuration.listens = []
+                continue
+            elif args.interface == listener.addr:
                 if args.port == listener.port:
                     raise Exception('entry %s:%s already exists.' %
                             (args.interface, args.port))
+            if listener.addr == '*':
+                configuration.listens = []
         sid_l={}
         sid_l[host]=[]
         lid_l={}
         lconfig = ListenConfig(args.interface, args.port)
+        print lconfig
         configuration.listens.append(lconfig)
         configurations[Role.STORAGED] = configuration
-        print configuration
-        print configurations
-
         platform._get_nodes(host)[host].set_configurations(configurations)
 
         for lconfig in configuration.listens:
@@ -96,9 +97,38 @@ def add(platform, args):
         ordered_puts(sid_l)
 
 def remove(platform, args):
+    
+    for host in args.hosts:
+        if not host in platform.get_configurations([args.exportd],Role.STORAGED):
+                raise Exception('%s: invalid storaged server.' % host)
+        
+        configurations = platform._get_nodes(host)[host].get_configurations()
+        configuration = configurations[Role.STORAGED]
+        check = True
+        for listener in configuration.listens:
+            if args.interface == listener.addr:
+                if args.port == listener.port:
+                    configuration.listens.remove(listener)
+                    check = False
+        if check:
+            raise Exception('entry %s:%s does not exist.' % (args.interface,
+            args.port))
+        sid_l={}
+        sid_l[host]=[]
+        lid_l={}
+        configurations[Role.STORAGED] = configuration
 
-    for vid in args.vids:
-        platform.remove_volume(vid)
+        platform._get_nodes(host)[host].set_configurations(configurations)
+
+        for lconfig in configuration.listens:
+            lid_l = OrderedDict([
+                ('addr', lconfig.addr),
+                ('port', lconfig.port)
+            ])
+            sid_l[host].append(lid_l)
+
+        ordered_puts(sid_l)
+
 
 def dispatch(args):
     p = Platform(args.exportd)
