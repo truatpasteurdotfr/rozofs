@@ -40,6 +40,7 @@
 #include <netdb.h>
 
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
