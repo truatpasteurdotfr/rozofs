@@ -88,7 +88,7 @@ def main(argv=None):  # IGNORE:C0111
         #
         # Topics
         #
-        topic_parser = ArgumentParser(description=program_desc, add_help=False)
+        topic_parser = ArgumentParser(description=program_desc, add_help=False, parents=[global_parser])
 
         topic_subparsers = topic_parser.add_subparsers(help='available topics', dest='topic')
 
@@ -109,7 +109,6 @@ def main(argv=None):  # IGNORE:C0111
         topic_storage_parser = topic_subparsers.add_parser('storage', help='storage commands', add_help=False)
         topic_storage_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
-
         #
         # Actions
         #
@@ -123,7 +122,7 @@ def main(argv=None):  # IGNORE:C0111
 
         action_agent_start_parser = action_agent_subparsers.add_parser('start', add_help=False, help='start agent')
         action_agent_start_parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
-        action_agent_start_parser.add_argument('listeners', nargs='*', choices=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], help='list of listeners.')
+        action_agent_start_parser.add_argument('listeners', nargs='*', choices=[[], EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[], help='list of listeners.')
 
         action_agent_stop_parser = action_agent_subparsers.add_parser('stop', add_help=False, help='stop agent')
 
@@ -167,6 +166,9 @@ def main(argv=None):  # IGNORE:C0111
 
         action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get a volume')
         action_volume_get_parser.add_argument('vid', nargs=1, type=int, help='vid to get.')
+
+        # action_volume_create_parser = action_volume_subparsers.add_parser('create', add_help=False, help='create a volume')
+        # action_volume_create_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
 
         action_volume_expand_parser = action_volume_subparsers.add_parser('expand', add_help=False, help='expand a volume')
         action_volume_expand_parser.add_argument('-v', '--vid', nargs=1, type=int, help='vid of an existing volume. If not set a new volume will be created')
@@ -217,20 +219,17 @@ def main(argv=None):  # IGNORE:C0111
         action_storage_list_parser = action_storage_subparsers.add_parser('list', add_help=False, help='list storages')
 
         action_storage_get_parser = action_storage_subparsers.add_parser('get', add_help=False, help='get storage(s)')
-        action_storage_get_parser.add_argument('-c', '--cid', nargs=1, type=int, help='Cluster ID.')
-        action_storage_get_parser.add_argument('-s', '--sid', nargs=1, type=int, help='Storage ID.')
+        action_storage_get_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
 
         action_storage_add_parser = action_storage_subparsers.add_parser('add', add_help=False, help='add a storage listener')
-        action_storage_add_parser.add_argument('-c', '--cid', nargs=1, type=int, help='cluster ID.')
-        action_storage_add_parser.add_argument('-s', '--sid', nargs=1, type=int, help='storage ID.')
-        action_storage_add_parser.add_argument('-n', '--node', default="None", help='storage node hostname.')
-        action_storage_add_parser.add_argument('-p', '--port', nargs='+', type=int, help='list of ports used for communication.')
+        action_storage_add_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
+        action_storage_add_parser.add_argument('-i', '--interface', help='interface for data transfer.')
+        action_storage_add_parser.add_argument('-p', '--port', type=int, help='port used for communication.')
 
         action_storage_remove_parser = action_storage_subparsers.add_parser('remove', add_help=False, help='remove a storage listener')
-        action_storage_remove_parser.add_argument('-c', '--cid', nargs=1, type=int, help='cluster ID.')
-        action_storage_remove_parser.add_argument('-s', '--sid', nargs=1, type=int, help='storage ID.')
-        action_storage_remove_parser.add_argument('-n', '--node', default="None", help='storage node hostname.')
-        action_storage_remove_parser.add_argument('-p', '--port', nargs='+', type=int, help='list of ports used for communication.')
+        action_storage_remove_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
+        action_storage_remove_parser.add_argument('-i', '--interface', help='storage node hostname.')
+        action_storage_remove_parser.add_argument('-p', '--port', type=int, help='port used for communication.')
 
 
         #
@@ -240,18 +239,19 @@ def main(argv=None):  # IGNORE:C0111
         # help wanted
         if global_namespace.help:
             if len(extra) == 0 or len(extra) > 2:
-                parser = ArgumentParser(add_help=False, parents=[global_parser, topic_parser])
+                topic_parser.print_help()
+                return 0
             if len(extra) == 1:
                 try:
-                    parser = ArgumentParser(prog='rozo %s' % extra[0], add_help=False, parents=[global_parser, locals()['topic_%s_parser' % (extra[0])], locals()['action_%s_parser' % (extra[0])]])
+                    locals()['action_%s_parser' % (extra[0])].print_help()
                 except KeyError as ke:
                     raise Exception("invalid topic: %s" % extra[0])
             if len(extra) == 2:
                 try:
-                    parser = ArgumentParser(prog='rozo %s %s' % (extra[0], extra[1]), add_help=False, parents=[global_parser, locals()['topic_%s_parser' % (extra[0])], locals()['action_%s_parser' % (extra[0])], locals()['action_%s_%s_parser' % (extra[0], extra[1])]])
+                    locals()['action_%s_%s_parser' % (extra[0], extra[1])].print_help()
+                    return 0
                 except KeyError as ke:
                     raise Exception("invalid topic: %s or command: %s" % (extra[0], extra[1]))
-            parser.print_help()
             return 0
 
         # command execution wanted
