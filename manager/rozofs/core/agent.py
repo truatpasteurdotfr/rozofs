@@ -142,8 +142,7 @@ class AgentServer(object):
 
 
     def status(self):
-        """Start the server.
-
+        """Get the agent's status.
         Returns: pid and agents of the running instance or None.
         """
         try:
@@ -160,8 +159,7 @@ class AgentServer(object):
 
         with open('/dev/null', 'w') as devnull:
             try:
-                subprocess.check_call("kill -s 0 %s" % pid, shell=True,
-                                      stdout=devnull, stderr=devnull)
+                os.path.exists("/proc/%s" %pid)
                 return (pid, agents)
             except subprocess.CalledProcessError:
                 return (None, None)
@@ -169,7 +167,7 @@ class AgentServer(object):
 
     def stop(self):
         """Stop the server."""
-        (pid, agents) = self.status()
+        (pid, agents) = AgentServer().status()
         if pid is not None:
             with open('/dev/null', 'w') as devnull:
                 subprocess.check_call("kill %s" % pid, shell=True,

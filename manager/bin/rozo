@@ -128,7 +128,7 @@ def main(argv=None):  # IGNORE:C0111
 
         action_agent_restart_parser = action_agent_subparsers.add_parser('restart', add_help=False, help='restart agent')
         action_agent_restart_parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
-        action_agent_restart_parser.add_argument('listeners', nargs='*', choices=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], help='list of listeners.')
+        action_agent_restart_parser.add_argument('listeners', nargs='*', choices=[[], EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[], help='list of listeners.')
 
         # Layout
         action_layout_parser = ArgumentParser(add_help=False, prog='rozo layout')
