@@ -16,41 +16,11 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#define FUSE_USE_VERSION 26
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <stdio.h>
 #include <assert.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <sys/types.h> 
-#include <sys/socket.h>
-#include <fcntl.h> 
-#include <sys/un.h>             
-#include <errno.h>  
- #include <poll.h>
- #include <rozofs/common/log.h>
- 
-#include <rozofs/common/types.h>
-#include <rozofs/core/ruc_common.h>
-#include <rozofs/core/ruc_list.h>
-#include <rozofs/core/af_unix_socket_generic.h>
-#include <rozofs/core/af_unix_socket_generic_api.h>
-#include "rozofs_fuse.h"
-#include <rpc/rpc.h>
+
 #include <rozofs/core/ruc_buffer_debug.h>
 
-#if 0
-#include "ruc_common.h"
-#include "ruc_list.h"
-#include "af_unix_socket_generic.h"
-#include "af_unix_socket_generic_api.h"
 #include "rozofs_fuse.h"
-#endif
-
-#include <rozofs/core/uma_dbg_api.h>
 
 rozofs_fuse_ctx_t  *rozofs_fuse_ctx_p = NULL;  /**< pointer to the rozofs_fuse saved contexts   */
 uint64_t rozofs_write_merge_stats_tab[RZ_FUSE_WRITE_MAX]; /**< read/write merge stats table */

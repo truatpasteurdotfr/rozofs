@@ -18,15 +18,9 @@
  
 #ifndef ROZOFS_FUSE_H
 #define ROZOFS_FUSE_H
-#ifndef FUSE_USE_VERSION
-#define FUSE_USE_VERSION 26
-#endif
 
-#include <stdlib.h>
-#include <sys/types.h> 
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
 #include <rozofs/core/expgw_common.h>
+
 #include "rozofsmount.h"
 
 #define ROZOFS_FUSE_CTX_MAX 64

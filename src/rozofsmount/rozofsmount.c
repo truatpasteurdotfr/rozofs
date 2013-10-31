@@ -16,37 +16,15 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <pthread.h>
 #include <inttypes.h>
 #include <assert.h>
 #include <semaphore.h>
-#include <netinet/tcp.h>
 #include <sys/resource.h>
 
-#define FUSE_USE_VERSION 26
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
 #include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/rozofs_timer_conf.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
-#include <rozofs/core/expgw_common.h>
 
 #include "rozofs_fuse.h"
 #include "rozofsmount.h"
@@ -254,11 +232,6 @@ list_t inode_entries;
 htable_t htable_inode;
 htable_t htable_fid;
 uint64_t rozofs_ientries_count = 0;
-
-fuse_ino_t inode_idx = 1;
-
-
-
 
 static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
     int *piped = (int *) userdata;
@@ -980,7 +953,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     ientry_t *root = xmalloc(sizeof (ientry_t));
     memset(root, 0, sizeof (ientry_t));
     memcpy(root->fid, exportclt.rfid, sizeof (fid_t));
-    root->inode = next_inode_idx();
+    root->inode = ROOT_INODE;
     root->db.size = 0;
     root->db.eof = 0;
     root->db.p = NULL;

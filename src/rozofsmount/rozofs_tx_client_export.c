@@ -16,44 +16,10 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-
-#include <config.h>
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include "file.h"
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
 #include <rozofs/rpc/storcli_proto.h>
 
-//#include <rozofs/common/rozofs_stats.h>
-//#include "rozofsmount.h"
-#include "rozofs_fuse.h"
-#include <rozofs/rpc/eproto.h>
 #include "rozofs_fuse_api.h"
 #include "rozofs_rw_load_balancing.h"
-
-
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/core/north_lbg_api.h>
 
 /**
 * API for creation a transaction towards an exportd
