@@ -26,12 +26,11 @@ def set(platform, args):
 
 def get(platform, args):
     layout = platform. get_layout()
-    ordered_puts(OrderedDict([
-          ("layout", layout),
+    ordered_puts({'layout '+str(layout): OrderedDict([
           ("inverse", LAYOUT_VALUES[layout][0]),
           ("forward", LAYOUT_VALUES[layout][1]),
           ("safe", LAYOUT_VALUES[layout][2])
-        ]))
+        ])})
 
 def dispatch(args):
     p = Platform(args.exportd)
