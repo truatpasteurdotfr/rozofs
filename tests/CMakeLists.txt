@@ -242,3 +242,7 @@ target_link_libraries(test_rbs ${UUID_LIBRARY})
 add_executable(rw
     rw.c
 )
+
+add_executable(test_fstat
+    test_fstat.c
+)
