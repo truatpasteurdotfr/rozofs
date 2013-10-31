@@ -209,7 +209,7 @@ def config(platform, args):
                             ('hquota', e.hquota)])
                         exportd_l.append({'EXPORT':export_l})
                 role_l.append({'EXPORTD':exportd_l})
-                            
+
             if (role & Role.STORAGED == Role.STORAGED):
                 storage_l = []
                 interface_l = []
@@ -225,19 +225,19 @@ def config(platform, args):
                         str(st.sid) : st.root})
                 storage_l.append({'STORAGE': st_l})
                 role_l.append({'STORAGED': storage_l})
-                    
+
             if (role & Role.ROZOFSMOUNT == Role.ROZOFSMOUNT):
                 exp_l = []
                 for c in config:
                     exp_l.append({'node ' +
                         str(c.export_host) : c.export_path})
                 role_l.append({'ROZOFSMOUNT': exp_l})
-            
+
             host_l.update({'NODE: ' + str(h) : role_l})
 
     ordered_puts(host_l)
     #__print_host_configs(h, c)
-        
+
 
 def dispatch(args):
     p = Platform(args.exportd)
