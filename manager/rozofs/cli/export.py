@@ -66,16 +66,20 @@ def get(platform, args):
 
     configuration = configurations[args.exportd][Role.EXPORTD]
 
-    for eid, estat in configuration.stats.estats.items():
-        exp_l = {}
-        exp_l['eid ' + str(eid)] = OrderedDict([
-            ('bsize', estat.bsize),
-            ('blocks', estat.blocks),
-            ('bfree', estat.bfree),
-            ('files', estat.files),
-            ('ffree', estat.ffree)
-        ])
-        ordered_puts(exp_l)
+    list_l = {}
+    exports_l = []
+    for eid in args.eids:
+        econfig = configuration.exports[eid]
+        export_l = []
+        export_l.append({'vid':econfig.vid})
+        export_l.append({'root':econfig.root})
+        export_l.append({'md5':econfig.md5})
+        export_l.append({'squota':econfig.squota})
+        export_l.append({'hquota':econfig.hquota})
+
+        exports_l.append({'EXPORT '+ str(eid):export_l})
+    list_l.update({'EXPORTS': exports_l})
+    ordered_puts(list_l)
 
 def mount(platform, args):
     if not args.eids:
