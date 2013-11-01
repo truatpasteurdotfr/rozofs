@@ -168,6 +168,8 @@ def main(argv=None):  # IGNORE:C0111
 
         action_volume_list_parser = action_volume_subparsers.add_parser('list', add_help=False, help='list volumes')
 
+        action_volume_stat_parser = action_volume_subparsers.add_parser('stat', add_help=False, help='list volumes')
+
         action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get a volume')
         action_volume_get_parser.add_argument('vid', nargs=1, type=int, help='vid to get.')
 
