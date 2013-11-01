@@ -31,16 +31,19 @@ def list(platform, args):
 
     configuration = configurations[args.exportd][Role.EXPORTD]
 
+    list_l = {}
+    exports_l = []
     for eid, econfig in configuration.exports.items():
-        exp_l = {}
-        exp_l['eid ' + str(eid)] = OrderedDict([
-            ('vid', econfig.vid),
-            ('root', econfig.root),
-            ('md5', econfig.md5),
-            ('squota', econfig.squota),
-            ('hquota', econfig.hquota)
-        ])
-        ordered_puts(exp_l)
+        export_l = []
+        export_l.append({'vid':econfig.vid})
+        export_l.append({'root':econfig.root})
+        export_l.append({'md5':econfig.md5})
+        export_l.append({'squota':econfig.squota})
+        export_l.append({'hquota':econfig.hquota})
+
+        exports_l.append({'EXPORT '+ str(eid):export_l})
+    list_l.update({'EXPORTS': exports_l})
+    ordered_puts(list_l)
 
 def create(platform, args):
     platform.create_export(args.vid[0], args.name, args.passwd, args.squota, args.hquota)
