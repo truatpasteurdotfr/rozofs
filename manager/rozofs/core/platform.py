@@ -595,6 +595,8 @@ class Platform(object):
         enode = self._get_exportd_node()
         econfig = enode.get_configurations(Role.EXPORTD)
 
+        print squota
+
         if econfig is None:
             raise Exception("Exportd node is off line.")
 
@@ -630,14 +632,15 @@ class Platform(object):
 
         # compute md5
         if passwd is not None:
-            if current is None:
-                raise "Current password needed."
+            if econfig[Role.EXPORTD].exports[eid].md5:
+                if current is None:
+                    raise "Current password needed."
 
-            # check current passwd
-            with open('/dev/null', 'w') as devnull:
-                    if econfig[Role.EXPORTD].exports[eid].md5 != subprocess.check_output(['md5pass', current, 'rozofs'],
-                                   stderr=devnull)[11:].rstrip():
-                        raise "Permission denied."
+                # check current passwd
+                with open('/dev/null', 'w') as devnull:
+                        if econfig[Role.EXPORTD].exports[eid].md5 != subprocess.check_output(['md5pass', current, 'rozofs'],
+                                       stderr=devnull)[11:].rstrip():
+                            raise "Permission denied."
 
             if passwd:
                 with open('/dev/null', 'w') as devnull:
