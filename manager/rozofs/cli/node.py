@@ -60,16 +60,12 @@ def __args_to_roles(args):
     return roles
 
 def list(platform, args):
-    ordered_puts(OrderedDict([(h, {'roles':__roles_to_strings(r)})
-           for h, r in platform.list_nodes(__args_to_roles(args)).items()]))
-
-
-# def get(platform, args):
-#    nodes = platform.list_nodes()
-#    if args.host[0] not in nodes.keys():
-#        raise Exception('unmanaged node.')
-#    # ordered_puts(nodes)
-#    ordered_puts({"hostname":args.host[0], "roles":__roles_to_strings(nodes[args.host[0]])})
+    list_l = {}
+    for h, r in platform.list_nodes(__args_to_roles(args)).items():
+        role_l = []
+        role_l.append(__roles_to_strings(r))
+    list_l.update({h: role_l})
+    ordered_puts(list_l)
 
 #
 # status related functions
