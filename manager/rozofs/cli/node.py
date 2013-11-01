@@ -89,17 +89,19 @@ def __print_host_statuses(host, statuses):
 
 def status(platform, args):
     statuses = platform.get_statuses(args.nodes, __args_to_roles(args))
-    for h, s in statuses.items():
-        if statuses is not None and not statuses:
-            continue
-
-        if statuses is None:
-            ordered_puts(OrderedDict([(h, {"node":"down"})]))
-        else:
-            d = {"node":"up"}
+    if statuses is None:
+        ordered_puts(OrderedDict({h:'down'}))
+    else:
+        status_l = {}
+        for h, s in statuses.items():
+            role_l = []
             for role, status in s.items():
-                d[ROLES_STR[role]] = str(status).lower()
-            ordered_puts(OrderedDict([(h, d)]))
+                if status:
+                    role_l.append({ROLES_STR[role]: 'running'})
+                else:
+                    role_l.append({ROLES_STR[role]: 'not running'})
+            status_l.update({h:role_l})
+        ordered_puts(status_l)
             # ordered_puts(OrderedDict([(ROLES_STR[role], str(status).lower()) for role, status in s.items()]))
 
 
