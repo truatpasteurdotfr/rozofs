@@ -63,7 +63,6 @@ def start(args):
     if len(managers) is 0:
         raise "no suitable manager."
 
-    # print >> sys.stdout, "Starting agent, with %d listener(s) %s." % (len(args.listeners), args.listeners)
     AgentServer('/var/run/rozo-agent.pid', managers).start()
 
 

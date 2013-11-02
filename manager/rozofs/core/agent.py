@@ -78,7 +78,7 @@ class AgentServer(object):
         # decouple from parent environment
         os.chdir('/')
         os.setsid()
-        os.umask(0)
+        oldmask = os.umask(022)
 
         # do second fork
         try:
@@ -108,6 +108,7 @@ class AgentServer(object):
             pf.write(pid + "\n")
             for s in [m.get_name() for m in self._agents]:
                 pf.write(s + "\n")
+        os.umask(oldmask)
 
 
     def start(self):
@@ -153,15 +154,13 @@ class AgentServer(object):
                 while line != "":
                     agents.append(line)
                     line = pf.readline().strip()
-
         except IOError:
             return (None, None)
 
         with open('/dev/null', 'w') as devnull:
-            try:
-                os.path.exists("/proc/%s" %pid)
+            if os.path.exists("/proc/%s" %pid):
                 return (pid, agents)
-            except subprocess.CalledProcessError:
+            else:
                 return (None, None)
 
 
