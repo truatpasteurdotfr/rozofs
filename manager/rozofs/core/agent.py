@@ -169,6 +169,6 @@ class AgentServer(object):
         (pid, agents) = AgentServer().status()
         if pid is not None:
             with open('/dev/null', 'w') as devnull:
-                subprocess.check_call("kill %s" % pid, shell=True,
+                subprocess.check_call("kill %s && sleep 1" % pid, shell=True,
                     stdout=devnull, stderr=devnull)
 
