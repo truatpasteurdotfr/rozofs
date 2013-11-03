@@ -29,15 +29,16 @@ def list(platform, args):
         raise Exception("exportd node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
+    print configuration.volumes
 
     export_l = {}
     list_l = []
-    for vid, vstat in configuration.stats.vstats.items():
+    for vid, volume in configuration.volumes.items():
         volume_l = []
-        for cid, cstat in vstat.cstats.items():
+        for cid, cluster in volume.clusters.items():
             cluster_l = []
-            for sid, sstat in cstat.sstats.items():
-                cluster_l.append({'STORAGE ' + str(sid): sstat.host})
+            for sid, storage in cluster.storages.items():
+                cluster_l.append({'STORAGE ' + str(sid): storage})
             volume_l.append({'CLUSTER ' + str(cid): cluster_l})
         list_l.append({'VOLUME ' + str(vid): volume_l})
     export_l.update({'EXPORTD on ' + str(args.exportd): list_l})
