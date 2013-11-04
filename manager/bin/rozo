@@ -165,23 +165,16 @@ def main(argv=None):  # IGNORE:C0111
         # Volume
         action_volume_parser = ArgumentParser(add_help=False, prog='rozo volume')
         action_volume_subparsers = action_volume_parser.add_subparsers(help='volume available actions', dest='action')
-
         action_volume_list_parser = action_volume_subparsers.add_parser('list', add_help=False, help='list volumes')
-
         action_volume_stat_parser = action_volume_subparsers.add_parser('stat', add_help=False, help='list volumes')
-
         action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get a volume')
         action_volume_get_parser.add_argument('vid', nargs=1, type=int, help='vid to get.')
-
-        # action_volume_create_parser = action_volume_subparsers.add_parser('create', add_help=False, help='create a volume')
-        # action_volume_create_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
-
         action_volume_expand_parser = action_volume_subparsers.add_parser('expand', add_help=False, help='expand a volume')
-        action_volume_expand_parser.add_argument('-v', '--vid', nargs=1, type=int, help='vid of an existing volume. If not set a new volume will be created')
+        action_volume_expand_parser.add_argument('-v', '--vid', nargs='+', type=int, help='vid(s) of existing volume. If not exists, a new volume is created')
         action_volume_expand_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
 
         action_volume_remove_parser = action_volume_subparsers.add_parser('remove', add_help=False, help='remove a volume')
-        action_volume_remove_parser.add_argument('vids', nargs='+', type=int, help='vid(s) of existing volume.')
+        action_volume_remove_parser.add_argument('-v', '--vid', nargs='+', type=int, help='vid(s) of existing volume.')
 
         # Export
         action_export_parser = ArgumentParser(add_help=False, prog='rozo export')
