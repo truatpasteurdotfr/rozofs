@@ -16,47 +16,12 @@
   <http://www.gnu.org/licenses/>.
  */
 
-/* need for crypt */
-
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
 #include <inttypes.h>
-#include <netinet/tcp.h>
 
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
-#include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/core/expgw_common.h>
 
+#include "rozofs_fuse_api.h"
 
 extern uint64_t   rozofs_client_hash;
 static ruc_obj_desc_t pending_lock_list;  
@@ -67,8 +32,6 @@ int rozofs_ll_setlk_internal(file_t * file);
 void rozofs_ll_setlk_internal_cbk(void *this,void * param);
 
 DECLARE_PROFILING(mpp_profiler_t);
-
-
 
 typedef struct _LOCK_STATISTICS_T {
   uint64_t      bsd_set_passing_lock;
@@ -836,11 +799,9 @@ out:
  */
 void rozofs_ll_setlk_after_flush(void *this,void *param) 
 {
-   fuse_req_t req; 
    struct rpc_msg  rpc_reply;
    struct fuse_file_info  file_info;
    struct fuse_file_info  *fi = &file_info;
-   fuse_ino_t ino;
    
    int status;
    uint8_t  *payload;
@@ -852,7 +813,6 @@ void rozofs_ll_setlk_after_flush(void *this,void *param)
    file_t *file = NULL;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-   RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_STRUCT_PTR(param,fi);    
 
    file = (file_t *) (unsigned long)  fi->fh;   
@@ -942,7 +902,6 @@ void rozofs_ll_setlk_after_flush(void *this,void *param)
     severe("rozofs_ll_setlk_after_flush export_write_block_asynchrone %s",strerror(errno));
     
 error:
-    RESTORE_FUSE_PARAM(param,ino);
 
     lock_stat.flush_error++;       
 
@@ -967,7 +926,6 @@ out:
 void rozofs_ll_setlk_after_write_block(void *this,void *param) {
    epgw_io_ret_t ret ;
    struct rpc_msg  rpc_reply;
-   fuse_req_t req; 
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
@@ -981,7 +939,6 @@ void rozofs_ll_setlk_after_write_block(void *this,void *param) {
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-   RESTORE_FUSE_PARAM(param,req);
    
     /*
     ** get the pointer to the transaction context:
