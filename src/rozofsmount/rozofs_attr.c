@@ -16,44 +16,9 @@
   <http://www.gnu.org/licenses/>.
  */
 
-/* need for crypt */
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/core/expgw_common.h>
 
-#include "config.h"
-#include "file.h"
-#include "rozofsmount.h"
-#include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_rw_load_balancing.h"

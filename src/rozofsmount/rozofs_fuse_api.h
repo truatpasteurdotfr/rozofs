@@ -18,16 +18,12 @@
  
 #ifndef ROZOFS_FUSE_API_H
 #define ROZOFS_FUSE_API_H
-#include <stdlib.h>
-#include <sys/types.h> 
-#include "rozofs_fuse.h"
-#include <rozofs/core/ruc_buffer_api.h>
-#include <rozofs/core/rozofs_tx_common.h>
+
 #include <rozofs/common/profile.h>
 #include <rozofs/rozofs_timer_conf.h>
-#include <rozofs/core/expgw_common.h>
 
- 
+#include "rozofs_fuse.h"
+
 extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
 extern uint32_t rozofs_fuse_usr_ctx_idx ;
 extern uint64_t rozofs_write_merge_stats_tab[];

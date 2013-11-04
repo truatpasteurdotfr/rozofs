@@ -19,29 +19,8 @@
  #ifndef ROZOFS_MODEBLOCK_CACHE_H
 #define ROZOFS_MODEBLOCK_CACHE_H
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif /*__cplusplus*/
-
-
-#include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <limits.h>
-#include <unistd.h>
-#include <uuid/uuid.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/common/mattr.h>
 #include <rozofs/core/com_cache.h>
+
 /**
 * Mode block cache constants
 */
@@ -317,9 +296,4 @@ void rozofs_mbcache_enable();
 */
 void rozofs_mbcache_disable();
 
-#ifdef __cplusplus
-}
-#endif /*__cplusplus */
-
 #endif
-

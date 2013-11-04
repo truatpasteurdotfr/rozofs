@@ -16,27 +16,9 @@
  <http://www.gnu.org/licenses/>.
  */
  
- #ifndef ROZOFS_CACHE_H
+#ifndef ROZOFS_CACHE_H
 #define ROZOFS_CACHE_H
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif /*__cplusplus*/
-
-
-#include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <limits.h>
-#include <unistd.h>
-#include <uuid/uuid.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
 /**
 * structure of the buffer cache
 */
@@ -457,13 +439,4 @@ static inline int rozos_cache_read(uint8_t *buf_cache256K_p,uint64_t off,uint8_t
 */
 void rozofs_gcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef);
 
-
-#ifdef __cplusplus
-}
-#endif /*__cplusplus */
-
-
-
-
 #endif
-

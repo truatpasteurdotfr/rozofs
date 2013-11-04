@@ -15,28 +15,13 @@
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
  */
+
 /*
 **   I N C L U D E  F I L E S
 */
-
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <time.h>
-
-#include <rozofs/common/types.h>
-#include <rozofs/core/ruc_trace_api.h>
-#include <rozofs/core/ruc_common.h>
-#include "rozofs_export_gateway_conf_non_blocking.h"
-#include <rozofs/core/ruc_sockCtl_api.h>
-#include <rozofs/rpc/eproto.h>
-#include <rozofs/rpc/eclient.h>
 #include <rozofs/core/expgw_common.h>
 
+#include "rozofs_export_gateway_conf_non_blocking.h"
 
 uint32_t  rozofs_exp_ready4configuration = 0;
 uint32_t  rozofs_exp_getIntSockIdxFromSocketId(rozofs_exp_sup_conf_t *p,int socketId);

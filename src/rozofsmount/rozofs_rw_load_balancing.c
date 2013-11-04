@@ -1,4 +1,3 @@
-
 /*
   Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
   This file is part of Rozofs.
@@ -17,17 +16,10 @@
   <http://www.gnu.org/licenses/>.
  */
 
-
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/uma_dbg_api.h>
-#include "rozofs_rw_load_balancing.h"
 
+#include "rozofs_rw_load_balancing.h"
 
 /**
 * hash table associated with the load balancing amoung the 

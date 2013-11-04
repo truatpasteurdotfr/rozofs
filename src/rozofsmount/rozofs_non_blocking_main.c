@@ -16,39 +16,12 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <sys/types.h> 
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netinet/in.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <fcntl.h> 
-#include <errno.h>  
-#include <stdarg.h>    
-#include <string.h>  
-#include <strings.h>
-#include <semaphore.h>
-#include <pthread.h>
-
 #include <rozofs/core/ruc_common.h>
-#include <rozofs/core/ruc_sockCtl_api.h>
-#include <rozofs/core/ruc_timer_api.h>
-#include <rozofs/core/ruc_trace_api.h>
 #include <rozofs/core/uma_tcp_main_api.h>
-#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_tcpServer_api.h>
-#include <rozofs/core/ruc_tcp_client_api.h>
-#include <rozofs/core/uma_well_known_ports_api.h>
-#include <rozofs/core/af_unix_socket_generic_api.h>
-#include <rozofs/core/north_lbg_api.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rpc/eclient.h>
-#include <rozofs/rpc/eproto.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/core/expgw_common.h>
 #include <rozofs/core/rozofs_core_files.h>
-#include "rozofs_reload_export_gateway_conf.h"
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
+
 #include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
 

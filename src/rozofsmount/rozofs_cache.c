@@ -16,20 +16,14 @@
  <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <errno.h>
-#include <limits.h>
-#include <unistd.h>
-#include <uuid/uuid.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
-#include "rozofs_cache.h"
 #include <rozofs/core/uma_dbg_api.h>
+
+#include "rozofs_cache.h"
 
 /*
 **______________________________________________________________________________
