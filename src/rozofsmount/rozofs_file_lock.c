@@ -601,7 +601,7 @@ int prepare_lock_for_pending_list(fuse_req_t              req,
   int64_t                 start,stop;  
 	
   		
-  file = (file_t*) fi->fh;
+  file = (file_t*) (unsigned long) fi->fh;
   if (file == NULL) return -1;
   
   file->lock_size = rozofs_flock_canonical(flock,file, &start, &stop);
@@ -1050,7 +1050,7 @@ error:
 out: 
 
     RESTORE_FUSE_STRUCT_PTR(param,fi); 
-    file = (file_t*)fi->fh;
+    file = (file_t*) (unsigned long) fi->fh;
     clear_read_data(file);             
     rozofs_ll_setlk_internal(file);
     STOP_PROFILING_NB(param,rozofs_ll_setlk);
