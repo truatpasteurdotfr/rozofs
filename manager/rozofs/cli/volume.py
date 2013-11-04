@@ -17,8 +17,9 @@
 # <http://www.gnu.org/licenses/>.
 
 import sys
-from rozofs.core.platform import Platform, Role
+from rozofs.core.platform import Platform, Role, get_proxy
 from rozofs.core.agent import ServiceStatus
+from rozofs.core.constants import STORAGED_MANAGER
 from rozofs.cli.output import puts
 from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
@@ -29,7 +30,6 @@ def list(platform, args):
         raise Exception("exportd node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
-    print configuration.volumes
 
     export_l = {}
     list_l = []
@@ -48,9 +48,19 @@ def stat(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
     if configurations[args.exportd] is None:
         raise Exception("exportd node is off line.")
+    statuses = platform.get_statuses(None, Role.EXPORTD | Role.STORAGED)
+    for host, status in statuses.items():
+        try:
+            if not status[Role.STORAGED]: 
+                print 'WARNING: storaged is not running on ' + str(host)
+            elif not status[Role.EXPORTD]:
+                print 'WARNING: exportd is not running on ' + str(host)
+        except KeyError:
+            raise Exception("storaged node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
     
+    # test if storaged running
     export_l = {}
     stat_l = []
     for vid, vstat in configuration.stats.vstats.items():
@@ -100,13 +110,18 @@ def get(platform, args):
     ordered_puts(get_l)
 
 def expand(platform, args):
+    for host in args.hosts:
+        try:
+            get_proxy(host, STORAGED_MANAGER).get_service_status()
+        except:
+            raise Exception("storage agent on the node \"%s\" is not reachable" % (host))
     if args.vid:
         platform.add_nodes(args.hosts, args.vid[0])
     else:
         platform.add_nodes(args.hosts, args.vid)
 
 def remove(platform, args):
-    for vid in args.vids:
+    for vid in args.vid:
         platform.remove_volume(vid)
 
 def dispatch(args):
