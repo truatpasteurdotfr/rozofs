@@ -221,12 +221,12 @@ def main(argv=None):  # IGNORE:C0111
         action_storage_get_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
 
         action_storage_add_parser = action_storage_subparsers.add_parser('add', add_help=False, help='add a storage listener')
-        action_storage_add_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
+        action_storage_add_parser.add_argument('-n', '--nodes', nargs='+', help='list of storaged servers.')
         action_storage_add_parser.add_argument('-i', '--interface', help='interface for data transfer.')
         action_storage_add_parser.add_argument('-p', '--port', type=int, help='port used for communication.')
 
         action_storage_remove_parser = action_storage_subparsers.add_parser('remove', add_help=False, help='remove a storage listener')
-        action_storage_remove_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
+        action_storage_remove_parser.add_argument('-n', '--nodes', nargs='+', help='list of storaged servers.')
         action_storage_remove_parser.add_argument('-i', '--interface', help='storage node hostname.')
         action_storage_remove_parser.add_argument('-p', '--port', type=int, help='port used for communication.')
 

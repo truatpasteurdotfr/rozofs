@@ -42,7 +42,7 @@ def list(platform, args):
 
 def get(platform, args):
 
-    for host in args.hosts:
+    for host in args.nodes:
         if not host in platform.get_configurations([args.exportd],Role.STORAGED):
                 raise Exception('%s: invalid storaged server.' % host)
         configuration = platform.get_configurations([args.exportd],
@@ -61,7 +61,7 @@ def get(platform, args):
 
 def add(platform, args):
     
-    for host in args.hosts:
+    for host in args.nodes:
         if not host in platform.get_configurations([args.exportd],Role.STORAGED):
                 raise Exception('%s: invalid storaged server.' % host)
         
@@ -82,7 +82,6 @@ def add(platform, args):
         sid_l[host]=[]
         lid_l={}
         lconfig = ListenConfig(args.interface, args.port)
-        print lconfig
         configuration.listens.append(lconfig)
         configurations[Role.STORAGED] = configuration
         platform._get_nodes(host)[host].set_configurations(configurations)
@@ -98,7 +97,7 @@ def add(platform, args):
 
 def remove(platform, args):
     
-    for host in args.hosts:
+    for host in args.nodes:
         if not host in platform.get_configurations([args.exportd],Role.STORAGED):
                 raise Exception('%s: invalid storaged server.' % host)
         
