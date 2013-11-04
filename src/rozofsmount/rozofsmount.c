@@ -272,7 +272,7 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
 
 
 
-#warning fake untested function.
+/*#warning fake untested function.
 
 void rozofs_ll_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
         struct fuse_file_info *fi) {
@@ -297,7 +297,7 @@ void rozofs_ll_access(fuse_req_t req, fuse_ino_t ino, int mask) {
     START_PROFILING(rozofs_ll_access);
     fuse_reply_err(req, 0);
     STOP_PROFILING(rozofs_ll_access);
-}
+}*/
 
 static SVCXPRT *rozofsmount_create_rpc_service(int port) {
     int sock;
@@ -803,7 +803,7 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .getxattr = rozofs_ll_getxattr_nb, /** non blocking */
     .listxattr = rozofs_ll_listxattr_nb, /** non blocking */
     .removexattr = rozofs_ll_removexattr_nb, /** non blocking */
-    .access = rozofs_ll_access, /** non blocking by construction */
+    //.access = rozofs_ll_access, /** non blocking by construction */
     .create = rozofs_ll_create_nb, /** non blocking */
     
     // POSIX lock to be activated thanks to -o posixlock option
@@ -1191,7 +1191,9 @@ int fuseloop(struct fuse_args *args, int fg) {
     } else {
         char str[10];
         sprintf(str, "%d\n", getpid());
-        write(ppfd, str, strlen(str));
+		if ((write(ppfd, str, strlen(str))) != strlen(str)) {
+			severe("can't write pid on flag file");
+		}
         close(ppfd);
     }
     /*
