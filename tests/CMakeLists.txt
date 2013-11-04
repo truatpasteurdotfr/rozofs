@@ -243,6 +243,6 @@ add_executable(rw
     rw.c
 )
 
-add_executable(test_fstat
-    test_fstat.c
+add_executable(test_statvfs
+    test_statvfs.c
 )

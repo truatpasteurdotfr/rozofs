@@ -88,15 +88,15 @@ int main(int argc, char *argv[]) {
 	/* fragment size (since Linux 2.6) */
 	fprintf(stdout, "f_frsize: %lu \n", st.f_frsize);
 	/* total data blocks in file system */
-	fprintf(stdout, "f_blocks: %"PRIu64" \n", st.f_blocks);
+	fprintf(stdout, "f_blocks: %lu \n", st.f_blocks);
 	/* free blocks in fs */
-	fprintf(stdout, "f_bfree: %"PRIu64" \n", st.f_bfree);
+	fprintf(stdout, "f_bfree: %lu \n", st.f_bfree);
 	/* free blocks available to unprivileged user */
-	fprintf(stdout, "f_bavail: %"PRIu64" \n", st.f_bavail);
+	fprintf(stdout, "f_bavail: %lu \n", st.f_bavail);
 	/* total file nodes in file system */
-	fprintf(stdout, "f_files: %"PRIu64" \n", st.f_files);
+	fprintf(stdout, "f_files: %lu \n", st.f_files);
 	/* free file nodes in fs */
-	fprintf(stdout, "f_ffree: %"PRIu64" \n", st.f_ffree);
+	fprintf(stdout, "f_ffree: %lu \n", st.f_ffree);
 	/* maximum length of filenames */
 	fprintf(stdout, "f_namemax: %lu \n", st.f_namemax);
 	/* file system id */
