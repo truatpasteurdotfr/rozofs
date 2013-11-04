@@ -1,4 +1,3 @@
-
 /*
   Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
   This file is part of Rozofs.
@@ -17,19 +16,10 @@
   <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef ROZOFS_RW_LOAD_BALANCING_H
 #define ROZOFS_RW_LOAD_BALANCING_H
 
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
-#include <rozofs/core/ruc_list.h>
-#include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
-
 
 #define STCLBG_HASH_SIZE  48
 /**

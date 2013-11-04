@@ -18,16 +18,9 @@
 
 #ifndef ROZOFS_SHAREDMEM_H
 #define ROZOFS_SHAREDMEM_H
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include "rozofsmount.h"
-#include <rozofs/core/ruc_buffer_api.h>
+
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+
 /**
 * structure for shared memory management
 */

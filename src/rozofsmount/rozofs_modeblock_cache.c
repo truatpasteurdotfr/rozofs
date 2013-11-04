@@ -15,29 +15,9 @@
  along with this program.  If not, see
  <http://www.gnu.org/licenses/>.
  */
-#define _XOPEN_SOURCE 500
 
-#include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <limits.h>
-#include <unistd.h>
-#include <uuid/uuid.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/common/mattr.h>
-#include <rozofs/core/com_cache.h>
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_cache.h"
-
-
 
 /*
 **______________________________________________________________________________

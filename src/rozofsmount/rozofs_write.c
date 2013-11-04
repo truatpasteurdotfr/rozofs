@@ -16,47 +16,14 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
 //#define TRACE_FS_READ_WRITE 1
 //#warning TRACE_FS_READ_WRITE active
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/rozofs_srv.h>
-#include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/eproto.h>
-
 #include <rozofs/rpc/storcli_proto.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
+
 #include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/core/expgw_common.h>
-#include <rozofs/core/uma_dbg_api.h>
-#include <rozofs/rozofs_timer_conf.h>
 #include "rozofs_modeblock_cache.h"
-#include "rozofs_cache.h"
 #include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);

@@ -16,23 +16,10 @@
   <http://www.gnu.org/licenses/>.
  */
 
-
-
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <rpc/rpc.h>
-#include <rpc/pmap_clnt.h>
 #include <pthread.h>
 
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/eclient.h>
-#include <rozofs/rpc/mclient.h>
+
 #include "rozofs_reload_export_gateway_conf.h"
 #include "rozofs_export_gateway_conf_non_blocking.h"
 

@@ -16,13 +16,8 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#include <limits.h>
-#include <errno.h>
-
 #include <rozofs/common/log.h>
-#include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
-#include <rozofs/rpc/mpproto.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
