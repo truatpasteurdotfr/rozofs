@@ -43,9 +43,9 @@ display version information and exit.
 .TP
 Get rozo agent status for this node.
 .SS start
-.B rozo agent start \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener(s)\fP...]
+.B rozo agent start \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener\fP...]
 .TP
-\fPStart a rozo agent with the given \fIlistener(s)\fP list. \fIListerner(s)\fP should be a subset of {exportd, storaged, rozofsmount}
+\fPStart a rozo agent with the given \fIlistener\fP list. \fIlisterner\fP must be a subset of {exportd, storaged, rozofsmount}
 .TP
 \fB\-p\fP, \fB--pacemaker\fP
 whenever
@@ -58,9 +58,10 @@ is managed by pacemaker.
 Stop rozo agent for this node.
 
 .SS restart
-.B rozo agent restart \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener(s)\fP...]
+.B rozo agent restart \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener\fP...]
 .TP
-\fPStop any running rozo agent then start it with the given \fIlistener(s)\fP list. \fIListerner(s)\fP should be a subset of {exportd, storaged, rozofsmount}
+\fPStop any running rozo agent then start it with the given \fIlistener\fP
+list. \fIlisterner\fP must be a subset of {exportd, storaged, rozofsmount}
 .TP
 \fB\-p\fP, \fB--pacemaker\fP
 whenever
@@ -94,72 +95,87 @@ A running exportd hostname.
 
 .SH NODE TOPIC
 .B rozo node
-.I list\fP | \fIstatus\fP | \fIstart\fP | \fIstop\fP [\fB\-r | \-\-roles\fP \fIrole(s)\fP,...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.I list\fP | \fIstatus\fP | \fIconfig\fP | \fIstart\fP | \fIstop\fP [\fB\-r | \-\-roles\fP \fIrole\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
 
 .\" rozo node list
 .SS list
-.B rozo node list [\fB\-r | \-\-roles\fP \fIrole(s)\fP,...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo node list [\fB\-r | \-\-roles\fP \fIrole\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
 Display the list of nodes managed by this platform. Nodes are specified with their roles.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname.
 .TP 
-\fB\-r | \-\-roles\fP\fI role(s)\fP,...
-List of roles as a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
+\fB\-r | \-\-roles\fP\fI role\fP...
+List of roles. Must be a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
 
 .\" rozo node status
 .SS status
-.B rozo node status [\fB\-r | \-\-roles\fP \fIrole(s)\fP,...] [\fB\-n | \-\-nodes\fP \fInode(s)\fP,...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo node status [\fB\-r | \-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
 Display the list of node managed by this platform. Check the status of nodes and their associated RozoFS components. Nodes and roles can be set to filter the output. If none is specified, everything is displayed.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname.
 .TP
-\fB\-r | \-\-roles\fP\fI role(s)\fP,... 
-List of roles as a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
+\fB\-r | \-\-roles\fP\fI role\fP... 
+List of roles. Must be a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
 .TP
-\fB\-n | \-\-nodes\fP\fI node(s)\fP,...
-List of hosts (as hostname) to be displayed. If not set all nodes of the platform will be displayed.
+\fB\-n | \-\-nodes\fP\fI node\fP...
+List of node hostnames to be displayed. If not set all nodes of the platform will be displayed.
+
+.\" rozo node config
+.SS config
+.B rozo node config [\fB\-r | \-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.TP 
+Display the list of nodes managed by this platform. Check the status of nodes and their associated RozoFS components. Nodes and roles can be set to filter the output. If none is specified, everything is displayed.
+.TP
+\fB\-E\fP, \fB--exportd \fP\fIhost
+A running exportd hostname.
+.TP
+\fB\-r | \-\-roles\fP\fI role\fP... 
+List of roles. Must be a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
+.TP
+\fB\-n | \-\-nodes\fP\fI node\fP...
+List of node hostnames to be displayed. If not set all nodes of the platform will be displayed.
 
 .\" rozo node start
 .SS start
-.B rozo node start [\fB\-r | \-\-roles\fP \fIrole(s)\fP,...] [\fB\-n | \-\-nodes\fP \fInode(s)\fP,...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo node start [\fB\-r | \-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
 Start node services.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
 .TP
-\fB\-r\fP, \fB\-\-roles\fP\fI role(s)\fP ... 
-List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be started on nodes hosting these services. If not set all roles will be started.
+\fB\-r\fP, \fB\-\-roles\fP\fI role\fP... 
+List of roles. Must be a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
 .TP
 \fB\-n\fP, \fB\-\-nodes\fP\fI node(s)\fP,... 
-List of hosts (as hostname) to be started. If not set all nodes of the platform will be started.
+List of node hostnames to be started. If not set all nodes of the platform will be started.
 
 .\" rozo node stop
 .SS stop
-.B rozo node stop [\fB\-r |\-\-roles\fP \fIrole(s)\fP,...] [\fB\-n | \-\-nodes\fP \fInode(s)\fP,...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo node stop [\fB\-r |\-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
 Stop node services.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
-\fB\-r\fP, \fB\-\-roles\fP\fI role(s)\fP ... 
-List of roles as a subset of {exportd,storaged,rozofsmount}. Only these roles will be stopped on nodes hosting these services. If not set all roles will be stopped.
+\fB\-r\fP, \fB\-\-roles\fP\fI role\fP... 
+List of roles. Must be a subset of {exportd,storaged,rozofsmount}. Only nodes with these roles will be listed. If not set all nodes with all roles will be displayed.
 .TP
-\fB\-n\fP, \fB\-\-nodes\fP\fI node(s)\fP,... 
-List of hosts (as hostname) to be stopped. If not set all nodes of the platform
+\fB\-n\fP, \fB\-\-nodes\fP\fI node\fP...
+List of node hostnames to be stopped. If not set all nodes of the platform
 will be stopped.
 
 
 .\""" rozo volume
 .SH VOLUME TOPIC
 .B rozo volume
-.I list\fP | \fIget\fP | \fIexpand\fP | \fIremove\fP [\fB\-E | \-\-exportd\fP] \fIhost\fP 
+.I list\fP | \fIstat\fP | \fIget\fP | \fIexpand\fP | \fIremove\fP \fB\-E | \-\-exportd\fP \fIhost\fP 
 
-.\" volume node list
+.\" rozo volume list
 .SS list
 .B rozo volume list \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
@@ -168,36 +184,44 @@ Display the list of the volumes managed by this platform. Volumes contain cluste
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
 
+.\" rozo volume stat
+.SS stat
+.B rozo volume stat \fB\-E | \-\-exportd\fP \fIhost\fP 
+.TP 
+Display statistics about the volumes managed by this platform.
+.TP
+\fB\-E\fP, \fB\-\-exportd \fP\fIhost
+A running exportd hostname.
+
 .\" rozo volume get
 .SS get
-.B rozo volume get \fIvid\fP \fB\-E | \-\-exportd\fP \fIhost\fP
+.B rozo volume get \fIvid\fP... \fB\-E | \-\-exportd\fP \fIhost\fP
 .TP 
-Display information about the volume according to the given \fIvid\fP.
+Display statistics about the volume according to the given \fIvid(s)\fP.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
 
 .\" rozo volume expand
 .SS expand
-.B rozo volume expand [\fB\-v | \-\-vid\fP] \fIvid\fP \fIhosts\fP,...  \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo volume expand [\fB\-v | \-\-vid\fP \fIvid\fP...] \fInode\fP...  \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
-Expand a volume relying on the given list of \fIhosts\fP. If no \fIvid\fP is set, this command creates a new volume. Otherwise, a cluster based on the \fIhosts\fP is created in the specified volume.
+Expand a volume relying on the given list of storage \fInode\fP hostnames. 
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
 .TP
-\fB\-v\fP, \fB\-\-vid\fP \fIvid\fP
-Volume id to be expand. If not set a new volume will be created. In this case the number of nodes should be consistent with the platform layout.
+\fB\-v\fP, \fB\-\-vid\fP \fIvid\fP...
+List of the \fBvid\fP of the volumes to expand. If not set a new volume will be created.
 
 .\" rozo volume remove
 .SS remove
-.B rozo volume remove \fIvid\fP \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo volume remove \fIvid\fP... \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
-Remove a volume according to the given \fIvid\fP from this platform. Volume can be removed only if no export is defined on it.
+Remove a volume according to the given \fIvid\fP list from this platform. Volume can be removed only if no export is defined on it.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
-
 
 .\""" rozo export
 .SH EXPORT TOPIC
@@ -254,9 +278,9 @@ Soft quota to set. (value [K | M | G])
 Hard quota to set. (value [K | M | G]) 
 
 .SS remove
-.B rozo export remove [\fB\-f\fP | \fB--force\fP] \fIeid\fP,... \fB\-E\fP | \fB--exportd\fP \fIhost\fP
+.B rozo export remove [\fB\-f\fP | \fB--force\fP] \fIeid\fP... \fB\-E\fP | \fB--exportd\fP \fIhost\fP
 .TP
-Remove an export according to \fIeid\fP,... Only empty exports will be removed. 
+Remove an export according to \fIeid\fP... Only empty exports will be removed. 
 .TP
 \fB\-E\fP, \fB\-\-exportd\fP \fIhost\fP
 A running exportd hostname.
@@ -265,34 +289,95 @@ A running exportd hostname.
 Force removing non empty exports.
 
 .SS mount
-.B rozo export mount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fIhost\fP,...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP,...]
+.B rozo export mount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fInode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...]
 .TP
-Mount export(s) identified by \fIeid\fP,... on nodes. 
+Mount export(s) identified by \fIeid\fP... on nodes.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
 .TP
-\fB\-n\fP, \fB\-\-nodes \fP\fIhost\fP,...
-List of nodes to mount on. If not set exports will be mount on all host.
+\fB\-n\fP, \fB\-\-nodes \fP\fInode\fP...
+List of \fInode\fP hostnames to mount on. If not set exports will be mount on each node.
 .TP
-\fB\-e\fP, \fB\-\-eids \fP\fIeid\fP,...
-List of export(s) identified by \fIeid\fP,... to mount.
+\fB\-e\fP, \fB\-\-eids \fP\fIeid\fP...
+List of export(s) identified by \fIeid\fP... to mount.
 
 .SS umount
-.B rozo export umount \fB\-E\fP | \fB--exportd\fP \fIhost\fP [\fB\-n\fP | \fB--node\fP \fhost\fP,...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP,...]
+.B rozo export umount \fB\-E\fP | \fB--exportd\fP \fIhost\fP [\fB\-n\fP | \fB--node\fP \fBnode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...]
 .TP
-Umount export(s) identified by \fIeid\fP,... on nodes. 
+Umount export(s) identified by \fIeid\fP... on nodes. 
+.TP
+\fB\-E\fP, \fB\-\-exportd \fP\fInode
+A running exportd hostname.
+.TP
+\fB\-n\fP, \fB\-\-nodes \fP\fInode\fP...
+List of \fInode\fP hostnames to umount from. If not set exports will be umount
+from each node.
+.TP
+\fB\-e\fP, \fB\-\-eids \fP\fIeid\fP...
+List of export(s) identified by \fIeid\fP... to umount.
+
+
+.\""" rozo storage
+.SH STORAGE TOPIC
+.B rozo storage
+.I list\fP | \fIget\fP | \fIadd\fP | \fIremove\fP \fB\-E | \-\-exportd\fP \fIhost\fP
+
+.\" rozo storage list
+.SS list
+.B rozo storage list \fB\-E | \-\-exportd\fP \fIhost\fP 
+.TP 
+Display the list of the storage interface listeners.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
-.TP
-\fB\-n\fP, \fB\-\-nodes \fP\fIhost\fP,...
-List of nodes to umount from. If not set exports will be umount from all host.
-.TP
-\fB\-e\fP, \fB\-\-eids \fP\fIeid\fP,...
-List of export(s) identified by \fIeid\fP,... to umount.
-.TP
 
+.\" rozo storage get
+.SS get
+.B rozo storage get \fInode\fP... \fB\-E | \-\-exportd\fP \fIhost\fP 
+.TP 
+Get the interface listeners for the given storage \fInode\fP hostnames.
+.TP
+\fB\-E\fP, \fB\-\-exportd \fP\fIhost
+A running exportd hostname.
+
+.\" rozo storage add
+.SS add
+.B rozo storage add \fB\-n\fP | \fB\-\-nodes\fP \fInode\fP... \fB\-i\fP | \fB\-\-interface\fP \fIinterface\fP \fB\-p\fP | \fB\-\-port\fP \fIport\fP \fB\-E\fP | \fB\-\-exportd\fP \fIhost\fP 
+.TP
+Add an interface listener according to the given \fIinterface\fP and
+\fIport\fP to the storaged \fIhost\fP.
+.TP
+\fB\-E\fP, \fB\-\-exportd\fP \fIhost\fP
+A running exportd hostname.
+.TP
+\fB\-n\fP, \fB\-\-nodes\fP \fInode\fP...
+The list of running storaged nodes to add the new listener.
+.TP
+\fB\-i\fP, \fB\-\-interface\fP \fIinterface
+Interface to set.
+.TP
+\fB\-p\fP, \fB\-\-port\fP \fIport
+Port to set.
+
+.\" rozo storage remove
+.SS remove
+.B rozo storage remove \fB\-n\fP | \fB\-\-nodes\fP \fInode\fP... \fB\-i\fP | \fB\-\-interface\fP \fIinterface\fP \fB\-p\fP | \fB\-\-port\fP \fIport\fP \fB\-E\fP | \fB\-\-exportd\fP \fIhost\fP 
+.TP
+Remove an interface listener to the storaged \fInode\fP list according to the given \fIinterface\fP and \fIport\fP.
+.TP
+\fB\-E\fP, \fB\-\-exportd\fP \fIhost\fP
+A running exportd hostname.
+.TP
+\fB\-n\fP, \fB\-\-nodes\fP \fInode\fP...
+The list of running storaged nodes to add the new listener.
+.TP
+\fB\-i\fP, \fB\-\-interface\fP \fIinterface
+Interface to set.
+.TP
+\fB\-p\fP, \fB\-\-port\fP \fIport
+Port to set.
+.TP
 
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.

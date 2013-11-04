@@ -150,6 +150,10 @@ def main(argv=None):  # IGNORE:C0111
         action_node_status_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles. If not set all roles.')
         action_node_status_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
 
+        action_node_config_parser = action_node_subparsers.add_parser('config', add_help=False, help='display the configuration files of the given nodes.')
+        action_node_config_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
+        action_node_config_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each node. If not set all roles will be displayed')
+
         action_node_start_parser = action_node_subparsers.add_parser('start', add_help=False, help='start node(s)')
         action_node_start_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles. If not set all roles.')
         action_node_start_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
@@ -158,17 +162,16 @@ def main(argv=None):  # IGNORE:C0111
         action_node_stop_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles. If not set all roles.')
         action_node_stop_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
 
-        action_node_config_parser = action_node_subparsers.add_parser('config', add_help=False, help='display the configuration files of the given nodes.')
-        action_node_config_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
-        action_node_config_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each node. If not set all roles will be displayed')
-
         # Volume
         action_volume_parser = ArgumentParser(add_help=False, prog='rozo volume')
         action_volume_subparsers = action_volume_parser.add_subparsers(help='volume available actions', dest='action')
         action_volume_list_parser = action_volume_subparsers.add_parser('list', add_help=False, help='list volumes')
+
         action_volume_stat_parser = action_volume_subparsers.add_parser('stat', add_help=False, help='list volumes')
-        action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get a volume')
-        action_volume_get_parser.add_argument('vid', nargs=1, type=int, help='vid to get.')
+
+        action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get the given volume statistics')
+        action_volume_get_parser.add_argument('vid', nargs='+', type=int, help='vid to get.')
+
         action_volume_expand_parser = action_volume_subparsers.add_parser('expand', add_help=False, help='expand a volume')
         action_volume_expand_parser.add_argument('-v', '--vid', nargs='+', type=int, help='vid(s) of existing volume. If not exists, a new volume is created')
         action_volume_expand_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
@@ -218,7 +221,7 @@ def main(argv=None):  # IGNORE:C0111
         action_storage_list_parser = action_storage_subparsers.add_parser('list', add_help=False, help='list storages')
 
         action_storage_get_parser = action_storage_subparsers.add_parser('get', add_help=False, help='get storage(s)')
-        action_storage_get_parser.add_argument('hosts', nargs='+', help='list of storaged servers.')
+        action_storage_get_parser.add_argument('nodes', nargs='+', help='list of storaged servers.')
 
         action_storage_add_parser = action_storage_subparsers.add_parser('add', add_help=False, help='add a storage listener')
         action_storage_add_parser.add_argument('-n', '--nodes', nargs='+', help='list of storaged servers.')

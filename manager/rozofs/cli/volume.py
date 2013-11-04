@@ -89,36 +89,38 @@ def get(platform, args):
         raise Exception("exportd node is off line.")
 
     configuration = configurations[args.exportd][Role.EXPORTD]
-    vconfig = configuration.volumes[args.vid[0]]
-    vstat = configuration.stats.vstats[args.vid[0]]
+    get_l = []
+    for vid in args.vid:
+        vconfig = configuration.volumes[vid]
+        vstat = configuration.stats.vstats[vid]
+        volume_l = []
+        volume_l.append({'bsize': vstat.bsize})
+        volume_l.append({'bfree': vstat.bfree})
+        volume_l.append({'blocks': vstat.blocks})
+        for cid, cstat in vstat.cstats.items():
+            cluster_l = []
+            cluster_l.append({'size': cstat.size})
+            cluster_l.append({'free': cstat.free})
+            for sid, sstat in cstat.sstats.items():
+                storage_l = []
+                storage_l.append({'host': sstat.host})
+                storage_l.append({'size': sstat.size})
+                storage_l.append({'free': sstat.free})
+                cluster_l.append({'STORAGE ' + str(sid): storage_l})
+            volume_l.append({'CLUSTER ' + str(cid): cluster_l})
+        get_l.append({'VOLUME ' + str(vid): volume_l})
 
-    get_l = {}
-    volume_l = []
-    for cid, cstat in vstat.cstats.items():
-        cluster_l = []
-        cluster_l.append({'size': cstat.size})
-        cluster_l.append({'free': cstat.free})
-        for sid, sstat in cstat.sstats.items():
-            storage_l = []
-            storage_l.append({'host': sstat.host})
-            storage_l.append({'size': sstat.size})
-            storage_l.append({'free': sstat.free})
-            cluster_l.append({'STORAGE ' + str(sid): storage_l})
-        volume_l.append({'CLUSTER ' + str(cid): cluster_l})
-    get_l.update({'VOLUME ' + str(args.vid[0]): volume_l})
-
-    ordered_puts(get_l)
+    ordered_puts({'' + str(args.exportd): get_l})
 
 def expand(platform, args):
+    print args
     for host in args.hosts:
         try:
             get_proxy(host, STORAGED_MANAGER).get_service_status()
         except:
             raise Exception("storage agent on the node \"%s\" is not reachable" % (host))
-    if args.vid:
-        platform.add_nodes(args.hosts, args.vid[0])
-    else:
-        platform.add_nodes(args.hosts, args.vid)
+    for vid in args.vid:
+        platform.add_nodes(args.hosts, vid)
 
 def remove(platform, args):
     for vid in args.vid:

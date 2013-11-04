@@ -100,7 +100,7 @@ def config(platform, args):
                         s_l = []
                         for s, hhh in cluster.storages.items():
                             s_l.append({'sid ' + str(s): hhh})
-                    cluster_l.append({'cluster ' + str(cluster.cid): s_l})
+                        cluster_l.append({'cluster ' + str(cluster.cid): s_l})
                     volume_l.append({'volume ' + str(v.vid): cluster_l})
                 exportd_l.append({'VOLUME':volume_l})
                 if len(config.exports) != 0:
