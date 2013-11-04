@@ -57,7 +57,4 @@ tests/test_trunc
 tests/read_parallel
 tests/test_file_lock
 tests/test_readdir
-
-
-
-
+tests/test_statvfs
