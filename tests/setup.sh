@@ -329,16 +329,27 @@ gen_export_conf ()
 
 start_one_storage() 
 {
-   case $1 in
-     "all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
-   esac
+	case $1 in
+		"all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
+	esac
    
-    sid=$1
-    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
-    echo "Start storage cid $cid sid $sid"
-   ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
-   sleep 1
+	sid=$1
+	cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+	echo "Start storage cid: $cid sid: $sid"
+	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+	sleep 1
 }
+
+start_one_storage_rebuild() 
+{
+   
+	sid=$1
+	cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+	echo "Start storage cid: $cid sid: $sid with rebuild"
+	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost
+	sleep 1
+}
+
 
 stop_one_storage () {
    case $1 in
@@ -1151,8 +1162,9 @@ main ()
     then  
       case "$3" in 
         stop)    stop_one_storage $2;;
-	start)   start_one_storage $2;;
-	reset)   reset_one_storage $2;;
+		start)   start_one_storage $2;;
+		start-rebuild)   start_one_storage_rebuild $2;;
+		reset)   reset_one_storage $2;;
         *)       usage;;
       esac
     elif [ "$1" == "process" ]

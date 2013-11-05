@@ -515,7 +515,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
 
     // Copy hostname for this storage
     strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
-    //memset(io_address, 0, sizeof (io_address));
+    memset(io_address, 0, sizeof (io_address));
 
     struct timeval timeo;
     timeo.tv_sec = RBS_TIMEOUT_MPROTO_REQUESTS;
@@ -540,7 +540,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
         if (io_address[i].port != 0) {
 
             struct timeval timeo;
-	    uint32_t ip;
+            uint32_t ip;
             timeo.tv_sec = RBS_TIMEOUT_SPROTO_REQUESTS;
             timeo.tv_usec = 0;
 
