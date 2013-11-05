@@ -117,6 +117,9 @@ void mp_list_bins_files_1_svc_nb(void * pt_req,
         return;
     }
 
+    // It's necessary
+	memset(ret, 0, sizeof(mp_list_bins_files_ret_t));
+
     if (storage_list_bins_files_to_rebuild(st, args->rebuild_sid,
             &args->layout,
             (sid_t *) & args->dist_set,
