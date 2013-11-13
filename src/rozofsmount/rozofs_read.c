@@ -193,31 +193,33 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        **  1- check if there is some pending data to write
        **  2- trigger a read
        */
-       if (f->buf_write_wait)
-       {
-          /*
-          ** Each time there is a write wait we must flush it. Otherwise
-          ** we can face the situation where during read, a new write that
-          ** takes place that triggers the write of the part that was in write wait
-          **  implies the loss of the write pending in memory (not on disk) and
-          ** leads in returning inconsistent data to the caller
-          ** -> note : that might happen for application during read/write in async mode.
-          ** on the same file
-          */
-          {            	    
-	        struct fuse_file_info * fi;
-            
-	        fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
-            ret = rozofs_asynchronous_flush(fi);
-	        if (ret == 0) {
-                 *length_p = -1;
-                 return 0;	 
-	        }	
-            f->buf_write_wait = 0;
-            f->write_from = 0; 
-            f->write_pos  = 0;
-	     }           
-       }       
+        if (f->buf_write_wait) {
+            /*
+             ** Each time there is a write wait we must flush it. Otherwise
+             ** we can face the situation where during read, a new write that
+             ** takes place that triggers the write of the part that was in write wait
+             **  implies the loss of the write pending in memory (not on disk) and
+             ** leads in returning inconsistent data to the caller
+             ** -> note : that might happen for application during read/write in async mode.
+             ** on the same file
+             */
+            {
+
+                struct fuse_file_info file_info;
+                struct fuse_file_info *fi = &file_info;
+
+                RESTORE_FUSE_STRUCT(buffer_p, fi, sizeof(struct fuse_file_info));
+
+                ret = rozofs_asynchronous_flush(fi);
+                if (ret == 0) {
+                    *length_p = -1;
+                    return 0;
+                }
+                f->buf_write_wait = 0;
+                f->write_from = 0;
+                f->write_pos = 0;
+            }
+        }
        /*
        ** The file has just been created and is empty so far
        ** Don't request the read to the storio, this would trigger an io error
