@@ -66,9 +66,7 @@ static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
 sconfig_t storaged_config;
 
-static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
-    {0}
-};
+static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 
 static char *storaged_hostname = NULL;
 
@@ -76,13 +74,7 @@ static uint16_t storaged_nrstorages = 0;
 
 static SVCXPRT *storaged_monitoring_svc = 0;
 
-extern void monitor_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
-
 static SVCXPRT *storaged_profile_svc = 0;
-
-extern void storaged_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
-
-//uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
 
 uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
@@ -98,8 +90,6 @@ uint8_t rbs_start_process = 0;
 static char rbs_export_hostname[ROZOFS_HOSTNAME_MAX];
 /* Time in seconds between two attemps of rebuild */
 #define TIME_BETWEEN_2_RB_ATTEMPS 30
-/* First port to use for monitoring rebuild process */
-uint16_t start_profil_port_for_rbs = 30000;
 
 static int storaged_initialize() {
     int status = -1;
@@ -134,50 +124,6 @@ out:
     return status;
 }
 
-static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
-    int sock;
-    int one = 1;
-    struct sockaddr_in sin;
-    struct hostent *hp;
-
-    if (host != NULL) {
-        // get the IP address of the storage node
-        if ((hp = gethostbyname(host)) == 0) {
-            severe("gethostbyname failed for host: %s, %s", host,
-                    strerror(errno));
-            return NULL;
-        }
-        bcopy((char *) hp->h_addr, (char *) &sin.sin_addr, hp->h_length);
-    } else {
-        sin.sin_addr.s_addr = INADDR_ANY;
-    }
-    /* Give the socket a name. */
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(port);
-
-    /* Create the socket. */
-    sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        severe("Can't create socket: %s.", strerror(errno));
-        return NULL;
-    }
-
-    /* Set socket options */
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
-    //setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-
-    /* Bind the socket */
-    if (bind(sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) < 0) {
-        severe("Couldn't bind to tcp port %d: %s", port, strerror(errno));
-        return NULL;
-    }
-
-    /* Creates a TCP/IP-based RPC service transport */
-    return svctcp_create(sock, ROZOFS_RPC_STORAGE_BUFFER_SIZE, ROZOFS_RPC_STORAGE_BUFFER_SIZE);
-
-}
-
 /** Check each storage to rebuild
  *
  * @return: 0 on success -1 otherwise (errno is set)
@@ -207,40 +153,53 @@ typedef struct rbs_stor_config {
     char export_hostname[ROZOFS_HOSTNAME_MAX]; ///< export hostname or IP.
     cid_t cid; //< unique id of cluster that owns this storage.
     sid_t sid; ///< unique id of this storage for one cluster.
+    uint8_t stor_idx; ///< storage index used for display statistics.
     char root[PATH_MAX]; ///< absolute path.
 } rbs_stor_config_t;
 
-/** Starts a thread for rebuild a given storage 
+/** Starts a thread for rebuild given storage(s)
  *
- * @param v: configuration of storage to rebuild.
+ * @param v: table of storages configurations to rebuild.
  */
-static void *rebuild_storage_thread(void *v) {
+static void * rebuild_storage_thread(void *v) {
 
     DEBUG_FUNCTION;
+    int i = 0;
 
-    // Get the storage configuration
-    rbs_stor_config_t *stor_conf = (rbs_stor_config_t*) v;
+    // Get storage(s) configuration(s)
+    rbs_stor_config_t *stor_confs = (rbs_stor_config_t*) v;
 
-    info("Start rebuild process (pid=%d) for storage (cid=%u;sid=%u).",
-            getpid(), stor_conf->cid, stor_conf->sid);
+    for (i = 0; i < STORAGES_MAX_BY_STORAGE_NODE; i++) {
 
-    // Try to rebuild the storage until it's over
-    while (rbs_rebuild_storage(stor_conf->export_hostname, stor_conf->cid,
-            stor_conf->sid, stor_conf->root) != 0) {
-        // Probably a problem when connecting with other members
-        // of this cluster
-        severe("can't rebuild storage (cid:%u;sid:%u) with path %s,"
-                " next attempt in %d seconds",
-                stor_conf->cid, stor_conf->sid, stor_conf->root,
-                TIME_BETWEEN_2_RB_ATTEMPS);
+        // Check if storage conf is empty
+        if (stor_confs[i].cid == 0 && stor_confs[i].sid == 0) {
+            continue;
+        }
 
-        sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+        info("Start rebuild process for storage (cid=%u;sid=%u).",
+                stor_confs[i].cid, stor_confs[i].sid);
+
+        // Try to rebuild the storage until it's over
+        while (rbs_rebuild_storage(stor_confs[i].export_hostname,
+                stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
+                stor_confs[i].stor_idx) != 0) {
+
+            // Probably a problem when connecting with other members
+            // of this cluster
+            severe("can't rebuild storage (cid:%u;sid:%u) with path %s,"
+                    " next attempt in %d seconds",
+                    stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
+                    TIME_BETWEEN_2_RB_ATTEMPS);
+
+            sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+        }
+
+        // Here the rebuild process is finish, so exit
+        info("The rebuild process for storage (cid=%u;sid=%u)"
+                " was completed successfully.",
+                stor_confs[i].cid, stor_confs[i].sid);
     }
 
-    // Here the rebuild process is finish, so exit
-    info("The rebuild process for storage (cid=%u;sid=%u) was completed"
-            " successfully.", stor_conf->cid, stor_conf->sid);
-    exit(EXIT_SUCCESS);
 }
 
 /** Start one rebuild process for each storage to rebuild
@@ -248,72 +207,44 @@ static void *rebuild_storage_thread(void *v) {
 static void rbs_process_initialize() {
     list_t *p = NULL;
     int i = 0;
-    uint16_t profil_rbs_port = 0;
+
+    rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE] = {{ 0 }};
 
     DEBUG_FUNCTION;
 
-    // For each storage on configuration file
+    // For each storage in configuration file
 
     list_for_each_forward(p, &storaged_config.storages) {
 
         storage_config_t *sc = list_entry(p, storage_config_t, list);
-        int pid = -1;
-        profil_rbs_port = start_profil_port_for_rbs + i;
 
-        // Create child process
-        if (!(pid = fork())) {
+        // Copy the configuration for the storage to rebuild
+        strncpy(rbs_stor_configs[i].export_hostname, rbs_export_hostname,
+        ROZOFS_HOSTNAME_MAX);
+        rbs_stor_configs[i].cid = sc->cid;
+        rbs_stor_configs[i].sid = sc->sid;
+        rbs_stor_configs[i].stor_idx = i;
+        strncpy(rbs_stor_configs[i].root, sc->root, PATH_MAX);
 
-            // Here it's the child process
-            pthread_t thread;
-            rbs_stor_config_t stor_conf;
+        // Set profiling values
+        SET_PROBE_VALUE(rbs_cids[i], sc->cid);
+        SET_PROBE_VALUE(rbs_sids[i], sc->sid);
+        SET_PROBE_VALUE(rb_files_current[i], 0);
+        SET_PROBE_VALUE(rb_files_total[i], 0);
+        SET_PROBE_VALUE(rb_status[i], 0);
 
-            // Copy the configuration for the storage to rebuild
-            strncpy(stor_conf.export_hostname, rbs_export_hostname,
-                    ROZOFS_HOSTNAME_MAX);
-            stor_conf.cid = sc->cid;
-            stor_conf.sid = sc->sid;
-            strncpy(stor_conf.root, sc->root, PATH_MAX);
-
-            // Create pthread for start the rebuild task
-            if ((errno = pthread_create(&thread, NULL, rebuild_storage_thread,
-                    &stor_conf)) != 0) {
-                severe("can't create thread for rebuild storage (cid=%u;sid=%u)"
-                        ": %s",
-                        sc->cid, sc->sid, strerror(errno));
-            }
-
-            // Lauch RPC service for monitor this process.
-            // Associates STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION
-            // with their service dispatch procedure.
-            // Here protocol is zero, the service is not registered with
-            // the portmap service
-
-            if ((storaged_profile_svc =
-                    storaged_create_rpc_service(profil_rbs_port,
-                    storaged_hostname)) == NULL) {
-                fatal("can't create rebuild monitoring service on port: %d",
-                        profil_rbs_port);
-            }
-
-            if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
-                    STORAGED_PROFILE_VERSION, storaged_profile_program_1, 0)) {
-                fatal("can't register service: %s", strerror(errno));
-            }
-
-            info("create rebuild monitoring service on port: %d",
-                    profil_rbs_port);
-
-            // Waits for RPC requests to arrive!
-            svc_run();
-            // NOT REACHED
-        } else {
-            // Set monitoring values just for the master process
-            SET_PROBE_VALUE(rb_process_ports[i], profil_rbs_port);
-            SET_PROBE_VALUE(rbs_cids[i], sc->cid);
-            SET_PROBE_VALUE(rbs_sids[i], sc->sid);
-            i++;
-        }
+        i++;
     }
+
+    // Create pthread for rebuild storage(s)
+    pthread_t thread;
+
+    if ((errno = pthread_create(&thread, NULL, rebuild_storage_thread,
+            &rbs_stor_configs)) != 0) {
+        severe("can't create thread for rebuild storage(s): %s",
+                strerror(errno));
+    }
+
 }
 
 static void storaged_release() {
@@ -386,7 +317,6 @@ static void on_stop() {
     info("stopped.");
     closelog();
 }
-
 
 char storage_process_filename[NAME_MAX];
 
@@ -558,7 +488,9 @@ int main(int argc, char *argv[]) {
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }
-    daemon_start("storaged",storaged_config.nb_cores,pid_name, on_start, on_stop, NULL);
+
+    daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
+            on_stop, NULL);
 
     exit(0);
 error:

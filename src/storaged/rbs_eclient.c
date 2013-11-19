@@ -53,6 +53,8 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
     timeo.tv_sec = RBS_TIMEOUT_EPROTO_REQUESTS;
     timeo.tv_usec = 0;
 
+    clt->sock = -1;
+
     // Initialize connection with exportd server
     if (rpcclt_initialize
             (clt, export_host, EXPORT_PROGRAM, EXPORT_VERSION,
@@ -65,7 +67,7 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
         errno = EPROTO;
         // Release connection
         rpcclt_release(clt);
-	goto out;
+        goto out;
     }
 
     if (ret->status_gw.status == EP_FAILURE) {
@@ -91,6 +93,7 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
         strncpy(stor->host, ret->status_gw.ep_cluster_ret_t_u.cluster.storages[i].host,
                 ROZOFS_HOSTNAME_MAX);
         stor->sid = ret->status_gw.ep_cluster_ret_t_u.cluster.storages[i].sid;
+        stor->mclient.rpcclt.sock = -1;
 
         // Add this storage to the list of storages for this cluster
         list_push_back(&cluster->storages, &stor->list);
