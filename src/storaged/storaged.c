@@ -200,6 +200,8 @@ static void * rebuild_storage_thread(void *v) {
                 stor_confs[i].cid, stor_confs[i].sid);
     }
 
+    return 0;
+
 }
 
 /** Start one rebuild process for each storage to rebuild
@@ -208,7 +210,9 @@ static void rbs_process_initialize() {
     list_t *p = NULL;
     int i = 0;
 
-    rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE] = {{ 0 }};
+    rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE] ;
+    memset(&rbs_stor_configs, 0,
+            STORAGES_MAX_BY_STORAGE_NODE * sizeof(rbs_stor_config_t));
 
     DEBUG_FUNCTION;
 
@@ -244,7 +248,6 @@ static void rbs_process_initialize() {
         severe("can't create thread for rebuild storage(s): %s",
                 strerror(errno));
     }
-
 }
 
 static void storaged_release() {
