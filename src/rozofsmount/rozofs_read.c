@@ -18,6 +18,7 @@
 
 //#define TRACE_FS_READ_WRITE 1
 //#warning TRACE_FS_READ_WRITE active
+#include <inttypes.h>
 
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
@@ -803,9 +804,9 @@ void rozofs_ll_read_cbk(void *this,void *param)
             } else {
                 file_size = ie2->size;
             }
-            severe("BUGROZOFSWATCH(%p) , received_len=%d, next_read_from=%llu,"
-                    " file->attrs.size=%llu, received_len_orig=%d,"
-                    " readahead=%d, ie->size=%llu",
+            severe("BUGROZOFSWATCH(%p) , received_len=%d,"
+                    " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
+                    " received_len_orig=%d,readahead=%d," " ie->size=%"PRIu64"",
                     file, received_len, next_read_from, file->attrs.size,
                     received_len_orig, readahead, file_size);
 

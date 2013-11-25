@@ -140,7 +140,6 @@ static char * bugwatch_help(char * pChar) {
 
 static void bugwatch_proc(char * argv[], uint32_t tcpRef, void *bufRef){
   char *pChar = uma_dbg_get_buffer();
-  int   new_val;
 
   if (argv[1] != NULL) {
     if (strcmp(argv[1],"enable")==0) {
