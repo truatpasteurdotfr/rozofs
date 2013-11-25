@@ -304,7 +304,11 @@ void rozofs_ll_open_cbk(void *this,void *param)
     ** copy them also in the ientry
     */
     memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    
+    {
+       char fid_str[37];
+       uuid_unparse(file->fid, fid_str);
+       if (rozofs_bugwatch) severe("BUGROZOFSWATCH (open:%p),FID(%s) size=%llu",file,fid_str,file->attrs.size);                  
+    }
     file->mode     = S_IRWXU;
 //    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));

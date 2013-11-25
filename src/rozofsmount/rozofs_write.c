@@ -120,6 +120,48 @@ static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRe
   SHOW_STAT_WRITE_FLUSH(synchroneous_error);    
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
 }  
+
+/*
+**__________________________________________________________________
+*/
+/**
+   Bugwatch flag set/reset
+*/
+int rozofs_bugwatch = 0;
+
+static char * bugwatch_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"bugwatch enable  : set bugwatch_flag\n");
+  pChar += sprintf(pChar,"bugwatch disable : reset bugwatch flag\n");
+  pChar += sprintf(pChar,"bugwatch         : display current state\n");  
+  return pChar; 
+}
+
+
+static void bugwatch_proc(char * argv[], uint32_t tcpRef, void *bufRef){
+  char *pChar = uma_dbg_get_buffer();
+  int   new_val;
+
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"enable")==0) {
+      rozofs_bugwatch = 1;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bugwatch enabled\n");  
+      return;         
+    }
+    if (strcmp(argv[1],"disable")==0) {
+      rozofs_bugwatch = 1;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bugwatch disabled\n");   
+      return;     
+    }   
+    /*
+    ** Help
+    */
+    pChar = bugwatch_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  uma_dbg_send(tcpRef, bufRef, TRUE, "BUGROZOFSWATCH is %s\n",(rozofs_bugwatch==0)?"disabled":"enabled"); 
+}  
 /*
 **__________________________________________________________________
 */
@@ -130,6 +172,7 @@ void init_write_flush_stat(int max_write_pending){
   ROZOFS_MAX_WRITE_PENDING = max_write_pending;
   reset_write_flush_stat();
   uma_dbg_addTopic("write_flush", display_write_flush_stat);  
+  uma_dbg_addTopic("bugwatch", bugwatch_proc);  
 }
 
 /*
@@ -870,9 +913,13 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         goto error;
     }
     
-    if (ie->size < (off+size)) ie->size = (off+size);
-
     file_t *file = (file_t *) (unsigned long) fi->fh;
+
+    if (ie->size < (off + size)) {
+        ie->size = (off + size);
+        file->attrs.size = (off + size);
+    }
+
     /*
     ** check the status of the last write operation
     */
@@ -1732,6 +1779,9 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
       rozofs_clear_file_lock_owner(f);
     }
 
+     if (rozofs_bugwatch) severe("BUGROZOFSWATCH release(%p) , buf_write_wait=%d, buf_write_pending=%d,",
+                                   f,f->buf_write_wait,f->buf_write_pending);
+
     /*
     ** check if there some pendinag data to write in the buffer
     */
@@ -2204,4 +2254,5 @@ error:
     
     return;
 }
+
 

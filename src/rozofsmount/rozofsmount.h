@@ -44,6 +44,7 @@ extern double attr_cache_timeo ;
 extern int rozofs_cache_mode;
 extern int rozofs_mode;
 extern int rozofs_rotation_read_modulo;
+extern int rozofs_bugwatch;
 
 typedef struct rozofsmnt_conf {
     char *host;

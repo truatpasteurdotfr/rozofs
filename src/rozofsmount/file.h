@@ -24,6 +24,8 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/core/ruc_list.h>
 
+extern int rozofs_bugwatch;
+
 #define FILE_CHECK_WORD 0X46696c65
 
 typedef enum 
@@ -174,6 +176,7 @@ static inline int file_close(file_t * f) {
        */
        return 0;
      }
+     if (rozofs_bugwatch) severe("BUGROZOFSWATCH free_ctx(%p) ",f);
      /*
      ** Release all memory allocated
      */

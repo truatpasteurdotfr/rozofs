@@ -533,6 +533,13 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     }
     file_t *file = (file_t *) (unsigned long) fi->fh;
     /*
+    ** update the size of the file thanks the content of the ientry. That content
+    ** might change over the time since it is posssible to have some pending writes
+    ** for which the attribute size has to be updated. However this takes place
+    ** on the ientry only
+    */
+    file->attrs.size = ie->size;
+    /*
     ** check if the application is attempting to read atfer a close (_ll_release)
     */
     if (rozofs_is_file_closing(file))
@@ -779,15 +786,45 @@ void rozofs_ll_read_cbk(void *this,void *param)
        received_len = file->attrs.size - next_read_from;    
     }
     /*
-    ** re-evalute the EOF case
+    ** re-evaluate the EOF case
     */
-    if (received_len == 0)
+    if (received_len <= 0)
     {
+        int recv_len_ok = 0;
+
+        if (received_len < 0) {
+            ientry_t *ie2 = 0;
+            uint64_t file_size;
+            uint32_t *p32 = (uint32_t*) ruc_buf_getPayload(shared_buf_ref);
+            int received_len_orig = p32[1];
+            ie2 = get_ientry_by_fid(file->attrs.fid);
+            if ((ie2 == NULL)) {
+                file_size = 0;
+            } else {
+                file_size = ie2->size;
+            }
+            severe("BUGROZOFSWATCH(%p) , received_len=%d, next_read_from=%llu,"
+                    " file->attrs.size=%llu, received_len_orig=%d,"
+                    " readahead=%d, ie->size=%llu",
+                    file, received_len, next_read_from, file->attrs.size,
+                    received_len_orig, readahead, file_size);
+
+            received_len = received_len_orig;
+            if ((next_read_from + received_len) > file_size) {
+                received_len = file_size - next_read_from;
+            }
+            if (received_len > 0)
+                recv_len_ok = 1;
+        }
+
       /*
       ** end of filenext_read_pos
       */
-      errno = 0;
-      goto error;   
+      if (recv_len_ok == 0)
+      {
+	errno = 0;
+	goto error; 
+      }  
     }    
     
     next_read_pos  = next_read_from+(uint64_t)received_len; 
@@ -1308,3 +1345,4 @@ out:
     }
     return;
 }
+
