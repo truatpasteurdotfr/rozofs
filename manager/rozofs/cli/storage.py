@@ -25,7 +25,11 @@ from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
 
 def list(platform, args):
-    configurations = platform.get_configurations([args.exportd], Role.STORAGED)
+    
+    configurations = {}
+    
+    for h, n in platform._nodes.items():
+        configurations[h] = n.get_configurations(Role.STORAGED)
 
     sid_l={}
     for stor in configurations:
