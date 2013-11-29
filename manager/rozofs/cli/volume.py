@@ -45,22 +45,28 @@ def list(platform, args):
     ordered_puts(export_l)
 
 def stat(platform, args):
+    
+    # get configurations
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
     if configurations[args.exportd] is None:
         raise Exception("exportd node is off line.")
-    statuses = platform.get_statuses(None, Role.EXPORTD | Role.STORAGED)
+    
+    # Get statuses from storaged nodes and exportd node
+    statuses = {}
+    for h, n in platform._nodes.items():
+        statuses[h] = n.get_statuses(Role.EXPORTD | Role.STORAGED)
+    
+    # Check if all storaged nodes running
     for host, status in statuses.items():
         try:
             if not status[Role.STORAGED]: 
                 print 'WARNING: storaged is not running on ' + str(host)
-            elif not status[Role.EXPORTD]:
-                print 'WARNING: exportd is not running on ' + str(host)
         except KeyError:
             raise Exception("storaged node is off line.")
 
+    # configuration of exportd node
     configuration = configurations[args.exportd][Role.EXPORTD]
     
-    # test if storaged running
     export_l = {}
     stat_l = []
     for vid, vstat in configuration.stats.vstats.items():
