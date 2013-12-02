@@ -243,6 +243,7 @@ int buf_flush(void *fuse_ctx_p,file_t *p)
   uint32_t flush_len = (uint32_t)(p->write_pos - p->write_from);
   uint32_t flush_off_buf = (uint32_t)(p->write_from - p->read_from);
   char *buffer;
+  ientry_t *ie;
   /*
   ** stats
   */
@@ -260,6 +261,8 @@ int buf_flush(void *fuse_ctx_p,file_t *p)
     return -1;
   }
   p->buf_write_wait = 0;
+  ie = (ientry_t *) p->ie;
+  if (ie->write_pending == p) ie->write_pending = NULL;
   return 0;
 
 
@@ -333,6 +336,7 @@ static inline void buf_align_write_pos(file_t *p)
     - the data to write fits partially in the buffer. SO we ned to flush the data that are been filled
       at the end of the current buffer before copying the remaining data in the buffer
 
+  @param ie: ientry of the file
   @param fuse_ctx_p: pointer to the fuse transaction context
   @param p : pointer to the file structure that contains buffer information
   @param off : first byte to write
@@ -345,7 +349,8 @@ static inline void buf_align_write_pos(file_t *p)
       
   @retval none
 */
-void buf_file_write_nb(void *fuse_ctx_p,
+void buf_file_write_nb(ientry_t * ie,
+                    void *fuse_ctx_p,
                     rozo_buf_rw_status_t *status_p,
                     file_t * p,
                     uint64_t off, 
@@ -363,6 +368,29 @@ void buf_file_write_nb(void *fuse_ctx_p,
   char *dest_p;
   char *src_p;
   uint32_t len_alignment;
+
+  /*
+  ** Check whether some pending data written by an other application
+  ** on the same file is pending. In that case flush it immediatly.
+  */
+  if ((ie->write_pending != NULL) && (ie->write_pending != p)) {
+    flush_write_ientry(ie);
+  }
+  ie->write_pending = p;
+    
+  /*
+  ** Check whether the buffer content is valid or if it must be forgotten
+  */
+  if (p->read_consistency != ie->read_consistency) {
+    /* The file has been modified since this buffer has been read. The data
+    ** it contains are questionable. Better forget them.
+    */
+    p->read_from = p->read_pos = 0;
+  }
+    
+  ie->read_consistency++;
+  p->read_consistency = ie->read_consistency;
+  
 
  status_p->status = BUF_STATUS_FAILURE;
  status_p->errcode = EINVAL ;
@@ -939,7 +967,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
       errno = EBADF;
       goto error;        
     }
-    buf_file_write_nb(buffer_p,&status,file,off,buf,size);
+    buf_file_write_nb(ie,buffer_p,&status,file,off,buf,size);
     /*
     ** check the returned status
     */

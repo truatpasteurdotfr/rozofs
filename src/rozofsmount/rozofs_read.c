@@ -183,9 +183,28 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
 {
     int64_t length = -1;
     DEBUG_FUNCTION;
-    
+    ientry_t * ie=NULL;    
     *length_p = -1;
     int ret;
+
+    /*
+    ** Flush on disk any pending data in any buffer open on this file 
+    ** before reading.
+    */
+    ie = (ientry_t*)f->ie;
+    flush_write_ientry(ie);    
+    
+    /*
+    ** Check whether the buffer content is valid or if it must be forgotten
+    */
+    if (f->read_consistency != ie->read_consistency) {
+      /* The file has been modified since this buffer has been read. The data
+      ** it contains are questionable. Better forget them.
+      */
+      f->read_from = f->read_pos = 0;
+      f->read_consistency = ie->read_consistency;
+
+    }
 
     if ((off < f->read_from) || (off > f->read_pos) ||((off+len) >  f->read_pos ))
     {
@@ -195,31 +214,7 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        **  2- trigger a read
        */
         if (f->buf_write_wait) {
-            /*
-             ** Each time there is a write wait we must flush it. Otherwise
-             ** we can face the situation where during read, a new write that
-             ** takes place that triggers the write of the part that was in write wait
-             **  implies the loss of the write pending in memory (not on disk) and
-             ** leads in returning inconsistent data to the caller
-             ** -> note : that might happen for application during read/write in async mode.
-             ** on the same file
-             */
-            {
-
-                struct fuse_file_info file_info;
-                struct fuse_file_info *fi = &file_info;
-
-                RESTORE_FUSE_STRUCT(buffer_p, fi, sizeof(struct fuse_file_info));
-
-                ret = rozofs_asynchronous_flush(fi);
-                if (ret == 0) {
-                    *length_p = -1;
-                    return 0;
-                }
-                f->buf_write_wait = 0;
-                f->write_from = 0;
-                f->write_pos = 0;
-            }
+          warning("buf_write_wait is set after flush_write_ientry");
         }
        /*
        ** The file has just been created and is empty so far

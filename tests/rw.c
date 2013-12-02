@@ -30,7 +30,7 @@
 #include <sys/wait.h>
 
 
-#define DEFAULT_FILENAME    "mnt1/this_is_the_default_rw_test_file_name"
+#define DEFAULT_FILENAME    "mnt1_1/this_is_the_default_rw_test_file_name"
 #define DEFAULT_NB_PROCESS    20
 #define DEFAULT_LOOP         200
 #define DEFAULT_FILE_SIZE_MB   1
