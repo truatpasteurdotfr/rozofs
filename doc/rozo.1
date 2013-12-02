@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozo.1
 .\"
-.TH ROZO 1 "JULY 2013" Rozofs "User Manuals"
+.TH ROZO 1 "DECEMBER 2013" Rozofs "User Manuals"
 .SH NAME
 rozo \- rozofs management tool
 .SH SYNOPSIS
@@ -157,7 +157,7 @@ List of node hostnames to be started. If not set all nodes of the platform will 
 .\" rozo node stop
 .SS stop
 .B rozo node stop [\fB\-r |\-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
-.TP 
+.TP F
 Stop node services.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
@@ -289,7 +289,7 @@ A running exportd hostname.
 Force removing non empty exports.
 
 .SS mount
-.B rozo export mount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fInode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...]
+.B rozo export mount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fInode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...] [\fB\-o\fP | \fB--options\fP \fIoptions\fP...]
 .TP
 Mount export(s) identified by \fIeid\fP... on nodes.
 .TP
@@ -301,6 +301,9 @@ List of \fInode\fP hostnames to mount on. If not set exports will be mount on ea
 .TP
 \fB\-e\fP, \fB\-\-eids \fP\fIeid\fP...
 List of export(s) identified by \fIeid\fP... to mount.
+.TP
+\fB\-o\fP, \fB\-\-options \fP\fIoptions\fP...
+List of mount option(s) to use.
 
 .SS umount
 .B rozo export umount \fB\-E\fP | \fB--exportd\fP \fIhost\fP [\fB\-n\fP | \fB--node\fP \fBnode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...]

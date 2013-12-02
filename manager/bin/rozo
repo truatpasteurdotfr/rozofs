@@ -209,6 +209,7 @@ def main(argv=None):  # IGNORE:C0111
         action_mount_remove_parser = action_export_subparsers.add_parser('mount', add_help=False, help='mount export(s)')
         action_mount_remove_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount on')
         action_mount_remove_parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
+        action_mount_remove_parser.add_argument('-o', '--options', nargs='*', default=None, help='list of mount option(s) to use.')
 
         action_umount_remove_parser = action_export_subparsers.add_parser('umount', add_help=False, help='umount export(s)')
         action_umount_remove_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to umount from')
