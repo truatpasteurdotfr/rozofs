@@ -101,7 +101,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
       /*
       ** init of the variable used for buffer management
       */
-      rozofs_file_working_var_init(file);
+      rozofs_file_working_var_init(file,ie);
       if (rozofs_cache_mode == 1)
          fi->direct_io = 1;
       else
@@ -326,7 +326,7 @@ void rozofs_ll_open_cbk(void *this,void *param)
     /*
     ** init of the variable used for buffer management
     */
-    rozofs_file_working_var_init(file);
+    rozofs_file_working_var_init(file,ie);
     if (rozofs_cache_mode == 1)
        fi->direct_io = 1;
     else

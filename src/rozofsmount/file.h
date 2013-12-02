@@ -24,9 +24,9 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/core/ruc_list.h>
 
-extern int rozofs_bugwatch;
-
 #define FILE_CHECK_WORD 0X46696c65
+
+extern int rozofs_bugwatch;
 
 typedef enum 
 {
@@ -108,6 +108,8 @@ typedef struct file {
     int              lock_sleep;   
     int              lock_delay;
     uint64_t         timeStamp;
+    uint64_t         read_consistency; /**< To check whether the buffer can be read safely */
+    void           * ie;               /**< Pointer ot the ientry in the cache */
 #if 0
     char *buffer;
     int buf_write_wait;
@@ -124,7 +126,7 @@ typedef struct file {
  
  @retval none
  */
-static inline void rozofs_file_working_var_init(file_t *file)
+static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
 {
     /*
     ** init of the variable used for buffer management
@@ -149,9 +151,9 @@ static inline void rozofs_file_working_var_init(file_t *file)
     file->lock_type = -1;
     ruc_listHdrInit(&file->pending_rd_list);
     ruc_listHdrInit(&file->pending_wr_list);
+    file->read_consistency = 0;
+    file->ie = ientry;
 }
-
-
 
 
 /**

@@ -87,6 +87,18 @@ typedef struct ientry {
     unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
     mattr_t attrs;   /**< attributes caching for fs_mode = block mode   */
     list_t list;
+    /** This is the address of the latest file_t structure on which there is some data
+     ** pending in the buffer that have not been flushed to disk. Only one file_t at a time
+     ** can be in this case for all the open that have occured on this file. Writing into
+     ** a file_t buffer automaticaly triggers the flush to disk of the previous pending write.
+     */ 
+    file_t    * write_pending;
+    /**
+     ** This counter is used for a reader to know whether the data in its buffer can be
+     ** used safely or if they must be thrown away and a re-read from the disk is required
+     ** because some write has occured since the last read.
+     */
+    uint64_t    read_consistency;
 } ientry_t;
 
 static inline uint32_t fuse_ino_hash(void *n) {
@@ -159,9 +171,60 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 	ie->db.cookie = 0;
 	ie->db.p = NULL;
 	ie->nlookup = 1;
+        ie->write_pending = NULL; 
+        ie->read_consistency = 1;
 	put_ientry(ie);
 
 	return ie;
+}
+/*
+**__________________________________________________________________
+*/
+/**
+*  Some request may trigger an internal flush before beeing executed.
+
+   That's the case of a read request while the file buffer contains
+   some data that have not yet been saved on disk, but do not contain 
+   the data that the read wants. 
+
+   No fuse reply is expected
+
+ @param fi   file info structure where information related to the file can be found (file_t structure)
+ 
+ @retval 0 in case of failure 1 on success
+*/
+
+int rozofs_asynchronous_flush(struct fuse_file_info *fi) ;
+/**
+*  Flush all write pending on a given ientry 
+
+ @param ie : pointer to the ientry in the cache
+ 
+ @retval 1  on success
+ @retval 0  in case of any flushing error
+ */
+
+static inline int flush_write_ientry(ientry_t * ie) {
+    file_t              * f;
+    struct fuse_file_info fi;
+    int                   ret;
+    
+    /*
+    ** Check whether any write is pending in some buffer open on this file by any application
+    */
+    if ((f = ie->write_pending) != NULL) {
+
+       ie->write_pending = NULL;
+     
+       fi.fh = (uint64_t) f;
+       ret = rozofs_asynchronous_flush(&fi);                   
+       if (ret == 0) return 0;  
+
+       f->buf_write_wait = 0;
+       f->write_from     = 0; 
+       f->write_pos      = 0;               
+    }
+    return 1;
 }
 
 static inline struct stat *mattr_to_stat(mattr_t * attr, struct stat *st) {
