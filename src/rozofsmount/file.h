@@ -26,6 +26,8 @@
 
 #define FILE_CHECK_WORD 0X46696c65
 
+extern int rozofs_bugwatch;
+
 typedef enum 
 {
   BUF_ST_EMPTY = 0,
@@ -176,6 +178,7 @@ static inline int file_close(file_t * f) {
        */
        return 0;
      }
+     if (rozofs_bugwatch) severe("BUGROZOFSWATCH free_ctx(%p) ",f);
      /*
      ** Release all memory allocated
      */
