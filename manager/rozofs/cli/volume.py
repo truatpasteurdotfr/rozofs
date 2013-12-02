@@ -125,8 +125,12 @@ def expand(platform, args):
             get_proxy(host, STORAGED_MANAGER).get_service_status()
         except:
             raise Exception("storage agent on the node \"%s\" is not reachable" % (host))
-    for vid in args.vid:
-        platform.add_nodes(args.hosts, vid)
+    
+    if not args.vid:
+        platform.add_nodes(args.hosts, None)
+    else:
+        for vid in args.vid:
+            platform.add_nodes(args.hosts, vid)
 
 def remove(platform, args):
     for vid in args.vid:
