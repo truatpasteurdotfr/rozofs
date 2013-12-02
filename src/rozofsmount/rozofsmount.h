@@ -216,13 +216,13 @@ static inline int flush_write_ientry(ientry_t * ie) {
 
        ie->write_pending = NULL;
      
-       fi.fh = (uint64_t) f;
-       ret = rozofs_asynchronous_flush(&fi);                   
-       if (ret == 0) return 0;  
+       fi.fh = (unsigned long) f;
+       ret = rozofs_asynchronous_flush(&fi);
+       if (ret == 0) return 0;
 
        f->buf_write_wait = 0;
-       f->write_from     = 0; 
-       f->write_pos      = 0;               
+       f->write_from     = 0;
+       f->write_pos      = 0;
     }
     return 1;
 }
