@@ -50,6 +50,7 @@ struct stcpp_profiler_t {
 	uint64_t write_prj[3];
 	uint64_t read_prj_tmo[2];
 	uint64_t read_prj_err[2];
+	uint64_t read_prj_enoent[2];
 	uint64_t write_prj_tmo[2];
 	uint64_t write_prj_err[2];
 	uint16_t io_process_ports[32];

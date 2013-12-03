@@ -36,6 +36,7 @@ typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            diskRead_Byte_count;
   uint64_t            diskRead_error;
   uint64_t            diskRead_error_spare;  
+  uint64_t            diskRead_nosuchfile;
   uint64_t            diskRead_badCidSid;
   uint64_t            diskRead_time;
   
