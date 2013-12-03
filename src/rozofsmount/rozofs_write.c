@@ -376,7 +376,6 @@ void buf_file_write_nb(ientry_t * ie,
   if ((ie->write_pending != NULL) && (ie->write_pending != p)) {
     flush_write_ientry(ie);
   }
-  ie->write_pending = p;
     
   /*
   ** Check whether the buffer content is valid or if it must be forgotten
@@ -803,6 +802,12 @@ void buf_file_write_nb(ientry_t * ie,
   
   }
 
+  /*
+  ** At the end of the write procedure, if some data is waiting to be
+  ** written on disk, save the file descriptor reference in the ie.
+  ** The flush will occur on a further read or write.
+  */
+  if (p->buf_write_wait == 1) ie->write_pending = p;
 } 
 
 
