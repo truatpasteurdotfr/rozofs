@@ -20,6 +20,7 @@
 
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_buffer_api.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 
 #include "rozofs_storcli.h"
 
@@ -62,7 +63,6 @@ uint32_t rozofs_storcli_seqnum = 1;
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define ROZOFS_STORCLI_DEBUG_TOPIC      "storcli_buf"
-static char    myBuf[UMA_DBG_MAX_SEND_SIZE];
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -72,7 +72,7 @@ static char    myBuf[UMA_DBG_MAX_SEND_SIZE];
   RETURN: none
   ==========================================================================*/
 void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
-  char           *pChar=myBuf;
+  char           *pChar=uma_dbg_get_buffer();
 
   pChar += sprintf(pChar,"number of transaction contexts (initial/allocated) : %u/%u\n",rozofs_storcli_ctx_count,rozofs_storcli_ctx_allocated);
   pChar += sprintf(pChar,"Statistics\n");
@@ -99,8 +99,8 @@ void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
                                                          ruc_buf_getFreeBufferCount(ROZOFS_STORCLI_SOUTH_SMALL_POOL)); 
   pChar += sprintf(pChar,"  large[%6d]  : %6d/%d\n",rozofs_storcli_south_large_buf_sz,rozofs_storcli_south_large_buf_count,
                                                          ruc_buf_getFreeBufferCount(ROZOFS_STORCLI_SOUTH_LARGE_POOL)); 
-  if (bufRef != NULL) uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
-  else printf("%s",myBuf);
+  if (bufRef != NULL) uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+  else printf("%s",uma_dbg_get_buffer());
 
 }
 /*__________________________________________________________________________
@@ -775,6 +775,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", rozofs_storcli_north_small_buf_count, rozofs_storcli_north_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("NorthSmall",rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_SMALL_POOL]);
       rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_LARGE_POOL] = ruc_buf_poolCreate(rozofs_storcli_north_large_buf_count,rozofs_storcli_north_large_buf_sz);
       if (rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_LARGE_POOL] == NULL)
       {
@@ -782,6 +783,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", rozofs_storcli_north_large_buf_count, rozofs_storcli_north_large_buf_sz ); 
 	 break;
      }
+      ruc_buffer_debug_register_pool("NorthLarge",rozofs_storcli_pool[_ROZOFS_STORCLI_NORTH_LARGE_POOL]);
       rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL]= ruc_buf_poolCreate(rozofs_storcli_south_small_buf_count,rozofs_storcli_south_small_buf_sz);
       if (rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL] == NULL)
       {
@@ -789,6 +791,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", rozofs_storcli_south_small_buf_count, rozofs_storcli_south_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("SouthSmall",rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL]);
       rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL] = ruc_buf_poolCreate(rozofs_storcli_south_large_buf_count,rozofs_storcli_south_large_buf_sz);
       if (rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL] == NULL)
       {
@@ -796,6 +799,7 @@ uint32_t rozofs_storcli_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", rozofs_storcli_south_large_buf_count, rozofs_storcli_south_large_buf_sz ); 
 	 break;
       }
+      ruc_buffer_debug_register_pool("SouthLarge",rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL]);      
    break;
    }
    return ret;

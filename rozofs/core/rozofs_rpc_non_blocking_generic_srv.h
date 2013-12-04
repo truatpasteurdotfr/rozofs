@@ -1,20 +1,19 @@
 /*
-  Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
-  This file is part of Rozofs.
+ Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
+ This file is part of Rozofs.
 
-  Rozofs is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published
-  by the Free Software Foundation; either version 3 of the License,
-  or (at your option) any later version.
+ Rozofs is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published
+ by the Free Software Foundation, version 2.
 
-  Rozofs is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
+ Rozofs is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see
-  <http://www.gnu.org/licenses/>.
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see
+ <http://www.gnu.org/licenses/>.
  */
 
 #ifndef ROZORPC_SRV_EXPORT_H
@@ -129,6 +128,7 @@ typedef struct _rozorpc_srv_ctx_t
   uint32_t            opcode;      /**< opcode associated with the request, when the key is not used the value is ROZORPC_SRV_NULL */
   uint32_t   src_transaction_id;  /**< transaction id of the source request                                       */
   uint64_t            timestamp;
+  int                 position;  /**< position of the last decoded arg in the request                 */
   void      *recv_buf;             /**< pointer to the receive buffer that carries the request        */
   uint32_t   socketRef;            /**< reference of the socket on which the answser must be sent     */
   sys_recv_pf_t    response_cbk;  /**< callback function associated with the response of the root transaction */
@@ -136,12 +136,12 @@ typedef struct _rozorpc_srv_ctx_t
   xdrproc_t        xdr_result_internal;
   int        xdr_offset_in_req;   /**< offset oif the first applicative byte in a request -> in recv_buf  */  
   void      *xmitBuf;             /**< reference of the xmit buffer that will use for sending the response with an errcode       */
-  void     *decoded_arg;          /**< pointer to the decoded argument */
+  void      *decoded_arg;          /**< buffer of the decoded argument */
+  xdrproc_t  arg_decoder;          /**< procedure for decoding/freeing arguments */
   uint64_t *profiler_probe;       /**< pointer to the profiler counter */
   uint64_t profiler_time;        /**< profiler timestamp */
 
 } rozorpc_srv_ctx_t;
-
 
 #define ROZORPC_SRV_START_NORTH_PROF(buffer)\
  { \
@@ -376,5 +376,18 @@ uint32_t rozorpc_srv_module_init();
 */
 int rozorpc_srv_getargs (void *recv_buf,xdrproc_t xdr_argument, void *argument);
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  get the arguments of the incoming request: it is mostly a rpc decode
 
+ @param recv_buf : ruc buffer that contains the request
+ @param xdr_argument : decoding procedure
+ @param argument     : pointer to the array where decoded arguments will be stored
+ 
+ @retval TRUE on success
+ @retval FALSE decoding error
+*/
+int rozorpc_srv_getargs_with_position (void *recv_buf,xdrproc_t xdr_argument, void *argument,int *position);
 #endif

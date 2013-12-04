@@ -76,8 +76,6 @@ typedef struct expgw_conf {
     unsigned rozofsmount_instance;
 } expgw_conf;
 
-static char localBuf[8192];
-
 
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %18s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  |\n",\
 					#probe,\
@@ -92,9 +90,15 @@ static char localBuf[8192];
 					gprofiler.probe[P_ELAPSE],\
                     gprofiler.probe[P_BYTES]);
 
+static char * show_profiler_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  return pChar; 
+}
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime = %llu\n", gprofiler.vers, (long long unsigned int) gprofiler.uptime);
     pChar += sprintf(pChar, "   procedure        |     count        |  time(us)  | cumulated time(us)  |     bytes       \n");
@@ -124,28 +128,28 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	SHOW_PROFILER_PROBE(gw_poll);
 
 #endif
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 
 void show_fid_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     com_cache_show_cache_stats(pChar,expgw_fid_cache_p,"FID CACHE");
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 void show_attr_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     com_cache_show_cache_stats(pChar,expgw_attr_cache_p,"ATTRIBUTES CACHE");
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
@@ -153,21 +157,21 @@ void show_attr_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 void show_exp_routing_table(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     expgw_display_all_exportd_routing_table(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 
 void show_eid_exportd_assoc(char * argv[], uint32_t tcpRef, void *bufRef) {
 
-    char *pChar = localBuf;
+    char *pChar = uma_dbg_get_buffer();
     
     expgw_display_all_eid(pChar);
 
-    uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 

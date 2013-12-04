@@ -113,7 +113,7 @@ uint32_t export_configuration_file_hash = 0;  /**< hash value of the configurati
 
    @param : full pathname of the file
    @param[out]: pointer to the array where hash value is returned
-   
+
    @retval 0 on success
    @retval -1 on error
 */
@@ -150,14 +150,14 @@ void expgw_init_configuration_message(char *exportd_hostname)
   expgw_conf_p->exportd_host = malloc(ROZOFS_HOSTNAME_MAX + 1);
   strcpy(expgw_conf_p->exportd_host, exportd_hostname);
   memset(expgw_conf_p->eid.eid_val, 0, sizeof(expgw_eid_table));
-  expgw_conf_p->gateway_host.gateway_host_val = expgw_host_table;  
+  expgw_conf_p->gateway_host.gateway_host_val = expgw_host_table;
   memset(expgw_conf_p->gateway_host.gateway_host_val, 0, sizeof(expgw_host_table));
-  int i; 
+  int i;
   for (i = 0; i < EXPGW_EXPGW_MAX_IDX; i++)
   {
     expgw_host_table[i].host = malloc( ROZOFS_HOSTNAME_MAX+1);
   }
-  expgw_conf_p->gateway_host.gateway_host_len = 0;  
+  expgw_conf_p->gateway_host.gateway_host_len = 0;
 }
 
 
@@ -169,8 +169,8 @@ void expgw_reinit_configuration_message()
   gw_configuration_t  *expgw_conf_p = &expgw_conf;
   expgw_conf_p->eid.eid_val = expgw_eid_table;
   expgw_conf_p->eid.eid_len = 0;
-  expgw_conf_p->gateway_host.gateway_host_val = expgw_host_table;  
-  expgw_conf_p->gateway_host.gateway_host_len = 0;  
+  expgw_conf_p->gateway_host.gateway_host_val = expgw_host_table;
+  expgw_conf_p->gateway_host.gateway_host_len = 0;
 }
 
 /*
@@ -181,47 +181,47 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
     list_t *iterator;
     list_t *iterator_expgw;
     DEBUG_FUNCTION;
-    
+
     gw_configuration_t *expgw_conf_p = &expgw_conf;
-    
+
     expgw_reinit_configuration_message();
-    
+
     expgw_conf_p->eid.eid_len = 0;
     expgw_conf_p->exportd_port = 0;
     expgw_conf_p->gateway_port = 0;
-    
+
     // lock the exportd configuration while searching for the eid handled by the export daemon
-    if ((errno = pthread_rwlock_rdlock(&exports_lock)) != 0) 
+    if ((errno = pthread_rwlock_rdlock(&exports_lock)) != 0)
     {
         severe("can't lock exports.");
         return -1;
     }
-    
-    list_for_each_forward(iterator, &exports) 
+
+    list_for_each_forward(iterator, &exports)
     {
        export_entry_t *entry = list_entry(iterator, export_entry_t, list);
        expgw_eid_table[expgw_conf_p->eid.eid_len] = entry->export.eid;
        expgw_conf_p->eid.eid_len++;
     }
-    
+
     // unlock exportd config
-    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) 
+    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0)
     {
         severe("can't unlock exports, potential dead lock.");
         return -1;
     }
-    
+
 /*
     if (expgw_conf_p->eid.eid_len == 0)
     {
       severe("no eid in the exportd configuration !!");
-      return -1;    
+      return -1;
     }
 */
     /*
     ** now go through the exportd gateway configuration
     */
-    if ((errno = pthread_rwlock_rdlock(&expgws_lock)) != 0) 
+    if ((errno = pthread_rwlock_rdlock(&expgws_lock)) != 0)
     {
         severe("can't lock expgws.");
         return -1;
@@ -230,13 +230,13 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
     expgw_conf_p->hdr.nb_gateways = 0;
     expgw_conf_p->hdr.gateway_rank = 0;
     expgw_conf_p->hdr.configuration_indice = export_configuration_file_hash;
-    
-    list_for_each_forward(iterator, &expgws) 
+
+    list_for_each_forward(iterator, &expgws)
     {
         expgw_entry_t *entry = list_entry(iterator, expgw_entry_t, list);
         expgw_conf_p->hdr.export_id = entry->expgw.daemon_id;
         expgw_t *expgw = &entry->expgw;
-        
+
         // loop on the storage
         list_for_each_forward(iterator_expgw, &expgw->expgw_storages) {
           expgw_storage_t *entry = list_entry(iterator_expgw, expgw_storage_t, list);
@@ -246,21 +246,21 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
           expgw_conf_p->hdr.nb_gateways++;
         }
     }
-    
-    if ((errno = pthread_rwlock_unlock(&expgws_lock)) != 0) 
+
+    if ((errno = pthread_rwlock_unlock(&expgws_lock)) != 0)
     {
         severe("can't unlock expgws, potential dead lock.");
         return -1;
-    } 
-     
-    XDR xdrs; 
+    }
+
+    XDR xdrs;
     int total_len = -1;
-    
+
     xdrmem_create(&xdrs,(char*)pchar,size,XDR_ENCODE);
-    
+
     if (xdr_gw_configuration_t(&xdrs,expgw_conf_p) == FALSE){
-        severe("encoding error");    
-    }else{   
+        severe("encoding error");
+    }else{
         total_len = xdr_getpos(&xdrs) ;
     }
     return total_len;
@@ -313,7 +313,7 @@ static void *remove_bins_thread(void *v) {
         list_for_each_forward(iterator, &exports) {
             export_entry_t *entry = list_entry(iterator, export_entry_t, list);
 
-            // Remove bins file starting with specific bucket idx 
+            // Remove bins file starting with specific bucket idx
             if (export_rm_bins(&entry->export, &idx_p[export_idx]) != 0) {
                 severe("export_rm_bins failed (eid: %"PRIu32"): %s",
                         entry->export.eid, strerror(errno));
@@ -615,7 +615,7 @@ static int exportd_initialize() {
     // Initialize list of export gateway(s)
     if (expgw_root_initialize() != 0)
         fatal("can't initialize export gateways: %s", strerror(errno));
-        
+
     // Initialize list of exports
     if (exports_initialize() != 0)
         fatal("can't initialize exports: %s", strerror(errno));
@@ -633,7 +633,7 @@ static int exportd_initialize() {
     if (load_export_expgws_conf() != 0)
         fatal("can't load export gateways");
 
-        
+
     if (load_exports_conf() != 0)
         fatal("can't load exports");
 
@@ -676,7 +676,7 @@ static void on_start() {
     pthread_t thread;
     DEBUG_FUNCTION;
     int loop_count = 0;
-    
+
     /**
     * start the non blocking thread
     */
@@ -695,13 +695,13 @@ static void on_start() {
     {
        sleep(1);
        loop_count++;
-       if (loop_count > 5) fatal("Non Blocking thread does not answer");    
+       if (loop_count > 5) fatal("Non Blocking thread does not answer");
     }
-    
+
      /*
      ** build the structure for sending out an exportd gateway configuration message
-     */     
-#define MSG_SIZE  (32*1024)    
+     */
+#define MSG_SIZE  (32*1024)
      char * pChar = malloc(MSG_SIZE);
      int msg_sz;
      if (pChar == NULL)  {
@@ -717,16 +717,16 @@ static void on_start() {
     ** message for rozofsmount
     */
     ep_expgw_init_configuration_message(exportd_config.exportd_vip);
-    
+
     /*
     ** create the array for storing storage configuration
     */
     if (exportd_init_storage_configuration_message()!=0)
     {
         fatal("can't allocate storage configuration array");
-    
+
     }
-    
+
     /*
     ** Send the exportd gateway configuration towards the non blocking thread
     */
@@ -762,7 +762,7 @@ static void on_start() {
 
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
+//    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
 
 
     // Change the value of the maximum file descriptor number
@@ -961,7 +961,7 @@ static void on_hup() {
         severe("can't lock export gateways: %s", strerror(errno));
         goto error;
     }
-    
+
 
     list_for_each_forward_safe(p, q, &expgws) {
         expgw_entry_t *entry = list_entry(p, expgw_entry_t, list);
@@ -970,7 +970,7 @@ static void on_hup() {
         free(entry);
     }
     load_export_expgws_conf();
-    
+
     //Release lock on export gateways list
     if ((errno = pthread_rwlock_unlock(&expgws_lock)) != 0) {
         severe("can't lock export gateways: %s", strerror(errno));
@@ -978,8 +978,8 @@ static void on_hup() {
     }
      /*
      ** build the structure for sending out an exportd gateway configuration message
-     */     
-#define MSG_SIZE  (32*1024)    
+     */
+#define MSG_SIZE  (32*1024)
      char * pChar = malloc(MSG_SIZE);
      int msg_sz;
      if (pChar == NULL)  {
@@ -1003,8 +1003,8 @@ static void on_hup() {
          severe("EXPGWC_LOAD_CONF: %s",strerror(errno));
          free(pChar);
         goto error;
-      }    
-    
+      }
+
     }
     free(pChar);
 
@@ -1049,7 +1049,7 @@ int main(int argc, char *argv[]) {
     expgwc_non_blocking_conf.debug_port = rzdbg_default_base_port;
     expgwc_non_blocking_conf.instance = 1;
     expgwc_non_blocking_conf.exportd_hostname = NULL;
-    
+
     while (1) {
 
         int option_index = 0;
@@ -1126,9 +1126,10 @@ int main(int argc, char *argv[]) {
                 strerror(errno));
         goto error;
     }
-    
+
     openlog("exportd", LOG_PID, LOG_DAEMON);
-    daemon_start("exportd", 1,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
+    daemon_start("exportd",exportd_config.nb_cores,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
+
 
     exit(0);
 error:

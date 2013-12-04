@@ -1514,6 +1514,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 	    
 	    init_rpcctl_ctx(&mclt->rpcclt);
 
+	    init_rpcctl_ctx(&mclt->rpcclt);
+
             if (mclient_initialize(mclt, timeo) != 0) {
                 warning("failed to join: %s,  %s", vs->host, strerror(errno));
             }
@@ -2555,27 +2557,166 @@ out:
 #define ROZOFS_XATTR "rozofs"
 #define ROZOFS_USER_XATTR "user.rozofs"
 #define ROZOFS_ROOT_XATTR "trusted.rozofs"
-static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value) {
+
+#define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
+#define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
+#define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
+static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
   uint8_t * pFid;
   int       idx;
+  int       left;
   uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
   
   pFid = (uint8_t *) lv2->attributes.fid;  
-  p += sprintf(p,"EID %d / LAYOUT %d / FID %2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x ", 
-               e->eid, e->layout,
-               pFid[0],pFid[1],pFid[2],pFid[3],
-	       pFid[4],pFid[5],
-	       pFid[6],pFid[7],
+  DISPLAY_ATTR_INT("EID", e->eid);
+  DISPLAY_ATTR_INT("LAYOUT", e->layout);  
+  
+  DISPLAY_ATTR_TITLE( "FID"); 
+  p += sprintf(p,"%2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x\n", 
+               pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
 
-  if (!S_ISDIR(lv2->attributes.mode)) {
-    p += sprintf(p, "/ CLUSTER %d / STORAGED %3.3d", lv2->attributes.cid, lv2->attributes.sids[0]);  
-    for (idx = 1; idx < rozofs_safe; idx++) {
-      p += sprintf(p,"-%3.3d", lv2->attributes.sids[idx]);
-    } 
+  if (S_ISDIR(lv2->attributes.mode)) {
+    DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
+    return (p-value);  
+  }
+
+  if (S_ISLNK(lv2->attributes.mode)) {
+    DISPLAY_ATTR_TXT("MODE", "SYMBOLIC LINK");
+  }  
+  else {
+    DISPLAY_ATTR_TXT("MODE", "REGULAR FILE");
+  }
+  
+  /*
+  ** File only
+  */
+  DISPLAY_ATTR_INT("CLUSTER",lv2->attributes.cid);
+  DISPLAY_ATTR_TITLE("STORAGE");
+  p += sprintf(p, "%3.3d", lv2->attributes.sids[0]);  
+  for (idx = 1; idx < rozofs_safe; idx++) {
+    p += sprintf(p,"-%3.3d", lv2->attributes.sids[idx]);
   } 
+  p += sprintf(p,"\n");
+
+
+  DISPLAY_ATTR_INT("LOCK",lv2->nb_locks);  
+  if (lv2->nb_locks != 0) {
+    rozofs_file_lock_t *lock_elt;
+    list_t             * pl;
+    char               * sizeType;
+
+
+    /* Check for left space */
+    left = size;
+    left -= ((int)(p-value));
+    if (left < 110) {
+      if (left > 4) p += sprintf(p,"...");
+      return (p-value);
+    }
+
+    /* List the locks */
+    list_for_each_forward(pl, &lv2->file_lock) {
+
+      lock_elt = list_entry(pl, rozofs_file_lock_t, next_fid_lock);	
+      switch(lock_elt->lock.user_range.size) {
+        case EP_LOCK_TOTAL:      sizeType = "TOTAL"; break;
+	case EP_LOCK_FROM_START: sizeType = "START"; break;
+	case EP_LOCK_TO_END:     sizeType = "END"; break;
+	case EP_LOCK_PARTIAL:    sizeType = "PARTIAL"; break;
+	default:                 sizeType = "??";
+      }  
+      p += sprintf(p,"   %-5s %-7s client %16.16llx owner %16.16llx [%"PRIu64":%"PRIu64"[ [%"PRIu64":%"PRIu64"[\n",
+	       (lock_elt->lock.mode==EP_LOCK_WRITE)?"WRITE":"READ",sizeType, 
+	       (long long unsigned int)lock_elt->lock.client_ref, 
+	       (long long unsigned int)lock_elt->lock.owner_ref,
+	       (uint64_t) lock_elt->lock.user_range.offset_start,
+	       (uint64_t) lock_elt->lock.user_range.offset_stop,
+	       (uint64_t) lock_elt->lock.effective_range.offset_start,
+	       (uint64_t) lock_elt->lock.effective_range.offset_stop);
+
+    }       
+  } 
+
   return (p-value);  
+} 
+static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,int length) {
+  char       * p=value;
+  int          idx,jdx;
+  int          new_cid;
+  int          new_sids[ROZOFS_SAFE_MAX]; 
+  uint8_t      rozofs_safe;
+
+  if (S_ISDIR(lv2->attributes.mode)) {
+    errno = EISDIR;
+    return -1;
+  }
+     
+  if (S_ISLNK(lv2->attributes.mode)) {
+    errno = EMLINK;
+    return -1;
+  }
+
+  /*
+  ** File must not yet be written 
+  */
+  if (lv2->attributes.size != 0) {
+    errno = EFBIG;
+    return -1;
+  } 
+  
+  /*
+  ** Scan value
+  */
+  rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  memset (new_sids,0,sizeof(new_sids));
+  new_cid = 0;
+
+  errno = 0;
+  new_cid = strtol(p,&p,10);
+  if (errno != 0) return -1; 
+  
+  for (idx=0; idx < rozofs_safe; idx++) {
+  
+    if ((p-value)>=length) {
+      errno = EINVAL;
+      return -1;
+    }
+
+    new_sids[idx] = strtol(p,&p,10);
+    if (errno != 0) return -1;
+    if (new_sids[idx]<0) new_sids[idx] *= -1;
+  }
+  /*
+  ** Check the same sid is not set 2 times
+  */
+  for (idx=0; idx < rozofs_safe; idx++) {
+    for (jdx=idx+1; jdx < rozofs_safe; jdx++) {
+      if (new_sids[idx] == new_sids[jdx]) {
+        errno = EINVAL;
+	return -1;
+      }
+    }
+  }  
+
+  /*
+  ** Check cluster and sid exist
+  */
+  if (volume_distribution_check(e->volume, rozofs_safe, new_cid, new_sids) != 0) return -1;
+  
+  /*
+  ** OK for the new distribution
+  */
+  lv2->attributes.cid = new_cid;
+  for (idx=0; idx < rozofs_safe; idx++) {
+    lv2->attributes.sids[idx] = new_sids[idx];
+  }
+  
+  /*
+  ** Save new distribution on disk
+  */
+  return export_lv2_write_attributes(lv2);  
 } 
 /*
 **______________________________________________________________________________
@@ -2604,10 +2745,10 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
     }
 
     if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
-      status = get_rozofs_xattr(e,lv2,value);
+      status = get_rozofs_xattr(e,lv2,value,size);
       goto out;
     }  
-    
+
     if ((status = export_lv2_get_xattr(lv2, name, value, size)) < 0) {
         goto out;
     }
@@ -2616,6 +2757,304 @@ out:
     STOP_PROFILING(export_getxattr);
 
     return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Set a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    list_t      *p;
+    rozofs_file_lock_t * lock_elt;
+    rozofs_file_lock_t * new_lock;
+    int                  overlap=0;
+
+    START_PROFILING(export_set_file_lock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_set_lock failed: %s", strerror(errno));
+        goto out;
+    }
+
+    /*
+    ** Freeing a lock 
+    */
+    if (lock_requested->mode == EP_LOCK_FREE) {
+    
+      /* Always succcess */
+      status = 0;
+
+      /* Already free */
+      if (lv2->nb_locks == 0) {
+	goto out;
+      }
+      if (list_empty(&lv2->file_lock)) {
+	lv2->nb_locks = 0;
+	goto out;
+      }  
+      
+reloop:       
+      /* Search the given lock */
+      list_for_each_forward(p, &lv2->file_lock) {
+      
+        lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);	
+	
+	if (must_file_lock_be_removed(lock_requested, &lock_elt->lock, &new_lock)) {
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	    goto out;
+	  }
+	  goto reloop;
+	}
+
+	if (new_lock) {
+	  list_push_front(&lv2->file_lock,&new_lock->next_fid_lock);
+	  lv2->nb_locks++;
+	}
+      }
+      goto out; 
+    }
+
+    /*
+    ** Setting a new lock. Check its compatibility against every already set lock
+    */
+    list_for_each_forward(p, &lv2->file_lock) {
+    
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+      
+      /*
+      ** Check compatibility between 2 different applications
+      */
+      if ((lock_elt->lock.client_ref != lock_requested->client_ref) 
+      ||  (lock_elt->lock.owner_ref != lock_requested->owner_ref)) { 
+      
+	if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	  memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+          errno = EWOULDBLOCK;
+	  goto out;      
+	} 
+    	continue;    
+      }
+      
+      /*
+      ** Check compatibility of 2 locks of a same application
+      */
+
+      /*
+      ** Two read or two write locks. Check whether they overlap
+      */
+      if (lock_elt->lock.mode == lock_requested->mode) {
+        if (are_file_locks_overlapping(lock_requested,&lock_elt->lock)) {
+	  overlap++;
+	}  
+        continue;
+      }
+      
+      /*
+      ** One read and one write
+      */
+      if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+        errno = EWOULDBLOCK;
+	goto out;      
+      }     
+      continue; 			  
+    }
+
+    /*
+    ** This lock overlaps with a least one existing lock of the same application.
+    ** Let's concatenate all those locks
+    */  
+concatenate:  
+    if (overlap != 0) {
+      list_for_each_forward(p, &lv2->file_lock) {
+
+	lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+	if ((lock_elt->lock.client_ref != lock_requested->client_ref) 
+	||  (lock_elt->lock.owner_ref != lock_requested->owner_ref)) continue;
+
+	if (lock_elt->lock.mode != lock_requested->mode) continue;
+
+	if (try_file_locks_concatenate(lock_requested,&lock_elt->lock)) {
+          overlap--;
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	  }
+	  goto concatenate;	  
+	}
+      } 
+    }   
+        
+    /*
+    ** Since we have reached this point all the locks are compatibles with the new one.
+    ** and it does not overlap any more with an other lock. Let's insert this new lock
+    */
+    lock_elt = lv2_cache_allocate_file_lock(lock_requested);
+    list_push_front(&lv2->file_lock,&lock_elt->next_fid_lock);
+    lv2->nb_locks++;
+    status = 0; 
+    
+out:
+#if 0
+    {
+      char BuF[4096];
+      char * pChar = BuF;
+      debug_file_lock_list(pChar);
+      info("%s",BuF);
+    }
+#endif       
+    STOP_PROFILING(export_set_file_lock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Get a lock on a file
+ *
+ * @param e: the export managing the file or directory.
+ * @param fid: the id of the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_get_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) {
+    ssize_t status = -1;
+    lv2_entry_t *lv2 = 0;
+    rozofs_file_lock_t *lock_elt;
+    list_t * p;
+
+    START_PROFILING(export_get_file_lock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_get_lock failed: %s", strerror(errno));
+        goto out;
+    }
+
+    /*
+    ** Freeing a lock 
+    */
+    if (lock_requested->mode == EP_LOCK_FREE) {    
+      /* Always succcess */
+      status = 0;
+      goto out; 
+    }
+
+    /*
+    ** Setting a new lock. Check its compatibility against every already set lock
+    */
+    list_for_each_forward(p, &lv2->file_lock) {
+    
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+
+      if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
+	memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
+        errno = EWOULDBLOCK;
+	goto out;      
+      }     
+    }
+    status = 0;
+    
+out:
+    STOP_PROFILING(export_get_file_lock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** reset a lock from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_client_file_lock(export_t *e, ep_lock_t * lock_requested) {
+
+    START_PROFILING(export_clearclient_flock);
+    file_lock_remove_client(lock_requested->client_ref);
+    STOP_PROFILING(export_clearclient_flock);
+    return 0;
+}
+/*
+**______________________________________________________________________________
+*/
+/** reset all the locks from an owner
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the identifier of the client whose locks are to remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_clear_owner_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested) {
+    int status = -1;
+    lv2_entry_t *lv2 = 0;
+    list_t * p;
+    rozofs_file_lock_t *lock_elt;
+    
+    START_PROFILING(export_clearowner_flock);
+
+    if (!(lv2 = export_lookup_fid(e, fid))) {
+        severe("export_lookup_fid failed: %s", strerror(errno));
+        goto out;
+    }
+    
+    status = 0;
+
+reloop:    
+    /* Search the given lock */
+    list_for_each_forward(p, &lv2->file_lock) {
+      lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);
+      if ((lock_elt->lock.client_ref == lock_requested->client_ref) &&
+          (lock_elt->lock.owner_ref == lock_requested->owner_ref)) {
+	  /* Found a lock to free */
+	  lv2_cache_free_file_lock(lock_elt);
+	  lv2->nb_locks--;
+	  if (list_empty(&lv2->file_lock)) {
+	    lv2->nb_locks = 0;
+	    break;
+	  }
+	  goto reloop;
+      }       
+    }    
+
+out:
+    STOP_PROFILING(export_clearowner_flock);
+    return status;
+}
+/*
+**______________________________________________________________________________
+*/
+/** Get a poll event from a client
+ *
+ * @param e: the export managing the file or directory.
+ * @param lock: the lock to set/remove
+ * 
+ * @return: On success, the size of the extended attribute value.
+ * On failure, -1 is returned and errno is set appropriately.
+ */
+int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested) {
+
+    START_PROFILING(export_poll_file_lock);
+    file_lock_poll_client(lock_requested->client_ref);
+    STOP_PROFILING(export_poll_file_lock);
+    return 0;
 }
 /*
 **______________________________________________________________________________
@@ -2642,6 +3081,12 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
         severe("export_getattr failed: %s", strerror(errno));
         goto out;
     }
+
+
+    if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
+      status = set_rozofs_xattr(e,lv2,(char *)value,size);
+      goto out;
+    }  
 
     if ((status = export_lv2_set_xattr(lv2, name, value, size, flags)) != 0) {
         goto out;

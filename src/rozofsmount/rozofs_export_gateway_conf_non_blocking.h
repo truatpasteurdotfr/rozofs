@@ -18,24 +18,8 @@
 
 #ifndef ROZOFS_EXPORT_GATEWAY_CONF_NON_BLOCKING_H
 #define ROZOFS_EXPORT_GATEWAY_CONF_NON_BLOCKING_H
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <time.h>
 
-#include "config.h"
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-
-#include <rozofs/common/types.h>
-#include <rozofs/core/ruc_common.h>
-#include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/rpc/eproto.h>
-#include <rozofs/rpc/eclient.h>
 
 typedef struct rozofs_exp_sup_conf_t
 {

@@ -40,6 +40,9 @@
 
 #include <rozofs/core/uma_dbg_msgHeader.h>
 
+#define SILENT 1
+#define NOT_SILENT 0
+
 #define FIRST_PORT  9000
 #define LAST_PORT  10000
 
@@ -53,10 +56,12 @@ typedef struct  msg_s {
 MSG_S msg;
 
 #define MAX_CMD 1024
+#define MAX_TARGET  20
 int                 nbCmd=0;
 const char      *   cmd[MAX_CMD];
-uint32_t            ipAddr;
-uint16_t            serverPort;
+uint32_t            nbTarget=0;
+uint32_t            ipAddr[MAX_TARGET];
+uint16_t            serverPort[MAX_TARGET];
 uint32_t            period;
 int                 allCmd;
 const char      *   prgName;  
@@ -66,20 +71,29 @@ char prompt[64];
 **   lnkdebug <IPADDR> <PORT>
 */
 void syntax() {
-  printf("\n%s [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>] [-t <seconds>]\n\n",prgName);
-  printf("-i <hostname>           destination IP address or hostname of the debug server\n");
-  printf("                        default is 127.0.0.1\n");
-  printf("-p <port>               destination port number of the debug server\n");
-  printf("                        mandatory parameter\n"); 
-  printf("-c <cmd|all>            command to run in one shot or periodically (-period)\n");                 
-  printf("                        several -c options can be set\n");                 
-  printf("-f <cmd file>           command file to run in one shot or periodically (-period)\n");         
-  printf("                        several -f options can be set\n");                 
-  printf("-period <seconds>       periodicity for running commands using -c or/and -f options\n");                 
-  printf("-t <seconds>            timeout value to wait for a response (default %d seconds)\n",DEFAULT_TIMEOUT);                 
+  printf("\n%s ([-i <hostname>] -p <port>)... [-c <cmd|all>]... [-f <cmd file>]... [-period <seconds>] [-t <seconds>]\n\n",prgName);
+  printf("Several debug targets can be specified ([-i <hostname>] -p <port>)...\n");
+  printf("  -i <hostname>  IP address or hostname of the debug target.\n");
+  printf("                 When omitted previous -i value in the command line is taken as default\n");
+  printf("                 or 127.0.0.1 when no previous -i option is set.\n");
+  printf("  -p <port>      Port number of the debug target.\n");
+  printf("                 At least one port value must be given.\n");
+  printf("\nOptionnaly a list of command to run can be specified:\n");
+  printf("  [-c <cmd|all>]...\n"); 
+  printf("         Every word after -c is interpreted as a word of a command until end of line or new option.\n");
+  printf("         Several -c options can be set.\n");                 
+  printf("         \"all\" is used to run all the commands the target knows.\n");    
+  printf("  [-f <cmd file>]...\n");  
+  printf("         The list of commands can be specified through some files.\n");
+  printf("  [-period <seconds>]\n");       
+  printf("         Periodicity when running commands using -c or/and -f options.\n");  
+  printf("\nMiscellaneous options:\n");
+  printf("  -t <seconds>   Timeout value to wait for a response (default %d seconds).\n",DEFAULT_TIMEOUT);      
+  printf("\ne.g\n%s -i 192.168.1.1 -p 50003 -p 50004 -p 50005 -c profiler reset\n",prgName) ;          
+  printf("%s -i 192.168.1.1 -p 50003 -i 192.168.1.2 -p 50003 -c profiler -period 10\n",prgName) ;          
   exit(0);
 }
-int debug_receive(int socketId) {
+int debug_receive(int socketId, int silent) {
   int             ret;
   unsigned int    recvLen;
  
@@ -136,7 +150,9 @@ int debug_receive(int socketId) {
       }
       recvLen += ret;
     }
-    printf("%s", msg.buffer);
+    if (silent == NOT_SILENT) {
+      printf("%s", msg.buffer);
+    }  
     if (msg.header.end) return 1;
   }
 }
@@ -195,7 +211,7 @@ void read_file(const char * fileName ) {
   
   close(fd);
 } 
-int debug_run_this_cmd(int socketId, const char * cmd) {
+int debug_run_this_cmd(int socketId, const char * cmd, int silent) {
   uint32_t len,sent; 
    
   len = strlen(cmd)+1; 
@@ -214,7 +230,7 @@ int debug_run_this_cmd(int socketId, const char * cmd) {
     return -1;
   }
     
-  if (!debug_receive(socketId)) {
+  if (!debug_receive(socketId,silent)) {
     printf("Debug session abort\n");
     return -1;
   }  
@@ -222,12 +238,12 @@ int debug_run_this_cmd(int socketId, const char * cmd) {
   
 }
 #define SYSTEM_HEADER "system : "
-void uma_dbg_read_prompt(int socketId) {
+void uma_dbg_read_prompt(int socketId, char * pr) {
   int i=strlen(SYSTEM_HEADER);
-  char *c = prompt;
+  char *c = pr;
     
   // Read the prompt
-  if (debug_run_this_cmd(socketId, "who") < 0)  return;
+  if (debug_run_this_cmd(socketId, "who", SILENT) < 0)  return;
   
   if (strncmp(msg.buffer,SYSTEM_HEADER, strlen(SYSTEM_HEADER)) == 0) {
 
@@ -241,7 +257,7 @@ void uma_dbg_read_prompt(int socketId) {
     *c = 0;
   }
   else {
-    strcpy(prompt,"rzdbg> ");
+    strcpy(pr,"rzdbg> ");
   }
 }
 #define LIST_COMMAND_HEADER "List of available topics :"
@@ -250,7 +266,7 @@ void uma_dbg_read_all_cmd_list(int socketId) {
   int len;
     
   // Read the command list
-  if (debug_run_this_cmd(socketId, "") < 0)  return;
+  if (debug_run_this_cmd(socketId, "", SILENT) < 0)  return;
 
   nbCmd = 0;
   p = msg.buffer;
@@ -283,8 +299,6 @@ void debug_interactive_loop(int socketId) {
   char *mycmd = NULL; 
 //  int len;
 //  int fd;
-
-  uma_dbg_read_prompt(socketId);
   
 //  fd = open("/dev/stdin", O_RDONLY);
   using_history();
@@ -311,7 +325,7 @@ void debug_interactive_loop(int socketId) {
     if ((mycmd[0] != 0) && (strcasecmp(mycmd,"!!") != 0)) {
        add_history(mycmd);
     }
-    if (debug_run_this_cmd(socketId, mycmd) < 0)  break;
+    if (debug_run_this_cmd(socketId, mycmd, NOT_SILENT) < 0)  break;
     free(mycmd);
   }
   if (mycmd != NULL) free(mycmd);
@@ -323,7 +337,7 @@ void debug_run_command_list(int socketId) {
   for (idx=0; idx < nbCmd; idx++) {
 //    printf("_________________________________________________________\n");
 //    printf("> %s", cmd[idx]);  
-    if (debug_run_this_cmd(socketId, cmd[idx]) < 0)  break;
+    if (debug_run_this_cmd(socketId, cmd[idx], NOT_SILENT) < 0)  break;
   }
 } 
 
@@ -366,7 +380,7 @@ char *argv[];
 	syntax();
       }
 //      ipAddr = inet_addr(argv[idx]);
-      status = expgw_host2ip(argv[idx],&ipAddr);
+      status = expgw_host2ip(argv[idx],&ipAddr[nbTarget]);
       if (status < 0) 
       {
         syntax();      
@@ -391,7 +405,11 @@ char *argv[];
 	printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
 	syntax();
       }
-      serverPort = (uint16_t) port32;
+      
+      serverPort[nbTarget] = (uint16_t) port32;
+      nbTarget++;
+      /* Pre-initialize next IP address */ 
+      ipAddr[nbTarget] = ipAddr[nbTarget-1];             
       idx++;
       continue;
     }
@@ -437,6 +455,7 @@ char *argv[];
       }
       if (strcmp(argv[idx],"all") == 0) {
         allCmd = 1;
+	idx++;
       }
       else {
         int start = idx;
@@ -519,34 +538,58 @@ int connect_to_server(uint32_t   ipAddr, uint16_t  serverPort) {
   return socketId;
 }
 int main(int argc, const char **argv) {
-  int                 socketId;  
-
+  int                 socketId; 
+  int                 idx; 
+  char              * p;
+  uint32_t            ip;
+   
   prgName = argv[0];
 
   /* Read parametres */
-  serverPort    = 0;
-  ipAddr        = inet_addr("127.0.0.1");
+  memset(serverPort,0,sizeof(serverPort)); 
+  memset(ipAddr,0,sizeof(ipAddr));
+  nbTarget = 0;
+  /* Pre-initialize 1rst IP address */ 
+  ipAddr[nbTarget] = inet_addr("127.0.0.1");  
   period        = 0;
   nbCmd         = 0;
   allCmd        = 0;
   read_parameters(argc, argv);
-  if (serverPort == 0) syntax();
+  if (nbTarget == 0) syntax();
 
-  socketId = connect_to_server(ipAddr,serverPort);
 
-  if (allCmd) uma_dbg_read_all_cmd_list(socketId);
+reloop:
+
+  for (idx = 0; idx < nbTarget; idx++) {
+   
+    socketId = connect_to_server(ipAddr[idx],serverPort[idx]);
+
+    
+    p = prompt;
+    ip = ntohl(ipAddr[idx]);
+    p += sprintf(prompt,"[%u.%u.%u.%u:%d] ",(ip>>24)&0xFF, (ip>>16)&0xFF, (ip>>8)&0xFF,ip&0xFF, serverPort[idx]);
+    uma_dbg_read_prompt(socketId,p);
+      
+    if (nbTarget > 1) {
+      printf("%s\n",prompt);
+    } 
+     
+    if (allCmd) uma_dbg_read_all_cmd_list(socketId);
+
+    if (nbCmd == 0) {
+      debug_interactive_loop(socketId);
+    }  
+    else {
+      debug_run_command_list(socketId);
+    }
+    shutdown(socketId,SHUT_RDWR);   
+    close(socketId);
+  }  
   
-  if (nbCmd == 0) {
-    debug_interactive_loop(socketId);
-  }
-  else while(1) {
-  
-    debug_run_command_list(socketId);
-    if (period == 0) break;
+  if (period != 0) {
     sleep(period);
+    goto reloop;
   }
 
-  shutdown(socketId,SHUT_RDWR);   
-  close(socketId);
   exit(1);
 }

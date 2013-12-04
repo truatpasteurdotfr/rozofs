@@ -22,7 +22,7 @@
 
 fs_host="localhost"
 nb_fs=1
-nb_io=4
+nb_io=1
 
 syntax() {
   echo "$name [verbose] [period <sec>] [exp|gw*|fs*|stc*|st*|std*|io*|all] [cmd]"

@@ -28,7 +28,6 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "af_unix_socket_generic.h"
 
@@ -52,7 +51,7 @@ af_unix_ctx_generic_t *af_unix_context_pfirst; /**< pointer to the first context
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define af_unix_DEBUG_TOPIC "af_unix"
-static char myBuf[UMA_DBG_MAX_SEND_SIZE * 4];
+
 /*__________________________________________________________________________
  */
 
@@ -109,8 +108,16 @@ char *af_inet_get_tcp_state(int state) {
   
   @retval
  */
-struct tcp_info *af_inet_tcp_get_tcp_info(int socket) {
-    static struct tcp_info tcp_info_buffer;
+typedef struct my_tcp_info_t {
+  struct tcp_info tcp_info;
+  uint32_t 	  tcpi_rcv_rtt;
+  uint32_t 	  tcpi_rcv_space;  
+  uint32_t        tcpi_total_retrans;
+} MY_TCP_INFO_T;
+static MY_TCP_INFO_T tcp_info_buffer;
+     
+MY_TCP_INFO_T * af_inet_tcp_get_tcp_info(int socket) {
+    
     int optionsize = sizeof (tcp_info_buffer);
     int ret;
 
@@ -132,8 +139,9 @@ struct tcp_info *af_inet_tcp_get_tcp_info(int socket) {
 }
 
 void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *buffer = myBuf;
-    struct tcp_info *p;
+    char *buffer = uma_dbg_get_buffer();
+    MY_TCP_INFO_T * myp;
+    struct tcp_info * p;
     af_unix_ctx_generic_t *sock_p;
     ruc_obj_desc_t *pnext;
     buffer += sprintf(buffer, "  State      | Avail.|sock      |  retrans | probes   |  rto     | snd_mss  |  rcv_mss | unacked  |  lost    | retrans  |last_sent |   rtt    |\n");
@@ -145,13 +153,14 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
             != (af_unix_ctx_generic_t*) NULL) {
 
         if (sock_p->af_family == AF_UNIX) continue;
-        p = af_inet_tcp_get_tcp_info(sock_p->socketRef);
+        myp = af_inet_tcp_get_tcp_info(sock_p->socketRef);
+	p = &myp->tcp_info;
         if (p == NULL) continue;
 
         buffer += sprintf(buffer, " %s |", af_inet_get_tcp_state(p->tcpi_state));
         buffer += sprintf(buffer, " %5s |", (sock_p->cnx_availability_state == AF_UNIX_CNX_AVAILABLE) ? "YES" : "NO");
         buffer += sprintf(buffer, " %8d |", sock_p->socketRef);
-        buffer += sprintf(buffer, " %8d |", p->tcpi_retransmits);
+        buffer += sprintf(buffer, " %8d |", myp->tcpi_total_retrans);
         buffer += sprintf(buffer, " %8d |", p->tcpi_probes);
         buffer += sprintf(buffer, " %8d |", p->tcpi_rto);
         buffer += sprintf(buffer, " %8d |", p->tcpi_snd_mss);
@@ -164,7 +173,7 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
 
 
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -176,7 +185,7 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
   RETURN: none
   ==========================================================================*/
 void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
     pChar += sprintf(pChar, "number of AF_UNIX contexts [size](initial/allocated) :[%u] %u/%u\n", (unsigned int) sizeof (af_unix_ctx_generic_t), (unsigned int) af_unix_context_count,
             (unsigned int) af_unix_context_allocated);
     pChar += sprintf(pChar, "Buffer Pool (name[size] :initial/current\n");
@@ -260,7 +269,7 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
 
         }
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -327,7 +336,7 @@ af_unix_ctx_generic_t *af_unix_getObjCtx_p(uint32_t af_unix_ctx_id) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count ENDERRLOG
+        severe( "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count );
         return (af_unix_ctx_generic_t*) NULL;
     }
     p = (af_unix_ctx_generic_t*) ruc_objGetRefFromIdx((ruc_obj_desc_t*) af_unix_context_freeListHead,
@@ -360,7 +369,7 @@ uint32_t af_unix_getObjCtx_ref(af_unix_ctx_generic_t *p) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count ENDERRLOG
+        severe( "af_unix_getObjCtx_p(%d): index is out of range, index max is %d", index, af_unix_context_count );
         return (uint32_t) - 1;
     }
     ;
@@ -526,7 +535,7 @@ af_unix_ctx_generic_t *af_unix_alloc() {
          ** out of Transaction context descriptor try to free some MS
          ** context that are out of date
          */
-        ERRLOG "NOT ABLE TO GET an AF_UNIX CONTEXT" ENDERRLOG;
+        severe( "NOT ABLE TO GET an AF_UNIX CONTEXT" );
         return NULL;
     }
     /*
@@ -571,14 +580,14 @@ uint32_t af_unix_createIndex(uint32_t af_unix_ctx_id) {
      */
     p = af_unix_getObjCtx_p(af_unix_ctx_id);
     if (p == NULL) {
-        ERRLOG "MS ref out of range: %u", af_unix_ctx_id ENDERRLOG;
+        severe( "MS ref out of range: %u", af_unix_ctx_id );
         return RUC_NOK;
     }
     /*
      ** return an error if the context is not free
      */
     if (p->free == FALSE) {
-        ERRLOG "the context is not free : %u", af_unix_ctx_id ENDERRLOG;
+        severe( "the context is not free : %u", af_unix_ctx_id );
         return RUC_NOK;
     }
     /*
@@ -762,13 +771,13 @@ uint32_t af_unix_module_init(uint32_t af_unix_ctx_count,
         af_unix_buffer_pool_tb[0] = ruc_buf_poolCreate(af_unix_xmit_buf_count, af_unix_xmit_buf_size);
         if (af_unix_buffer_pool_tb[0] == NULL) {
             ret = RUC_NOK;
-            ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", af_unix_xmit_buf_count, af_unix_xmit_buf_size ENDERRLOG
+            severe( "xmit ruc_buf_poolCreate(%d,%d)", af_unix_xmit_buf_count, af_unix_xmit_buf_size );
             break;
         }
         af_unix_buffer_pool_tb[1] = ruc_buf_poolCreate(af_unix_recv_buf_count, af_unix_recv_buf_size);
         if (af_unix_buffer_pool_tb[1] == NULL) {
             ret = RUC_NOK;
-            ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", af_unix_recv_buf_count, af_unix_recv_buf_size ENDERRLOG
+            severe( "rcv ruc_buf_poolCreate(%d,%d)", af_unix_recv_buf_count, af_unix_recv_buf_size );
             break;
         }
 

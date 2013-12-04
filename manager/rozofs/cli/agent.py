@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
 
 import sys
 import os
@@ -10,29 +26,30 @@ from rozofs.core.exportd import ExportdAgent, ExportdPacemakerAgent
 from rozofs.core.constants import STORAGED_MANAGER, EXPORTD_MANAGER, \
     ROZOFSMOUNT_MANAGER
 from rozofs.core.rozofsmount import RozofsMountAgent
+from rozofs.cli.output import ordered_puts
+from collections import OrderedDict
 
-def agent_status(args):
+def status(args):
     (pid, listeners) = AgentServer().status()
-    if pid is None:
-        print >> sys.stdout, "Rozo agent is not running."
-    else:
-        print >> sys.stdout, "Rozo agent is running with pid: %s." % pid
-        print >> sys.stdout, "%d registered listener(s) %s." % (len(listeners), listeners)
 
+    if not pid:
+        raise Exception("no agent is running.")
+    ordered_puts(OrderedDict([("pid", int(pid)), ("listeners", listeners)]))
 
-def agent_start(args):
+def start(args):
     if os.getuid() is not 0:
-        raise Exception("Only the root user can start agent.")
+        raise Exception("only the root user can start agent.")
 
     (pid, listeners) = AgentServer().status()
     if pid is not None:
-        raise Exception("Agent is running with pid: %s." % pid)
+        raise Exception("agent is running with pid: %s." % pid)
 
     syslog.openlog('rozo-agent')
 
+    if not args.listeners:
+        args.listeners = [EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER]
+
     managers = []
-#    if PLATFORM_MANAGER in args.listeners:
-#        managers.append(PlatformAgent())
     if STORAGED_MANAGER in args.listeners:
         managers.append(StoragedAgent())
     if EXPORTD_MANAGER in args.listeners:
@@ -46,19 +63,19 @@ def agent_start(args):
     if len(managers) is 0:
         raise "no suitable manager."
 
-    print >> sys.stdout, "Starting agent, with %d listener(s) %s." % (len(args.listeners), args.listeners)
     AgentServer('/var/run/rozo-agent.pid', managers).start()
 
 
-def agent_stop(args):
+def stop(args):
+    if os.getuid() is not 0:
+        raise Exception("only the root user can stop agent.")
     AgentServer().stop()
-    print >> sys.stdout, "Agent stopped."
 
+def restart(args):
+    if os.getuid() is not 0:
+        raise Exception("only the root user can restart agent.")
+    stop(args)
+    start(args)
 
-def agent_restart(args):
-    agent_stop(args)
-    agent_start(args)
-
-
-def agent_dispatch(args):
-    globals()[args.command.replace('-', '_')](args)
+def dispatch(args):
+    globals()[args.action.replace('-', '_')](args)

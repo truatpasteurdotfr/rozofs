@@ -12,7 +12,8 @@ class version_build_py(build_py):
         # honor the --dry-run flag
         if not self.dry_run:
             with open('@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/__init__.py', 'w') as f:
-                f.write('__version__ = \"@VERSION@\"')
+                f.write('__version__ = \"@VERSION@\"\n')
+                f.write('__sysconfdir__ = \"@SYSCONFDIR@\"\n')
 
         # distutils uses old-style classes, so no super()
         build_py.run(self)
@@ -35,11 +36,6 @@ setup(
     ext_modules=[Extension('rozofs.core._libconfig', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core/libconfig.i'],
                            swig_opts=['-I/usr/include'],
                            libraries=['config']),
-                 Extension('rozofs.core._profile', ['@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs/core/profile.i'],
-                           swig_opts=['-I/usr/include', '-I@CMAKE_CURRENT_SOURCE_DIR@'],
-                           include_dirs=['@CMAKE_CURRENT_SOURCE_DIR@', '@CMAKE_CURRENT_BINARY_DIR@'],
-                           libraries=['rozofs'],
-                           library_dirs=['@CMAKE_CURRENT_BINARY_DIR@/rozofs'])
                    ],
     scripts=['@CMAKE_CURRENT_SOURCE_DIR@/manager/bin/rozo'],
 )

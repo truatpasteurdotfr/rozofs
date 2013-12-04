@@ -6,7 +6,7 @@
   it under the terms of the GNU General Public License as published
   by the Free Software Foundation, version 2.
 
-  Rozofs is distributed in the hope that it will be useful, but
+  Rozofs is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
   General Public License for more details.
@@ -16,40 +16,11 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#define FUSE_USE_VERSION 26
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <stdio.h>
 #include <assert.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <sys/types.h> 
-#include <sys/socket.h>
-#include <fcntl.h> 
-#include <sys/un.h>             
-#include <errno.h>  
- #include <poll.h>
- #include <rozofs/common/log.h>
- 
-#include <rozofs/common/types.h>
-#include <rozofs/core/ruc_common.h>
-#include <rozofs/core/ruc_list.h>
-#include <rozofs/core/af_unix_socket_generic.h>
-#include <rozofs/core/af_unix_socket_generic_api.h>
-#include "rozofs_fuse.h"
-#include <rpc/rpc.h>
 
-#if 0
-#include "ruc_common.h"
-#include "ruc_list.h"
-#include "af_unix_socket_generic.h"
-#include "af_unix_socket_generic_api.h"
-#include "rozofs_fuse.h"
-#endif
+#include <rozofs/core/ruc_buffer_debug.h>
 
-#include <rozofs/core/uma_dbg_api.h>
+#include "rozofs_fuse.h"
 
 rozofs_fuse_ctx_t  *rozofs_fuse_ctx_p = NULL;  /**< pointer to the rozofs_fuse saved contexts   */
 uint64_t rozofs_write_merge_stats_tab[RZ_FUSE_WRITE_MAX]; /**< read/write merge stats table */
@@ -262,6 +233,23 @@ void rozofs_fuse_kern_chan_destroy(struct fuse_chan *ch)
     S O C K E T   C O N T R O L L E R    C A L L B A C K S
 **__________________________________________________________________________
 */
+
+/*
+**__________________________________________________________________________
+*/
+/**
+  Invalidate the linux cache of a given inode
+ 
+*/
+
+void rozofs_fuse_invalidate_inode_cache(fuse_ino_t ino, uint64_t offset, uint64_t len)
+{
+    if (rozofs_fuse_ctx_p  == NULL) {
+      warning("rozofs_fuse_invalidate_inode_cache no fuse ctx");
+      return;
+    }  
+    fuse_lowlevel_notify_inval_inode(rozofs_fuse_ctx_p->ch, ino, offset, len);
+}
 /*
 **__________________________________________________________________________
 */
@@ -498,12 +486,11 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     
     return TRUE;
 }
-static char localBuf[4096];
 
 void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t            buffer_count=0;
   char                status[16];
-  char *pChar = localBuf;
+  char *pChar = uma_dbg_get_buffer();
   
   buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
   /*
@@ -576,7 +563,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   memset (rozofs_write_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*
@@ -637,17 +624,19 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      rozofs_fuse_ctx_p->fuseReqPoolRef = ruc_buf_poolCreate(rozofs_fuse_buffer_count,sizeof(rozofs_fuse_save_ctx_t));
      if (rozofs_fuse_ctx_p->fuseReqPoolRef == NULL)
      {
-        ERRLOG "rozofs_fuse_init buffer pool creation error(%d,%d)", (int)rozofs_fuse_buffer_count, (int)sizeof(rozofs_fuse_save_ctx_t) ENDERRLOG ;
+        severe( "rozofs_fuse_init buffer pool creation error(%d,%d)", (int)rozofs_fuse_buffer_count, (int)sizeof(rozofs_fuse_save_ctx_t) ) ;
         status = -1;
         break;
      }
+     ruc_buffer_debug_register_pool("fuseCtx",  rozofs_fuse_ctx_p->fuseReqPoolRef);
+     
      /*
      ** allocate a buffer for receiving the fuse request
      */
      rozofs_fuse_ctx_p->buf_fuse_req_p = malloc(bufsize);
      if (rozofs_fuse_ctx_p == NULL) 
      {     
-        ERRLOG "rozofs_fuse_init out of memory %d", bufsize ENDERRLOG ;
+        severe( "rozofs_fuse_init out of memory %d", bufsize ) ;
         status = -1;
         break;     
      }
@@ -661,7 +650,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      rozofs_fuse_ctx_p->ch = fuse_chan_new(&rozofs_fuse_ch_ops,fuse_chan_fd(ch),fuse_chan_bufsize(ch),rozofs_fuse_ctx_p);  
      if (rozofs_fuse_ctx_p->ch == NULL)
      {
-        ERRLOG "rozofs_fuse_init fuse_chan_new error"  ENDERRLOG ;
+        severe( "rozofs_fuse_init fuse_chan_new error"  ) ;
         status = -1;
         break;          
      }

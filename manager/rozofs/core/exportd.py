@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
 
 from rozofs.core.configuration import ConfigurationParser, ConfigurationReader, \
     ConfigurationWriter
@@ -12,34 +28,75 @@ from rozofs.core.constants import LAYOUT, VOLUME, VOLUME_VID, VOLUME_CID, \
     EXPORT_MD5, EXPORT_SQUOTA, EXPORT_HQUOTA, VOLUME_CIDS, LAYOUT_2_3_4, VOLUMES, \
     EXPORTD_MANAGER, LAYOUT_4_6_8, LAYOUT_8_12_16
 from rozofs.core.daemon import DaemonManager
+from rozofs import __sysconfdir__
 import os
 from rozofs.core.agent import Agent, ServiceStatus
 import subprocess
 import shutil
 
+class StorageStat():
+    def __init__(self, host="", size=0, free=0):
+        self.host = host
+        self.size = size
+        self.free = free
 
-# class StorageConfig():
-#    def __init__(self, sid, host):
-#        self.sid = sid
-#        self.host = host
-#
-#    def __eq__(self, other):
-#        return self.__dict__ == other.__dict__
+class ClusterStat():
+    def __init__(self, size=0, free=0, sstats=None):
+        self.size = size
+        self.free = free
+        if sstats is None:
+            self.sstats = {}
+        else:
+            self.sstats = sstats
 
+class VolumeStat():
+    def __init__(self, bsize=0, bfree=0, blocks=0, cstats=None):
+        self.bsize = bsize
+        self.bfree = bfree
+        self.blocks = blocks
+        if cstats is None:
+            self.cstats = {}
+        else:
+            self.cstats = cstats
+
+class ExportStat():
+    def __init__(self, bsize=0, blocks=0, bfree=0, files=0, ffree=0):
+        self.bsize = bsize
+        self.blocks = blocks
+        self.bfree = bfree
+        self.files = files
+        self.ffree = ffree
+
+class ExportdStat():
+    def __init__(self, vstats=None, estats=None):
+        if vstats is None:
+            self.vstats = {}
+        else:
+            self.vstats = vstats
+        if estats is None:
+            self.estats = {}
+        else:
+            self.estats = estats
 
 class ClusterConfig():
-    def __init__(self, cid, storages={}):
+    def __init__(self, cid, storages=None):
         self.cid = cid
-        self.storages = storages
+        if storages is None:
+            self.storages = {}
+        else:
+            self.storages = storages
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
 
 class VolumeConfig():
-    def __init__(self, vid, clusters={}):
+    def __init__(self, vid, clusters=None):
         self.vid = vid
-        self.clusters = clusters
+        if clusters is None:
+            self.clusters = {}
+        else:
+            self.clusters = clusters
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
@@ -59,57 +116,23 @@ class ExportConfig():
 
 
 class ExportdConfig():
-    def __init__(self, layout=LAYOUT_2_3_4, volumes={}, exports={}):
+    def __init__(self, layout=LAYOUT_2_3_4, volumes=None, exports=None, stats=None):
         self.layout = layout
-        self.volumes = volumes
-        self.exports = exports
+        if volumes is None:
+            self.volumes = {}
+        else:
+            self.volumes = volumes
+        if exports is None:
+            self.exports = {}
+        else:
+            self.exports = exports
+        if stats is None:
+            self.stats = ExportdStat()
+        else:
+            self.stats = stats
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
-
-#    def check_consistency(self):
-#        if self.layout not in [LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16]:
-#            raise Exception("invalid layout %d" % self.layout)
-#
-#        # check vid uniqueness
-#        y = collections.Counter([v.vid for v in self.volumes])
-#        d = [i for i in y if y[i] > 1]
-#        if d:
-#            raise Exception("duplicated vid(s): [%s]" % ', '.join(map(str, d)))
-#
-#        # check cid uniqueness
-#        y = collections.Counter([c.cid
-#                                for v in self.volumes
-#                                for c in v.clusters])
-#        d = [i for i in y if y[i] > 1]
-#        if d:
-#            raise Exception("duplicated cid(s): [%s]" % ', '.join(map(str, d)))
-#
-#        # check sid uniqueness
-#        y = collections.Counter([s.sid
-#                                for v in self.volumes
-#                                for c in v.clusters
-#                                for s in c.storages])
-#        d = [i for i in y if y[i] > 1]
-#        if d:
-#            raise Exception("duplicated sid(s): [%s]" % ', '.join(map(str, d)))
-#
-#        # check eid uniqueness
-#        y = collections.Counter([e.eid for e in self.exports])
-#        d = [i for i in y if y[i] > 1]
-#        if d:
-#            raise Exception("duplicated eid(s): [%s]" % ', '.join(map(str, d)))
-#
-#        # check root uniqueness
-#        y = collections.Counter([e.root for e in self.exports])
-#        d = [i for i in y if y[i] > 1]
-#        if d:
-#            raise Exception("duplicated root(s): [%s]" % ', '.join(map(str, d)))
-#
-#        # check exports rely on an existing vid
-#        y = [e.vid for e in self.exports if e.vid not in [v.vid for v in self.volumes]]
-#        if y:
-#            raise Exception("unknown vid(s): [%s]" % ', '.join(map(str, y)))
 
 
 class ExportdConfigurationParser(ConfigurationParser):
@@ -155,7 +178,7 @@ class ExportdConfigurationParser(ConfigurationParser):
     def unparse(self, config, configuration):
         layout_setting = config_lookup(config, LAYOUT)
         if layout_setting == None:
-            raise Exception("Wrong format: no layout defined.")
+            raise Exception("wrong format: no layout defined.")
 
         configuration.layout = config_setting_get_int(layout_setting)
 
@@ -212,15 +235,75 @@ class ExportdConfigurationParser(ConfigurationParser):
 class ExportdAgent(Agent):
     """ exportd agent """
 
-    def __init__(self, config='/etc/rozofs/export.conf', daemon='exportd'):
+    def __init__(self, config="%s%s" % (__sysconfdir__, '/rozofs/export.conf'), daemon='exportd'):
         Agent.__init__(self, EXPORTD_MANAGER)
         self._daemon_manager = DaemonManager(daemon, ["-c", config])
         self._reader = ConfigurationReader(config, ExportdConfigurationParser())
         self._writer = ConfigurationWriter(config, ExportdConfigurationParser())
 
+    def _get_volume_stat(self, vid, vstat):
+        # vstat = VolumeStat()
+        # Did I ever understood python?
+        # I can't figure out why the above line does not initialize
+        # a new cstats (on second call)
+        # vstat.cstats.clear()
+        with open('/var/run/exportd/volume_%d' % vid, 'r') as input:
+            cid = 0
+            sid = 0
+            for line in input:
+
+                if line.startswith("bsize"):
+                    vstat.bsize = int(line.split(':')[-1])
+                if line.startswith("bfree"):
+                    vstat.bfree = int(line.split(':')[-1])
+                if line.startswith("blocks"):
+                    vstat.blocks = int(line.split(':')[-1])
+                if line.startswith("cluster"):
+                    cid = int(line.split(':')[-1])
+                    vstat.cstats[cid] = ClusterStat()
+                    # vstat.cstats[cid].sstats.clear()
+                if line.startswith("storage"):
+                    sid = int(line.split(':')[-1])
+                    vstat.cstats[cid].sstats[sid] = StorageStat()
+                if line.startswith("host"):
+                    vstat.cstats[cid].sstats[sid].host = line.split(':')[-1].rstrip()
+                if line.startswith("size"):
+                    if len(vstat.cstats[cid].sstats.keys()) == 0:
+                        vstat.cstats[cid].size = int(line.split(':')[-1])
+                    else:
+                        vstat.cstats[cid].sstats[sid].size = int(line.split(':')[-1])
+                if line.startswith("free"):
+                    if len(vstat.cstats[cid].sstats.keys()) == 0:
+                        vstat.cstats[cid].free = int(line.split(':')[-1])
+                    else:
+                        vstat.cstats[cid].sstats[sid].free = int(line.split(':')[-1])
+        # return vstat
+
+    def _get_export_stat(self, eid, estat):
+        with open('/var/run/exportd/export_%d' % eid, 'r') as input:
+            for line in input:
+                if line.startswith("bsize"):
+                    estat.bsize = int(line.split(':')[-1])
+                if line.startswith("blocks"):
+                    estat.blocks = int(line.split(':')[-1])
+                if line.startswith("bfree"):
+                    estat.bfree = int(line.split(':')[-1])
+                if line.startswith("files"):
+                    estat.files = int(line.split(':')[-1])
+                if line.startswith("ffree"):
+                    estat.ffree = int(line.split(':')[-1])
+        # return estat
+
     def get_service_config(self):
         configuration = ExportdConfig()
-        return self._reader.read(configuration)
+        self._reader.read(configuration)
+        for vid in configuration.volumes.keys():
+            configuration.stats.vstats[vid] = VolumeStat()
+            self._get_volume_stat(vid, configuration.stats.vstats[vid])
+        for eid in configuration.exports.keys():
+            configuration.stats.estats[eid] = ExportStat()
+            self._get_export_stat(eid, configuration.stats.estats[eid])
+        return configuration
 
     def set_service_config(self, configuration):
         current = ExportdConfig()

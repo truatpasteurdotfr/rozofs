@@ -26,13 +26,13 @@
 #include <sys/un.h>             
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
 #include "af_unix_socket_generic_api.h"
 #include "af_unix_socket_generic.h"
 #include "rozofs_socket_family.h"
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "north_lbg.h"
 
@@ -48,7 +48,6 @@ north_lbg_ctx_t *north_lbg_context_pfirst; /**< pointer to the first context of 
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define NORTH_LBG_DEBUG_TOPIC      "lbg"
-static char myBuf[UMA_DBG_MAX_SEND_SIZE * 4];
 
 char * lbg_north_state2String(int x) {
 
@@ -70,7 +69,7 @@ char * lbg_north_state2String(int x) {
   RETURN: none
   ==========================================================================*/
 void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
     int state;
     pChar += sprintf(pChar, "number of North Load Balancer contexts [size](initial/allocated) :[%u] %u/%u\n",
             (unsigned int) sizeof (north_lbg_ctx_t), (unsigned int) north_lbg_context_count,
@@ -90,6 +89,7 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
 
             state = north_lbg_eval_global_state(lbg_p);
             pChar += sprintf(pChar, "NAME: %-34s %s\n", lbg_p->name, lbg_north_state2String(state));
+            pChar += sprintf(pChar, "      %-25s: %s\n", "local/remote",lbg_p->local?"local":"remote");	    
             pChar += sprintf(pChar, "      size                     : %12u\n", lbg_p->nb_entries_conf);
             pChar += sprintf(pChar, "      total Up/Down Transitions: %12llu\n", (unsigned long long int) lbg_p->stats.totalUpDownTransition);
             north_lbg_entry_ctx_t *entry_p = lbg_p->entry_tb;
@@ -119,12 +119,12 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
             pChar += sprintf(pChar, "\n");
         }
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
 void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
-    char *pChar = myBuf;
+    char *pChar = uma_dbg_get_buffer();
     {
         north_lbg_ctx_t *lbg_p;
         ruc_obj_desc_t *pnext;
@@ -158,7 +158,7 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
 
         }
     }
-    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
 
@@ -223,7 +223,7 @@ north_lbg_ctx_t *north_lbg_getObjCtx_p(uint32_t north_lbg_ctx_id) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count ENDERRLOG
+        severe( "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count);
         return (north_lbg_ctx_t*) NULL;
     }
     p = (north_lbg_ctx_t*) ruc_objGetRefFromIdx((ruc_obj_desc_t*) north_lbg_context_freeListHead,
@@ -268,7 +268,7 @@ uint32_t north_lbg_getObjCtx_ref(north_lbg_ctx_t *p) {
         /*
          ** the MS index is out of range
          */
-        ERRLOG "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count ENDERRLOG
+        severe( "north_lbg_getObjCtx_p(%d): index is out of range, index max is %d", index, north_lbg_context_count );
         return (uint32_t) - 1;
     }
     ;
@@ -341,6 +341,8 @@ void north_lbg_ctxInit(north_lbg_ctx_t *p, uint8_t creation) {
     p->nb_entries_conf = 0; /* number of configured entries  */
     p->nb_active_entries = 0;
     p->next_entry_idx = 0;
+    
+    p->next_global_entry_idx_p = NULL;
 
     p->state = NORTH_LBG_DOWN;
     p->userPollingCallBack = NULL;
@@ -389,7 +391,7 @@ north_lbg_ctx_t *north_lbg_alloc() {
          ** out of Transaction context descriptor try to free some MS
          ** context that are out of date 
          */
-        ERRLOG "NOT ABLE TO GET an AF_UNIX CONTEXT" ENDERRLOG;
+        severe( "NOT ABLE TO GET an AF_UNIX CONTEXT" );
         return NULL;
     }
     /*
@@ -434,14 +436,14 @@ uint32_t north_lbg_createIndex(uint32_t north_lbg_ctx_id) {
      */
     p = north_lbg_getObjCtx_p(north_lbg_ctx_id);
     if (p == NULL) {
-        ERRLOG "MS ref out of range: %u", north_lbg_ctx_id ENDERRLOG;
+        severe( "MS ref out of range: %u", north_lbg_ctx_id );
         return RUC_NOK;
     }
     /*
      ** return an error if the context is not free
      */
     if (p->free == FALSE) {
-        ERRLOG "the context is not free : %u", north_lbg_ctx_id ENDERRLOG;
+        severe( "the context is not free : %u", north_lbg_ctx_id );
         return RUC_NOK;
     }
     /*

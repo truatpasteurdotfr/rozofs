@@ -36,7 +36,6 @@
 #include "af_unix_socket_generic_api.h"
 #include "af_unix_socket_generic.h"
 #include "rozofs_socket_family.h"
-#include "ppu_trace.h"
 #include "uma_dbg_api.h"
 #include "north_lbg.h"
 
@@ -151,7 +150,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
                                 uint32_t src_ipaddr_host,
                                 uint16_t src_port_host,
                                 north_remote_ip_list_t *remote_ip_p,
-                                int family,int  nb_instances,af_unix_socket_conf_t *conf_p);
+                                int family,int  nb_instances,af_unix_socket_conf_t *conf_p,int local);
 
 /*__________________________________________________________________________
 */ 
@@ -245,13 +244,36 @@ int  north_lbg_attach_application_supervision_callback(int lbg_idx,af_stream_pol
 */
 int  north_lbg_set_application_tmo4supervision(int lbg_idx,int tmo_sec);
 
+int north_lbg_set_next_global_entry_idx_p(int lbg_idx, int * next_global_entry_idx_p);
+
 /*__________________________________________________________________________
 */
 
 int north_lbg_send_from_shaper(int  lbg_idx,void *buf_p);
 /*__________________________________________________________________________
 */
+/**
+*  create a north load balancing object with AF_INET
 
+  @param lbg_idx : reference of the load balancing group
+  @param buf_p: pointer to the buffer to send
+  @param rsp_size : expected response size in byte
+  @param disk_time: estimated disk_time in us
+  
+  retval 0 : success
+  retval -1 : error
+*/
 int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint32_t disk_time)
 ;
+/*__________________________________________________________________________
+*/
+/**
+*  Tells whether the lbg target is local to this server or not
+
+  @param entry_idx : index of the entry that must be set
+  @param *p  : pointer to the bitmap array
+
+  @retval none
+*/
+int north_lbg_is_local(int  lbg_idx);
 #endif

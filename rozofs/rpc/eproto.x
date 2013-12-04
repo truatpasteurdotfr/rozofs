@@ -48,7 +48,8 @@ enum ep_status_t {
     EP_FAILURE = 1,
     EP_EMPTY   = 2,
     EP_FAILURE_EID_NOT_SUPPORTED =3,
-    EP_NOT_SYNCED =4
+    EP_NOT_SYNCED =4,
+    EP_EAGAIN
 };
 
 union ep_status_ret_t switch (ep_status_t status) {
@@ -202,6 +203,56 @@ struct  epgw_lookup_arg_t
 {
   struct ep_gateway_t hdr;
   ep_lookup_arg_t    arg_gw;
+};
+
+
+enum ep_lock_mode_t {
+    EP_LOCK_FREE  = 0,
+    EP_LOCK_READ  = 1,
+    EP_LOCK_WRITE = 2
+};
+
+enum ep_lock_size_t {
+    EP_LOCK_NULL=0,
+    EP_LOCK_TOTAL,
+    EP_LOCK_FROM_START,
+    EP_LOCK_TO_END,
+    EP_LOCK_PARTIAL
+};
+
+struct ep_lock_range_t {
+    ep_lock_size_t         size;
+    uint64_t               offset_start;
+    uint64_t               offset_stop; 
+};
+struct ep_lock_t {
+    enum ep_lock_mode_t    mode;
+    uint64_t               client_ref;
+    uint64_t               owner_ref;
+    ep_lock_range_t        user_range;
+    ep_lock_range_t        effective_range;
+}; 
+
+struct ep_lock_request_arg_t {
+    uint32_t        eid;
+    ep_uuid_t       fid;    
+    ep_lock_t       lock;
+};
+
+struct  epgw_lock_arg_t 
+{
+  struct ep_gateway_t           hdr;
+  struct ep_lock_request_arg_t  arg_gw;
+};
+ 
+union ep_lock_ret_t switch (ep_status_t status) {
+  case EP_FAILURE:    uint64_t error;
+  default: struct ep_lock_t lock;
+};
+
+struct epgw_lock_ret_t {
+  struct ep_gateway_t hdr;
+  ep_lock_ret_t   gw_status;
 };
 
 struct ep_mfile_arg_t {
@@ -653,6 +704,20 @@ program EXPORT_PROGRAM {
 
         ep_gw_gateway_configuration_ret_t
         EP_CONF_EXPGW(ep_path_t)                           = 26;
-        
+	
+        epgw_lock_ret_t
+        EP_SET_FILE_LOCK(epgw_lock_arg_t)                  = 27;      
+	
+        epgw_lock_ret_t
+        EP_GET_FILE_LOCK(epgw_lock_arg_t)                  = 28;  
+
+        epgw_status_ret_t
+        EP_CLEAR_OWNER_FILE_LOCK(epgw_lock_arg_t)          = 29; 
+		
+        epgw_status_ret_t
+        EP_CLEAR_CLIENT_FILE_LOCK(epgw_lock_arg_t)         = 30; 
+	 
+        epgw_status_ret_t
+        EP_POLL_FILE_LOCK(epgw_lock_arg_t)                 = 31; 	    		    	  
     } = 1;
 } = 0x20000001;

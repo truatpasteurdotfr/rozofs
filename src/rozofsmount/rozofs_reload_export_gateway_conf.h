@@ -20,25 +20,7 @@
 #ifndef ROZOFS_RELOAD_EXPORT_GATEWAY_CONFIG_H
 #define ROZOFS_RELOAD_EXPORT_GATEWAY_CONFIG_H
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif /*__cplusplus*/
-
-
-
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/xmalloc.h>
 #include <rozofs/rpc/eproto.h>
-#include <rozofs/rpc/eclient.h>
-
 
 typedef enum 
 {
@@ -105,15 +87,5 @@ extern rozofs_conf_ctx_t rozofs_conf_ctx;      /**< statistics associated with e
  @retval -1 on error
  */
 int rozofs_start_exportd_config_supervision_thread(exportclt_t * clt);
-
-
-
-
-#ifdef __cplusplus
-}
-#endif /*__cplusplus */
-
-
-
 
 #endif

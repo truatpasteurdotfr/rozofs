@@ -54,14 +54,17 @@ trshape_ctx_t *trshape_get_ctx_from_idx(int idx)
  
 }
 
-
-static char localBuf[4096];
-
 #define TRAFFIC_SHAPER_COUNTER(name) pchar += sprintf(pchar," %-20s : %llu\n",#name,(long long unsigned int)p->stats.name);
-
+static char * show_traffic_shaper_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"shaper set <value> : set shaper value\n");
+  pChar += sprintf(pChar,"shaper reset       : reset statistics\n");
+  pChar += sprintf(pChar,"shaper             : display statistics\n");
+  return pChar; 
+}  
 void show_traffic_shaper(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
-    char *pchar = localBuf;
+    char *pchar = uma_dbg_get_buffer();
    trshape_ctx_t *p = trshape_get_ctx_from_idx(0) ;
     int byte_time = 0;
     
@@ -78,14 +81,19 @@ void show_traffic_shaper(char * argv[], uint32_t tcpRef, void *bufRef)
         errno = 0;       
         byte_time = (int) strtol(argv[2], (char **) NULL, 10);   
         if (errno != 0) {
-         uma_dbg_send(tcpRef, bufRef, TRUE, "bad byte time value (%s set <value>) %s\n",argv[0],strerror(errno));    
+	 pchar += sprintf(pchar,"Bad byte time value %s\n",argv[2]);    
+	 pchar = show_traffic_shaper_help(pchar);
+         uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
          return;     
         }  
         p->byte_time_ns = (uint64_t) byte_time; 
         p->byte_time_ns_adjusted = (uint64_t) byte_time; 
         uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n"); 
         return;   
-      }      
+      }  
+      pchar = show_traffic_shaper_help(pchar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+      return;                
     }
 
    pchar += sprintf(pchar,"Byte time     (1/10 ns): %llu\n", (long long unsigned int) p->byte_time_ns);
@@ -101,7 +109,7 @@ void show_traffic_shaper(char * argv[], uint32_t tcpRef, void *bufRef)
    TRAFFIC_SHAPER_COUNTER(send_violation_count);
       
 
-  uma_dbg_send(tcpRef, bufRef, TRUE, localBuf);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
 /*__________________________________________________________________________

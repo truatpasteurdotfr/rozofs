@@ -1,4 +1,7 @@
 /usr/bin/storaged
+/usr/bin/storio
+/usr/bin/storio_starter.sh
+/usr/bin/storio_killer.sh
 /etc/rozofs/storage.conf.sample
 /etc/rozofs/storage.conf
 /usr/share/man/man5/storage.conf.5

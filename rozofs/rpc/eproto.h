@@ -51,6 +51,7 @@ enum ep_status_t {
 	EP_EMPTY = 2,
 	EP_FAILURE_EID_NOT_SUPPORTED = 3,
 	EP_NOT_SYNCED = 4,
+	EP_EAGAIN = 4 + 1,
 };
 typedef enum ep_status_t ep_status_t;
 
@@ -226,6 +227,66 @@ struct epgw_lookup_arg_t {
 	ep_lookup_arg_t arg_gw;
 };
 typedef struct epgw_lookup_arg_t epgw_lookup_arg_t;
+
+enum ep_lock_mode_t {
+	EP_LOCK_FREE = 0,
+	EP_LOCK_READ = 1,
+	EP_LOCK_WRITE = 2,
+};
+typedef enum ep_lock_mode_t ep_lock_mode_t;
+
+enum ep_lock_size_t {
+	EP_LOCK_NULL = 0,
+	EP_LOCK_TOTAL = 0 + 1,
+	EP_LOCK_FROM_START = 0 + 2,
+	EP_LOCK_TO_END = 0 + 3,
+	EP_LOCK_PARTIAL = 0 + 4,
+};
+typedef enum ep_lock_size_t ep_lock_size_t;
+
+struct ep_lock_range_t {
+	ep_lock_size_t size;
+	uint64_t offset_start;
+	uint64_t offset_stop;
+};
+typedef struct ep_lock_range_t ep_lock_range_t;
+
+struct ep_lock_t {
+	enum ep_lock_mode_t mode;
+	uint64_t client_ref;
+	uint64_t owner_ref;
+	ep_lock_range_t user_range;
+	ep_lock_range_t effective_range;
+};
+typedef struct ep_lock_t ep_lock_t;
+
+struct ep_lock_request_arg_t {
+	uint32_t eid;
+	ep_uuid_t fid;
+	ep_lock_t lock;
+};
+typedef struct ep_lock_request_arg_t ep_lock_request_arg_t;
+
+struct epgw_lock_arg_t {
+	struct ep_gateway_t hdr;
+	struct ep_lock_request_arg_t arg_gw;
+};
+typedef struct epgw_lock_arg_t epgw_lock_arg_t;
+
+struct ep_lock_ret_t {
+	ep_status_t status;
+	union {
+		uint64_t error;
+		struct ep_lock_t lock;
+	} ep_lock_ret_t_u;
+};
+typedef struct ep_lock_ret_t ep_lock_ret_t;
+
+struct epgw_lock_ret_t {
+	struct ep_gateway_t hdr;
+	ep_lock_ret_t gw_status;
+};
+typedef struct epgw_lock_ret_t epgw_lock_ret_t;
 
 struct ep_mfile_arg_t {
 	uint32_t eid;
@@ -743,6 +804,21 @@ extern  epgw_status_ret_t * ep_poll_conf_1_svc(ep_gateway_t *, struct svc_req *)
 #define EP_CONF_EXPGW 26
 extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1(ep_path_t *, CLIENT *);
 extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1_svc(ep_path_t *, struct svc_req *);
+#define EP_SET_FILE_LOCK 27
+extern  epgw_lock_ret_t * ep_set_file_lock_1(epgw_lock_arg_t *, CLIENT *);
+extern  epgw_lock_ret_t * ep_set_file_lock_1_svc(epgw_lock_arg_t *, struct svc_req *);
+#define EP_GET_FILE_LOCK 28
+extern  epgw_lock_ret_t * ep_get_file_lock_1(epgw_lock_arg_t *, CLIENT *);
+extern  epgw_lock_ret_t * ep_get_file_lock_1_svc(epgw_lock_arg_t *, struct svc_req *);
+#define EP_CLEAR_OWNER_FILE_LOCK 29
+extern  epgw_status_ret_t * ep_clear_owner_file_lock_1(epgw_lock_arg_t *, CLIENT *);
+extern  epgw_status_ret_t * ep_clear_owner_file_lock_1_svc(epgw_lock_arg_t *, struct svc_req *);
+#define EP_CLEAR_CLIENT_FILE_LOCK 30
+extern  epgw_status_ret_t * ep_clear_client_file_lock_1(epgw_lock_arg_t *, CLIENT *);
+extern  epgw_status_ret_t * ep_clear_client_file_lock_1_svc(epgw_lock_arg_t *, struct svc_req *);
+#define EP_POLL_FILE_LOCK 31
+extern  epgw_status_ret_t * ep_poll_file_lock_1(epgw_lock_arg_t *, CLIENT *);
+extern  epgw_status_ret_t * ep_poll_file_lock_1_svc(epgw_lock_arg_t *, struct svc_req *);
 extern int export_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -824,6 +900,21 @@ extern  epgw_status_ret_t * ep_poll_conf_1_svc();
 #define EP_CONF_EXPGW 26
 extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1();
 extern  ep_gw_gateway_configuration_ret_t * ep_conf_expgw_1_svc();
+#define EP_SET_FILE_LOCK 27
+extern  epgw_lock_ret_t * ep_set_file_lock_1();
+extern  epgw_lock_ret_t * ep_set_file_lock_1_svc();
+#define EP_GET_FILE_LOCK 28
+extern  epgw_lock_ret_t * ep_get_file_lock_1();
+extern  epgw_lock_ret_t * ep_get_file_lock_1_svc();
+#define EP_CLEAR_OWNER_FILE_LOCK 29
+extern  epgw_status_ret_t * ep_clear_owner_file_lock_1();
+extern  epgw_status_ret_t * ep_clear_owner_file_lock_1_svc();
+#define EP_CLEAR_CLIENT_FILE_LOCK 30
+extern  epgw_status_ret_t * ep_clear_client_file_lock_1();
+extern  epgw_status_ret_t * ep_clear_client_file_lock_1_svc();
+#define EP_POLL_FILE_LOCK 31
+extern  epgw_status_ret_t * ep_poll_file_lock_1();
+extern  epgw_status_ret_t * ep_poll_file_lock_1_svc();
 extern int export_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -864,6 +955,14 @@ extern  bool_t xdr_ep_fid_ret_t (XDR *, ep_fid_ret_t*);
 extern  bool_t xdr_epgw_fid_ret_t (XDR *, epgw_fid_ret_t*);
 extern  bool_t xdr_ep_lookup_arg_t (XDR *, ep_lookup_arg_t*);
 extern  bool_t xdr_epgw_lookup_arg_t (XDR *, epgw_lookup_arg_t*);
+extern  bool_t xdr_ep_lock_mode_t (XDR *, ep_lock_mode_t*);
+extern  bool_t xdr_ep_lock_size_t (XDR *, ep_lock_size_t*);
+extern  bool_t xdr_ep_lock_range_t (XDR *, ep_lock_range_t*);
+extern  bool_t xdr_ep_lock_t (XDR *, ep_lock_t*);
+extern  bool_t xdr_ep_lock_request_arg_t (XDR *, ep_lock_request_arg_t*);
+extern  bool_t xdr_epgw_lock_arg_t (XDR *, epgw_lock_arg_t*);
+extern  bool_t xdr_ep_lock_ret_t (XDR *, ep_lock_ret_t*);
+extern  bool_t xdr_epgw_lock_ret_t (XDR *, epgw_lock_ret_t*);
 extern  bool_t xdr_ep_mfile_arg_t (XDR *, ep_mfile_arg_t*);
 extern  bool_t xdr_epgw_mfile_arg_t (XDR *, epgw_mfile_arg_t*);
 extern  bool_t xdr_ep_unlink_arg_t (XDR *, ep_unlink_arg_t*);
@@ -958,6 +1057,14 @@ extern bool_t xdr_ep_fid_ret_t ();
 extern bool_t xdr_epgw_fid_ret_t ();
 extern bool_t xdr_ep_lookup_arg_t ();
 extern bool_t xdr_epgw_lookup_arg_t ();
+extern bool_t xdr_ep_lock_mode_t ();
+extern bool_t xdr_ep_lock_size_t ();
+extern bool_t xdr_ep_lock_range_t ();
+extern bool_t xdr_ep_lock_t ();
+extern bool_t xdr_ep_lock_request_arg_t ();
+extern bool_t xdr_epgw_lock_arg_t ();
+extern bool_t xdr_ep_lock_ret_t ();
+extern bool_t xdr_epgw_lock_ret_t ();
 extern bool_t xdr_ep_mfile_arg_t ();
 extern bool_t xdr_epgw_mfile_arg_t ();
 extern bool_t xdr_ep_unlink_arg_t ();

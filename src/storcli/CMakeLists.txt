@@ -21,28 +21,28 @@ include_directories(${PTHREAD_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
 add_executable(storcli
-  rozofs_storcli.h                      
-  rozofs_storcli_transform.h
-  rozofs_storcli_lbg_cnf_supervision.h  
-  storage_proto.h
-  rozofs_storcli_rpc.h                  
-  storcli_main.h
-  rozofs_storcli_send_new.c
-  rozofs_storcli_lbg_cnf_supervision.c  
- rozofs_storcli_transform.c
-  rozofs_storcli_mgt.c                  
-  rozofs_storcli_write.c
-  rozofs_storcli_nblock_init.c          
-  storcli_main.c
-  rozofs_storcli_north_intf.c           
-  storcli_stub.c
-  rozofs_storcli_read.c                 
-  rozofs_storcli_rebuild_prj.c          
-  rozofs_storcli_reload_storage_config.c
-  rozofs_storcli_reload_storage_config.h
-  storage_lbg.c  
-  rozofs_storcli_cnx_supervision.c
-  rozofs_storcli_truncate.c                 
+    rozofs_storcli.h
+    rozofs_storcli_transform.h
+    rozofs_storcli_lbg_cnf_supervision.h
+    storage_proto.h
+    rozofs_storcli_rpc.h        
+    storcli_main.h
+    rozofs_storcli_send_new.c
+    rozofs_storcli_lbg_cnf_supervision.c
+    rozofs_storcli_transform.c
+    rozofs_storcli_mgt.c
+    rozofs_storcli_write.c
+    rozofs_storcli_nblock_init.c
+    storcli_main.c
+    rozofs_storcli_north_intf.c
+    storcli_stub.c
+    rozofs_storcli_read.c
+    rozofs_storcli_rebuild_prj.c
+    rozofs_storcli_reload_storage_config.c
+    rozofs_storcli_reload_storage_config.h
+    storage_lbg.c
+    rozofs_storcli_cnx_supervision.c
+    rozofs_storcli_truncate.c        
 )
 #pthread need by fuse
 target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY})

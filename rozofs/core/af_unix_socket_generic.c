@@ -385,8 +385,8 @@ int af_unix_sock_create_internal(char *nameOfSocket,int size)
   fd=socket(PF_UNIX,SOCK_DGRAM,0);
   if(fd<0)
   {
-    RUC_WARNING(errno);
-   return -1;
+    warning("af_unix_sock_create_internal socket(%s) %s", nameOfSocket, strerror(errno));
+    return -1;
   }
   /*
   ** remove fd if it already exists
@@ -400,8 +400,8 @@ int af_unix_sock_create_internal(char *nameOfSocket,int size)
   ret=bind(fd,(struct sockaddr*)&addr,sizeof(addr));
   if(ret<0)
   {
-    RUC_WARNING(errno);
-   return -1;
+    warning("af_unix_sock_create_internal bind(%s) %s", nameOfSocket, strerror(errno));
+    return -1;
   }
   /*
   ** change the length for the send buffer, nothing to do for receive buf
@@ -410,8 +410,8 @@ int af_unix_sock_create_internal(char *nameOfSocket,int size)
   ret= getsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&fdsize,(socklen_t*)&optionsize);
   if(ret<0)
   {
-    RUC_WARNING(errno);
-   return -1;
+    warning("af_unix_sock_create_internal getsockopt(%s) %s", nameOfSocket, strerror(errno));
+    return -1;
   }
   /*
   ** update the size, always the double of the input
@@ -425,15 +425,15 @@ int af_unix_sock_create_internal(char *nameOfSocket,int size)
   ret=setsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&fdsize,sizeof(int));
   if(ret<0)
   {
-    RUC_WARNING(errno);
-   return -1;
+    warning("af_unix_sock_create_internal setsockopt(%s,%d) %s", nameOfSocket, fdsize, strerror(errno));
+    return -1;
   }
   /*
   ** Change the mode of the socket to non blocking
   */
   if((fileflags=fcntl(fd,F_GETFL,0))==-1)
   {
-    RUC_WARNING(errno);
+    warning("af_unix_sock_create_internal fcntl(F_GETFL %s) %s", nameOfSocket, strerror(errno));
     return -1;
   }
 //  #warning socket is operating blocking mode
@@ -441,7 +441,7 @@ int af_unix_sock_create_internal(char *nameOfSocket,int size)
 
   if((fcntl(fd,F_SETFL,fileflags|O_NDELAY))==-1)
   {
-    RUC_WARNING(errno);
+    warning("af_unix_sock_create_internal fcntl(F_SETFL O_NDELAY %s) %s", nameOfSocket, strerror(errno));
     return -1;
   }
 #endif

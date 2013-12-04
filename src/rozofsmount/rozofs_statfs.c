@@ -16,43 +16,9 @@
   <http://www.gnu.org/licenses/>.
  */
 
-/* need for crypt */
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
+
 #include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -202,13 +168,13 @@ error:
     /*
     ** end of decoding section
     */
-    memset(&st, 0, sizeof (struct statvfs));
-    st.f_blocks = estat.blocks; // + estat.bfree;
-    st.f_bavail = st.f_bfree = estat.bfree;
-    st.f_frsize = st.f_bsize = estat.bsize;
-    st.f_favail = st.f_ffree = estat.ffree;
-    st.f_files = estat.files+estat.ffree;
-    st.f_namemax = estat.namemax;
+	memset(&st, 0, sizeof(struct statvfs));
+	st.f_blocks = estat.blocks; // + estat.bfree;
+	st.f_bavail = st.f_bfree = estat.bfree;
+	st.f_frsize = st.f_bsize = estat.bsize;
+	st.f_favail = st.f_ffree = estat.ffree;
+	st.f_files = estat.files + estat.ffree;
+	st.f_namemax = estat.namemax;
 
     fuse_reply_statfs(req, &st);
     goto out;

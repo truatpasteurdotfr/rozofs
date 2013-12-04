@@ -31,7 +31,6 @@
 #include <dirent.h>
 #include <signal.h>
 #include <errno.h>
-
 #include <rozofs/common/log.h>
 #include <rozofs/core/rozofs_core_files.h>
 
@@ -178,7 +177,7 @@ void rozofs_clean_core(void) {
   struct stat     traceStat;
   DIR           * dir;
   uint32_t        nb,idx;
-  uint32_t        older;
+  uint32_t        younger;
 
   if (rozofs_mkdir(ROZOFS_CORE_BASE_PATH) < 0) return;
 
@@ -216,20 +215,20 @@ void rozofs_clean_core(void) {
 
     /* Maximum number of file is reached. Remove the older */     
 
-    /* Find older in already registered list */ 
-    older = 0;
+    /* Find younger in already registered list */ 
+    younger = 0;
     for (idx=1; idx < rozofs_max_core_files; idx ++) {
-      if (directories[idx].ctime < directories[older].ctime) older = idx;
+      if (directories[idx].ctime > directories[younger].ctime) younger = idx;
     }
 
     /* 
-    ** If older in list is older than the last one read, 
-    ** the last one read replaces the older in the array and the older is removed
+    ** If younger in list is younger than the last one read, 
+    ** the last one read replaces the younger in the array and the older is removed
     */
-    if (directories[older].ctime < (uint32_t)traceStat.st_ctime) {
-      unlink(directories[older].name);	
-      directories[older].ctime = traceStat.st_ctime;
-      strcpy(directories[older].name, buff);
+    if (directories[younger].ctime > (uint32_t)traceStat.st_ctime) {
+      unlink(directories[younger].name);	
+      directories[younger].ctime = traceStat.st_ctime;
+      strcpy(directories[younger].name, buff);
       continue;
     }
     /*
@@ -262,7 +261,7 @@ void rozofs_catch_error(int sig){
     rozofs_crash_cbk[idx](sig);
   }
   
-  /* Set current directory on the core directory */
+/* Set current directory on the core directory */
   if (rozofs_core_file_path[0]) {
     ret = chdir(rozofs_core_file_path);
     if (ret == -1){
@@ -309,7 +308,7 @@ void rozofs_catch_sigpipe(int s){
   Declare a list of signals and the handler to process them
   ==========================================================================
   @param application       the application name. This will be the directory
-                           name where its core files will be saved
+                           name where its core files will e saved
   @param max_core_files    maximum number of core files to keep in this
                            directory
   ==========================================================================*/

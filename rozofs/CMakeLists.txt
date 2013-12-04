@@ -94,7 +94,6 @@ set (librozofs_sources
     core/north_lbg_timer.h
     core/north_load_balancer_api.c
     core/north_load_balancer.c
-    core/ppu_trace.h
     core/rozofs_north_sock.h
     core/rozofs_socket_family.h
     core/ruc_buffer_api.h
@@ -140,6 +139,8 @@ set (librozofs_sources
     core/rozofs_tx_common.h
     core/rozofs_tx_engine.c
     core/com_tx_timer.c
+    core/rozofs_ip_utilities.c
+    core/rozofs_ip_utilities.h
     rozofs_timer_conf.h
     rozofs_timer_conf.c    
     core/rozofs_timer_conf_dbg.c
@@ -148,6 +149,8 @@ set (librozofs_sources
     rozofs_debug_ports.c
     core/com_cache.c
     core/com_cache.h
+    core/ruc_buffer_debug.c
+    core/ruc_buffer_debug.h    
     rpc/gwprotoclt.c
     rpc/gwproto.h
     rpc/gwprotosvc.c
@@ -158,10 +161,13 @@ set (librozofs_sources
     core/rozofs_rpc_non_blocking_generic.h
     core/rozofs_rpc_non_blocking_generic_srv.c
     core/rozofs_rpc_non_blocking_generic_srv.h
-    core/rozofs_core_files.c
-    core/rozofs_core_files.h
+    #core/rozofs_optim.h
+    #core/rozofs_optim.c
     core/ruc_traffic_shaping.h
     core/ruc_traffic_shaping.c
+    core/rozofs_core_files.c
+    core/rozofs_core_files.h    
+    core/rozofs_host2ip.h    
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

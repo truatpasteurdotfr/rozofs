@@ -9,48 +9,19 @@
   Rozofs is distributed in the hope that it will be useful, but
   WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  General Public License for more details.
+  General Public License for morozofs_fuse_initre details.
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
  */
 
-#include <stdlib.h>
-#include <sys/types.h> 
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <netinet/in.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <fcntl.h> 
-#include <errno.h>  
-#include <stdarg.h>    
-#include <string.h>  
-#include <strings.h>
-#include <semaphore.h>
-#include <pthread.h>
-
 #include <rozofs/core/ruc_common.h>
-#include <rozofs/core/ruc_sockCtl_api.h>
-#include <rozofs/core/ruc_timer_api.h>
-#include <rozofs/core/ruc_trace_api.h>
 #include <rozofs/core/uma_tcp_main_api.h>
-#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_tcpServer_api.h>
-#include <rozofs/core/ruc_tcp_client_api.h>
-#include <rozofs/core/ppu_trace.h>
-#include <rozofs/core/uma_well_known_ports_api.h>
-#include <rozofs/core/ppu_trace.h>
-#include <rozofs/core/af_unix_socket_generic_api.h>
-#include <rozofs/core/north_lbg_api.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rpc/eclient.h>
-#include <rozofs/rpc/eproto.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/core/expgw_common.h>
 #include <rozofs/core/rozofs_core_files.h>
-#include "rozofs_reload_export_gateway_conf.h"
+#include <rozofs/rpc/storcli_lbg_prototypes.h>
+
 #include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
 
@@ -64,6 +35,7 @@ pthread_t heartbeat_thrdId;
 
 int module_test_id = 0;
 
+void rozofs_flock_service_init(void) ;
 
 /**
 *  Init of the module that deals with the export gateways
@@ -168,7 +140,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
     //#warning set the number of contexts for socketCtrl to 100
     ret = ruc_sockctl_init(256);
     if (ret != RUC_OK) {
-        ERRFAT " socket controller init failed" ENDERRFAT
+        fatal( " socket controller init failed" );
     }
 
     /*
@@ -230,7 +202,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
         ret = north_lbg_module_init(mx_lbg_north_ctx);
         if (ret != RUC_OK) break;
 
-        ret = rozofs_tx_module_init(args_p->max_transactions, // transactions count
+        ret = rozofs_tx_module_init(args_p->max_transactions+32, // fuse trx + internal trx
                 args_p->max_transactions, 2048, // xmit small [count,size]
                 args_p->max_transactions, (1024 * 258), // xmit large [count,size]
                 args_p->max_transactions, 1024, // recv small [count,size]
@@ -265,7 +237,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      ** init of the stats module
      */
     //     rozofs_stats_init();
-
+    rozofs_flock_service_init();
 
     return ret;
 }
@@ -329,7 +301,7 @@ int rozofs_stat_start(void *args) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
     
-    rozofs_signals_declare("rozofsmount", 1);
+    rozofs_signals_declare("rozofsmount",  args_p->nb_cores);
     
     /*
      ** main loop
@@ -337,5 +309,5 @@ int rozofs_stat_start(void *args) {
     while (1) {
         ruc_sockCtrl_selectWait();
     }
-    ERRFAT "main() code is rotten" ENDERRFAT
+    fatal( "main() code is rotten" );
 }

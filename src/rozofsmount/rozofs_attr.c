@@ -1,4 +1,3 @@
-
 /*
   Copyright (c) 2010 Fizians SAS. <http://www.fizians.com>
   This file is part of Rozofs.
@@ -17,52 +16,14 @@
   <http://www.gnu.org/licenses/>.
  */
 
-/* need for crypt */
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
-
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
+
 #include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/core/expgw_common.h>
+#include "rozofs_modeblock_cache.h"
 #include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
-
-
 
 /*
 **__________________________________________________________________
@@ -113,10 +74,11 @@ DECLARE_PROFILING(mpp_profiler_t);
         goto error;
     }
     /*
-    ** check the case of the block mode: in that case the attributes are
-    ** directly retrieved from the ie entry
+    ** In block mode the attributes of regular files are directly retrieved 
+    ** from the ie entry. For directories and links one ask to the exportd
+    ** 
     */
-    if (rozofs_mode == 1)
+    if ((rozofs_mode == 1)&&(S_ISREG(ie->attrs.mode)))
     {
       mattr_to_stat(&ie->attrs, &stbuf);
       stbuf.st_ino = ino;   
@@ -378,6 +340,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     epgw_setattr_arg_t arg;
     int     ret;
     void *buffer_p = NULL;
+
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -430,6 +393,14 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       uint64_t bid;
       uint16_t last_seg;
       /*
+      ** flush the entry from the modeblock cache: to goal it to avoid returning
+      ** non zero data when the file has been truncated. Another way to do it was
+      ** to find out the 8K blocks that are impacted, but this implies more complexity
+      ** in the cache management for something with is not frequent. So it is better 
+      ** to flush the entry and keep the performance of the caceh for regular usage
+      */
+      rozofs_mbcache_remove(ie->fid);
+      /*
       ** translate the size in a block index for the storaged
       */
       bid = attr.size / ROZOFS_BSIZE;
@@ -448,6 +419,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       memcpy(args.fid, ie->fid, sizeof (fid_t));
       args.bid      = bid;
       args.last_seg = last_seg;
+//      lbg_id = storcli_lbg_get_lbg_from_fid(ie->fid);
       /*
       ** get the storcli to use for the transaction
       */      
@@ -514,6 +486,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 {
     fuse_ino_t ino;
     ientry_t *ie = 0;
+    struct fuse_file_info *fi = NULL;
+    file_t *file = NULL;
     struct stat o_stbuf;
     fuse_req_t req; 
     epgw_mattr_ret_t ret ;
@@ -534,6 +508,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 
     RESTORE_FUSE_PARAM(param,req);
     RESTORE_FUSE_PARAM(param,ino);
+    
+    RESTORE_FUSE_STRUCT_PTR(param,fi);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -655,6 +631,12 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     ** update the attributes in the ientry
     */
     memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    // Update also the fuse_file_info with the new size
+    // It's just for truncate operation
+    if (fi != NULL) {
+        file = (file_t *) (unsigned long) fi->fh;
+        file->attrs.size = ie->attrs.size;
+    }
     
     /*
     ** check the length of the file, and update the ientry if the file size returned
@@ -844,4 +826,3 @@ error:
     
     return;
 }
-

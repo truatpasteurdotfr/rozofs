@@ -22,10 +22,16 @@
 #include <errno.h>
 #include <libconfig.h>
 #include <unistd.h>
+#include <inttypes.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/log.h>
+#include <rozofs/core/rozofs_host2ip.h>
 
 #include "sconfig.h"
 
@@ -34,7 +40,11 @@
 #define SSID	    "sid"
 #define SCID	    "cid"
 #define SROOT	    "root"
-#define SPORTS      "ports"
+#define STHREADS    "threads"
+#define SIOLISTEN   "listen"
+#define SIOADDR     "addr"
+#define SIOPORT     "port"
+#define SCORES      "nbcores"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root) {
@@ -53,7 +63,7 @@ void storage_config_release(storage_config_t *s) {
 
 int sconfig_initialize(sconfig_t *sc) {
     DEBUG_FUNCTION;
-
+    memset(sc, 0, sizeof (storage_config_t));
     list_init(&sc->storages);
     return 0;
 }
@@ -74,8 +84,14 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     int status = -1;
     config_t cfg;
     struct config_setting_t *stor_settings = 0;
-    struct config_setting_t *ports_settings = 0;
-    int i;
+    struct config_setting_t *ioaddr_settings = 0;
+    int i = 0;
+#if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
+               || (LIBCONFIG_VER_MAJOR > 1))
+    int threads, port, nb_cores;
+#else
+    long int threads, port, nb_cores;
+#endif      
     DEBUG_FUNCTION;
 
     config_init(&cfg);
@@ -86,22 +102,77 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         goto out;
     }
 
-    if (!(ports_settings = config_lookup(&cfg, SPORTS))) {
+    if (!config_lookup_int(&cfg, STHREADS, &threads)) {
+        config->nb_disk_threads = 2;
+    } else {
+        config->nb_disk_threads = threads;
+    }
+
+    if (!config_lookup_int(&cfg, SCORES, &nb_cores)) {
+        config->nb_cores = 2;
+    } else {
+        config->nb_cores = nb_cores;
+    }
+
+    if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
         errno = ENOKEY;
-        severe("can't fetch ports settings.");
+        severe("can't fetch listen settings.");
         goto out;
     }
 
-    for (i = 0; i < config_setting_length(ports_settings); i++) {
+    config->io_addr_nb = config_setting_length(ioaddr_settings);
 
-        long int port = 0;
+    if (config->io_addr_nb > STORAGE_NODE_PORTS_MAX) {
+        errno = EINVAL;
+        severe("too many IO listen addresses defined. %d while max is %d.",
+                config->io_addr_nb, STORAGE_NODE_PORTS_MAX);
+        goto out;
+    }
 
-        if ((port = config_setting_get_int_elem(ports_settings, i)) == 0) {
+    if (config->io_addr_nb == 0) {
+        errno = EINVAL;
+        severe("no IO listen address defined.");
+        goto out;
+    }
+
+    for (i = 0; i < config->io_addr_nb; i++) {
+        struct config_setting_t * io_addr = NULL;
+        const char * io_addr_str = NULL;
+
+        if (!(io_addr = config_setting_get_elem(ioaddr_settings, i))) {
             errno = ENOKEY;
-            fatal("cant't lookup port at index %d.", i);
+            severe("can't fetch IO listen address(es) settings %d.", i);
+            goto out;
         }
-        config->ports[i] = port;
-        config->sproto_svc_nb++;
+
+        if (config_setting_lookup_string(io_addr, SIOADDR, &io_addr_str)
+                == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't lookup address in IO listen address %d.", i);
+            goto out;
+        }
+
+        // Check if the io address is specified by a single * character
+        // if * is specified storio will listen on any of the interfaces
+        if (strcmp(io_addr_str, "*") == 0) {
+            config->io_addr[i].ipv4 = INADDR_ANY;
+        } else {
+            if (rozofs_host2ip((char*) io_addr_str, &config->io_addr[i].ipv4)
+                    < 0) {
+                severe("bad address \"%s\" in IO listen address %d",
+                        io_addr_str, i);
+                goto out;
+            }
+        }
+
+        if (config_setting_lookup_int(io_addr, SIOPORT, &port)
+                == CONFIG_FALSE) {
+            errno = ENOKEY;
+            severe("can't lookup port in IO address %d.", i);
+            goto out;
+        }
+
+        config->io_addr[i].port = port;
     }
 
     if (!(stor_settings = config_lookup(&cfg, SSTORAGES))) {
@@ -127,25 +198,25 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 
         if (!(ms = config_setting_get_elem(stor_settings, i))) {
             errno = ENOKEY;
-            severe("cant't fetch storage.");
+            severe("can't fetch storage.");
             goto out;
         }
 
         if (config_setting_lookup_int(ms, SSID, &sid) == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("cant't lookup sid for storage %d.", i);
+            severe("can't lookup sid for storage %d.", i);
             goto out;
         }
 
         if (config_setting_lookup_int(ms, SCID, &cid) == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("cant't lookup cid for storage %d.", i);
+            severe("can't lookup cid for storage %d.", i);
             goto out;
         }
 
         if (config_setting_lookup_string(ms, SROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;
-            severe("cant't lookup root path for storage %d.", i);
+            severe("can't lookup root path for storage %d.", i);
             goto out;
         }
 
@@ -175,17 +246,38 @@ out:
 
 int sconfig_validate(sconfig_t *config) {
     int status = -1;
+    int i = -1;
+    int j = -1;
     list_t *p;
     int storages_nb = 0;
+    uint32_t ip = 0;
     DEBUG_FUNCTION;
 
-    /* Checking the number of process */
-    if (config->sproto_svc_nb < 1 ||
-            config->sproto_svc_nb > STORAGE_NODE_PORTS_MAX) {
-        severe("invalid number of process: %u. (minimum: 1, maximum: %d)",
-                config->sproto_svc_nb, STORAGE_NODE_PORTS_MAX);
-        errno = EINVAL;
-        goto out;
+    // Check if IO addresses are duplicated
+    for (i = 0; i < config->io_addr_nb; i++) {
+
+        if ((config->io_addr[i].ipv4 == INADDR_ANY) &&
+                (config->io_addr_nb != 1)) {
+            severe("only one IO listen address can be configured if '*'"
+                    " character is specified");
+            errno = EINVAL;
+            goto out;
+        }
+
+        for (j = i + 1; j < config->io_addr_nb; j++) {
+
+            if ((config->io_addr[i].ipv4 == config->io_addr[j].ipv4)
+                    && (config->io_addr[i].port == config->io_addr[j].port)) {
+
+                ip = config->io_addr[i].ipv4;
+                severe("duplicated IO listen address (addr: %u.%u.%u.%u ;"
+                        " port: %"PRIu32")",
+                        ip >> 24, (ip >> 16)&0xFF, (ip >> 8)&0xFF, ip & 0xFF,
+                        config->io_addr[i].port);
+                errno = EINVAL;
+                goto out;
+            }
+        }
     }
 
     list_for_each_forward(p, &config->storages) {

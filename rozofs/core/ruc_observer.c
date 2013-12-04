@@ -30,7 +30,8 @@
 #include <sys/socket.h>
 
 #include "ruc_observer_api.h"
-#include "ppu_trace.h"
+#include <rozofs/common/log.h>
+
 /*
 **-------------------------------------------------------------
 **   S T U C T U R E
@@ -152,7 +153,7 @@ RUC_OBSERVER_SERVER_T *ruc_observer_getServer(uint32_t index) {
     /*
     ** the MS index is out of range
     */
-    ERRFAT "ruc_observer_getServer(%d): index is out of range, index max is %d",index, ruc_observer_max_server ENDERRFAT;
+    fatal( "ruc_observer_getServer(%d): index is out of range, index max is %d",index, ruc_observer_max_server );
     return (RUC_OBSERVER_SERVER_T*)NULL;
   }
   p = (RUC_OBSERVER_SERVER_T*)ruc_objGetRefFromIdx(&ruc_observer_server_freeListHead->link,index);
@@ -181,7 +182,7 @@ RUC_OBSERVER_CLIENT_T *ruc_observer_getClient(uint32_t index) {
     /*
     ** the MS index is out of range
     */
-    ERRFAT "ruc_observer_getClient(%d) index is out of range, index max is %d",index, ruc_observer_max_client ENDERRFAT;
+    fatal( "ruc_observer_getClient(%d) index is out of range, index max is %d",index, ruc_observer_max_client );
     return (RUC_OBSERVER_CLIENT_T*)NULL;
   }
   p = (RUC_OBSERVER_CLIENT_T*)ruc_objGetRefFromIdx(&ruc_observer_client_freeListHead->link, index);
@@ -239,7 +240,7 @@ uint32_t ruc_observer_init(uint32_t maxClient, uint32_t maxServer) {
     /*
     ** out of memory
     */
-    ERRFAT "runc_observer_init: out of memory" ENDERRFAT;
+    fatal ("runc_observer_init: out of memory" );
     return RUC_NOK;
   }
   /*
@@ -269,7 +270,7 @@ uint32_t ruc_observer_init(uint32_t maxClient, uint32_t maxServer) {
     /*
     ** out of memory
     */
-    ERRFAT "runc_observer_init: out of memory" ENDERRFAT;
+    fatal( "runc_observer_init: out of memory" );
     return RUC_NOK;
   }
   /*
@@ -309,7 +310,7 @@ uint32_t ruc_observer_declareServer(char * name, uint32_t nbEvent) {
   uint32_t                      idx;
 
   if (ruc_observer_initDone == FALSE) {
-    ERRFAT "OBSERVER not initialised" ENDERRFAT;
+    fatal( "OBSERVER not initialised" );
     return -1;
   }
 
@@ -318,7 +319,7 @@ uint32_t ruc_observer_declareServer(char * name, uint32_t nbEvent) {
   */
   pSrv = (RUC_OBSERVER_SERVER_T*)ruc_objGetFirst((ruc_obj_desc_t*) ruc_observer_server_freeListHead);
   if (pSrv == (RUC_OBSERVER_SERVER_T* )NULL) {
-    ERRFAT "Out of server context" ENDERRFAT;
+    fatal( "Out of server context" );
     return -1;
   }
   /*
@@ -341,7 +342,7 @@ uint32_t ruc_observer_declareServer(char * name, uint32_t nbEvent) {
     /*
     ** out of memory
     */
-    ERRFAT "Out of memory" ENDERRFAT;
+    fatal( "Out of memory" );
     return -1;
   }
   /*
@@ -385,7 +386,7 @@ uint32_t ruc_observer_createClient(uint32_t servRef,
   ruc_obj_desc_t          * phead, * pnext;
 
   if (ruc_observer_initDone == FALSE) {
-    ERRFAT "OBSERVER not initialised" ENDERRFAT;
+    fatal( "OBSERVER not initialised" );
     return -1;
   }
 
@@ -394,7 +395,7 @@ uint32_t ruc_observer_createClient(uint32_t servRef,
   */
   pSrv = ruc_observer_getServer(servRef);
   if (pSrv == NULL) {
-    ERRFAT "Unknown server reference %u", servRef ENDERRFAT;
+    fatal( "Unknown server reference %u", servRef );
     return -1;
   }
 
@@ -402,7 +403,7 @@ uint32_t ruc_observer_createClient(uint32_t servRef,
   ** check that the event is not out of range
   */
   if (event >= pSrv->nbEvent) {
-    ERRLOG "Event is out of range: %d. Max is %u for %s",event, pSrv->nbEvent, pSrv->name ENDERRLOG
+    severe( "Event is out of range: %d. Max is %u for %s",event, pSrv->nbEvent, pSrv->name )
     return -1;
   }
 
@@ -412,7 +413,7 @@ uint32_t ruc_observer_createClient(uint32_t servRef,
   */
   pClt = (RUC_OBSERVER_CLIENT_T*)ruc_objGetFirst((ruc_obj_desc_t*) ruc_observer_client_freeListHead);
   if (pClt == (RUC_OBSERVER_CLIENT_T* )NULL) {
-    ERRLOG "No more free client" ENDERRLOG
+    severe( "No more free client" )
     return  -1;
   }
   /*
@@ -461,7 +462,7 @@ uint32_t ruc_observer_removeClient(uint32_t cltRef) {
   RUC_OBSERVER_SERVER_T * pSrv;
 
   if (ruc_observer_initDone == FALSE) {
-    ERRFAT "OBSERVER not initialised" ENDERRFAT;
+    fatal( "OBSERVER not initialised" );
     return RUC_NOK;
   }
 
@@ -475,7 +476,7 @@ uint32_t ruc_observer_removeClient(uint32_t cltRef) {
   */
   pSrv = ruc_observer_getServer(pClt->srvRef);
   if (pSrv == NULL) {
-    ERRLOG "Unknown server reference %u for client %s", pClt->srvRef, pClt->name  ENDERRLOG;
+    severe( "Unknown server reference %u for client %s", pClt->srvRef, pClt->name  );
     return RUC_NOK;
   }
 
@@ -483,7 +484,7 @@ uint32_t ruc_observer_removeClient(uint32_t cltRef) {
   ** Check the event number is valid
   */
   if (pClt->event >= pSrv->nbEvent) {
-    ERRLOG "The event value is out of range %d for client %s", pClt->event, pClt->name ENDERRLOG;
+    severe( "The event value is out of range %d for client %s", pClt->event, pClt->name );
     return RUC_OK;
   }
 
@@ -530,7 +531,7 @@ void  ruc_observer_serverEvent(uint32_t srvRef, uint32_t event, void *srvParam)
   ruc_obj_desc_t        * pnext, * phead;
 
   if (ruc_observer_initDone == FALSE) {
-    ERRFAT "OBSERVER not initialised" ENDERRFAT;
+    fatal( "OBSERVER not initialised" );
     return;
   }
 
@@ -539,7 +540,7 @@ void  ruc_observer_serverEvent(uint32_t srvRef, uint32_t event, void *srvParam)
   */
   pSrv = ruc_observer_getServer(srvRef);
   if (pSrv == NULL) {
-    ERRLOG "Unknown server reference %u", srvRef ENDERRLOG;
+    severe( "Unknown server reference %u", srvRef );
     return;
   }
 
@@ -547,7 +548,7 @@ void  ruc_observer_serverEvent(uint32_t srvRef, uint32_t event, void *srvParam)
   ** Check the event number is valid
   */
   if (event >= pSrv->nbEvent) {
-    ERRLOG "The event value is out of range %d. max is %u for server %s", event, pSrv->nbEvent, pSrv->name ENDERRLOG;
+    severe( "The event value is out of range %d. max is %u for server %s", event, pSrv->nbEvent, pSrv->name );
     return;
   }
 

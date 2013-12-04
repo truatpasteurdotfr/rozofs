@@ -241,6 +241,8 @@ void  rozorpc_srv_ctxInit(rozorpc_srv_ctx_t *p,uint8_t creation)
   p->src_transaction_id = 0;
   p->profiler_probe = NULL;
   p->profiler_time  = 0;
+  p->decoded_arg = NULL;
+  p->arg_decoder = NULL;
  
 }
 
@@ -315,6 +317,15 @@ void rozorpc_srv_release_context(rozorpc_srv_ctx_t *ctx_p)
   {
     ruc_buf_freeBuffer(ctx_p->xmitBuf);
     ctx_p->xmitBuf = NULL;
+  }
+
+  if ((ctx_p->arg_decoder != NULL) && (ctx_p->decoded_arg)) {
+    xdr_free(ctx_p->arg_decoder, (caddr_t) ruc_buf_getPayload(ctx_p->decoded_arg));        
+    ctx_p->arg_decoder = NULL;
+  }
+  if(ctx_p->decoded_arg) {
+     ruc_buf_freeBuffer(ctx_p->decoded_arg);
+     ctx_p->decoded_arg = NULL;
   }
 
   /*
@@ -401,6 +412,66 @@ int rozorpc_srv_getargs (void *recv_buf,xdrproc_t xdr_argument, void *argument)
 **__________________________________________________________________________
 */
 /**
+*  get the arguments of the incoming request: it is mostly a rpc decode
+
+ @param recv_buf : ruc buffer that contains the request
+ @param xdr_argument : decoding procedure
+ @param argument     : pointer to the array where decoded arguments will be stored
+ 
+ @retval TRUE on success
+ @retval FALSE decoding error
+*/
+int rozorpc_srv_getargs_with_position (void *recv_buf,xdrproc_t xdr_argument, void *argument,int *position)
+{
+   XDR xdrs;
+   uint32_t  msg_len;  /* length of the rpc messsage including the header length */
+   uint32_t header_len;
+   uint8_t  *pmsg;     /* pointer to the first available byte in the application message */
+   int      len;       /* effective length of application message               */
+   rozofs_rpc_call_hdr_with_sz_t *com_hdr_p;
+   bool_t ret;
+
+   if (position != NULL) *position = 0;
+   /*
+   ** Get the full length of the message and adjust it the the length of the applicative part (RPC header+application msg)
+   */
+   msg_len = ruc_buf_getPayloadLen(recv_buf);
+   msg_len -=sizeof(uint32_t);   
+
+   com_hdr_p  = (rozofs_rpc_call_hdr_with_sz_t*) ruc_buf_getPayload(recv_buf);  
+   pmsg = rozofs_rpc_set_ptr_on_first_byte_after_rpc_header((char*)&com_hdr_p->hdr,&header_len);
+   if (pmsg == NULL)
+   {
+      ROZORPC_SRV_STATS(ROZORPC_SRV_DECODING_ERROR);
+     errno = EFAULT;
+     return FALSE;
+   }
+   /*
+   ** map the memory on the first applicative RPC byte available and prepare to decode:
+   ** notice that we will not call XDR_FREE since the application MUST
+   ** provide a pointer for storing the file handle
+   */
+   len = msg_len - header_len;    
+   xdrmem_create(&xdrs,(char*)pmsg,len,XDR_DECODE);
+   ret = (*xdr_argument)(&xdrs,argument);
+   if (ret == TRUE)
+   {
+    // Position from begin of buffer = position in xdr + size of rpc header + size of len before rpc
+    if (position != NULL) *position = XDR_GETPOS(&xdrs)+header_len+sizeof(uint32_t);
+    ROZORPC_SRV_STATS(ROZORPC_SRV_RECV_OK);
+   }
+   else 
+   {
+     ROZORPC_SRV_STATS(ROZORPC_SRV_DECODING_ERROR);
+   }
+   return (int) ret;
+}
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
 * send a rpc reply: the encoding function MUST be found in xdr_result 
  of the gateway context
 
@@ -432,7 +503,11 @@ void rozorpc_srv_forward_reply (rozorpc_srv_ctx_t *p,char * arg_ret)
     ** create xdr structure on top of the buffer that will be used for sending the response
     */
     header_len_p = (uint32_t*)ruc_buf_getPayload(p->xmitBuf); 
-    pbuf = (uint8_t*) (header_len_p+1);            
+    pbuf = (uint8_t*) (header_len_p+1);  
+    
+    /* Do not forget to reset the opaque authentication part */
+    memset(pbuf,0,40);          
+ 
     len = (int)ruc_buf_getMaxPayloadLen(p->xmitBuf);
     len -= sizeof(uint32_t);
     xdrmem_create(&xdrs,(char*)pbuf,len,XDR_ENCODE); 

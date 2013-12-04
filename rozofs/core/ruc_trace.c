@@ -36,7 +36,6 @@
 #include <rozofs/common/log.h>
 
 #include "ruc_common.h"
-//#include "ppu_trace.h"
 
 /*
  *------------------------------------------------------------------
@@ -206,13 +205,7 @@ ruc_warning(char *source, uint32_t line,uint32_t errCode)
 	RUCCOM_TRACE_T	*q;
 	uint8_t	*pdst,data;
 
-#if 0
-       /*
-       **  ERRLOG
-       */
-        erevd_event(EREVD_TYPE_SW_ERROR,source,line,"error=%d",(int)errCode);
 
-#endif
        severe("$W$ File: %s:%d (%d) $E$\n",(char*)source,(int) line,(int)errCode);
 
         if (ruc_tracePrintFlag == TRUE)

@@ -2,13 +2,21 @@
 # rozofs storage daemon configuration file.
 #
 
-# ports: 
-#   It's a list of TCP ports used for receive write and read requests
-#   from clients (rozofsmount).
+# listen: (mandatory)
+#   Specifies list of IP(s) (or hostname(s)) and port(s) the storio process should listen on for receive write and read requests from clients.
+#
+#       addr: (IP or hostname that the server should listens on)
+#               - must be a valid IPv4 address or a valid hostname.
+#               - if "*" is specified storio will listen on any of the interfaces.
+#
+#       port: (TCP port number (in decimal) to use for storio process)
 
-ports = [40001, 40002, 40003, 40004 ];
+listen = (
+    {addr = "192.168.1.1"; port = 41001; },
+    {addr = "192.168.2.1"; port = 41001; }
+);
 
-# storages:
+# storages: (mandatory)
 #   It's the list of local storage managed by this storaged.
 #   Each storage is identified by the cluster to which belongs the storage (cid)
 #   and by it's identifier in the cluster (sid). Each pair (cid,sid) must be
@@ -27,8 +35,8 @@ ports = [40001, 40002, 40003, 40004 ];
 #               - must be unique for each storage managed by this storaged.
 
 storages = (
-    {cid = 1; sid = 1; root = "/path/to/foo";}, # Storage 1 of cluster 1
-    {cid = 1; sid = 2; root = "/path/to/bar";},  # Storage 2 of cluster 1
-    {cid = 2; sid = 1; root = "/path/to/baz";}  # Storage 1 of cluster 2
+    {cid = 1; sid = 1; root = "/path/to/foo";},     # Storage 1 of cluster 1
+    {cid = 1; sid = 2; root = "/path/to/bar";},     # Storage 2 of cluster 1
+    {cid = 2; sid = 1; root = "/path/to/baz";}      # Storage 1 of cluster 2
     #...
 );

@@ -27,7 +27,6 @@
 #include "ruc_buffer_api.h"
 #include "uma_tcp_main_api.h"
 #include "ruc_tcp_client_api.h"
-#include "ppu_trace.h"
 
 
 #define UMA_TCP_TIMEOUT_VAL 10   /* 10 secs */

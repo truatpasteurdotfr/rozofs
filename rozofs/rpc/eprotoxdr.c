@@ -524,6 +524,116 @@ xdr_epgw_lookup_arg_t (XDR *xdrs, epgw_lookup_arg_t *objp)
 }
 
 bool_t
+xdr_ep_lock_mode_t (XDR *xdrs, ep_lock_mode_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_enum (xdrs, (enum_t *) objp))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_lock_size_t (XDR *xdrs, ep_lock_size_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_enum (xdrs, (enum_t *) objp))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_lock_range_t (XDR *xdrs, ep_lock_range_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_lock_size_t (xdrs, &objp->size))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->offset_start))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->offset_stop))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_lock_t (XDR *xdrs, ep_lock_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_lock_mode_t (xdrs, &objp->mode))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->client_ref))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->owner_ref))
+		 return FALSE;
+	 if (!xdr_ep_lock_range_t (xdrs, &objp->user_range))
+		 return FALSE;
+	 if (!xdr_ep_lock_range_t (xdrs, &objp->effective_range))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_lock_request_arg_t (XDR *xdrs, ep_lock_request_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint32_t (xdrs, &objp->eid))
+		 return FALSE;
+	 if (!xdr_ep_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_ep_lock_t (xdrs, &objp->lock))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_lock_arg_t (XDR *xdrs, epgw_lock_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_lock_request_arg_t (xdrs, &objp->arg_gw))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_ep_lock_ret_t (XDR *xdrs, ep_lock_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_status_t (xdrs, &objp->status))
+		 return FALSE;
+	switch (objp->status) {
+	case EP_FAILURE:
+		 if (!xdr_uint64_t (xdrs, &objp->ep_lock_ret_t_u.error))
+			 return FALSE;
+		break;
+	default:
+		 if (!xdr_ep_lock_t (xdrs, &objp->ep_lock_ret_t_u.lock))
+			 return FALSE;
+		break;
+	}
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_lock_ret_t (XDR *xdrs, epgw_lock_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_lock_ret_t (xdrs, &objp->gw_status))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_mfile_arg_t (XDR *xdrs, ep_mfile_arg_t *objp)
 {
 	//register int32_t *buf;

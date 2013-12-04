@@ -60,7 +60,13 @@
         toc = MICROLONG(tv);\
         gprofiler.the_probe[P_ELAPSE] += (toc - tic);\
     }
-
+#define STOP_PROFILING_IO(the_probe,the_bytes)\
+    {\
+        gettimeofday(&tv,(struct timezone *)0);\
+        toc = MICROLONG(tv);\
+        gprofiler.the_probe[P_ELAPSE] += (toc - tic);\
+        gprofiler.the_probe[P_BYTES]  += the_bytes;\
+}
 #define SET_PROBE_VALUE(the_probe, the_value)\
     {\
         gprofiler.the_probe = the_value;\

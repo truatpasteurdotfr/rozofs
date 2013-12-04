@@ -38,6 +38,9 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/rozofs_srv.h>
+//#include <rozofs/core/rozofs_optim.h>
+#include "storio_cache.h"
+#include "storio_bufcache.h"
 
 #include "storage.h"
 
@@ -168,6 +171,8 @@ void storage_release(storage_t * st) {
     st->root[0] = 0;
 }
 
+uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
+
 int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
         uint64_t *file_size, const bin_t * bins) {
@@ -180,6 +185,8 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
     uint16_t rozofs_max_psize = 0;
     uint8_t write_file_hdr = 0;
     struct stat sb;
+    
+    rozofs_max_psize = rozofs_get_max_psize(layout);
 
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -234,7 +241,7 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
     }
 
     // Compute the offset and length to write
-    rozofs_max_psize = rozofs_get_max_psize(layout);
+    
     bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + bid * (rozofs_max_psize *
             sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
     length_to_write = nb_proj * (rozofs_max_psize * sizeof (bin_t)
@@ -246,7 +253,12 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
         severe("pwrite failed: %s", strerror(errno));
         goto out;
     }
-
+    /**
+    * insert in the fid cache the written section
+    */
+//    storage_build_ts_table_from_prj_header((char*)bins,nb_proj,rozofs_max_psize,buf_ts_storage_write);
+//    storio_cache_insert(fid,bid,nb_proj,buf_ts_storage_write,0);
+    
     // Stat file for return the size of bins file after the write operation
     if (fstat(fd, &sb) == -1) {
         severe("fstat failed: %s", strerror(errno));
@@ -257,12 +269,18 @@ int storage_write(storage_t * st, uint8_t layout, sid_t * dist_set,
 
 
     // Write is successful
-    status = 0;
+    status = length_to_write;
 
 out:
     if (fd != -1) close(fd);
     return status;
 }
+
+uint64_t buf_ts_storage_before_read[STORIO_CACHE_BCOUNT];
+uint64_t buf_ts_storage_after_read[STORIO_CACHE_BCOUNT];
+uint64_t buf_ts_storcli_read[STORIO_CACHE_BCOUNT];
+char storage_bufall[4096];
+uint8_t storage_read_optim[4096];
 
 int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
@@ -283,14 +301,10 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     // Build the path of bins file
     storage_map_projection(fid, path);
 
-    // Check that this file already exists
-    if (access(path, F_OK) == -1)
-        goto out;
-
     // Open bins file
     fd = open(path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
-        severe("open failed (%s) : %s", path, strerror(errno));
+        //severe("open failed (%s) : %s", path, strerror(errno));
         goto out;
     }
 
@@ -302,6 +316,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     length_to_read = nb_proj * (rozofs_max_psize * sizeof (bin_t)
             + sizeof (rozofs_stor_bins_hdr_t));
 
+    
     // Read nb_proj * (projection + header)
     nb_read = pread(fd, bins, length_to_read, bins_file_offset);
 
@@ -325,6 +340,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     // Update the length read
     *len_read = nb_read;
 
+
     // Stat file for return the size of bins file after the read operation
     if (fstat(fd, &sb) == -1) {
         severe("fstat failed: %s", strerror(errno));
@@ -340,42 +356,6 @@ out:
     if (fd != -1) close(fd);
     return status;
 }
-// XXX Not used
-
-#if 0
-int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, tid_t proj_id, bid_t bid) {
-    int status = -1;
-    int fd = -1;
-    char path[FILENAME_MAX];
-
-    DEBUG_FUNCTION;
-
-    // Build the full path of directory that contains the bins file
-    storage_map_distribution(st, layout, dist_set, spare, path);
-
-    // Build the path of bins file
-    storage_map_projection(fid, path);
-
-    // Check that this file already exists
-    if (access(path, F_OK) == -1)
-        goto out;
-
-    // Open bins file
-    fd = open(path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-    if (fd < 0) {
-        severe("open failed (%s) : %s", path, strerror(errno));
-        goto out;
-    }
-
-    status = ftruncate(fd, (bid + 1) * rozofs_get_psizes(layout, proj_id)
-            * sizeof (bin_t));
-out:
-    if (fd != -1) close(fd);
-    return status;
-}
-
-#endif
 
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,uint16_t last_seg,uint64_t last_timestamp) {
@@ -524,8 +504,20 @@ int storage_stat(storage_t * st, sstat_t * sstat) {
 
     if (statfs(st->root, &sfs) == -1)
         goto out;
+
+    /*
+    ** Privileged process can use the whole free space
+    */
+    if (getuid() == 0) {
+      sstat->free = (uint64_t) sfs.f_bfree * (uint64_t) sfs.f_bsize;
+    }
+    /*
+    ** non privileged process can not use root reserved space
+    */
+    else {
+      sstat->free = (uint64_t) sfs.f_bavail * (uint64_t) sfs.f_bsize;
+    }
     sstat->size = (uint64_t) sfs.f_blocks * (uint64_t) sfs.f_bsize;
-    sstat->free = (uint64_t) sfs.f_bfree * (uint64_t) sfs.f_bsize;
     status = 0;
 out:
     return status;

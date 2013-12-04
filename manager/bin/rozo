@@ -1,17 +1,279 @@
 #!/usr/bin/python2.7
-# -*- coding: utf-8 -*-
+# encoding: utf-8
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
 
-from rozofs.cli.parser import parse
+'''
+rozo -- RozoFS comand line interface
+'''
+
 import sys
+import os
 import traceback
 
-try:
-    parsed = parse(sys.argv[1:])
-    parsed.dispatch(parsed)
-except Exception as e:
-    if parsed.debug is True:
-        traceback.print_exc(file=sys.stderr)
-    print >> sys.stderr, '%s failed: %s' % (parsed.command, e)
-    sys.exit(2)
+from rozofs import __version__
 
-sys.exit(0)
+from argparse import ArgumentParser, Namespace
+from rozofs.core.constants import EXPORTD_MANAGER, STORAGED_MANAGER, \
+    ROZOFSMOUNT_MANAGER
+from rozofs.cli.node import STR_ROLES
+
+
+__all__ = []
+# __version__ = 0.1
+__date__ = '2013-09-14'
+__updated__ = '2013-09-14'
+
+DEBUG = 0
+TESTRUN = 0
+PROFILE = 0
+
+
+# def __add_command_parser(cmd_parser, command, helpmsg, dispatch, parents=[]):
+#    parser = cmd_parser.add_parser(command, help=helpmsg, parents=parents)
+#    parser.set_defaults(command=command)
+#    parser.set_defaults(dispatch=dispatch)
+#    return parser
+
+class CLIError(Exception):
+    '''Generic exception to raise and log different fatal errors.'''
+    def __init__(self, msg):
+        super(CLIError).__init__(type(self))
+        self.msg = "E: %s" % msg
+    def __str__(self):
+        return self.msg
+    def __unicode__(self):
+        return self.msg
+
+def main(argv=None):  # IGNORE:C0111
+    '''RozoFS command line interface.'''
+
+    if argv is None:
+        argv = sys.argv
+    else:
+        sys.argv.extend(argv)
+
+    program_name = os.path.basename(sys.argv[0])
+    program_version = "v%s" % __version__
+    program_build_date = str(__updated__)
+    program_version_message = '%%(prog)s %s (%s)' % (program_version, program_build_date)
+    # program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
+    program_desc = "rozo -- RozoFS comand line interface (%s - %s)" % (program_version, program_build_date)
+
+    try:
+        #
+        # Global options
+        #
+
+        # We use a global parser just to be able to have rozo -h without args
+        global_parser = ArgumentParser(add_help=False)
+        global_parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        global_parser.add_argument('-d', '--debug', action='store_true', default=False, help='set debugging on')
+        global_parser.add_argument('-h', '--help', action='store_true', default=False, help='get help')
+
+        #
+        # Topics
+        #
+        topic_parser = ArgumentParser(description=program_desc, add_help=False, parents=[global_parser])
+
+        topic_subparsers = topic_parser.add_subparsers(help='available topics', dest='topic')
+
+        topic_agent_parser = topic_subparsers.add_parser('agent', help='agent commands', add_help=False)
+
+        topic_layout_parser = topic_subparsers.add_parser('layout', help='layout commands', add_help=False)
+        topic_layout_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+
+        topic_node_parser = topic_subparsers.add_parser('node', help='node commands', add_help=False)
+        topic_node_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+
+        topic_volume_parser = topic_subparsers.add_parser('volume', help='volume commands', add_help=False)
+        topic_volume_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+
+        topic_export_parser = topic_subparsers.add_parser('export', help='export commands', add_help=False)
+        topic_export_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+
+        topic_storage_parser = topic_subparsers.add_parser('storage', help='storage commands', add_help=False)
+        topic_storage_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
+
+        #
+        # Actions
+        #
+
+        # Agent
+        action_agent_parser = ArgumentParser(add_help=False, prog='rozo agent')
+
+        action_agent_subparsers = action_agent_parser.add_subparsers(help='agent available actions', dest='action')
+
+        action_agent_status_parser = action_agent_subparsers.add_parser('status', add_help=False, help='get agent status')
+
+        action_agent_start_parser = action_agent_subparsers.add_parser('start', add_help=False, help='start agent')
+        action_agent_start_parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
+        action_agent_start_parser.add_argument('listeners', nargs='*', choices=[[], EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[], help='list of listeners.')
+
+        action_agent_stop_parser = action_agent_subparsers.add_parser('stop', add_help=False, help='stop agent')
+
+        action_agent_restart_parser = action_agent_subparsers.add_parser('restart', add_help=False, help='restart agent')
+        action_agent_restart_parser.add_argument('-p', '--pacemaker', action="store_true", default=False, help='when exportd is managed thru pacemaker.')
+        action_agent_restart_parser.add_argument('listeners', nargs='*', choices=[[], EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[], help='list of listeners.')
+
+        # Layout
+        action_layout_parser = ArgumentParser(add_help=False, prog='rozo layout')
+        action_layout_subparsers = action_layout_parser.add_subparsers(help='layout available actions', dest='action')
+
+        action_layout_get_parser = action_layout_subparsers.add_parser('get', add_help=False, help='get layout')
+
+        action_layout_set_parser = action_layout_subparsers.add_parser('set', add_help=False, help='set layout')
+        action_layout_set_parser.add_argument('layout', nargs=1, type=int, choices=[0, 1, 2], help='the layout to set.')
+
+        # Node
+        action_node_parser = ArgumentParser(add_help=False, prog='rozo node')
+        action_node_subparsers = action_node_parser.add_subparsers(help='node available actions', dest='action')
+
+        action_node_list_parser = action_node_subparsers.add_parser('list', add_help=False, help='list nodes')
+        action_node_list_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be started on nodes. If not set all roles will be started')
+
+        action_node_status_parser = action_node_subparsers.add_parser('status', add_help=False, help='get node(s) status')
+        action_node_status_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles. If not set all roles.')
+        action_node_status_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
+
+        action_node_config_parser = action_node_subparsers.add_parser('config', add_help=False, help='display the configuration files of the given nodes.')
+        action_node_config_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to be displayed. If not set all nodes will be displayed')
+        action_node_config_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles to be displayed for each node. If not set all roles will be displayed')
+
+        action_node_start_parser = action_node_subparsers.add_parser('start', add_help=False, help='start node(s)')
+        action_node_start_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles. If not set all roles.')
+        action_node_start_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
+
+        action_node_stop_parser = action_node_subparsers.add_parser('stop', add_help=False, help='stop node(s)')
+        action_node_stop_parser.add_argument('-r', '--roles', nargs='+', choices=STR_ROLES.keys(), help='list of roles. If not set all roles.')
+        action_node_stop_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
+
+        # Volume
+        action_volume_parser = ArgumentParser(add_help=False, prog='rozo volume')
+        action_volume_subparsers = action_volume_parser.add_subparsers(help='volume available actions', dest='action')
+        action_volume_list_parser = action_volume_subparsers.add_parser('list', add_help=False, help='list volumes')
+
+        action_volume_stat_parser = action_volume_subparsers.add_parser('stat', add_help=False, help='list volumes')
+
+        action_volume_get_parser = action_volume_subparsers.add_parser('get', add_help=False, help='get the given volume statistics')
+        action_volume_get_parser.add_argument('vid', nargs='+', type=int, help='vid to get.')
+
+        action_volume_expand_parser = action_volume_subparsers.add_parser('expand', add_help=False, help='expand a volume')
+        action_volume_expand_parser.add_argument('-v', '--vid', nargs='+', type=int, help='vid(s) of existing volume. If not exists, a new volume is created')
+        action_volume_expand_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
+
+        action_volume_remove_parser = action_volume_subparsers.add_parser('remove', add_help=False, help='remove a volume')
+        action_volume_remove_parser.add_argument('-v', '--vid', nargs='+', type=int, help='vid(s) of existing volume.')
+
+        # Export
+        action_export_parser = ArgumentParser(add_help=False, prog='rozo export')
+        action_export_subparsers = action_export_parser.add_subparsers(help='export available actions', dest='action')
+
+        action_export_list_parser = action_export_subparsers.add_parser('list', add_help=False, help='list exports')
+
+        action_export_create_parser = action_export_subparsers.add_parser('create', add_help=False, help='create an export')
+        action_export_create_parser.add_argument('-n', '--name', default=None, help='Name of this export.')
+        action_export_create_parser.add_argument('-p', '--passwd', default=None, help='password to set.')
+        action_export_create_parser.add_argument('-s', '--squota', default="", help='soft quota to set.')
+        action_export_create_parser.add_argument('-a', '--hquota', default="", help='hard quota to set.')
+        action_export_create_parser.add_argument('vid', nargs=1, type=int, help='vid of an existing volume.')
+
+        action_export_update_parser = action_export_subparsers.add_parser('update', add_help=False, help='update an export')
+        action_export_update_parser.add_argument('-c', '--current', default=None, help='current password.')
+        action_export_update_parser.add_argument('-p', '--passwd', default=None, help='password to set.')
+        action_export_update_parser.add_argument('-s', '--squota', default=None, help='soft quota to set.')
+        action_export_update_parser.add_argument('-a', '--hquota', default=None, help='hard quota to set.')
+        action_export_update_parser.add_argument('eid', nargs=1, type=int, help='eid of an existing export.')
+
+        action_export_remove_parser = action_export_subparsers.add_parser('remove', add_help=False, help='remove export(s)')
+        action_export_remove_parser.add_argument('-f', '--force', action="store_true", default=False, help='when ever to force removing.')
+        action_export_remove_parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) of existing export.')
+
+        action_get_remove_parser = action_export_subparsers.add_parser('get', add_help=False, help='get export(s)')
+        action_get_remove_parser.add_argument('eids', nargs='*', type=int, default=None, help='eid(s) of existing export.')
+
+        action_mount_remove_parser = action_export_subparsers.add_parser('mount', add_help=False, help='mount export(s)')
+        action_mount_remove_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to mount on')
+        action_mount_remove_parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be mount.')
+
+        action_umount_remove_parser = action_export_subparsers.add_parser('umount', add_help=False, help='umount export(s)')
+        action_umount_remove_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes to umount from')
+        action_umount_remove_parser.add_argument('-e', '--eids', nargs='*', type=int, default=None, help='eid(s) to be umount.')
+
+        # Storage
+        action_storage_parser = ArgumentParser(add_help=False, prog='rozo storage')
+        action_storage_subparsers = action_storage_parser.add_subparsers(help='storage available actions', dest='action')
+
+        action_storage_list_parser = action_storage_subparsers.add_parser('list', add_help=False, help='list storages')
+
+        action_storage_get_parser = action_storage_subparsers.add_parser('get', add_help=False, help='get storage(s)')
+        action_storage_get_parser.add_argument('nodes', nargs='+', help='list of storaged servers.')
+
+        action_storage_add_parser = action_storage_subparsers.add_parser('add', add_help=False, help='add a storage listener')
+        action_storage_add_parser.add_argument('-n', '--nodes', nargs='+', help='list of storaged servers.')
+        action_storage_add_parser.add_argument('-i', '--interface', help='interface for data transfer.')
+        action_storage_add_parser.add_argument('-p', '--port', type=int, help='port used for communication.')
+
+        action_storage_remove_parser = action_storage_subparsers.add_parser('remove', add_help=False, help='remove a storage listener')
+        action_storage_remove_parser.add_argument('-n', '--nodes', nargs='+', help='list of storaged servers.')
+        action_storage_remove_parser.add_argument('-i', '--interface', help='storage node hostname.')
+        action_storage_remove_parser.add_argument('-p', '--port', type=int, help='port used for communication.')
+
+
+        #
+        # Parsing
+        #
+        global_namespace, extra = global_parser.parse_known_args()
+        # help wanted
+        if global_namespace.help:
+            if len(extra) == 0 or len(extra) > 2:
+                topic_parser.print_help()
+                return 0
+            if len(extra) == 1:
+                try:
+                    locals()['action_%s_parser' % (extra[0])].print_help()
+                except KeyError as ke:
+                    raise Exception("invalid topic: %s" % extra[0])
+            if len(extra) == 2:
+                try:
+                    locals()['action_%s_%s_parser' % (extra[0], extra[1])].print_help()
+                    return 0
+                except KeyError as ke:
+                    raise Exception("invalid topic: %s or command: %s" % (extra[0], extra[1]))
+            return 0
+
+        # command execution wanted
+        topic_namespace, extra = topic_parser.parse_known_args(extra)
+        action_namespace = locals()['action_%s_parser' % topic_namespace.topic].parse_args(extra, topic_namespace)
+        m = __import__('rozofs.cli.%s' % topic_namespace.topic, globals(), locals(), ['dispatch'], -1)
+        getattr(m, 'dispatch')(action_namespace)
+
+        return 0
+    except KeyboardInterrupt:
+        ### handle keyboard interrupt ###
+        return 0
+    except Exception, e:
+        if global_namespace.debug:
+            traceback.print_exc(file=sys.stderr)
+            raise(e)
+        # indent = len(program_name) * " "
+        sys.stderr.write(program_name + ": " + str(e) + "\n")
+        return 2
+
+if __name__ == "__main__":
+    '''RozoFS command line interface.'''
+    sys.exit(main())
