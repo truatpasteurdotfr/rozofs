@@ -43,14 +43,14 @@ display version information and exit.
 .TP
 Get rozo agent status for this node.
 .SS start
-.B rozo agent start \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener\fP...]
+.B rozo agent start \fP[\fB\-p\fP [\fIresource\fP] | \fB\-\-pacemaker\fP [\fIresource\fP] ] [\fIlistener\fP...]
 .TP
-\fPStart a rozo agent with the given \fIlistener\fP list. \fIlistener\fP must be a subset of {exportd, storaged, rozofsmount}
+\fPStart a rozo agent with the given \fIlistener\fP list. \fIlistener\fP must be a subset of {exportd, storaged, rozofsmount}.
 .TP
-\fB\-p\fP, \fB--pacemaker\fP
-whenever
-.BR exportd (8)
-is managed by pacemaker.
+\fB\-p\fP, \fB--pacemaker\fP [\fIresource]
+Use this cluster resource name when 
+.BR exportd (8) 
+is managed thru pacemaker (default: exportd_rozofs).
 
 .SS stop
 .B rozo agent stop
@@ -58,15 +58,14 @@ is managed by pacemaker.
 Stop rozo agent for this node.
 
 .SS restart
-.B rozo agent restart \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener\fP...]
+.B rozo agent restart \fP[\fB\-p\fP [\fIresource\fP] | \fB\-\-pacemaker\fP [\fIresource\fP] ] [\fIlistener\fP...]
 .TP
-\fPStop any running rozo agent then start it with the given \fIlistener\fP
-list. \fIlistener\fP must be a subset of {exportd, storaged, rozofsmount}
+\fPStop any running rozo agent then start it with the given \fIlistener\fP list. \fIlistener\fP must be a subset of {exportd, storaged, rozofsmount}.
 .TP
-\fB\-p\fP, \fB--pacemaker\fP
-whenever
-.BR exportd (8)
-is managed by pacemaker.
+\fB\-p\fP, \fB--pacemaker\fP [\fIresource]
+Use this cluster resource name when 
+.BR exportd (8) 
+is managed thru pacemaker (default: exportd_rozofs).
 
 .\""" rozo layout
 .SH LAYOUT TOPIC
@@ -77,8 +76,7 @@ is managed by pacemaker.
 .SS get
 .B rozo layout get \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
-Get the storage \fIlayout\fP for this platform, see \fBexportd(8)\fP,
-\fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
+Get the storage \fIlayout\fP for this platform, see \fBexportd(8)\fP,\fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname.

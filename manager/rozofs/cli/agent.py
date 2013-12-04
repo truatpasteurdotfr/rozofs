@@ -54,7 +54,7 @@ def start(args):
         managers.append(StoragedAgent())
     if EXPORTD_MANAGER in args.listeners:
         if args.pacemaker:
-            managers.append(ExportdPacemakerAgent())
+            managers.append(ExportdPacemakerAgent(resource=args.pacemaker))
         else:
             managers.append(ExportdAgent())
     if ROZOFSMOUNT_MANAGER in args.listeners:
