@@ -13,5 +13,5 @@ deployment, installation procedures, and general configuration. This manual
 contains the information one needs to consult before and during deployment.
 
 @noindent This guide assumes, throughout, that you are using @strong{RozoFS 
-version 1.2.0 or later}.
+version 1.3.0 or later}.
 

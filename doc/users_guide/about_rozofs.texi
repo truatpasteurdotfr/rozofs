@@ -245,7 +245,7 @@ The following figures shows the read and write process in RozoFS. The
 @strong{exportd} to ask for the list of @strong{storage locations} (nodes if
 good practices are respected)
 that must be used, then rozofsmount splits the file into a number of blocks
-(according to the file system block size e.g. 4096B) each block is then
+(according to rozofs block size e.g. 8192B) each block is then
 @strong{encoded} and each resulting projection is sent to a storage location. During
 this write process, rozofsmount is responsible for choosing running storage
 locations among the possible ones to ensure data availability. Failures of

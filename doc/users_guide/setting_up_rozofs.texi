@@ -157,7 +157,7 @@ resource r0 @{
 
 Copy @acronym{DRBD} configuration files manually to the other node:
 @example
-# scp /etc/drbd.conf node2:/etc/drbd.d/
+# scp /etc/drbd.d/* node2:/etc/drbd.d/
 @end example
 
 Initialize the metadata on both systems by entering the following command on each 
@@ -237,7 +237,7 @@ Disable @acronym{DRBD} init script (depending on your distribution, here
 Debian example):
 @example
 # /etc/init.d/drbd stop
-# update-rc.d -f drbd remove
+# insserv -vrf drbd
 @end example
 
 @c *** Subsubsection [Metadata Replication with Pacemaker]
@@ -300,7 +300,7 @@ Edit your @file{corosync.conf} with the following:
 interface @{
    # The following values need to be set based on your environment 
    ringnumber: 1
-   bindnetaddr:192.16.1.0
+   bindnetaddr:192.168.1.0
    mcastaddr: 226.94.1.2
    mcastport: 5407
    ttl: 255
@@ -386,10 +386,10 @@ ip="192.168.1.10" nic="eth0" cidr_netmask=24 op monitor interval="30s"
 
 configure primitive p_fs_exportd ocf:heartbeat:Filesystem params
 device="/dev/drbd0" directory="/srv/rozofs/exports" fstype="ext4"
-options="user_xattr,acl,noatime" op start timeout="60" op stop timeout="60"
+options="user_xattr,acl,noatime" op start timeout="60" op stop timeout="60" op monitor interval="10s" timeout="40s"
 
 configure primitive exportd_rozofs ocf:heartbeat:exportd params
-conffile="/etc/rozofs/export.conf" op monitor interval="30s"
+conffile="/etc/rozofs/export.conf" op monitor interval="20s"
 
 configure group grp_exportd p_fs_exportd p_vip_exportd exportd_rozofs
 
@@ -591,11 +591,17 @@ Configuration file example (@file{storage.conf}) for one storaged daemon:
 @example
 # rozofs storage daemon configuration file.
 
-# ports: 
-#   It's a list of TCP ports used for receive write and read requests
-#   from clients (rozofsmount).
+# listen: (mandatory)
+#   Specifies list of IP(s) (or hostname(s)) and port(s) the storio
+#   process should listen on for receive write and read requests from
+#   clients.
 
-ports = [40001, 40002, 40003, 40004 ];
+listen = ( 
+   @{
+      addr = "*";
+      port = 41001;
+   @}
+);
 
 # storages:
 #   It's the list of local storage managed by this storaged.
