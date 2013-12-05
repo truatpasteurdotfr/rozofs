@@ -1,0 +1,197 @@
+@c *** Chapter [Monitoring]
+@node       Monitoring, Index, Working with RozoFS, Top
+@chapter    Monitoring
+@ifnotdocbook
+@cindex Monitoring
+@end ifnotdocbook
+
+RozoFS comes with a command line tool called @command{rozodebug} that lets the
+RozoFS administrator access a huge amount of @strong{statistics}. Even though these
+statistics are very helpful for troubleshooting and for diagnostic (see section
+below) they might be far too detailed for an everyday usage. For that purpose
+Fizians provides a simplified approach: @emph{nagios modules}. The
+@command{rozodebug} application is used by Nagios scripts to provide high level
+informations related to the system health. The communication with
+@command{rozodebug} is achieved thanks to @acronym{TCP}.
+
+@menu
+* Rozodebug tools::
+* rozofsmount menu::
+@end menu
+
+@c *** Section [Rozodebug tools]
+@node       Rozodebug tools, rozofsmount menu, Monitoring, Monitoring
+@section    Rozodebug tools
+@ifnotdocbook
+@cindex Rozodebug
+@cindex Debug
+@cindex Statistic
+@cindex Performance
+@end ifnotdocbook
+
+Each component of RozoFS (@strong{exportd}, @strong{rozofsmount},
+@strong{storcli}, @strong{storaged} and @strong{storio})
+has an associated debug entity whose role is to provide:
+@enumerate
+@item per application statistics (profiler command):
+    @enumerate
+        @item metadata statistics (exportd, rozofsmount)
+        @item read/write performance counters (storio)
+    @end enumerate
+@item @acronym{CPU} load of internal software entities,
+    @enumerate
+        @item information related to connectivity between components:
+        @item @acronym{TCP} connection status
+    @end enumerate
+@item Availability of the load balancing groups associated with storage nodes,…
+@item version of the running software
+@item @dots{}
+@end enumerate
+
+@menu
+* Rozodebug Usage::
+* Some common rozodebug commands::
+@end menu
+
+@c *** Subsection [Rozodebug Usage]
+@node       Rozodebug Usage, Some common rozodebug commands, Rozodebug tools, Rozodebug tools
+@subsection Rozodebug Usage
+
+Here is the menu of @command{rozodebug}. An external application can communicate
+with any component of RozoFS by providing the @acronym{IP} address and the RozoFS
+well-known rozodebug port associated with the component.
+
+@example
+rozodebug [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <seconds>] [-t <seconds>]
+ 
+-i <hostname>           destination IP address or hostname of the debug server
+                        default is 127.0.0.1
+-p <port>               destination port number of the debug server
+                        mandatory parameter
+-c <cmd|all>            command to run in one shot or periodically (-period)
+                        several -c options can be set
+-f <cmd file>           command file to run in one shot or periodically (-period)
+                        several -f options can be set
+-period <seconds>       periodicity for running commands using -c or/and -f options
+-t <seconds>            timeout value to wait for a response (default 4 seconds)
+@end example
+
+@c *** Subsection [Some common rozodebug commands]
+@node       Some common rozodebug commands, Per socket controller function cpu load, Rozodebug Usage, Rozodebug tools
+@subsection Some common rozodebug commands
+
+@menu
+* Per socket controller function cpu load::
+* rozofsmount::
+@end menu
+
+@c *** Subsubsection [Per socket controller function cpu load]
+@node       Per socket controller function cpu load, rozofsmount, Some common rozodebug commands, Some common rozodebug commands
+@subsubsection Per socket controller function cpu load
+
+These commands display the @acronym{CPU} information of each function (callback)
+that have been attached with the socket controller. It provides information
+related to the function name, the reference of the socket, the average @acronym{CPU}
+time, etc@dots{}
+
+@example
+rozofsmount 0> cpu
+...............................................
+select max cpu time : 238 us
+application                      sock       last  cumulated activation    average
+name                               nb        cpu        cpu      times        cpu
+TMR_SOCK_XMIT                       9          0          0          0          0
+TMR_SOCK_RECV                      10         14        420         18         23
+DBG SERVER                         11          0          0          0          0
+rozofs_fuse                         5        876          0          0          0
+C:EXPORTD/127.0.0.1:683            12        745          0          0          0
+C:STORCLI_1                         6          0          0          0          0
+C:STORCLI_0                        13          0          0          0          0
+DBG 192.168.2.1                    14        108        108          1        108
+scheduler                           0          0          0          0          0
+@end example
+
+The @acronym{CPU} command operates in a read and clear mode. Once the statistics
+have been displayed, they are cleared.
+Fields:
+@enumerate
+@item Sock nb: socket value within the process.
+@item Last cpu: value of the last activation duration in microseconds of application
+@item Cumulated cpu: cumulative cpu time of the application. Unit is microseconds.
+@item Activation time: number of times the application has been called during the
+observation period.
+@item Average cpu: average cpu time of the application in microseconds 
+@end enumerate
+
+@c *** Subsubsection [rozofsmount]
+@node       rozofsmount, , Per socket controller function cpu load, Some common rozodebug commands
+@subsubsection rozofsmount
+
+The default port of a @command{rozofsmount} process is 50003.
+
+@c *** Section [rozofsmount menu]
+@node       rozofsmount menu, , Rozodebug tools, Monitoring
+@section    rozofsmount menu
+
+@example
+[root@@localhost tests]# rozodebug -i  localhost1 -p 50003
+...............................................
+system : rozofsmount 0
+_________________________________________________________
+
+rozofsmount 0> <enter>
+...............................................
+List of available topics :
+  af_unix
+  cpu
+  lbg
+  lbg_entries
+  profiler
+  tcp_info
+  tmr_default
+  tmr_set
+  tmr_show
+  trx
+  version
+  who
+  xmalloc
+  exit / quit / q
+_________________________________________________________
+rozofsmount 0>
+
+@end example
+
+This represents the list of lightweight threads that are known by the
+socketController of the system.
+
+@example
+rozofsmount 0> cpu
+...............................................
+select max cpu time : 238 us
+application                      sock       last  cumulated activation    average
+name                               nb        cpu        cpu      times        cpu
+TMR_SOCK_XMIT                       9          0          0          0          0
+TMR_SOCK_RECV                      10         14        420         18         23
+DBG SERVER                         11          0          0          0          0
+rozofs_fuse                         5        876          0          0          0
+C:EXPORTD/127.0.0.1:683            12        745          0          0          0
+C:STORCLI_1                         6          0          0          0          0
+C:STORCLI_0                        13          0          0          0          0
+DBG 192.168.2.1                    14        108        108          1        108
+scheduler                           0          0          0          0          0
+@end example
+
+Here are the roles of the specific socket controller entities of a rozofsmount
+process:
+@enumerate
+@item rozofs_fuse: that entity is responsible for the processing of the Fuse
+low level requests: file system metadata operations, file read/write, etc…
+@item C:EXPORTD/127.0.0.1:683: this represents the @acronym{TCP} connection
+that rozofsmount establishes towards its associated exportd. The attached function
+processes the @acronym{RPC} replies for the @acronym{RPC} requests submitted
+by the rozofsmount.
+@item C:STORCLI_0/ C:STORCLI_1: This represents the AF_UNIX stream sockets of the
+local storage @acronym{I/O} clients owned by the rozofsmount. The attached
+function processes the replies to the read, write and truncate request submitted
+by rozofsmount.
+@end enumerate

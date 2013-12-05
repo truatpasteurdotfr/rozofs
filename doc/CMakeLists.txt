@@ -30,3 +30,19 @@ if(DOXYGEN)
 else(DOXYGEN)
     message(STATUS "doxygen not found.")
 endif(DOXYGEN)
+
+#
+# User guide
+#
+if(TEXI2PDF)
+    add_custom_target(pdf_guide "${TEXI2PDF}" --build=clean "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
+else(TEXI2PDF)
+    message(STATUS "texi2pdf not found.")
+endif(TEXI2PDF)
+if(MAKEINFO)
+    add_custom_target(html_guide "${MAKEINFO}" --html -o . --css-include=${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.css "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
+    add_custom_target(docbook_guide "${MAKEINFO}" --docbook "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
+    add_custom_target(info_guide "${MAKEINFO}" "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
+else(MAKEINFO)
+    message(STATUS "makeinfo not found.")
+endif(MAKEINFO)
