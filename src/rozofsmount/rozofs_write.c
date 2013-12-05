@@ -120,6 +120,47 @@ static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRe
   SHOW_STAT_WRITE_FLUSH(synchroneous_error);    
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
 }  
+
+/*
+**__________________________________________________________________
+*/
+/**
+   Bugwatch flag set/reset
+*/
+int rozofs_bugwatch = 0;
+
+static char * bugwatch_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"bugwatch enable  : set bugwatch_flag\n");
+  pChar += sprintf(pChar,"bugwatch disable : reset bugwatch flag\n");
+  pChar += sprintf(pChar,"bugwatch         : display current state\n");  
+  return pChar; 
+}
+
+
+static void bugwatch_proc(char * argv[], uint32_t tcpRef, void *bufRef){
+  char *pChar = uma_dbg_get_buffer();
+
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"enable")==0) {
+      rozofs_bugwatch = 1;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bugwatch enabled\n");  
+      return;         
+    }
+    if (strcmp(argv[1],"disable")==0) {
+      rozofs_bugwatch = 1;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bugwatch disabled\n");   
+      return;     
+    }   
+    /*
+    ** Help
+    */
+    pChar = bugwatch_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  uma_dbg_send(tcpRef, bufRef, TRUE, "BUGROZOFSWATCH is %s\n",(rozofs_bugwatch==0)?"disabled":"enabled"); 
+}  
 /*
 **__________________________________________________________________
 */
@@ -130,6 +171,7 @@ void init_write_flush_stat(int max_write_pending){
   ROZOFS_MAX_WRITE_PENDING = max_write_pending;
   reset_write_flush_stat();
   uma_dbg_addTopic("write_flush", display_write_flush_stat);  
+  uma_dbg_addTopic("bugwatch", bugwatch_proc);  
 }
 
 /*
@@ -201,6 +243,7 @@ int buf_flush(void *fuse_ctx_p,file_t *p)
   uint32_t flush_len = (uint32_t)(p->write_pos - p->write_from);
   uint32_t flush_off_buf = (uint32_t)(p->write_from - p->read_from);
   char *buffer;
+  ientry_t *ie;
   /*
   ** stats
   */
@@ -218,6 +261,8 @@ int buf_flush(void *fuse_ctx_p,file_t *p)
     return -1;
   }
   p->buf_write_wait = 0;
+  ie = (ientry_t *) p->ie;
+  if (ie->write_pending == p) ie->write_pending = NULL;
   return 0;
 
 
@@ -291,6 +336,7 @@ static inline void buf_align_write_pos(file_t *p)
     - the data to write fits partially in the buffer. SO we ned to flush the data that are been filled
       at the end of the current buffer before copying the remaining data in the buffer
 
+  @param ie: ientry of the file
   @param fuse_ctx_p: pointer to the fuse transaction context
   @param p : pointer to the file structure that contains buffer information
   @param off : first byte to write
@@ -303,7 +349,8 @@ static inline void buf_align_write_pos(file_t *p)
       
   @retval none
 */
-void buf_file_write_nb(void *fuse_ctx_p,
+void buf_file_write_nb(ientry_t * ie,
+                    void *fuse_ctx_p,
                     rozo_buf_rw_status_t *status_p,
                     file_t * p,
                     uint64_t off, 
@@ -321,6 +368,28 @@ void buf_file_write_nb(void *fuse_ctx_p,
   char *dest_p;
   char *src_p;
   uint32_t len_alignment;
+
+  /*
+  ** Check whether some pending data written by an other application
+  ** on the same file is pending. In that case flush it immediatly.
+  */
+  if ((ie->write_pending != NULL) && (ie->write_pending != p)) {
+    flush_write_ientry(ie);
+  }
+    
+  /*
+  ** Check whether the buffer content is valid or if it must be forgotten
+  */
+  if (p->read_consistency != ie->read_consistency) {
+    /* The file has been modified since this buffer has been read. The data
+    ** it contains are questionable. Better forget them.
+    */
+    p->read_from = p->read_pos = 0;
+  }
+    
+  ie->read_consistency++;
+  p->read_consistency = ie->read_consistency;
+  
 
  status_p->status = BUF_STATUS_FAILURE;
  status_p->errcode = EINVAL ;
@@ -733,6 +802,12 @@ void buf_file_write_nb(void *fuse_ctx_p,
   
   }
 
+  /*
+  ** At the end of the write procedure, if some data is waiting to be
+  ** written on disk, save the file descriptor reference in the ie.
+  ** The flush will occur on a further read or write.
+  */
+  if (p->buf_write_wait == 1) ie->write_pending = p;
 } 
 
 
@@ -870,9 +945,13 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         goto error;
     }
     
-    if (ie->size < (off+size)) ie->size = (off+size);
-
     file_t *file = (file_t *) (unsigned long) fi->fh;
+
+    if (ie->size < (off + size)) {
+        ie->size = (off + size);
+        file->attrs.size = (off + size);
+    }
+
     /*
     ** check the status of the last write operation
     */
@@ -893,7 +972,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
       errno = EBADF;
       goto error;        
     }
-    buf_file_write_nb(buffer_p,&status,file,off,buf,size);
+    buf_file_write_nb(ie,buffer_p,&status,file,off,buf,size);
     /*
     ** check the returned status
     */
@@ -1732,6 +1811,9 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
       rozofs_clear_file_lock_owner(f);
     }
 
+     if (rozofs_bugwatch) severe("BUGROZOFSWATCH release(%p) , buf_write_wait=%d, buf_write_pending=%d,",
+                                   f,f->buf_write_wait,f->buf_write_pending);
+
     /*
     ** check if there some pendinag data to write in the buffer
     */
@@ -2204,4 +2286,5 @@ error:
     
     return;
 }
+
 

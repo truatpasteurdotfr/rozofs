@@ -783,27 +783,12 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    ** That situation occurs when the data to write does not start on a ROZOFS_BSIZE boundary (first) or
    ** does not end of a ROZOFS_BSIZE boundary (last)
    */
-   if (storcli_write_rq_p->empty_file) {
-     /*
-     ** We know that the file was empty at opening and this is the 1rst write request
-     ** It is no use to read the head or tail of block before writing since the file is not
-     ** yes present on storage
-     */
-     rozofs_storcli_prepare2write_empty_file(working_ctx_p, 
-                                storcli_write_rq_p->off , 
-                                storcli_write_rq_p->len,
-                                &working_ctx_p->wr_bid,
-                                &working_ctx_p->wr_nb_blocks
-                                );
-   }
-   else {
-     rozofs_storcli_prepare2write(working_ctx_p, 
-                                storcli_write_rq_p->off , 
-                                storcli_write_rq_p->len,
-                                &working_ctx_p->wr_bid,
-                                &working_ctx_p->wr_nb_blocks
-                                );
-   }				
+   rozofs_storcli_prepare2write(working_ctx_p, 
+                              storcli_write_rq_p->off , 
+                              storcli_write_rq_p->len,
+                              &working_ctx_p->wr_bid,
+                              &working_ctx_p->wr_nb_blocks
+                              );				
    /*
    ** Prepare for request serialization
    */
@@ -1662,11 +1647,62 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
    */
    if (rozofs_status.status != STORCLI_SUCCESS)
    {
-     wr_proj_buf_p[match_idx].state = ROZOFS_WR_ST_ERROR;
      errcode = rozofs_status.storcli_status_ret_t_u.error;
-     wr_proj_buf_p[match_idx].errcode = errcode;
-     goto write_procedure_failure;
+   
+     if (errcode != ENOENT) {
+       wr_proj_buf_p[match_idx].state = ROZOFS_WR_ST_ERROR;
+       wr_proj_buf_p[match_idx].errcode = errcode;
+       goto write_procedure_failure;
+     }
+     
+     /*
+     ** Case of the file that has never been written on disk yet.
+     ** There is no data on disk to complement the partial blocks
+     ** at the beginning and end of the write request.
+     */
+     { 
+       uint32_t relative_offset ;
+       uint32_t len;
+       
+       wr_proj_buf_p[match_idx].data = (char*)(payload);     
 
+       /*
+       ** First block
+       */
+       if (match_idx == ROZOFS_WR_FIRST) {
+       
+         /* Pad with zero the begining of the 1rst buffer */
+         relative_offset =   storcli_write_rq_p->off - wr_proj_buf_p[match_idx].off;
+         memset(wr_proj_buf_p[match_idx].data,0,relative_offset);
+
+         /* Complement the buffer with the data to write... */
+         if (relative_offset+storcli_write_rq_p->len >= ROZOFS_BSIZE ) 
+         {
+	   /*... on the whole block when enough data to write ... */
+           len = ROZOFS_BSIZE - relative_offset;
+           wr_proj_buf_p[match_idx].last_block_size = ROZOFS_BSIZE;
+         }
+         else
+         {
+	   /*... or on a partial block size when too few data is given. */
+           len = storcli_write_rq_p->len ;  
+           wr_proj_buf_p[match_idx].last_block_size = len+relative_offset;    
+         }
+         memcpy(wr_proj_buf_p[match_idx].data+relative_offset,working_ctx_p->data_write_p,len);
+         wr_proj_buf_p[match_idx].state = ROZOFS_WR_ST_TRANSFORM_REQ;
+         goto transform;     
+       } 
+       /*
+       ** case of the last block
+       ** copy the data to write in the buffer
+       */
+       relative_offset =  wr_proj_buf_p[match_idx].off - storcli_write_rq_p->off;
+       len = storcli_write_rq_p->len - relative_offset;
+       memcpy(wr_proj_buf_p[match_idx].data,working_ctx_p->data_write_p+relative_offset,len);
+       wr_proj_buf_p[match_idx].state = ROZOFS_WR_ST_TRANSFORM_REQ;
+       wr_proj_buf_p[match_idx].last_block_size = len;                   
+       goto transform;              
+     }
    }
    /*
    ** OK update the data length of the block since it might be possible that the requested data length gives
@@ -1726,6 +1762,8 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
      else                wr_proj_buf_p[match_idx].last_block_size = data_len;                
      break;          
    }
+
+transform:
 
    /*
    ** Perform the transformation on the received block

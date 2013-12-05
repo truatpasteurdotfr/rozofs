@@ -16,6 +16,8 @@
   <http://www.gnu.org/licenses/>.
  */
 
+#include <inttypes.h>
+
 #include <rozofs/rpc/eproto.h>
 
 #include "rozofs_fuse_api.h"
@@ -99,7 +101,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
       /*
       ** init of the variable used for buffer management
       */
-      rozofs_file_working_var_init(file);
+      rozofs_file_working_var_init(file,ie);
       if (rozofs_cache_mode == 1)
          fi->direct_io = 1;
       else
@@ -303,8 +305,14 @@ void rozofs_ll_open_cbk(void *this,void *param)
     /*
     ** copy them also in the ientry
     */
-    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    
+    memcpy(&ie->attrs, &attr, sizeof(mattr_t));
+    {
+        char fid_str[37];
+        uuid_unparse(file->fid, fid_str);
+        if (rozofs_bugwatch)
+            severe("BUGROZOFSWATCH (open:%p),FID(%s) size=%"PRIu64"", file,
+                    fid_str, file->attrs.size);
+    }
     file->mode     = S_IRWXU;
 //    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
@@ -318,7 +326,7 @@ void rozofs_ll_open_cbk(void *this,void *param)
     /*
     ** init of the variable used for buffer management
     */
-    rozofs_file_working_var_init(file);
+    rozofs_file_working_var_init(file,ie);
     if (rozofs_cache_mode == 1)
        fi->direct_io = 1;
     else

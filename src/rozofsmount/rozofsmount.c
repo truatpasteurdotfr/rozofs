@@ -20,6 +20,7 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <semaphore.h>
+#include <mntent.h>
 #include <sys/resource.h>
 
 #include <rozofs/rozofs_debug_ports.h>
@@ -38,8 +39,19 @@
 #define INODE_HSIZE 8192
 #define PATH_HSIZE  8192
 
-#define FUSE28_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs,big_writes"
-#define FUSE27_DEFAULT_OPTIONS "default_permissions,allow_other,fsname=rozofs,subtype=rozofs"
+// Filesystem source (first field in /etc/mtab)
+#define FSNAME "rozofs"
+
+// Filesystem type (third field in /etc/mtab)
+// If the kernel suppports it,
+///etc/mtab and /proc/mounts will show the filesystem type as fuse.rozofs
+#define FSTYPE "rozofs"
+
+// File for list all mounted file systems
+#define MOUNTED_FS_FILE_CHECK "/proc/mounts"
+
+#define FUSE28_DEFAULT_OPTIONS "default_permissions,allow_other,fsname="FSNAME",subtype="FSTYPE",big_writes"""
+#define FUSE27_DEFAULT_OPTIONS "default_permissions,allow_other,fsname="FSNAME",subtype="FSTYPE""""
 
 #define CACHE_TIMEOUT 10.0
 
@@ -898,17 +910,13 @@ int fuseloop(struct fuse_args *args, int fg) {
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
-
-
     struct timeval timeout_mproto;
     timeout_mproto.tv_sec = rozofs_tmr_get(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
 
-
-    for (retry_count = 3; retry_count > 0; retry_count--) {
+    for (retry_count = 5; retry_count > 0; retry_count--) {
         /* Initiate the connection to the export and get information
          * about exported filesystem */
-        /// XXX: TO CHANGE
         if (exportclt_initialize(
                 &exportclt,
                 conf.host,
@@ -1250,6 +1258,47 @@ int fuseloop(struct fuse_args *args, int fg) {
 
 void rozofs_allocate_flush_buf(int size_kB);
 
+/** Check if a given RozoFS mountpoint is already mounted
+ *
+ * @param *mntpoint: mountpoint to check
+ *
+ * @return: 0 on success -1 otherwise
+ */
+int rozofs_mountpoint_check(const char * mntpoint) {
+
+    struct mntent* mnt_entry = NULL;
+    FILE* mnt_file_stream = NULL;
+    char mountpoint_path[PATH_MAX];
+
+    if (!realpath(mntpoint, mountpoint_path)) {
+        fprintf(stderr, "bad mount point %s: %s\n", mntpoint, strerror(errno));
+        return -1;
+    }
+
+    mnt_file_stream = setmntent(MOUNTED_FS_FILE_CHECK, "r");
+    if (mnt_file_stream == NULL) {
+        fprintf(stderr, "setmntent failed for file "MOUNTED_FS_FILE_CHECK":"
+        " %s \n", strerror(errno));
+        return -1;
+    }
+
+    while ((mnt_entry = getmntent(mnt_file_stream))) {
+
+        if ((strcmp(mountpoint_path, mnt_entry->mnt_dir) == 0)
+                && (strcmp(FSNAME, mnt_entry->mnt_fsname) == 0)) {
+            fprintf(stderr,
+                    "according to '"MOUNTED_FS_FILE_CHECK"', %s is already a"
+                    " active mountpoint for a Rozo file system\n",
+                    mountpoint_path);
+            return -1;
+        }
+    }
+
+    endmntent(mnt_file_stream);
+
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
     int fg = 0;
@@ -1345,10 +1394,10 @@ int main(int argc, char *argv[]) {
     ** Compute the identifier of the client from host and instance id 
     */
     {
-      char hostName[256];
-      hostName[0] = 0;
-      gethostname(hostName,256);
-      rozofs_client_hash = rozofs_client_hash_compute(hostName,conf.instance);
+        char hostName[256];
+        hostName[0] = 0;
+        gethostname(hostName, 256);
+        rozofs_client_hash = rozofs_client_hash_compute(hostName, conf.instance);
     }
     /*
     ** allocate the common flush buffer
@@ -1432,30 +1481,29 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "no mount point\nsee: %s -h for help\n", argv[0]);
         return 1;
     }
+
+    // Check the mountpoint
+    if (rozofs_mountpoint_check(mountpoint) != 0) {
+        return 1;
+    }
+
     /*
     ** assert the cache mode
     */
-    if (conf.fs_mode == 0)
-    {
-      if (conf.cache_mode >= 2) 
-      {
-        rozofs_cache_mode = 0;
-      }
-      else
-      {
-        rozofs_cache_mode = conf.cache_mode;    
-      }
-    }
-    else
-    {
-      if (conf.cache_mode > 2) 
-      {
-        rozofs_cache_mode = 0;
-      }
-      else
-      {
-        rozofs_cache_mode = conf.cache_mode;    
-      }        
+    if (conf.fs_mode == 0) {
+
+        if (conf.cache_mode >= 2) {
+            rozofs_cache_mode = 0;
+        } else {
+            rozofs_cache_mode = conf.cache_mode;
+        }
+    } else {
+
+        if (conf.cache_mode > 2) {
+            rozofs_cache_mode = 0;
+        } else {
+            rozofs_cache_mode = conf.cache_mode;
+        }
     }
     
     // Change the value of maximum size of core file

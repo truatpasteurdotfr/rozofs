@@ -244,11 +244,12 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
             &ret.sp_read_ret_t_u.rsp.file_size) != 0) 
   {
     ret.sp_read_ret_t_u.error = errno;
-    storio_encode_rpc_response(rpcCtx,(char*)&ret); 
-    if (args->spare) thread_ctx_p->stat.diskRead_error++;
-    else             thread_ctx_p->stat.diskRead_error_spare++;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);
+    if (errno == ENOENT)    thread_ctx_p->stat.diskRead_nosuchfile++;
+    else if (!args->spare)  thread_ctx_p->stat.diskRead_error++;
+    else                    thread_ctx_p->stat.diskRead_error_spare++;
     storio_send_response(thread_ctx_p,msg,-1);
-    return;       
+    return;
   }  
  
   ret.status = SP_SUCCESS;  

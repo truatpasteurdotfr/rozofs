@@ -826,6 +826,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
     uint8_t   rozofs_safe;
     uint8_t   layout;
     uint8_t   rozofs_forward;
+    uint8_t   rozofs_inverse;
     storcli_read_arg_t *storcli_read_rq_p;
     int error;
 
@@ -835,7 +836,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
     layout         = storcli_read_rq_p->layout;
     rozofs_safe    = rozofs_get_rozofs_safe(layout);
     rozofs_forward = rozofs_get_rozofs_forward(layout);
-
+    rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     /*
     ** Now update the state of each load balancing group since it might be possible
     ** that some experience a state change
@@ -846,6 +847,26 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
     */
     if (rozofs_storcli_select_storage_idx (working_ctx_p,rozofs_safe,projection_id) < 0)
     {
+    
+      /*
+      ** In case of a rozofsmount write request, when the data flushed are not a 
+      ** multiple of the rozofs block size, an internal read request is done in 
+      ** order to complement the partial blocks. 
+      ** In the case it is the very 1rst write of a file on disk, the file does
+      ** not yet exist and one must receive back from every storage the error
+      */
+      {
+        int i;
+        for (i=0; i< rozofs_inverse; i++) {
+	  if (prj_cxt_p[i].prj_state != ROZOFS_PRJ_READ_ERROR) break;
+	  if (prj_cxt_p[i].errcode   != ENOENT) break;
+	}
+	if (i == rozofs_inverse) {
+	  error = ENOENT;
+	  goto reject;
+	}
+      }	
+      
       /*
       ** Cannot select a new storage: OK so now double check if the retry on the same storage is
       ** acceptable.When it is the case, check if the max retry has not been yet reached
@@ -1189,7 +1210,12 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       {
         errno = rozofs_status.sp_status_ret_t_u.error;
 //        printf("FDL storage error %s\n",strerror(errno));
-        STORCLI_ERR_PROF(read_prj_err);       
+        if (errno == ENOENT) {
+          STORCLI_ERR_PROF(read_prj_enoent); 	
+	}
+	else {
+          STORCLI_ERR_PROF(read_prj_err); 
+	}      
         error = 1;
         break;    
       }

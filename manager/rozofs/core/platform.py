@@ -690,7 +690,7 @@ class Platform(object):
 
         enode.set_configurations(econfig)
 
-    def mount_export(self, eids=None, hosts=None):
+    def mount_export(self, eids=None, hosts=None, options=None):
         """ Mount an exported file system
 
         Only kown (managed by this platform) hosts could mount a file system.
@@ -699,6 +699,7 @@ class Platform(object):
             eids: the export ids to mount if None all exports are mount
             hosts: target hosts to mount on if None all export will be mount on
                    all nodes
+            options: mount options to use
         """
 
         enode = self._get_exportd_node()
@@ -731,7 +732,7 @@ class Platform(object):
 
             for eid in eids:
                 expconfig = econfig[Role.EXPORTD].exports[eid]
-                rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1)
+                rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1, options)
                 # check duplicates
                 if rconfig not in rconfigs:
                     rconfigs[Role.ROZOFSMOUNT].append(rconfig)
@@ -777,7 +778,7 @@ class Platform(object):
 
                 for eid in eids:
                     expconfig = econfig[Role.EXPORTD].exports[eid]
-                    rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1)
+                    rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1, None)
                     if rconfig in rconfigs[Role.ROZOFSMOUNT]:
                         rconfigs[Role.ROZOFSMOUNT].remove(rconfig)
 

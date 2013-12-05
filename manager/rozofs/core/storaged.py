@@ -103,7 +103,7 @@ class StoragedAgent(Agent):
 
     def __init__(self, config="%s%s" % (__sysconfdir__, '/rozofs/storage.conf'), daemon='storaged'):
         Agent.__init__(self, STORAGED_MANAGER)
-        self._daemon_manager = DaemonManager(daemon, ["-c", config], 1)
+        self._daemon_manager = DaemonManager(daemon, ["-c", config], 4)
         self._reader = ConfigurationReader(config, StoragedConfigurationParser())
         self._writer = ConfigurationWriter(config, StoragedConfigurationParser())
 

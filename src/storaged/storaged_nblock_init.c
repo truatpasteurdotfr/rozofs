@@ -62,12 +62,59 @@
 
 DECLARE_PROFILING(spp_profiler_t);
 
+extern uint8_t rbs_start_process;
 /*
  **_________________________________________________________________________
  *      PUBLIC FUNCTIONS
  **_________________________________________________________________________
  */
 
+#define sp_display_rbs_progress_probe(the_cid, the_sid,\
+                                        the_probe_1, the_probe_2, the_probe_3)\
+    {\
+        if ( the_probe_3 == 0 ) {\
+            pChar += sprintf(pChar,\
+                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
+                               "%"PRIu64"/%-12"PRIu64" |\n",\
+                               the_cid, the_sid, "not started",\
+                               the_probe_2, the_probe_1);\
+        }\
+        if ( the_probe_3 == 1 ) {\
+            pChar += sprintf(pChar,\
+                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
+                               "%"PRIu64"/%-12"PRIu64" |\n",\
+                               the_cid, the_sid, "getting cluster list",\
+                               the_probe_2, the_probe_1);\
+        }\
+        if ( the_probe_3 == 2 ) {\
+            pChar += sprintf(pChar,\
+                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
+                               "%"PRIu64"/%-12"PRIu64" |\n",\
+                               the_cid, the_sid, "init connections",\
+                               the_probe_2, the_probe_1);\
+        }\
+        if ( the_probe_3 == 3 ) {\
+            pChar += sprintf(pChar,\
+                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
+                               "%"PRIu64"/%-12"PRIu64" |\n",\
+                               the_cid, the_sid, "getting list of files",\
+                               the_probe_2, the_probe_1);\
+        }\
+        if ( the_probe_3 == 4 ) {\
+            pChar += sprintf(pChar,\
+                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
+                               "%"PRIu64"/%-12"PRIu64" |\n",\
+                               the_cid, the_sid, "rebuild in progress",\
+                               the_probe_2, the_probe_1);\
+        }\
+        if ( the_probe_3 == 5 ) {\
+            pChar += sprintf(pChar,\
+                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
+                               "%"PRIu64"/%-12"PRIu64" |\n",\
+                               the_cid, the_sid, "completed",\
+                               the_probe_2, the_probe_1);\
+        }\
+    }
 
 #define sp_display_probe(the_profiler, the_probe)\
     {\
@@ -83,6 +130,7 @@ DECLARE_PROFILING(spp_profiler_t);
                 #the_probe, the_profiler.the_probe[P_COUNT], \
                 rate, cpu);\
     }
+
 #define sp_clear_probe(the_profiler, the_probe)\
     {\
       the_profiler.the_probe[P_COUNT] = 0;\
@@ -105,40 +153,45 @@ DECLARE_PROFILING(spp_profiler_t);
                  #the_probe, the_profiler.the_probe[P_COUNT], \
                 rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
     }
+
 static char * show_profile_storaged_master_display_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
   pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
   pChar += sprintf(pChar,"profiler             : display statistics\n");  
   return pChar; 
 }
+
 static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
 
     time_t elapse;
     int days, hours, mins, secs;
 
+    if (argv[1] != NULL) {
 
-    if (argv[1] != NULL)
-    {
-      if (strcmp(argv[1],"reset")==0) {
-	sp_clear_probe(gprofiler, stat);
-	sp_clear_probe(gprofiler, ports);
-	sp_clear_probe(gprofiler, remove);
-	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
-	return;      
-      }
-      pChar = show_profile_storaged_master_display_help(pChar);
-      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
-      return;      
-      
+        if (strcmp(argv[1], "reset") == 0) {
+
+            sp_clear_probe(gprofiler, stat);
+            sp_clear_probe(gprofiler, ports);
+            sp_clear_probe(gprofiler, remove);
+            sp_clear_probe(gprofiler, list_bins_files);
+            uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
+
+            return;
+        }
+
+        pChar = show_profile_storaged_master_display_help(pChar);
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+
+        return;
     }
+
     // Compute uptime for storaged process
     elapse = (int) (time(0) - gprofiler.uptime);
     days = (int) (elapse / 86400);
     hours = (int) ((elapse / 3600) - (days * 24));
     mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
-
 
     // Print general profiling values for storaged
     pChar += sprintf(pChar, "storaged: %s - %"PRIu16" IO process(es),"
@@ -154,6 +207,41 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
     sp_display_probe(gprofiler, stat);
     sp_display_probe(gprofiler, ports);
     sp_display_probe(gprofiler, remove);
+    sp_display_probe(gprofiler, list_bins_files);
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+
+static void show_rebuild_storage_display(char * argv[], uint32_t tcpRef,
+        void *bufRef) {
+
+    char *pChar = uma_dbg_get_buffer();
+    int i = 0;
+
+    // Print RBS storaged process profiling values
+    if (gprofiler.nb_rb_processes != 0) {
+
+        pChar += sprintf(pChar,
+                "Nb. of storage(s) to rebuild at startup: %"PRIu16"\n",
+                gprofiler.nb_rb_processes);
+
+        pChar += sprintf(pChar, "%-12s | %-12s | %-16s | %-16s |\n",
+                "CID", "SID", "STATUS", "FILES REBUILD");
+
+        pChar += sprintf(pChar, "-------------+--------------+-----------------"
+                "-+------------------+\n");
+
+        for (i = 0; i < gprofiler.nb_rb_processes; i++) {
+
+            sp_display_rbs_progress_probe(
+                    gprofiler.rbs_cids[i], gprofiler.rbs_sids[i],
+                    gprofiler.rb_files_total[i], gprofiler.rb_files_current[i],
+                    gprofiler.rb_status[i]);
+
+        }
+
+    }
+
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
@@ -423,6 +511,14 @@ int storaged_start_nb_th(void *args) {
      ** add profiler subject 
      */
     uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
+
+
+    /*
+     ** add rebuild storage subject
+     */
+    if (rbs_start_process == 1) {
+        uma_dbg_addTopic("rebuild", show_rebuild_storage_display);
+    }
 
     if ((args_p->hostname[0] != 0)) {
         info("storaged non-blocking thread started (host: %s, dbg port: %d).",

@@ -302,7 +302,7 @@ void rozofs_ll_create_cbk(void *this,void *param)
     /*
     ** init of the variable used for buffer management
     */
-    rozofs_file_working_var_init(file);
+    rozofs_file_working_var_init(file,nie);
     
     fi->fh = (unsigned long) file;    
       

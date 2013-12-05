@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Rebuild storage
-    if (rbs_rebuild_storage(export_host, cid, sid, storage_root) != 0) {
+    if (rbs_rebuild_storage(export_host, cid, sid, storage_root, 0) != 0) {
         fprintf(stderr, "rbs_rebuild_storage failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }

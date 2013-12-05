@@ -14,5 +14,7 @@ AGENTS="auto"
 
 # Does this agent manage exportd through pacemaker (default false)
 # (one of true, false, or auto)
-PACEMAKER=auto
+PACEMAKER="auto"
 
+# Pacemaker cluster resource name for exportd (default auto)
+EXPORTD_RESOURCE_NAME="auto"

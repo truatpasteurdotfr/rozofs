@@ -52,7 +52,7 @@ def list(platform, args):
     for h, r in platform.list_nodes(__args_to_roles(args)).items():
         role_l = []
         role_l.append(__roles_to_strings(r))
-    list_l.update({h: role_l})
+        list_l.update({h: role_l})
     ordered_puts(list_l)
 
 def status(platform, args):
