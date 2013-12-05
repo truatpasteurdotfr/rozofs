@@ -330,7 +330,7 @@ root@node1:~# rozo volume expand 192.168.1.201 \
                                  192.168.1.202 \
                                  192.168.1.203 \
                                  192.168.1.204 \
-                                 -E 192.168.1.10 \
+                                 -E 192.168.1.10
 @end verbatim
 
 As we added nodes without indicating the volume we want to expand,
@@ -377,7 +377,7 @@ on one of the node.
 
 @verbatim
 root@node1:~# df | grep /mnt/rozofs
-rozofs      4867164832      0 4867164832   0% /mnt/rozofs@node1/export_1
-rozofs      4867164832      0 4867164832   0% /mnt/rozofs@node1/export_2
+rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_1
+rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_2
 @end verbatim
 
