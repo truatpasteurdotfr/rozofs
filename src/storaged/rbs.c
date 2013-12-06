@@ -277,7 +277,7 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                     re->fid, first_block_idx, nb_blocks_read_distant, version,
                     &file_size, working_ctx.prj_ctx[proj_id_to_rebuild].bins);
 
-            if (ret != 0) {
+            if (ret <= 0) {
                 severe("storage_write failed: %s", strerror(errno));
                 goto out;
             }
@@ -406,7 +406,7 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                         &file_size,
                         bins_to_write);
 
-                if (ret != 0) {
+                if (ret <= 0) {
                     severe("storage_write failed: %s", strerror(errno));
                     goto out;
                 }
@@ -510,13 +510,12 @@ out:
 int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
     int status = -1;
     int i = 0;
-    uint32_t ports[STORAGE_NODE_PORTS_MAX];
-
+    mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
     DEBUG_FUNCTION;
 
     // Copy hostname for this storage
     strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
-    memset(ports, 0, sizeof (uint32_t) * STORAGE_NODE_PORTS_MAX);
+    memset(io_address, 0, sizeof (io_address));
 
     struct timeval timeo;
     timeo.tv_sec = RBS_TIMEOUT_MPROTO_REQUESTS;
@@ -529,7 +528,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
         goto out;
     } else {
         // Send request to get TCP ports for this storage
-        if (mclient_ports(&rb_stor->mclient, ports) != 0) {
+        if (mclient_ports(&rb_stor->mclient, io_address) != 0) {
             severe("Warning: failed to get ports for storage (host: %s)."
                     , rb_stor->host);
             goto out;
@@ -538,16 +537,19 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
 
     // Initialize each TCP ports connection with this storage (by sproto)
     for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-        if (ports[i] != 0) {
+        if (io_address[i].port != 0) {
 
             struct timeval timeo;
+            uint32_t ip;
             timeo.tv_sec = RBS_TIMEOUT_SPROTO_REQUESTS;
             timeo.tv_usec = 0;
 
-            strncpy(rb_stor->sclients[i].host, rb_stor->host,
-                    ROZOFS_HOSTNAME_MAX);
-            rb_stor->sclients[i].port = ports[i];
+            ip = io_address[i].ipv4;
+            sprintf(rb_stor->sclients[i].host, "%u.%u.%u.%u", ip>>24,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+            rb_stor->sclients[i].port = io_address[i].port;
             rb_stor->sclients[i].status = 0;
+            rb_stor->sclients[i].rpcclt.sock = -1;
+
             if (sclient_initialize(&rb_stor->sclients[i], timeo) != 0) {
                 severe("failed to join storage (host: %s, port: %u), %s.",
                         rb_stor->host, rb_stor->sclients[i].port,
@@ -861,16 +863,15 @@ out:
 }
 
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
-        const char *root) {
+        const char *root, uint8_t stor_idx) {
     list_t *p, *q;
     uint64_t current_nb_rb_files = 0;
     int status = -1;
 
     DEBUG_FUNCTION;
 
-    // Set monitor values to 0
-    SET_PROBE_VALUE(rb_files_current, 0);
-    SET_PROBE_VALUE(rb_files_total, 0);
+    // Indicate rebuild status
+    SET_PROBE_VALUE(rb_status[stor_idx], 1);
 
     // Initialize the storage to rebuild
     if (rbs_initialize(cid, sid, root) != 0) {
@@ -882,7 +883,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     // Get the list of storages for this cluster ID
     if (rbs_get_cluster_list(&rpcclt_export, export_host, cid,
             &cluster_entries) != 0) {
-        severe("rbs_get_cluster_list failed: %s", strerror(errno));
+        severe("rbs_get_cluster_list failed (cid: %u) : %s", cid, strerror(errno));
         goto out;
     }
 
@@ -890,16 +891,25 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     if (rbs_check_cluster_list(&cluster_entries, cid, sid) != 0)
         goto out;
 
+    // Indicate rebuild status
+    SET_PROBE_VALUE(rb_status[stor_idx], 2);
+
     // Get connections for this given cluster
     if (rbs_init_cluster_cnts(&cluster_entries, cid, sid) != 0)
         goto out;
+
+    // Indicate rebuild status
+    SET_PROBE_VALUE(rb_status[stor_idx], 3);
 
     // Get the list of bins files to rebuild for this storage
     if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid) != 0)
         goto out;
 
     // Set for monitoring, the nb. of files to rebuild
-    SET_PROBE_VALUE(rb_files_total, list_size(&rebuild_entries));
+    SET_PROBE_VALUE(rb_files_total[stor_idx], list_size(&rebuild_entries));
+
+    // Indicate rebuild status
+    SET_PROBE_VALUE(rb_status[stor_idx], 4);
 
     // Rebuild each bins file
 
@@ -939,7 +949,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
 
             // Update for monitoring, the current nb. of files rebuild
             current_nb_rb_files++;
-            SET_PROBE_VALUE(rb_files_current, current_nb_rb_files);
+            SET_PROBE_VALUE(rb_files_current[stor_idx], current_nb_rb_files);
         }
 
         // End of list
@@ -961,6 +971,9 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
                 sleep(RBS_TIME_BETWEEN_2_PASSES);
         }
     }
+
+    // Indicate rebuild status
+    SET_PROBE_VALUE(rb_status[stor_idx], 5);
 
     status = 0;
 

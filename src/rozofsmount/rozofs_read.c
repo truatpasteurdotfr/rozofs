@@ -16,49 +16,18 @@
   <http://www.gnu.org/licenses/>.
  */
 
-/* need for crypt */
-
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
 //#define TRACE_FS_READ_WRITE 1
 //#warning TRACE_FS_READ_WRITE active
+#include <inttypes.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/rozofs_timer_conf.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
 
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
+#include "rozofs_sharedmem.h"
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_cache.h"
+#include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -66,7 +35,7 @@ DECLARE_PROFILING(mpp_profiler_t);
 void rozofs_ll_read_cbk(void *this,void *param);
 
 
-static char *buf_flush= NULL;  /**< flush buffer for asynchronous flush */
+static char *local_buf_flush= NULL;  /**< flush buffer for asynchronous flush */
 /**
 * Allocation of the flush buffer
   @param size_kB : size of the flush buffer in KiloBytes
@@ -75,9 +44,24 @@ static char *buf_flush= NULL;  /**< flush buffer for asynchronous flush */
 */
 void rozofs_allocate_flush_buf(int size_kB)
 {
-  buf_flush = xmalloc(1024*size_kB);
+  local_buf_flush = xmalloc(1024*size_kB);
 }
+/**
+* Align off as well as len to read on blocksize bundary
+  @param[in]  off         : offset to read
+  @param[in]  len         : length to read
+  @param[out] off_aligned : aligned read offset
+  @param[out] len_aligned : aligned length to read  
+  
+  @retval none
+*/
+static inline void rozofs_align_off_and_len(uint64_t off, int len, uint64_t * off_aligned, int * len_aligned) {
 
+  *off_aligned = (off/ROZOFS_CACHE_BSIZE)*ROZOFS_CACHE_BSIZE;       
+  *len_aligned = len + (off-*off_aligned);
+  if ((*len_aligned % ROZOFS_CACHE_BSIZE) == 0) return;
+  *len_aligned = ((*len_aligned/ROZOFS_CACHE_BSIZE)+1)*ROZOFS_CACHE_BSIZE;
+}
 
 /** Reads the distributions on the export server,
  *  adjust the read buffer to read only whole data blocks
@@ -99,7 +83,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    uint32_t nb_prj = 0;
    storcli_read_arg_t  args;
    int ret;
-   int lbg_id;
+   int storcli_idx;
 
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
@@ -108,19 +92,62 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    {
      severe("bad nb_prj %d bid %llu off %llu len %u",nb_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
    }
+   
+    if (rozofs_rotation_read_modulo == 0) {
+      f->rotation_idx = 0;
+    }
+    else {
+      f->rotation_counter++;
+      if ((f->rotation_counter % rozofs_rotation_read_modulo)==0) {
+	f->rotation_idx++;
+      }
+    }  
+    args.sid = f->rotation_idx;
 
     // Fill request
     args.cid = f->attrs.cid;
-    args.sid = 0; // NS
     args.layout = f->export->layout;
-    args.spare = 0; // NS
     memcpy(args.dist_set, f->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.proj_id = 0; // N.S
     args.bid = bid;
     args.nb_proj = nb_prj;
 
-    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+ //   lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+    storcli_idx = stclbg_storcli_idx_from_fid(f->fid);
+    /*
+    ** allocate a shared buffer for reading
+    */
+#if 1
+    uint32_t *p32;
+//    int stor_idx =storcli_get_storcli_idx_from_fid(f->fid);
+    int shared_buf_idx;
+    uint32_t length;
+    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(storcli_idx);
+    if (shared_buf_ref != NULL)
+    {
+      /*
+      ** clear the first 4 bytes of the array that is supposed to contain
+      ** the reference of the transaction
+      */
+       p32 = (uint32_t *)ruc_buf_getPayload(shared_buf_ref);
+       *p32 = 0;
+       /*
+       ** get the index of the shared payload in buffer
+       */
+       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,storcli_idx,&length);
+       if (shared_buf_idx != -1)
+       {
+         /*
+         ** save the reference of the shared buffer in the fuse context
+         */
+         SAVE_FUSE_PARAM(buffer_p,shared_buf_ref);
+         args.proj_id = shared_buf_idx;
+         args.spare     = 'S';
+       }
+    }
+#endif
+    rozofs_fuse_read_write_stats_buf.read_req_cpt++;
 
     /*
     ** now initiates the transaction towards the remote end
@@ -128,7 +155,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     f->buf_read_pending++;
     ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_READ,(xdrproc_t) xdr_storcli_read_arg_t,(void *)&args,
-                              rozofs_ll_read_cbk,buffer_p,lbg_id); 
+                              rozofs_ll_read_cbk,buffer_p,storcli_idx,f->fid); 
     if (ret < 0) goto error;
     
     /*
@@ -156,9 +183,28 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
 {
     int64_t length = -1;
     DEBUG_FUNCTION;
-    
+    ientry_t * ie=NULL;    
     *length_p = -1;
     int ret;
+
+    /*
+    ** Flush on disk any pending data in any buffer open on this file 
+    ** before reading.
+    */
+    ie = (ientry_t*)f->ie;
+    flush_write_ientry(ie);    
+    
+    /*
+    ** Check whether the buffer content is valid or if it must be forgotten
+    */
+    if (f->read_consistency != ie->read_consistency) {
+      /* The file has been modified since this buffer has been read. The data
+      ** it contains are questionable. Better forget them.
+      */
+      f->read_from = f->read_pos = 0;
+      f->read_consistency = ie->read_consistency;
+
+    }
 
     if ((off < f->read_from) || (off > f->read_pos) ||((off+len) >  f->read_pos ))
     {
@@ -167,31 +213,9 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        **  1- check if there is some pending data to write
        **  2- trigger a read
        */
-       if (f->buf_write_wait)
-       {
-          /*
-          ** Each time there is a write wait we must flush it. Otherwise
-          ** we can face the situation where during read, a new write that
-          ** takes place that triggers the write of the part that was in write wait
-          **  implies the loss of the write pending in memory (not on disk) and
-          ** leads in returning inconsistent data to the caller
-          ** -> note : that might happen for application during read/write in async mode.
-          ** on the same file
-          */
-          {            	    
-	        struct fuse_file_info * fi;
-            
-	        fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
-            ret = rozofs_asynchronous_flush(fi);
-	        if (ret == 0) {
-                 *length_p = -1;
-                 return 0;	 
-	        }	
-            f->buf_write_wait = 0;
-            f->write_from = 0; 
-            f->write_pos  = 0;
-	     }           
-       }       
+        if (f->buf_write_wait) {
+          warning("buf_write_wait is set after flush_write_ientry");
+        }
        /*
        ** The file has just been created and is empty so far
        ** Don't request the read to the storio, this would trigger an io error
@@ -222,11 +246,63 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
           return 1;      
        }
        /*
-       ** stats
+       ** check if the expected data are in the cache
+       ** need to round up the offset to a 8K boundary
+       ** adjust the length to 8K
        */
-       rozofs_fuse_read_write_stats_buf.read_req_cpt++;
+//#warning bad instruction off_aligned = (((off-1)/ROZOFS_CACHE_BSIZE)+1)* ROZOFS_CACHE_BSIZE;
+       uint64_t off_aligned;
+       int      len_aligned;
+       rozofs_align_off_and_len(off,len, &off_aligned, &len_aligned);  
+#if 0
+       if (len_aligned  < 2*ROZOFS_CACHE_BSIZE) 
+       {
+          /*
+          ** min length is 16K
+          */
+           len_aligned =  2*ROZOFS_CACHE_BSIZE;
+       }
+#endif       
+       /*
+       ** we have to control the returned length because if the returned length is less than
+       ** the one expected by fuse we need to read from disk
+       */
+       int read_cache_len = rozofs_mbcache_get(f->fid,off_aligned,len_aligned,(uint8_t*)f->buffer);
+       if (read_cache_len >= 0) 
+       {         
+         /*
+         ** OK we got data from cache: now we must check that it corrsponds  to the
+         ** expected data from fuse.
+         ** if the length is less than expected, we must read from disk except
+         ** if we hit the end of file (for this we check against the size the
+         ** file
+         */
+         if (((off_aligned + read_cache_len) == f->attrs.size) || (read_cache_len >= len))
+         {
+           f->read_from = off_aligned;
+           f->read_pos = off_aligned+read_cache_len;
+           /*
+           ** give back data to the application
+           */
+           length =(len <= (f->read_pos - off )) ? len : (f->read_pos - off);
+           *buf = f->buffer + (off - f->read_from);    
+           *length_p = (size_t)length;
+            return 0; 
+          }        
+       }
        
-       ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
+       /*
+       ** either nothing in the cache or not enough data -> read from remote storage
+       */
+       //ret = read_buf_nb(buffer_p,f,off, f->buffer, f->export->bufsize);
+
+       /* Let's read ahead : when half of the buffer size is requested, let's read read a whole buffer size */
+       if (len_aligned >= (f->export->bufsize/2)) len_aligned = f->export->bufsize;
+
+       /* when requested size is too small, let's read the minimum read configured size */
+       if (len_aligned < f->export->min_read_size) len_aligned = f->export->min_read_size;
+       
+       ret = read_buf_nb(buffer_p,f,off_aligned, f->buffer, len_aligned);
        if (ret < 0)
        {
          *length_p = -1;
@@ -319,7 +395,7 @@ void rozofs_ll_read_defer(void *param)
    RESTORE_FUSE_PARAM(param,off);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
-   file = (file_t *) fi->fh;   
+   file = (file_t *) (unsigned long) fi->fh;   
 
     buff = NULL;
     read_in_progress = file_read_nb(param,file, off, &buff, size,&length);
@@ -361,18 +437,29 @@ out:
         int ret;
         off = file->read_pos;
         size_t size = file->export->bufsize;
-        SAVE_FUSE_PARAM(param,off);
-        SAVE_FUSE_PARAM(param,size); 
-        /*
-        ** attempt to read
-        */  
-        ret = read_buf_nb(param,file,file->read_pos, file->buffer, file->export->bufsize);      
-        if (ret < 0)
+        ret = rozofs_mbcache_check(file->fid,off,size);
+        if (ret == 0)
         {
-           /*
-           ** read error --> release the context
-           */
-           rozofs_fuse_release_saved_context(param);
+          /*
+          ** data are in the cache: we are done, release the context
+          */
+          rozofs_fuse_release_saved_context(param);
+        }
+        else
+        {
+          SAVE_FUSE_PARAM(param,off);
+          SAVE_FUSE_PARAM(param,size); 
+          /*
+          ** attempt to read
+          */  
+          ret = read_buf_nb(param,file,off, file->buffer, size);      
+          if (ret < 0)
+          {
+             /*
+             ** read error --> release the context
+             */
+             rozofs_fuse_release_saved_context(param);
+          }
         }   
       }
     }
@@ -442,6 +529,13 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     }
     file_t *file = (file_t *) (unsigned long) fi->fh;
     /*
+    ** update the size of the file thanks the content of the ientry. That content
+    ** might change over the time since it is posssible to have some pending writes
+    ** for which the attribute size has to be updated. However this takes place
+    ** on the ientry only
+    */
+    file->attrs.size = ie->size;
+    /*
     ** check if the application is attempting to read atfer a close (_ll_release)
     */
     if (rozofs_is_file_closing(file))
@@ -464,6 +558,7 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
      if (length == -1)
          goto error;
      fuse_reply_buf(req, (char *) buff, length);
+     file->current_pos = (off+length);
      goto out;           
 
 error:
@@ -490,18 +585,32 @@ out:
         int ret;
         off = file->read_pos;
         size_t size = file->export->bufsize;
-        SAVE_FUSE_PARAM(buffer_p,off);
-        SAVE_FUSE_PARAM(buffer_p,size);      
-        /**
-        * attempt to read
+        /*
+        ** check the presence of the data in the cache
         */
-        ret = read_buf_nb(buffer_p,file,file->read_pos, file->buffer, file->export->bufsize);      
-        if (ret < 0)
+        ret = rozofs_mbcache_check(file->fid,off,size);
+        if (ret == 0)
         {
-           /*
-           ** read error --> release the context
-           */
-           rozofs_fuse_release_saved_context(buffer_p);
+          /*
+          ** data are in the cache: we are done, release the context
+          */
+          rozofs_fuse_release_saved_context(buffer_p);
+        }
+        else
+        {
+          SAVE_FUSE_PARAM(buffer_p,off);
+          SAVE_FUSE_PARAM(buffer_p,size);      
+          /**
+          * attempt to read
+          */
+          ret = read_buf_nb(buffer_p,file,off, file->buffer, size);      
+          if (ret < 0)
+          {
+             /*
+             ** read error --> release the context
+             */
+             rozofs_fuse_release_saved_context(buffer_p);
+          }
         }
       }
     }
@@ -532,6 +641,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    int len_zero;
    uint8_t *src_p,*dst_p;
    int len;
+   void *shared_buf_ref;
    
    int status;
    uint8_t  *payload;
@@ -542,6 +652,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_read_ret_no_data_t;
    file_t *file;
    uint32_t readahead;
+   int position ;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -549,6 +660,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    RESTORE_FUSE_PARAM(param,readahead);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
    RESTORE_FUSE_PARAM(param,off);
+   RESTORE_FUSE_PARAM(param,shared_buf_ref);
 
    file = (file_t *) (unsigned long)  fi->fh;   
    file->buf_read_pending--;
@@ -613,18 +725,37 @@ void rozofs_ll_read_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
+    if (ret.status == STORCLI_FAILURE) {
         errno = ret.storcli_read_ret_no_data_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
     /*
-    ** no error, so get the length of the data part
+    ** no error, so get the length of the data part: need to consider the case
+    ** of the shared memory since for its case, the length of the returned data
+    ** is not in the rpc buffer. It is detected by th epresence of the 0x53535353
+    ** pattern in the alignment field of the rpc buffer
     */
     int received_len = ret.storcli_read_ret_no_data_t_u.len.len;
+    uint32_t alignment = (uint32_t) ret.storcli_read_ret_no_data_t_u.len.alignment;
     xdr_free((xdrproc_t) decode_proc, (char *) &ret); 
-    int position = XDR_GETPOS(&xdrs);
-    
+    if (alignment == 0x53535353)
+    {
+      /*
+      ** case of the shared memory
+      */
+      uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(shared_buf_ref);;
+      received_len = p32[1];
+      position = 0;
+      payload = (uint8_t*)&p32[2];
+    }
+    else
+    { 
+      /*
+      ** case without shared memory
+      */
+      position = XDR_GETPOS(&xdrs);
+    }
     /*
     ** check the length: caution, the received length can
     ** be zero by it might be possible that the information 
@@ -651,15 +782,45 @@ void rozofs_ll_read_cbk(void *this,void *param)
        received_len = file->attrs.size - next_read_from;    
     }
     /*
-    ** re-evalute the EOF case
+    ** re-evaluate the EOF case
     */
     if (received_len <= 0)
     {
+        int recv_len_ok = 0;
+
+        if (received_len < 0) {
+            ientry_t *ie2 = 0;
+            uint64_t file_size;
+            uint32_t *p32 = (uint32_t*) ruc_buf_getPayload(shared_buf_ref);
+            int received_len_orig = p32[1];
+            ie2 = get_ientry_by_fid(file->attrs.fid);
+            if ((ie2 == NULL)) {
+                file_size = 0;
+            } else {
+                file_size = ie2->size;
+            }
+            severe("BUGROZOFSWATCH(%p) , received_len=%d,"
+                    " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
+                    " received_len_orig=%d,readahead=%d," " ie->size=%"PRIu64"",
+                    file, received_len, next_read_from, file->attrs.size,
+                    received_len_orig, readahead, file_size);
+
+            received_len = received_len_orig;
+            if ((next_read_from + received_len) > file_size) {
+                received_len = file_size - next_read_from;
+            }
+            if (received_len > 0)
+                recv_len_ok = 1;
+        }
+
       /*
       ** end of filenext_read_pos
       */
-      errno = 0;
-      goto error;   
+      if (recv_len_ok == 0)
+      {
+	errno = 0;
+	goto error; 
+      }  
     }    
     
     next_read_pos  = next_read_from+(uint64_t)received_len; 
@@ -678,6 +839,15 @@ void rozofs_ll_read_cbk(void *this,void *param)
     { 
       while(1)
       {
+        /*
+        ** first of all: Put the data in the cache
+        */
+        src_p = payload+position;
+        if (received_len != 0)
+        {
+          rozofs_mbcache_insert(file->fid,next_read_from,(uint32_t)received_len,(uint8_t*)src_p);
+        } 
+
       /**
       *  wr_f                wr_p
       *   +-------------------+
@@ -728,7 +898,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         offset_buf_wr_start =  file->write_from - file->read_from ; 
         offset_buf_wr_start +=  (next_read_from- file->write_from);
         src_p =(uint8_t *)( file->buffer + offset_buf_wr_start);
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         file->write_pos  = 0;
         file->write_from = 0;
         /*
@@ -741,7 +911,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         /**
         * merge the with the buf flush
         */
-        memcpy(file->buffer,buf_flush,len); 
+        memcpy(file->buffer,local_buf_flush,len); 
           
         file->read_from = next_read_from;
         file->read_pos  = next_read_pos;	             
@@ -783,7 +953,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         */
         len = file->write_pos - file->write_from;      
         src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         /*
         ** copy the received buffer in the file descriptor context
         */
@@ -795,7 +965,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         * merge the with the buf flush
         */
         dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
-        memcpy(dst_p,buf_flush,len); 
+        memcpy(dst_p,local_buf_flush,len); 
           
         file->read_from = next_read_from;
         file->read_pos  = next_read_pos;	  
@@ -831,7 +1001,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
           */
           len = file->write_pos - file->write_from;      
           src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-          memcpy(buf_flush,src_p,len);   
+          memcpy(local_buf_flush,src_p,len);   
           /*
           ** copy the received buffer in the file descriptor context
           */
@@ -843,7 +1013,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
           * merge the with the buf flush
           */
           dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
-          memcpy(dst_p,buf_flush,len); 
+          memcpy(dst_p,local_buf_flush,len); 
 
           file->read_from = next_read_from;
           file->read_pos  = file->write_pos;	  
@@ -869,7 +1039,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         
         len = offset_end - file->write_from;      
         src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         /*
         ** copy the received buffer in the file descriptor context
         */
@@ -881,7 +1051,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         * merge the with the buf flush
         */
         dst_p = (uint8_t*)(file->buffer + (file->write_from - next_read_from));
-        memcpy(dst_p,buf_flush,len); 
+        memcpy(dst_p,local_buf_flush,len); 
 
         file->write_pos  = 0;
         file->write_from = 0;
@@ -950,7 +1120,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
 
           len = offset_end - file->write_from;      
           src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-          memcpy(buf_flush,src_p,len);   
+          memcpy(local_buf_flush,src_p,len);   
           /*
           ** copy the received buffer in the file descriptor context
           */
@@ -968,7 +1138,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
           * merge the with the buf flush
           */
           dst_p+= len_zero;
-          memcpy(dst_p,buf_flush,len); 
+          memcpy(dst_p,local_buf_flush,len); 
 
           file->write_pos  = 0;
           file->write_from = 0;
@@ -996,7 +1166,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
 
         len = file->write_pos - file->write_from;      
         src_p =(uint8_t *)( file->buffer + (file->write_from- file->read_from));
-        memcpy(buf_flush,src_p,len);   
+        memcpy(local_buf_flush,src_p,len);   
         /*
         ** copy the received buffer in the file descriptor context
         */
@@ -1014,7 +1184,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         * merge the with the buf flush
         */
         dst_p+= len_zero;
-        memcpy(dst_p,buf_flush,len); 
+        memcpy(dst_p,local_buf_flush,len); 
 
         file->read_from = next_read_from;
         file->read_pos  = file->write_pos;	  
@@ -1071,6 +1241,18 @@ void rozofs_ll_read_cbk(void *this,void *param)
           /*
           ** set the pointer to the beginning of the data array on the rpc buffer
           */
+          /*
+          ** Put the data in the cache
+          */
+          if (received_len != 0)
+          {
+            rozofs_mbcache_insert(file->fid,file->read_from,(uint32_t)received_len,(uint8_t*)src_p);
+          } 
+          /*
+          ** when the cache is enable the memcpy is useless: may we must avoid updating
+          ** the read_from and read_pos in the file structure, and just copy the data in the cache
+          ** by this way we can avoid the extra memcpy at that time
+          */   
           memcpy(dst_p,src_p,received_len);
 
           goto out;
@@ -1087,6 +1269,14 @@ void rozofs_ll_read_cbk(void *this,void *param)
         ** provide fuse with the request data
         */
         fuse_reply_buf(req, (char *) buff, length);
+        file->current_pos = (off+length);
+        /*
+        ** Put the data in the cache
+        */
+        if (received_len != 0)
+        {
+          rozofs_mbcache_insert(file->fid,file->read_from,(uint32_t)received_len,(uint8_t*)src_p);
+        }       
         /*
         ** copy the remaining data in the fd's buffer by taking into accuting the block size
         ** alignment
@@ -1151,3 +1341,4 @@ out:
     }
     return;
 }
+

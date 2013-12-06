@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
 
 import os
 import sys
@@ -62,7 +78,7 @@ class AgentServer(object):
         # decouple from parent environment
         os.chdir('/')
         os.setsid()
-        os.umask(0)
+        oldmask = os.umask(022)
 
         # do second fork
         try:
@@ -92,6 +108,7 @@ class AgentServer(object):
             pf.write(pid + "\n")
             for s in [m.get_name() for m in self._agents]:
                 pf.write(s + "\n")
+        os.umask(oldmask)
 
 
     def start(self):
@@ -126,8 +143,7 @@ class AgentServer(object):
 
 
     def status(self):
-        """Start the server.
-
+        """Get the agent's status.
         Returns: pid and agents of the running instance or None.
         """
         try:
@@ -138,24 +154,21 @@ class AgentServer(object):
                 while line != "":
                     agents.append(line)
                     line = pf.readline().strip()
-
         except IOError:
             return (None, None)
 
         with open('/dev/null', 'w') as devnull:
-            try:
-                subprocess.check_call("kill -s 0 %s" % pid, shell=True,
-                                      stdout=devnull, stderr=devnull)
+            if os.path.exists("/proc/%s" %pid):
                 return (pid, agents)
-            except subprocess.CalledProcessError:
+            else:
                 return (None, None)
 
 
     def stop(self):
         """Stop the server."""
-        (pid, agents) = self.status()
+        (pid, agents) = AgentServer().status()
         if pid is not None:
             with open('/dev/null', 'w') as devnull:
-                subprocess.check_call("kill %s" % pid, shell=True,
+                subprocess.check_call("kill %s && sleep 1" % pid, shell=True,
                     stdout=devnull, stderr=devnull)
 

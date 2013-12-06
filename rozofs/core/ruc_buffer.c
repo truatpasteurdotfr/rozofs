@@ -27,6 +27,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <errno.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_buffer.h"
@@ -53,7 +54,7 @@ void ruc_buf_set_trace(uint32_t flag)
 **__________________________________________________________
 */
 
-void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key)
+void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key/*,ruc_pf_buf_t init_fct*/)
 {
   ruc_buf_t  *poolRef;
   ruc_obj_desc_t  *pnext=(ruc_obj_desc_t*)NULL;
@@ -66,7 +67,7 @@ void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key)
    /*
    **   create the control part of the buffer pool
    */
-   poolRef = (ruc_buf_t*)ruc_listCreate_shared(nbBuf,sizeof(ruc_buf_t),key+1);
+   poolRef = (ruc_buf_t*)ruc_listCreate(nbBuf,sizeof(ruc_buf_t));
    if (poolRef==(ruc_buf_t*)NULL)
    {
      /*
@@ -118,9 +119,9 @@ void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key)
   /*
   ** create the shared memory
   */
-  if ((shmid = shmget(key, bufsize*nbBuf, IPC_CREAT | 0666)) < 0) {
-      perror("shmget");
-      RUC_WARNING(errno);
+  if ((shmid = shmget(key, bufsize*nbBuf, IPC_CREAT | 0666 )) < 0) {
+      severe("ruc_buf_poolCreate_shared :shmget %s",strerror(errno));
+ //     RUC_WARNING(errno);
       return (ruc_obj_desc_t*)NULL;
   }
   /*
@@ -155,6 +156,12 @@ void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key)
       p->bufCount  = (uint16_t)bufsize;
       p->type = BUF_ELEM;
       p->callBackFct = (ruc_pf_buf_t)NULL;
+#if 0
+      /*
+      ** call the init function associated with the buffer
+      */
+      if (init_fct != NULL) (*init_fct)(pBufCur);
+#endif
       pBufCur += bufsize;
    }
    /*

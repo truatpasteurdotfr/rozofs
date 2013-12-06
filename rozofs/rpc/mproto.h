@@ -61,10 +61,16 @@ struct mp_stat_ret_t {
 };
 typedef struct mp_stat_ret_t mp_stat_ret_t;
 
+struct mp_io_address_t {
+	uint32_t ipv4;
+	uint32_t port;
+};
+typedef struct mp_io_address_t mp_io_address_t;
+
 struct mp_ports_ret_t {
 	mp_status_t status;
 	union {
-		uint32_t ports[STORAGE_NODE_PORTS_MAX];
+		struct mp_io_address_t io_addr[STORAGE_NODE_PORTS_MAX];
 		int error;
 	} mp_ports_ret_t_u;
 };
@@ -160,6 +166,7 @@ extern  bool_t xdr_mp_remove_arg_t (XDR *, mp_remove_arg_t*);
 extern  bool_t xdr_mp_stat_arg_t (XDR *, mp_stat_arg_t*);
 extern  bool_t xdr_mp_sstat_t (XDR *, mp_sstat_t*);
 extern  bool_t xdr_mp_stat_ret_t (XDR *, mp_stat_ret_t*);
+extern  bool_t xdr_mp_io_address_t (XDR *, mp_io_address_t*);
 extern  bool_t xdr_mp_ports_ret_t (XDR *, mp_ports_ret_t*);
 extern  bool_t xdr_mp_children_t (XDR *, mp_children_t*);
 extern  bool_t xdr_mp_child_t (XDR *, mp_child_t*);
@@ -175,6 +182,7 @@ extern bool_t xdr_mp_remove_arg_t ();
 extern bool_t xdr_mp_stat_arg_t ();
 extern bool_t xdr_mp_sstat_t ();
 extern bool_t xdr_mp_stat_ret_t ();
+extern bool_t xdr_mp_io_address_t ();
 extern bool_t xdr_mp_ports_ret_t ();
 extern bool_t xdr_mp_children_t ();
 extern bool_t xdr_mp_child_t ();

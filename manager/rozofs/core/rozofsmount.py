@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+
 from rozofs.core.agent import Agent, ServiceStatus
 from rozofs.core.constants import ROZOFSMOUNT_MANAGER
 import os
@@ -5,10 +23,14 @@ import subprocess
 from rozofs.ext.fstab import Fstab, Line
 
 class RozofsMountConfig(object):
-    def __init__(self, export_host, export_path, instance):
+    def __init__(self, export_host, export_path, instance, options=None):
         self.export_host = export_host
         self.export_path = export_path
         self.instance = instance
+        if options is None:
+            self.options = []
+        else:
+            self.options = options
 
     def __eq__(self, other):
         return self.export_host == other.export_host and self.export_path == other.export_path
@@ -20,7 +42,7 @@ class RozofsMountAgent(Agent):
 
     __FSTAB = '/etc/fstab'
     __MTAB = '/etc/mtab'
-    __FSTAB_LINE = "rozofsmount\t%s\trozofs\texporthost=%s,exportpath=%s,instance=%d,_netdev\t0\t0\n"
+    __FSTAB_LINE = "rozofsmount\t%s\trozofs\texporthost=%s,exportpath=%s,instance=%d%s,_netdev\t0\t0\n"
 
     def __init__(self, mountdir='/mnt'):
         """
@@ -59,14 +81,19 @@ class RozofsMountAgent(Agent):
 #    def _is_mount(self, share):
 #        return self._mount_path(share) in self._list_mount()
 
-    def _add_mountpoint(self, export_host, export_path, instance):
+    def _add_mountpoint(self, export_host, export_path, instance, options):
         fstab = Fstab()
         fstab.read(self.__FSTAB)
         mount_path = self._mount_path(export_host, export_path)
         if not os.path.exists(mount_path):
             os.makedirs(mount_path)
         # add a line to fstab
-        fstab.lines.append(Line(self.__FSTAB_LINE % (mount_path, export_host, export_path, instance)))
+        if not options:
+            stroptions=""
+        else:
+            stroptions = ',' + ','.join(options)
+        
+        fstab.lines.append(Line(self.__FSTAB_LINE % (mount_path, export_host, export_path, instance, stroptions)))
         fstab.write(self.__FSTAB)
 
     def _remove_mountpoint(self, export_host, export_path):
@@ -97,11 +124,11 @@ class RozofsMountAgent(Agent):
     def set_service_config(self, configurations):
         instance = 0
         currents = self.get_service_config()
-        #find an instance
+        # find an instance
         if currents:
             instance = max([int(c.instance) for c in currents]) + 1
         for config in [c for c in configurations if c not in currents]:
-            self._add_mountpoint(config.export_host, config.export_path, instance)
+            self._add_mountpoint(config.export_host, config.export_path, instance, config.options)
             instance = instance + 1
             self._mount(self._mount_path(config.export_host, config.export_path))
         for config in [c for c in currents if c not in configurations]:

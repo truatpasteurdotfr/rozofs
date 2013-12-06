@@ -37,6 +37,7 @@
 #include "north_lbg_api.h"
 #include "af_inet_stream_api.h"
 #include <rozofs/rozofs_timer_conf.h>
+#include "ruc_traffic_shaping.h"
 
 
 void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms) ;
@@ -1033,7 +1034,7 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
                                 uint32_t src_ipaddr_host,
                                 uint16_t src_port_host,
                                 north_remote_ip_list_t *remote_ip_p,
-                                int family,int  nb_instances,af_unix_socket_conf_t *usr_conf_p)
+                                int family,int  nb_instances,af_unix_socket_conf_t *usr_conf_p, int local)
 {
   north_lbg_ctx_t  *lbg_p;
   int    i;
@@ -1047,7 +1048,8 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
     warning("north_lbg_configure_af_inet: no such instance %d ",lbg_idx);
     return -1;
   }
-    
+  
+  lbg_p->local = local;  
   conf_p = &lbg_p->lbg_conf;
   memcpy(conf_p,usr_conf_p,sizeof(af_unix_socket_conf_t));
 
@@ -1122,7 +1124,37 @@ int north_lbg_configure_af_inet(int lbg_idx,char *name,
   return (lbg_p->index);
 
 }
+
+/*__________________________________________________________________________
+*/ 
+ /**
+*  API to configure a load balancing group.
+   The load balancing group must have been created previously with north_lbg_create_no_conf() 
+  
+ @param lbg_idx             Index of the load balancing group
+ @param next_global_entry_idx_p Pointer to the next lbg entry to select
  
+  @retval >= reference of the load balancer object
+  @retval < 0 error (out of context ??)
+*/
+int north_lbg_set_next_global_entry_idx_p(int lbg_idx, int * next_global_entry_idx_p)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_set_next_global_entry_idx_p: no such instance %d ",lbg_idx);
+    return -1;
+  }
+
+  lbg_p->next_global_entry_idx_p = next_global_entry_idx_p;
+  * next_global_entry_idx_p = 0;
+
+  return 0;
+
+} 
+
 /*__________________________________________________________________________
 */ 
  /**
@@ -1378,3 +1410,158 @@ reloop:
   
   return 0;
 }
+
+/*__________________________________________________________________________
+*/
+
+int north_lbg_send_from_shaper(int  lbg_idx,void *buf_p)
+{
+
+  north_lbg_ctx_t  *lbg_p;
+  int entry_idx;
+  int ret = 0;
+
+
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    severe("north_lbg_send: no such instance %d ",lbg_idx);
+    return -1;
+  }
+  /*
+  ** OK there is at least one entry that is free, so get the next valid entry
+  */
+reloop:
+  entry_idx = north_lbg_get_next_valid_entry(lbg_p);
+  if (entry_idx < 0)
+  {
+    /*
+    ** that situation must not occur since there is at leat one entry that is UP!!!!
+    */
+//    RUC_WARNING(-1);
+    return -1;    
+  }
+  /*
+  ** That's fine, get the pointer to the entry in order to get its socket context reference
+  */
+  north_lbg_entry_ctx_t  *entry_p = &lbg_p->entry_tb[entry_idx];
+  NORTH_LBG_START_PROF((&entry_p->stats));
+  ret = af_unix_generic_send_stream_with_idx(entry_p->sock_ctx_ref,buf_p); 
+  NORTH_LBG_STOP_PROF((&entry_p->stats));
+  if (ret == 0)
+  {
+    /*
+    ** set the timer to supervise the connection (it only affects client connections)
+    */
+    if (lbg_p->userPollingCallBack != NULL)
+    {
+      af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+      af_inet_enable_cnx_supervision(this);
+      af_inet_set_cnx_tmo(this,lbg_p->tmo_supervision_in_sec*10);
+    }
+    lbg_p->stats.totalXmit++; 
+    entry_p->stats.totalXmit++;     
+    return 0; 
+  } 
+  /*
+  ** retry on a next entry
+  ** we might need to update the retry counter of the buffer ??
+  */
+  lbg_p->stats.totalXmitError++; 
+  goto reloop;
+  
+  return 0;
+}
+
+
+/*__________________________________________________________________________
+*/
+/**
+*  create a north load balancing object with AF_INET
+
+  @param lbg_idx : reference of the load balancing group
+  @param buf_p: pointer to the buffer to send
+  @param rsp_size : expected response size in byte
+  @param disk_time: estimated disk_time in us
+  
+  retval 0 : success
+  retval -1 : error
+*/
+int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint32_t disk_time)
+{                             
+  north_lbg_ctx_t  *lbg_p;
+  int ret = 0;
+
+
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    severe("north_lbg_send: no such instance %d ",lbg_idx);
+    return -1;
+  }
+  if ((lbg_p->state == NORTH_LBG_SHUTTING_DOWN) || (lbg_p->free == TRUE))
+  {
+     return -1;
+  }
+  /*
+  ** we have the context, search for a valid entry
+  */
+  if (lbg_p->state == NORTH_LBG_DOWN)
+  {
+    /*
+    ** Insert the buffer in the global pending list of the load balancing froup
+    */
+    ruc_objInsertTail((ruc_obj_desc_t*)&lbg_p->xmitList[0],(ruc_obj_desc_t*)buf_p);  
+    /*
+    ** update statistics
+    */
+    lbg_p->stats.xmitQueuelen++;     
+    return 0;  
+  }
+  /*
+  ** check if the main queue is empty if the queue is not empty just queue our message
+  ** at the tail of the load balancer main queue
+  */
+  if (!ruc_objIsEmptyList((ruc_obj_desc_t*)&lbg_p->xmitList[0]))
+  {
+     /*
+     ** queue the message at the tail
+     */
+     ruc_objInsertTail((ruc_obj_desc_t*)&lbg_p->xmitList[0],(ruc_obj_desc_t*)buf_p);  
+    /*
+    ** update statistics
+    */
+    lbg_p->stats.xmitQueuelen++;     
+    return 0;  
+  }
+  /*
+  ** call the traffic shaper
+  */
+  ret = trshape_queue_buf(0,buf_p,rsp_size,disk_time,north_lbg_send_from_shaper,lbg_idx);
+  return ret;
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Tells whether the lbg target is local to this server or not
+
+  @param entry_idx : index of the entry that must be set
+  @param *p  : pointer to the bitmap array
+
+  @retval none
+*/
+int north_lbg_is_local(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_is_local: no such instance %d ",lbg_idx);
+    return 0;
+  }
+  return lbg_p->local;
+}
+
+
+

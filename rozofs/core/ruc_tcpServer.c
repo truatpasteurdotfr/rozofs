@@ -36,13 +36,12 @@
 #include <string.h>
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
 #include "ruc_tcpServer.h"
 #include "ruc_trace_api.h"
-#include "ppu_trace.h"
-
 
 
 
@@ -169,11 +168,11 @@ uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr)
     /*
     ** unable to create the socket
     */
-    ERRLOG "ruc_tcp_server_createSocket socket error %u.%u.%u.%u:%u . Errno %d - %s",
+    severe( "ruc_tcp_server_createSocket socket error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
-    ENDERRLOG;
+    );
     return((uint32_t)-1);
   }
 
@@ -181,11 +180,11 @@ uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr)
   sock_opt = 1;
   if (setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, (void *)&sock_opt,sizeof (sock_opt)) == -1)
   {
-     ERRLOG "ruc_tcp_server_createSocket setsockopt error %u.%u.%u.%u:%u . Errno %d - %s",
+     severe( "ruc_tcp_server_createSocket setsockopt error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
-     ENDERRLOG;
+     );
   }
 
 
@@ -203,11 +202,11 @@ uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr)
     /*
     **  error on socket binding
     */
-    ERRLOG "ruc_tcp_server_createSocket BIND error %u.%u.%u.%u:%u . Errno %d - %s",
+    severe( "ruc_tcp_server_createSocket BIND error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
-    ENDERRLOG;
+    );
     close(socketId);
     return ((uint32_t)-1);
   }
@@ -369,7 +368,7 @@ uint32_t ruc_tcp_server_init(uint32_t nbElements)
       /*
       ** error on distributor creation
       */
-      ERRLOG "ruc_listCreate(%d,%d)", (int)nbElements,(int)sizeof(ruc_tcp_server_t) ENDERRLOG
+      severe( "ruc_listCreate(%d,%d)", (int)nbElements,(int)sizeof(ruc_tcp_server_t) )
       ret = RUC_NOK;
       break;
     }
@@ -382,7 +381,7 @@ uint32_t ruc_tcp_server_init(uint32_t nbElements)
       /*
       ** out of memory
       */
-      ERRLOG "ruc_tcp_server_activeList = malloc(%d)", (int)sizeof(ruc_tcp_server_t) ENDERRLOG
+      severe( "ruc_tcp_server_activeList = malloc(%d)", (int)sizeof(ruc_tcp_server_t) )
       ret = RUC_NOK;
       break;
     }
@@ -491,7 +490,7 @@ uint32_t ruc_tcp_server_connect(ruc_tcp_server_connect_t *pconnect)
     /*
     ** out of free context
     */
-    ERRLOG "ruc_tcp_server_connect: Out of free context" ENDERRLOG
+    severe( "ruc_tcp_server_connect: Out of free context" )
     return (uint32_t)-1;
   }
 
@@ -514,15 +513,15 @@ uint32_t ruc_tcp_server_connect(ruc_tcp_server_connect_t *pconnect)
      /*
      ** unable to create the socket -> error
      */
-     ERRLOG " ruc_tcp_server_connect: unable to create the server socket %u.%u.%u.%u:%d",
+     severe( " ruc_tcp_server_connect: unable to create the server socket %u.%u.%u.%u:%d",
        pObj->ipAddr>>24&0xFF, pObj->ipAddr>>16&0xFF, pObj->ipAddr>>8&0xFF, pObj->ipAddr&0xFF,
-       pObj->tcpPort ENDERRLOG
+       pObj->tcpPort )
      return (uint32_t) -1;
    }
 
    if((listen(pObj->socketId,RUC_TCP_SERVER_BACKLOG))==-1)
    {
-     ERRLOG " ruc_tcp_server_connect: listen fails for %s ,",pObj->cnxName ENDERRLOG
+     severe( " ruc_tcp_server_connect: listen fails for %s ,",pObj->cnxName )
      return (uint32_t)-1;
    }
    /*
@@ -540,7 +539,7 @@ uint32_t ruc_tcp_server_connect(ruc_tcp_server_connect_t *pconnect)
      /*
      **  fatal error while connecting with the socket controller
      */
-     ERRLOG " ruc_tcp_server_connect: unable to connect with the socket controller (%s) ,",pObj->cnxName ENDERRLOG
+     severe( " ruc_tcp_server_connect: unable to connect with the socket controller (%s) ,",pObj->cnxName )
      return (uint32_t)-1;
    }
    /*
@@ -580,7 +579,7 @@ uint32_t ruc_tcp_server_disconnect (uint32_t cnxRef)
     /*
     ** out of free context
     */
-    ERRLOG "ruc_tcp_server_disconnect: Bad cnxRef" ENDERRLOG
+    severe( "ruc_tcp_server_disconnect: Bad cnxRef" )
     return RUC_NOK;
   }
 

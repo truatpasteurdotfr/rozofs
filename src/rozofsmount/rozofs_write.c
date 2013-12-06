@@ -16,44 +16,15 @@
   <http://www.gnu.org/licenses/>.
  */
 
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
 //#define TRACE_FS_READ_WRITE 1
 //#warning TRACE_FS_READ_WRITE active
 
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/rozofs_srv.h>
-#include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/eproto.h>
-
 #include <rozofs/rpc/storcli_proto.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
+
 #include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rpc/storcli_lbg_prototypes.h>
-#include <rozofs/rozofs_timer_conf.h>
-#include <rozofs/rozofs_timer_conf.h>
+#include "rozofs_modeblock_cache.h"
+#include "rozofs_rw_load_balancing.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -62,6 +33,7 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p);
 static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char *buf, uint32_t len);
 
 void rozofs_ll_write_cbk(void *this,void *param);
+void rozofs_clear_file_lock_owner(file_t * f);
 
 #define CLEAR_WRITE(p) \
 { \
@@ -78,6 +50,147 @@ void rozofs_ll_write_cbk(void *this,void *param);
   p->buf_read_wait = 0;\
 }
 
+int ROZOFS_MAX_WRITE_PENDING = 1;
+typedef struct _WRITE_FLUSH_STAT_T {
+  uint64_t non_synchroneous;
+  uint64_t synchroneous;
+  uint64_t synchroneous_success;
+  uint64_t synchroneous_error;
+} WRITE_FLUSH_STAT_T;
+
+static WRITE_FLUSH_STAT_T write_flush_stat;
+/*
+**__________________________________________________________________
+*/
+/**
+   Reset write synch stats
+*/
+static inline void reset_write_flush_stat(void) {
+  memset(&write_flush_stat,0,sizeof(write_flush_stat));
+}
+/*
+**__________________________________________________________________
+*/
+/**
+   Display write synch stats
+*/
+static char * display_write_flush_stat_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"write_flush set <value> : set new write pending maximum value\n");
+  pChar += sprintf(pChar,"write_flush reset       : reset statistics\n");
+  pChar += sprintf(pChar,"write_flush             : display statistics\n");  
+  return pChar; 
+}
+#define SHOW_STAT_WRITE_FLUSH(name) pChar += sprintf(pChar,"%-26s :  %10llu\n","  "#name ,(long long unsigned int) write_flush_stat.name);
+static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRef){
+  char *pChar = uma_dbg_get_buffer();
+  int   new_val;
+
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"reset")==0) {
+      reset_write_flush_stat();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset done\n");  
+      return;         
+    }
+    if (strcmp(argv[1],"set")==0) {
+      errno = 0;       
+      new_val = (int) strtol(argv[2], (char **) NULL, 10);   
+      if (errno != 0) {
+        pChar += sprintf(pChar, "bad value %s\n",argv[2]);
+	pChar = display_write_flush_stat_help(pChar);
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;     
+      } 
+      ROZOFS_MAX_WRITE_PENDING = new_val;
+      reset_write_flush_stat();
+      uma_dbg_send(tcpRef, bufRef, TRUE, "New write pending maximum value is %d\n",ROZOFS_MAX_WRITE_PENDING); 
+      return;   
+    } 
+    /*
+    ** Help
+    */
+    pChar = display_write_flush_stat_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  pChar += sprintf(pChar,"Write pending maximum value is %d\n",ROZOFS_MAX_WRITE_PENDING);
+  SHOW_STAT_WRITE_FLUSH(non_synchroneous);
+  SHOW_STAT_WRITE_FLUSH(synchroneous);
+  SHOW_STAT_WRITE_FLUSH(synchroneous_success);
+  SHOW_STAT_WRITE_FLUSH(synchroneous_error);    
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
+}  
+
+/*
+**__________________________________________________________________
+*/
+/**
+   Bugwatch flag set/reset
+*/
+int rozofs_bugwatch = 0;
+
+static char * bugwatch_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"bugwatch enable  : set bugwatch_flag\n");
+  pChar += sprintf(pChar,"bugwatch disable : reset bugwatch flag\n");
+  pChar += sprintf(pChar,"bugwatch         : display current state\n");  
+  return pChar; 
+}
+
+
+static void bugwatch_proc(char * argv[], uint32_t tcpRef, void *bufRef){
+  char *pChar = uma_dbg_get_buffer();
+
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"enable")==0) {
+      rozofs_bugwatch = 1;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bugwatch enabled\n");  
+      return;         
+    }
+    if (strcmp(argv[1],"disable")==0) {
+      rozofs_bugwatch = 1;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "bugwatch disabled\n");   
+      return;     
+    }   
+    /*
+    ** Help
+    */
+    pChar = bugwatch_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  uma_dbg_send(tcpRef, bufRef, TRUE, "BUGROZOFSWATCH is %s\n",(rozofs_bugwatch==0)?"disabled":"enabled"); 
+}  
+/*
+**__________________________________________________________________
+*/
+/**
+   Initialize write synch stat service
+*/
+void init_write_flush_stat(int max_write_pending){
+  ROZOFS_MAX_WRITE_PENDING = max_write_pending;
+  reset_write_flush_stat();
+  uma_dbg_addTopic("write_flush", display_write_flush_stat);  
+  uma_dbg_addTopic("bugwatch", bugwatch_proc);  
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+   API to clear the buffer after a flush
+   If some data is pending in the buffer the clear is not done
+   
+   @param *f : pointer to the file structure where read buffer information can be retrieved
+   
+   @retval -1 some data to write is pending
+   @retval 0 if the read buffer is not empty
+*/
+int clear_read_data(file_t *f)
+{
+  f->read_from = f->read_pos = 0;
+  return 0;
+}
 /*
 **__________________________________________________________________
 */
@@ -122,7 +235,7 @@ static inline int write_section_empty(file_t *p)
   @retval len_write >= total data length push to the disk
   @retval < 0 --> error while attempting to initiate a write request towards storcli 
 */
-static inline int buf_flush(void *fuse_ctx_p,file_t *p)
+int buf_flush(void *fuse_ctx_p,file_t *p)
 {
 //  if (p->buf_write_wait == 0) return 0;
   
@@ -130,6 +243,7 @@ static inline int buf_flush(void *fuse_ctx_p,file_t *p)
   uint32_t flush_len = (uint32_t)(p->write_pos - p->write_from);
   uint32_t flush_off_buf = (uint32_t)(p->write_from - p->read_from);
   char *buffer;
+  ientry_t *ie;
   /*
   ** stats
   */
@@ -137,12 +251,18 @@ static inline int buf_flush(void *fuse_ctx_p,file_t *p)
   
   buffer = p->buffer+flush_off_buf;
   /*
+  ** Push the data in the cache
+  */
+  rozofs_mbcache_insert(p->fid,flush_off,(uint32_t)flush_len,(uint8_t*)buffer);  
+  /*
   ** trigger the write
   */
   if ((write_buf_nb(fuse_ctx_p,p, flush_off, buffer, flush_len)) < 0) {
     return -1;
   }
   p->buf_write_wait = 0;
+  ie = (ientry_t *) p->ie;
+  if (ie->write_pending == p) ie->write_pending = NULL;
   return 0;
 
 
@@ -216,6 +336,7 @@ static inline void buf_align_write_pos(file_t *p)
     - the data to write fits partially in the buffer. SO we ned to flush the data that are been filled
       at the end of the current buffer before copying the remaining data in the buffer
 
+  @param ie: ientry of the file
   @param fuse_ctx_p: pointer to the fuse transaction context
   @param p : pointer to the file structure that contains buffer information
   @param off : first byte to write
@@ -228,7 +349,8 @@ static inline void buf_align_write_pos(file_t *p)
       
   @retval none
 */
-void buf_file_write_nb(void *fuse_ctx_p,
+void buf_file_write_nb(ientry_t * ie,
+                    void *fuse_ctx_p,
                     rozo_buf_rw_status_t *status_p,
                     file_t * p,
                     uint64_t off, 
@@ -246,6 +368,28 @@ void buf_file_write_nb(void *fuse_ctx_p,
   char *dest_p;
   char *src_p;
   uint32_t len_alignment;
+
+  /*
+  ** Check whether some pending data written by an other application
+  ** on the same file is pending. In that case flush it immediatly.
+  */
+  if ((ie->write_pending != NULL) && (ie->write_pending != p)) {
+    flush_write_ientry(ie);
+  }
+    
+  /*
+  ** Check whether the buffer content is valid or if it must be forgotten
+  */
+  if (p->read_consistency != ie->read_consistency) {
+    /* The file has been modified since this buffer has been read. The data
+    ** it contains are questionable. Better forget them.
+    */
+    p->read_from = p->read_pos = 0;
+  }
+    
+  ie->read_consistency++;
+  p->read_consistency = ie->read_consistency;
+  
 
  status_p->status = BUF_STATUS_FAILURE;
  status_p->errcode = EINVAL ;
@@ -658,6 +802,12 @@ void buf_file_write_nb(void *fuse_ctx_p,
   
   }
 
+  /*
+  ** At the end of the write procedure, if some data is waiting to be
+  ** written on disk, save the file descriptor reference in the ie.
+  ** The flush will occur on a further read or write.
+  */
+  if (p->buf_write_wait == 1) ie->write_pending = p;
 } 
 
 
@@ -681,7 +831,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
    storcli_write_arg_t  args;
    int ret;
    fuse_end_tx_recv_pf_t  callback;
-   int lbg_id;
+   int storcli_idx;
 
     // Fill request
     args.cid = f->attrs.cid;
@@ -700,8 +850,11 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     else {
       args.empty_file = 0;
     }
-    
-    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
+    /*
+    ** get the storcli to use for the transaction
+    */
+    storcli_idx = stclbg_storcli_idx_from_fid(f->fid);
+//    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
 
     /*
     ** now initiates the transaction towards the remote end
@@ -710,7 +863,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     f->buf_write_pending++;
     ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
-                              callback,buffer_p,lbg_id); 
+                              callback,buffer_p,storcli_idx,f->fid); 
     if (ret < 0) goto error;
     
     /*
@@ -754,6 +907,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     ientry_t *ie = 0;
     void *buffer_p = NULL;
     rozo_buf_rw_status_t status;
+   int deferred_fuse_write_response;
 
     DEBUG("write to inode %lu %llu bytes at position %llu\n",
             (unsigned long int) ino, (unsigned long long int) size,
@@ -779,7 +933,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,size);
     SAVE_FUSE_PARAM(buffer_p,off);
-    SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));   
+    SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info)); 
+    
     /*
     ** install the callback 
     */
@@ -790,9 +945,13 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         goto error;
     }
     
-    if (ie->size < (off+size)) ie->size = (off+size);
-
     file_t *file = (file_t *) (unsigned long) fi->fh;
+
+    if (ie->size < (off + size)) {
+        ie->size = (off + size);
+        file->attrs.size = (off + size);
+    }
+
     /*
     ** check the status of the last write operation
     */
@@ -812,8 +971,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     {
       errno = EBADF;
       goto error;        
-    }    
-    buf_file_write_nb(buffer_p,&status,file,off,buf,size);
+    }
+    buf_file_write_nb(ie,buffer_p,&status,file,off,buf,size);
     /*
     ** check the returned status
     */
@@ -822,20 +981,39 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
       errno = status.errcode;
       goto error;
     }  
-    /*
-    **  the user data has been filled in the buffer  and we
-    ** might have a write pending
-    */
-    fuse_reply_write(req, size);
     
-    if (status.status == BUF_STATUS_WR_IN_PRG)
+    file->current_pos = (off+size);
+ 
+    /*
+    **  The data have been written in the buffer and 
+    **  no write is pending toward the STORCLI
+    */
+    if (status.status == BUF_STATUS_DONE)
     {
-      /*
-      ** we have a write pending so we must not release
-      ** the fuse context
-      */
+      fuse_reply_write(req, size);
+      goto out;
+    }
+    
+    /*
+    ** A write toward the STORCLI is pending 
+    ** so we must keep the the fuse context until the STORCLI response
+    */
+    if (file->buf_write_pending <= ROZOFS_MAX_WRITE_PENDING) {
+      deferred_fuse_write_response = 0;
+      SAVE_FUSE_PARAM(buffer_p,deferred_fuse_write_response);
+      fuse_reply_write(req, size);
+      write_flush_stat.non_synchroneous++;
       buffer_p = NULL;
-    } 
+      goto out;
+    }        
+    /*
+    ** Maximum number of write pending is reached. 
+    ** Let's differ the FUSE response until the STORCLI response
+    */
+    write_flush_stat.synchroneous++;
+    deferred_fuse_write_response = 1;
+    SAVE_FUSE_PARAM(buffer_p,deferred_fuse_write_response);    
+    buffer_p = NULL;
     goto out;
     
 error:
@@ -864,7 +1042,7 @@ void rozofs_ll_write_cbk(void *this,void *param)
    struct rpc_msg  rpc_reply;
    struct fuse_file_info  file_info;
    struct fuse_file_info  *fi = &file_info;
-   
+   fuse_req_t req; 
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
@@ -873,11 +1051,13 @@ void rozofs_ll_write_cbk(void *this,void *param)
    storcli_status_ret_t ret;
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
    file_t *file = NULL;
-
+   int deferred_fuse_write_response;
+   size_t size;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
-
+       
    file = (file_t *) (unsigned long)  fi->fh;   
    file->buf_write_pending--;
    if (file->buf_write_pending < 0)
@@ -950,6 +1130,17 @@ void rozofs_ll_write_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** When a fuse response is expected send it
+    */
+    RESTORE_FUSE_PARAM(param,deferred_fuse_write_response);
+    if (deferred_fuse_write_response) {
+      RESTORE_FUSE_PARAM(param,req);
+      RESTORE_FUSE_PARAM(param,size);
+      fuse_reply_write(req, size);
+      write_flush_stat.synchroneous_success++;      
+    }    
     /*
     ** no error, so get the length of the data part
     */
@@ -974,6 +1165,17 @@ error:
     {
        file->wr_error = errno; 
     }
+    
+    /*
+    ** When a fuse response is expected send it
+    */
+    RESTORE_FUSE_PARAM(param,deferred_fuse_write_response);
+    if (deferred_fuse_write_response) {
+      RESTORE_FUSE_PARAM(param,req);
+      fuse_reply_err(req, errno);
+      write_flush_stat.synchroneous_error++;      
+    }
+      
     /*
     ** release the transaction context and the fuse context
     */
@@ -1028,7 +1230,6 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
     ientry_t *ie = 0;
     void *buffer_p;
     int ret;
-
 
     DEBUG_FUNCTION;
 
@@ -1510,7 +1711,7 @@ void rozofs_ll_flush_defer(void *ns,void *param)
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
-    file = (file_t *) fi->fh;   
+   file = (file_t *) (unsigned long) fi->fh;
     /*
     ** check the status of the last write operation
     */
@@ -1599,6 +1800,19 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
       errno = f->wr_error;
       goto error;    
     }
+    
+    /*
+    ** Clear all the locks eventually pending on the file for this owner
+    */
+    if (f->lock_owner_ref != 0) {
+      /*
+      ** Call file lock service to clear everything about this file descriptor
+      */
+      rozofs_clear_file_lock_owner(f);
+    }
+
+     if (rozofs_bugwatch) severe("BUGROZOFSWATCH release(%p) , buf_write_wait=%d, buf_write_pending=%d,",
+                                   f,f->buf_write_wait,f->buf_write_pending);
 
     /*
     ** check if there some pendinag data to write in the buffer
@@ -1815,7 +2029,7 @@ void rozofs_ll_release_defer(void *ns,void *param)
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
-    file = (file_t *) fi->fh;   
+    file = (file_t *) (unsigned long) fi->fh;
     /*
     ** check the status of the last write operation
     */
@@ -1843,8 +2057,59 @@ void rozofs_ll_release_defer(void *ns,void *param)
 }
 
 
+/**
+*  metadata update -> need to update the file size
 
+ Under normal condition the service ends by calling : fuse_reply_entry
+ Under error condition it calls : fuse_reply_err
 
+ @param req: pointer to the fuse request context (must be preserved for the transaction duration
+ @param parent : inode parent provided by rozofsmount
+ @param name : name to search in the parent directory
+ 
+ @retval none
+*/
+int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_t recv_cbk) 
+{
+    epgw_write_block_arg_t arg;
+    int    ret;        
+    uint64_t buf_flush_offset ;
+    uint32_t buf_flush_len ;
+    
+    RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
+    RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
+    /*
+    ** adjust the size of the attributes of the local file
+    */
+    if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
+    {
+      file_p->attrs.size = buf_flush_offset + buf_flush_len;
+    }
+    /*
+    ** fill up the structure that will be used for creating the xdr message
+    */    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.fid, file_p->fid, sizeof (fid_t));
+    arg.arg_gw.bid = 0;
+    arg.arg_gw.nrb = 1;
+    arg.arg_gw.length = buf_flush_len;
+    arg.arg_gw.offset = buf_flush_offset;
+    arg.arg_gw.dist = 0;
+    /*
+    ** now initiates the transaction towards the remote end
+    */
+    
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,file_p->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
+                              recv_cbk,fuse_ctx_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
+                              recv_cbk,fuse_ctx_p); 
+#endif
+    return ret;  
+}
 
 /**
 *  metadata update -> need to update the file size
@@ -1862,45 +2127,14 @@ void export_write_block_cbk(void *this,void *param);
 
 void export_write_block_nb(void *fuse_ctx_p, file_t *file_p) 
 {
-    ep_write_block_arg_t arg;
     int    ret;        
-    uint64_t buf_flush_offset ;
-    uint32_t buf_flush_len ;
-    
     void *buffer_p = fuse_ctx_p;
     
     START_PROFILING_NB(buffer_p,rozofs_ll_ioctl);
-
-    RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
-    RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
-    /*
-    ** adjust the size of the attributes of the local file
-    */
-    if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
-    {
-      file_p->attrs.size = buf_flush_offset + buf_flush_len;
-    }
-    /*
-    ** fill up the structure that will be used for creating the xdr message
-    */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.fid, file_p->fid, sizeof (fid_t));
-    arg.bid = 0;
-    arg.nrb = 1;
-    arg.length = buf_flush_len;
-    arg.offset = buf_flush_offset;
-    arg.dist = 0;
-    /*
-    ** now initiates the transaction towards the remote end
-    */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_WRITE_BLOCK,(xdrproc_t) xdr_ep_write_block_arg_t,(void *)&arg,
-                              export_write_block_cbk,fuse_ctx_p); 
-    if (ret < 0) goto error;    
-    /*
-    ** no error just waiting for the answer
-    */
+    ret = export_write_block_asynchrone(fuse_ctx_p, file_p, export_write_block_cbk);
+    if (ret < 0) goto error; 
     return;
+
 
 error:
     /*
@@ -1924,7 +2158,7 @@ error:
  
 void export_write_block_cbk(void *this,void *param) 
 {
-   ep_io_ret_t ret ;
+   epgw_io_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -1933,8 +2167,11 @@ void export_write_block_cbk(void *this,void *param)
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_io_ret_t;
-
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
     /*
     ** get the pointer to the transaction context:
@@ -1992,8 +2229,46 @@ void export_write_block_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_io_ret_t_u.error;
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+
+
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_io_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
@@ -2011,4 +2286,5 @@ error:
     
     return;
 }
+
 

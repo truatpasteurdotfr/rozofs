@@ -25,6 +25,7 @@
 
 typedef struct _rozofs_configure_param_t
 {
+   char    * display_name; /* Display name of the timer */
    uint32_t  unit;         /**< time unit         */
    uint32_t  default_val;  /**< default value     */
    uint32_t  min_val;      /**< min value         */
@@ -125,10 +126,14 @@ int rozofs_tmr_set_to_default(int timer_id);
 
   @param timer_id: reference of the timer
 */
-static inline uint32_t ROZOFS_TMR_GET(int timer_id)
+#define ROZOFS_TMR_GET rozofs_tmr_get
+static inline uint32_t rozofs_tmr_get(int timer_id)
 {
   return rozofs_timer_conf[timer_id].cur_val;
 }
+
+
+int rozofs_tmr_get_idx_from_name(char * name);
 
 
 char *rozofs_tmr_display(char *buf);

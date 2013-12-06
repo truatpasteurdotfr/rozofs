@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+#
+# Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+# This file is part of Rozofs.
+#
+# Rozofs is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published
+# by the Free Software Foundation, version 2.
+#
+# Rozofs is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
 
 import os
 from rozofs.core.configuration import ConfigurationParser, ConfigurationReader, \
@@ -11,9 +27,12 @@ from rozofs.core.libconfig import config_setting_add, CONFIG_TYPE_INT, \
     config_setting_get_int_elem
 from rozofs.core.daemon import DaemonManager
 from rozofs.core.constants import LAYOUT, STORAGES, STORAGE_SID, STORAGE_CID, STORAGE_ROOT, \
-    LAYOUT_2_3_4, STORAGED_MANAGER, LAYOUT_4_6_8, LAYOUT_8_12_16, PORTS
+    LAYOUT_2_3_4, STORAGED_MANAGER, LAYOUT_4_6_8, LAYOUT_8_12_16, LISTEN, \
+    LISTEN_ADDR, LISTEN_PORT
 from rozofs.core.agent import Agent, ServiceStatus
+from rozofs import __sysconfdir__
 import collections
+import syslog
 
 
 class StorageConfig():
@@ -22,33 +41,28 @@ class StorageConfig():
         self.sid = sid
         self.root = root
 
+class ListenConfig():
+    def __init__(self, addr="*", port=41001):
+        self.addr = addr
+        self.port = port
 
 class StoragedConfig():
-    def __init__(self, ports=[], storages={}):
+    def __init__(self, listens=[], storages={}):
         # keys is a tuple (cid, sid)
         self.storages = storages
-        self.ports = ports
-
-#    def check_consistenty(self):
-#        if self.layout not in [LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16]:
-#            raise Exception("invalid layout %d" % self.layout)
-#
-#        # check sid uniqueness
-#        y = collections.Counter([s.vid for s in self.storages])
-#        d = [i for i in y if y[i] > 1]
-#        if d:
-#            raise Exception("duplicated sid(s): [%s]" % ', '.join(map(str, d)))
-
+        self.listens = listens
 
 class StoragedConfigurationParser(ConfigurationParser):
 
     def parse(self, configuration, config):
-#        layout_setting = config_setting_add(config.root, LAYOUT, CONFIG_TYPE_INT)
-#        config_setting_set_int(layout_setting, configuration.layout)
 
-        ports_setting = config_setting_add(config.root, PORTS, CONFIG_TYPE_LIST)
-        for port in configuration.ports:
-            config_setting_set_int_elem(ports_setting, -1, port)
+        listen_settings = config_setting_add(config.root, LISTEN, CONFIG_TYPE_LIST)
+        for listen in configuration.listens:
+            listen_setting = config_setting_add(listen_settings, '', CONFIG_TYPE_GROUP)
+            addr_setting = config_setting_add(listen_setting, LISTEN_ADDR, CONFIG_TYPE_STRING)
+            config_setting_set_string(addr_setting, listen.addr)
+            port_setting = config_setting_add(listen_setting, LISTEN_PORT, CONFIG_TYPE_INT)
+            config_setting_set_int(port_setting, listen.port)
 
         storage_settings = config_setting_add(config.root, STORAGES, CONFIG_TYPE_LIST)
         for storage in configuration.storages.values():
@@ -61,20 +75,18 @@ class StoragedConfigurationParser(ConfigurationParser):
             config_setting_set_string(root_setting, storage.root)
 
     def unparse(self, config, configuration):
-#        layout_setting = config_lookup(config, LAYOUT)
-#        if (layout_setting == None):
-#            raise Exception("Wrong format: no layout defined.")
-#
-#        configuration.layout = config_setting_get_int(layout_setting)
 
-        port_settings = config_lookup(config, PORTS)
-        configuration.ports = []
-        for i in range(config_setting_length(port_settings)):
-            configuration.ports.append(config_setting_get_int_elem(port_settings, i))
+        listen_settings = config_lookup(config, LISTEN)
+        configuration.listens = []
+        for i in range(config_setting_length(listen_settings)):
+            listen_setting = config_setting_get_elem(listen_settings, i)
+            addr_setting = config_setting_get_member(listen_setting, LISTEN_ADDR)
+            addr = config_setting_get_string(addr_setting)
+            port_setting = config_setting_get_member(listen_setting, LISTEN_PORT)
+            port = config_setting_get_int(port_setting)
+            configuration.listens.append(ListenConfig(addr, port))
 
         storage_settings = config_lookup(config, STORAGES)
-        # if (storage_settings == None):
-        #    raise Exception(get_config.error_text)
         configuration.storages = {}
         for i in range(config_setting_length(storage_settings)):
             storage_setting = config_setting_get_elem(storage_settings, i)
@@ -89,9 +101,9 @@ class StoragedConfigurationParser(ConfigurationParser):
 
 class StoragedAgent(Agent):
 
-    def __init__(self, config='/etc/rozofs/storage.conf', daemon='storaged'):
+    def __init__(self, config="%s%s" % (__sysconfdir__, '/rozofs/storage.conf'), daemon='storaged'):
         Agent.__init__(self, STORAGED_MANAGER)
-        self._daemon_manager = DaemonManager(daemon, ["-c", config], 1)
+        self._daemon_manager = DaemonManager(daemon, ["-c", config], 4)
         self._reader = ConfigurationReader(config, StoragedConfigurationParser())
         self._writer = ConfigurationWriter(config, StoragedConfigurationParser())
 

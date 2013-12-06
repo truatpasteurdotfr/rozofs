@@ -33,7 +33,7 @@ int mclient_initialize(mclient_t * clt, struct timeval timeout) {
 
     if (rpcclt_initialize(&clt->rpcclt, clt->host, MONITOR_PROGRAM,
             MONITOR_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
-            0, timeout) != 0) {
+            ROZOFS_MPROTO_PORT, timeout) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);
@@ -110,7 +110,7 @@ out:
     return status;
 }
 
-int mclient_ports(mclient_t * mclt, uint32_t * ports_p) {
+int mclient_ports(mclient_t * mclt, mp_io_address_t * io_address_p) {
     int status = -1;
     mp_ports_ret_t *ret = 0;
     DEBUG_FUNCTION;
@@ -123,7 +123,7 @@ int mclient_ports(mclient_t * mclt, uint32_t * ports_p) {
         errno = ret->mp_ports_ret_t_u.error;
         goto out;
     }
-    memcpy(ports_p, &ret->mp_ports_ret_t_u.ports, STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
+    memcpy(io_address_p, &ret->mp_ports_ret_t_u.io_addr, STORAGE_NODE_PORTS_MAX * sizeof (struct mp_io_address_t));
 
     status = 0;
 out:

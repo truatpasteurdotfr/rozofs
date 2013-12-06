@@ -24,6 +24,9 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/core/ruc_list.h>
 
+#define FILE_CHECK_WORD 0X46696c65
+
+extern int rozofs_bugwatch;
 
 typedef enum 
 {
@@ -71,6 +74,7 @@ typedef struct file {
     ruc_obj_desc_t pending_rd_list;  /**< used to queue the FUSE contextr for which a read is requested  */
     ruc_obj_desc_t pending_wr_list;  /**< used to queue the FUSE context waiting for flush completed  */
     fid_t fid;
+    int   chekWord;
     mode_t mode;
     mattr_t attrs;
     exportclt_t *export;
@@ -83,10 +87,29 @@ typedef struct file {
     int buf_read_pending;    /**< number of read requests that are pending */
     int wr_error;            /**< last write error code                     */
     int buf_read_wait;
+    int rotation_counter;/**< Rotation counter on file distribution. Incremented on each rotation */
+    int rotation_idx;    /**< Rotation index within the rozo forward distribution */ 
     uint64_t read_pos;  /**< absolute position of the first available byte to read*/
     uint64_t read_from; /**< absolute position of the last available byte to read */
     uint64_t write_pos;  /**< absolute position of the first available byte to read*/
     uint64_t write_from; /**< absolute position of the last available byte to read */
+    uint64_t current_pos;/**< Estimated current position in the file */
+    /*
+    ** File lock stuff
+    */
+    uint64_t         lock_owner_ref; /**< Owner of the lock when a lock has been set. Used to release any
+                                          pending lock at the time of the file close */
+    ruc_obj_desc_t   pending_lock;   /**< To queue the context waiting for a blocking lock */
+    void           * fuse_req;       /**< Pointer to the saved fuse request when waiting for a blocking lock */
+    int              lock_type;      /**< Type of requested lock : EP_LOCK_READ or EP_LOCK_WRITE */   
+    int              lock_size;      
+    uint64_t         lock_start;     
+    uint64_t         lock_stop;
+    int              lock_sleep;   
+    int              lock_delay;
+    uint64_t         timeStamp;
+    uint64_t         read_consistency; /**< To check whether the buffer can be read safely */
+    void           * ie;               /**< Pointer ot the ientry in the cache */
 #if 0
     char *buffer;
     int buf_write_wait;
@@ -103,11 +126,12 @@ typedef struct file {
  
  @retval none
  */
-static inline void rozofs_file_working_var_init(file_t *file)
+static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
 {
     /*
     ** init of the variable used for buffer management
     */
+    file->chekWord  = FILE_CHECK_WORD;
     file->closing   = 0;
     file->wr_error  = 0;
     file->buf_write_pending = 0;
@@ -118,11 +142,18 @@ static inline void rozofs_file_working_var_init(file_t *file)
     file->write_pos  = 0;
     file->buf_write_wait = 0;
     file->buf_read_wait = 0;    
+    file->current_pos = 0;
+    file->rotation_counter = 0;
+    file->rotation_idx = 0;
+    file->lock_owner_ref = 0;
+    ruc_listEltInitAssoc(&file->pending_lock,file);
+    file->fuse_req = NULL;
+    file->lock_type = -1;
     ruc_listHdrInit(&file->pending_rd_list);
     ruc_listHdrInit(&file->pending_wr_list);
+    file->read_consistency = 0;
+    file->ie = ientry;
 }
-
-
 
 
 /**
@@ -147,10 +178,12 @@ static inline int file_close(file_t * f) {
        */
        return 0;
      }
+     if (rozofs_bugwatch) severe("BUGROZOFSWATCH free_ctx(%p) ",f);
      /*
      ** Release all memory allocated
      */
      free(f->buffer);
+     f->chekWord = 0;
      free(f);
     return 1;
 }

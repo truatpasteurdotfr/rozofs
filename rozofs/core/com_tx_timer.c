@@ -28,7 +28,7 @@
 #include "ruc_list.h"
 #include "com_tx_timer_api.h"
 #include "com_tx_timer.h"
-#include "ppu_trace.h"
+#include <rozofs/common/log.h>
 
 #define COM_TX_TIMER_MAX_DATE 0xFFFFFFFF
 
@@ -233,7 +233,7 @@ uint32_t  com_tx_tmr_start (uint8_t   tmr_slot,
      
      if (tmr_slot >= COM_TX_TMR_SLOT_MAX)
      {
-        ERRLOG "com_tx_tmr_start : slot out of range : %d ",tmr_slot ENDERRLOG
+        severe( "com_tx_tmr_start : slot out of range : %d ",tmr_slot );
 	return RUC_NOK;
      }
     /*
@@ -257,7 +257,7 @@ uint32_t  com_tx_tmr_start (uint8_t   tmr_slot,
 
     ret=ruc_objInsertTail(&com_tx_tmr.queue[tmr_slot],(ruc_obj_desc_t*)p_refTim);
     if(ret!=RUC_OK){
-        ERRLOG "Pb while inserting cell in queue, ret=%u", ret ENDERRLOG
+        severe( "Pb while inserting cell in queue, ret=%u", ret );
         return(RUC_NOK);
     }
     return(RUC_OK);
@@ -320,7 +320,7 @@ int com_tx_tmr_init(uint32_t period_ms,
     if (period_ms!=0){
         com_tx_tmr.period_ms=period_ms;
     } else {
-        ERRLOG "bad provided timer period (0 ms), I continue with 100 ms" ENDERRLOG
+        severe( "bad provided timer period (0 ms), I continue with 100 ms" );
         com_tx_tmr.period_ms=100;
     }
 
@@ -330,7 +330,7 @@ int com_tx_tmr_init(uint32_t period_ms,
     if (credit!=0){
         com_tx_tmr.credit=credit;
     } else {
-        ERRLOG "bad provided  credit (0), I continue with 1" ENDERRLOG
+        severe( "bad provided  credit (0), I continue with 1" );
         com_tx_tmr.credit=1;
     }
 
@@ -353,7 +353,7 @@ int com_tx_tmr_init(uint32_t period_ms,
     */
     com_tx_tmr.p_periodic_timCell=ruc_timer_alloc(0,0);
     if (com_tx_tmr.p_periodic_timCell == (struct timer_cell *)NULL){
-        ERRLOG "No timer available for MS timer periodic" ENDERRLOG
+        severe( "No timer available for MS timer periodic" );
         return(RUC_NOK);
     }
     ruc_periodic_timer_start(com_tx_tmr.p_periodic_timCell,

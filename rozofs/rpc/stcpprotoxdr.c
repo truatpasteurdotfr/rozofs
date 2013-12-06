@@ -77,6 +77,15 @@ xdr_stcpp_profiler_t (XDR *xdrs, stcpp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->truncate, 3,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->truncate_prj, 3,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->truncate_prj_tmo, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->truncate_prj_err, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->read_prj, 3,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
@@ -87,6 +96,9 @@ xdr_stcpp_profiler_t (XDR *xdrs, stcpp_profiler_t *objp)
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->read_prj_err, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->read_prj_enoent, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->write_prj_tmo, 2,

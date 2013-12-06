@@ -25,330 +25,450 @@ ep_null_1(void *argp, CLIENT *clnt)
 	return ((void *)&clnt_res);
 }
 
-ep_mount_ret_t *
+epgw_mount_ret_t *
 ep_mount_1(ep_path_t *argp, CLIENT *clnt)
 {
-	static ep_mount_ret_t clnt_res;
+	static epgw_mount_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_MOUNT,
 		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mount_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_mount_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_status_ret_t *
+epgw_status_ret_t *
 ep_umount_1(uint32_t *argp, CLIENT *clnt)
 {
-	static ep_status_ret_t clnt_res;
+	static epgw_status_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_UMOUNT,
 		(xdrproc_t) xdr_uint32_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_statfs_ret_t *
+epgw_statfs_ret_t *
 ep_statfs_1(uint32_t *argp, CLIENT *clnt)
 {
-	static ep_statfs_ret_t clnt_res;
+	static epgw_statfs_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_STATFS,
 		(xdrproc_t) xdr_uint32_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_statfs_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_statfs_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_lookup_1(ep_lookup_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_lookup_1(epgw_lookup_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_LOOKUP,
-		(xdrproc_t) xdr_ep_lookup_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_lookup_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_getattr_1(ep_mfile_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_getattr_1(epgw_mfile_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_GETATTR,
-		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_mfile_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_setattr_1(ep_setattr_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_setattr_1(epgw_setattr_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_SETATTR,
-		(xdrproc_t) xdr_ep_setattr_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_setattr_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_readlink_ret_t *
-ep_readlink_1(ep_mfile_arg_t *argp, CLIENT *clnt)
+epgw_readlink_ret_t *
+ep_readlink_1(epgw_mfile_arg_t *argp, CLIENT *clnt)
 {
-	static ep_readlink_ret_t clnt_res;
+	static epgw_readlink_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_READLINK,
-		(xdrproc_t) xdr_ep_mfile_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_readlink_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_mfile_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_readlink_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_mknod_1(ep_mknod_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_mknod_1(epgw_mknod_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_MKNOD,
-		(xdrproc_t) xdr_ep_mknod_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_mknod_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_mkdir_1(ep_mkdir_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_mkdir_1(epgw_mkdir_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_MKDIR,
-		(xdrproc_t) xdr_ep_mkdir_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_mkdir_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_fid_ret_t *
-ep_unlink_1(ep_unlink_arg_t *argp, CLIENT *clnt)
+epgw_fid_ret_t *
+ep_unlink_1(epgw_unlink_arg_t *argp, CLIENT *clnt)
 {
-	static ep_fid_ret_t clnt_res;
+	static epgw_fid_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_UNLINK,
-		(xdrproc_t) xdr_ep_unlink_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_fid_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_unlink_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_fid_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_fid_ret_t *
-ep_rmdir_1(ep_rmdir_arg_t *argp, CLIENT *clnt)
+epgw_fid_ret_t *
+ep_rmdir_1(epgw_rmdir_arg_t *argp, CLIENT *clnt)
 {
-	static ep_fid_ret_t clnt_res;
+	static epgw_fid_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_RMDIR,
-		(xdrproc_t) xdr_ep_rmdir_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_fid_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_rmdir_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_fid_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_symlink_1(ep_symlink_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_symlink_1(epgw_symlink_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_SYMLINK,
-		(xdrproc_t) xdr_ep_symlink_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_symlink_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_fid_ret_t *
-ep_rename_1(ep_rename_arg_t *argp, CLIENT *clnt)
+epgw_fid_ret_t *
+ep_rename_1(epgw_rename_arg_t *argp, CLIENT *clnt)
 {
-	static ep_fid_ret_t clnt_res;
+	static epgw_fid_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_RENAME,
-		(xdrproc_t) xdr_ep_rename_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_fid_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_rename_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_fid_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_readdir_ret_t *
-ep_readdir_1(ep_readdir_arg_t *argp, CLIENT *clnt)
+epgw_readdir_ret_t *
+ep_readdir_1(epgw_readdir_arg_t *argp, CLIENT *clnt)
 {
-	static ep_readdir_ret_t clnt_res;
+	static epgw_readdir_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_READDIR,
-		(xdrproc_t) xdr_ep_readdir_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_readdir_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_readdir_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_readdir_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_read_block_ret_t *
-ep_read_block_1(ep_io_arg_t *argp, CLIENT *clnt)
+epgw_read_block_ret_t *
+ep_read_block_1(epgw_io_arg_t *argp, CLIENT *clnt)
 {
-	static ep_read_block_ret_t clnt_res;
+	static epgw_read_block_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_READ_BLOCK,
-		(xdrproc_t) xdr_ep_io_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_read_block_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_io_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_read_block_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_io_ret_t *
-ep_write_block_1(ep_write_block_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_write_block_1(epgw_write_block_arg_t *argp, CLIENT *clnt)
 {
-	static ep_io_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_WRITE_BLOCK,
-		(xdrproc_t) xdr_ep_write_block_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_io_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_write_block_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_mattr_ret_t *
-ep_link_1(ep_link_arg_t *argp, CLIENT *clnt)
+epgw_mattr_ret_t *
+ep_link_1(epgw_link_arg_t *argp, CLIENT *clnt)
 {
-	static ep_mattr_ret_t clnt_res;
+	static epgw_mattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_LINK,
-		(xdrproc_t) xdr_ep_link_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_mattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_link_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_status_ret_t *
-ep_setxattr_1(ep_setxattr_arg_t *argp, CLIENT *clnt)
+epgw_status_ret_t *
+ep_setxattr_1(epgw_setxattr_arg_t *argp, CLIENT *clnt)
 {
-	static ep_status_ret_t clnt_res;
+	static epgw_status_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_SETXATTR,
-		(xdrproc_t) xdr_ep_setxattr_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_setxattr_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_getxattr_ret_t *
-ep_getxattr_1(ep_getxattr_arg_t *argp, CLIENT *clnt)
+epgw_getxattr_ret_t *
+ep_getxattr_1(epgw_getxattr_arg_t *argp, CLIENT *clnt)
 {
-	static ep_getxattr_ret_t clnt_res;
+	static epgw_getxattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_GETXATTR,
-		(xdrproc_t) xdr_ep_getxattr_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_getxattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_getxattr_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_getxattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_status_ret_t *
-ep_removexattr_1(ep_removexattr_arg_t *argp, CLIENT *clnt)
+epgw_status_ret_t *
+ep_removexattr_1(epgw_removexattr_arg_t *argp, CLIENT *clnt)
 {
-	static ep_status_ret_t clnt_res;
+	static epgw_status_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_REMOVEXATTR,
-		(xdrproc_t) xdr_ep_removexattr_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_removexattr_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_listxattr_ret_t *
-ep_listxattr_1(ep_listxattr_arg_t *argp, CLIENT *clnt)
+epgw_listxattr_ret_t *
+ep_listxattr_1(epgw_listxattr_arg_t *argp, CLIENT *clnt)
 {
-	static ep_listxattr_ret_t clnt_res;
+	static epgw_listxattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_LISTXATTR,
-		(xdrproc_t) xdr_ep_listxattr_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_listxattr_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_listxattr_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_listxattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}
 	return (&clnt_res);
 }
 
-ep_cluster_ret_t *
+epgw_cluster_ret_t *
 ep_list_cluster_1(uint16_t *argp, CLIENT *clnt)
 {
-	static ep_cluster_ret_t clnt_res;
+	static epgw_cluster_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_LIST_CLUSTER,
 		(xdrproc_t) xdr_uint16_t, (caddr_t) argp,
-		(xdrproc_t) xdr_ep_cluster_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_cluster_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_conf_ret_t *
+ep_conf_storage_1(ep_path_t *argp, CLIENT *clnt)
+{
+	static epgw_conf_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CONF_STORAGE,
+		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_conf_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_poll_conf_1(ep_gateway_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_POLL_CONF,
+		(xdrproc_t) xdr_ep_gateway_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+ep_gw_gateway_configuration_ret_t *
+ep_conf_expgw_1(ep_path_t *argp, CLIENT *clnt)
+{
+	static ep_gw_gateway_configuration_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CONF_EXPGW,
+		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
+		(xdrproc_t) xdr_ep_gw_gateway_configuration_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_lock_ret_t *
+ep_set_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_lock_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_SET_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_lock_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_lock_ret_t *
+ep_get_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_lock_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_GET_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_lock_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_clear_owner_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CLEAR_OWNER_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_clear_client_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_CLEAR_CLIENT_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+epgw_status_ret_t *
+ep_poll_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
+{
+	static epgw_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_POLL_FILE_LOCK,
+		(xdrproc_t) xdr_epgw_lock_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}

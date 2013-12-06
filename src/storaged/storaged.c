@@ -39,52 +39,45 @@
 #include <unistd.h>
 #include <netdb.h>
 
+#include <rozofs/rozofs_srv.h>
+#include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
-#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
 #include "sconfig.h"
 #include "storage.h"
 #include "storaged.h"
+#include "sconfig.h"
 #include "rbs.h"
-#include <rozofs/rozofs_timer_conf.h>
 #include "storaged_nblock_init.h"
 
 #define STORAGED_PID_FILE "storaged"
 
 static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
-static sconfig_t storaged_config;
+sconfig_t storaged_config;
 
-static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
-    {0}
-};
+static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 
 static char *storaged_hostname = NULL;
 
 static uint16_t storaged_nrstorages = 0;
 
-static SVCXPRT *storaged_svc = 0;
-
-extern void storage_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
-
 static SVCXPRT *storaged_monitoring_svc = 0;
-
-extern void monitor_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
 
 static SVCXPRT *storaged_profile_svc = 0;
 
-extern void storaged_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
-
-uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX] = {0};
-
+uint8_t storio_nb_threads = 0;
+uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
@@ -97,8 +90,6 @@ uint8_t rbs_start_process = 0;
 static char rbs_export_hostname[ROZOFS_HOSTNAME_MAX];
 /* Time in seconds between two attemps of rebuild */
 #define TIME_BETWEEN_2_RB_ATTEMPS 30
-/* First port to use for monitoring rebuild process */
-uint16_t start_profil_port_for_rbs = 30000;
 
 static int storaged_initialize() {
     int status = -1;
@@ -110,10 +101,11 @@ static int storaged_initialize() {
 
     storaged_nrstorages = 0;
 
-    storaged_nb_io_processes = storaged_config.sproto_svc_nb;
+    storaged_nb_io_processes = 1;
+    
+    storio_nb_threads = storaged_config.nb_disk_threads;
 
-    memcpy(storaged_storage_ports, storaged_config.ports,
-            STORAGE_NODE_PORTS_MAX * sizeof (uint32_t));
+    storaged_nb_ports = storaged_config.io_addr_nb;
 
     /* For each storage on configuration file */
     list_for_each_forward(p, &storaged_config.storages) {
@@ -130,50 +122,6 @@ static int storaged_initialize() {
     status = 0;
 out:
     return status;
-}
-
-static SVCXPRT *storaged_create_rpc_service(int port, char *host) {
-    int sock;
-    int one = 1;
-    struct sockaddr_in sin;
-    struct hostent *hp;
-
-    if (host != NULL) {
-        // get the IP address of the storage node
-        if ((hp = gethostbyname(host)) == 0) {
-            severe("gethostbyname failed for host : %s, %s", host,
-                    strerror(errno));
-            return NULL;
-        }
-        bcopy((char *) hp->h_addr, (char *) &sin.sin_addr, hp->h_length);
-    } else {
-        sin.sin_addr.s_addr = INADDR_ANY;
-    }
-    /* Give the socket a name. */
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(port);
-
-    /* Create the socket. */
-    sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        severe("Can't create socket: %s.", strerror(errno));
-        return NULL;
-    }
-
-    /* Set socket options */
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
-    //setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-
-    /* Bind the socket */
-    if (bind(sock, (struct sockaddr *) &sin, sizeof (struct sockaddr)) < 0) {
-        severe("Couldn't bind to tcp port %d: %s", port, strerror(errno));
-        return NULL;
-    }
-
-    /* Creates a TCP/IP-based RPC service transport */
-    return svctcp_create(sock, ROZOFS_RPC_STORAGE_BUFFER_SIZE, ROZOFS_RPC_STORAGE_BUFFER_SIZE);
-
 }
 
 /** Check each storage to rebuild
@@ -205,40 +153,55 @@ typedef struct rbs_stor_config {
     char export_hostname[ROZOFS_HOSTNAME_MAX]; ///< export hostname or IP.
     cid_t cid; //< unique id of cluster that owns this storage.
     sid_t sid; ///< unique id of this storage for one cluster.
+    uint8_t stor_idx; ///< storage index used for display statistics.
     char root[PATH_MAX]; ///< absolute path.
 } rbs_stor_config_t;
 
-/** Starts a thread for rebuild a given storage 
+/** Starts a thread for rebuild given storage(s)
  *
- * @param v: configuration of storage to rebuild.
+ * @param v: table of storages configurations to rebuild.
  */
-static void *rebuild_storage_thread(void *v) {
+static void * rebuild_storage_thread(void *v) {
 
     DEBUG_FUNCTION;
+    int i = 0;
 
-    // Get the storage configuration
-    rbs_stor_config_t *stor_conf = (rbs_stor_config_t*) v;
+    // Get storage(s) configuration(s)
+    rbs_stor_config_t *stor_confs = (rbs_stor_config_t*) v;
 
-    info("Start rebuild process (pid=%d) for storage (cid=%u;sid=%u).",
-            getpid(), stor_conf->cid, stor_conf->sid);
+    for (i = 0; i < STORAGES_MAX_BY_STORAGE_NODE; i++) {
 
-    // Try to rebuild the storage until it's over
-    while (rbs_rebuild_storage(stor_conf->export_hostname, stor_conf->cid,
-            stor_conf->sid, stor_conf->root) != 0) {
-        // Probably a problem when connecting with other members
-        // of this cluster
-        severe("can't rebuild storage (cid:%u;sid:%u) with path %s,"
-                " next attempt in %d seconds",
-                stor_conf->cid, stor_conf->sid, stor_conf->root,
-                TIME_BETWEEN_2_RB_ATTEMPS);
+        // Check if storage conf is empty
+        if (stor_confs[i].cid == 0 && stor_confs[i].sid == 0) {
+            continue;
+        }
 
-        sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+        info("Start rebuild process for storage (cid=%u;sid=%u).",
+                stor_confs[i].cid, stor_confs[i].sid);
+
+        // Try to rebuild the storage until it's over
+        while (rbs_rebuild_storage(stor_confs[i].export_hostname,
+                stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
+                stor_confs[i].stor_idx) != 0) {
+
+            // Probably a problem when connecting with other members
+            // of this cluster
+            severe("can't rebuild storage (cid:%u;sid:%u) with path %s,"
+                    " next attempt in %d seconds",
+                    stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
+                    TIME_BETWEEN_2_RB_ATTEMPS);
+
+            sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+        }
+
+        // Here the rebuild process is finish, so exit
+        info("The rebuild process for storage (cid=%u;sid=%u)"
+                " was completed successfully.",
+                stor_confs[i].cid, stor_confs[i].sid);
     }
 
-    // Here the rebuild process is finish, so exit
-    info("The rebuild process for storage (cid=%u;sid=%u) was completed"
-            " successfully.", stor_conf->cid, stor_conf->sid);
-    exit(EXIT_SUCCESS);
+    return 0;
+
 }
 
 /** Start one rebuild process for each storage to rebuild
@@ -246,71 +209,44 @@ static void *rebuild_storage_thread(void *v) {
 static void rbs_process_initialize() {
     list_t *p = NULL;
     int i = 0;
-    uint16_t profil_rbs_port = 0;
+
+    rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE] ;
+    memset(&rbs_stor_configs, 0,
+            STORAGES_MAX_BY_STORAGE_NODE * sizeof(rbs_stor_config_t));
 
     DEBUG_FUNCTION;
 
-    // For each storage on configuration file
+    // For each storage in configuration file
 
     list_for_each_forward(p, &storaged_config.storages) {
 
         storage_config_t *sc = list_entry(p, storage_config_t, list);
-        int pid = -1;
-        profil_rbs_port = start_profil_port_for_rbs + i;
 
-        // Create child process
-        if (!(pid = fork())) {
+        // Copy the configuration for the storage to rebuild
+        strncpy(rbs_stor_configs[i].export_hostname, rbs_export_hostname,
+        ROZOFS_HOSTNAME_MAX);
+        rbs_stor_configs[i].cid = sc->cid;
+        rbs_stor_configs[i].sid = sc->sid;
+        rbs_stor_configs[i].stor_idx = i;
+        strncpy(rbs_stor_configs[i].root, sc->root, PATH_MAX);
 
-            // Here it's the child process
-            pthread_t thread;
-            rbs_stor_config_t stor_conf;
+        // Set profiling values
+        SET_PROBE_VALUE(rbs_cids[i], sc->cid);
+        SET_PROBE_VALUE(rbs_sids[i], sc->sid);
+        SET_PROBE_VALUE(rb_files_current[i], 0);
+        SET_PROBE_VALUE(rb_files_total[i], 0);
+        SET_PROBE_VALUE(rb_status[i], 0);
 
-            // Copy the configuration for the storage to rebuild
-            strncpy(stor_conf.export_hostname, rbs_export_hostname,
-                    ROZOFS_HOSTNAME_MAX);
-            stor_conf.cid = sc->cid;
-            stor_conf.sid = sc->sid;
-            strncpy(stor_conf.root, sc->root, PATH_MAX);
+        i++;
+    }
 
-            // Create pthread for start the rebuild task
-            if ((errno = pthread_create(&thread, NULL, rebuild_storage_thread,
-                    &stor_conf)) != 0) {
-                severe("can't create thread for rebuild storage (cid=%u;sid=%u)"
-                        ": %s",
-                        sc->cid, sc->sid, strerror(errno));
-            }
+    // Create pthread for rebuild storage(s)
+    pthread_t thread;
 
-            // Lauch RPC service for monitor this process.
-            // Associates STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION
-            // with their service dispatch procedure.
-            // Here protocol is zero, the service is not registered with
-            // the portmap service
-
-            if ((storaged_profile_svc =
-                    storaged_create_rpc_service(profil_rbs_port,
-                    storaged_hostname)) == NULL) {
-                fatal("can't create rebuild monitoring service on port: %d",
-                        profil_rbs_port);
-            }
-
-            if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
-                    STORAGED_PROFILE_VERSION, storaged_profile_program_1, 0)) {
-                fatal("can't register service : %s", strerror(errno));
-            }
-
-            info("create rebuild monitoring service on port: %d",
-                    profil_rbs_port);
-
-            // Waits for RPC requests to arrive!
-            svc_run();
-            // NOT REACHED
-        } else {
-            // Set monitoring values just for the master process
-            SET_PROBE_VALUE(rb_process_ports[i], profil_rbs_port);
-            SET_PROBE_VALUE(rbs_cids[i], sc->cid);
-            SET_PROBE_VALUE(rbs_sids[i], sc->sid);
-            i++;
-        }
+    if ((errno = pthread_create(&thread, NULL, rebuild_storage_thread,
+            &rbs_stor_configs)) != 0) {
+        severe("can't create thread for rebuild storage(s): %s",
+                strerror(errno));
     }
 }
 
@@ -350,7 +286,17 @@ out:
 
 static void on_stop() {
     DEBUG_FUNCTION;
-
+    char cmd[128];
+   
+    /*
+    ** Kill every instance of storio of this host
+    */
+    if (storaged_hostname) 
+      sprintf(cmd,"storio_killer.sh -H %s", storaged_hostname);
+    else 
+      sprintf(cmd,"storio_killer.sh"); 
+    system(cmd);
+    
     svc_exit();
 
     if (storaged_monitoring_svc) {
@@ -367,13 +313,6 @@ static void on_stop() {
         storaged_profile_svc = NULL;
     }
 
-    if (storaged_svc && !storaged_monitoring_svc) {
-        svc_unregister(STORAGE_PROGRAM, STORAGE_VERSION);
-        pmap_unset(STORAGE_PROGRAM, STORAGE_VERSION);
-        svc_destroy(storaged_svc);
-        storaged_svc = NULL;
-    }
-
     rozofs_layout_release();
 
     storaged_release();
@@ -382,25 +321,12 @@ static void on_stop() {
     closelog();
 }
 
-
 char storage_process_filename[NAME_MAX];
 
-/**
- *  Signal catching
- */
-
-static void storaged_handle_signal(int sig) {
-    unlink(storage_process_filename);
-    signal(sig, SIG_DFL);
-    raise(sig);
-}
-
 static void on_start() {
-    int i = 0;
-    int sock;
-    int one = 1;
-    pthread_t thread;
-
+    char cmd[128];
+    char * p;
+        
     DEBUG_FUNCTION;
 
     storage_process_filename[0] = 0;
@@ -421,174 +347,57 @@ static void on_start() {
 
     SET_PROBE_VALUE(uptime, time(0));
     strncpy((char*) gprofiler.vers, VERSION, 20);
-    SET_PROBE_VALUE(nb_io_processes, storaged_nb_io_processes);
+    SET_PROBE_VALUE(nb_io_processes, storio_nb_threads);
+    
+    // Create storio process(es)
+
+    // Set monitoring values just for the master process
+    //SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
+    
     /*
-     ** config for non blocking side (rozodebug):
-     ** Caution: the thread associated with the parent MUST be created after the 
-     ** fork() of the io processes (children) otherwise we might face a deadlock
-     ** on syslog() because mutexes are "passed" unconsistent to the children
-     ** since the thread associated with the parent can be in the syslog.
-     */
-    storaged_start_conf_param_t conf;
-    storaged_start_conf_param_t conf_child;
+    ** 1rst kill storio in case it is already running
+    */
+    p = cmd;
+    if (storaged_hostname) 
+      sprintf(cmd,"storio_killer.sh -H %s", storaged_hostname);
+    else 
+      sprintf(cmd,"storio_killer.sh"); 
+
+    // Launch killer script
+    system(cmd);
+
+    /*
+    ** Then start storio
+    */
+    p = cmd;
+    p += sprintf(p, "storio_starter.sh storio -i 1 -c %s ", storaged_config_file);
+    if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+    p += sprintf(p, "&");
+
+    // Launch storio_starter script
+    system(cmd);
+
+    // Create the debug thread of the parent
+    storaged_start_conf_param_t conf;     
     conf.instance_id = 0;
-    conf.io_port = 0;
+    conf.io_port     = 0;
+    conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT;
+
     if (storaged_hostname != NULL) strcpy(conf.hostname, storaged_hostname);
     else conf.hostname[0] = 0;
-
-    conf.debug_port = rzdbg_default_base_port + RZDBG_STORAGED_PORT;
-    conf_child = conf;
-
-
-
-    // Create io process(es)
-    for (i = 0; i < storaged_nb_io_processes; i++) {
-        int pid;
-        conf_child.instance_id = i + 1;
-        conf_child.debug_port = rzdbg_default_base_port + RZDBG_STORAGED_PORT + i + 1;
-        conf_child.io_port = storaged_storage_ports[i];
-
-        // Create child process
-        if (!(pid = fork())) {
-
-            signal(SIGCHLD, SIG_IGN);
-            signal(SIGTSTP, SIG_IGN);
-            signal(SIGTTOU, SIG_IGN);
-            signal(SIGTTIN, SIG_IGN);
-            signal(SIGILL, storaged_handle_signal);
-            signal(SIGSTOP, storaged_handle_signal);
-            signal(SIGABRT, storaged_handle_signal);
-            signal(SIGSEGV, storaged_handle_signal);
-            signal(SIGKILL, storaged_handle_signal);
-            signal(SIGTERM, storaged_handle_signal);
-            signal(SIGQUIT, storaged_handle_signal);
-
-            char *pid_name_p = storage_process_filename;
-            if (storaged_hostname != NULL) {
-                sprintf(pid_name_p, "%s%s_%s:%d.pid", DAEMON_PID_DIRECTORY, STORAGED_PID_FILE, storaged_hostname, storaged_storage_ports[i]);
-            } else {
-                sprintf(pid_name_p, "%s%s:%d.pid", DAEMON_PID_DIRECTORY, STORAGED_PID_FILE, storaged_storage_ports[i]);
-            }
-            int ppfd;
-            if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
-                severe("can't open process file");
-            } else {
-                char str[10];
-                sprintf(str, "%d\n", getpid());
-                write(ppfd, str, strlen(str));
-                close(ppfd);
-            }
-
-            /**
-             * start the non blocking thread
-             */
-            if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf_child)) != 0) {
-                fatal("can't create non blocking thread: %s", strerror(errno));
-            }
-            // Associates STORAGE_PROGRAM, STORAGE_VERSION and
-            // STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION
-            // with their service dispatch procedure.
-            // Here protocol is zero, the service is not registered with
-            // the portmap service
-
-            if ((storaged_svc = storaged_create_rpc_service
-                    (storaged_storage_ports[i], storaged_hostname)) == NULL) {
-                fatal("can't create IO storaged service on port: %d",
-                        storaged_storage_ports[i]);
-            }
-
-            if (!svc_register(storaged_svc, STORAGE_PROGRAM, STORAGE_VERSION,
-                    storage_program_1, 0)) {
-                fatal("can't register IO service : %s", strerror(errno));
-            }
-
-            if ((storaged_profile_svc = storaged_create_rpc_service
-                    (storaged_storage_ports[i] + 1000,
-                    storaged_hostname)) == NULL) {
-                severe("can't create IO monitoring service on port: %d",
-                        storaged_storage_ports[i] + 1000);
-            }
-
-            if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
-                    STORAGED_PROFILE_VERSION, storaged_profile_program_1, 0)) {
-                fatal("can't register service : %s", strerror(errno));
-            }
-
-            // Waits for RPC requests to arrive!
-            info("running io service (pid=%d, port=%d).",
-                    getpid(), storaged_storage_ports[i]);
-            svc_run();
-            // NOT REACHED
-        } else {
-            // Set monitoring values just for the master process
-            SET_PROBE_VALUE(io_process_ports[i],
-                    (uint16_t) storaged_storage_ports[i] + 1000);
-        }
-    }
-
-
-    /*
-     ** create the debug thread of the parent
-     */
-    if ((errno = pthread_create(&thread, NULL, (void*) storaged_start_nb_blocking_th, &conf)) != 0) {
-        fatal("can't create non blocking thread: %s", strerror(errno));
-    }
-
-    // Create internal monitoring service
-    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_DEFER_ACCEPT, (char *) &one, sizeof (int));
-    setsockopt(sock, SOL_TCP, TCP_NODELAY, (char *) &one, sizeof (int));
-
-    if ((storaged_monitoring_svc = svctcp_create(sock,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE)) == NULL) {
-        fatal("can't create internal monitoring service.");
-        return;
-    }
-
-    // Destroy portmap mapping
-    pmap_unset(MONITOR_PROGRAM, MONITOR_VERSION); // in case !
-
-    // Associates MONITOR_PROGRAM and MONITOR_VERSION
-    // with the service dispatch procedure, monitor_program_1.
-    // Here protocol is no zero, the service is registered with
-    // the portmap service
-
-    if (!svc_register(storaged_monitoring_svc, MONITOR_PROGRAM,
-            MONITOR_VERSION, monitor_program_1, IPPROTO_TCP)) {
-        fatal("can't register service : %s", strerror(errno));
-        return;
-    }
-
-    // Create profiling service for main process
-    if ((storaged_profile_svc = svctcp_create(RPC_ANYSOCK, 0, 0)) == NULL) {
-        severe("can't create profiling service.");
-    }
-
-    pmap_unset(STORAGED_PROFILE_PROGRAM, STORAGED_PROFILE_VERSION); // in case !
-
-    if (!svc_register(storaged_profile_svc, STORAGED_PROFILE_PROGRAM,
-            STORAGED_PROFILE_VERSION,
-            storaged_profile_program_1, IPPROTO_TCP)) {
-        severe("can't register service : %s", strerror(errno));
-    }
-
-    // Waits for RPC requests to arrive!
-    info("running.");
-    svc_run();
-    // NOT REACHED
+    
+    storaged_start_nb_th(&conf);
 }
 
 void usage() {
 
-    printf("Rozofs storage daemon - %s\n", VERSION);
+    printf("RozoFS storage daemon - %s\n", VERSION);
     printf("Usage: storaged [OPTIONS]\n\n");
-    printf("\t-h, --help\tprint this message.\n");
-    printf("\t-H,--host storaged hostname\t\tused to build to the pid name (default: none) \n");
-    printf("\t-c, --config\tconfig file to use (default: %s).\n",
+    printf("   -h, --help\t\t\tprint this message.\n");
+    printf("   -H, --host=storaged-host\tspecify the hostname to use for build pid name (default: none).\n");
+    printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
-    printf("\t-r, --rebuild\t export hostname.\n");
+    printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -596,15 +405,13 @@ int main(int argc, char *argv[]) {
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
-        {"config", required_argument, 0, 'c'},
-        {"rebuild", required_argument, 0, 'r'},
+        { "config", required_argument, 0, 'c'},
+        { "rebuild", required_argument, 0, 'r'},
         { "host", required_argument, 0, 'H'},
         { 0, 0, 0, 0}
     };
 
-    /*
-     ** init of the timer configuration
-     */
+    // Init of the timer configuration
     rozofs_tmr_init_configuration();
 
     storaged_hostname = NULL;
@@ -652,6 +459,8 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
+    openlog("storaged", LOG_PID, LOG_DAEMON);
+
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
         fprintf(stderr, "Can't initialize storaged config: %s.\n",
@@ -675,7 +484,6 @@ int main(int argc, char *argv[]) {
         if (rbs_check() != 0)
             goto error;
     }
-    openlog("storaged", LOG_PID, LOG_DAEMON);
 
     char *pid_name_p = pid_name;
     if (storaged_hostname != NULL) {
@@ -683,7 +491,9 @@ int main(int argc, char *argv[]) {
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }
-    daemon_start(pid_name, on_start, on_stop, NULL);
+
+    daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
+            on_stop, NULL);
 
     exit(0);
 error:

@@ -27,8 +27,11 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <unistd.h>
-
+#include <time.h>
+#include <ctype.h>
+ 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -37,11 +40,11 @@
 #include "ruc_tcpServer_api.h"
 #include "uma_dbg_api.h"
 #include "uma_dbg_msgHeader.h"
-#include "ppu_trace.h"
 #include "config.h"
 
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
+static time_t uptime=0;
 
 typedef struct uma_dbg_topic_s {
   char                     * name;
@@ -54,7 +57,7 @@ UMA_DBG_TOPIC_S uma_dbg_topic[UMA_DBG_MAX_TOPIC];
 uint32_t        uma_dbg_nb_topic = 0;
 uint32_t          uma_dbg_topic_initialized=FALSE;
 
-#define            MAX_ARG   50
+#define            MAX_ARG   64
 
 uma_dbg_catcher_function_t	uma_dbg_catcher = uma_dbg_catcher_DFT;
 
@@ -73,8 +76,169 @@ typedef struct uma_dbg_session_s {
 
 UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
-static char rcvCmdBuffer[64];
+static char rcvCmdBuffer[255];
 
+char uma_dbg_temporary_buffer[UMA_DBG_MAX_SEND_SIZE];
+
+
+/*__________________________________________________________________________
+ */
+/**
+*  Format an ASCII dump
+* @param mem   memory area to dump
+* @param len   size to dump mem on
+* @param p     where to output the dump
+*
+*  return the address of the end of the dump 
+*/
+/*__________________________________________________________________________
+ */ 
+#define HEXDUMP_COLS 16
+char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
+{
+        unsigned int i, j;
+	char * mem =(char *) ptr;
+        
+        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+        {
+                /* print offset */
+                if(i % HEXDUMP_COLS == 0)
+                {
+                        p += sprintf(p,"%8p: ", mem+i);
+                }
+ 
+                /* print hex data */
+                if(i < len)
+                {
+                        p += sprintf(p,"%02x ", 0xFF & ((char*)mem)[i]);
+                }
+                else /* end of block, just aligning for ASCII dump */
+                {
+                        p += sprintf(p,"   ");
+                }
+                
+                /* print ASCII dump */
+                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+                {
+                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+                        {
+                                if(j >= len) /* end of block, not really printing */
+                                {
+                                        p += sprintf(p," ");
+                                }
+                                else if(isprint(((char*)mem)[j])) /* printable char */
+                                {
+					p += sprintf(p,"%c", 0xFF & ((char*)mem)[j]);     
+                                }
+                                else /* other char */
+                                {
+                                        p += sprintf(p,".");
+                                }
+                        }
+                        p += sprintf(p,"\n");
+                }
+        }
+	return p;
+}
+
+/*__________________________________________________________________________
+ */
+/**
+*  Run a system command and return the result 
+*/
+int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
+  pid_t  pid;
+  char   fileName[32];
+  int    fd;
+  
+  pid = getpid();
+  sprintf(fileName,"/tmp/rozo.%d",pid);
+  
+  strcat(cmd," > ");
+  strcat(cmd,fileName);
+  
+  system(cmd);
+  
+  fd = open(fileName, O_RDONLY);
+  if (fd < 0) {
+    unlink(fileName);
+    return 0;    
+  }
+  
+  len = read(fd,result, len-1);
+  result[len] = 0;
+  
+  close(fd);
+  unlink(fileName);  
+  return len;
+} 
+
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+static char * uma_dbg_system_cmd_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"system <command line> .... \n");
+  pChar += sprintf(pChar,"   runs command line debug target linux\n");  
+  return pChar; 
+}
+void uma_dbg_system_cmd(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char * cmd;
+  int    len;
+
+  if(argv[1] == NULL) {
+    uma_dbg_system_cmd_help( uma_dbg_get_buffer());
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  
+  cmd = rcvCmdBuffer;
+  while (*cmd != 's') cmd++;
+  cmd += 7;
+
+  len = uma_dbg_run_system_cmd(cmd, uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
+  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",uma_dbg_get_buffer());
+  return ;
+} 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
+  int    len;
+  pid_t  pid;
+  
+  pid = getpid();
+  
+  sprintf(uma_dbg_get_buffer(),"ps -p %d ", pid);
+  strcat(uma_dbg_get_buffer(), "-o%p -o%C -o%t -o%z -o%a");
+
+  len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
+  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",uma_dbg_get_buffer());
+  return ;
+} 
+/*__________________________________________________________________________
+ */
+/**
+*  Display the system name if any has been set thanks to uma_dbg_set_name()
+*/
+void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
+    time_t elapse;
+    int days, hours, mins, secs;
+
+    // Compute uptime for storaged process
+    elapse = (int) (time(0) - uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    uma_dbg_send(tcpRef, bufRef, TRUE, "uptime = %d days, %d:%d:%d\n", days, hours, mins, secs);
+}      
 /*__________________________________________________________________________
  */
 /**
@@ -148,7 +312,7 @@ void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ...
 
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
-    ERRLOG "ruc_buf_getPayload(%p)", bufRef ENDERRLOG
+    severe( "ruc_buf_getPayload(%p)", bufRef );
     /* Let's tell the caller fsm that the message is sent */
     return;
   }
@@ -161,8 +325,7 @@ void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ...
 
   if (len > (UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S)))
   {
-     ERRLOG "debug response exceeds buffer length %u/%u",len,(int)((UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S))) ENDERRLOG;
-     ERRLOG "receive cmd: %s",rcvCmdBuffer ENDERRLOG;
+    severe("debug response exceeds buffer length %u/%u",len,(int)((UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S))));
   }
 
   pHead->len = htonl(len);
@@ -315,20 +478,20 @@ void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
   /* Get the size of the topic */
   length = strlen(topic);
   if (length == 0) {
-    ERRLOG "Bad topic length %d", length ENDERRLOG;
+    severe( "Bad topic length %d", length );
     return;
   }
   
   /* Check a place is left */
   if (uma_dbg_nb_topic == UMA_DBG_MAX_TOPIC) {
-    ERRLOG "Too much topic %d. Can not insert %s", UMA_DBG_MAX_TOPIC, topic ENDERRLOG;
+    severe( "Too much topic %d. Can not insert %s", UMA_DBG_MAX_TOPIC, topic );
     return;    
   }
 
   /* copy the topic */
   my_topic = malloc(length + 1) ;
   if (my_topic == NULL) {
-    ERRLOG "Out of memory. Can not insert %s",topic ENDERRLOG;    
+    severe( "Out of memory. Can not insert %s",topic );    
     return;
   }
   strcpy(my_topic, topic);
@@ -342,7 +505,7 @@ void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
     /* check the current entry has got a different key word than
        the one we are to add */
     if (order == 0) {
-      ERRLOG "Trying to add topic %s that already exist", topic ENDERRLOG;
+      severe( "Trying to add topic %s that already exist", topic );
       free(my_topic);
       return;
     }
@@ -376,7 +539,7 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
 
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
-    ERRLOG "ruc_buf_getPayload(%p)", bufRef ENDERRLOG
+    severe( "ruc_buf_getPayload(%p)", bufRef );
     return;
   }
 
@@ -458,7 +621,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
 
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
-    ERRLOG "ruc_buf_getPayload(%p)", bufRef ENDERRLOG
+    severe( "ruc_buf_getPayload(%p)", bufRef );
     return;
   }
 
@@ -530,7 +693,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   if (found == 0) {
     for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
       if (uma_dbg_topic[topicNum].len > length) {
-        int order = strncmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
+        int order = strncasecmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
         if (order < 0) break;  	
 	if (order == 0) {
 	  found++;
@@ -664,13 +827,13 @@ uint32_t uma_dbg_accept_CBK(uint32_t userRef,int socketId,struct sockaddr * sock
   pconf->userRcvReadyCallBack = (ruc_pf_sock_t)NULL ;
 
   if ((pObj->tcpCnxRef = uma_tcp_create_rcvRdy_bufPool(pconf)) == (uint32_t)-1) {
-    ERRLOG "uma_tcp_create" ENDERRLOG;
+    severe( "uma_tcp_create" );
     return RUC_NOK;
   }
 
   /* Tune the socket and connect with the socket controller */
   if (uma_tcp_createTcpConnection(pObj->tcpCnxRef,name) != RUC_OK) {
-    ERRLOG "uma_tcp_createTcpConnection" ENDERRLOG;
+    severe( "uma_tcp_createTcpConnection" );
     uma_dbg_free(pObj);
     return RUC_NOK;
   }
@@ -699,15 +862,17 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
 
   /* Service already initialized */
   if (uma_dbg_initialized) {
-    ERRLOG "Service already initialized" ENDERRLOG;
+    severe( "Service already initialized" );
     return;
   }
   uma_dbg_initialized = TRUE;
+  
+  uptime = time(0);
 
   /* Create a distributor of debug sessions */
   uma_dbg_freeList = (UMA_DBG_SESSION_S*)ruc_listCreate(nbElements,sizeof(UMA_DBG_SESSION_S));
   if (uma_dbg_freeList == (UMA_DBG_SESSION_S*)NULL) {
-    ERRLOG "ruc_listCreate(%d,%d)", nbElements,(int)sizeof(UMA_DBG_SESSION_S) ENDERRLOG;
+    severe( "ruc_listCreate(%d,%d)", nbElements,(int)sizeof(UMA_DBG_SESSION_S) );
     return;
   }
 
@@ -725,7 +890,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   /* Initialize the active list */
   uma_dbg_activeList = (UMA_DBG_SESSION_S*) malloc(sizeof(UMA_DBG_SESSION_S));
   if (uma_dbg_activeList == ((UMA_DBG_SESSION_S*)NULL)) {
-    ERRLOG "uma_dbg_activeList = malloc(%d)", (int)sizeof(UMA_DBG_SESSION_S) ENDERRLOG;
+    severe( "uma_dbg_activeList = malloc(%d)", (int)sizeof(UMA_DBG_SESSION_S) );
     return;
   }
   ruc_listHdrInit(&uma_dbg_activeList->link);
@@ -739,11 +904,15 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   sprintf((char*)inputArgs.cnxName,"DBG SERVER");
 
   if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
-    ERRFAT "ruc_tcp_server_connect" ENDERRLOG;
+    severe("ruc_tcp_server_connect" );
   }
   
   uma_dbg_addTopic("who", uma_dbg_show_name);
+  uma_dbg_addTopic("uptime", uma_dbg_show_uptime);
   uma_dbg_addTopic("version", uma_dbg_show_version);
+  uma_dbg_addTopic("system", uma_dbg_system_cmd);
+  uma_dbg_addTopic("ps", uma_dbg_system_ps);
+  
 
 }
 /*
@@ -757,13 +926,13 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
 void uma_dbg_set_name( char * system_name) {
 
   if (uma_gdb_system_name != NULL) {
-    ERRLOG "uma_dbg_set_name(%s) although name %s already set", system_name, uma_gdb_system_name ENDERRLOG;
+    severe( "uma_dbg_set_name(%s) although name %s already set", system_name, uma_gdb_system_name );
     return;
   }  
   
   uma_gdb_system_name = malloc(strlen(system_name)+1);
   if (uma_gdb_system_name == NULL) {
-    ERRLOG "uma_dbg_set_name out of memory" ENDERRLOG;
+    severe( "uma_dbg_set_name out of memory" );
     return;
   }
   

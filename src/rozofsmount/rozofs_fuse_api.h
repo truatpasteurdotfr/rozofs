@@ -18,15 +18,12 @@
  
 #ifndef ROZOFS_FUSE_API_H
 #define ROZOFS_FUSE_API_H
-#include <stdlib.h>
-#include <sys/types.h> 
-#include "rozofs_fuse.h"
-#include <rozofs/core/ruc_buffer_api.h>
-#include <rozofs/core/rozofs_tx_common.h>
+
 #include <rozofs/common/profile.h>
 #include <rozofs/rozofs_timer_conf.h>
 
- 
+#include "rozofs_fuse.h"
+
 extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
 extern uint32_t rozofs_fuse_usr_ctx_idx ;
 extern uint64_t rozofs_write_merge_stats_tab[];
@@ -37,7 +34,7 @@ extern uint64_t rozofs_write_merge_stats_tab[];
 */
 #define ROZOFS_WRITE_STATS_ARRAY(size) \
 {\
-   rozofs_write_buf_section_table[size/ROZOFS_BSIZE]++;\
+   rozofs_write_buf_section_table[(size-1)/ROZOFS_PAGE_SZ]++;\
 }
 
 /**
@@ -46,7 +43,7 @@ extern uint64_t rozofs_write_merge_stats_tab[];
 */
 #define ROZOFS_READ_STATS_ARRAY(size) \
 {\
-   rozofs_read_buf_section_table[size/ROZOFS_BSIZE]++;\
+   rozofs_read_buf_section_table[(size-1)/ROZOFS_PAGE_SZ]++;\
 }
 
 /**
@@ -62,6 +59,18 @@ static inline void rozofs_fuse_dbg_save_ctx(rozofs_fuse_save_ctx_t *p)
    rozofs_fuse_usr_ctx_idx = (rozofs_fuse_usr_ctx_idx+1)%ROZOFS_FUSE_CTX_MAX;
    rozofs_fuse_usr_ctx_table[rozofs_fuse_usr_ctx_idx] = p;
    
+}
+/**
+**____________________________________________________
+*  Get the number of free context in the fuse context distributor
+
+  @param none
+  @retval <>NULL, success->pointer to the allocated context
+  @retval NULL, error ->out of context
+*/
+static inline int rozofs_fuse_get_free_ctx_number(void)
+{
+  return ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
 }
 /*
 **__________________________________________________________________________
@@ -94,6 +103,8 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   
   fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer_p);
   rozofs_fuse_dbg_save_ctx(fuse_save_ctx_p);
+  if (name == NULL) fuse_save_ctx_p->fct_name[0]=0;
+  else strcpy(fuse_save_ctx_p->fct_name,name);
   /*
   ** clear the fuse context
   */
@@ -104,9 +115,13 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   fuse_save_ctx_p->newname = NULL;
   fuse_save_ctx_p->name    = NULL;
   fuse_save_ctx_p->fi      = NULL;
+  fuse_save_ctx_p->flock   = NULL;
+  fuse_save_ctx_p->stbuf   = NULL;
+  fuse_save_ctx_p->shared_buf_ref  = NULL;
   /*
   ** init of the routing context
   */
+  expgw_routing_ctx_init(&fuse_save_ctx_p->expgw_routing_ctx);
   ruc_listEltInit(&fuse_save_ctx_p->link);
   
   return buffer_p;
@@ -142,6 +157,23 @@ static inline void _rozofs_fuse_release_saved_context(void *buffer_p,int line)
   if (fuse_save_ctx_p->newname != NULL) free(fuse_save_ctx_p->newname);
   if (fuse_save_ctx_p->name != NULL) free((void*)fuse_save_ctx_p->name);
   if (fuse_save_ctx_p->fi!= NULL) free(fuse_save_ctx_p->fi);
+  if (fuse_save_ctx_p->flock!= NULL) free(fuse_save_ctx_p->flock);
+  if (fuse_save_ctx_p->stbuf!= NULL) free(fuse_save_ctx_p->stbuf);
+  if (fuse_save_ctx_p->shared_buf_ref!= NULL) 
+  {
+    uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(fuse_save_ctx_p->shared_buf_ref);    
+    /*
+    ** clear the timestamp
+    */
+    *p32 = 0;
+    ruc_buf_freeBuffer(fuse_save_ctx_p->shared_buf_ref);
+  }
+
+  /*
+  ** check if there is an xmit buffer to release since it might be the case
+  ** when there were 2 available load balancing groups
+  */
+  expgw_routing_release_buffer(&fuse_save_ctx_p->expgw_routing_ctx);
   
   /*
   ** now release the buffer
@@ -326,6 +358,13 @@ static inline void  *fuse_ctx_write_pending_queue_get(file_t *f)
 }
 
 
+#define RESTORE_FUSE_STRUCT_PTR(buffer,str_ptr) \
+{ \
+  rozofs_fuse_save_ctx_t *fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer); \
+  str_ptr = fuse_save_ctx_p->str_ptr;\
+}
+
+
 /*
 **__________________________________________________________________________
 */
@@ -460,7 +499,8 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t pr
  @msg2encode_p     : pointer to the message to encode
  @param recv_cbk   : receive callback function
  @param fuse_ctx_p : pointer to the fuse context
- @param lbg_id      : identifier of the lbg to sent on
+  @param storcli_idx      : identifier of the storcli
+ @param fid: file identifier: needed for the storcli load balancing context
  
  @retval 0 on success;
  @retval -1 on error,, errno contains the cause
@@ -469,24 +509,78 @@ int rozofs_export_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t pr
 int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t prog,uint32_t vers,
                               int opcode,xdrproc_t encode_fct,void *msg2encode_p,
                               sys_recv_pf_t recv_cbk,void *fuse_ctx_p,
-			      int lbg_id) 	;
+			                  int storcli_idx,fid_t fid);
+
+
+/**
+* API for creation a transaction towards an exportd
+
+ The reference of the north load balancing is extracted for the client structure
+ fuse_ctx_p:
+ That API needs the pointer to the current fuse context. That nformation will be
+ saved in the transaction context as userParam. It is intended to be used later when
+ the client gets the response from the server
+ encoding function;
+ For making that API generic, the caller is intended to provide the function that
+ will encode the message in XDR format. The source message that is encoded is 
+ supposed to be pointed by msg2encode_p.
+ Since the service is non-blocking, the caller MUST provide the callback function 
+ that will be used for decoding the message
+ 
+
+ @param eid        : export id
+ @param fid        : unique file id (directory, regular file, etc...)
+ @param prog       : program
+ @param vers       : program version
+ @param opcode     : metadata opcode
+ @param encode_fct : encoding function
+ @msg2encode_p     : pointer to the message to encode
+ @param recv_cbk   : receive callback function
+ @param fuse_buffer_ctx_p : pointer to the fuse context
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+int rozofs_expgateway_send_routing_common(uint32_t eid,fid_t fid,uint32_t prog,uint32_t vers,
+                              int opcode,xdrproc_t encode_fct,void *msg2encode_p,
+                              sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) ;
+
+
+
+
+/**
+* API for creation a transaction towards an exportd
+
+ The reference of the north load balancing is extracted for the client structure
+ fuse_ctx_p:
+ That API needs the pointer to the current fuse context. That nformation will be
+ saved in the transaction context as userParam. It is intended to be used later when
+ the client gets the response from the server
+ encoding function;
+ For making that API generic, the caller is intended to provide the function that
+ will encode the message in XDR format. The source message that is encoded is 
+ supposed to be pointed by msg2encode_p.
+ Since the service is non-blocking, the caller MUST provide the callback function 
+ that will be used for decoding the message
+ 
+
+ @param rozofs_tx_ctx_p        : transaction context
+ @param recv_cbk        : callback function (may be NULL)
+ @param fuse_buffer_ctx_p       : buffer containing the fuse context
+ @param vers       : program version
+ 
+ @retval 0 on success;
+ @retval -1 on error,, errno contains the cause
+ */
+int rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_t *rozofs_tx_ctx_p, sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) ;
 
 /*
-**__________________________________________________________________
+**__________________________________________________________________________
 */
 /**
-*  Some request may trigger an internal flush before beeing executed.
-
-   That's the case of a read request while the file buffer contains
-   some data that have not yet been saved on disk, but do not contain 
-   the data that the read wants. 
-
-   No fuse reply is expected
-
- @param fi   file info structure where information related to the file can be found (file_t structure)
+  Invalidate the linux cache of a given inode
  
- @retval 0 in case of failure 1 on success
 */
 
-int rozofs_asynchronous_flush(struct fuse_file_info *fi) ;
+void rozofs_fuse_invalidate_inode_cache(fuse_ino_t ino, uint64_t offset, uint64_t len);
 #endif

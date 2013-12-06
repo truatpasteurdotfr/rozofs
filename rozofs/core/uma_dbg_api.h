@@ -24,10 +24,35 @@
 
 
 /*
-** Max length of the USer ayload when answering to a debug command
+** Max length of the user payload when answering to a debug command
 */
-#define UMA_DBG_MAX_SEND_SIZE (8192*2)
+#define UMA_DBG_MAX_SEND_SIZE (1024*32)
+extern char uma_dbg_temporary_buffer[];
 
+/*__________________________________________________________________________
+ */
+/**
+*  Format an ASCII dump
+* @param mem   memory area to dump
+* @param len   size to dump mem on
+* @param p     where to output the dump
+*
+*  return the address of the end of the dump 
+*/
+char * uma_dbg_hexdump(void *mem, unsigned int len, char * p);
+
+/*__________________________________________________________________________
+ */
+/**
+*  Return a temporary buffer where one can format a response
+*/
+static inline char * uma_dbg_get_buffer() {return uma_dbg_temporary_buffer;}
+/*__________________________________________________________________________
+ */
+/**
+*  Return the size of the temporary buffer where one can format a response
+*/
+static inline int uma_dbg_get_buffer_len() {return UMA_DBG_MAX_SEND_SIZE;}
 
 /*
    The function uma_dbg_addTopic enables to declare a new topic to

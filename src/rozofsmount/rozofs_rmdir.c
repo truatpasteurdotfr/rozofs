@@ -16,44 +16,9 @@
   <http://www.gnu.org/licenses/>.
  */
 
-/* need for crypt */
-
-#define _XOPEN_SOURCE 500
-#define FUSE_USE_VERSION 26
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <stddef.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <pthread.h>
-#include <assert.h>
-#include <netinet/tcp.h>
-
-#include <fuse/fuse_lowlevel.h>
-#include <fuse/fuse_opt.h>
-
-#include <rozofs/rozofs.h>
-#include <rozofs/common/list.h>
-#include <rozofs/common/log.h>
-#include <rozofs/common/htable.h>
-#include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
-#include <rozofs/rpc/sclient.h>
-#include <rozofs/rpc/mclient.h>
-#include <rozofs/rpc/mpproto.h>
 #include <rozofs/rpc/eproto.h>
-#include "config.h"
-#include "file.h"
-#include "rozofs_fuse.h"
+
 #include "rozofs_fuse_api.h"
-#include "rozofsmount.h"
-#include <rozofs/core/rozofs_tx_common.h>
-#include <rozofs/core/rozofs_tx_api.h>
-#include <rozofs/rozofs_timer_conf.h>
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -76,7 +41,7 @@ void rozofs_ll_rmdir_cbk(void *this,void *param);
 
 void rozofs_ll_rmdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     ientry_t *ie = 0;
-    ep_rmdir_arg_t arg;
+    epgw_rmdir_arg_t arg;
     int    ret;        
     void *buffer_p = NULL;
     
@@ -109,15 +74,21 @@ void rozofs_ll_rmdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
-    arg.eid = exportclt.eid;
-    memcpy(arg.pfid,ie->fid, sizeof (uuid_t));
-    arg.name = (char*)name;    
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(arg.arg_gw.pfid,ie->fid, sizeof (uuid_t));
+    arg.arg_gw.name = (char*)name;    
     /*
     ** now initiates the transaction towards the remote end
     */
-    ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
-                              EP_RMDIR,(xdrproc_t) xdr_ep_rmdir_arg_t,(void *)&arg,
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_RMDIR,(xdrproc_t) xdr_epgw_rmdir_arg_t,(void *)&arg,
                               rozofs_ll_rmdir_cbk,buffer_p); 
+#else
+    ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_RMDIR,(xdrproc_t) xdr_epgw_rmdir_arg_t,(void *)&arg,
+                              rozofs_ll_rmdir_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*
@@ -147,12 +118,15 @@ error:
 void rozofs_ll_rmdir_cbk(void *this,void *param) 
 {
    fuse_req_t req; 
-   ep_fid_ret_t ret ;
+   epgw_fid_ret_t ret ;
    fid_t fid;
    ientry_t *ie2 = 0;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_ep_fid_ret_t;
-
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
+   rozofs_fuse_save_ctx_t *fuse_ctx_p;
+    
+   GET_FUSE_CTX_P(fuse_ctx_p,param);    
+   
    
    int status;
    uint8_t  *payload;
@@ -218,12 +192,49 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    if (ret.status == EP_FAILURE) {
-        errno = ret.ep_fid_ret_t_u.error;
+    /*
+    **  This gateway do not support the required eid 
+    */    
+    if (ret.status_gw.status == EP_FAILURE_EID_NOT_SUPPORTED) {    
+
+        /*
+        ** Do not try to select this server again for the eid
+        ** but directly send to the exportd
+        */
+        expgw_routing_expgw_for_eid(&fuse_ctx_p->expgw_routing_ctx, ret.hdr.eid, EXPGW_DOES_NOT_SUPPORT_EID);       
+
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+
+        /* 
+        ** Attempt to re-send the request to the exportd and wait being
+        ** called back again. One will use the same buffer, just changing
+        ** the xid.
+        */
+        status = rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_p, NULL,param); 
+        if (status == 0)
+        {
+          /*
+          ** do not forget to release the received buffer
+          */
+          ruc_buf_freeBuffer(recv_buf);
+          recv_buf = NULL;
+          return;
+        }           
+        /*
+        ** Not able to resend the request
+        */
+        errno = EPROTO; /* What else ? */
+        goto error;
+         
+    }
+
+
+    if (ret.status_gw.status == EP_FAILURE) {
+        errno = ret.status_gw.ep_fid_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(fid, &ret.ep_fid_ret_t_u.fid, sizeof (ep_uuid_t));
+    memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (ep_uuid_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding section

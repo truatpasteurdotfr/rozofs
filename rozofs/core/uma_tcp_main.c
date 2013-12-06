@@ -35,6 +35,7 @@
 #include <unistd.h>
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -45,7 +46,6 @@
 #include "uma_tcp.h"
 #include "uma_tcp_main_api.h"
 #include "ruc_trace_api.h"
-#include "ppu_trace.h"
 //#include "uma_unc_config_parameters.h"
 
 /*
@@ -529,12 +529,15 @@ void uma_tcp_disconnect( uma_tcp_t *p)
   {
     ruc_sockctl_disconnect(p->connectionId);
     p->connectionId =  NULL;
+
   }
   /*
   ** call the user that has a callback on disconnectioon
   */
 //64BITS  (p->userDiscCallBack)(p->userRef,p->relcRef);
  (p->userDiscCallBack)(p->userRef,p->relcRef);
+
+
 
   return;
 }
@@ -854,7 +857,7 @@ uint32_t uma_tcp_init(uint32_t nbElements)
       /*
       ** error on distributor creation
       */
-      ERRLOG "ruc_listCreate(%d,%d)", (int)nbElements,(int)sizeof(uma_tcp_t) ENDERRLOG
+      severe( "ruc_listCreate(%d,%d)", (int)nbElements,(int)sizeof(uma_tcp_t) );
       ret = RUC_NOK;
       break;
     }
@@ -867,7 +870,7 @@ uint32_t uma_tcp_init(uint32_t nbElements)
       /*
       ** out of memory
       */
-      ERRLOG "uma_tcp_activeList = malloc(%d)",(int) sizeof(uma_tcp_t) ENDERRLOG
+      severe( "uma_tcp_activeList = malloc(%d)",(int) sizeof(uma_tcp_t) );
       ret = RUC_NOK;
       break;
     }
@@ -905,14 +908,14 @@ uint32_t uma_tcp_init(uint32_t nbElements)
       if (p->xmitPoolOrigin == NULL)
       {
          ret = RUC_NOK;
-         ERRLOG "xmit ruc_buf_poolCreate(%d,%d)", UMA_TCP_XMIT_BUFCOUNT, UMA_TCP_BUFSIZE ENDERRLOG
+         severe( "xmit ruc_buf_poolCreate(%d,%d)", UMA_TCP_XMIT_BUFCOUNT, UMA_TCP_BUFSIZE );
          break;
       }
       p->rcvPoolOrigin = ruc_buf_poolCreate(UMA_TCP_RCV_BUFCOUNT,UMA_TCP_BUFSIZE);
       if (p->rcvPoolOrigin == NULL)
       {
          ret = RUC_NOK;
-         ERRLOG "rcv ruc_buf_poolCreate(%d,%d)", UMA_TCP_RCV_BUFCOUNT, UMA_TCP_BUFSIZE ENDERRLOG
+         severe( "rcv ruc_buf_poolCreate(%d,%d)", UMA_TCP_RCV_BUFCOUNT, UMA_TCP_BUFSIZE );
 	 break;
       }
       uma_tcp_contextInit(p);

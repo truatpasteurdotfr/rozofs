@@ -67,11 +67,12 @@ typedef struct rb_cluster {
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
  * @param root: the absolute path where rebuild bins file(s) will be store.
+ * @param stor_idx: storage index used for display statistics.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
-        const char *root);
+        const char *root, uint8_t stor_idx);
 
 /** Check if possible to rebuild the storage with CID=cid, SID=sid,
  *  root_path=root and managed by the export server with hostname=export_host.

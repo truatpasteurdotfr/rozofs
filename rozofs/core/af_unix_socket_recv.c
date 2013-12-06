@@ -29,7 +29,6 @@
 #include <rozofs/common/types.h>
 
 #include "ruc_common.h"
-#include "ppu_trace.h"
 #include "af_unix_socket_generic_api.h"
 
 

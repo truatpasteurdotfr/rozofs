@@ -85,6 +85,8 @@ set (librozofs_sources
     core/af_unix_socket_stream_send.c
     core/af_unix_test.h
     core/dbgScript_api.h
+    core/monitoring.h
+    core/monitoring.c
     core/norh_lbg_timer.c
     core/north_lbg_api.h
     core/north_lbg.h
@@ -92,7 +94,6 @@ set (librozofs_sources
     core/north_lbg_timer.h
     core/north_load_balancer_api.c
     core/north_load_balancer.c
-    core/ppu_trace.h
     core/rozofs_north_sock.h
     core/rozofs_socket_family.h
     core/ruc_buffer_api.h
@@ -138,12 +139,35 @@ set (librozofs_sources
     core/rozofs_tx_common.h
     core/rozofs_tx_engine.c
     core/com_tx_timer.c
+    core/rozofs_ip_utilities.c
+    core/rozofs_ip_utilities.h
     rozofs_timer_conf.h
     rozofs_timer_conf.c    
     core/rozofs_timer_conf_dbg.c
     core/rozofs_timer_conf_dbg.h
-    rozofs_debug_ports.h
+    rozofs_debug_ports.h  
     rozofs_debug_ports.c
+    core/com_cache.c
+    core/com_cache.h
+    core/ruc_buffer_debug.c
+    core/ruc_buffer_debug.h    
+    rpc/gwprotoclt.c
+    rpc/gwproto.h
+    rpc/gwprotosvc.c
+    rpc/gwprotoxdr.c
+    core/expgw_common.h
+    core/expgw_common.c
+    core/rozofs_rpc_non_blocking_generic.c
+    core/rozofs_rpc_non_blocking_generic.h
+    core/rozofs_rpc_non_blocking_generic_srv.c
+    core/rozofs_rpc_non_blocking_generic_srv.h
+    #core/rozofs_optim.h
+    #core/rozofs_optim.c
+    core/ruc_traffic_shaping.h
+    core/ruc_traffic_shaping.c
+    core/rozofs_core_files.c
+    core/rozofs_core_files.h    
+    core/rozofs_host2ip.h    
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

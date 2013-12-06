@@ -121,6 +121,9 @@ int do_offset(char * filename, int offset, int blockSize) {
     if (size != (offset + blockSize)) {
         printf("proc %d - pread %d\n",myProcId,errno);    
         printf("proc %d - pread only %u while expecting %d\n", myProcId, size, (offset + blockSize));
+        struct stat stbuf;
+        fstat(f,&stbuf);
+        printf("proc %d - stat file size  %llu \n", myProcId, stbuf.st_size);        
         close(f);
         return 0;
     }

@@ -79,7 +79,7 @@ void usage() {
 /*
  * storaged profiling
  */
-static void connect_to_storaged_profil() {
+/*static void connect_to_storaged_profil() {
     int i, j;
     spp_profiler_t profiler;
     strncpy(profiler_client.sp[0].host, profiled_host, ROZOFS_HOSTNAME_MAX);
@@ -128,8 +128,9 @@ static void connect_to_storaged_profil() {
             profiler_client.sp[j].port = 0;
         }
     }
-}
+}*/
 
+/*
 #define sp_display_rbs_finish_probe(the_port, the_cid, the_sid)\
     {\
         fprintf(stdout,\
@@ -146,6 +147,7 @@ static void connect_to_storaged_profil() {
                 the_port, the_cid, the_sid, "in progress",\
                 the_profiler.the_probe_2, the_profiler.the_probe_1);\
     }
+*/
 
 #define sp_display_probe(the_profiler, the_probe)\
     {\
@@ -179,7 +181,7 @@ static void connect_to_storaged_profil() {
                 rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
     }
 
-static void profile_storaged_display() {
+/*static void profile_storaged_display() {
     time_t elapse;
     int i, j, days, hours, mins, secs;
     spp_profiler_t profiler;
@@ -266,9 +268,9 @@ static void profile_storaged_display() {
                     rb_files_total, rb_files_current);
         }
     }
-}
+}*/
 
-static void profile_storaged_clear() {
+/*static void profile_storaged_clear() {
     int i;
     spp_profiler_t sp;
 
@@ -291,10 +293,10 @@ static void profile_storaged_clear() {
         }
     }
     // Here no sense to clear rbs process profiling values
-}
+}*/
 
-static void profile_storaged() {
-    /* check valid cmdes for storaged */
+/*static void profile_storaged() {
+     check valid cmdes for storaged
     if (strcmp(profiling_cmde, "display") != 0 && strcmp(profiling_cmde, "clear") != 0) {
         usage();
         exit(EXIT_FAILURE);
@@ -312,7 +314,7 @@ static void profile_storaged() {
         profile_storaged_clear();
         profile_storaged_display();
     }
-}
+}*/
 
 /*
  * rozofsmount profiling
@@ -704,9 +706,10 @@ int main(int argc, char **argv) {
     }
     profiling_cmde = argv[optind + 1];
 
-    if (strcmp(profiled_service, "storaged") == 0) {
-        profile_storaged(profiled_host, profiling_cmde);
-    } else if (strcmp(profiled_service, "rozofsmount") == 0) {
+    //if (strcmp(profiled_service, "storaged") == 0) {
+    //    profile_storaged(profiled_host, profiling_cmde);
+    //} else if (strcmp(profiled_service, "rozofsmount") == 0) {
+    if (strcmp(profiled_service, "rozofsmount") == 0) {
         profile_rozofsmount(profiled_host, profiling_cmde);
     } else if (strcmp(profiled_service, "exportd") == 0) {
         profile_exportd(profiled_host, profiling_cmde);

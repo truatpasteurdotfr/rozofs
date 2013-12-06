@@ -811,7 +811,7 @@ int af_unix_sock_listening_create(char *nickname,char *remote_sun_path,af_unix_s
    */
    if((listen(sock_p->socketRef,5))==-1)
    {
-     ERRLOG " ruc_tcp_server_connect: listen fails for %s ,",sock_p->nickname ENDERRLOG
+     severe( " ruc_tcp_server_connect: listen fails for %s ,",sock_p->nickname );
      break;
    }
 

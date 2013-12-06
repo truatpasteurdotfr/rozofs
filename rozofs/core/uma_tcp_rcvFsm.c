@@ -32,6 +32,7 @@
 #include <unistd.h>
 
 #include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -40,7 +41,6 @@
 
 #include "uma_fsm_framework.h"
 #include "uma_tcp.h"
-#include "ppu_trace.h"
 //#include "uma_mon_api.h"
 
 
@@ -180,7 +180,7 @@ uint32_t uma_tcp_extract_rcvMsgLen(char *pbuf,uint32_t offset,uint32_t fieldLen)
 
 	 return (uint32_t)word32; /*(uint32)(ntohl(word32));*/
      default:
-	ERRLOG "Bad size of header field length %d\n", fieldLen ENDERRLOG
+	severe( "Bad size of header field length %d\n", fieldLen );
 	return 0;
    }
 }
@@ -252,9 +252,11 @@ uint32_t uma_tcp_readSocket  (uma_tcp_t *pObj,
     }
     else
     {
-      INFO_PRINT "REMOTE DISCONNECTION %s - errno %u : %s",
+#if 0    
+      info( "REMOTE DISCONNECTION %s - errno %u : %s",
 	pObj->cnxName, errno, strerror(errno)
-	RUC_EINFO;
+	);
+#endif	
       uma_tcp_monTxtCbk("TCP","REMOTE DISCONNECTION %s - errno %u : %s",
 			pObj->cnxName, errno, strerror(errno));
       uma_tcp_sockDiscAssert(pObj);
@@ -267,9 +269,9 @@ uint32_t uma_tcp_readSocket  (uma_tcp_t *pObj,
   */
   if (ret == 0)
   {
-     INFO_PRINT "REMOTE DISCONNECTION %s",
-       pObj->cnxName
-       RUC_EINFO;
+#if 0  
+     info( "REMOTE DISCONNECTION %s",pObj->cnxName);
+#endif     
      uma_tcp_monTxtCbk("TCP","REMOTE DISCONNECTION %s",
 		       pObj->cnxName);
      uma_tcp_sockDiscAssert(pObj);
@@ -481,11 +483,11 @@ void uma_tcp_rcvFsm_execute(uma_tcp_t *pObj,
 	  if (pObj->nbToRead > (uint16_t)(pObj->bufSize - pObj->headerSize))
 	  {
 	    /* LOG and disconnect the RELCi */
-	    ERRLOG "%s Receive a  body of %d greater than %d\n",
+	    severe( "%s Receive a  body of %d greater than %d\n",
 	           pObj->cnxName,
 	    	   pObj->nbToRead ,
 	          (pObj->bufSize - pObj->headerSize)
-	    ENDERRLOG
+	    );
 //	    DUMPX "header", prcvMsg ,pObj->headerSize  EDUMPX
 	    uma_tcp_sockDiscAssert(pObj);
 	    FSM_SET(pfsm,STATE_DISCONNECTING);
@@ -746,7 +748,7 @@ void uma_tcp_rcvFsm_execute(uma_tcp_t *pObj,
      FSM_STATE_END
 
      default:
-       ERRLOG "%s bad state %d\n", pObj->cnxName, pfsm->fsm_state ENDERRLOG
+       severe( "%s bad state %d\n", pObj->cnxName, pfsm->fsm_state );
        uma_tcp_sockDiscAssert(pObj);
        FSM_SET(pfsm,STATE_DISCONNECTING);
 
