@@ -71,12 +71,12 @@ do_start()
     if [ "$PACEMAKER" = 'true' ] ; then
     
         if [ "$EXPORTD_RESOURCE_NAME" = 'auto' ] ; then
-           $DAEMON agent start -p $AGENTS
+           $DAEMON agent start -p -l $AGENTS
         else
-           $DAEMON agent start -p ${EXPORTD_RESOURCE_NAME} $AGENTS
+           $DAEMON agent start -p ${EXPORTD_RESOURCE_NAME} -l $AGENTS
         fi
     else
-      $DAEMON agent start $AGENTS
+      $DAEMON agent start -l $AGENTS
     fi
     return $?
 }
