@@ -66,7 +66,10 @@ def stat(platform, args):
 
     # configuration of exportd node
     configuration = configurations[args.exportd][Role.EXPORTD]
-    
+    if configuration.stats is None:
+        ordered_puts({'EXPORTD on ' + str(args.exportd): "not running"})
+        return
+        
     export_l = {}
     stat_l = []
     for vid, vstat in configuration.stats.vstats.items():
