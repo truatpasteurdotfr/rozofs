@@ -297,12 +297,15 @@ class ExportdAgent(Agent):
     def get_service_config(self):
         configuration = ExportdConfig()
         self._reader.read(configuration)
-        for vid in configuration.volumes.keys():
-            configuration.stats.vstats[vid] = VolumeStat()
-            self._get_volume_stat(vid, configuration.stats.vstats[vid])
-        for eid in configuration.exports.keys():
-            configuration.stats.estats[eid] = ExportStat()
-            self._get_export_stat(eid, configuration.stats.estats[eid])
+        if not self.get_service_status():
+            configuration.stats = None
+        else:
+            for vid in configuration.volumes.keys():
+                configuration.stats.vstats[vid] = VolumeStat()
+                self._get_volume_stat(vid, configuration.stats.vstats[vid])
+            for eid in configuration.exports.keys():
+                configuration.stats.estats[eid] = ExportStat()
+                self._get_export_stat(eid, configuration.stats.estats[eid])
         return configuration
 
     def set_service_config(self, configuration):

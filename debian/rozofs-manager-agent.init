@@ -28,6 +28,7 @@ SCRIPTNAME=/etc/init.d/$NAME
 # Default values
 AGENTS=auto
 PACEMAKER=auto
+EXPORTD_RESOURCE_NAME=auto
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
@@ -67,10 +68,15 @@ do_start()
     #   0 if daemon has been started or was already running
     #   1 if daemon could not be started
     #start-stop-daemon -S -q -o -p $PIDFILE -n $NAME -a $DAEMON -- $DAEMON_ARGS
-    if [ "$PACEMAKER" = 'yes' ] ; then
-      $DAEMON agent start -p $AGENTS
+    if [ "$PACEMAKER" = 'true' ] ; then
+    
+        if [ "$EXPORTD_RESOURCE_NAME" = 'auto' ] ; then
+           $DAEMON agent start -p -l $AGENTS
+        else
+           $DAEMON agent start -p ${EXPORTD_RESOURCE_NAME} -l $AGENTS
+        fi
     else
-      $DAEMON agent start $AGENTS
+      $DAEMON agent start -l $AGENTS
     fi
     return $?
 }

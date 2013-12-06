@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozo.1
 .\"
-.TH ROZO 1 "JULY 2013" Rozofs "User Manuals"
+.TH ROZO 1 "DECEMBER 2013" Rozofs "User Manuals"
 .SH NAME
 rozo \- rozofs management tool
 .SH SYNOPSIS
@@ -43,14 +43,17 @@ display version information and exit.
 .TP
 Get rozo agent status for this node.
 .SS start
-.B rozo agent start \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener\fP...]
+.B rozo agent start \fP[\fB\-p\fP | \fB\-\-pacemaker\fP [\fIresource\fP] ] [\fB\-l\fP | \fB\-\-listener\fP [\fIlistener\fP...] ]
 .TP
-\fPStart a rozo agent with the given \fIlistener\fP list. \fIlisterner\fP must be a subset of {exportd, storaged, rozofsmount}
+\fPStart a rozo agent with the given \fIlistener\fP list.
 .TP
-\fB\-p\fP, \fB--pacemaker\fP
-whenever
-.BR exportd (8)
-is managed by pacemaker.
+\fB\-p\fP, \fB--pacemaker\fP [\fIresource]
+Use this cluster resource name when 
+.BR exportd (8) 
+is managed thru pacemaker (default: exportd_rozofs).
+.TP 
+\fB\-l\fP, \fB--listener\fP [\fIlistener\fP...]
+List of listener. Must be a subset of {exportd,storaged,rozofsmount}.
 
 .SS stop
 .B rozo agent stop
@@ -58,15 +61,17 @@ is managed by pacemaker.
 Stop rozo agent for this node.
 
 .SS restart
-.B rozo agent restart \fP[\fB\-p | \-\-pacemaker\fP] [\fIlistener\fP...]
+.B rozo agent restart \fP[\fB\-p\fP | \fB\-\-pacemaker\fP [\fIresource\fP] ] [\fB\-l\fP | \fB\-\-listener\fP [\fIlistener\fP...] ]
 .TP
-\fPStop any running rozo agent then start it with the given \fIlistener\fP
-list. \fIlisterner\fP must be a subset of {exportd, storaged, rozofsmount}
+\fPStop any running rozo agent then start it with the given \fIlistener\fP list.
 .TP
-\fB\-p\fP, \fB--pacemaker\fP
-whenever
-.BR exportd (8)
-is managed by pacemaker.
+\fB\-p\fP, \fB--pacemaker\fP [\fIresource]
+Use this cluster resource name when 
+.BR exportd (8) 
+is managed thru pacemaker (default: exportd_rozofs).
+.TP 
+\fB\-l\fP, \fB--listener\fP [\fIlistener\fP...]
+List of listener. Must be a subset of {exportd,storaged,rozofsmount}.
 
 .\""" rozo layout
 .SH LAYOUT TOPIC
@@ -77,8 +82,7 @@ is managed by pacemaker.
 .SS get
 .B rozo layout get \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
-Get the storage \fIlayout\fP for this platform, see \fBexportd(8)\fP,
-\fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
+Get the storage \fIlayout\fP for this platform, see \fBexportd(8)\fP,\fBrozofs(7)\fP. The \fIlayout\fP value should be 0, 1 or 2.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost
 A running exportd hostname.
@@ -157,7 +161,7 @@ List of node hostnames to be started. If not set all nodes of the platform will 
 .\" rozo node stop
 .SS stop
 .B rozo node stop [\fB\-r |\-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
-.TP 
+.TP F
 Stop node services.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
@@ -289,7 +293,7 @@ A running exportd hostname.
 Force removing non empty exports.
 
 .SS mount
-.B rozo export mount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fInode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...]
+.B rozo export mount \fB\-E\fP | \fB--exportd\fP\fI host\fP [\fB\-n\fP | \fB--node\fP \fInode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...] [\fB\-o\fP | \fB--options\fP \fIoptions\fP...]
 .TP
 Mount export(s) identified by \fIeid\fP... on nodes.
 .TP
@@ -301,6 +305,9 @@ List of \fInode\fP hostnames to mount on. If not set exports will be mount on ea
 .TP
 \fB\-e\fP, \fB\-\-eids \fP\fIeid\fP...
 List of export(s) identified by \fIeid\fP... to mount.
+.TP
+\fB\-o\fP, \fB\-\-options \fP\fIoptions\fP...
+List of mount option(s) to use.
 
 .SS umount
 .B rozo export umount \fB\-E\fP | \fB--exportd\fP \fIhost\fP [\fB\-n\fP | \fB--node\fP \fBnode\fP...] [\fB\-e\fP | \fB--eids\fP \fIeid\fP...]

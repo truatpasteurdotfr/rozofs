@@ -575,24 +575,6 @@ int rozofs_expgateway_send_routing_common(uint32_t eid,fid_t fid,uint32_t prog,u
 int rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_t *rozofs_tx_ctx_p, sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) ;
 
 /*
-**__________________________________________________________________
-*/
-/**
-*  Some request may trigger an internal flush before beeing executed.
-
-   That's the case of a read request while the file buffer contains
-   some data that have not yet been saved on disk, but do not contain 
-   the data that the read wants. 
-
-   No fuse reply is expected
-
- @param fi   file info structure where information related to the file can be found (file_t structure)
- 
- @retval 0 in case of failure 1 on success
-*/
-
-int rozofs_asynchronous_flush(struct fuse_file_info *fi) ;
-/*
 **__________________________________________________________________________
 */
 /**

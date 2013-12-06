@@ -272,16 +272,18 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         goto error;
     }
     /*
-    ** copy the attributes in the ientry for the case of the block mode
-    */
-    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
     if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
     stbuf.st_size = ie->size;
-    
+    /*
+    ** copy the attributes in the ientry for the case of the block mode
+    */
+    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
+    ie->size = stbuf.st_size;
+    ie->attrs.size = stbuf.st_size;    
+        
     fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
     goto out;
 error:

@@ -85,7 +85,7 @@ def mount(platform, args):
     if not args.eids:
         args.eids = None
 
-    platform.mount_export(args.eids, args.nodes)
+    platform.mount_export(args.eids, args.nodes, args.options)
 
 
 def umount(platform, args):

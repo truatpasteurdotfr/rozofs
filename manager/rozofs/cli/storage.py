@@ -25,7 +25,11 @@ from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
 
 def list(platform, args):
-    configurations = platform.get_configurations([args.exportd], Role.STORAGED)
+    
+    configurations = {}
+    
+    for h, n in platform._nodes.items():
+        configurations[h] = n.get_configurations(Role.STORAGED)
 
     sid_l={}
     for stor in configurations:
@@ -65,7 +69,7 @@ def add(platform, args):
         if not host in platform.get_configurations([args.exportd],Role.STORAGED):
                 raise Exception('%s: invalid storaged server.' % host)
         
-        configurations = platform._get_nodes(host)[host].get_configurations()
+        configurations = platform._get_nodes(host)[host].get_configurations(Role.STORAGED)
         configuration = configurations[Role.STORAGED]
         for listener in configuration.listens:
             # if given interface is '*', remove existing interfaces
@@ -101,7 +105,7 @@ def remove(platform, args):
         if not host in platform.get_configurations([args.exportd],Role.STORAGED):
                 raise Exception('%s: invalid storaged server.' % host)
         
-        configurations = platform._get_nodes(host)[host].get_configurations()
+        configurations = platform._get_nodes(host)[host].get_configurations(Role.STORAGED)
         configuration = configurations[Role.STORAGED]
         check = True
         for listener in configuration.listens:

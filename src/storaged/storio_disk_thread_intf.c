@@ -126,6 +126,7 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   display_line_topic("Read Requests");  
   display_line_val_and_sum("   number", diskRead_count);
+  display_line_val_and_sum("   No such file",diskRead_nosuchfile);
   display_line_val_and_sum("   Unknown cid/sid",diskRead_badCidSid);  
   display_line_val_and_sum("   error spare",diskRead_error_spare);  
   display_line_val_and_sum("   error",diskRead_error);  

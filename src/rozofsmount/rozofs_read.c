@@ -18,6 +18,7 @@
 
 //#define TRACE_FS_READ_WRITE 1
 //#warning TRACE_FS_READ_WRITE active
+#include <inttypes.h>
 
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/storcli_proto.h>
@@ -182,9 +183,28 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
 {
     int64_t length = -1;
     DEBUG_FUNCTION;
-    
+    ientry_t * ie=NULL;    
     *length_p = -1;
     int ret;
+
+    /*
+    ** Flush on disk any pending data in any buffer open on this file 
+    ** before reading.
+    */
+    ie = (ientry_t*)f->ie;
+    flush_write_ientry(ie);    
+    
+    /*
+    ** Check whether the buffer content is valid or if it must be forgotten
+    */
+    if (f->read_consistency != ie->read_consistency) {
+      /* The file has been modified since this buffer has been read. The data
+      ** it contains are questionable. Better forget them.
+      */
+      f->read_from = f->read_pos = 0;
+      f->read_consistency = ie->read_consistency;
+
+    }
 
     if ((off < f->read_from) || (off > f->read_pos) ||((off+len) >  f->read_pos ))
     {
@@ -193,31 +213,9 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        **  1- check if there is some pending data to write
        **  2- trigger a read
        */
-       if (f->buf_write_wait)
-       {
-          /*
-          ** Each time there is a write wait we must flush it. Otherwise
-          ** we can face the situation where during read, a new write that
-          ** takes place that triggers the write of the part that was in write wait
-          **  implies the loss of the write pending in memory (not on disk) and
-          ** leads in returning inconsistent data to the caller
-          ** -> note : that might happen for application during read/write in async mode.
-          ** on the same file
-          */
-          {            	    
-	        struct fuse_file_info * fi;
-            
-	        fi = (struct fuse_file_info*) ((char *) f - ((char *)&fi->fh - (char*)fi));
-            ret = rozofs_asynchronous_flush(fi);
-	        if (ret == 0) {
-                 *length_p = -1;
-                 return 0;	 
-	        }	
-            f->buf_write_wait = 0;
-            f->write_from = 0; 
-            f->write_pos  = 0;
-	     }           
-       }       
+        if (f->buf_write_wait) {
+          warning("buf_write_wait is set after flush_write_ientry");
+        }
        /*
        ** The file has just been created and is empty so far
        ** Don't request the read to the storio, this would trigger an io error
@@ -531,6 +529,13 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     }
     file_t *file = (file_t *) (unsigned long) fi->fh;
     /*
+    ** update the size of the file thanks the content of the ientry. That content
+    ** might change over the time since it is posssible to have some pending writes
+    ** for which the attribute size has to be updated. However this takes place
+    ** on the ientry only
+    */
+    file->attrs.size = ie->size;
+    /*
     ** check if the application is attempting to read atfer a close (_ll_release)
     */
     if (rozofs_is_file_closing(file))
@@ -777,15 +782,45 @@ void rozofs_ll_read_cbk(void *this,void *param)
        received_len = file->attrs.size - next_read_from;    
     }
     /*
-    ** re-evalute the EOF case
+    ** re-evaluate the EOF case
     */
-    if (received_len == 0)
+    if (received_len <= 0)
     {
+        int recv_len_ok = 0;
+
+        if (received_len < 0) {
+            ientry_t *ie2 = 0;
+            uint64_t file_size;
+            uint32_t *p32 = (uint32_t*) ruc_buf_getPayload(shared_buf_ref);
+            int received_len_orig = p32[1];
+            ie2 = get_ientry_by_fid(file->attrs.fid);
+            if ((ie2 == NULL)) {
+                file_size = 0;
+            } else {
+                file_size = ie2->size;
+            }
+            severe("BUGROZOFSWATCH(%p) , received_len=%d,"
+                    " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
+                    " received_len_orig=%d,readahead=%d," " ie->size=%"PRIu64"",
+                    file, received_len, next_read_from, file->attrs.size,
+                    received_len_orig, readahead, file_size);
+
+            received_len = received_len_orig;
+            if ((next_read_from + received_len) > file_size) {
+                received_len = file_size - next_read_from;
+            }
+            if (received_len > 0)
+                recv_len_ok = 1;
+        }
+
       /*
       ** end of filenext_read_pos
       */
-      errno = 0;
-      goto error;   
+      if (recv_len_ok == 0)
+      {
+	errno = 0;
+	goto error; 
+      }  
     }    
     
     next_read_pos  = next_read_from+(uint64_t)received_len; 
@@ -1306,3 +1341,4 @@ out:
     }
     return;
 }
+

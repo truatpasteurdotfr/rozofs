@@ -214,65 +214,71 @@ prepare_file_to_read() {
   fi
   dd if=/dev/zero of=$1 bs=1M count=$fileSize    
 }
+rw2 () {
+  count=$((loop*16))
+  printf "loop=%d\n" $count
+  ./rw2 -loop $count -file mnt1_1/ze_rw2_test_file 
+  return $?    
+}
 read_parallel () {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
-  prepare_file_to_read mnt1/myfile 
-  ./read_parallel -process $process -loop $loop -file mnt1/myfile 
+  prepare_file_to_read mnt1_1/myfile 
+  ./read_parallel -process $process -loop $loop -file mnt1_1/myfile 
   return $?
 }
 xattr () {
   printf "process=%d loop=%d \n" $process $loop 
-  ./test_xattr -process $process -loop $loop -mount mnt1
+  ./test_xattr -process $process -loop $loop -mount mnt1_1
   return $?  
 }
 link () {
   printf "process=%d loop=%d \n" $process $loop 
-  ./test_link -process $process -loop $loop -mount mnt1
+  ./test_link -process $process -loop $loop -mount mnt1_1
   return $?  
 }
 readdir() {
   printf "process=%d loop=%d \n" $process $loop 
-  ./test_readdir -process $process -loop $loop -mount mnt1
+  ./test_readdir -process $process -loop $loop -mount mnt1_1
   return $?  
 }
 rename() {
   printf "process=%d loop=%d \n" $process $loop 
-  ./test_rename -process $process -loop $loop -mount mnt1
+  ./test_rename -process $process -loop $loop -mount mnt1_1
   return $?  
 }
 chmod() {
   printf "process=%d loop=%d \n" $process $loop 
-  ./test_chmod -process $process -loop $loop -mount mnt1
+  ./test_chmod -process $process -loop $loop -mount mnt1_1
   return $?  
 }
 truncate() {
   printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
-  ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1
+  ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1_1
   return $?  
 }
 lock_posix_passing() {
-  file=mnt1/lock
+  file=mnt1_1/lock
   unlink $file
   printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file -nonBlocking
   return $?    
 }
 lock_posix_blocking() {
-  file=mnt1/lock
+  file=mnt1_1/lock
   unlink $file
   printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file 
   return $?    
 }
 lock_bsd_passing() {
-  file=mnt1/lock
+  file=mnt1_1/lock
   unlink $file
   printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file -nonBlocking -bsd
   return $?    
 }
 lock_bsd_blocking() {
-  file=mnt1/lock
+  file=mnt1_1/lock
   unlink $file
   printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file -bsd
@@ -291,7 +297,7 @@ usage () {
 #################### COMPILATION ##################################
 compile_program () {
   echo "compile $1.c"
-  gcc $1.c -o $1 -g
+  gcc $1.c -lpthread -o $1 -g
 }
 compile_programs () {
   echo
@@ -573,7 +579,7 @@ TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_c
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel $TST_RW"
+TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 $TST_RW"
 # lock_bsd_passing lock_bsd_blocking
 
 build_all_test_list
@@ -622,7 +628,7 @@ then
 fi  
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock rw2
 
 # Kill export gateway
 ./setup.sh expgw all stop 

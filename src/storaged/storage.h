@@ -40,7 +40,7 @@
 /** Default mode to use for create subdirectories */
 #define ROZOFS_ST_DIR_MODE S_IRUSR | S_IWUSR | S_IXUSR
 
-#define MAX_REBUILD_ENTRIES 100
+#define MAX_REBUILD_ENTRIES 60
 
 /** Directory used to store bins files for a specific storage ID*/
 typedef struct storage {

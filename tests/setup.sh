@@ -80,7 +80,6 @@ rebuild ()
     cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
 }
 
-
 gen_storage_conf ()
 {
     STORAGES_BY_CLUSTER=$1
@@ -92,46 +91,49 @@ gen_storage_conf ()
 
     for i in $(seq ${nb_clusters}); do
 
-	for j in $(seq ${STORAGES_BY_CLUSTER}); do
-	
-	   sid=$((sid+1))
-	
+        for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+           sid=$((sid+1))
+
            FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${i}'_'${sid}'.conf'
+
            echo "$FILE"
-           if [ ! -e "$LOCAL_CONF" ]
-           then
-               mkdir -p $LOCAL_CONF
-           fi
 
-           if [ -e "$FILE" ]
-           then
-               rm -rf $FILE
-           fi
+            if [ ! -e "$LOCAL_CONF" ]
+            then
+                mkdir -p $LOCAL_CONF
+            fi
 
-           touch $FILE
-           echo "#${NAME_LABEL}" >> $FILE
-           echo "#${DATE_LABEL}" >> $FILE
-	   
-	   printf "threads = $NB_DISK_THREADS;\n" >> $FILE
-	   printf "nbCores = $NB_CORES;\n" >> $FILE
-	   
-	   printf "listen = ( \n" >> $FILE
-	   printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
+            if [ -e "$FILE" ]
+            then
+                rm -rf $FILE
+            fi
 
-           # Test for special character "*"
-	   #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
+            touch $FILE
 
-           for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-	      printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000;}" 
-	   done >>  $FILE  
-	   printf "\n);\n" >>  $FILE   
-	        
-           echo 'storages = (' >> $FILE
-           echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\";}" >> $FILE
-           echo ');' >> $FILE
-	done; 
+            echo "#${NAME_LABEL}" >> $FILE
+            echo "#${DATE_LABEL}" >> $FILE
+
+            printf "threads = $NB_DISK_THREADS;\n" >> $FILE
+            printf "nbCores = $NB_CORES;\n" >> $FILE
+
+            printf "listen = ( \n" >> $FILE
+            printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
+
+            # Test for special character "*"
+            #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
+
+            for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+                printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000;}"
+            done >>  $FILE
+
+            printf "\n);\n" >>  $FILE
+
+            echo 'storages = (' >> $FILE
+            echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\";}" >> $FILE
+            echo ');' >> $FILE
+        done; 
     done;
-
 }
 
 # $1 -> LAYOUT
@@ -276,19 +278,23 @@ gen_export_conf ()
     echo '      (' >> $FILE
 
         for v in $(seq ${NB_VOLUMES}); do
+
             echo '        {' >> $FILE
             echo "            vid = $v;" >> $FILE
             echo '            cids= ' >> $FILE
             echo '            (' >> $FILE
 
             for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+
                 let idx_cluster=(${v}-1)*${NB_CLUSTERS_BY_VOLUME}+${c}
+
                 echo '                   {' >> $FILE
                 echo "                       cid = $idx_cluster;" >> $FILE
                 echo '                       sids =' >> $FILE
                 echo '                       (' >> $FILE
+
                 for k in $(seq ${STORAGES_BY_CLUSTER}); do
-		    sid=$((sid+1))
+                    sid=$((sid+1))
                     if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
                     then
                         echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}" >> $FILE
@@ -296,6 +302,7 @@ gen_export_conf ()
                         echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}," >> $FILE
                     fi
                 done;
+
                 echo '                       );' >> $FILE
                 if [[ ${c} == ${NB_CLUSTERS_BY_VOLUME} ]]
                 then
@@ -329,16 +336,26 @@ gen_export_conf ()
 
 start_one_storage() 
 {
-   case $1 in
-     "all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
-   esac
+	case $1 in
+		"all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
+	esac
    
+	sid=$1
+	cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+	echo "Start storage cid: $cid sid: $sid"
+	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
+	sleep 1
+}
+
+start_one_storage_rebuild() 
+{
     sid=$1
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
-    echo "Start storage cid $cid sid $sid"
-   ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
-   sleep 1
+    echo "Start storage cid: $cid sid: $sid with rebuild"
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost
+    sleep 1
 }
+
 
 stop_one_storage () {
    case $1 in
@@ -896,7 +913,7 @@ usage ()
     echo >&2 "$0 stop"
     echo >&2 "$0 pause"
     echo >&2 "$0 resume"
-    echo >&2 "$0 storage <sid|all> <stop|start|reset>"
+    echo >&2 "$0 storage <sid|all> <stop|start|start-rebuild|reset>"
     echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
     echo >&2 "$0 export <stop|start|reset>"
     echo >&2 "$0 fsmount <stop|start|reset>"
@@ -1037,7 +1054,7 @@ main ()
 
     NB_EXPORTS=1
     NB_VOLUMES=1
-    NB_CLUSTERS_BY_VOLUME=1
+    NB_CLUSTERS_BY_VOLUME=2
     NB_PORTS_PER_STORAGE_HOST=1
     NB_DISK_THREADS=3
     NB_CORES=4
@@ -1151,8 +1168,9 @@ main ()
     then  
       case "$3" in 
         stop)    stop_one_storage $2;;
-	start)   start_one_storage $2;;
-	reset)   reset_one_storage $2;;
+		start)   start_one_storage $2;;
+		start-rebuild)   start_one_storage_rebuild $2;;
+		reset)   reset_one_storage $2;;
         *)       usage;;
       esac
     elif [ "$1" == "process" ]
