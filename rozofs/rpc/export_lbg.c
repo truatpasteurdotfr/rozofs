@@ -94,7 +94,7 @@ static int get_service_tcp_port(char *host ,unsigned long prog, unsigned long ve
 
   bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
   if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
-    warning("pmap_getport failed %s (%x:%d) %s",  host, (unsigned int)prog, (int)vers, clnt_spcreateerror(""));
+    //warning("pmap_getport failed %s (%x:%d) %s",  host, (unsigned int)prog, (int)vers, clnt_spcreateerror(""));
     errno = EPROTO;
     return 0;
   }
