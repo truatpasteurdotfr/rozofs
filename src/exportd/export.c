@@ -2534,10 +2534,13 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
         goto out;
     }
 
+    // Access time of the directory is not changed any more on readdir
+
+    
     // Update atime of parent
-    parent->attributes.atime = time(NULL);
-    if (export_lv2_write_attributes(parent) != 0)
-        goto out;
+    //parent->attributes.atime = time(NULL);
+    //if (export_lv2_write_attributes(parent) != 0)
+    //    goto out;
 
     status = 0;
 out:
