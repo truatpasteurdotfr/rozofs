@@ -45,6 +45,7 @@
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/rpc/gwproto.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -1046,7 +1047,8 @@ int main(int argc, char *argv[]) {
         {0, 0, 0, 0}
     };
 
-    expgwc_non_blocking_conf.debug_port = rzdbg_default_base_port;
+    /* Try to get debug port from /etc/services */
+    expgwc_non_blocking_conf.debug_port = get_service_port("rozo_exportd_dbg",NULL,rzdbg_default_base_port);
     expgwc_non_blocking_conf.instance = 1;
     expgwc_non_blocking_conf.exportd_hostname = NULL;
 

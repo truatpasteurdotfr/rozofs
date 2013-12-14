@@ -50,6 +50,7 @@
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
@@ -382,6 +383,8 @@ static void on_start() {
     conf.instance_id = 0;
     conf.io_port     = 0;
     conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT;
+    /* Try to get debug port from /etc/services */    
+    conf.debug_port = get_service_port("rozo_storaged_dbg",NULL,conf.debug_port);
 
     if (storaged_hostname != NULL) strcpy(conf.hostname, storaged_hostname);
     else conf.hostname[0] = 0;

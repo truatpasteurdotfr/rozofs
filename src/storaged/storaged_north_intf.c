@@ -494,6 +494,7 @@ int storaged_north_interface_buffer_init(int read_write_buf_count,int read_write
 int storaged_north_interface_init(char * host) {
   int ret = -1;
   uint32_t ip = INADDR_ANY; // Default IP to use
+  uint16_t port=0;
 
   // Resolve IP address
   
@@ -504,11 +505,14 @@ int storaged_north_interface_init(char * host) {
       fatal("storaged_north_interface_init can not resolve host \"%s\"", host);
   }
 
+  /* Try to get debug port from /etc/services */    
+  port = get_service_port("rozo_storaged_srv",NULL,ROZOFS_MPROTO_PORT);
+
   // Create the listening socket
-  ret = af_inet_sock_listening_create("MP/SPP",ip, ROZOFS_MPROTO_PORT, &af_inet_rozofs_north_conf);    
+  ret = af_inet_sock_listening_create("MP/SPP",ip, port, &af_inet_rozofs_north_conf);    
   if (ret < 0) {
     fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
-            ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, ROZOFS_MPROTO_PORT);
+            ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, port);
     return -1;
   }
   
