@@ -260,7 +260,7 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(ep_path_t * arg, struct svc_req * req) {
     ret_cnf_p->status_gw.ep_conf_ret_t_u.export.eid = *eid;
     ret_cnf_p->status_gw.ep_conf_ret_t_u.export.hash_conf = export_configuration_file_hash;
     memcpy(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
-    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rl = exportd_config.layout;
+    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rl = exp->layout;
     memcpy(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
 
     if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
@@ -530,7 +530,7 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
 
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
-    ret.status_gw.ep_mount_ret_t_u.export.rl = exportd_config.layout;
+    ret.status_gw.ep_mount_ret_t_u.export.rl = exp->layout;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
 
     if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {

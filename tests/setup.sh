@@ -273,7 +273,8 @@ gen_export_conf ()
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
-    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+#    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "layout = 2 ;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -281,6 +282,7 @@ gen_export_conf ()
 
             echo '        {' >> $FILE
             echo "            vid = $v;" >> $FILE
+	    echo "            layout = $ROZOFS_LAYOUT;" >> $FILE
             echo '            cids= ' >> $FILE
             echo '            (' >> $FILE
 
@@ -342,7 +344,7 @@ start_one_storage()
    
 	sid=$1
 	cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
-	echo "Start storage cid: $cid sid: $sid"
+	#echo "Start storage cid: $cid sid: $sid"
 	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
 	#sleep 1
 }
@@ -569,7 +571,6 @@ deploy_clients_local ()
                     option="$option -o nbcores=$NB_CORES"
                     option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
                     option="$option -o rozofsnbstorcli=$NB_STORCLI"
-                    option="$option -o rozofsshaper=$SHAPER"
                     option="$option -o rozofsshaper=$SHAPER"
                     option="$option -o posixlock"
                     option="$option -o bsdlock"
@@ -1070,7 +1071,9 @@ main ()
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
 
     ulimit -c unlimited
-
+    nbaddr=$((STORAGES_BY_CLUSTER*NB_CLUSTERS_BY_VOLUME*NB_VOLUMES))
+    ${WORKING_DIR}/conf_local_addr.sh set $nbaddr eth0 > /dev/null 2>&1 
+    
     if [ "$1" == "start" ]
     then
 

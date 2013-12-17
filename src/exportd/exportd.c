@@ -527,7 +527,7 @@ static int load_volumes_conf() {
         ventry = (volume_entry_t *) xmalloc(sizeof (volume_entry_t));
 
         // Initialize the volume
-        volume_initialize(&ventry->volume, vconfig->vid);
+        volume_initialize(&ventry->volume, vconfig->vid, vconfig->layout);
 
         // For each cluster of this volume
 
@@ -583,7 +583,7 @@ static int load_exports_conf() {
         }
 
         // Initialize export
-        if (export_initialize(&entry->export, volume, exportd_config.layout,
+        if (export_initialize(&entry->export, volume,
                 &cache, econfig->eid, econfig->root, econfig->md5,
                 econfig->squota, econfig->hquota) != 0) {
             severe("can't initialize export with path %s: %s\n",
