@@ -450,6 +450,7 @@ void buf_file_write_nb(ientry_t * ie,
           break;      
         }
         action = BUF_ACT_COPY_OVERLAP;
+	break;
       }
       action = BUF_ACT_COPY;
       break;
