@@ -161,7 +161,7 @@ List of node hostnames to be started. If not set all nodes of the platform will 
 .\" rozo node stop
 .SS stop
 .B rozo node stop [\fB\-r |\-\-roles\fP \fIrole\fP...] [\fB\-n | \-\-nodes\fP \fInode\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
-.TP F
+.TP
 Stop node services.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
@@ -220,12 +220,15 @@ List of the \fBvid\fP of the volumes to expand. If not set a new volume will be 
 
 .\" rozo volume remove
 .SS remove
-.B rozo volume remove \fIvid\fP... \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo volume remove \fB\-v | \-\-vid\fP \fIvid\fP... \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
 Remove a volume according to the given \fIvid\fP list from this platform. Volume can be removed only if no export is defined on it.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
+.TP
+\fB\-v\fP, \fB\-\-vid\fP \fIvid\fP...
+List of the \fBvid\fP of the volumes to remove.
 
 .\""" rozo export
 .SH EXPORT TOPIC
