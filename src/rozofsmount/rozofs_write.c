@@ -97,9 +97,9 @@ static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRe
       new_val = (int) strtol(argv[2], (char **) NULL, 10);   
       if (errno != 0) {
         pChar += sprintf(pChar, "bad value %s\n",argv[2]);
-	pChar = display_write_flush_stat_help(pChar);
+        pChar = display_write_flush_stat_help(pChar);
         uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
-	return;     
+        return;
       } 
       ROZOFS_MAX_WRITE_PENDING = new_val;
       reset_write_flush_stat();
@@ -450,7 +450,7 @@ void buf_file_write_nb(ientry_t * ie,
           break;      
         }
         action = BUF_ACT_COPY_OVERLAP;
-	break;
+        break;
       }
       action = BUF_ACT_COPY;
       break;
@@ -2287,5 +2287,3 @@ error:
     
     return;
 }
-
-
