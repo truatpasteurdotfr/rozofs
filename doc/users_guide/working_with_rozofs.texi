@@ -163,7 +163,6 @@ $ exporthost=192.168.1.10,exportpath=/srv/rozofs/exports/export_1,_netdev
 @menu
 * Get the List of Nodes Belonging to a Platform::
 * Get the Status of a Platform::
-* Stop and Start a Platform::
 * View the Platform Configuration::
 * Extend the Platform::
 * Add an Export to the Platform::
@@ -222,7 +221,7 @@ You can easily list nodes according to their roles (exportd, storaged or
 rozofsmount) using the @option{-r} option.
 
 @c *** Subsection [Get the Status of the Platform]
-@node       Get the Status of a Platform, Stop and Start a Platform, Get the List of Nodes Belonging to a Platform, Using the Rozo Console Manager
+@node       Get the Status of a Platform, View the Platform Configuration, Get the List of Nodes Belonging to a Platform, Using the Rozo Console Manager
 @subsection Get the Status of a Platform
 @ifnotdocbook
 @cindex Status of platform
@@ -252,7 +251,7 @@ You can easily get nodes status according to their roles using the @option{-r}
 option or get statuses for a specific node using the @option{-n} option.
 
 @c *** Subsection [View the Platform Configuration]
-@node       View the Platform Configuration, Extend the Platform, Stop and Start a Platform, Using the Rozo Console Manager
+@node       View the Platform Configuration, Extend the Platform, Get the Status of a Platform, Using the Rozo Console Manager
 @subsection View the Platform Configuration
 @ifnotdocbook
 @cindex Overview of a platform
