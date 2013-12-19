@@ -122,7 +122,6 @@ def get(platform, args):
     ordered_puts({'' + str(args.exportd): get_l})
 
 def expand(platform, args):
-    print args
     for host in args.hosts:
         try:
             get_proxy(host, STORAGED_MANAGER).get_service_status()
