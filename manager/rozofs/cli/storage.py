@@ -29,7 +29,8 @@ def list(platform, args):
     configurations = {}
     
     for h, n in platform._nodes.items():
-        configurations[h] = n.get_configurations(Role.STORAGED)
+        if n.has_one_of_roles(Role.STORAGED):
+            configurations[h] = n.get_configurations(Role.STORAGED)
 
     sid_l={}
     for stor in configurations:
@@ -47,29 +48,33 @@ def list(platform, args):
 def get(platform, args):
 
     for host in args.nodes:
-        if not host in platform.get_configurations([args.exportd],Role.STORAGED):
+        if not host in platform.list_nodes(Role.STORAGED):
                 raise Exception('%s: invalid storaged server.' % host)
-        configuration = platform.get_configurations([args.exportd],
-                Role.STORAGED)[host][Role.STORAGED]
-        sid_l={}
-        sid_l[host]=[]
-        lid_l={}
-        for lconfig in configuration.listens:
-            lid_l = OrderedDict([
-                ('addr', lconfig.addr),
-                ('port', lconfig.port)
-            ])
-            sid_l[host].append(lid_l)
 
-        ordered_puts(sid_l)
+    sid_l={}
+    for host, configuration in platform.get_configurations(args.nodes,
+            Role.STORAGED).items():
+
+            sid_l[host]=[]
+            lid_l={}
+            for lconfig in configuration[Role.STORAGED].listens:
+                lid_l = OrderedDict([
+                                     ('addr', lconfig.addr),
+                                     ('port', lconfig.port)
+                                     ])
+                sid_l[host].append(lid_l)
+
+    ordered_puts(sid_l)
 
 def add(platform, args):
     
     for host in args.nodes:
-        if not host in platform.get_configurations([args.exportd],Role.STORAGED):
-                raise Exception('%s: invalid storaged server.' % host)
+        if not host in platform.list_nodes(Role.STORAGED):
+            raise Exception('%s: invalid storaged server.' % host)
+    
+    for host in args.nodes:
         
-        configurations = platform._get_nodes(host)[host].get_configurations(Role.STORAGED)
+        configurations = platform._get_nodes(args.exportd)[host].get_configurations(Role.STORAGED)
         configuration = configurations[Role.STORAGED]
         for listener in configuration.listens:
             # if given interface is '*', remove existing interfaces
@@ -88,7 +93,7 @@ def add(platform, args):
         lconfig = ListenConfig(args.interface, args.port)
         configuration.listens.append(lconfig)
         configurations[Role.STORAGED] = configuration
-        platform._get_nodes(host)[host].set_configurations(configurations)
+        platform._get_nodes(args.exportd)[host].set_configurations(configurations)
 
         for lconfig in configuration.listens:
             lid_l = OrderedDict([
@@ -102,10 +107,11 @@ def add(platform, args):
 def remove(platform, args):
     
     for host in args.nodes:
-        if not host in platform.get_configurations([args.exportd],Role.STORAGED):
-                raise Exception('%s: invalid storaged server.' % host)
-        
-        configurations = platform._get_nodes(host)[host].get_configurations(Role.STORAGED)
+        if not host in platform.list_nodes(Role.STORAGED):
+            raise Exception('%s: invalid storaged server.' % host)
+    
+    for host in args.nodes:
+        configurations = platform._get_nodes(args.exportd)[host].get_configurations(Role.STORAGED)
         configuration = configurations[Role.STORAGED]
         check = True
         for listener in configuration.listens:
@@ -121,7 +127,7 @@ def remove(platform, args):
         lid_l={}
         configurations[Role.STORAGED] = configuration
 
-        platform._get_nodes(host)[host].set_configurations(configurations)
+        platform._get_nodes(args.exportd)[host].set_configurations(configurations)
 
         for lconfig in configuration.listens:
             lid_l = OrderedDict([
