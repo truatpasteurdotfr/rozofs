@@ -25,6 +25,7 @@ To build the RozoFS source code, it is necessary to install several libraries an
 -   `python-yaml`
 -   `libpthread`
 -   `libcrypt`
+-   `rpcbind`
 -   `swig`
 
 ###Build
