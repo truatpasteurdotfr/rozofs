@@ -252,7 +252,7 @@ typedef struct _rozofs_storcli_ctx_t
   ** working variables for truncate
   */
   storcli_truncate_arg_t storcli_truncate_arg;  /**< truncate parameter of the request */
-  
+  int                    truncate_bins_len;
 } rozofs_storcli_ctx_t;
 
 /*

@@ -26,49 +26,46 @@
 # RUN ELEMENTARY TESTS WHILE ONE STORAGE
 # IS FAILED
 ##########################################
-do_one_storage_failure() {
-   echo "***** Stop storage $1 *****"
-  ./setup.sh storage $1 stop
-  sleep 3
-  $2   
-  ./setup.sh storage $1 start 
-  sleep 3
 
-}  
-OneStorageFailed () {
+storageFailed () {
 
   for sid in $(seq $NB_SID) 
   do
-# without storage 1
-    do_one_storage_failure $sid $1
+
+    echo -ne "Stop storage $sid : "
+    ./setup.sh storage $sid stop
+    sleep 3
+    $1  
+    ./setup.sh storage $sid start 
+    sleep 3
     if [ $result != 0 ];
     then
       return
     fi
   done
-  return 0  
+  return   
 }
 ########################################## 
 # RUN ELEMENTARY TESTS WHILE RESETTING THE
 # STORAGES ONE AFTER THE OTHER
 ##########################################
-StorageReset_process () {
+storageReset_process () {
 
   while [ 1 ];
   do
     for sid in $(seq $NB_SID)  
     do
-      echo "***** Reset storage $sid *****"
+      echo -ne "Reset storage $sid\033[0K\r"
       ./setup.sh storage $sid reset
       sleep 7
     done
   done
 }  
-StorageReset () {
+storageReset () {
   sleep 4
  
   # Start process that reset the storages
-  StorageReset_process &
+  storageReset_process &
  
 
   # Execute the test
@@ -80,7 +77,7 @@ StorageReset () {
 
   # kill the storage reset process
   kill  $!  2> /dev/null
-  wait
+  wait 2> /dev/null
 
 }
 ########################################## 
@@ -90,14 +87,15 @@ StorageReset () {
 do_StorcliReset ()  {
   for process in `ps -ef  | grep "storcli -i 1" | grep -v storcli_starter.sh | grep -v grep | awk '{print $2}'`
   do
-    echo "***** Reset storcli $process *****"
     kill -9 $process
   done
 }
 StorcliReset_process () {
-
+  nbreset=0  
   while [ 1 ];
   do  
+    nbreset=$((nbreset+1))
+    echo -ne "Reset storcli $nbreset\033[0K\r"
     do_StorcliReset
     sleep 7
   done
@@ -117,66 +115,54 @@ StorcliReset () {
 
   # kill the storage reset process
   kill  $!  2> /dev/null
-  wait
+  wait 2> /dev/null
 }
 #################### ELEMENTARY TESTS ##################################
 wr_rd_total () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -total
   result=$?
 }
 wr_rd_partial () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -partial
   result=$?
 }
 wr_rd_random() {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -random
   result=$?
 }
 wr_rd_total_close () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -total -closeAfter
   result=$?
 }
 wr_rd_partial_close () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeAfter
   result=$?
 }
 wr_rd_random_close() {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -random -closeAfter
   result=$?
 }
 wr_close_rd_total () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -total -closeBetween
   result=$?
 }
 wr_close_rd_partial () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeBetween
   result=$?
 }
 wr_close_rd_random() {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -random -closeBetween
   result=$?
 }
 wr_close_rd_total_close () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -total -closeBetween -closeAfter
   result=$?
 }
 wr_close_rd_partial_close () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -partial -closeBetween -closeAfter
   result=$?
 }
 wr_close_rd_random_close() {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./rw -process $process -loop $loop -fileSize $fileSize -random -closeBetween -closeAfter
   result=$?
 }
@@ -186,7 +172,7 @@ prepare_file_to_read() {
     dd if=/dev/zero of=$1 bs=1M count=$fileSize
     return
   fi
-  size=`ls -sh $1 | awk '{print $1}' | awk -F'M' '{print $1}'`
+  size=`ls -sh $1 | awk '{print $1}' | awk -F'M' '{print $1}'| awk -F',' '{print $1}'`
   if [ "$size" -ge "$fileSize" ];
   then
     return
@@ -195,71 +181,59 @@ prepare_file_to_read() {
 }
 rw2 () {
   count=$((loop*16))
-  printf "loop=%d\n" $count
   ./rw2 -loop $count -file mnt1_1/ze_rw2_test_file 
   result=$?    
 }
 read_parallel () {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   prepare_file_to_read mnt1_1/myfile 
   ./read_parallel -process $process -loop $loop -file mnt1_1/myfile 
   result=$?    
 }
 xattr () {
-  printf "process=%d loop=%d \n" $process $loop 
   ./test_xattr -process $process -loop $loop -mount mnt1_1
   result=$?    
 }
 link () {
-  printf "process=%d loop=%d \n" $process $loop 
   ./test_link -process $process -loop $loop -mount mnt1_1
   result=$?    
 }
 readdir() {
-  printf "process=%d loop=%d \n" $process $loop 
   ./test_readdir -process $process -loop $loop -mount mnt1_1
   result=$?    
 }
 rename() {
-  printf "process=%d loop=%d \n" $process $loop 
   ./test_rename -process $process -loop $loop -mount mnt1_1
   result=$?    
 }
 chmod() {
-  printf "process=%d loop=%d \n" $process $loop 
   ./test_chmod -process $process -loop $loop -mount mnt1_1
   result=$?    
 }
 truncate() {
-  printf "process=%d loop=%d fileSize=%d\n" $process $loop $fileSize
   ./test_trunc -process $process -loop $loop -fileSize $fileSize -mount mnt1_1
   result=$?    
 }
 lock_posix_passing() {
   file=mnt1_1/lock
   unlink $file
-  printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file -nonBlocking
   result=$?    
 }
 lock_posix_blocking() {
   file=mnt1_1/lock
   unlink $file
-  printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file 
   result=$?    
 }
 lock_bsd_passing() {
   file=mnt1_1/lock
   unlink $file
-  printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file -nonBlocking -bsd
   result=$?    
 }
 lock_bsd_blocking() {
   file=mnt1_1/lock
   unlink $file
-  printf "process=%d loop=%d\n" $process $loop
   ./test_file_lock -process $process -loop $loop -file $file -bsd
   result=$?    
 }
@@ -324,7 +298,7 @@ rozodebug_stc_profiler_after()  {
   then
     return 0
   fi
-  printf "\n-------> differences detected on ./dbg.sh stc profiler !!!\n"
+  printf "! ! ! ! ! ! ! differences detected on ./dbg.sh stc profiler !!!\n"
   cat $dif   
   return 1
 }
@@ -347,7 +321,7 @@ rozodebug_storcli_buf_after()  {
   then
     return 0
   fi
-  printf "\n-------> differences detected on ./dbg.sh stc storcli_buf !!!\n"
+  printf "! ! ! ! ! ! ! differences detected on ./dbg.sh stc storcli_buf !!!\n"
   cat $dif   
   return 1
 }
@@ -370,7 +344,7 @@ rozodebug_fs_fuse_after()  {
   then
     return 0
   fi
-  printf "\n-------> differences detected on ./dbg.sh fs fuse !!!\n"
+  printf "! ! ! ! ! ! ! differences detected on ./dbg.sh fs fuse !!!\n"
   cat $dif   
   return 1
 }
@@ -393,7 +367,7 @@ rozodebug_trx_after()  {
   then
     return 0
   fi
-  printf "\n-------> differences detected on ./dbg.sh $1 trx !!!\n"
+  printf "! ! ! ! ! ! ! differences detected on ./dbg.sh $1 trx !!!\n"
   cat $dif   
   return 1
 }
@@ -429,13 +403,13 @@ rozodebug_after () {
 build_storage_failed_test_list () {
   for TST in $TST_STORAGE_FAILED
   do
-    TSTS=`echo "$TSTS $TST/OneStorageFailed"` 
+    TSTS=`echo "$TSTS $TST/storageFailed"` 
   done
 }
 build_storage_reset_test_list () {
   for TST in $TST_STORAGE_RESET
   do
-    TSTS=`echo "$TSTS $TST/StorageReset"` 
+    TSTS=`echo "$TSTS $TST/storageReset"` 
   done  
 }
 build_storcli_reset_test_list () {
@@ -454,8 +428,9 @@ build_all_test_list () {
   build_storcli_reset_test_list
 }
 list_tests () {
+  build_all_test_list
   idx=0
-  for TST in $ALL_TST_LIST
+  for TST in $TSTS
   do
     idx=$((idx+1))
     printf " %3d) %s\n" $idx $TST 
@@ -470,9 +445,8 @@ delay () {
   sec=$((sec%60))
   zedelay=`printf "%d min %2.2d" $min $sec`
 }
-run_some_tests() {
+run_test_list() {
 
-  test_number=0
   total_avant=`date +%s`
 
   FAIL=0
@@ -486,9 +460,7 @@ run_some_tests() {
   
     test_number=$((test_number+1))
     
-    printf "_____________________________________________\n"
-    printf "Run $TST\n"
-    printf ".............................................\n"  
+    printf "____________| %4d |__$TST\n" $test_number 
 
     result=0
 
@@ -515,7 +487,7 @@ run_some_tests() {
     if [ $res_tst != 0 ];
     then
       # The test returns an error code
-      printf "\n$test_number -------> !!! $TST is failed ($zedelay) !!!\n"
+      printf "!!!!!!!!!!!!!!!!! $TST is failed ($zedelay) !!!\n"
       printf "%3d %41s | FAILED  | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       FAIL=$((FAIL+1))
       if [ $nonstop == 0 ];
@@ -527,11 +499,11 @@ run_some_tests() {
       then
         # The test do not complain but some debug ouput change need to be checked 
         SUSPECT=$((SUSPECT+1))
-        printf "\n$test_number -------> $TST suspicion of failure ($zedelay) !\n"
+        printf "! ! ! ! ! ! ! $TST suspicion of failure ($zedelay) !\n"
 	printf "%3d %41s | SUSPECT | %10s |\n" $test_number $TST "$zedelay" >> $RESULT
       else
         # The test is successfull
-        printf "\n$test_number-------> $TST success ($zedelay)\n"      
+        printf "$TST success ($zedelay)\n"      
 	printf "%3d %41s | OK      | %10s |\n" $test_number $TST "$zedelay" >> $RESULT  
       fi
     fi
@@ -558,8 +530,8 @@ RESULT=/tmp/result
 printf "\n" > $RESULT
 
 # Default test dimensioning
-fileSize=8
-loop=32
+fileSize=4
+loop=64
 process=8
 NB_SID=8
 
@@ -612,13 +584,6 @@ if [ "$TSTS" == "" ];
 then
   usage
 fi
-  
-# VEHEM OUERE
-if [ -d /mnt/hgfs/windows ];
-then
-  # Set big READ timers to prevent from false read errors
-  ./dbg.sh stc tmr_set PRJ_READ_SPARE 3000
-fi  
 
 # Compile programs
 compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock rw2
@@ -626,16 +591,19 @@ compile_programs rw read_parallel test_xattr test_link test_write test_readdir t
 # Kill export gateway
 ./setup.sh expgw all stop 
 
-# execute the tests
-LIST=""
-while [ $repeated -gt 0 ];
-do
-  LIST=`echo "$LIST $TSTS"`
-  repeated=$((repeated-1))
-done
-TSTS=$LIST
+test_number=0
 
-run_some_tests 
-res=$?
+# execute the tests
+while [ $repeated -ne 0 ];
+do
+
+  repeated=$((repeated-1))
+  run_test_list 
+
+  if [ $result != 0 ];
+  then
+    break
+  fi 
+   
+done
 cat $RESULT
-exit $res

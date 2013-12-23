@@ -342,7 +342,7 @@ int storio_start_nb_th(void *args) {
   */
   size = sizeof(sp_write_arg_no_bins_t);
   if (size < sizeof(sp_read_arg_t)) size = sizeof(sp_read_arg_t);
-  if (size < sizeof(sp_truncate_arg_t)) size = sizeof(sp_truncate_arg_t);
+  if (size < sizeof(sp_truncate_arg_no_bins_t)) size = sizeof(sp_truncate_arg_no_bins_t);
   decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
   if (decoded_rpc_buffer_pool == NULL) {
     fatal("Can not allocate decoded_rpc_buffer_pool");
