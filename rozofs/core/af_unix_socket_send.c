@@ -31,6 +31,7 @@
 
 #include "ruc_common.h"
 #include "af_unix_socket_generic.h"
+#include "socketCtrl.h"
 
 
 
@@ -184,6 +185,7 @@ void af_unix_send_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t *xmit_
           xmit_p->eoc_flag       = 0;
           xmit_p->eoc_threshold  = AF_UNIX_CONGESTION_DEFAULT_THRESHOLD;
           xmit_p->state = XMIT_CONGESTED;
+	  FD_SET(socket_p->socketRef,&rucWrFdSetCongested);
           return ;
 
           case RUC_DISC:
@@ -266,6 +268,7 @@ void af_unix_send_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t *xmit_
           xmit_p->eoc_flag       = 0;
           xmit_p->eoc_threshold  = AF_UNIX_CONGESTION_DEFAULT_THRESHOLD;
           xmit_p->state = XMIT_CONGESTED;
+	  FD_SET(socket_p->socketRef,&rucWrFdSetCongested);
           return ;
 
           case RUC_DISC:
@@ -366,8 +369,13 @@ void af_unix_send_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t *xmit_
            xmit_p->eoc_flag  = 1;
            xmit_p->congested_flag = 0;
            xmit_p->state = XMIT_CHECK_XMITQ;
+	   FD_CLR(socket_p->socketRef,&rucWrFdSetCongested);
            break;
         }
+	else
+	{
+	  FD_SET(socket_p->socketRef,&rucWrFdSetCongested);	
+	}
         return;
 
        case XMIT_DEAD:

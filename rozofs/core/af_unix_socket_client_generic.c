@@ -205,7 +205,7 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
       */
       sock_p->connectionId = ruc_sockctl_connect(sock_p->socketRef,  // Reference of the socket
                                                 sock_p->nickname,   // name of the socket
-                                                3,                  // Priority within the socket controller
+                                                16,                  // Priority within the socket controller
                                                 (void*)sock_p,      // user param for socketcontroller callback
                                                 &af_unix_generic_client_connected_callBack_sock);  // Default callbacks
       if (sock_p->connectionId == NULL)

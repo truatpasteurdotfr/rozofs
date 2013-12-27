@@ -68,9 +68,18 @@ char * lbg_north_state2String(int x) {
   - 
   RETURN: none
   ==========================================================================*/
-void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
+void north_lbg_debug_show(char * argv[],uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     int state;
+    int all = 0;
+    
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"all")==0) 
+      {
+         all = 1;
+      }
+    }
     pChar += sprintf(pChar, "number of North Load Balancer contexts [size](initial/allocated) :[%u] %u/%u\n",
             (unsigned int) sizeof (north_lbg_ctx_t), (unsigned int) north_lbg_context_count,
             (unsigned int) (north_lbg_context_allocated));
@@ -95,7 +104,9 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
             north_lbg_entry_ctx_t *entry_p = lbg_p->entry_tb;
             pChar += sprintf(pChar, "      Main Queue               : %s\n", ruc_objIsEmptyList((ruc_obj_desc_t*) & lbg_p->xmitList[0]) ? "EMPTY" : "NON EMPTY");
             for (i = 0; i < lbg_p->nb_entries_conf; i++, entry_p++) {
+
                 north_lbg_stats_t *stats_p = &entry_p->stats;
+		if (stats_p->timestampCount == 0) continue;
                 pChar += sprintf(pChar, "   Entry[%d]\n", i);
                 pChar += sprintf(pChar, "       state                    : %s\n", lbg_north_state2String(entry_p->state));
                 pChar += sprintf(pChar, "       Queue_entry              : %s\n", ruc_objIsEmptyList((ruc_obj_desc_t*) & entry_p->xmitList) ? "EMPTY" : "NON EMPTY");
@@ -105,7 +116,10 @@ void north_lbg_debug_show(uint32_t tcpRef, void *bufRef) {
                 pChar += sprintf(pChar, "       Xmit Perf. (count/time)  : %"PRIu64" / %"PRIu64" us / cumul %"PRIu64" us\n",
                         stats_p->timestampCount,
                         stats_p->timestampCount ? stats_p->timestampElasped / stats_p->timestampCount : 0,
-                        stats_p->timestampElasped);
+                        stats_p->timestampElasped);  
+		stats_p->timestampCount = 0;
+		stats_p->timestampElasped = 0;
+	 
             }
             pChar += sprintf(pChar, "  Cumulated\n");
 
@@ -170,7 +184,7 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
   RETURN: none
   ==========================================================================*/
 void north_lbg_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
-    north_lbg_debug_show(tcpRef, bufRef);
+    north_lbg_debug_show(argv,tcpRef, bufRef);
 }
 
 void north_lbg_entries_debug(char * argv[], uint32_t tcpRef, void *bufRef) {

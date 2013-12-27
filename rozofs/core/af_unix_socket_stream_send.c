@@ -31,6 +31,7 @@
 
 #include "ruc_common.h"
 #include "af_unix_socket_generic.h"
+#include "socketCtrl.h"
 
 
 
@@ -119,6 +120,8 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
   int write_len;
   int ret;
   int inuse;
+  uint64_t cycles_before;
+  uint64_t cycles_after;
 
   while(1)
   {
@@ -159,10 +162,13 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
         ** Check if there is a current buffer to send
         */
         socket_p->stats.totalXmitAttempts++;
+        socket_p->stats.totalXmitAttemptsCycles++;
         pbuf = (char *)ruc_buf_getPayload(xmit_p->bufRefCurrent);
-
+        cycles_before = ruc_rdtsc();
         ret  = af_unix_send_stream_generic(socket_p->socketRef,pbuf+xmit_p->nbWrite,xmit_p->nb2Write - xmit_p->nbWrite, &write_len);
-
+        cycles_after = ruc_rdtsc();
+        socket_p->stats.totalXmitCycles+= (cycles_after - cycles_before);
+        
         switch (ret)
         {
           case RUC_OK:
@@ -234,6 +240,8 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           xmit_p->eoc_flag       = 0;
           xmit_p->eoc_threshold  = AF_UNIX_CONGESTION_DEFAULT_THRESHOLD;
           xmit_p->state = XMIT_CONGESTED;
+	  FD_SET(socket_p->socketRef,&rucWrFdSetCongested);
+
           return ;
 
           case RUC_DISC:
@@ -314,8 +322,11 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
           ** controller
           */
           xmit_p->xmit_req_flag = 1;
+	  FD_SET(socket_p->socketRef,&rucWrFdSetCongested);
           return;
         }
+	FD_CLR(socket_p->socketRef,&rucWrFdSetCongested);
+
         /*
         ** check if there is a pending buffer (case found if there was a previous congestion
         */
@@ -358,8 +369,13 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
            xmit_p->eoc_flag  = 1;
            xmit_p->congested_flag = 0;
            xmit_p->state = XMIT_IN_PRG;
+	   FD_CLR(socket_p->socketRef,&rucWrFdSetCongested);
            break;
         }
+	else
+	{
+	  FD_SET(socket_p->socketRef,&rucWrFdSetCongested);
+	}
         return;
 
        case XMIT_DEAD:
