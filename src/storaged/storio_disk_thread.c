@@ -476,6 +476,7 @@ void *storio_disk_thread(void *arg) {
         fatal(" unexpected opcode : %d\n",msg.opcode);
         exit(0);       
     }
+    sched_yield();
   }
 }
 /*

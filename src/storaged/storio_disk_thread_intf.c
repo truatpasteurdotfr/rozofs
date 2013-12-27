@@ -500,6 +500,7 @@ int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode,
   }
   
   af_unix_disk_pending_req_count++;
+  sched_yield();
   return 0;
 }
 
@@ -548,7 +549,7 @@ int af_unix_disk_response_socket_create(char *socketname)
      */
      sockctrl_ref = ruc_sockctl_connect(fd,  // Reference of the socket
                                                 DISK_SOCKET_NICKNAME,   // name of the socket
-                                                3,                  // Priority within the socket controller
+                                                16,                  // Priority within the socket controller
                                                 (void*)NULL,      // user param for socketcontroller callback
                                                 &af_unix_disk_callBack_sock);  // Default callbacks
       if (sockctrl_ref == NULL)
