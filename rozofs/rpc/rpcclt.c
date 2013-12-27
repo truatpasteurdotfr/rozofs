@@ -62,7 +62,7 @@ int rpcclt_initialize(rpcclt_t * client, const char *host, unsigned long prog,
 
     if (port_num == 0) {
         if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
-            warning("pmap_getport failed%s", clnt_spcreateerror(""));
+            //warning("pmap_getport failed%s", clnt_spcreateerror(""));
             errno = EPROTO;
             goto out;
         }

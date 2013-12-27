@@ -49,6 +49,7 @@
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "config.h"
 #include "sconfig.h"
@@ -179,6 +180,8 @@ static void on_start(void) {
     
     conf.instance_id = storio_instance;
     conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT + storio_instance;
+    /* Try to get debug port from /etc/services */    
+    conf.debug_port  = get_service_port("rozo_storio_dbg",NULL,conf.debug_port);
     if (storaged_hostname != NULL) 
       strcpy(conf.hostname, storaged_hostname);
     else 

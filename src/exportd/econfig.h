@@ -41,6 +41,7 @@ typedef struct cluster_config {
 
 typedef struct volume_config {
     vid_t vid;
+    uint8_t layout;    
     list_t clusters;
     list_t list;
 } volume_config_t;

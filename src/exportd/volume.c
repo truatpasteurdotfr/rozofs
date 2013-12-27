@@ -96,10 +96,11 @@ void cluster_release(cluster_t *cluster) {
     }
 }
 
-int volume_initialize(volume_t *volume, vid_t vid) {
+int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout) {
     int status = -1;
     DEBUG_FUNCTION;
     volume->vid = vid;
+    volume->layout = layout;
     list_init(&volume->clusters);
     if (pthread_rwlock_init(&volume->lock, NULL) != 0) {
         goto out;
@@ -145,6 +146,7 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
     }
 
     to->vid = from->vid;
+    to->layout = from->layout;
 
     list_for_each_forward(p, &from->clusters) {
         cluster_t *to_cluster = xmalloc(sizeof (cluster_t));
@@ -191,7 +193,7 @@ void volume_balance(volume_t *volume) {
     START_PROFILING(volume_balance);
 
     // create a working copy
-    if (volume_initialize(&clone, 0) != 0) {
+    if (volume_initialize(&clone, 0, 0) != 0) {
         severe("can't initialize clone volume: %u", volume->vid);
         goto out;
     }
@@ -325,7 +327,7 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
     return status;
 }
 
-int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids) {
+int volume_distribute(volume_t *volume, cid_t *cid, sid_t *sids) {
     list_t *p;
     int xerrno = ENOSPC;
 
@@ -339,7 +341,7 @@ int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids)
 
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        if (cluster_distribute(layout, cluster, sids) == 0) {
+        if (cluster_distribute(volume->layout, cluster, sids) == 0) {
             *cid = cluster->cid;
             xerrno = 0;
             break;
@@ -355,7 +357,7 @@ out:
     return errno == 0 ? 0 : -1;
 }
 
-void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
+void volume_stat(volume_t *volume, volume_stat_t *stat) {
     list_t *p;
     DEBUG_FUNCTION;
     START_PROFILING(volume_stat);
@@ -363,8 +365,8 @@ void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *stat) {
     stat->bsize = ROZOFS_BSIZE;
     stat->bfree = 0;
     stat->blocks = 0;
-    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
-    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(volume->layout);
+    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(volume->layout);
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         warning("can't lock volume %u.", volume->vid);

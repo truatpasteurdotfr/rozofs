@@ -100,10 +100,11 @@ void cluster_config_release(cluster_config_t *c) {
     }
 }
 
-int volume_config_initialize(volume_config_t *v, vid_t vid) {
+int volume_config_initialize(volume_config_t *v, vid_t vid, uint8_t layout) {
     DEBUG_FUNCTION;
 
     v->vid = vid;
+    v->layout = layout;
     list_init(&v->clusters);
     list_init(&v->list);
     return 0;
@@ -225,7 +226,7 @@ void econfig_release(econfig_t *config) {
     }
 }
 
-static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
+static int load_volumes_conf(econfig_t *ec, struct config_t *config, int elayout) {
     int status = -1, v, c, s;
     struct config_setting_t *volumes_set = NULL;
 
@@ -244,9 +245,9 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
         // Check version of libconfig
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-        int vid; // Volume identifier
+        int vid,vlayout; // Volume identifier
 #else
-        long int vid; // Volume identifier
+        long int vid,vlayout; // Volume identifier
 #endif
         struct config_setting_t *vol_set = NULL; // Settings for one volume
         /* Settings of list of clusters for one volume */
@@ -267,9 +268,18 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
+        // Check whether a layout is specified for this volume in the configuration file
+	// or take the layout from the export default value
+        if (config_setting_lookup_int(vol_set, ELAYOUT, &vlayout) == CONFIG_FALSE) {
+	  /* 
+	  ** No specific layout given for this volume. Get the export default layout.
+	  */
+          vlayout = elayout;	
+        }
+	
         // Allocate new volume_config
         vconfig = (volume_config_t *) xmalloc(sizeof (volume_config_t));
-        if (volume_config_initialize(vconfig, (vid_t) vid) != 0) {
+        if (volume_config_initialize(vconfig, (vid_t) vid, (uint8_t) vlayout) != 0) {
             severe("can't initialize volume.");
             goto out;
         }
@@ -720,7 +730,7 @@ int econfig_read(econfig_t *config, const char *fname) {
     strncpy(config->exportd_vip, host, ROZOFS_HOSTNAME_MAX);
 #endif
     
-    if (load_volumes_conf(config, &cfg) != 0) {
+    if (load_volumes_conf(config, &cfg, layout) != 0) {
         severe("can't load volume config.");
         goto out;
     }
@@ -939,6 +949,13 @@ static int econfig_validate_volumes(econfig_t *config) {
     list_for_each_forward(p, &config->volumes) {
         volume_config_t *e1 = list_entry(p, volume_config_t, list);
 
+
+	if (e1->layout < LAYOUT_2_3_4 || e1->layout > LAYOUT_8_12_16) {
+            severe("unknown layout: %d.", e1->layout);
+            errno = EINVAL;
+            goto out;
+	}
+
         list_for_each_forward(q, &config->volumes) {
             volume_config_t *e2 = list_entry(q, volume_config_t, list);
             if (e1 == e2)
@@ -1067,6 +1084,7 @@ int econfig_print(econfig_t *config) {
         list_t *q;
         volume_config_t *vconfig = list_entry(p, volume_config_t, list);
         printf("vid: %d\n", vconfig->vid);
+        printf("layout: %d\n", vconfig->layout);
 
         list_for_each_forward(q, &vconfig->clusters) {
             list_t *r;

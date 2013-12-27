@@ -68,7 +68,7 @@ int monitor_volume(volume_t *volume) {
     volume_t clone;
     uint32_t nb_storages = 0;
 
-    volume_initialize(&clone, 0);
+    volume_initialize(&clone, 0, 0);
     if (volume_safe_copy(&clone, volume) != 0) {
         severe("can't clone volume: %d", volume->vid);
         goto out;
@@ -86,7 +86,7 @@ int monitor_volume(volume_t *volume) {
     dprintf(fd, "volume: %u\n", clone.vid);
 
     //XXX TO CHANGE
-    volume_stat(&clone, 0, &vstat);
+    volume_stat(&clone,&vstat);
     gprofiler.vstats[gprofiler.nb_volumes].bsize = vstat.bsize;
     gprofiler.vstats[gprofiler.nb_volumes].bfree = vstat.bfree;
     gprofiler.vstats[gprofiler.nb_volumes].blocks = vstat.blocks;

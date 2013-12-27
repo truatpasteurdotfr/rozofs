@@ -712,7 +712,7 @@ static void *load_trash_dir_thread(void *v) {
     return 0;
 }
 
-int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
+int export_initialize(export_t * e, volume_t *volume,
         lv2_cache_t *lv2_cache, uint32_t eid, const char *root, const char *md5,
         uint64_t squota, uint64_t hquota) {
 
@@ -729,7 +729,7 @@ int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
     e->eid = eid;
     e->volume = volume;
     e->lv2_cache = lv2_cache;
-    e->layout = layout; // Layout used for this export
+    e->layout = volume->layout; // Layout used for this volume
 
     // Initialize the dirent level 0 cache
     dirent_cache_level0_initialize();
@@ -814,7 +814,7 @@ int export_stat(export_t * e, estat_t * st) {
     st->namemax = ROZOFS_FILENAME_MAX;
     st->ffree = stfs.f_ffree;
     st->blocks = e->fstat.blocks;
-    volume_stat(e->volume, e->layout, &vstat);
+    volume_stat(e->volume, &vstat);
 
     if (e->hquota > 0) {
         if (e->hquota < vstat.bfree) {
@@ -1114,7 +1114,7 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     // generate attributes
     uuid_copy(attrs->fid, node_fid);
-    if (volume_distribute(e->volume, e->layout, &attrs->cid, attrs->sids) != 0)
+    if (volume_distribute(e->volume, &attrs->cid, attrs->sids) != 0)
         goto error;
     attrs->mode = mode;
     attrs->uid = uid;
@@ -2534,10 +2534,13 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
         goto out;
     }
 
+    // Access time of the directory is not changed any more on readdir
+
+    
     // Update atime of parent
-    parent->attributes.atime = time(NULL);
-    if (export_lv2_write_attributes(parent) != 0)
-        goto out;
+    //parent->attributes.atime = time(NULL);
+    //if (export_lv2_write_attributes(parent) != 0)
+    //    goto out;
 
     status = 0;
 out:

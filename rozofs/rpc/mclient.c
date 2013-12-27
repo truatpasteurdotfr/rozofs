@@ -20,10 +20,13 @@
 #include <errno.h>
 
 #include <rozofs/common/log.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "mproto.h"
 #include "rpcclt.h"
 #include "mclient.h"
+
+uint16_t mproto_service_port = 0;
 
 int mclient_initialize(mclient_t * clt, struct timeval timeout) {
     int status = -1;
@@ -31,9 +34,14 @@ int mclient_initialize(mclient_t * clt, struct timeval timeout) {
 
     clt->status = 0;
 
+    if (mproto_service_port == 0) {
+      /* Try to get debug port from /etc/services */    
+      mproto_service_port = get_service_port("rozo_storaged_srv",NULL,ROZOFS_MPROTO_PORT);
+    }
+    
     if (rpcclt_initialize(&clt->rpcclt, clt->host, MONITOR_PROGRAM,
             MONITOR_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
-            ROZOFS_MPROTO_PORT, timeout) != 0) {
+            mproto_service_port, timeout) != 0) {
         // storageclt_release can change errno
         int xerrno = errno;
         //storageclt_release(clt);

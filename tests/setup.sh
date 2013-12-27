@@ -28,19 +28,19 @@ process_killer () {
   then
     for pid in `cat /var/run/$1* `
     do
-      kill $pid
+      kill $pid  > /dev/null 2>&1    
     done
   else
     return  
   fi
 
-  sleep 2
+  #sleep 2
       
   if ls /var/run/$1* > /dev/null 2>&1
   then   
     for pid in `cat /var/run/$1* `
     do
-      kill -9 $pid
+      kill -9 $pid > /dev/null 2>&1
     done
   fi  
 }   
@@ -273,7 +273,8 @@ gen_export_conf ()
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
-    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+#    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "layout = 2 ;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
@@ -281,6 +282,7 @@ gen_export_conf ()
 
             echo '        {' >> $FILE
             echo "            vid = $v;" >> $FILE
+	    echo "            layout = $ROZOFS_LAYOUT;" >> $FILE
             echo '            cids= ' >> $FILE
             echo '            (' >> $FILE
 
@@ -342,9 +344,9 @@ start_one_storage()
    
 	sid=$1
 	cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
-	echo "Start storage cid: $cid sid: $sid"
+	#echo "Start storage cid: $cid sid: $sid"
 	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
-	sleep 1
+	#sleep 1
 }
 
 start_one_storage_rebuild() 
@@ -353,7 +355,7 @@ start_one_storage_rebuild()
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
     echo "Start storage cid: $cid sid: $sid with rebuild"
     ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost
-    sleep 1
+    #sleep 1
 }
 
 
@@ -366,7 +368,7 @@ stop_one_storage () {
 }   
 reset_one_storage () {
   stop_one_storage $1
-  sleep 1
+  #sleep 1
   start_one_storage $1
 }
 # $1 = STORAGES_BY_CLUSTER
@@ -394,6 +396,7 @@ echo ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON}
 
 stop_storaged()
 {
+   echo "------------------------------------------------------"
    echo "Stopping the storaged"
    sid=0
     
@@ -569,7 +572,6 @@ deploy_clients_local ()
                     option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
                     option="$option -o rozofsnbstorcli=$NB_STORCLI"
                     option="$option -o rozofsshaper=$SHAPER"
-                    option="$option -o rozofsshaper=$SHAPER"
                     option="$option -o posixlock"
                     option="$option -o bsdlock"
                     let "INSTANCE=${idx_client}-1"
@@ -593,7 +595,7 @@ deploy_clients_local ()
 
 rozofsmount_kill_best_effort()
 {
-    echo "------------------------------------------------------"
+    #echo "------------------------------------------------------"
     echo "Killing rozofsmount and storcli in best effort mode"
     process_killer rozofsmount
 }
@@ -622,18 +624,20 @@ undeploy_clients_local ()
                 echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}_${idx_client}"
 
                 umount ${LOCAL_MNT_ROOT}${j}_${idx_client}
-
-                umount -l ${LOCAL_MNT_ROOT}${j}_${idx_client}
+		case $? in
+		  0) ;;
+		  *) umount -l ${LOCAL_MNT_ROOT}${j}_${idx_client};;
+		esac  
 
                 rm -rf ${LOCAL_MNT_ROOT}${j}_${idx_client}
 
-                storcli_killer.sh ${LOCAL_MNT_ROOT}${j}_${idx_client}
+                storcli_killer.sh ${LOCAL_MNT_ROOT}${j}_${idx_client} > /dev/null 2>&1
 
             done
 
         done
 
-    sleep 2
+    sleep 0.4
 
     rozofsmount_kill_best_effort
 
@@ -753,7 +757,7 @@ do_stop()
 {
     do_pause
     remove_all
-    sleep 1
+    #sleep 1
 }
 
 clean_all ()
@@ -1067,7 +1071,9 @@ main ()
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
 
     ulimit -c unlimited
-
+    nbaddr=$((STORAGES_BY_CLUSTER*NB_CLUSTERS_BY_VOLUME*NB_VOLUMES))
+    ${WORKING_DIR}/conf_local_addr.sh set $nbaddr eth0 > /dev/null 2>&1 
+    
     if [ "$1" == "start" ]
     then
 
