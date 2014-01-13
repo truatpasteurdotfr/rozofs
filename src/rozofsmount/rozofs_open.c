@@ -56,7 +56,9 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     void *buffer_p = NULL;
     epgw_mfile_arg_t arg;
     file_t *file = NULL;
+    errno = 0;
 
+    int trc_idx = rozofs_trc_req(srv_rozofs_ll_open,ino,NULL);
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -69,6 +71,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     }
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));
 
     START_PROFILING_NB(buffer_p,rozofs_ll_open);
@@ -83,7 +86,8 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     ** check if it is configured in block mode, in that case we avoid
     ** a transaction with the exportd
     */
-    if (rozofs_mode == 1)
+    if ((rozofs_mode == 1) ||
+       ((ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000) > rozofs_get_ticker_us()))
     {
       /*
       ** allocate a context for the file descriptor
@@ -145,6 +149,7 @@ error:
     ** release the buffer if has been allocated
     */
 out:
+    rozofs_trc_rsp(srv_rozofs_ll_open,(fuse_ino_t)file,(ie==NULL)?NULL:ie->attrs.fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_open);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
@@ -177,13 +182,16 @@ void rozofs_ll_open_cbk(void *this,void *param)
    mattr_t  attr;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
-    
+   errno = 0;
+   int trc_idx;
+       
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
       
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,ino);
    RESTORE_FUSE_PARAM(param,fi);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    
 //    uint8_t rozofs_safe = rozofs_get_rozofs_safe(exportclt.layout);
 //    uint8_t rozofs_forward = rozofs_get_rozofs_forward(exportclt.layout);
@@ -355,6 +363,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_open,(fuse_ino_t)file,(ie==NULL)?NULL:ie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_open);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    

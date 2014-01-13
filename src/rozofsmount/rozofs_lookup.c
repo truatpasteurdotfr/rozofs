@@ -42,6 +42,9 @@ void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name)
     epgw_lookup_arg_t arg;
     int    ret;        
     void *buffer_p = NULL;
+    int trc_idx;
+    
+    trc_idx = rozofs_trc_req_name(srv_rozofs_ll_lookup,parent,(char*)name);
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -55,6 +58,7 @@ void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name)
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,parent);
     SAVE_FUSE_STRING(buffer_p,name);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     
 
     DEBUG("lookup (%lu,%s)\n", (unsigned long int) parent, name);
@@ -100,6 +104,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+    rozofs_trc_rsp(srv_rozofs_ll_lookup,parent,NULL,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_lookup);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
@@ -133,11 +138,14 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
    mattr_t  attrs;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   int trc_idx;
+   errno = 0;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
     
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -242,6 +250,10 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
         nie = alloc_ientry(attrs.fid);
     }  
+    /**
+    *  update the timestamp in the ientry context
+    */
+    nie->timestamp = rozofs_get_ticker_us();
     /*
     ** update the attributes in the ientry
     */
@@ -270,6 +282,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_lookup,(nie==NULL)?0:nie->inode,(nie==NULL)?NULL:nie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_lookup);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    

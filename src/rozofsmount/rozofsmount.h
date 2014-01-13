@@ -99,6 +99,7 @@ typedef struct ientry {
      ** because some write has occured since the last read.
      */
     uint64_t    read_consistency;
+    uint64_t    timestamp;
 } ientry_t;
 
 static inline uint32_t fuse_ino_hash(void *n) {

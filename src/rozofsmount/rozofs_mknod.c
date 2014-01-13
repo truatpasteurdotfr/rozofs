@@ -52,6 +52,7 @@ void rozofs_ll_mknod_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     epgw_mknod_arg_t arg;
 
     int    ret;
+    int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_mknod,parent,(char*)name);
     void *buffer_p = NULL;
     /*
     ** allocate a context for saving the fuse parameters
@@ -68,6 +69,7 @@ void rozofs_ll_mknod_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     SAVE_FUSE_STRING(buffer_p,name);
     SAVE_FUSE_PARAM(buffer_p,mode);
     SAVE_FUSE_PARAM(buffer_p,rdev);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     
     START_PROFILING_NB(buffer_p,rozofs_ll_mknod);
     
@@ -110,6 +112,7 @@ void rozofs_ll_mknod_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     */
     return;
 error:
+    rozofs_trc_rsp(srv_rozofs_ll_mknod,parent,NULL,1,trc_idx);
     fuse_reply_err(req, errno);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_mknod);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
@@ -143,11 +146,14 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
    int      bufsize;
    mattr_t  attrs;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   errno = 0;
+   int trc_idx;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -280,6 +286,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_mknod,(nie==NULL)?0:nie->inode,(nie==NULL)?NULL:nie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_mknod);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);        
