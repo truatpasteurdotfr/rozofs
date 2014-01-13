@@ -454,6 +454,8 @@ xdr_epgw_mattr_ret_t (XDR *xdrs, epgw_mattr_ret_t *objp)
 
 	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->free_quota))
+		 return FALSE;
 	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->status_gw))
 		 return FALSE;
 	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->parent_attr))

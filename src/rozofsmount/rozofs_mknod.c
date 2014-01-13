@@ -251,6 +251,12 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** Update eid free quota
+    */
+    eid_set_free_quota(ret.free_quota);  
+        
     memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*

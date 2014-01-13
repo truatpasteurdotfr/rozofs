@@ -174,6 +174,7 @@ union ep_mattr_ret_t switch (ep_status_t status) {
 struct epgw_mattr_ret_t
 {
   struct ep_gateway_t hdr;
+  uint64_t          free_quota;
   ep_mattr_ret_t    status_gw;
   ep_mattr_ret_t    parent_attr;
 };

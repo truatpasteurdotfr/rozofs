@@ -242,9 +242,9 @@ gen_export_gw_conf ()
     for k in $(seq ${NB_EXPORTS}); do
         if [[ ${k} == ${NB_EXPORTS} ]]
         then
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}" >> $FILE
         else
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}," >> $FILE
         fi
     done;
     echo ');' >> $FILE
@@ -328,9 +328,9 @@ gen_export_conf ()
     for k in $(seq ${NB_EXPORTS}); do
         if [[ ${k} == ${NB_EXPORTS} ]]
         then
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}" >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}" >> $FILE
         else
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"\"; hquota=\"\"; vid=${k};}," >> $FILE
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}," >> $FILE
         fi
     done;
     echo ');' >> $FILE
@@ -1066,6 +1066,8 @@ main ()
     NB_STORCLI=1
     SHAPER=0
     ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
+    SQUOTA=""
+    HQUOTA=""
 
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE

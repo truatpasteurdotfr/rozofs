@@ -1104,6 +1104,18 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
     }
 
+    
+    /*
+    ** Check that some space os left for the new file in case a hard quota is set
+    */
+    if (e->hquota) {
+      if (e->fstat.blocks >= e->hquota) {
+        errno = ENOSPC;
+       goto error;
+      }
+    }
+
+
     // create the lv2 new file
     uuid_generate(node_fid);
     if (export_lv2_resolve_path(e, node_fid, node_path) != 0)
@@ -1211,6 +1223,18 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         xerrno = EIO;
         goto error_read_only;
     }
+    
+    
+    /*
+    ** Check that some space is left for the new file in case a hard quota is set
+    */
+    if (e->hquota) {
+      if (e->fstat.blocks >= e->hquota) {
+        errno = ENOSPC;
+       goto error;
+      }
+    }    
+    
     // create the lv2 new file
     uuid_generate(node_fid);
     if (export_lv2_resolve_path(e, node_fid, node_path) != 0)

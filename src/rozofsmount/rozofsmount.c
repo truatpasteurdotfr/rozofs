@@ -74,6 +74,13 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
+/*
+** Exportd id free byte count for quota management
+*/
+uint64_t eid_free_quota = -1; // -1 means no quota 
+
+
+
 uint64_t   rozofs_client_hash=0;
 /**
 * fuse request/reponse trace parameters

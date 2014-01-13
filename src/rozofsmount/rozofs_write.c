@@ -955,6 +955,15 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     }
     
     if (ie->attrs.size < (off + size)) {
+
+        /*
+	** Check whether the size extension is compatible 
+	** with the export hard quota
+	*/
+        if (! eid_check_free_quota(ie->attrs.size,off + size)) {
+          goto error; // errno is already set	  
+	}
+	
         ie->attrs.size = (off + size);
         file->attrs.size = (off + size);
     }
@@ -2273,7 +2282,7 @@ out:
  
 void export_write_block_cbk(void *this,void *param) 
 {
-   epgw_io_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -2282,7 +2291,7 @@ void export_write_block_cbk(void *this,void *param)
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
    errno = 0;
    int trc_idx;
@@ -2386,10 +2395,16 @@ void export_write_block_cbk(void *this,void *param)
 
 
     if (ret.status_gw.status == EP_FAILURE) {
-        errno = ret.status_gw.ep_io_ret_t_u.error;
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** Update eid free quota
+    */
+    eid_set_free_quota(ret.free_quota);
+        
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
 //out:
 

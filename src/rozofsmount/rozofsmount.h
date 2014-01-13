@@ -102,6 +102,61 @@ typedef struct ientry {
     uint64_t    timestamp;
 } ientry_t;
 
+
+
+/*
+** About exportd id quota
+*/
+extern uint64_t eid_free_quota;
+/**______________________________________________________________________________
+*/
+/**
+*  Set export id free block count when a quota is set
+*  @param free_quota   Count of free blocks before reaching the hard quota
+*
+*/
+static inline void eid_set_free_quota(uint64_t free_quota) {
+  eid_free_quota = free_quota;
+}
+/**______________________________________________________________________________
+*/
+/**
+*  Check export id hard quota
+*
+*  @param oldSize   Old size of the file
+*  @param newSize   New size of the file
+*
+* @retval 0 not enough space left
+* @retval 1 there is the requested space
+*
+*/
+static inline int eid_check_free_quota(uint64_t oldSize, uint64_t newSize) {
+  uint64_t oldBlocks;
+  uint64_t newBlocks;
+
+  if (eid_free_quota == -1) return 1; // No quota so go on
+
+  // Compute current number of blocks of the file
+  oldBlocks = oldSize / ROZOFS_BSIZE;
+  if (oldSize % ROZOFS_BSIZE) oldBlocks++;
+
+  // Compute futur number of blocks of the file
+  newBlocks = newSize / ROZOFS_BSIZE;
+  if (newSize % ROZOFS_BSIZE) newBlocks++;  
+  
+  if ((newBlocks-oldBlocks) > eid_free_quota) {
+    errno = ENOSPC;
+    return 0;
+  }  
+  return 1;
+}
+
+
+
+
+
+
+
 static inline uint32_t fuse_ino_hash(void *n) {
     return hash_xor8(*(uint32_t *) n);
 }

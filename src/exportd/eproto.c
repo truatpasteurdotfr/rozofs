@@ -46,7 +46,25 @@ void *ep_null_1_svc(void *noargs, struct svc_req *req) {
 uint32_t exportd_storage_host_count = 0; /**< number of host storage in the configuration of an eid */
 ep_cnf_storage_node_t exportd_storage_host_table[STORAGE_NODES_MAX]; /**< configuration for each storage */
 epgw_conf_ret_t export_storage_conf; /**< preallocated area to build storage configuration message */
-
+/*
+ *_______________________________________________________________________
+ */
+/**
+*  Get export id free block count in case a quota has been set
+  
+  @param none
+  
+  @retval 0 on success
+  @retval -1 on error
+ */
+static inline uint64_t exportd_get_free_quota(export_t *exp) {
+   
+  uint64_t quota;
+  
+  if (exp->hquota == 0) return -1;
+  quota = exp->hquota - exp->fstat.blocks;
+  return quota; 
+}
 /*
  *_______________________________________________________________________
  */
@@ -689,6 +707,7 @@ epgw_mattr_ret_t * ep_lookup_1_svc(epgw_lookup_arg_t * arg, struct svc_req * req
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status   = EP_SUCCESS;
     ret.parent_attr.status = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -725,7 +744,7 @@ epgw_mattr_ret_t * ep_getattr_1_svc(epgw_mfile_arg_t * arg, struct svc_req * req
         goto error;
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status = EP_SUCCESS;
-
+    ret.free_quota = exportd_get_free_quota(exp);
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -764,6 +783,7 @@ epgw_mattr_ret_t * ep_setattr_1_svc(epgw_setattr_arg_t * arg, struct svc_req * r
         goto error;
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -843,6 +863,7 @@ epgw_mattr_ret_t * ep_link_1_svc(epgw_link_arg_t * arg, struct svc_req * req) {
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status   = EP_SUCCESS;
     ret.parent_attr.status = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -881,6 +902,7 @@ epgw_mattr_ret_t * ep_mknod_1_svc(epgw_mknod_arg_t * arg, struct svc_req * req) 
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.parent_attr.status = EP_SUCCESS;
     ret.status_gw.status = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);    
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -920,6 +942,7 @@ epgw_mattr_ret_t * ep_mkdir_1_svc(epgw_mkdir_arg_t * arg, struct svc_req * req) 
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.parent_attr.status = EP_SUCCESS;
     ret.status_gw.status = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -1036,6 +1059,7 @@ epgw_mattr_ret_t * ep_symlink_1_svc(epgw_symlink_arg_t * arg, struct svc_req * r
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.parent_attr.status = EP_SUCCESS;
     ret.status_gw.status = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);    
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -1222,6 +1246,7 @@ epgw_mattr_ret_t * ep_write_block_1_svc(epgw_write_block_arg_t * arg,
         goto error;
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status   = EP_SUCCESS;
+    ret.free_quota = exportd_get_free_quota(exp);    
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  
