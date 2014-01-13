@@ -26,6 +26,7 @@
 #include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
@@ -1203,7 +1204,9 @@ void rozofs_kill_one_storcli(int instance) {
 
 void rozofs_start_one_storcli(int instance) {
     char cmd[1024];
-    
+    uint16_t debug_port_value;
+    char     debug_port_name[32];
+        
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
@@ -1211,7 +1214,13 @@ void rozofs_start_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
     cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
     cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
-    cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + instance);
+    
+    /* Try to get debug port from /etc/services */
+    debug_port_value = conf.dbg_port + instance;
+    sprintf(debug_port_name,"rozo_storcli%d_%d_dbg",conf.instance,instance);
+    debug_port_value = get_service_port(debug_port_name,NULL,debug_port_value);
+          
+    cmd_p += sprintf(cmd_p, "-D %d ", debug_port_value);
     cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
     cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
     cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
@@ -1230,7 +1239,7 @@ void rozofs_start_one_storcli(int instance) {
     info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
             " profile port: %d, rozofs instance: %d, storage timeout: %d).",
             instance, conf.host, conf.export, mountpoint,
-            conf.dbg_port + instance, conf.instance,
+            debug_port_value, conf.instance,
             ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 
     system(cmd);
@@ -1509,6 +1518,12 @@ int fuseloop(struct fuse_args *args, int fg) {
     }     
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_rozofsmount_port((uint16_t) conf.instance);
+    /* Try to get debug port from /etc/services */
+    {
+      char debug_port_name[32];
+      sprintf(debug_port_name,"rozo_mount%d_dbg",conf.instance);
+      rozofs_fuse_conf.debug_port = get_service_port(debug_port_name,NULL,rozofs_fuse_conf.debug_port);
+    }
     rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     conf.dbg_port = rozofs_fuse_conf.debug_port;
     rozofs_fuse_conf.se = se;
