@@ -90,7 +90,7 @@ DECLARE_PROFILING(mpp_profiler_t);
          &&(S_ISREG(ie->attrs.mode))) 
     {
       mattr_to_stat(&ie->attrs, &stbuf);
-      stbuf.st_ino = ino;   
+      stbuf.st_ino = ino; 
       fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
       goto out;   
     }
@@ -292,14 +292,12 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
-    stbuf.st_size = ie->size;
+    if (ie->attrs.size < stbuf.st_size) ie->attrs.size = stbuf.st_size;
+    stbuf.st_size = ie->attrs.size;
     /*
     ** copy the attributes in the ientry for the case of the block mode
     */
     memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    ie->size = stbuf.st_size;
-    ie->attrs.size = stbuf.st_size;    
         
     fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
     goto out;
@@ -411,7 +409,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
 
       // Check file size 
       if (attr.size < ROZOFS_FILESIZE_MAX) {
-        ie->size = attr.size;
+        ie->attrs.size = attr.size;
       }else{
         errno = EFBIG;
         goto error;
@@ -680,8 +678,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (ie->size < o_stbuf.st_size) ie->size = o_stbuf.st_size;
-    o_stbuf.st_size = ie->size;
+    if (ie->attrs.size < o_stbuf.st_size) ie->attrs.size = o_stbuf.st_size;
+    o_stbuf.st_size = ie->attrs.size;
 
     fuse_reply_attr(req, &o_stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
 

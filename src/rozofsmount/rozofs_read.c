@@ -544,7 +544,7 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     ** for which the attribute size has to be updated. However this takes place
     ** on the ientry only
     */
-    file->attrs.size = ie->size;
+    file->attrs.size = ie->attrs.size;
     /*
     ** check if the application is attempting to read atfer a close (_ll_release)
     */
@@ -814,11 +814,11 @@ void rozofs_ll_read_cbk(void *this,void *param)
             if ((ie2 == NULL)) {
                 file_size = 0;
             } else {
-                file_size = ie2->size;
+//                file_size = ie2->size;
             }
             severe("BUGROZOFSWATCH(%p) , received_len=%d,"
                     " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
-                    " received_len_orig=%d,readahead=%d," " ie->size=%"PRIu64"",
+                    " received_len_orig=%d,readahead=%d," " ie->attrs.size=%"PRIu64"",
                     file, received_len, next_read_from, file->attrs.size,
                     received_len_orig, readahead, file_size);
 

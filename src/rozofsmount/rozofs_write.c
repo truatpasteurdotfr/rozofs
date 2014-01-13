@@ -954,8 +954,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         goto error;
     }
     
-    if (ie->size < (off + size)) {
-        ie->size = (off + size);
+    if (ie->attrs.size < (off + size)) {
+        ie->attrs.size = (off + size);
         file->attrs.size = (off + size);
     }
 

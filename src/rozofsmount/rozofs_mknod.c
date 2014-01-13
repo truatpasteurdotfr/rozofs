@@ -271,8 +271,8 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (nie->size < stbuf.st_size) nie->size = stbuf.st_size;
-    stbuf.st_size = nie->size;
+    if (nie->attrs.size < stbuf.st_size) nie->attrs.size = stbuf.st_size;
+    stbuf.st_size = nie->attrs.size;
         
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
     fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
