@@ -814,14 +814,15 @@ void rozofs_ll_read_cbk(void *this,void *param)
             if ((ie2 == NULL)) {
                 file_size = 0;
             } else {
-//                file_size = ie2->size;
+                file_size = ie2->attrs.size;
             }
+#if 0	    
             severe("BUGROZOFSWATCH(%p) , received_len=%d,"
                     " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
                     " received_len_orig=%d,readahead=%d," " ie->attrs.size=%"PRIu64"",
                     file, received_len, next_read_from, file->attrs.size,
                     received_len_orig, readahead, file_size);
-
+#endif
             received_len = received_len_orig;
             if ((next_read_from + received_len) > file_size) {
                 received_len = file_size - next_read_from;
