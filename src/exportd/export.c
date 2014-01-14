@@ -1366,6 +1366,10 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
     if (!(lv2 = export_lookup_fid(e, child_fid)))
         goto out;
 
+    // Return the fid of deleted file
+    memcpy(fid, child_fid, sizeof (fid_t));
+
+
     // Get nlink
     nlink = lv2->attributes.nlink;
 
@@ -1468,11 +1472,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
                 // Best effort
             }
         }
-
-        // Return the fid of deleted file
-        memcpy(fid, child_fid, sizeof (fid_t));
-
-        // Update export files
+       // Update export files
         if (export_update_files(e, -1) != 0)
             goto out;
 
@@ -1485,7 +1485,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
         lv2->attributes.ctime = time(NULL);
         export_lv2_write_attributes(lv2);
         // Return a empty fid because no inode has been deleted
-        memset(fid, 0, sizeof (fid_t));
+        //memset(fid, 0, sizeof (fid_t));
     }
 
     // Update parent
@@ -2587,6 +2587,7 @@ out:
 
 #define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
 #define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
+#define DISPLAY_ATTR_2INT(name,val1,val2) p += sprintf(p,"%-7s : %d/%d\n",name,val1,val2);
 #define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
@@ -2604,8 +2605,12 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
                pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
 
+  DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.uid,lv2->attributes.gid);
+
+
   if (S_ISDIR(lv2->attributes.mode)) {
     DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
+    DISPLAY_ATTR_INT("CHILDREN",lv2->attributes.children);
     return (p-value);  
   }
 
@@ -2627,6 +2632,9 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   } 
   p += sprintf(p,"\n");
 
+  DISPLAY_ATTR_INT("NLINK",lv2->attributes.nlink);
+  DISPLAY_ATTR_INT("SIZE",lv2->attributes.size);
+
 
   DISPLAY_ATTR_INT("LOCK",lv2->nb_locks);  
   if (lv2->nb_locks != 0) {
@@ -2642,6 +2650,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
       if (left > 4) p += sprintf(p,"...");
       return (p-value);
     }
+    
 
     /* List the locks */
     list_for_each_forward(pl, &lv2->file_lock) {

@@ -963,13 +963,22 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
         goto error;
     }
     memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (fid_t));
-    xdr_free(decode_proc, (char *) &ret);    
     /*
     ** end of decoding
     */
     if ((ie = get_ientry_by_fid(fid))) {
         ie->nlookup--;
+
+      /*
+      ** Update number of link
+      */
+      ie->attrs.nlink--; 
+      //info("%d nlookup %d nlink %d",ie->inode, ie->nlookup, ie->attrs.nlink);
+
     }
+
+    xdr_free(decode_proc, (char *) &ret);    
+
     fuse_reply_err(req, 0);
     goto out;
 error:
