@@ -518,11 +518,7 @@ run_test_list() {
   printf "______________________________________________|_________|\n" >> $RESULT
   printf "(Check rozodebug outputs of SUSPECT tests to decide whether it successfull or failed)\n" >> $RESULT
   
-  if [ $FAIL != 0 ];
-  then
-    return 1
-  fi
-  return 0  
+
 }
 
 name=`basename $0`
@@ -546,6 +542,7 @@ TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posi
 TSTS=""
 repeated=1
 nonstop=0
+FAIL=0
 
 # Read parameters
 while [ ! -z $1 ];
@@ -607,3 +604,10 @@ do
    
 done
 cat $RESULT
+
+if [ $FAIL != 0 ];
+then
+  exit 1
+else
+  exit 0
+fi
