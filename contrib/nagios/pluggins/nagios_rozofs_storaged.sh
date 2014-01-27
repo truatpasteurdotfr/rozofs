@@ -261,21 +261,10 @@ case $res in
 esac
 
 # get the number of I/O processes
-nb_out=0
-nb_io_process=`awk '{if ($1=="storaged:") printf("%d\n",$4);}' $TMPFILE`
-	for i in $(seq ${nb_io_process}); 
-    do
-      test_storage_io
-      nb_out=`expr $nb_out + $? `
-    done
-
-if [ $nb_out -eq 0 ]
+test_storage_io
+if [ $? -eq 0 ]
 then
-  display_output $STATE_CRITICAL "no I/O process is UP"
-fi
-if [ $nb_out -ne $nb_io_process ]
-then
-  display_output $STATE_WARNING "only $nb_out/$nb_io_process I/O process(es) are UP"
+  display_output $STATE_CRITICAL "I/O process do noy respond to rozodebug"
 fi
 
 # Hurra !!!
