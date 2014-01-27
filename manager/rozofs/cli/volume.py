@@ -46,15 +46,16 @@ def list(platform, args):
 
 def stat(platform, args):
     
-    # get configurations
+    # Get configuration
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
     if configurations[args.exportd] is None:
         raise Exception("exportd node is off line.")
     
-    # Get statuses from storaged nodes and exportd node
+    # Get statuses from storaged nodes
     statuses = {}
     for h, n in platform._nodes.items():
-        statuses[h] = n.get_statuses(Role.EXPORTD | Role.STORAGED)
+        if n.has_one_of_roles(Role.STORAGED):
+            statuses[h] = n.get_statuses(Role.STORAGED)
     
     # Check if all storaged nodes running
     for host, status in statuses.items():
