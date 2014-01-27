@@ -1497,7 +1497,27 @@ io_error:
      rozofs_storcli_release_context(working_ctx_p);      
     return;
         
-wait_more_projection:    
+wait_more_projection:
+
+    /*
+     ** Check it there is projection for which we expect a response from storage
+     ** that situation can occur because of some anticipation introduced by the read
+     ** guard timer mechanism
+     */
+    if (rozofs_storcli_check_read_in_progress_projections(layout,
+            working_ctx_p->prj_ctx) == 0) {
+        /*
+         ** we fall in that case when we run out of storage
+         */
+        error = EIO;
+        rozofs_storcli_read_reply_error(working_ctx_p, error);
+        /*
+         ** release the root transaction context
+         */
+        STORCLI_STOP_NORTH_PROF(working_ctx_p, read, 0);
+        rozofs_storcli_release_context(working_ctx_p);
+    }
+
     /*
     ** there is no enough projection to rebuild the block, release the transaction
     ** and waiting for more projection read replies
