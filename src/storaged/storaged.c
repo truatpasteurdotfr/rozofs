@@ -205,13 +205,14 @@ static void * rebuild_storage_thread(void *v) {
 
 }
 
+rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE];
+
 /** Start one rebuild process for each storage to rebuild
  */
 static void rbs_process_initialize() {
     list_t *p = NULL;
     int i = 0;
 
-    rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE] ;
     memset(&rbs_stor_configs, 0,
             STORAGES_MAX_BY_STORAGE_NODE * sizeof(rbs_stor_config_t));
 
