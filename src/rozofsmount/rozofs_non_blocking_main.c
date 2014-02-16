@@ -138,7 +138,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
      **   for: NPS, Timer, Debug, etc...
      */
     //#warning set the number of contexts for socketCtrl to 100
-    ret = ruc_sockctl_init(256);
+    ret = ruc_sockctl_init(128);
     if (ret != RUC_OK) {
         fatal( " socket controller init failed" );
     }

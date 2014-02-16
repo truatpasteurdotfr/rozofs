@@ -97,6 +97,7 @@ void cluster_release(cluster_t *cluster);
  */
 typedef struct volume {
     vid_t vid; ///< volume identifier
+    uint8_t layout;
     list_t clusters; ///< cluster(s) list
     pthread_rwlock_t lock; ///< lock to be used by export
 } volume_t;
@@ -105,10 +106,11 @@ typedef struct volume {
  *
  * @param volume: pointer to the volume
  * @param vid: it' id
+ * @param layout: layout defined for this volume
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int volume_initialize(volume_t *volume, vid_t vid);
+int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout);
 
 /** release a volume
  *
@@ -154,21 +156,19 @@ void volume_balance(volume_t *volume);
  * for a new file.
  *
  * @param volume: the volume to scan
- * @param layout: rozofs layout used
  * @param cid: destination cid_t where cid is copied
  * @param host: destination sid_t pointer where sids are copied
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int volume_distribute(volume_t *volume, uint8_t layout, cid_t *cid, sid_t *sids);
+int volume_distribute(volume_t *volume, cid_t *cid, sid_t *sids);
 
 /** get status of a volume
  *
  * @param volume: the volume to scan
- * @param layout: rozofs layout used
  * @param volume_stat: the volume_stat_t to fill
  */
-void volume_stat(volume_t *volume, uint8_t layout, volume_stat_t *volume_stat);
+void volume_stat(volume_t *volume, volume_stat_t *volume_stat);
 
 /** Check that a given distribution is valid
  *

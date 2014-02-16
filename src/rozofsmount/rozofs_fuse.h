@@ -110,6 +110,7 @@ typedef struct _rozofs_fuse_save_ctx_t
    uint32_t buf_flush_len;               /**< length of the data flush to disk    */
    uint32_t readahead;                   /**< assert to 1 for readahead case */
    void     *shared_buf_ref;             /**< reference of the shared buffer (used for STORCLI READ */
+   int       trc_idx;                    /**< trace index */
    /*
    ** Parameters specific to the exportd gateway management
    */

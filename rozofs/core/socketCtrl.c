@@ -28,9 +28,13 @@
 #include "ruc_list.h"
 #include "socketCtrl.h"
 #include "uma_dbg_api.h"
+#include "af_unix_socket_generic_api.h"
+#include "af_unix_socket_generic.h"
+#include "north_lbg.h"
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define RUC_SOCKCTRL_DEBUG_TOPIC      "cpu"
+#define RUC_SOCKCTRL_CTX_TOPIC        "ctx_size"
 
 
 /*
@@ -40,7 +44,7 @@
 /*
 **  priority table
 */
-ruc_obj_desc_t  ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO];
+ruc_obj_desc_t  ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO+1];
 /*
 ** head of the free connection list
 */
@@ -52,39 +56,187 @@ uint32_t          ruc_sockCtrl_maxConnection = 0;
 */
 fd_set  rucRdFdSet;   
 fd_set  rucWrFdSet;   
+fd_set  rucRdFdSetUnconditional;
+fd_set  rucWrFdSetCongested;
+
 /*
 **  gloabl data used in the loops that polls the bitfields
 */
 
 ruc_obj_desc_t *ruc_sockctl_pnextCur;
-int   ruc_sockctl_prioIdxCur;
 
+int   ruc_sockctl_prioIdxCur;
+uint64_t  ruc_time_prepare  = 0;
+uint64_t  ruc_count_prepare = 0;
+uint64_t  ruc_time_receive  = 0;
+uint64_t  ruc_count_receive = 0;
+uint32_t  ruc_sockCtrl_nb_socket_conditional= 0;
+uint64_t gettimeofday_count = 0;
+uint64_t gettimeofday_cycles = 0;
+int ruc_sockCtrl_max_nr_select = 0;
 
 
 
 uint32_t ruc_sockCtrl_lastCpuScheduler = 0;
 uint32_t ruc_sockCtrl_cumulatedCpuScheduler = 0;
 uint32_t ruc_sockCtrl_nbTimesScheduler = 0;
-
+uint64_t ruc_sockCtrl_lastTimeScheduler = 0;
 uint32_t ruc_sockCtrl_looptime = 0;
 uint32_t ruc_sockCtrl_looptimeMax = 0;
 
 ruc_scheduler_t ruc_applicative_traffic_shaper = NULL;
 ruc_scheduler_t ruc_applicative_poller = NULL;
-
+/*
+** table used for storing the index of the socket for which there is the associated bit asserted
+*/
+int socket_recv_count = 0;
+int socket_recv_table[FD_SETSIZE];
+int socket_xmit_count = 0;
+int socket_xmit_table[FD_SETSIZE];
+ruc_sockObj_t *socket_ctx_table[FD_SETSIZE];
+int ruc_sockCtrl_max_poll_ctx = 0;
+ruc_obj_desc_t *ruc_sockctl_poll_pnextCur;
+uint64_t ruc_sockCtrl_poll_period = 0;   /**< period in microseconds */ 
+uint64_t ruc_sockCtrl_nr_socket_stats[FD_SETSIZE];
 
 
 static char    myBuf[UMA_DBG_MAX_SEND_SIZE];
 /*
 **  F U N C T I O N S
 */
+/*
+**____________________________________________________________________________
+*/
+/**
+* api for reading the cycles counter
+*/
+
+static __inline__ unsigned long long rdtsc(void)
+{
+  unsigned hi,lo;
+  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+  return ((unsigned long long)lo)| (((unsigned long long)hi)<<32);
+
+}
+
+/*
+**____________________________________________________________________________
+*/
+/**
+*  User receive ready polling: it concerns socket which priority is greater than 4
+
+
+*/
+
+void ruc_sockCtrl_socket_poll()
+{
+  int i;
+  ruc_sockObj_t *p;
+  int count = 0;
+  
+
+    while ((p = (ruc_sockObj_t*)
+              ruc_objGetNext((ruc_obj_desc_t*)&ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO],
+                             &ruc_sockctl_poll_pnextCur))!=(ruc_sockObj_t*)NULL) 
+   {
+      (*((p->callBack)->isRcvReadyFunc))(p->objRef,p->socketId); 
+      count++; 
+      if (count == ruc_sockCtrl_max_poll_ctx) break;
+   }
+   if (p == NULL) ruc_sockctl_poll_pnextCur = (ruc_obj_desc_t*)NULL;
+}
+/*
+**____________________________________________________________________________
+*/
+/**
+*  the purpose of that function is to return the list of the socket for which 
+   there is a pending event (read or write)
+  
+   @param fdset_p : pointer to the fd set that contains the asserted bits
+   @param socket_tab_p : pointer to the array that will contain the sockets for which there is an event
+   @param nb_sockets : number of bits asserted in the set
+   
+   @retval number of sockets for which an event is asserted 
+*/
+__inline__ int ruc_sockCtrl_build_sock_table(uint64_t *fdset_p,int *socket_tab_p,int nb_sockets)
+{
+   int i;
+   uint32_t val32;
+   uint64_t val64;
+   uint32_t bit;
+   int curr_socket_id;
+   int socket_count = 0;
+   
+   curr_socket_id = 0;
+
+   for (i = 0; i < (__FD_SETSIZE / __NFDBITS); i++)
+   {
+     val64 = fdset_p[i];
+     curr_socket_id = i*(sizeof(uint64_t)*8);
+     if (val64 == 0) 
+     {
+       continue;
+     }     
+     /*
+     ** get the socket in the 0..31 range
+     */
+     val32 = val64 & 0xffffffff;
+     while(val32 != 0)
+     {
+       bit = __builtin_ffs(val32);
+       socket_tab_p[socket_count]=  curr_socket_id+bit-1;
+       socket_count++;
+       if (socket_count == nb_sockets) return nb_sockets;
+       val32 &=(~(1<<(bit-1)));
+     }
+     curr_socket_id +=32;
+     val32 = val64 >> 32;
+     while(val32 != 0)
+     {
+       bit = __builtin_ffs(val32);
+       socket_tab_p[socket_count]=  curr_socket_id+bit-1;
+       socket_count++;
+       if (socket_count == nb_sockets) return nb_sockets;
+       val32 &=(~(1<<(bit-1)));
+     }
+
+   }
+   return socket_count;
+}
+
+/*
+**____________________________________________________________________________
+*/
+void ruc_sockCtrl_remove_socket(int *sock_table_p,int nb_sockets,int socket_id)
+{
+   int i;
+   for (i = 0; i < nb_sockets; i++)
+   {
+     if (sock_table_p[i] != socket_id) continue;
+     sock_table_p[i] = -1;
+   }
+}
 
 /*
 **   D E B U G 
 */
 
+/*__________________________________________________________________________
+  Display of the context size of the various object
+  ==========================================================================
+  PARAMETERS: 
+  - 
+  RETURN: none
+  ==========================================================================*/
+void ruc_sockCtrl_ctx_show(uint32_t tcpRef, void * bufRef) {
+  char           *pChar=myBuf;
 
+  pChar += sprintf(pChar,"ruc_sockObj_t         : %u bytes \n",sizeof(ruc_sockObj_t));
+  pChar += sprintf(pChar,"af_unix_ctx_generic_t : %u bytes \n",sizeof(af_unix_ctx_generic_t));
+  pChar += sprintf(pChar,"north_lbg_ctx_t       : %u bytes \n",sizeof(north_lbg_ctx_t));
+  uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
 
+}
 /*__________________________________________________________________________
   Trace level debug function
   ==========================================================================
@@ -99,6 +251,29 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   uint32_t          average;
 
   p = ruc_sockCtrl_pFirstCtx;
+  pChar += sprintf(pChar,"conditional sockets      : %u \n",ruc_sockCtrl_nb_socket_conditional);
+  pChar += sprintf(pChar,"max socket events        : %u \n",ruc_sockCtrl_max_nr_select);
+  ruc_sockCtrl_max_nr_select = 0;
+  pChar += sprintf(pChar,"xmit/recv prepare cycles : %llu cycles [%llu/%llu)\n",
+                                                               (ruc_count_prepare==0)?0:ruc_time_prepare/ruc_count_prepare,
+                                                               ruc_time_prepare,ruc_count_prepare);
+  ruc_time_prepare = 0;
+  ruc_count_prepare = 0;
+  pChar += sprintf(pChar,"xmit/recv receive cycles : %llu cycles [%llu/%llu)\n",
+                                                               (ruc_count_receive==0)?0:ruc_time_receive/ruc_count_receive,
+                                                               ruc_time_receive,ruc_count_receive);
+  ruc_time_receive = 0;
+  ruc_count_receive = 0;							       
+
+  pChar += sprintf(pChar,"gettimeofday cycles      : %llu cycles [%llu/%llu)\n",
+                                                               (gettimeofday_count==0)?0:gettimeofday_cycles/gettimeofday_count,
+                                                               gettimeofday_cycles,gettimeofday_count);
+  gettimeofday_cycles = 0;
+  gettimeofday_count  = 0;	
+
+  pChar += sprintf(pChar,"rucRdFdSet %p (%u) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
+  
+  
   pChar += sprintf(pChar,"select max cpu time : %u us\n",ruc_sockCtrl_looptimeMax);
   ruc_sockCtrl_looptimeMax = 0;   
   pChar += sprintf(pChar,"%-32s %4s %10s %10s %10s %10s\n","application","sock", "last","cumulated", "activation", "average");
@@ -110,7 +285,9 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
     {
       if (p->nbTimes == 0) average = 0;
       else                 average = p->cumulatedTime/p->nbTimes;
-      pChar += sprintf(pChar, "%-32s %4d %10u %10u %10u %10u %4u\n", &p->name[0],p->socketId, p->lastTime, p->cumulatedTime,p->nbTimes, average,p->priority);
+      pChar += sprintf(pChar, "%-32s %4d %10u %10u %10u %10u %4u %u-%u\n",
+       &p->name[0],p->socketId, p->lastTime, p->cumulatedTime,p->nbTimes, average,p->priority,
+       (FD_ISSET(p->socketId, &rucRdFdSetUnconditional)==0)?0:1, (FD_ISSET(p->socketId, &rucWrFdSetCongested)==0)?0:1);
       p->cumulatedTime = 0;
       p->nbTimes = 0;
     }
@@ -136,9 +313,82 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
 void ruc_sockCtrl_debug(char * argv[], uint32_t tcpRef, void * bufRef) {
   ruc_sockCtrl_debug_show(tcpRef,bufRef);
 }
+/*__________________________________________________________________________
+*/
 
+void ruc_sockCtrl_ctx(char * argv[], uint32_t tcpRef, void * bufRef) {
+  ruc_sockCtrl_ctx_show(tcpRef,bufRef);
+}
+/*__________________________________________________________________________
+*/
+static char * show_ruc_sockCtrl_conf_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"sockctrl pollcount <value> : set number of polled contexts per activation\n");
+  pChar += sprintf(pChar,"sockctrl pollfreq <value>  : set activation period (unit is microseconds)\n");
+  pChar += sprintf(pChar,"sockctrl                   : display current configuration\n");
+  return pChar; 
+}  
 
+void ruc_sockCtrl_conf(char * argv[], uint32_t tcpRef, void * bufRef) {
+  char           *pChar=myBuf;
+  int val = 0;  
+  
+  if (argv[1] != NULL)
+  {
+    if (strcmp(argv[1],"pollcount")==0) 
+    {
+      errno = 0;       
+      val = (int) strtol(argv[2], (char **) NULL, 10);   
+      if (errno != 0) {
+       pChar += sprintf(pChar,"bad value %s\n",argv[2]);    
+       pChar = show_ruc_sockCtrl_conf_help(pChar);
+       uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+       return;     
+      }
+      ruc_sockCtrl_max_poll_ctx = val;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");    
+      return;      
+    }
+    if (strcmp(argv[1],"pollfreq")==0) 
+    {
+      errno = 0;       
+      val = (int) strtol(argv[2], (char **) NULL, 10);   
+      if (errno != 0) {
+       pChar += sprintf(pChar,"bad value %s\n",argv[2]);    
+       pChar = show_ruc_sockCtrl_conf_help(pChar);
+       uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+       return;     
+      }
+      ruc_sockCtrl_poll_period = (uint64_t) val;       
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");    
+      return;      
+    }
+    pChar = show_ruc_sockCtrl_conf_help(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    return;
+  }
+  pChar +=sprintf(pChar,"max number of socket controller contexts : %u\n",ruc_sockCtrl_maxConnection);
+  pChar +=sprintf(pChar,"scheduler polling period                 : %llu us\n",ruc_sockCtrl_poll_period);
+  pChar +=sprintf(pChar,"scheduler polling count                  : %u\n",ruc_sockCtrl_max_poll_ctx);
+  uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+    
+}
+/*__________________________________________________________________________
+*/
+void ruc_sockCtrl_show_select_stats(char * argv[], uint32_t tcpRef, void * bufRef) {
+  char           *pChar=myBuf;
+  int i;
+  
+  pChar +=sprintf(pChar,"Per select call statistics:\n");
+  for (i = 0; i < FD_SETSIZE; i++)
+  {
+     if (ruc_sockCtrl_nr_socket_stats[i] == 0) continue;
+     pChar +=sprintf(pChar,"[%4.4d] = %llu\n",i,ruc_sockCtrl_nr_socket_stats[i]);
+  }
 
+  memset(ruc_sockCtrl_nr_socket_stats,0,sizeof(uint64_t)*FD_SETSIZE);
+  uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+}
 
 /*__________________________________________________________________________
   Register to the debug SWBB
@@ -149,6 +399,9 @@ void ruc_sockCtrl_debug(char * argv[], uint32_t tcpRef, void * bufRef) {
   ==========================================================================*/
 void ruc_sockCtrl_debug_init() {
   uma_dbg_addTopic(RUC_SOCKCTRL_DEBUG_TOPIC, ruc_sockCtrl_debug); 
+  uma_dbg_addTopic(RUC_SOCKCTRL_CTX_TOPIC, ruc_sockCtrl_ctx); 
+  uma_dbg_addTopic("sockctrl", ruc_sockCtrl_conf); 
+  uma_dbg_addTopic("select_stats", ruc_sockCtrl_show_select_stats); 
 }
 
 
@@ -208,17 +461,23 @@ void ruc_sockctl_updatePnextCur(ruc_obj_desc_t *pHead,
 {
 
 
-   if (ruc_sockctl_pnextCur != (ruc_obj_desc_t*)pobj)
+   if (ruc_sockctl_pnextCur == (ruc_obj_desc_t*)pobj)
    {
-     /*
-     ** nothing to do
-     */
+      /*
+      ** ruc_sockctl_pnextCur needs to be updated
+      */
+      ruc_objGetNext(pHead, &ruc_sockctl_pnextCur);
      return;
    }
-   /*
-   ** ruc_sockctl_pnextCur needs to be updated
-   */
-   ruc_objGetNext(pHead, &ruc_sockctl_pnextCur);
+   
+   if (ruc_sockctl_poll_pnextCur == (ruc_obj_desc_t*)pobj)
+   {
+      /*
+      ** ruc_sockctl_pnextCur needs to be updated
+      */
+      ruc_objGetNext(pHead, &ruc_sockctl_poll_pnextCur);
+     return;
+   }
      
 }
 
@@ -253,11 +512,24 @@ uint32_t ruc_sockctl_init(uint32_t maxConnection)
   /*
   ** initialization of the priority table
   */
-  for (i=0;i < RUC_SOCKCTL_MAXPRIO; i++)
+  for (i=0;i < RUC_SOCKCTL_MAXPRIO+1; i++)
   {
      ruc_listHdrInit(&ruc_sockCtl_tabPrio[i]);
   }
-
+  /*
+  ** erase the Fd receive & xmit set
+  */
+  FD_ZERO(&rucRdFdSet);
+  FD_ZERO(&rucWrFdSet);   
+  FD_ZERO(&rucRdFdSetUnconditional);   
+  FD_ZERO(&rucWrFdSetCongested);   
+  memset(socket_recv_table,0xff,sizeof(int)*FD_SETSIZE);
+  memset(socket_xmit_table,0xff,sizeof(int)*FD_SETSIZE);
+  memset(socket_ctx_table,0,sizeof(ruc_sockObj_t *)*FD_SETSIZE);
+  ruc_sockCtrl_max_poll_ctx = RUC_SOCKCTL_POLLCOUNT;
+  ruc_sockctl_poll_pnextCur = NULL;
+  ruc_sockCtrl_poll_period = RUC_SOCKCTL_POLLFREQ; /** period of 40 ms */
+  memset(ruc_sockCtrl_nr_socket_stats,0,sizeof(uint64_t)*FD_SETSIZE);
   /*
   ** create the connection distributor
   */
@@ -389,17 +661,30 @@ void * ruc_sockctl_connect(int socketId,
   pelem->cumulatedTimeXmit = 0;
   pelem->nbTimesXmit = 0;   
   /*
-  **  insert in the associated priority list
+  **  insert in the associated priority list with priority is less than RUC_SOCKCTL_MAXPRIO
+  **  --> only those socket are handled by the prepare xmit/receive function
   */
-  if (priority >= RUC_SOCKCTL_MAXPRIO) 
-    curPrio = RUC_SOCKCTL_MAXPRIO-1;
+  if (priority < RUC_SOCKCTL_MAXPRIO) 
+  {
+    ruc_objInsert(&ruc_sockCtl_tabPrio[priority],(ruc_obj_desc_t*)pelem);
+  }
   else 
-    curPrio = priority;
-  pelem->priority  = curPrio;
+  {
+    ruc_objInsert(&ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO],(ruc_obj_desc_t*)pelem);
+    FD_SET(pelem->socketId,&rucRdFdSetUnconditional);        
+  }
+  pelem->priority  = priority;
 
-  ruc_objInsert(&ruc_sockCtl_tabPrio[curPrio],(ruc_obj_desc_t*)pelem);
+
 
   // 64BITS   return ((uint32_t)pelem);
+  /*
+  ** insert the context in the context table indexed by the socket_id
+  */
+  socket_ctx_table[pelem->socketId] = pelem;
+  /*
+  ** set the socket ready for receiving by default
+  */ 
   return (pelem);
 
 }
@@ -436,8 +721,14 @@ uint32_t ruc_sockctl_disconnect(void * connectionId)
    /*
    ** update PnextCur before remove the object
    */
-
-   ruc_sockctl_updatePnextCur(&ruc_sockCtl_tabPrio[p->priority],p);
+   if (p->priority >= RUC_SOCKCTL_MAXPRIO)
+   {
+      ruc_sockctl_updatePnextCur(&ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO],p);
+   }
+   else
+   {
+      ruc_sockctl_updatePnextCur(&ruc_sockCtl_tabPrio[p->priority],p);
+   }
 
    /*
    **  remove from the priority list
@@ -455,6 +746,12 @@ uint32_t ruc_sockctl_disconnect(void * connectionId)
      */
      FD_CLR(p->socketId,&rucRdFdSet);     
      FD_CLR(p->socketId,&rucWrFdSet);
+     FD_CLR(p->socketId,&rucRdFdSetUnconditional);
+     FD_CLR(p->socketId,&rucWrFdSetCongested);
+
+     ruc_sockCtrl_remove_socket(socket_recv_table,socket_recv_count,p->socketId);
+     ruc_sockCtrl_remove_socket(socket_xmit_table,socket_xmit_count,p->socketId);
+     socket_ctx_table[p->socketId] = NULL;
      p->socketId = -1;
    }
 
@@ -540,6 +837,9 @@ void ruc_sockCtl_checkRcvBits()
   }
 }
 
+/*
+**____________________________________________________________________________
+*/
 
 static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
 {
@@ -551,13 +851,11 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
   int loopcount;
+  uint64_t cycles_before,cycles_after;
   
   timeBefore = 0;
   timeAfter  = 0;
-  
-  gettimeofday(&timeDay,(struct timezone *)0);  
-  timeAfter = MICROLONG(timeDay);
-  
+  cycles_before = rdtsc();  
   loopcount= nbrSelect;
   for (i = 0; i <RUC_SOCKCTL_MAXPRIO ; i++)
   {
@@ -640,9 +938,112 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
       }
     }
   }
+  cycles_after = rdtsc();
+  ruc_time_receive += (cycles_after - cycles_before);
+  ruc_count_receive++;
 }
 
+/*
+**____________________________________________________________________________
+*/
+static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
+{
 
+  int i;
+  ruc_sockObj_t *p;
+  ruc_sockCallBack_t *pcallBack;
+  int socketId;
+  struct timeval     timeDay;
+  unsigned long long timeBefore, timeAfter;
+  
+  timeBefore = 0;
+  timeAfter  = 0;
+  uint64_t cycles_before,cycles_after;
+  cycles_before = rdtsc();
+
+  if (ruc_applicative_poller != NULL)
+  {
+   (*ruc_applicative_poller)(0);
+  }
+  /*
+  ** build the table for the receive and xmit sides
+  */
+  socket_recv_count = ruc_sockCtrl_build_sock_table((uint64_t *)&rucRdFdSet,socket_recv_table,nbrSelect);
+  socket_xmit_count = ruc_sockCtrl_build_sock_table((uint64_t *)&rucWrFdSet,socket_xmit_table,nbrSelect);
+
+  cycles_after = rdtsc();
+  ruc_time_receive += (cycles_after - cycles_before);
+  ruc_count_receive++;
+    
+  for (i = 0; i <socket_recv_count ; i++)
+  {
+    socketId = socket_recv_table[i];
+    if (socketId == -1) continue;
+    /*
+    ** check the traffic shaper
+    */
+    if (ruc_applicative_traffic_shaper != NULL)
+    {
+     (*ruc_applicative_traffic_shaper)(timeAfter);
+    }
+    if (ruc_applicative_poller != NULL)
+    {
+     (*ruc_applicative_poller)(0);
+    }
+    p = socket_ctx_table[socketId];
+    if (p == NULL) 
+    {
+      continue;
+    }
+    /*
+    ** call the associated callback
+    */
+    p->rcvCount++;
+    pcallBack = p->callBack;
+
+    gettimeofday(&timeDay,(struct timezone *)0);  
+    timeBefore = MICROLONG(timeDay);
+
+    (*(pcallBack->msgInFunc))(p->objRef,p->socketId);
+    gettimeofday(&timeDay,(struct timezone *)0);  
+    timeAfter = MICROLONG(timeDay);
+    p->lastTime = (uint32_t)(timeAfter - timeBefore);
+    p->cumulatedTime += p->lastTime;
+    p->nbTimes ++;        
+  }
+  
+  for (i = 0; i <socket_xmit_count ; i++)
+  {
+    socketId = socket_xmit_table[i];
+    if ( socketId == -1) continue;
+    p = socket_ctx_table[  socket_xmit_table[i]];
+    if (p == NULL) 
+    {
+      FD_CLR(socketId,&rucWrFdSet);
+      continue;
+    }
+    FD_CLR(socketId,&rucWrFdSet);
+    p->xmitCount++;
+    pcallBack = p->callBack;
+
+    gettimeofday(&timeDay,(struct timezone *)0);  
+    timeBefore = MICROLONG(timeDay);
+
+    (*(pcallBack->xmitEvtFunc))(p->objRef,p->socketId);
+
+    timeAfter = MICROLONG(timeDay);
+    p->lastTime = (uint32_t)(timeAfter - timeBefore);
+    p->cumulatedTime += p->lastTime;
+    p->nbTimes ++;
+
+  }
+
+
+}
+
+/*
+**____________________________________________________________________________
+*/
 /* #STARTDOC
 **
 **  #TITLE
@@ -698,15 +1099,25 @@ void ruc_sockCtl_prepareRcvBits()
     }
   }
 }
-
+/*
+**____________________________________________________________________________
+*/
 static inline void ruc_sockCtl_prepareRcvAndXmitBits()
 {
 
   int i;
   ruc_sockObj_t *p;
   uint32_t ret;
+  
+  uint64_t time_before,time_after;
+  ruc_sockCtrl_nb_socket_conditional = 0;
 
-
+  time_before = rdtsc();
+  /*
+  ** copy the bitmap of the sockets for which the receive is unconditional
+  */
+  memcpy(&rucRdFdSet,&rucRdFdSetUnconditional,sizeof(rucRdFdSet));
+  memcpy(&rucWrFdSet,&rucWrFdSetCongested,sizeof(rucWrFdSet));
 
   for (i = 0; i <RUC_SOCKCTL_MAXPRIO ; i++)
   {
@@ -717,6 +1128,7 @@ static inline void ruc_sockCtl_prepareRcvAndXmitBits()
               ruc_objGetNext((ruc_obj_desc_t*)&ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO-1-i],
                              &ruc_sockctl_pnextCur))!=(ruc_sockObj_t*)NULL) 
     {
+      ruc_sockCtrl_nb_socket_conditional++;
       if (ruc_applicative_poller != NULL)
       {
        (*ruc_applicative_poller)(0);
@@ -746,9 +1158,15 @@ static inline void ruc_sockCtl_prepareRcvAndXmitBits()
       }
     }
   }
+  time_after = rdtsc();
+  ruc_time_prepare += (time_after - time_before);
+  ruc_count_prepare++;
+  
 }
 
-
+/*
+**____________________________________________________________________________
+*/
 /* #STARTDOC
 **
 **  #TITLE
@@ -806,7 +1224,9 @@ void ruc_sockCtl_checkXmitBits()
   }
 }
 
-
+/*
+**____________________________________________________________________________
+*/
 /* #STARTDOC
 **
 **  #TITLE
@@ -857,7 +1277,9 @@ void ruc_sockCtl_prepareXmitBits()
     }
   }
 }
-
+/*
+**____________________________________________________________________________
+*/
 static inline void ruc_sockCtrl_roundRobbin()
 {
 
@@ -880,54 +1302,9 @@ static inline void ruc_sockCtrl_roundRobbin()
 
 }
 
-
-
-#if 0
-void ruc_sockCtrl_selectWait()
-{
-    int     nbrSelect;    /* nbr of events detected by select function */
-    /*
-    **  compute rucRdFdSet and rucWrFdSet
-    */
-    ruc_sockCtl_prepareRcvBits();
-    ruc_sockCtl_prepareXmitBits();
-
-    /*
-    ** wait for event 
-    */
-    if((nbrSelect=select(FD_SETSIZE,&rucRdFdSet,&rucWrFdSet,NULL, NULL)) <= 0)
-    {
-      /*
-      **  there is something rotten
-      */
-     return;
- 
-    }
-    /*
-    **  check for xmit bit set
-    */
-    ruc_sockCtl_checkXmitBits();
-
-    /*
-    **  check for receive bit set
-    */
-    ruc_sockCtl_checkRcvBits();
-    /*
-    **  insert the first element of each priority list at the
-    **  tail of its priority list.
-    */
-    ruc_sockCtrl_roundRobbin();
-
-    /*
-    ** give a change to the NPS to process the
-    ** message from its socket
-    */
-    sched_yield();
-
-}
-
-#endif
-
+/*
+**____________________________________________________________________________
+*/
 /**
 * init of the system ticker
 */
@@ -940,6 +1317,9 @@ void rozofs_init_ticker()
 
 }
 uint64_t rozofs_ticker_microseconds = 0;  /**< ticker in microsecond ->see gettimeofday */
+/*
+**____________________________________________________________________________
+*/
 /**
 *  Main loop
 */
@@ -948,26 +1328,22 @@ void ruc_sockCtrl_selectWait()
     int     nbrSelect;    /* nbr of events detected by select function */
     struct timeval     timeDay;
     unsigned long long timeBefore, timeAfter;
+    uint64_t cycles_before;
+    uint64_t cycles_after;
 //    uint32_t  	       timeOutLoopCount;  
     unsigned long long looptimeEnd,looptimeStart = 0;   
      timeBefore = 0;
      timeAfter  = 0;
 //     timeOutLoopCount = 0;
-	 int cpt_yield;
+    int cpt_yield;
 
-    /*
-    ** erase the Fd receive set
-    */
-    FD_ZERO(&rucRdFdSet);
-    FD_ZERO(&rucWrFdSet);   
     /*
     ** update time before call select
     */
     gettimeofday(&timeDay,(struct timezone *)0);  
     timeBefore = MICROLONG(timeDay);
     rozofs_ticker_microseconds = timeBefore;
-
-	cpt_yield = 5;
+    cpt_yield = 5;
 
     while (1)
     {
@@ -975,29 +1351,27 @@ void ruc_sockCtrl_selectWait()
       **  compute rucRdFdSet and rucWrFdSet
       */
       ruc_sockCtl_prepareRcvAndXmitBits();
-      //ruc_sockCtl_prepareXmitBits();
-      //ruc_sockCtl_prepareRcvBits();
-
-      
+      cycles_before = rdtsc();     
       gettimeofday(&timeDay,(struct timezone *)0);  
+      cycles_after = rdtsc();  
+      gettimeofday_cycles+=  cycles_after -  cycles_before;
+      gettimeofday_count +=1;
       looptimeEnd = MICROLONG(timeDay);  
       ruc_sockCtrl_looptime= (uint32_t)(looptimeEnd - looptimeStart); 
       if (ruc_sockCtrl_looptime > ruc_sockCtrl_looptimeMax)
       {
 	  ruc_sockCtrl_looptimeMax = ruc_sockCtrl_looptime;
-      }
-	  
+      }	  
       /*
       ** give a change to the NPS to process the
       ** message from its socket
       */
       cpt_yield -=1;
-	  if (cpt_yield == 0)
-	  {
-	    cpt_yield = 2;
-		sched_yield();
-	  }
-
+      if (cpt_yield == 0)
+      {
+	cpt_yield = 2;
+        sched_yield();
+      }
       /*
       ** wait for event 
       */	  
@@ -1006,30 +1380,20 @@ void ruc_sockCtrl_selectWait()
 	/*
 	** udpate time after select
 	*/
-
 	gettimeofday(&timeDay,(struct timezone *)0);  
 	timeAfter = MICROLONG(timeDay); 
-    rozofs_ticker_microseconds = timeAfter;
+        rozofs_ticker_microseconds = timeAfter;
 	looptimeStart  = timeAfter;
       }
       else
       {
-//#warning Hello World -> to be removed just for fun
-//    printf("Hello World!!\n");
       	gettimeofday(&timeDay,(struct timezone *)0);  
 	looptimeStart = MICROLONG(timeDay); 
-    rozofs_ticker_microseconds = looptimeStart;
-
-	/*
-	**  check for xmit bit set
-	*/
-	// ruc_sockCtl_checkXmitBits();
-
-	/*
-	**  check for receive bit set
-	*/
-	//ruc_sockCtl_checkRcvBits();
-	ruc_sockCtl_checkRcvAndXmitBits(nbrSelect);
+        rozofs_ticker_microseconds = looptimeStart;
+	if (ruc_sockCtrl_max_nr_select < nbrSelect) ruc_sockCtrl_max_nr_select = nbrSelect;
+        ruc_sockCtrl_nr_socket_stats[nbrSelect]++;
+	
+	ruc_sockCtl_checkRcvAndXmitBits_opt(nbrSelect);
 	/*
 	**  insert the first element of each priority list at the
 	**  tail of its priority list.
@@ -1037,10 +1401,21 @@ void ruc_sockCtrl_selectWait()
 	ruc_sockCtrl_roundRobbin();
         gettimeofday(&timeDay,(struct timezone *)0);  
 	timeAfter = MICROLONG(timeDay); 
-    rozofs_ticker_microseconds = timeAfter;
+        rozofs_ticker_microseconds = timeAfter;
       }
-
-
+      /*
+      ** socket polling (former receive ready callback)
+      */
+      if (timeAfter > (ruc_sockCtrl_lastTimeScheduler+ruc_sockCtrl_poll_period))
+      {
+	timeBefore = timeAfter;
+	ruc_sockCtrl_lastTimeScheduler = timeAfter;
+	ruc_sockCtrl_socket_poll();
+	gettimeofday(&timeDay,(struct timezone *)0);  
+	timeAfter = MICROLONG(timeDay);
+	ruc_sockCtrl_lastCpuScheduler = (uint32_t)(timeAfter - timeBefore);
+	ruc_sockCtrl_cumulatedCpuScheduler += ruc_sockCtrl_lastCpuScheduler;
+	ruc_sockCtrl_nbTimesScheduler ++;     
+      }   
     }
-
 }

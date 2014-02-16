@@ -21,12 +21,254 @@
 
 #include <rozofs/common/profile.h>
 #include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/ruc_common.h>
 
 #include "rozofs_fuse.h"
 
 extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
 extern uint32_t rozofs_fuse_usr_ctx_idx ;
 extern uint64_t rozofs_write_merge_stats_tab[];
+
+
+typedef enum {
+   rozofs_trc_type_def = 0,
+   rozofs_trc_type_io ,
+   rozofs_trc_type_name,
+   rozofs_trc_type_attr
+} rozofs_trc_type_e;
+
+
+#define ROZOFS_TRC_NAME_MAX 32
+typedef struct _rozofs_trc_name_t
+{
+   char name[32];
+} rozofs_trc_name_t;
+
+typedef struct _rozofs_trc_io_t
+{
+  fid_t   fid;     /**< unique file identifier */
+  off_t   off;     /**< off within the file    */
+  size_t  size;    /**< size in bytes          */
+} rozofs_trc_io_t;
+
+typedef struct _rozofs_trc_attr_t
+{
+  fid_t     fid;     /**< unique file identifier */
+  uint32_t  mode;     /**< off within the file    */
+  uint64_t  size;    /**< size in bytes          */
+} rozofs_trc_attr_t;
+
+typedef struct _rozofs_trc_def_t
+{
+  fid_t   fid;     /**< unique file identifier */
+  off_t   off;     /**< off within the file    */
+  size_t  size;    /**< size in bytes          */
+} rozofs_trc_def_t;
+
+#define ROZOFS_TRACE_BUF_SZ 128
+typedef union 
+{
+   uint32_t u32;
+   struct {
+   uint32_t req:1 ;         /**< assert to one if it is request , 0 for the response */
+   uint32_t service_id:7;   /**< service identifier */
+   uint32_t status:1;       /**< 1: success/ 0: failure */
+   uint32_t fid:1;          /**< 1: if fid is present */
+   uint32_t trc_type:3;           /**< see  rozofs_trc_type_e */
+   uint32_t index:20 ;      /**< index of the request in the trace buffer */
+   } s;
+} rozofs_trace_hdr_t;
+
+typedef struct _rozofs_trace_t
+{
+  rozofs_trace_hdr_t hdr;; /**< service identifier  */
+  int      errno_val;
+  uint64_t ts;
+  fuse_ino_t ino;  /**< operation inode        */
+  union
+  {
+    rozofs_trc_name_t name;
+    rozofs_trc_io_t io;
+    rozofs_trc_def_t def;
+    rozofs_trc_attr_t attr;  
+  } par;
+} rozofs_trace_t;  
+
+
+typedef enum {
+	srv_rozofs_ll_lookup=0,
+	srv_rozofs_ll_forget,
+	srv_rozofs_ll_getattr,
+	srv_rozofs_ll_setattr,
+	srv_rozofs_ll_readlink,
+	srv_rozofs_ll_mknod,
+	srv_rozofs_ll_mkdir,
+	srv_rozofs_ll_unlink,
+	srv_rozofs_ll_rmdir,
+	srv_rozofs_ll_symlink,
+	srv_rozofs_ll_rename,
+	srv_rozofs_ll_open,
+	srv_rozofs_ll_link,
+	srv_rozofs_ll_read,
+	srv_rozofs_ll_write,
+	srv_rozofs_ll_flush,
+	srv_rozofs_ll_release,
+	srv_rozofs_ll_opendir,
+	srv_rozofs_ll_readdir,
+	srv_rozofs_ll_releasedir,
+	srv_rozofs_ll_fsyncdir,
+	srv_rozofs_ll_statfs,
+	srv_rozofs_ll_setxattr,
+	srv_rozofs_ll_getxattr,
+	srv_rozofs_ll_listxattr,
+	srv_rozofs_ll_removexattr,
+	srv_rozofs_ll_access,
+	srv_rozofs_ll_create,
+	srv_rozofs_ll_getlk,
+	srv_rozofs_ll_setlk,
+	srv_rozofs_ll_setlk_int,
+	srv_rozofs_ll_ioctl,
+	srv_rozofs_ll_clearlkowner,
+} rozofs_service_e;
+
+extern int rozofs_trc_wr_idx;
+extern int rozofs_trc_buf_full;
+extern int rozofs_trc_last_idx;
+extern int rozofs_trc_enabled;
+extern int rozofs_trc_index;
+extern rozofs_trace_t *rozofs_trc_buffer;
+/*
+**____________________________________________________
+*/
+static inline int rozofs_trc_req(int service,fuse_ino_t ino,fid_t fid)
+{
+   rozofs_trace_t *p;
+   if (rozofs_trc_enabled == 0) return 0;
+   {
+     p = &rozofs_trc_buffer[rozofs_trc_wr_idx];
+     p->hdr.u32 = 0;
+     p->ts = ruc_rdtsc();
+     p->hdr.s.service_id = service;
+     p->hdr.s.req = 1;
+     p->hdr.s.trc_type  = rozofs_trc_type_def;
+     p->hdr.s.index = rozofs_trc_index++;
+     p->ino= ino;
+     if (fid != NULL) 
+     {
+        memcpy(p->par.def.fid,fid,sizeof(fid_t)); 
+	p->hdr.s.fid = 1;
+     }   
+     rozofs_trc_wr_idx++;
+     if (rozofs_trc_wr_idx >= rozofs_trc_last_idx) 
+     {
+        rozofs_trc_wr_idx= 0;
+	rozofs_trc_buf_full = 1;
+     }
+   }
+   return (int) p->hdr.s.index;
+}
+/*
+**____________________________________________________
+*/
+
+static inline int rozofs_trc_req_io(int service,fuse_ino_t ino,fid_t fid,size_t size,off_t off)
+{
+   rozofs_trace_t *p;
+   if (rozofs_trc_enabled == 0) return 0;
+   {
+     p = &rozofs_trc_buffer[rozofs_trc_wr_idx];
+     p->hdr.u32 = 0;
+     p->ts = ruc_rdtsc();
+     p->hdr.s.service_id = service;
+     p->hdr.s.req = 1;
+     p->hdr.s.trc_type  = rozofs_trc_type_io;
+     p->hdr.s.index = rozofs_trc_index++;
+     p->ino= ino;
+     if (fid != NULL) 
+     {
+        memcpy(p->par.io.fid,fid,sizeof(fid_t)); 
+	p->hdr.s.fid = 1;
+     }   
+     p->par.io.size = size;
+     p->par.io.off  = off;
+     rozofs_trc_wr_idx++;
+     if (rozofs_trc_wr_idx >= rozofs_trc_last_idx) 
+     {
+        rozofs_trc_wr_idx= 0;
+	rozofs_trc_buf_full = 1;
+     }
+   }
+   return (int) p->hdr.s.index;
+}
+
+
+static inline int rozofs_trc_req_name(int service,fuse_ino_t ino,char *name)
+{
+   rozofs_trace_t *p;
+   if (rozofs_trc_enabled == 0) return 0;
+   {
+     p = &rozofs_trc_buffer[rozofs_trc_wr_idx];
+     p->hdr.u32 = 0;
+     p->ts = ruc_rdtsc();
+     p->hdr.s.service_id = service;
+     p->hdr.s.req = 1;
+     p->hdr.s.trc_type  = rozofs_trc_type_name;
+     p->hdr.s.index = rozofs_trc_index++;
+     p->ino= ino;     
+     if (name != NULL) 
+     {
+        memset(p->par.name.name,0,sizeof(rozofs_trc_name_t));
+        memcpy(p->par.name.name,name,sizeof(rozofs_trc_name_t)-1); 
+     }
+     rozofs_trc_wr_idx++;
+     if (rozofs_trc_wr_idx >= rozofs_trc_last_idx) 
+     {
+        rozofs_trc_wr_idx= 0;
+	rozofs_trc_buf_full = 1;
+     }
+   }
+   return (int) p->hdr.s.index;
+}
+/*
+**____________________________________________________
+*/
+#if 1
+static inline void rozofs_trc_rsp(int service,fuse_ino_t ino,fid_t fid,int status,int index)
+{
+   rozofs_trace_t *p;
+   if (rozofs_trc_enabled == 0) return;
+   {
+     
+     p = &rozofs_trc_buffer[rozofs_trc_wr_idx];
+     p->hdr.u32 = 0;
+     p->ts = ruc_rdtsc();
+     p->hdr.s.service_id = service;
+     p->hdr.s.trc_type  = rozofs_trc_type_def;
+     if (status==0) p->hdr.s.status=0;
+     else p->hdr.s.status=1;
+     p->hdr.s.index = index;
+     p->ino= ino;
+     p->errno_val = errno;
+     if (fid != NULL) 
+     {
+        memcpy(p->par.def.fid,fid,sizeof(fid_t)); 
+	p->hdr.s.fid = 1;
+     }   
+     rozofs_trc_wr_idx++;
+     if (rozofs_trc_wr_idx >= rozofs_trc_last_idx) 
+     {
+       rozofs_trc_wr_idx= 0;
+       rozofs_trc_buf_full = 1;
+     }
+   }
+}
+#else
+void rozofs_trc_rsp(int service,fuse_ino_t ino,fid_t fid,int status,int index);
+
+#endif
+/*
+**____________________________________________________
+*/
 
 /**
 *  write array statistics counter
@@ -574,6 +816,24 @@ int rozofs_expgateway_send_routing_common(uint32_t eid,fid_t fid,uint32_t prog,u
  */
 int rozofs_expgateway_resend_routing_common(rozofs_tx_ctx_t *rozofs_tx_ctx_p, sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) ;
 
+/*
+**__________________________________________________________________
+*/
+/**
+*  Some request may trigger an internal flush before beeing executed.
+
+   That's the case of a read request while the file buffer contains
+   some data that have not yet been saved on disk, but do not contain 
+   the data that the read wants. 
+
+   No fuse reply is expected
+
+ @param fi   file info structure where information related to the file can be found (file_t structure)
+ 
+ @retval 0 in case of failure 1 on success
+*/
+
+int rozofs_asynchronous_flush(struct fuse_file_info *fi) ;
 /*
 **__________________________________________________________________________
 */

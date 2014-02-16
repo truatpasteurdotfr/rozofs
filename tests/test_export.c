@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
     printf("created\n");
 
     printf("volume:\t\t\t");
-    if (volume_initialize(&volume, 1) != 0) {
+    if (volume_initialize(&volume, 1, 0) != 0) {
         perror("can't initialize volume.");
         return errno;
     }
@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     printf("initialized\n");
 
     printf("export:\t\t\t");
-    if (export_initialize(&export, &volume, 0, &cache, 1, "./export_test_directory", "", 0, 0) != 0) {
+    if (export_initialize(&export, &volume, &cache, 1, "./export_test_directory", "", 0, 0) != 0) {
         perror("can't initialize export");
         return errno;
     }

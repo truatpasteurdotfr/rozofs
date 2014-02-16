@@ -358,7 +358,8 @@ out:
 }
 
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
-        uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,uint16_t last_seg,uint64_t last_timestamp) {
+        uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,uint16_t last_seg,uint64_t last_timestamp,
+	u_int length_to_write, char * data) {
     int status = -1;
     char path[FILENAME_MAX];
     int fd = -1;
@@ -367,8 +368,7 @@ int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
     uint8_t write_file_hdr = 0;
     bid_t bid_truncate;
     size_t nb_write = 0;
-    size_t length_to_write = 0;
-    rozofs_stor_bins_hdr_t bins_hdr;
+
     
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
@@ -428,31 +428,55 @@ int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
     if (last_seg!= 0) bid_truncate+=1;
     bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + (bid_truncate) * (rozofs_max_psize *
             sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
-
     status = ftruncate(fd, bins_file_offset);
     if (status < 0) goto out;
+    
     /*
-    ** Check the case of the last segment
+    ** When the truncate occurs in the middle of a block, it is either
+    ** a shortening of the block or a an extension of the file.
+    ** When extending the file only the header of the block is written 
+    ** to reflect the new size. 
+    ** In case of a shortening the whole block to write is given in the
+    ** request
     */
-    if (last_seg!= 0)
-    {
-      bins_hdr.s.timestamp        = last_timestamp;
-      bins_hdr.s.effective_length = last_seg;
-      bins_hdr.s.projection_id    = proj_id;
-      bins_hdr.s.version          = version;
-      length_to_write = sizeof(rozofs_stor_bins_hdr_t);
-      
-      bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE + (bid) * (rozofs_max_psize *
-              sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
+    if (last_seg!= 0) {
+	
+      bins_file_offset = ROZOFS_ST_BINS_FILE_HDR_SIZE 
+                       + (bid) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
 
-      nb_write = pwrite(fd, &bins_hdr, length_to_write, bins_file_offset);
-      if (nb_write != length_to_write) {
-          severe("pwrite failed on last segment: %s", strerror(errno));
-          goto out;
-      }
+      /*
+      ** Rewrite the whole given data block 
+      */
+      if (length_to_write!= 0)
+      {
+
+        length_to_write = rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t);
+	nb_write = pwrite(fd, data, length_to_write, bins_file_offset);
+	if (nb_write != length_to_write) {
+            status = -1;
+            severe("pwrite failed on last segment: %s", strerror(errno));
+            goto out;
+	}
       
-    }
+      }
+      else {
+      
+        rozofs_stor_bins_hdr_t bins_hdr;  
+	bins_hdr.s.timestamp        = last_timestamp;
+	bins_hdr.s.effective_length = last_seg;
+	bins_hdr.s.projection_id    = proj_id;
+	bins_hdr.s.version          = version;
+
+	nb_write = pwrite(fd, &bins_hdr, sizeof(bins_hdr), bins_file_offset);
+	if (nb_write != sizeof(bins_hdr)) {
+            severe("pwrite failed on last segment header : %s", strerror(errno));
+            goto out;
+        }     
+      }
+    }  
+    status = 0;
 out:
+
     if (fd != -1) close(fd);
     return status;
 }

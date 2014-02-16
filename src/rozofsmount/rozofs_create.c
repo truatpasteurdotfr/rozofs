@@ -53,6 +53,7 @@ void rozofs_ll_create_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
 
     int    ret;
     void *buffer_p = NULL;
+    int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_create,parent,(char*)name);
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -67,6 +68,7 @@ void rozofs_ll_create_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     SAVE_FUSE_PARAM(buffer_p,parent);
     SAVE_FUSE_STRING(buffer_p,name);
     SAVE_FUSE_PARAM(buffer_p,mode);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));
     
     START_PROFILING_NB(buffer_p,rozofs_ll_create);
@@ -111,6 +113,7 @@ void rozofs_ll_create_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     return;
 error:
     fuse_reply_err(req, errno);
+    rozofs_trc_rsp(srv_rozofs_ll_create,parent,NULL,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_create);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -146,11 +149,14 @@ void rozofs_ll_create_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attrs;
+   errno = 0;
+   int trc_idx;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,fi);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    
 //    uint8_t rozofs_safe = rozofs_get_rozofs_safe(exportclt.layout);
 //    uint8_t rozofs_forward = rozofs_get_rozofs_forward(exportclt.layout);
@@ -272,8 +278,8 @@ void rozofs_ll_create_cbk(void *this,void *param)
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (nie->size < stbuf.st_size) nie->size = stbuf.st_size;
-    stbuf.st_size = nie->size;
+    if (nie->attrs.size < stbuf.st_size) nie->attrs.size = stbuf.st_size;
+    stbuf.st_size = nie->attrs.size;
         
     fep.attr_timeout =  rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
     fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
@@ -325,6 +331,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_create,(nie==NULL)?0:nie->inode,(nie==NULL)?NULL:nie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_create);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);        

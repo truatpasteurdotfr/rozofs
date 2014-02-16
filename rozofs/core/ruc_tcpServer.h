@@ -63,7 +63,8 @@ typedef struct _ruc_tcp_server_t
 **  PRIVATE   SERVICES
 */
 ruc_tcp_server_t *ruc_tcp_server_getObjRef(uint32_t tcpRef);
-uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr);
+uint32_t ruc_tcp_server_createSocket_retry(uint16_t tcpPort,uint32_t ipAddr, int retry);
+#define ruc_tcp_server_createSocket(tcpPort,ipAddr) ruc_tcp_server_createSocket_retry(tcpPort,ipAddr, 0);
 
 // 64BITS uint32_t ruc_tcp_server_acceptIn(uint32 objRef,int socketId);
 // 64BITS uint32_t ruc_tcp_server_isRcvReady(uint32 ref,int socketId);

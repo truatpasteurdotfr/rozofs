@@ -471,7 +471,7 @@ uint32_t ruc_timer_createInternalSocket(ruc_timer_t *p)
     p->intSockconnectionId[RUC_SOC_SEND]=
                  ruc_sockctl_connect(p->internalSocket[RUC_SOC_SEND],
                                      "TMR_SOCK_XMIT",
-                                      0,
+                                      16,
 				     // 64BITS (uint32_t)p,
                                       p,
                                       &ruc_timer_callBack_InternalSock);
@@ -484,7 +484,7 @@ uint32_t ruc_timer_createInternalSocket(ruc_timer_t *p)
     p->intSockconnectionId[RUC_SOC_RECV]=
                  ruc_sockctl_connect(p->internalSocket[RUC_SOC_RECV],
                                      "TMR_SOCK_RECV",
-                                      0,
+                                      16,
 				     // 64BITS (uint32_t)p,
                                       p,
                                       &ruc_timer_callBack_InternalSock);

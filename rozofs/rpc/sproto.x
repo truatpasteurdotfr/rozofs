@@ -73,7 +73,7 @@ struct sp_read_arg_t {
     uint32_t    nb_proj;
 };
 
-struct sp_truncate_arg_t {
+struct sp_truncate_arg_no_bins_t {
     uint16_t    cid;
     uint8_t     sid;
     uint8_t     layout;
@@ -84,6 +84,21 @@ struct sp_truncate_arg_t {
     uint16_t    last_seg;
     uint64_t    last_timestamp; 
     uint64_t    bid; 
+    uint32_t    len;
+};
+    
+struct sp_truncate_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    uint8_t     layout;
+    uint8_t     spare;
+    uint8_t     dist_set[ROZOFS_SAFE_MAX];
+    sp_uuid_t   fid; 
+    uint8_t     proj_id;
+    uint16_t    last_seg;
+    uint64_t    last_timestamp; 
+    uint64_t    bid;    
+    opaque      bins<>;    
 };
 
 struct sp_read_t {

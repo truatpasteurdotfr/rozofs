@@ -131,3 +131,31 @@ int rozofs_storcli_get_position_of_first_byte2write()
   return storcli_bin_first_byte;
 
 }
+
+/*
+**__________________________________________________________________________
+*/
+/**
+* 
+*/
+int storcli_bin_truncate_first_byte = 0;
+int rozofs_storcli_get_position_of_first_byte2write_in_truncate()
+{
+  sp_truncate_arg_no_bins_t  truncate_args;
+  int position;
+  
+  
+  if (storcli_bin_truncate_first_byte == 0)
+  {
+    memset(&truncate_args,0,sizeof(truncate_args));
+    position = rozofs_storcli_fake_encode((xdrproc_t) xdr_sp_truncate_arg_no_bins_t, (caddr_t) &truncate_args);
+    if (position < 0)
+    {
+      fatal("Cannot get the size of the rpc header for truncate no arg");
+      return 0;    
+    }
+    storcli_bin_truncate_first_byte = position;
+  }
+  return storcli_bin_truncate_first_byte;
+
+}

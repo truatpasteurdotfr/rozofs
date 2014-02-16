@@ -45,6 +45,7 @@
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/rpc/gwproto.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -526,7 +527,7 @@ static int load_volumes_conf() {
         ventry = (volume_entry_t *) xmalloc(sizeof (volume_entry_t));
 
         // Initialize the volume
-        volume_initialize(&ventry->volume, vconfig->vid);
+        volume_initialize(&ventry->volume, vconfig->vid, vconfig->layout);
 
         // For each cluster of this volume
 
@@ -582,7 +583,7 @@ static int load_exports_conf() {
         }
 
         // Initialize export
-        if (export_initialize(&entry->export, volume, exportd_config.layout,
+        if (export_initialize(&entry->export, volume,
                 &cache, econfig->eid, econfig->root, econfig->md5,
                 econfig->squota, econfig->hquota) != 0) {
             severe("can't initialize export with path %s: %s\n",
@@ -1046,7 +1047,8 @@ int main(int argc, char *argv[]) {
         {0, 0, 0, 0}
     };
 
-    expgwc_non_blocking_conf.debug_port = rzdbg_default_base_port;
+    /* Try to get debug port from /etc/services */
+    expgwc_non_blocking_conf.debug_port = get_service_port("rozo_exportd_dbg",NULL,rzdbg_default_base_port);
     expgwc_non_blocking_conf.instance = 1;
     expgwc_non_blocking_conf.exportd_hostname = NULL;
 
