@@ -50,15 +50,16 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
 #include "sconfig.h"
 #include "storage.h"
 #include "storaged.h"
-#include <rozofs/rozofs_timer_conf.h>
 #include "storio_nblock_init.h"
+#include "storio_device_mapping.h"
 
-#define STORIO_PID_FILE "storio"
+
 int     storio_instance = 0;
 static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
@@ -104,7 +105,10 @@ static int storaged_initialize() {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
-                sc->cid, sc->sid, sc->root) != 0) {
+                sc->cid, sc->sid, sc->root, 
+		storaged_config.device.total,
+		storaged_config.device.mapper,
+		storaged_config.device.redundancy) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;
@@ -130,7 +134,16 @@ storage_t *storaged_lookup(cid_t cid, sid_t sid) {
 out:
     return st;
 }
+storage_t *storaged_next(storage_t * st) {
+    DEBUG_FUNCTION;
 
+    if (storaged_nrstorages == 0) return NULL;
+    if (st == NULL) return storaged_storages;
+
+    st++;
+    if (st < storaged_storages + storaged_nrstorages) return st;
+    return NULL;
+}
 char storage_process_filename[NAME_MAX];
 
 /**
@@ -144,6 +157,12 @@ static void on_stop(int sig) {
     closelog();
 }
 
+ 
+static void on_reload(int sig) {
+   storage_device_mapping_increment_consistency();
+   storage_device_mapping_reset_error_counters();
+   return;
+}
 static void on_start(void) {
     storaged_start_conf_param_t conf;
 
@@ -152,7 +171,7 @@ static void on_start(void) {
 
     rozofs_signals_declare("storio", storaged_config.nb_cores);
     rozofs_attach_crash_cbk(on_stop);
-
+    rozofs_attach_hgup_cbk(on_reload);
     /*
     ** Save the process PID in PID directory 
     */

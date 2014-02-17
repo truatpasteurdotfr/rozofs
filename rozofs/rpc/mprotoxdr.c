@@ -184,6 +184,8 @@ xdr_bins_files_list_t (XDR *xdrs, bins_files_list_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->eof))
 		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->device))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
@@ -229,6 +231,8 @@ xdr_mp_list_bins_files_arg_t (XDR *xdrs, mp_list_bins_files_arg_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->rebuild_sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->device))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;

@@ -138,6 +138,7 @@ void mp_list_bins_files_1_svc_nb(void * pt_req,
     memset(ret, 0, sizeof(mp_list_bins_files_ret_t));
 
     if (storage_list_bins_files_to_rebuild(st, args->rebuild_sid,
+            &args->device,
             &args->layout,
             (sid_t *) & args->dist_set,
             &args->spare,
@@ -153,7 +154,8 @@ void mp_list_bins_files_1_svc_nb(void * pt_req,
     memcpy(&ret->mp_list_bins_files_ret_t_u.reply.dist_set, &args->dist_set,
             sizeof (sid_t) * ROZOFS_SAFE_MAX);
     ret->mp_list_bins_files_ret_t_u.reply.layout = args->layout;
-    ret->mp_list_bins_files_ret_t_u.reply.spare = args->spare;
+    ret->mp_list_bins_files_ret_t_u.reply.spare = args->spare;    
+    ret->mp_list_bins_files_ret_t_u.reply.device = args->device;
 
     ret->status = MP_SUCCESS;
 

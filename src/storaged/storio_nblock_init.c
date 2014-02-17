@@ -68,6 +68,7 @@
 #include "config.h"
 #include "sconfig.h"
 #include "storage.h"
+#include "storio_device_mapping.h"
 
 extern sconfig_t storaged_config;
 
@@ -372,6 +373,12 @@ int storio_start_nb_th(void *args) {
     fatal("Fatal error on storio_north_interface_init()\n");
     return -1;
   }
+
+
+  /*
+  ** Initialize lookup table : FID -> device mapping
+  */
+  storio_device_mapping_init();
   
   /*
   ** A timing counter service

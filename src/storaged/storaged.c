@@ -58,7 +58,6 @@
 #include "storage.h"
 #include "storaged.h"
 #include "sconfig.h"
-#include "rbs.h"
 #include "storaged_nblock_init.h"
 
 #define STORAGED_PID_FILE "storaged"
@@ -83,14 +82,6 @@ uint8_t storaged_nb_io_processes = 0;
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
 
-// Rebuild storage variables
-
-/* Need to start rebuild storage process */
-uint8_t rbs_start_process = 0;
-/* Export hostname */
-static char rbs_export_hostname[ROZOFS_HOSTNAME_MAX];
-/* Time in seconds between two attemps of rebuild */
-#define TIME_BETWEEN_2_RB_ATTEMPS 30
 
 static int storaged_initialize() {
     int status = -1;
@@ -113,7 +104,10 @@ static int storaged_initialize() {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
-                sc->cid, sc->sid, sc->root) != 0) {
+                sc->cid, sc->sid, sc->root,
+		storaged_config.device.total,
+		storaged_config.device.mapper,
+		storaged_config.device.redundancy) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;
@@ -124,132 +118,17 @@ static int storaged_initialize() {
 out:
     return status;
 }
-
-/** Check each storage to rebuild
- *
- * @return: 0 on success -1 otherwise (errno is set)
- */
-static int rbs_check() {
-    list_t *p = NULL;
-    int status = -1;
-    DEBUG_FUNCTION;
-
-    // For each storage present on configuration file
-
-    list_for_each_forward(p, &storaged_config.storages) {
-        storage_config_t *sc = list_entry(p, storage_config_t, list);
-
-        // Sanity check for rebuild this storage
-        if (rbs_sanity_check(rbs_export_hostname, sc->cid, sc->sid,
-                sc->root) != 0)
-            goto out;
-    }
-    status = 0;
-out:
-    return status;
-}
-
-/** Structure used to store configuration for each storage to rebuild */
-typedef struct rbs_stor_config {
-    char export_hostname[ROZOFS_HOSTNAME_MAX]; ///< export hostname or IP.
-    cid_t cid; //< unique id of cluster that owns this storage.
-    sid_t sid; ///< unique id of this storage for one cluster.
-    uint8_t stor_idx; ///< storage index used for display statistics.
-    char root[PATH_MAX]; ///< absolute path.
-} rbs_stor_config_t;
-
-/** Starts a thread for rebuild given storage(s)
- *
- * @param v: table of storages configurations to rebuild.
- */
-static void * rebuild_storage_thread(void *v) {
-
-    DEBUG_FUNCTION;
-    int i = 0;
-
-    // Get storage(s) configuration(s)
-    rbs_stor_config_t *stor_confs = (rbs_stor_config_t*) v;
-
-    for (i = 0; i < STORAGES_MAX_BY_STORAGE_NODE; i++) {
-
-        // Check if storage conf is empty
-        if (stor_confs[i].cid == 0 && stor_confs[i].sid == 0) {
-            continue;
-        }
-
-        info("Start rebuild process for storage (cid=%u;sid=%u).",
-                stor_confs[i].cid, stor_confs[i].sid);
-
-        // Try to rebuild the storage until it's over
-        while (rbs_rebuild_storage(stor_confs[i].export_hostname,
-                stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
-                stor_confs[i].stor_idx) != 0) {
-
-            // Probably a problem when connecting with other members
-            // of this cluster
-            severe("can't rebuild storage (cid:%u;sid:%u) with path %s,"
-                    " next attempt in %d seconds",
-                    stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
-                    TIME_BETWEEN_2_RB_ATTEMPS);
-
-            sleep(TIME_BETWEEN_2_RB_ATTEMPS);
-        }
-
-        // Here the rebuild process is finish, so exit
-        info("The rebuild process for storage (cid=%u;sid=%u)"
-                " was completed successfully.",
-                stor_confs[i].cid, stor_confs[i].sid);
-    }
-
-    return 0;
-
-}
-
-rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE];
-
-/** Start one rebuild process for each storage to rebuild
- */
-static void rbs_process_initialize() {
-    list_t *p = NULL;
-    int i = 0;
-
-    memset(&rbs_stor_configs, 0,
-            STORAGES_MAX_BY_STORAGE_NODE * sizeof(rbs_stor_config_t));
-
-    DEBUG_FUNCTION;
-
-    // For each storage in configuration file
-
-    list_for_each_forward(p, &storaged_config.storages) {
-
-        storage_config_t *sc = list_entry(p, storage_config_t, list);
-
-        // Copy the configuration for the storage to rebuild
-        strncpy(rbs_stor_configs[i].export_hostname, rbs_export_hostname,
-        ROZOFS_HOSTNAME_MAX);
-        rbs_stor_configs[i].cid = sc->cid;
-        rbs_stor_configs[i].sid = sc->sid;
-        rbs_stor_configs[i].stor_idx = i;
-        strncpy(rbs_stor_configs[i].root, sc->root, PATH_MAX);
-
-        // Set profiling values
-        SET_PROBE_VALUE(rbs_cids[i], sc->cid);
-        SET_PROBE_VALUE(rbs_sids[i], sc->sid);
-        SET_PROBE_VALUE(rb_files_current[i], 0);
-        SET_PROBE_VALUE(rb_files_total[i], 0);
-        SET_PROBE_VALUE(rb_status[i], 0);
-
-        i++;
-    }
-
-    // Create pthread for rebuild storage(s)
-    pthread_t thread;
-
-    if ((errno = pthread_create(&thread, NULL, rebuild_storage_thread,
-            &rbs_stor_configs)) != 0) {
-        severe("can't create thread for rebuild storage(s): %s",
-                strerror(errno));
-    }
+/*
+**____________________________________________________
+*/
+/*
+  Allocate a device for a file
+  
+   @param st: storage context
+*/
+uint32_t storio_device_mapping_allocate_device(storage_t * st) {
+  severe("storaged should not call storio_device_mapping_allocate_device");
+  return -1;
 }
 
 static void storaged_release() {
@@ -285,7 +164,16 @@ storage_t *storaged_lookup(cid_t cid, sid_t sid) {
 out:
     return st;
 }
+storage_t *storaged_next(storage_t * st) {
+    DEBUG_FUNCTION;
 
+    if (storaged_nrstorages == 0) return NULL;
+    if (st == NULL) return storaged_storages;
+
+    st++;
+    if (st < storaged_storages + storaged_nrstorages) return st;
+    return NULL;
+}
 static void on_stop() {
     DEBUG_FUNCTION;
     char cmd[128];
@@ -339,13 +227,7 @@ static void on_start() {
         return;
     }
 
-    // Start rebuild storage process(es) if necessary
-    if (rbs_start_process == 1) {
-        rbs_process_initialize();
-        SET_PROBE_VALUE(nb_rb_processes, list_size(&storaged_config.storages));
-    } else {
-        SET_PROBE_VALUE(nb_rb_processes, 0);
-    }
+    SET_PROBE_VALUE(nb_rb_processes, 0);
 
     SET_PROBE_VALUE(uptime, time(0));
     strncpy((char*) gprofiler.vers, VERSION, 20);
@@ -401,7 +283,6 @@ void usage() {
     printf("   -H, --host=storaged-host\tspecify the hostname to use for build pid name (default: none).\n");
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
-    printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -410,7 +291,6 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "config", required_argument, 0, 'c'},
-        { "rebuild", required_argument, 0, 'r'},
         { "host", required_argument, 0, 'H'},
         { 0, 0, 0, 0}
     };
@@ -440,15 +320,6 @@ int main(int argc, char *argv[]) {
                             strerror(errno));
                     exit(EXIT_FAILURE);
                 }
-                break;
-            case 'r':
-                if (strncpy(rbs_export_hostname, optarg, ROZOFS_HOSTNAME_MAX)
-                        == NULL) {
-                    fprintf(stderr, "storaged failed: %s %s\n", optarg,
-                            strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
-                rbs_start_process = 1;
                 break;
             case 'H':
                 storaged_hostname = strdup(optarg);
@@ -482,11 +353,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Inconsistent storage configuration file: %s.\n",
                 strerror(errno));
         goto error;
-    }
-    // Check rebuild storage configuration if necessary
-    if (rbs_start_process == 1) {
-        if (rbs_check() != 0)
-            goto error;
     }
 
     char *pid_name_p = pid_name;

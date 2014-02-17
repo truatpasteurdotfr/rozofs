@@ -46,6 +46,10 @@
 #define SIOPORT     "port"
 #define SCORES      "nbcores"
 
+#define SDEV_TOTAL      "device-total"
+#define SDEV_MAPPER     "device-mapper"
+#define SDEV_RED        "device-redundancy"
+
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root) {
     DEBUG_FUNCTION;
@@ -89,8 +93,11 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
     int threads, port, nb_cores;
+    int devices, mapper, redundancy;
+    
 #else
     long int threads, port, nb_cores;
+    long int devices, mapper, redundancy;
 #endif      
     DEBUG_FUNCTION;
 
@@ -102,6 +109,29 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         goto out;
     }
 
+    /*
+    ** Device configuration
+    */
+    if (!config_lookup_int(&cfg, SDEV_TOTAL, &devices)) {
+        errno = ENOKEY;
+        severe("can't fetch total device number.");
+        goto out;
+    }
+    config->device.total = devices;
+    
+    if (!config_lookup_int(&cfg, SDEV_MAPPER, &mapper)) {
+      mapper = devices;
+    }
+    config->device.mapper = mapper;
+    
+    if (!config_lookup_int(&cfg, SDEV_RED, &redundancy)) {
+      redundancy = 2;
+    }
+    config->device.redundancy = redundancy;
+
+
+
+        
     if (!config_lookup_int(&cfg, STHREADS, &threads)) {
         config->nb_disk_threads = 2;
     } else {

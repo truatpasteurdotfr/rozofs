@@ -28,6 +28,20 @@ add_executable(storaged
     sconfig.c
     storage.h
     storage.c
+    storaged.h
+    storaged.c
+    storaged_nblock_init.h
+    storaged_nblock_init.c
+    storaged_north_intf.c
+    storaged_north_intf.h
+)
+target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+add_executable(storage_rebuild
+    sconfig.h
+    sconfig.c
+    storage.h
+    storage.c
     rbs.h
     rbs_transform.h
     rbs_transform.c
@@ -37,22 +51,36 @@ add_executable(storaged
     rbs_eclient.c
     rbs.c
     storaged.h
-    storaged.c
-    storaged_nblock_init.h
-    storaged_nblock_init.c
-    storaged_north_intf.c
-    storaged_north_intf.h
-    storage_fd_cache.c
-    storage_fd_cache.h
-    storio_cache.h
-    storio_cache.c
-    storio_bufcache.c
-    storio_bufcache.h
+    storage_rebuild.c
 )
-target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+target_link_libraries(storage_rebuild rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+add_executable(storage_list_rebuilder
+    sconfig.h
+    sconfig.c
+    storage.h
+    storage.c
+    rbs.h
+    rbs_transform.h
+    rbs_transform.c
+    rbs_sclient.h
+    rbs_sclient.c
+    rbs_eclient.h
+    rbs_eclient.c
+    rbs.c
+    storaged.h
+    storage_list_rebuilder.c
+)
+target_link_libraries(storage_list_rebuilder rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+add_executable(storio_reload
+    storio_reload.c
+    storage.h
+)
+target_link_libraries(storio_reload )
+
 
 add_executable(storio
-    sproto.c
     spproto.c
     sconfig.h
     sconfig.c
@@ -76,6 +104,8 @@ add_executable(storio
     storio_disk_thread_intf.h
     storio_disk_thread_intf.c
     storio_disk_thread.c
+    storio_device_mapping.c
+    storio_device_mapping.h
 )
 target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -87,6 +117,12 @@ install(TARGETS storaged
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     COMPONENT storage
+)
+install(TARGETS storage_rebuild
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT storage_rebuild
 )
 install(TARGETS storio
     RUNTIME DESTINATION bin

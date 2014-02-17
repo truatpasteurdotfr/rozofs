@@ -116,6 +116,10 @@ gen_storage_conf ()
 
             printf "threads = $NB_DISK_THREADS;\n" >> $FILE
             printf "nbCores = $NB_CORES;\n" >> $FILE
+	    
+	    printf "device-total = $NB_DEVICE_PER_SID;\n" >> $FILE
+	    printf "device-mapper = $NB_DEVICE_MAPPER_PER_SID;\n" >> $FILE
+	    printf "device-redundancy = $NB_DEVICE_MAPPER_RED_PER_SID;\n" >> $FILE
 
             printf "listen = ( \n" >> $FILE
             printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
@@ -348,17 +352,56 @@ start_one_storage()
 	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
 	#sleep 1
 }
-
-start_one_storage_rebuild() 
+rebuild_storage_device() 
 {
     sid=$1
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
-    echo "Start storage cid: $cid sid: $sid with rebuild"
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost
-    #sleep 1
+    case "$2" in
+      "")   usage "Missing device identifier";;
+      all)  dev="";;
+      *)    dev="-d $2";;
+    esac
+    
+    create_storage_device $1 $2
+    
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost $dev
 }
+delete_storage_device() 
+{
+    sid=$1
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+    case "$2" in
+      "")   usage "Missing device identifier";;
+      all)  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
+      *)    begin=$2 ; end=$2;;
+    esac
+    for device in $(seq $begin $end)
+    do
 
-
+      dir="${LOCAL_STORAGES_ROOT}_$cid-$sid/$device"
+      if [ -d $dir ];
+      then
+        echo "delete $cid/$sid device $device : $dir" 
+        \rm -rf $dir
+      else
+        echo "$dir does not exist !!!"         	  
+      fi
+    done  
+}
+create_storage_device() 
+{
+    sid=$1
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+    case "$2" in
+      "")  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
+      all) begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
+      *)   begin=$2 ; end=$2;;
+    esac
+    for device in $(seq $begin $end)
+    do
+      mkdir ${LOCAL_STORAGES_ROOT}_$cid-$sid/$device > /dev/null 2>&1
+    done  
+}
 stop_one_storage () {
    case $1 in
      "all") stop_storaged; return;;
@@ -436,7 +479,9 @@ create_storages ()
             else
                 mkdir -p ${LOCAL_STORAGES_ROOT}_${i}-${sid}
             fi
-
+	    
+	    create_storage_device $sid all
+	    
         done;
 
     done;
@@ -912,12 +957,20 @@ fileop_test(){
 
 usage ()
 {
+    case $1 in
+      "");;
+      *) {
+        echo "!!! $1 !!!"
+      };;
+    esac
+    
     echo >&2 "Usage:"
     echo >&2 "$0 start <layout>"
     echo >&2 "$0 stop"
     echo >&2 "$0 pause"
     echo >&2 "$0 resume"
-    echo >&2 "$0 storage <sid|all> <stop|start|start-rebuild|reset>"
+    echo >&2 "$0 storage <sid|all> <stop|start|reset>"
+    echo >&2 "$0 storage <sid|all> <device-delete|device-rebuild> <device|all>"
     echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
     echo >&2 "$0 export <stop|start|reset>"
     echo >&2 "$0 fsmount <stop|start|reset>"
@@ -1037,7 +1090,6 @@ show_process () {
   printf "\n"
   cd - 
 }
-
 main ()
 {
     storaged_dir="storaged"
@@ -1068,7 +1120,12 @@ main ()
     ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
     SQUOTA=""
     HQUOTA=""
-
+    
+    NB_DEVICE_PER_SID=6
+    NB_DEVICE_MAPPER_PER_SID=4
+    NB_DEVICE_MAPPER_RED_PER_SID=2
+    
+    
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
 
@@ -1175,11 +1232,12 @@ main ()
     elif [ "$1" == "storage" ]
     then  
       case "$3" in 
-        stop)    stop_one_storage $2;;
-		start)   start_one_storage $2;;
-		start-rebuild)   start_one_storage_rebuild $2;;
-		reset)   reset_one_storage $2;;
-        *)       usage;;
+        stop)            stop_one_storage $2;;
+	start)           start_one_storage $2;;
+	device-rebuild)  rebuild_storage_device $2 $4;;
+	device-delete)   delete_storage_device $2 $4;; 
+	reset)           reset_one_storage $2;;
+        *)               usage;;
       esac
     elif [ "$1" == "process" ]
     then 

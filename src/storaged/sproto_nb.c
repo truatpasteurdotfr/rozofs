@@ -38,6 +38,8 @@
 #include "storaged_north_intf.h"
 #include "storage_fd_cache.h"
 #include "storio_disk_thread_intf.h"
+#include "storio_device_mapping.h"
+
 
 /*
 ** Detailed time counters for read and write operation
@@ -389,67 +391,27 @@ void sp_null_1_svc_nb(void *args, rozorpc_srv_ctx_t *req_ctx_p) {
 **___________________________________________________________
 */
 
-void sp_write_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
-    sp_write_arg_t * args = (sp_write_arg_t *) pt;
-    static sp_write_ret_t ret;
-    storage_t *st = 0;
-    // Variable to be used in a later version.
-    uint8_t version = 0;
-    char *buf_bins;
-    
-    /*
-    ** put  the pointer to the bins (still in received buffer
-    */
-    int position = storage_get_position_of_first_byte2write_from_write_req();
-    buf_bins = (char*)ruc_buf_getPayload(req_ctx_p->recv_buf);
-    buf_bins+= position;
-
-
-    DEBUG_FUNCTION;
-
-    START_PROFILING_IO(write, args->nb_proj * rozofs_get_max_psize(args->layout)
-            * sizeof (bin_t));
-
-    ret.status = SP_FAILURE;
-
-    // Get the storage for the couple (cid;sid)
-    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
-        ret.sp_write_ret_t_u.error = errno;
-        goto out;
-    }
-
-    // Write projections
-    if (storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
-            (unsigned char *) args->fid, args->bid, args->nb_proj, version,
-            &ret.sp_write_ret_t_u.file_size,
-            (bin_t *) buf_bins) <= 0) {
-        ret.sp_write_ret_t_u.error = errno;
-        goto out;
-    }
-
-    ret.status = SP_SUCCESS;
-out:
- 
-    req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
-    req_ctx_p->recv_buf = NULL;
-    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
-    /*
-    ** release the context
-    */
-    rozorpc_srv_release_context(req_ctx_p);
-    STOP_PROFILING(write);
-    return ;
-}
-/*
-**___________________________________________________________
-*/
-
 void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     static sp_write_ret_t ret;
-
+    storio_device_mapping_t * dev_map_p = NULL;
+    int                       device_id;
+    sp_write_arg_t          * write_arg_p = (sp_write_arg_t *) pt;
+    
     START_PROFILING(write);
-     
-    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_WRITE, req_ctx_p,tic) == 0) {
+
+
+    /*
+    ** Lookup for the device_id in the lookup table
+    */ 
+    dev_map_p = storio_device_mapping_search(write_arg_p->fid);
+    if (dev_map_p == NULL) {    
+      device_id = -1; /* Unknown device id. Let the disk thread search for it */
+    }
+    else {
+      device_id = dev_map_p->device_number;
+    }  
+            
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_WRITE, device_id, req_ctx_p,tic) == 0) {
       return;
     }
     
@@ -488,91 +450,17 @@ void storage_check_readahead()
 
 }
 
-/*
-**___________________________________________________________
-*/
 
-void sp_read_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
-    sp_read_arg_t * args = (sp_read_arg_t *) pt;
-    static sp_read_ret_t ret;
-    storage_t *st = 0;
-
-    START_PROFILING_IO(read, args->nb_proj * rozofs_get_max_psize(args->layout)
-            * sizeof (bin_t));
-            
-    ret.status = SP_FAILURE;            
-    /*
-    ** allocate a buffer for the response
-    */
-    req_ctx_p->xmitBuf = ruc_buf_getBuffer(storage_xmit_buffer_pool_p);
-    if (req_ctx_p->xmitBuf == NULL)
-    {
-      severe("Out of memory STORAGE_NORTH_LARGE_POOL");
-      ret.sp_read_ret_t_u.error = ENOMEM;
-      req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
-      req_ctx_p->recv_buf = NULL;
-      goto error;         
-    }
-
-
-    // Get the storage for the couple (cid;sid)
-    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
-        ret.sp_read_ret_t_u.error = errno;
-        goto error;
-    }
-
-    /*
-    ** set the pointer to the bins
-    */
-    int position = storage_get_position_of_first_byte2write_from_read_req();
-    uint8_t *pbuf = (uint8_t*)ruc_buf_getPayload(req_ctx_p->xmitBuf);     
-    /*
-    ** clear the length of the bins and set the pointer where data must be returned
-    */  
-    ret.sp_read_ret_t_u.rsp.bins.bins_val =(char *)(pbuf+position);  ;
-    ret.sp_read_ret_t_u.rsp.bins.bins_len = 0;
-#if 0 // for future usage with distributed cache 
-    /*
-    ** clear the optimization array
-    */
-    ret.sp_read_ret_t_u.rsp.optim.optim_val = (char*)sp_optim;
-    ret.sp_read_ret_t_u.rsp.optim.optim_len = 0;
-#endif    
-    // Read projections
-    if (storage_read(st, args->layout, (sid_t *) args->dist_set, args->spare,
-            (unsigned char *) args->fid, args->bid, args->nb_proj,
-            (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
-            (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
-            &ret.sp_read_ret_t_u.rsp.file_size) != 0) {
-        ret.sp_read_ret_t_u.error = errno;
-        goto error;
-    }
-
-    ret.status = SP_SUCCESS;
-    storaged_srv_forward_read_success(req_ctx_p,&ret);
-    /*
-    ** check the case of the readahead
-    */
-    storage_check_readahead();
-    goto out;
-    
-error:
-    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
-    /*
-    ** release the context
-    */
-out:
-    rozorpc_srv_release_context(req_ctx_p);
-    STOP_PROFILING(read);
-    return ;
-}
 /*
 **___________________________________________________________
 */
 
 void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     static sp_read_ret_t ret;
-
+    storio_device_mapping_t * dev_map_p = NULL;
+    int                       device_id;
+    sp_read_arg_t           * read_arg_p = (sp_read_arg_t *) pt;
+    
     START_PROFILING(read);
             
     /*
@@ -593,8 +481,20 @@ void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ** Set the position where the data have to be written in the xmit buffer 
     */
     req_ctx_p->position = storage_get_position_of_first_byte2write_from_read_req();
-     
-    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_READ, req_ctx_p, tic) == 0) {
+
+    /*
+    ** Lookup for the device_id in the lookup table
+    */ 
+    dev_map_p = storio_device_mapping_search(read_arg_p->fid);
+    if (dev_map_p == NULL) {    
+      device_id = -1; /* Unknown device id. Let the disk thread search for it */
+    }
+    else {
+      device_id = dev_map_p->device_number;
+    }  
+    
+    
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_READ, device_id, req_ctx_p, tic) == 0) {
       return;
     }
     severe("storio_disk_thread_intf_send %s", strerror(errno));
@@ -611,62 +511,31 @@ error:
     STOP_PROFILING(read);
     return ;
 }
-/*
-**___________________________________________________________
-*/
 
-void sp_truncate_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
-    sp_truncate_arg_t * args = (sp_truncate_arg_t *) pt;
-    static sp_status_ret_t ret;
-    storage_t *st = 0;
-    // Variable to be used in a later version.
-    uint8_t version = 0;
-    
-    DEBUG_FUNCTION;
-    
-    START_PROFILING(truncate);
-    
-    ret.status = SP_FAILURE;
-
-    // Get the storage for the couple (cid;sid)
-    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
-        ret.sp_status_ret_t_u.error = errno;
-        goto out;
-    }
-
-    // Truncate bins file
-    if (storage_truncate(st, args->layout, (sid_t *) args->dist_set,
-            args->spare, (unsigned char *) args->fid, args->proj_id,
-            args->bid,version,args->last_seg,args->last_timestamp,
-	    args->bins.bins_len, args->bins.bins_val) != 0) {
-        ret.sp_status_ret_t_u.error = errno;
-        goto out;
-    }
-    ret.status = SP_SUCCESS;
-out:
- 
-    req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
-    req_ctx_p->recv_buf = NULL;
-    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
-    /*
-    ** release the context
-    */
-    rozorpc_srv_release_context(req_ctx_p);
-    
-    STOP_PROFILING(truncate);
-    return ;
-}
 /*
 **___________________________________________________________
 */
 
 void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     static sp_status_ret_t ret;
-
+    storio_device_mapping_t * dev_map_p = NULL;
+    int                       device_id;
+    sp_truncate_arg_t       * truncate_arg_p = (sp_truncate_arg_t *) pt;
+ 
     START_PROFILING(truncate);
 
-     
-    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_TRUNCATE, req_ctx_p,tic) == 0) {
+    /*
+    ** Lookup for the device_id in the lookup table
+    */ 
+    dev_map_p = storio_device_mapping_search(truncate_arg_p->fid);
+    if (dev_map_p == NULL) {    
+      device_id = -1; /* Unknown device id. Let the disk thread search for it */
+    }
+    else {
+      device_id = dev_map_p->device_number;
+    }  
+        
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_TRUNCATE, device_id, req_ctx_p,tic) == 0) {
       return;
     }
     

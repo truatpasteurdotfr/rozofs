@@ -27,10 +27,12 @@
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/core/ruc_buffer_debug.h>
+#include <rozofs/core/com_cache.h>
 
 #include "storio_disk_thread_intf.h"
 #include "sproto_nb.h"
 #include "config.h"
+#include "storio_device_mapping.h"
 
 DECLARE_PROFILING(spp_profiler_t); 
  
@@ -289,23 +291,122 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
   int                            ret;
   uint64_t                       tic, toc;  
   struct timeval                 tv;  
-  
   rpcCtx = msg->rpcCtx;
   opcode = msg->opcode;
   tic    = msg->timeStart;
 
   switch (opcode) {
+  
     case STORIO_DISK_THREAD_READ:
       STOP_PROFILING_IO(read,msg->size);
+      /*
+      ** If the device id was not known on the request but is returned in 
+      ** the response, let's insert it in the lookup table
+      */
+      if ((msg->device_id_sent == -1) && (msg->device_id_back != -1)) {
+        /*
+	** Retrieve the FID from the decoded request 
+	*/
+        sp_read_arg_t * read_arg_p = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+        /*
+	** The device id of the FID was not in the lookup table, but we have
+	** now the information to insert it.
+	*/	
+	storio_device_mapping_insert((uint8_t*)read_arg_p->fid, msg->device_id_back);	
+      }
+      /*
+      ** If the device id was known on the request but the response tells 
+      ** it has not been found. Remove it from the cache
+      */
+      if ((msg->device_id_sent != -1) && (msg->device_id_back == -1)) {
+        /*
+	** Retrieve the FID from the decoded request 
+	*/
+        sp_read_arg_t * read_arg_p = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+        /*
+	** Remove the entry from the lookup table
+	*/
+	storio_device_mapping_t * dev_map_p = storio_device_mapping_search(read_arg_p->fid);
+	if (dev_map_p != NULL) {    
+          storio_device_mapping_release_entry(dev_map_p);
+	}  		
+      }      
       update_read_detailed_counters(toc - tic);      
       break;
+
     case STORIO_DISK_THREAD_WRITE:
       STOP_PROFILING_IO(write,msg->size);
+      /*
+      ** If the device id was not known on the request but is returned in 
+      ** the response, let's insert it in the lookup table
+      */   
+      if ((msg->device_id_sent == -1) && (msg->device_id_back != -1)) {
+        /*
+	** Retrieve the FID from the decoded request 
+	*/
+        sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+        /*
+	** The device id of the FIS was not in the lookup table, but we have
+	** now the information to insert it.
+	*/
+	storio_device_mapping_insert((uint8_t*)write_arg_p->fid, msg->device_id_back);	
+      }      
+      /*
+      ** If the device id was known on the request but the response tells 
+      ** it has not been found. Remove it from the cache
+      */
+      if ((msg->device_id_sent != -1) && (msg->device_id_back == -1)) {
+        /*
+	** Retrieve the FID from the decoded request 
+	*/
+        sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+        /*
+	** Remove the entry from the lookup table
+	*/
+	storio_device_mapping_t * dev_map_p = storio_device_mapping_search(write_arg_p->fid);
+	if (dev_map_p != NULL) {    
+          storio_device_mapping_release_entry(dev_map_p);
+	}  		
+      }      
       update_write_detailed_counters(toc - tic);            
       break;     
+
     case STORIO_DISK_THREAD_TRUNCATE:
       STOP_PROFILING(truncate);
+       /*
+      ** If the device id was not known on the request but is returned in 
+      ** the response, let's insert it in the lookup table
+      */
+      if ((msg->device_id_sent == -1) && (msg->device_id_back != -1)) {
+        /*
+	** Retrieve the FID from the decoded request 
+	*/
+        sp_truncate_arg_t * truncate_arg_p = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+        /*
+	** The device id of the FIS was not in the lookup table, but we have
+	** now the information to insert it.
+	*/
+	storio_device_mapping_insert((uint8_t*)truncate_arg_p->fid, msg->device_id_back);	
+      }
+      /*
+      ** If the device id was known on the request but the response tells 
+      ** it has not been found. Remove it from the cache
+      */
+      if ((msg->device_id_sent != -1) && (msg->device_id_back == -1)) {
+        /*
+	** Retrieve the FID from the decoded request 
+	*/
+        sp_truncate_arg_t * truncate_arg_p = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+        /*
+	** Remove the entry from the lookup table
+	*/
+	storio_device_mapping_t * dev_map_p = storio_device_mapping_search(truncate_arg_p->fid);
+	if (dev_map_p != NULL) {    
+          storio_device_mapping_release_entry(dev_map_p);
+	}  		
+      }            
       break;   
+
     default:
       severe("Unexpected opcode %d", opcode);
   }
@@ -477,6 +578,7 @@ void storio_send_response (rozofs_disk_thread_ctx_t *thread_ctx_p, storio_disk_t
 *  
 */
 int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode, 
+                                 int                            device_id,
                                  rozorpc_srv_ctx_t            * rpcCtx,
 				                 uint64_t                       timeStart) 
 {
@@ -488,6 +590,8 @@ int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode,
   msg.opcode          = opcode;
   msg.status          = 0;
   msg.transaction_id  = transactionId++;
+  msg.device_id_sent  = device_id;
+  msg.device_id_back  = -1;
   msg.timeStart       = timeStart;
   msg.size            = 0;
   msg.rpcCtx          = rpcCtx;

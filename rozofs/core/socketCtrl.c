@@ -1387,6 +1387,16 @@ void ruc_sockCtrl_selectWait()
       }
       else
       {
+        if (nbrSelect < 0) {
+	  if (errno == EINTR) {
+	    RUC_WARNING(errno);
+	    continue;
+	  }
+	  
+	  RUC_WARNING(errno);
+	  return;
+	}
+	
       	gettimeofday(&timeDay,(struct timezone *)0);  
 	looptimeStart = MICROLONG(timeDay); 
         rozofs_ticker_microseconds = looptimeStart;

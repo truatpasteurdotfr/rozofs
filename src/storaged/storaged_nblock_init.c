@@ -62,7 +62,7 @@
 
 DECLARE_PROFILING(spp_profiler_t);
 
-extern uint8_t rbs_start_process;
+
 /*
  **_________________________________________________________________________
  *      PUBLIC FUNCTIONS
@@ -208,39 +208,6 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
     sp_display_probe(gprofiler, ports);
     sp_display_probe(gprofiler, remove);
     sp_display_probe(gprofiler, list_bins_files);
-
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-}
-
-static void show_rebuild_storage_display(char * argv[], uint32_t tcpRef,
-        void *bufRef) {
-
-    char *pChar = uma_dbg_get_buffer();
-    int i = 0;
-
-    // Print RBS storaged process profiling values
-    if (gprofiler.nb_rb_processes != 0) {
-
-        pChar += sprintf(pChar,
-                "Nb. of storage(s) to rebuild at startup: %"PRIu16"\n",
-                gprofiler.nb_rb_processes);
-
-        pChar += sprintf(pChar, "%-12s | %-12s | %-16s | %-16s |\n",
-                "CID", "SID", "STATUS", "FILES REBUILD");
-
-        pChar += sprintf(pChar, "-------------+--------------+-----------------"
-                "-+------------------+\n");
-
-        for (i = 0; i < gprofiler.nb_rb_processes; i++) {
-
-            sp_display_rbs_progress_probe(
-                    gprofiler.rbs_cids[i], gprofiler.rbs_sids[i],
-                    gprofiler.rb_files_total[i], gprofiler.rb_files_current[i],
-                    gprofiler.rb_status[i]);
-
-        }
-
-    }
 
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -512,13 +479,6 @@ int storaged_start_nb_th(void *args) {
      */
     uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
 
-
-    /*
-     ** add rebuild storage subject
-     */
-    if (rbs_start_process == 1) {
-        uma_dbg_addTopic("rebuild", show_rebuild_storage_display);
-    }
 
     if ((args_p->hostname[0] != 0)) {
         info("storaged non-blocking thread started (host: %s, dbg port: %d).",

@@ -47,7 +47,6 @@ storage_t *storaged_lookup(cid_t cid, sid_t sid) ;
 /**
 *  Thread table
 */
-#define ROZOFS_MAX_DISK_THREADS  16
 rozofs_disk_thread_ctx_t rozofs_disk_thread_ctx_tb[ROZOFS_MAX_DISK_THREADS];
 
 /*
@@ -236,8 +235,11 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   ret.sp_read_ret_t_u.rsp.optim.optim_len = 0;
 #endif   
 
+
+  // Lookup for the device id for this FID
+  msg->device_id_back = msg->device_id_sent;
   // Read projections
-  if (storage_read(st, args->layout, (sid_t *) args->dist_set, args->spare,
+  if (storage_read(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
             (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
@@ -321,9 +323,11 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   }
   
 
-
+  // Lookup for the device id for this FID
+  msg->device_id_back = msg->device_id_sent;
+  
   // Write projections
-  size =  storage_write(st, args->layout, (sid_t *) args->dist_set, args->spare,
+  size =  storage_write(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set, args->spare,
           (unsigned char *) args->fid, args->bid, args->nb_proj, version,
           &ret.sp_write_ret_t_u.file_size,
           (bin_t *) pbuf);
@@ -400,10 +404,12 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
-  
+
+  // Lookup for the device id for this FID
+  msg->device_id_back = msg->device_id_sent;  
 
   // Truncate bins file
-  result = storage_truncate(st, args->layout, (sid_t *) args->dist_set,
+  result = storage_truncate(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set,
         		    args->spare, (unsigned char *) args->fid, args->proj_id,
         		    args->bid,version,args->last_seg,args->last_timestamp,
 			    args->len, pbuf);

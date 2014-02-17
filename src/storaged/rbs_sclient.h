@@ -70,6 +70,7 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rbs_restore_one_rb_entry,
  * @param cid: the unique cluster ID of storage to contacted
  * @param sid: the unique storage ID of storage to contacted
  * @param rebuild_sid: the unique storage ID of storage to rebuild
+ * @param device: index indication
  * @param spare: index indication
  * @param layout: index indication
  * @param dist_set: index indication
@@ -80,7 +81,7 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rbs_restore_one_rb_entry,
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int rbs_get_rb_entry_list(mclient_t * mclt, cid_t cid, sid_t sid,
-        sid_t rebuild_sid, uint8_t * spare, uint8_t * layout,
+        sid_t rebuild_sid, uint8_t * device, uint8_t * spare, uint8_t * layout,
         sid_t dist_set[ROZOFS_SAFE_MAX], uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof);
 

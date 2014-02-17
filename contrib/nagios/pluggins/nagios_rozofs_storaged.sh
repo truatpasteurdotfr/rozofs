@@ -14,7 +14,6 @@
 #  <http://www.gnu.org/licenses/>.
 
 TMPFILE=/tmp/storaged_rozodebug.$$
-TMPFILE2=/tmp/storaged_rozodebug2.$$
 VERSION="Version 1.0"
 PROGNAME=`basename $0`
 
@@ -67,7 +66,7 @@ print_help() {
   echo "{-V|--version}"
   echo "    Print version information"
   echo "{-H|--hostname} <host name>"
-  echo "    Destination host of the Rozofsmount instance"
+  echo "    Destination host of the storage instance instance"
   echo "{-t|--timeout} <seconds>"
   echo "    Time out value"  
 #  echo "{-w|--warning} <threshold|percent%>"
@@ -92,7 +91,6 @@ display_output() {
   msg=`echo "$msg | read=$all_read""B;;;; write=$all_write""B;;;;"`
   echo $msg
   rm -f $TMPFILE
-  rm -f $TMPFILE2
   exit $1
 }
 set_default() {
@@ -172,10 +170,22 @@ test_storage_io()
   write=`awk '{if ($1=="write") print $9; }' $TMPFILE`
   all_read=$((all_read+read))
   all_write=$((all_write+write))
-  
+     
   return 1
 }
-
+test_storage_io_devices()
+{
+  # rozodebug has lready been resolved in test_storage_io
+  # resolve_rozodebug
+ 
+  # Check device status
+  $ROZDBG -c device device >  $TMPFILE
+  faulty_devices=`awk '{ if ($3=="faulty" && $4=="devices") print $5 }' $TMPFILE`
+  case $faulty_devices in
+    "") return 1;;
+    *)  return 0;;
+  esac 
+}
 
 #######################################################
 #         M A I N
@@ -264,7 +274,15 @@ esac
 test_storage_io
 if [ $? -eq 0 ]
 then
-  display_output $STATE_CRITICAL "I/O process do noy respond to rozodebug"
+  display_output $STATE_CRITICAL "I/O process do not respond to rozodebug"
+fi
+
+# Teste whether devices are OK
+faulty_devices=""
+test_storage_io_devices
+if [ $? -eq 0 ]
+then
+  display_output $STATE_CRITICAL "Some devices are faulty : $faulty_devices"
 fi
 
 # Hurra !!!

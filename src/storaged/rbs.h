@@ -29,12 +29,21 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/rpc/mclient.h>
 
+#define RBS_MAX_PARALLEL 16
+
 /* Timeout in seconds for exportd requests */
 #define RBS_TIMEOUT_EPROTO_REQUESTS 25
 /* Timeout in seconds for storaged requests with mproto */
 #define RBS_TIMEOUT_MPROTO_REQUESTS 15
 /* Timeout in seconds for storaged requests with sproto */
 #define RBS_TIMEOUT_SPROTO_REQUESTS 10
+
+typedef struct _rebuild_fid_input_t {
+  fid_t      fid;
+  int        cluster;
+  int        layout;
+  sid_t      dist[ROZOFS_SAFE_MAX];
+} rebuild_fid_input_t;
 
 typedef struct rb_entry {
     fid_t fid; ///< unique file identifier associated with the file
@@ -44,6 +53,7 @@ typedef struct rb_entry {
     sclient_t **storages;
     list_t list;
 } rb_entry_t;
+
 
 typedef struct rb_stor {
     sid_t sid;
@@ -68,11 +78,14 @@ typedef struct rb_cluster {
  * @param sid: the unique id for the storage to rebuild.
  * @param root: the absolute path where rebuild bins file(s) will be store.
  * @param stor_idx: storage index used for display statistics.
+ * @param device: device to rebuild or -1 when all devices.
+ * @param fid_input: parameter of the file to rebuild.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
-        const char *root, uint8_t stor_idx);
+        const char *root, uint8_t stor_idx,int device, int parallel,
+	char * cfg_file);
 
 /** Check if possible to rebuild the storage with CID=cid, SID=sid,
  *  root_path=root and managed by the export server with hostname=export_host.
@@ -87,4 +100,8 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
 int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
         const char *root);
 
+/** Get name of temporary rebuild directory
+ *
+ */
+char * get_rebuild_directory_name() ;
 #endif

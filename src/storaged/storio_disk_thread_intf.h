@@ -81,6 +81,8 @@ typedef struct _storio_disk_thread_msg_t
   uint32_t            opcode;
   uint32_t            status;
   uint32_t            transaction_id;
+  int32_t             device_id_sent;
+  int32_t             device_id_back;  
   uint64_t            timeStart;
   uint64_t            size;
   rozorpc_srv_ctx_t * rpcCtx;
@@ -103,6 +105,7 @@ int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffe
 *  Send a disk request to the disk threads
 *
 * @param opcode     the request operation code
+* @param device_id  the device holding the data or -1 when unknown
 * @param rpcCtx     pointer to the generic rpc context
 * @param timeStart  time stamp when the request has been decoded
 *
@@ -110,6 +113,7 @@ int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffe
 *  
 */
 int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode, 
+                                 int                            device_id,
                                  rozorpc_srv_ctx_t            * rpcCtx,
 				 uint64_t                       timeStart) ;
 
