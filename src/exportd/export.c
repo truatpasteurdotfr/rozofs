@@ -2595,15 +2595,21 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   int       idx;
   int       left;
   uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
-  
+  uint32_t  slice;
+  uint32_t  subslice;
+
   pFid = (uint8_t *) lv2->attributes.fid;  
   DISPLAY_ATTR_INT("EID", e->eid);
   DISPLAY_ATTR_INT("LAYOUT", e->layout);  
+
   
   DISPLAY_ATTR_TITLE( "FID"); 
   p += sprintf(p,"%2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x\n", 
                pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
+
+  mstor_get_slice_and_subslice(pFid, &slice, &subslice);
+  DISPLAY_ATTR_2INT("SLICE",slice,subslice);
 
   DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.uid,lv2->attributes.gid);
 

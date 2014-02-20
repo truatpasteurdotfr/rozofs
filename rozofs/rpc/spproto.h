@@ -38,16 +38,9 @@ struct spp_profiler_t {
 	uint64_t remove[2];
 	uint64_t list_bins_files[2];
 	uint16_t nb_io_processes;
-	uint16_t io_process_ports[STORAGE_NODE_PORTS_MAX];
-	uint16_t nb_rb_processes;
-	uint16_t rbs_cids[STORAGES_MAX_BY_STORAGE_NODE];
-	uint8_t rbs_sids[STORAGES_MAX_BY_STORAGE_NODE];
 	uint64_t read[3];
 	uint64_t write[3];
 	uint64_t truncate[3];
-	uint64_t rb_files_current[STORAGES_MAX_BY_STORAGE_NODE];
-	uint64_t rb_files_total[STORAGES_MAX_BY_STORAGE_NODE];
-	uint8_t rb_status[STORAGES_MAX_BY_STORAGE_NODE];
 };
 typedef struct spp_profiler_t spp_profiler_t;
 

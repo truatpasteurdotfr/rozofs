@@ -885,6 +885,69 @@ do_core ()
   *)        do_debugCore $1;;
   esac      
 }
+do_cou () 
+{
+  COUFILE=/tmp/.cou
+  shift 1
+  
+  case "$1" in
+  "")       syntax;;
+  esac      
+
+
+  if [ ! -e $1 ];
+  then
+    printf "%20s  does not exist !!!\n" $1
+    return 
+  fi
+
+  attr -g rozofs $1 > $COUFILE
+  if [ ! -s $COUFILE ];
+  then
+    printf "%20s is not a RozoFS object !!!\n" $1
+    return 
+  fi
+  
+  printf "\n ___________ $1 ___________\n"
+  cat $COUFILE
+  
+  mode=`awk '{if ($1=="MODE") printf $3; }' $COUFILE`
+  fid=`awk '{if ($1=="FID") printf $3; }' $COUFILE`
+  slice=`awk '{if ($1=="SLICE") printf $3; }' $COUFILE`
+  lay=`awk '{if ($1=="LAYOUT") printf $3; }' $COUFILE`
+  dist=`awk '{if ($1=="STORAGE") printf $3; }' $COUFILE`
+  cluster=`awk '{if ($1=="CLUSTER") printf $3; }' $COUFILE`
+  SID_LIST=`echo $dist | awk -F'-' '{ for (i=1;i<=NF;i++) print " "$i; }'`
+  eid=`awk '{if ($1=="EID") printf $3; }' $COUFILE`
+  
+  rm -f $COUFILE
+
+  case $mode in
+    "DIRECTORY") return;;
+  esac
+
+  
+  # Attribute file
+  file=${LOCAL_EXPORTS_ROOT}_$eid/$slice/$fid
+  size=`ls -sh $file  | awk '{ printf $1 }'`
+  printf "%10s %s\n" $size $file
+  
+  # Header and bins files
+  for sid in $SID_LIST
+  do
+    sid=`expr $sid + 0`
+    dir="${LOCAL_STORAGES_ROOT}_$cluster-$sid"
+    doSpace="Yes"
+    for file in `find $dir/*/layout_$lay/spare_*/$dist/ -name "$fid*"`
+    do
+      case $doSpace in
+       Yes) printf "\n"; doSpace="No";;
+      esac	
+      size=`ls -sh $file  | awk '{ printf $1 }'`
+      printf "%10s %s\n" $size $file
+    done
+  done     
+}
 check_build ()
 {
 
@@ -974,6 +1037,7 @@ usage ()
     echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
     echo >&2 "$0 export <stop|start|reset>"
     echo >&2 "$0 fsmount <stop|start|reset>"
+    echo >&2 "$0 cou <fileName>"    
     echo >&2 "$0 core [<remove>] <coredir/corefile>"
     echo >&2 "$0 process"
     echo >&2 "$0 reload"
@@ -1161,7 +1225,10 @@ main ()
 
     elif [ "$1" == "core" ]
     then
-           do_core $*	   
+           do_core $*	
+    elif [ "$1" == "cou" ]
+    then
+           do_cou $*	      
     elif [ "$1" == "pause" ]
     then
            do_pause

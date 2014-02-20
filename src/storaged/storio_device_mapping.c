@@ -85,7 +85,11 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
   if (strcmp(argv[1],"fid")==0) {
   
     if (argv[2] == NULL) {
-      pChar += sprintf(pChar,"%d entries\n",storio_device_mapping_cache_count);
+      pChar += sprintf(pChar,"Entries/max : %d/%d\n",storio_device_mapping_cache_count,STORIO_DEVICE_MAPPING_MAX_ENTRIES);
+      pChar += sprintf(pChar,"Entry size  : %d\n",sizeof(storio_device_mapping_t));
+      pChar += sprintf(pChar,"Size/max    : %d/%d\n",
+                              sizeof(storio_device_mapping_t)*storio_device_mapping_cache_count,
+			      sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES);   
       uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
       return;       
     }     

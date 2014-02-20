@@ -227,7 +227,7 @@ static void on_start() {
         return;
     }
 
-    SET_PROBE_VALUE(nb_rb_processes, 0);
+//    SET_PROBE_VALUE(nb_rb_processes, 0);
 
     SET_PROBE_VALUE(uptime, time(0));
     strncpy((char*) gprofiler.vers, VERSION, 20);

@@ -29,7 +29,7 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/rpc/mclient.h>
 
-#define RBS_MAX_PARALLEL 16
+#define RBS_MAX_PARALLEL 36
 
 /* Timeout in seconds for exportd requests */
 #define RBS_TIMEOUT_EPROTO_REQUESTS 25

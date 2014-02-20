@@ -358,11 +358,10 @@ static void on_stop() {
 
     storaged_release();
 
-    info("stopped.");
     closelog();
 }
 
-#define DEFAULT_PARALLEL_REBUILD 3
+#define DEFAULT_PARALLEL_REBUILD_PER_DEVICE 3
 void usage() {
 
     printf("RozoFS storage daemon - %s\n", VERSION);
@@ -373,13 +372,13 @@ void usage() {
             STORAGED_DEFAULT_CONFIG);
     printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
     printf("   -d, --device=device-number\trebuild only this device number. All devices are rebuilt when omitted.\n");
-    printf("   -p, --parallel\tNumber of rebuild process run in parallel (default is %d)\n", DEFAULT_PARALLEL_REBUILD);   
+    printf("   -p, --parallel\tNumber of rebuild processes in parallel per device to rebuild (default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_DEVICE);   
 
 }
 
 int main(int argc, char *argv[]) {
     int c;
-    int  parallel = DEFAULT_PARALLEL_REBUILD;
+    int  parallel = DEFAULT_PARALLEL_REBUILD_PER_DEVICE;
     
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
@@ -446,7 +445,6 @@ int main(int argc, char *argv[]) {
                               strerror(errno));
                       exit(EXIT_FAILURE);
                   }
-		  if (parallel > RBS_MAX_PARALLEL) parallel = RBS_MAX_PARALLEL;
 		}
                 break;
             case 'H':
@@ -462,7 +460,7 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-    openlog("storage_rebuild", LOG_PID, LOG_DAEMON);
+    openlog("RBS", LOG_PID, LOG_DAEMON);
     
     
     /*
@@ -500,6 +498,14 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "can't initialize storaged: %s.", strerror(errno));
         goto error;
     }
+    
+    
+    // Rebuilding all devices multiply by the number of device 
+    if (rbs_device_number == -1) {
+      parallel *= storaged_config.device.total;
+    }  
+    // Must not exceed a maximum
+    if (parallel > RBS_MAX_PARALLEL) parallel = RBS_MAX_PARALLEL;
 
     // Start rebuild storage   
     rbs_process_initialize(parallel);

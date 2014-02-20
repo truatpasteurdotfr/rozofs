@@ -189,7 +189,7 @@ int rb_hash_table_delete() {
 char rebuild_directory_name[FILENAME_MAX];
 char * get_rebuild_directory_name() {
   pid_t pid = getpid();
-  sprintf(rebuild_directory_name,"/tmp/rebuild.%d",pid);  
+  sprintf(rebuild_directory_name,"/tmp/rbs.%d",pid);  
   return rebuild_directory_name;
 }
 
@@ -289,8 +289,6 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
                 &working_ctx);
 
         if (ret != 0) {
-            severe("rbs_read_blocks failed for block %"PRIu64": %s",
-                    first_block_idx, strerror(errno));
             goto out;
         }
 
@@ -883,7 +881,7 @@ static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
     dir = get_rebuild_directory_name();
     for (idx=0; idx < parallel; idx++) {
     
-      sprintf(filename,"%s/cid_%d_sid_%d_dev_all.it%d", dir, cid, sid, idx);
+      sprintf(filename,"%s/c%d_s%d_dall.%2.2d", dir, cid, sid, idx);
 
       cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY);
       if (cfgfd[idx] == -1) {
@@ -940,8 +938,7 @@ out:
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-static int rbs_build_device_missing_list_one_cluster(list_t * cluster_entries,
-                                                     cid_t cid, 
+static int rbs_build_device_missing_list_one_cluster(cid_t cid, 
 						     sid_t sid,
 						     int device_to_rebuild,
 						     int parallel) {
@@ -970,7 +967,7 @@ static int rbs_build_device_missing_list_one_cluster(list_t * cluster_entries,
   dir = get_rebuild_directory_name();
   for (idx=0; idx < parallel; idx++) {
 
-    sprintf(filename,"%s/cid_%d_sid_%d_dev_%d.it%d", dir, cid, sid, device_to_rebuild, idx);
+    sprintf(filename,"%s/c%d_s%d_d%d.%2.2d", dir, cid, sid, device_to_rebuild, idx);
       
     cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY);
     if (cfgfd[idx] == -1) {
@@ -1136,8 +1133,9 @@ static int rbs_do_list_rebuild() {
     
     if (pid == 0) {
       sprintf(cmd,"storage_list_rebuilder -f %s/%s", dirName, file->d_name);
-      system(cmd);
-      exit(0);
+      status = system(cmd);
+      if (status == 0) exit(0);
+      exit(-1);
     }
       
     total++;
@@ -1153,12 +1151,13 @@ static int rbs_do_list_rebuild() {
     if (waitpid(-1,&status,0) == -1) {
       severe("waitpid %s",strerror(errno));
     }
+    status = WEXITSTATUS(status);
     if (status != 0) failure++;
     else             success++;
   }
   
   if (failure != 0) {
-    severe("%d failures occured");
+    severe("%d list rebuild processes failed upon %d",failure,total);
     return -1;
   }
   return 0;
@@ -1250,7 +1249,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     }
     else {
       // Build the list from the available data on local disk
-      if (rbs_build_device_missing_list_one_cluster(&cluster_entries, cid, sid, device, parallel) != 0)
+      if (rbs_build_device_missing_list_one_cluster(cid, sid, device, parallel) != 0)
         goto out;	    		
     }
     
@@ -1266,10 +1265,11 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     info("%d files to rebuild by %d processes",rb_fid_table_count,parallel);
     ret = rbs_do_list_rebuild();
     while (ret != 0) {
-      sleep(TIME_BETWEEN_2_RB_ATTEMPS);    
+      info("Rebuild failed. Will retry within %d seconds", TIME_BETWEEN_2_RB_ATTEMPS);
+      sleep(TIME_BETWEEN_2_RB_ATTEMPS); 
       ret = rbs_do_list_rebuild();
     }
-    unlink(get_rebuild_directory_name());
+    rmdir(get_rebuild_directory_name());
     return status;
     
 out:

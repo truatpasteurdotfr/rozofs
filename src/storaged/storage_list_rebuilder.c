@@ -157,7 +157,7 @@ static void storaged_release() {
     }
 }
 int storaged_rebuild_list(char * fid_list) {
-  int        fd;
+  int        fd = -1;
   int        nbJobs=0;
   int        nbSuccess=0;
   list_t     cluster_entries;
@@ -170,33 +170,31 @@ int storaged_rebuild_list(char * fid_list) {
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
       severe("Can not open file %s %s",fid_list,strerror(errno));
-      return 1;
+      goto error;
   }
   
-  if (pread(fd,&st2rebuild,sizeof(rozofs_rebuild_header_file_t),0) != sizeof(rozofs_rebuild_header_file_t)) {
+  if (pread(fd,&st2rebuild,sizeof(rozofs_rebuild_header_file_t),0) 
+        != sizeof(rozofs_rebuild_header_file_t)) {
       severe("Can not read st2rebuild in file %s %s",fid_list,strerror(errno));
-      close(fd);
-      return 1;
+      goto error;
   }  
 
   // Initialize the list of storage config
   if (sconfig_initialize(&storaged_config) != 0) {
       severe("Can't initialize storaged config: %s.\n",strerror(errno));
-      close(fd);
-      return 1;
+      goto error;
   }
+  
   // Read the configuration file
   if (sconfig_read(&storaged_config, st2rebuild.config_file) != 0) {
       severe("Failed to parse storage configuration file %s : %s.\n",st2rebuild.config_file,strerror(errno));
-      close(fd);
-      return 1;
+      goto error;
   }
 
   // Initialization of the storage configuration
   if (storaged_initialize() != 0) {
       severe("can't initialize storaged: %s.", strerror(errno));
-      close(fd);
-      return 1;
+      goto error;
   }
 
 
@@ -209,16 +207,18 @@ int storaged_rebuild_list(char * fid_list) {
 			   st2rebuild.storage.cid, 
 			   &cluster_entries) != 0) {
     severe("Can't get list of others cluster members from export server (%s) for storage to rebuild (cid:%u; sid:%u): %s\n",
-              st2rebuild.export_hostname, st2rebuild.storage.cid, st2rebuild.storage.sid, strerror(errno));
-    return 1;
+              st2rebuild.export_hostname, 
+	      st2rebuild.storage.cid, 
+	      st2rebuild.storage.sid, 
+	      strerror(errno));
+      goto error;
   }
     
   // Get connections for this given cluster
   if (rbs_init_cluster_cnts(&cluster_entries, st2rebuild.storage.cid, st2rebuild.storage.sid) != 0) {
     severe("Can't get cnx server for storage to rebuild (cid:%u; sid:%u): %s\n",
               st2rebuild.storage.cid, st2rebuild.storage.sid, strerror(errno));
-    close(fd);
-    return 1;
+    goto error;
   }  
 
   info("%s rebuild start",fid_list);
@@ -266,7 +266,7 @@ int storaged_rebuild_list(char * fid_list) {
 
     // Restore this entry
     if (rbs_restore_one_rb_entry(&st2rebuild.storage, &re) != 0) {
-        severe( "rbs_restore_one_rb_entry failed: %s", strerror(errno));
+        //severe( "rbs_restore_one_rb_entry failed: %s", strerror(errno));
         continue; // Try with the next
     }
     
@@ -279,13 +279,20 @@ int storaged_rebuild_list(char * fid_list) {
     pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry));
   }
   
-  close(fd);   
-  info("%s rebuild end %d/%d",fid_list,nbSuccess,nbJobs);
 
   if (nbSuccess == nbJobs) {
     unlink(fid_list);
+    info("%s rebuild success of %d files",fid_list,nbSuccess);    
+    close(fd);   
     return 0;
   }
+  
+  
+  info("%s rebuild failed %d/%d",fid_list,nbSuccess,nbJobs);
+
+  
+error:
+  if (fd != -1) close(fd);   
   return 1;
 }
 
@@ -294,7 +301,6 @@ static void on_stop() {
 
     rozofs_layout_release();
     storaged_release();
-    info("stopped.");
     closelog();
 }
 
@@ -307,7 +313,6 @@ void usage() {
     printf("   -h, --help\t\t\tprint this message.\n");
     printf("   -f, --fids=<filename> \tA file name containing the fid list to rebuild.\n");    
 }
-
 
 int main(int argc, char *argv[]) {
     int c;
@@ -341,7 +346,7 @@ int main(int argc, char *argv[]) {
                 break;
             case 'f':
 		input_file_name = optarg;
-                break;
+                break;	
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);
@@ -352,7 +357,7 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-    openlog("storage_rebuilder", LOG_PID, LOG_DAEMON);
+    openlog("RBS_LIST", LOG_PID, LOG_DAEMON);
     
     
     /*
@@ -367,9 +372,8 @@ int main(int argc, char *argv[]) {
     // Start rebuild storage   
     if (storaged_rebuild_list(input_file_name) != 0) goto error;    
     on_stop();
-    exit(0);
+    exit(EXIT_SUCCESS);
     
 error:
-    severe("Can't rebuild %s.\n",input_file_name);
     exit(EXIT_FAILURE);
 }
