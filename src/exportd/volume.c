@@ -31,13 +31,11 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 
 #include "volume.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 static int volume_storage_compare(list_t * l1, list_t *l2) {
     volume_storage_t *e1 = list_entry(l1, volume_storage_t, list);

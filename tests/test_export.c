@@ -21,11 +21,15 @@
 #include <inttypes.h>
 #include <unistd.h>
 
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_srv.h>
 
 #include "export.h"
+
+export_one_profiler_t  * export_profiler[EXPGW_EXPORTD_MAX_IDX] = { 0 };
+uint32_t		 export_profiler_eid = 0;
 
 DEFINE_PROFILING(epp_profiler_t);
 

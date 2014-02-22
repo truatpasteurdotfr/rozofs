@@ -130,7 +130,6 @@ static __inline__ unsigned long long rdtsc(void)
 
 void ruc_sockCtrl_socket_poll()
 {
-  int i;
   ruc_sockObj_t *p;
   int count = 0;
   
@@ -231,9 +230,9 @@ void ruc_sockCtrl_remove_socket(int *sock_table_p,int nb_sockets,int socket_id)
 void ruc_sockCtrl_ctx_show(uint32_t tcpRef, void * bufRef) {
   char           *pChar=myBuf;
 
-  pChar += sprintf(pChar,"ruc_sockObj_t         : %u bytes \n",sizeof(ruc_sockObj_t));
-  pChar += sprintf(pChar,"af_unix_ctx_generic_t : %u bytes \n",sizeof(af_unix_ctx_generic_t));
-  pChar += sprintf(pChar,"north_lbg_ctx_t       : %u bytes \n",sizeof(north_lbg_ctx_t));
+  pChar += sprintf(pChar,"ruc_sockObj_t         : %lu bytes \n",sizeof(ruc_sockObj_t));
+  pChar += sprintf(pChar,"af_unix_ctx_generic_t : %lu bytes \n",sizeof(af_unix_ctx_generic_t));
+  pChar += sprintf(pChar,"north_lbg_ctx_t       : %lu bytes \n",sizeof(north_lbg_ctx_t));
   uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
 
 }
@@ -255,23 +254,23 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   pChar += sprintf(pChar,"max socket events        : %u \n",ruc_sockCtrl_max_nr_select);
   ruc_sockCtrl_max_nr_select = 0;
   pChar += sprintf(pChar,"xmit/recv prepare cycles : %llu cycles [%llu/%llu)\n",
-                                                               (ruc_count_prepare==0)?0:ruc_time_prepare/ruc_count_prepare,
-                                                               ruc_time_prepare,ruc_count_prepare);
+                                                               (ruc_count_prepare==0)?0:(long long unsigned)ruc_time_prepare/ruc_count_prepare,
+                                                               (long long unsigned)ruc_time_prepare,(long long unsigned)ruc_count_prepare);
   ruc_time_prepare = 0;
   ruc_count_prepare = 0;
   pChar += sprintf(pChar,"xmit/recv receive cycles : %llu cycles [%llu/%llu)\n",
-                                                               (ruc_count_receive==0)?0:ruc_time_receive/ruc_count_receive,
-                                                               ruc_time_receive,ruc_count_receive);
+                                                               (ruc_count_receive==0)?0:(long long unsigned)ruc_time_receive/ruc_count_receive,
+                                                               (long long unsigned)ruc_time_receive,(long long unsigned)ruc_count_receive);
   ruc_time_receive = 0;
   ruc_count_receive = 0;							       
 
   pChar += sprintf(pChar,"gettimeofday cycles      : %llu cycles [%llu/%llu)\n",
-                                                               (gettimeofday_count==0)?0:gettimeofday_cycles/gettimeofday_count,
-                                                               gettimeofday_cycles,gettimeofday_count);
+                                                               (gettimeofday_count==0)?0:(long long unsigned)gettimeofday_cycles/gettimeofday_count,
+                                                               (long long unsigned)gettimeofday_cycles,(long long unsigned)gettimeofday_count);
   gettimeofday_cycles = 0;
   gettimeofday_count  = 0;	
 
-  pChar += sprintf(pChar,"rucRdFdSet %p (%u) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
+  pChar += sprintf(pChar,"rucRdFdSet %p (%lu) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
   
   
   pChar += sprintf(pChar,"select max cpu time : %u us\n",ruc_sockCtrl_looptimeMax);
@@ -368,7 +367,7 @@ void ruc_sockCtrl_conf(char * argv[], uint32_t tcpRef, void * bufRef) {
     return;
   }
   pChar +=sprintf(pChar,"max number of socket controller contexts : %u\n",ruc_sockCtrl_maxConnection);
-  pChar +=sprintf(pChar,"scheduler polling period                 : %llu us\n",ruc_sockCtrl_poll_period);
+  pChar +=sprintf(pChar,"scheduler polling period                 : %llu us\n",(long long unsigned)ruc_sockCtrl_poll_period);
   pChar +=sprintf(pChar,"scheduler polling count                  : %u\n",ruc_sockCtrl_max_poll_ctx);
   uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
     
@@ -383,7 +382,7 @@ void ruc_sockCtrl_show_select_stats(char * argv[], uint32_t tcpRef, void * bufRe
   for (i = 0; i < FD_SETSIZE; i++)
   {
      if (ruc_sockCtrl_nr_socket_stats[i] == 0) continue;
-     pChar +=sprintf(pChar,"[%4.4d] = %llu\n",i,ruc_sockCtrl_nr_socket_stats[i]);
+     pChar +=sprintf(pChar,"[%4.4d] = %llu\n",i,(long long unsigned)ruc_sockCtrl_nr_socket_stats[i]);
   }
 
   memset(ruc_sockCtrl_nr_socket_stats,0,sizeof(uint64_t)*FD_SETSIZE);
@@ -625,7 +624,6 @@ void * ruc_sockctl_connect(int socketId,
 {
 
     ruc_sockObj_t *p,*pelem;
-    uint32_t curPrio;
 
   /*
   ** get the first element from the free list

@@ -77,7 +77,11 @@
 #define EXPGW_EXPORTD_MAX_IDX 64 /**< max number of exportd */
 
 
+#define P_COUNT     0
+#define P_ELAPSE    1
+#define P_BYTES     2
 
+#define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 
 /* Value max for an Exportd Gateway */
 #define GWID_MAX 32

@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>
+#include <sched.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>

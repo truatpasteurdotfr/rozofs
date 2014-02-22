@@ -1074,12 +1074,10 @@ void rozofs_ll_write_cbk(void *this,void *param)
    size_t size;
    errno = 0;
    int trc_idx;
-   fuse_ino_t ino;   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
    RESTORE_FUSE_PARAM(param,trc_idx);
-   RESTORE_FUSE_PARAM(param,ino);
        
    file = (file_t *) (unsigned long)  fi->fh;   
    file->buf_write_pending--;
@@ -1625,13 +1623,11 @@ void rozofs_ll_flush_cbk(void *this,void *param)
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
    file_t *file = NULL;
    int trc_idx;
-   fuse_ino_t ino;
    errno = 0;
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,trc_idx);
-   RESTORE_FUSE_PARAM(param,ino);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
    file = (file_t *) (unsigned long)  fi->fh;   

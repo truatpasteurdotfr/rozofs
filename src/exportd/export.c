@@ -38,7 +38,7 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
 #include <rozofs/rozofs_srv.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 
@@ -72,8 +72,6 @@ typedef struct cnxentry {
     mclient_t *cnx;
     list_t list;
 } cnxentry_t;
-
-DECLARE_PROFILING(epp_profiler_t);
 
 
 /*
@@ -2587,6 +2585,7 @@ out:
 
 #define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
 #define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
+#define DISPLAY_ATTR_LONG(name,val) p += sprintf(p,"%-7s : %llu\n",name,(unsigned long long int)val);
 #define DISPLAY_ATTR_2INT(name,val1,val2) p += sprintf(p,"%-7s : %d/%d\n",name,val1,val2);
 #define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
@@ -2633,7 +2632,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   p += sprintf(p,"\n");
 
   DISPLAY_ATTR_INT("NLINK",lv2->attributes.nlink);
-  DISPLAY_ATTR_INT("SIZE",lv2->attributes.size);
+  DISPLAY_ATTR_LONG("SIZE",lv2->attributes.size);
 
 
   DISPLAY_ATTR_INT("LOCK",lv2->nb_locks);  
