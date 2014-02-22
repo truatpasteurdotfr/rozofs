@@ -354,6 +354,7 @@ start_one_storage()
 }
 rebuild_storage_device() 
 {
+
     sid=$1
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
     case "$2" in
@@ -361,6 +362,8 @@ rebuild_storage_device()
       all)  dev="";;
       *)    dev="-d $2";;
     esac
+
+    echo "rebuild $cid/$sid device $2" 
     
     create_storage_device $1 $2
     

@@ -29,6 +29,9 @@
 #include <rozofs/rpc/sclient.h>
 #include <rozofs/rpc/mclient.h>
 
+#include "storage.h"
+
+
 #define RBS_MAX_PARALLEL 36
 
 /* Timeout in seconds for exportd requests */
@@ -104,4 +107,24 @@ int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
  *
  */
 char * get_rebuild_directory_name() ;
+/** Init connections for storage members of a given cluster but not for the 
+ *  storage with sid=sid
+ *
+ * @param cluster_entries: list of cluster(s).
+ * @param cid: unique id of cluster that owns this storage.
+ * @param sid: the unique id for the storage to rebuild.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int rbs_init_cluster_cnts(list_t * cluster_entries, cid_t cid,
+        sid_t sid);
+	
+int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
+        list_t * clusters_list,
+        cid_t cid_to_search,
+        sid_t sid_to_rebuild,
+        uint8_t nb_cnt_required);
+
+int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re);
+
 #endif

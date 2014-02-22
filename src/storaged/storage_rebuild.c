@@ -181,7 +181,6 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 
     DEBUG_FUNCTION;
     int i = 0;
-    pid_t  pid;
     char * dir;
     int    ret;
 

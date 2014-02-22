@@ -56,6 +56,7 @@
 #include "storage.h"
 #include "sconfig.h"
 #include "rbs.h"
+#include "rbs_eclient.h"
 
 
 sconfig_t   storaged_config;

@@ -52,7 +52,7 @@
  */
 int storage_error_on_device(storage_t * st, int device_nb) {
 
-  if ((st == NULL) || (device_nb >= STORAGE_MAX_DEVICE_NB)) return;     
+  if ((st == NULL) || (device_nb >= STORAGE_MAX_DEVICE_NB)) return 0;     
     
   int active = st->device_errors.active;
     

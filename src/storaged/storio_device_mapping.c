@@ -86,10 +86,10 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
   
     if (argv[2] == NULL) {
       pChar += sprintf(pChar,"Entries/max : %d/%d\n",storio_device_mapping_cache_count,STORIO_DEVICE_MAPPING_MAX_ENTRIES);
-      pChar += sprintf(pChar,"Entry size  : %d\n",sizeof(storio_device_mapping_t));
+      pChar += sprintf(pChar,"Entry size  : %d\n",(int)sizeof(storio_device_mapping_t));
       pChar += sprintf(pChar,"Size/max    : %d/%d\n",
-                              sizeof(storio_device_mapping_t)*storio_device_mapping_cache_count,
-			      sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES);   
+                              (int)sizeof(storio_device_mapping_t)*storio_device_mapping_cache_count,
+			      (int)sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES);   
       uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
       return;       
     }     
@@ -138,7 +138,7 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
       for (dev = 0; dev < st->device_number; dev++) {
         pChar += sprintf(pChar,"           device %2d     %12llu blocks   errors total/period %d/%d\n", 
                          dev, 
-		         st->device_free.blocks[st->device_free.active][dev], 
+		         (long long unsigned int)st->device_free.blocks[st->device_free.active][dev], 
                          st->device_errors.total[dev], 
 			 st->device_errors.errors[st->device_errors.active][dev]);
         if (st->device_errors.total[dev] != 0) {

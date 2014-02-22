@@ -237,6 +237,59 @@ lock_bsd_blocking() {
   ./test_file_lock -process $process -loop $loop -file $file -bsd
   result=$?    
 }
+rebuild_one() {
+  NBFILES=10000
+  echo "Create $NBFILES files"
+  ./test_rebuild -action create -nbfiles $NBFILES  
+  
+  for sid in $(seq $NB_SID) 
+  do
+  
+    ./setup.sh storage $sid device-delete 0
+    ./test_rebuild -action check -nbfiles $NBFILES
+    result=$?
+    if [ $result -ne 0 ];
+    then
+      return
+    fi    
+    
+    ./setup.sh storage $sid device-rebuild 0
+    ./test_rebuild -action check -nbfiles $NBFILES
+    result=$?
+    if [ $result -ne 0 ];
+    then
+      return
+    fi    
+  done    
+  ./test_rebuild -action delete -nbfiles $NBFILES
+}
+rebuild_all() {
+  NBFILES=30000
+  ./test_rebuild -action create -nbfiles $NBFILES
+  ./test_rebuild -action check -nbfiles $NBFILES
+  result=$?
+  if [ $result -ne 0 ];
+  then
+    return
+  fi
+  
+  for sid in $(seq $NB_SID) 
+  do
+  
+    ./setup.sh storage $sid device-delete all
+
+    ./setup.sh storage $sid device-rebuild all
+
+    ./test_rebuild -action check -nbfiles $NBFILES
+    result=$?
+    if [ $result -ne 0 ];
+    then
+      return
+    fi    
+  done    
+  ./test_rebuild -action delete -nbfiles $NBFILES
+}
+
 ############### USAGE ##################################
 usage () {
   echo "$name -l"
@@ -253,6 +306,7 @@ usage () {
   echo "     - storagedReset    designate the read/write test list run while a sid is reset."
   echo "     - storcliReset     designate the read/write test list run while the storcli is reset."
   echo "     - basic            designate the non read/write test list."
+  echo "     - rebuild          designate the rebuild test list."
   exit -1 
 }
 #################### COMPILATION ##################################
@@ -536,7 +590,9 @@ TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_c
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2"
+TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 rebuild_one rebuild_all"
+TST_REBUILD="rebuild_one rebuild_all"
+
 # lock_bsd_passing lock_bsd_blocking
 
 TSTS=""
@@ -572,6 +628,7 @@ do
     storagedReset)        build_storage_reset_test_list;     shift 1;;
     storcliReset)         build_storcli_reset_test_list;     shift 1;;
     basic)                TSTS=$TST_BASIC;                   shift 1;;
+    rebuild)              TSTS=$TST_REBUILD;                 shift 1;; 
     *)                    TSTS=`echo "$TSTS $1"`;            shift 1;;
   esac  
 done
@@ -583,7 +640,7 @@ then
 fi
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock rw2
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock rw2 test_rebuild
 
 # Kill export gateway
 ./setup.sh expgw all stop 

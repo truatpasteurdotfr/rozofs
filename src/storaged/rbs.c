@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <dirent.h> 
+#include <sys/wait.h>
 
 #include <rozofs/common/list.h>
 #include <rozofs/common/htable.h>
@@ -69,14 +70,6 @@ static inline int fid_cmp(void *key1, void *key2) {
     return memcmp(key1, key2, sizeof (fid_t));
 }
 
-static unsigned int fid_hash(void *key) {
-    uint32_t hash = 0;
-    uint8_t *c;
-    for (c = key; c != key + 16; c++)
-        hash = *c + (hash << 6) + (hash << 16) - hash;
-    return hash;
-}
-
 
 static int ckeck_mtime(int fd, struct timespec st_mtim) {
     struct stat st;
@@ -96,11 +89,12 @@ static int ckeck_mtime(int fd, struct timespec st_mtim) {
 ** FID hash table to prevent registering 2 times
 **   the same FID for rebuilding
 */
-#define FID_TABLE_HASH_SIZE  (64*1024)
+#define FID_TABLE_HASH_SIZE  (16*1024)
 
-#define FID_MAX_ENTRY      511
+#define FID_MAX_ENTRY      31
 typedef struct _rb_fid_entries_t {
     int                        count;
+    int                        padding;
     struct _rb_fid_entries_t * next;   
     fid_t                      fid[FID_MAX_ENTRY];
 } rb_fid_entries_t;
@@ -112,15 +106,25 @@ uint64_t            rb_fid_table_count=0;
 /*
 **
 */
-void rb_hash_table_initialize() {
-  rb_fid_table = malloc(sizeof(rb_fid_entries_t)*FID_TABLE_HASH_SIZE);
-  memset(rb_fid_table,0,sizeof(rb_fid_table));
+static inline unsigned int fid_hash(void *key) {
+    uint32_t hash = 0;
+    uint8_t *c;
+    for (c = key; c != key + 16; c++)
+        hash = *c + (hash << 6) + (hash << 16) - hash;
+    return hash % FID_TABLE_HASH_SIZE;
+}
+static inline void rb_hash_table_initialize() {
+  int size;
+  
+  size = sizeof(void *)*FID_TABLE_HASH_SIZE;
+  rb_fid_table = malloc(size);
+  memset(rb_fid_table,0,size);
   rb_fid_table_count = 0;
 }
 
 int rb_hash_table_search(fid_t fid) {
   int      i;
-  uint16_t idx = (fid[0]<<8) + fid[1];
+  unsigned int idx = fid_hash(fid);
   rb_fid_entries_t * p;
   fid_t            * pF;
   
@@ -154,7 +158,7 @@ rb_fid_entries_t * rb_hash_table_get(idx) {
   return p;
 }
 void rb_hash_table_insert(fid_t fid) {
-  uint16_t idx = (fid[0]<<8) + fid[1];
+  unsigned int idx = fid_hash(fid);
   rb_fid_entries_t * p;
   
   p = rb_hash_table_get(idx);
@@ -162,9 +166,11 @@ void rb_hash_table_insert(fid_t fid) {
   p->count++;
   rb_fid_table_count++;
 }
-int rb_hash_table_delete() {
+void rb_hash_table_delete() {
   int idx;
   rb_fid_entries_t * p, * pNext;
+  
+  if (rb_fid_table == NULL) return;
   
   for (idx = 0; idx < FID_TABLE_HASH_SIZE; idx++) {
     
@@ -177,6 +183,7 @@ int rb_hash_table_delete() {
   }
   
   free(rb_fid_table);
+  rb_fid_table = NULL;
 }
 
 
@@ -799,31 +806,6 @@ out:
     return status;
 }
 
-/** Release storages connections of cluster(s)
- *
- * @param cluster_entries: list of cluster(s).
- */
-static void rbs_release_cluster_cnts(list_t * cluster_entries) {
-    list_t *p, *q, *r, *s;
-    int i = 0;
-
-    list_for_each_forward_safe(p, q, cluster_entries) {
-
-        rb_cluster_t *clu = list_entry(p, rb_cluster_t, list);
-
-        list_for_each_forward_safe(r, s, &clu->storages) {
-
-            rb_stor_t *rb_stor = list_entry(r, rb_stor_t, list);
-
-            // Remove cnts fot this storage
-            mclient_release(&rb_stor->mclient);
-
-            for (i = 0; i < rb_stor->sclients_nb; i++)
-                sclient_release(&rb_stor->sclients[i]);
-        }
-    }
-}
-
 /** Release the list of cluster(s)
  *
  * @param cluster_entries: list of cluster(s).
@@ -954,7 +936,6 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
   size_t         nb_read;
   rozofs_stor_bins_file_hdr_t file_hdr; 
   rozofs_rebuild_entry_file_t file_entry;
-  rb_entry_t    *nre;
   int            idx;
   char         * dir;
   char           filename[FILENAME_MAX];
@@ -1206,10 +1187,7 @@ out:
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         const char *root, uint8_t stor_idx, int device,
 	int parallel, char * config_file) {
-    list_t *p, *q;
-    uint64_t current_nb_rb_files = 0;
     int status = -1;
-    int nb_files;
     int ret;
 
     DEBUG_FUNCTION;
@@ -1262,7 +1240,8 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
 
 
     // Actually process the rebuild
-    info("%d files to rebuild by %d processes",rb_fid_table_count,parallel);
+    info("%llu files to rebuild by %d processes",
+         (unsigned long long int)rb_fid_table_count,parallel);
     ret = rbs_do_list_rebuild();
     while (ret != 0) {
       info("Rebuild failed. Will retry within %d seconds", TIME_BETWEEN_2_RB_ATTEMPS);
