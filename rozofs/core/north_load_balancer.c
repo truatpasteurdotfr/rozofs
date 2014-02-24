@@ -71,15 +71,7 @@ char * lbg_north_state2String(int x) {
 void north_lbg_debug_show(char * argv[],uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     int state;
-    int all = 0;
     
-    if (argv[1] != NULL)
-    {
-      if (strcmp(argv[1],"all")==0) 
-      {
-         all = 1;
-      }
-    }
     pChar += sprintf(pChar, "number of North Load Balancer contexts [size](initial/allocated) :[%u] %u/%u\n",
             (unsigned int) sizeof (north_lbg_ctx_t), (unsigned int) north_lbg_context_count,
             (unsigned int) (north_lbg_context_allocated));

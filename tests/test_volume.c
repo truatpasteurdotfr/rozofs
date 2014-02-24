@@ -8,12 +8,12 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 
 #include <rozofs/rpc/epproto.h>
 
-
-DEFINE_PROFILING(epp_profiler_t);
+export_one_profiler_t  * export_profiler[EXPGW_EXPORTD_MAX_IDX] = { 0 };
+uint32_t		 export_profiler_eid = 0;
 
 #include "volume.h"
 

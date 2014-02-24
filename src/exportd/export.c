@@ -38,7 +38,7 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
 #include <rozofs/rozofs_srv.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 
@@ -73,7 +73,6 @@ typedef struct cnxentry {
     list_t list;
 } cnxentry_t;
 
-DECLARE_PROFILING(epp_profiler_t);
 
 
 /*

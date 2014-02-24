@@ -12,14 +12,15 @@
 #include <inttypes.h>
 
 #include <rozofs/common/mattr.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 
 #include "mdirent.h"
 
 uint64_t my_global;
+export_one_profiler_t  * export_profiler[EXPGW_EXPORTD_MAX_IDX] = { 0 };
+uint32_t		 export_profiler_eid = 0;
 
-DEFINE_PROFILING(epp_profiler_t);
 
 #define NUMBER_OF_BLOCKS 1
 #define NUMBER_OF_ENTRIES 384

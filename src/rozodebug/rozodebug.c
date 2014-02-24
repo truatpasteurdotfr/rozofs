@@ -336,7 +336,7 @@ void debug_run_command_list(int socketId) {
 
   for (idx=0; idx < nbCmd; idx++) {
 //    printf("_________________________________________________________\n");
-//    printf("> %s", cmd[idx]);  
+    printf("< %s >\n", cmd[idx]);  
     if (debug_run_this_cmd(socketId, cmd[idx], NOT_SILENT) < 0)  break;
   }
 } 

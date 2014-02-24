@@ -265,14 +265,9 @@ rebuild_one() {
 }
 rebuild_all() {
   NBFILES=30000
+  echo "Create $NBFILES files"
   ./test_rebuild -action create -nbfiles $NBFILES
-  ./test_rebuild -action check -nbfiles $NBFILES
-  result=$?
-  if [ $result -ne 0 ];
-  then
-    return
-  fi
-  
+
   for sid in $(seq $NB_SID) 
   do
   

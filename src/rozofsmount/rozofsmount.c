@@ -995,7 +995,9 @@ void show_trc_fuse_buffer(char * pChar)
 	uuid_unparse(fake_fid, str); 
       if (p->hdr.s.req)
       {
-        pChar+=sprintf(pChar,"[%8llu ]--> %-8s %4d %12.12llx ",(p->ts - cur_ts),trc_fuse_display_srv(p->hdr.s.service_id),p->hdr.s.index,p->ino);
+        pChar+=sprintf(pChar,"[%8llu ]--> %-8s %4d %12.12llx ",
+	         (unsigned long long int)(p->ts - cur_ts),trc_fuse_display_srv(p->hdr.s.service_id),p->hdr.s.index,
+		 (unsigned long long int)p->ino);
         switch (p->hdr.s.trc_type)
 	{
 	  default:
@@ -1004,7 +1006,7 @@ void show_trc_fuse_buffer(char * pChar)
             pChar+=sprintf(pChar,"%s\n",str);
 	    break;
 	  case rozofs_trc_type_io:
-            pChar+=sprintf(pChar,"%s %8llu/%d\n",str,p->par.io.off,p->par.io.size);
+            pChar+=sprintf(pChar,"%s %8llu/%d\n",str,(unsigned long long int)p->par.io.off,(int)p->par.io.size);
 	    break;	
 	  case rozofs_trc_type_name:
             pChar+=sprintf(pChar,"%s\n",p->par.name.name);
@@ -1016,10 +1018,10 @@ void show_trc_fuse_buffer(char * pChar)
       {
      
         pChar+=sprintf(pChar,"[%8llu ]<-- %-8s %4d %12.12llx %s %d:%s\n",
-	               (p->ts - cur_ts),
+	               (unsigned long long int)(p->ts - cur_ts),
 		       trc_fuse_display_srv(p->hdr.s.service_id),
 		       p->hdr.s.index,
-		       p->ino,
+		       (unsigned long long int)p->ino,
 		       str,
 		       p->errno_val,strerror(p->errno_val));      
       }
@@ -1112,8 +1114,8 @@ void show_trc_fuse(char * argv[], uint32_t tcpRef, void *bufRef) {
 	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 	return;   	
     }
-    pChar+=sprintf(pChar,"trace entry size : %u Bytes\n",sizeof(rozofs_trace_t));
-    pChar+=sprintf(pChar,"ino size         : %u Bytes\n",sizeof(fuse_ino_t));
+    pChar+=sprintf(pChar,"trace entry size : %lu Bytes\n",sizeof(rozofs_trace_t));
+    pChar+=sprintf(pChar,"ino size         : %lu Bytes\n",sizeof(fuse_ino_t));
     show_trc_fuse_buffer(pChar);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
  }

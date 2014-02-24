@@ -40,12 +40,13 @@
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/rpc/gwproto.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/rpc/export_profiler.h>
+#include <rozofs/common/profile.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -55,6 +56,11 @@
 #include "volume.h"
 #include "export_expgw_conf.h"
 #include "export_internal_channel.h"
+
+export_one_profiler_t  * export_profiler[EXPGW_EID_MAX_IDX+1] = { 0 };
+uint32_t		 export_profiler_eid = 0;
+
+DEFINE_PROFILING(epp_profiler_t) = {0};
 
 #define EXPORTD_PID_FILE "exportd.pid"
 /* Maximum open file descriptor number for exportd daemon */
@@ -94,8 +100,6 @@ extern void export_program_1(struct svc_req *rqstp, SVCXPRT * ctl_svc);
 static SVCXPRT *exportd_profile_svc = 0;
 
 extern void exportd_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_svc);
-
-DEFINE_PROFILING(epp_profiler_t) = {0};
 
 
 exportd_start_conf_param_t  expgwc_non_blocking_conf;  /**< configuration of the non blocking side */
@@ -339,6 +343,7 @@ static void *monitoring_thread(void *v) {
             continue;
         }
 
+
         gprofiler.nb_volumes = 0;
 
         list_for_each_forward(p, &volumes) {
@@ -489,6 +494,7 @@ void exports_release() {
 
     list_for_each_forward_safe(p, q, &exports) {
         export_entry_t *entry = list_entry(p, export_entry_t, list);
+	export_profiler_free(entry->export.eid);
         export_release(&entry->export);
         list_remove(p);
         free(entry);
@@ -590,6 +596,10 @@ static int load_exports_conf() {
                     econfig->root, strerror(errno));
             goto out;
         }
+	
+	// Allocate default profiler structure
+        export_profiler_allocate(econfig->eid);
+
 
         // Add this export to the list of exports
         list_push_back(&exports, &entry->list);
@@ -678,6 +688,9 @@ static void on_start() {
     DEBUG_FUNCTION;
     int loop_count = 0;
 
+    // Allocate default profiler structure
+    export_profiler_allocate(0);
+    
     /**
     * start the non blocking thread
     */
@@ -800,8 +813,8 @@ static void on_start() {
         severe("can't register service : %s", strerror(errno));
     }
 
-    SET_PROBE_VALUE(uptime, time(0));
-    strncpy((char *) gprofiler.vers, VERSION, 20);
+//    SET_PROBE_VALUE(uptime, time(0));
+//    strncpy((char *) gprofiler.vers, VERSION, 20);
 
     info("running.");
     svc_run();

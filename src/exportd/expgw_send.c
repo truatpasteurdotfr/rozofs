@@ -34,7 +34,7 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
 
@@ -42,8 +42,6 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/rpc/rozofs_rpc_util.h>
 #include "expgw_export.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 /**
 * API to forward a request that has been received on from rozofsmount towards exportd
