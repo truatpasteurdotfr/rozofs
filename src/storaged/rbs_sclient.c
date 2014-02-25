@@ -218,7 +218,7 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
             ((rozofs_get_max_psize(layout) * sizeof (bin_t))
             + sizeof (rozofs_stor_bins_hdr_t)));
 
-    memset(bins, 0, ((rozofs_get_max_psize(layout) * sizeof (bin_t))
+    memset(bins, 0, nb_blocks_2_read * ((rozofs_get_max_psize(layout) * sizeof (bin_t))
             + sizeof (rozofs_stor_bins_hdr_t)));
 
 

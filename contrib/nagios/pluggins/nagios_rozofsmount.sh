@@ -15,6 +15,7 @@
 
 TMPFILE=/tmp/rozofsmount_rozodebug.$$
 TMPFILE2=/tmp/rozofsmount_rozodebug2.$$
+TMPFILE3=/tmp/rozofsmount_rozodebug3.$$
 VERSION="Version 1.0"
 PROGNAME=`basename $0`
 
@@ -92,6 +93,7 @@ display_output() {
   esac
   rm -f $TMPFILE
   rm -f $TMPFILE2
+  rm -f $TMPFILE3
   exit $1
 }
 set_default() {
@@ -271,18 +273,24 @@ case $res in
 esac
 
 exp_up=`awk 'BEGIN {nb=0;} {if (($1=="EXPORTD") && ($9=="UP")) nb++;} END {printf("%d\n",nb);}' $TMPFILE`
-if [ $exp_up -ne 1 ]
+if [ $exp_up -lt 1 ]
 then
   display_output $STATE_CRITICAL "No exportd connectivity"
 fi
+
+# Get the number of storcli 
+$ROZDBG -c stclbg >  $TMPFILE3
+NBSTORCLI=`awk -F':' '{if ($1=="number of configured storcli") { print $2 }}' $TMPFILE3`
 storcli_up=`awk 'BEGIN {nb=0;} {if (($1=="STORCLI") && ($9=="UP")) nb++;} END {printf("%d\n",nb);}' $TMPFILE`
-if [ $storcli_up -ne 2 ]
+if [ $storcli_up -ne $NBSTORCLI ]
 then
-  display_output $STATE_CRITICAL "No internal I/O connectivity"
+  display_output $STATE_CRITICAL "No internal I/O connectivity ($storcli_up/$NBSTORCLI)"
 fi
 
-test_storcli 1
-test_storcli 2
+for i in $(seq $NBSTORCLI)
+do
+  test_storcli $i
+done  
 
 # Hurra !!!
 display_output $STATE_OK 

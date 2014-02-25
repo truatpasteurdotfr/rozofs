@@ -35,6 +35,7 @@
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/core/rozofs_host2ip.h>
 
 #include "storage.h"
 #include "rbs_sclient.h"
@@ -515,7 +516,8 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
 
     // Copy hostname for this storage
     strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
-    memset(io_address, 0, sizeof (io_address));
+    memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
+    rb_stor->sclients_nb = 0;
 
     struct timeval timeo;
     timeo.tv_sec = RBS_TIMEOUT_MPROTO_REQUESTS;
@@ -540,12 +542,21 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
         if (io_address[i].port != 0) {
 
             struct timeval timeo;
-            uint32_t ip;
             timeo.tv_sec = RBS_TIMEOUT_SPROTO_REQUESTS;
             timeo.tv_usec = 0;
 
-            ip = io_address[i].ipv4;
-            sprintf(rb_stor->sclients[i].host, "%u.%u.%u.%u", ip>>24,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
+            uint32_t ip = io_address[i].ipv4;
+
+            if (ip == INADDR_ANY) {
+                // Copy storage hostname and IP
+                strcpy(rb_stor->sclients[i].host, rb_stor->host);
+                rozofs_host2ip(rb_stor->host, &ip);
+            } else {
+                sprintf(rb_stor->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
+                        (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+            }
+
+            rb_stor->sclients[i].ipv4 = ip;
             rb_stor->sclients[i].port = io_address[i].port;
             rb_stor->sclients[i].status = 0;
             rb_stor->sclients[i].rpcclt.sock = -1;

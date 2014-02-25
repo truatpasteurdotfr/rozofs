@@ -69,9 +69,7 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         if (rozofs_bins_hdr_p->s.timestamp == 0) {
             // Need to check that all the header is filled with 0
             // to take it into account
-            if ((rozofs_bins_hdr_p->u64[0] == 0)
-                    && (rozofs_bins_hdr_p->u64[1] == 0)
-                    && (rozofs_bins_hdr_p->u64[2] == 0)) {
+            if (rozofs_bins_hdr_p->s.effective_length == 0) {
 
                 // Update count
                 ts_empty_count += 1;

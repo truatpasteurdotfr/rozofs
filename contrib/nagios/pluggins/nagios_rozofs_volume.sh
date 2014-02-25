@@ -281,12 +281,12 @@ case $res in
   };;  
 esac
 
-up=`awk 'BEGIN {nb=0;} {if (($1==volume) && ($5=="UP")) nb++;} END {printf("%d\n",nb);}' volume=$volume $VFSTAT`
+up=`awk 'BEGIN {nb=0;} {if (($1==volume) && ($7=="UP")) nb++;} END {printf("%d\n",nb);}' volume=$volume $VFSTAT`
 if [ $up -eq 0 ]
 then
   display_output $STATE_CRITICAL "No storage is UP"
 fi
-down=`awk 'BEGIN {nb=0;} {if (($1==volume) && ($5=="DOWN")) nb++;} END {printf("%d\n",nb);}' volume=$volume $VFSTAT`
+down=`awk 'BEGIN {nb=0;} {if (($1==volume) && ($7=="DOWN")) nb++;} END {printf("%d\n",nb);}' volume=$volume $VFSTAT`
 if  [ $down -gt 0 ] 
 then
   display_output $STATE_WARNING "$down storages are down"

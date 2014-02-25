@@ -20,9 +20,12 @@ To build the RozoFS source code, it is necessary to install several libraries an
 -   `uuid-dev`
 -   `libconfig-dev`
 -   `libreadline-dev`
+-   `pyro`
 -   `python2.7-dev`
+-   `python-yaml`
 -   `libpthread`
 -   `libcrypt`
+-   `rpcbind`
 -   `swig`
 
 ###Build

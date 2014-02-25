@@ -225,8 +225,8 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
      ** initialize the socket controller:
      **   for: NPS, Timer, Debug, etc...
      */
-    //#warning set the number of contexts for socketCtrl to 256
-    ret = ruc_sockctl_init(128);
+    // warning set the number of contexts for socketCtrl to 256
+    ret = ruc_sockctl_init(256);
     if (ret != RUC_OK) {
         fdl_debug_loop(__LINE__);
         fatal( " socket controller init failed" );
