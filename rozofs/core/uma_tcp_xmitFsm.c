@@ -40,6 +40,7 @@
 #include "ruc_trace_api.h"
 #include "uma_fsm_framework.h"
 #include "uma_tcp.h"
+#include "socketCtrl.h"
 
 
 /*
@@ -680,6 +681,7 @@ void ruc_relci_privateSend(uma_tcp_t *pObj)
           */
 	  pObj->xmitWouldBlock = FALSE;
           pObj->congested = TRUE;
+	  FD_SET(pObj->socketRef,&rucWrFdSetCongested);
           FSM_SET(pfsm,STATE_CONGESTED);
 	FSM_TRANS_END
 

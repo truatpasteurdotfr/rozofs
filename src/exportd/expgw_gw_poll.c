@@ -28,13 +28,10 @@
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/core/ruc_buffer_api.h>
 #include <rozofs/rpc/rozofs_rpc_util.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include "expgw_gwprotosvc.h"
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/core/expgw_common.h>
-
-
-DECLARE_PROFILING(epp_profiler_t);
 
 /*
 **______________________________________________________________________________

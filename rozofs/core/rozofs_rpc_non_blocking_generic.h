@@ -31,7 +31,6 @@ extern "C" {
 #include <errno.h>
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
-#include <rozofs/common/profile.h>
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/north_lbg_api.h>

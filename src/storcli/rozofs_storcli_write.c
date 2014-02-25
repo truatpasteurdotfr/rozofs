@@ -1910,6 +1910,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
       /*
       ** THIS MUST NOT HAPPEN
       */
+     ruc_buf_freeBuffer(xmit_buf); 
      errno = EFAULT;
      severe(" rpc header encode error ");
      wr_proj_buf_p->state = ROZOFS_WR_ST_ERROR;
@@ -1930,6 +1931,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
    */
    if (xdr_storcli_read_arg_t(&xdrs,request) == FALSE)
    {
+     ruc_buf_freeBuffer(xmit_buf); 
      severe(" internal read request encoding error ");
      errno = EFAULT;
      wr_proj_buf_p->state = ROZOFS_WR_ST_ERROR;

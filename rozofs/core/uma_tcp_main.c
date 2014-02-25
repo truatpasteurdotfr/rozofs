@@ -47,6 +47,7 @@
 #include "uma_tcp_main_api.h"
 #include "ruc_trace_api.h"
 //#include "uma_unc_config_parameters.h"
+#include "socketCtrl.h"
 
 /*
 **  local functions prototypes
@@ -299,8 +300,10 @@ uint32_t uma_tcp_xmitEvt(void * opaque,int socketId)
 
   if (p->eocCounter != 0) {
         p->eocCounter--;
+	FD_SET(socketId,&rucWrFdSetCongested);
   	return TRUE;
   }
+  FD_CLR(socketId,&rucWrFdSetCongested);
 
   /*
   ** call the FSM when the end of congestion counter is null
@@ -1367,7 +1370,7 @@ uint32_t uma_tcp_createTcpConnection(uint32_t tcpIdx, char * name)
   uint64_t val64 = (uint64_t)tcpIdx;
   p->connectionId = ruc_sockctl_connect(p->socketRef,
                                         name,
-                                        uma_tcp_sockNameAndPriorityTab[0].priority,
+                                        3, //uma_tcp_sockNameAndPriorityTab[0].priority,
                                         (void*)val64,
                                         uma_tcp_sockNameAndPriorityTab[0].pCallBack);
 
@@ -1491,7 +1494,7 @@ uint32_t uma_tcp_updateTcpConnection(uint32_t tcpIdx,int socketId, char * name)
   uint64_t val64 = (uint64_t)tcpIdx;
   p->connectionId = ruc_sockctl_connect(p->socketRef,
                                         name,
-                                        uma_tcp_sockNameAndPriorityTab[0].priority,
+                                        3,//uma_tcp_sockNameAndPriorityTab[0].priority,
                                         (void*)val64,
                                         uma_tcp_sockNameAndPriorityTab[0].pCallBack);
 

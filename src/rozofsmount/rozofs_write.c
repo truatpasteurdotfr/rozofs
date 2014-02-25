@@ -862,6 +862,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     */
     GET_FUSE_CALLBACK(buffer_p,callback);
     f->buf_write_pending++;
+    f->write_block_pending = 1;
     ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                               STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
                               callback,buffer_p,storcli_idx,f->fid); 
@@ -909,6 +910,11 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     void *buffer_p = NULL;
     rozo_buf_rw_status_t status;
    int deferred_fuse_write_response;
+   errno = 0;
+
+    file_t *file = (file_t *) (unsigned long) fi->fh;
+
+    int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_write,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,size,off);
 
     DEBUG("write to inode %lu %llu bytes at position %llu\n",
             (unsigned long int) ino, (unsigned long long int) size,
@@ -934,6 +940,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,size);
     SAVE_FUSE_PARAM(buffer_p,off);
+    SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info)); 
     
     /*
@@ -946,10 +954,17 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         goto error;
     }
     
-    file_t *file = (file_t *) (unsigned long) fi->fh;
+    if (ie->attrs.size < (off + size)) {
 
-    if (ie->size < (off + size)) {
-        ie->size = (off + size);
+        /*
+	** Check whether the size extension is compatible 
+	** with the export hard quota
+	*/
+        if (! eid_check_free_quota(ie->attrs.size,off + size)) {
+          goto error; // errno is already set	  
+	}
+	
+        ie->attrs.size = (off + size);
         file->attrs.size = (off + size);
     }
 
@@ -991,6 +1006,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     */
     if (status.status == BUF_STATUS_DONE)
     {
+      rozofs_trc_rsp(srv_rozofs_ll_write,(fuse_ino_t)file,file->fid,(errno==0)?0:1,trc_idx);
       fuse_reply_write(req, size);
       goto out;
     }
@@ -1002,6 +1018,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     if (file->buf_write_pending <= ROZOFS_MAX_WRITE_PENDING) {
       deferred_fuse_write_response = 0;
       SAVE_FUSE_PARAM(buffer_p,deferred_fuse_write_response);
+      rozofs_trc_rsp(srv_rozofs_ll_write,(fuse_ino_t)file,file->fid,(errno==0)?0:1,trc_idx);
       fuse_reply_write(req, size);
       write_flush_stat.non_synchroneous++;
       buffer_p = NULL;
@@ -1018,6 +1035,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     goto out;
     
 error:
+    rozofs_trc_rsp(srv_rozofs_ll_write,(fuse_ino_t)file,file->fid,(errno==0)?0:1,trc_idx);
     fuse_reply_err(req, errno);
 out:
     STOP_PROFILING_NB(buffer_p,rozofs_ll_write);
@@ -1054,10 +1072,12 @@ void rozofs_ll_write_cbk(void *this,void *param)
    file_t *file = NULL;
    int deferred_fuse_write_response;
    size_t size;
-   
+   errno = 0;
+   int trc_idx;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
+   RESTORE_FUSE_PARAM(param,trc_idx);
        
    file = (file_t *) (unsigned long)  fi->fh;   
    file->buf_write_pending--;
@@ -1135,6 +1155,7 @@ void rozofs_ll_write_cbk(void *this,void *param)
     /*
     ** When a fuse response is expected send it
     */
+    rozofs_trc_rsp(srv_rozofs_ll_write,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,(errno==0)?0:1,trc_idx);
     RESTORE_FUSE_PARAM(param,deferred_fuse_write_response);
     if (deferred_fuse_write_response) {
       RESTORE_FUSE_PARAM(param,req);
@@ -1170,6 +1191,7 @@ error:
     /*
     ** When a fuse response is expected send it
     */
+    rozofs_trc_rsp(srv_rozofs_ll_write,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,(errno==0)?0:1,trc_idx);
     RESTORE_FUSE_PARAM(param,deferred_fuse_write_response);
     if (deferred_fuse_write_response) {
       RESTORE_FUSE_PARAM(param,req);
@@ -1229,11 +1251,27 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
         struct fuse_file_info *fi) {
     file_t *f;
     ientry_t *ie = 0;
-    void *buffer_p;
+    void *buffer_p= NULL;
     int ret;
+    int trc_idx;
+    errno = 0;
 
     DEBUG_FUNCTION;
-
+    if (!(f = (file_t *) (unsigned long) fi->fh)) {
+        rozofs_trc_req(srv_rozofs_ll_flush,(fuse_ino_t)f,(f==NULL)?NULL:f->fid);
+        errno = EBADF;
+        goto error;
+    }
+    {
+      uint64_t flush_off = 0;
+      uint32_t flush_len = 0;
+      if (f->buf_write_wait!= 0)
+      {      
+        flush_off = f->write_from;
+        flush_len = (uint32_t)(f->write_pos - f->write_from);
+      }
+      trc_idx = rozofs_trc_req_io(srv_rozofs_ll_flush,(fuse_ino_t)f,(f==NULL)?NULL:f->fid,flush_len,flush_off);
+    }
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -1246,6 +1284,8 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
     }
     START_PROFILING_NB(buffer_p,rozofs_ll_flush);
     SAVE_FUSE_PARAM(buffer_p,req);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
+    SAVE_FUSE_PARAM(buffer_p,ino);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));    
 
     /*
@@ -1258,12 +1298,6 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
         errno = ENOENT;
         goto error;
     }
-
-    if (!(f = (file_t *) (unsigned long) fi->fh)) {
-        errno = EBADF;
-        goto error;
-    }
-
     /*
     ** check the status of the last write operation
     */
@@ -1311,13 +1345,20 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
       return;
     }
     /*
-    ** nothing pending, so we can reply immediately
+    ** nothing pending, so we can reply immediately and we force the update of the
+    ** metadata server
     */
+    rozofs_trc_rsp(srv_rozofs_ll_flush,(fuse_ino_t)f,(f==NULL)?NULL:f->fid,(errno==0)?0:1,trc_idx);
+    STOP_PROFILING_NB(buffer_p,rozofs_ll_flush);
+    
+    f->write_block_req = 1;  
+    export_write_block_nb(buffer_p,f);
     fuse_reply_err(req, 0);
-    goto out;
+    return;
+    
 error:
     fuse_reply_err(req, errno);
-out:
+    rozofs_trc_rsp(srv_rozofs_ll_flush,(fuse_ino_t)f,(f==NULL)?NULL:f->fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_flush);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -1581,9 +1622,12 @@ void rozofs_ll_flush_cbk(void *this,void *param)
    storcli_status_ret_t ret;
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
    file_t *file = NULL;
-
+   int trc_idx;
+   errno = 0;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
    file = (file_t *) (unsigned long)  fi->fh;   
@@ -1668,8 +1712,13 @@ void rozofs_ll_flush_cbk(void *this,void *param)
     ** Keep the fuse context since we need to trigger the update of 
     ** the metadata of the file
     */
+    rozofs_trc_rsp(srv_rozofs_ll_flush,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,(errno==0)?0:1,trc_idx);
     rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
-    ruc_buf_freeBuffer(recv_buf);   
+    ruc_buf_freeBuffer(recv_buf); 
+    /*
+    ** force the flush on disk
+    */
+    file->write_block_req = 1;  
     return export_write_block_nb(param,file);
     
 error:
@@ -1681,6 +1730,7 @@ error:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_flush,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_flush);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
@@ -1706,10 +1756,13 @@ void rozofs_ll_flush_defer(void *ns,void *param)
    fuse_req_t req; 
    struct fuse_file_info  file_info;
    struct fuse_file_info  *fi = &file_info;
+   int trc_idx;
+   errno = 0;
    
    file_t *file = NULL;
 
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
    file = (file_t *) (unsigned long) fi->fh;
@@ -1727,10 +1780,13 @@ void rozofs_ll_flush_defer(void *ns,void *param)
     }
     fuse_reply_err(req, errno) ;    
     /*
-    ** release the transaction context and the fuse context
+    ** udpate the metadata service 
     */
+    rozofs_trc_rsp(srv_rozofs_ll_flush,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_flush);
-    rozofs_fuse_release_saved_context(param);    
+    file->write_block_req = 1;  
+    export_write_block_nb(param,file);    
+//    rozofs_fuse_release_saved_context(param);    
     return;
 }
 
@@ -1758,7 +1814,9 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     ientry_t *ie = 0;
     void *buffer_p = NULL;
     int ret;
-
+    errno = 0;  
+    
+    int trc_idx = rozofs_trc_req(srv_rozofs_ll_release,(fuse_ino_t)fi->fh,NULL);
 
     DEBUG("release (%lu)\n", (unsigned long int) ino);
     /*
@@ -1773,6 +1831,7 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     }
     START_PROFILING_NB(buffer_p,rozofs_ll_release);
     SAVE_FUSE_PARAM(buffer_p,req);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));    
     /*
     ** install the callback 
@@ -1850,9 +1909,14 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     /*
     ** release the data structure associated with the file descriptor
     */
+    STOP_PROFILING_NB(buffer_p,rozofs_ll_release);
+    f->write_block_req = 1;  
+    export_write_block_nb(buffer_p,f);    
     file_close(f);
     fuse_reply_err(req, 0);
-    goto out;
+    rozofs_trc_rsp(srv_rozofs_ll_release,(fuse_ino_t)f,(ie==NULL)?NULL:ie->attrs.fid,1,trc_idx);
+//    STOP_PROFILING_NB(buffer_p,rozofs_ll_release);
+    return;
 
 error:
     /*
@@ -1860,7 +1924,7 @@ error:
     */
     file_close(f);
     fuse_reply_err(req, errno);
-out:
+    rozofs_trc_rsp(srv_rozofs_ll_release,(fuse_ino_t)f,(ie==NULL)?NULL:ie->attrs.fid,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_release);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);   
     return;
@@ -1892,9 +1956,12 @@ void rozofs_ll_release_cbk(void *this,void *param)
    storcli_status_ret_t ret;
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
    file_t *file = NULL;
-
+   errno = 0;
+   int trc_idx;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
    file = (file_t *) (unsigned long)  fi->fh;   
@@ -1979,9 +2046,11 @@ void rozofs_ll_release_cbk(void *this,void *param)
     ** Keep the fuse context since we need to trigger the update of 
     ** the metadata of the file
     */
+    rozofs_trc_rsp(srv_rozofs_ll_release,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,status,trc_idx);    
     rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
     ruc_buf_freeBuffer(recv_buf); 
-    STOP_PROFILING_NB(param,rozofs_ll_release);      
+    STOP_PROFILING_NB(param,rozofs_ll_release); 
+    file->write_block_req = 1;     
     export_write_block_nb(param,file);
     file_close(file);
     return;
@@ -1997,8 +2066,8 @@ error:
     ** release the transaction context and the fuse context
     ** and release the file descriptor
     */
-    file_close(file);
-    
+    rozofs_trc_rsp(srv_rozofs_ll_release,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,status,trc_idx);    
+    file_close(file);    
     STOP_PROFILING_NB(param,rozofs_ll_release);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
@@ -2024,10 +2093,12 @@ void rozofs_ll_release_defer(void *ns,void *param)
    fuse_req_t req; 
    struct fuse_file_info  file_info;
    struct fuse_file_info  *fi = &file_info;
+   int trc_idx;
    
    file_t *file = NULL;
 
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
     file = (file_t *) (unsigned long) fi->fh;
@@ -2043,17 +2114,23 @@ void rozofs_ll_release_defer(void *ns,void *param)
       */
       errno = file->wr_error;
     }
-    fuse_reply_err(req, errno) ;    
+    fuse_reply_err(req, errno) ; 
+    /*
+    ** trigger the update of the metadata server
+    */
+    rozofs_trc_rsp(srv_rozofs_ll_release,(fuse_ino_t)file,(file==NULL)?NULL:file->fid,(errno==0)?0:1,trc_idx);    
+    file->write_block_req = 1;     
+    STOP_PROFILING_NB(param,rozofs_ll_release);
+    export_write_block_nb(param,file);   
     /*
     ** release the transaction context and the fuse context
     ** and release the file descriptor
     */
     file_close(file);
     /*
-    ** release the transaction context and the fuse context
+    ** do not release the transaction context and the fuse context; this is done by export_write_block_cbk()
     */
-    STOP_PROFILING_NB(param,rozofs_ll_release);
-    rozofs_fuse_release_saved_context(param);    
+//    rozofs_fuse_release_saved_context(param);    
     return;
 }
 
@@ -2079,6 +2156,8 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
+
+
     /*
     ** adjust the size of the attributes of the local file
     */
@@ -2086,6 +2165,8 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     {
       file_p->attrs.size = buf_flush_offset + buf_flush_len;
     }
+    int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_ioctl,(fuse_ino_t)file_p,file_p->fid, file_p->attrs.size,0);
+    SAVE_FUSE_PARAM(fuse_ctx_p,trc_idx);
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
@@ -2093,8 +2174,8 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     memcpy(arg.arg_gw.fid, file_p->fid, sizeof (fid_t));
     arg.arg_gw.bid = 0;
     arg.arg_gw.nrb = 1;
-    arg.arg_gw.length = buf_flush_len;
-    arg.arg_gw.offset = buf_flush_offset;
+    arg.arg_gw.length = file_p->attrs.size; //buf_flush_len;
+    arg.arg_gw.offset = 0; //buf_flush_offset;
     arg.arg_gw.dist = 0;
     /*
     ** now initiates the transaction towards the remote end
@@ -2130,18 +2211,56 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
 {
     int    ret;        
     void *buffer_p = fuse_ctx_p;
-    
+    int trc_idx;
+    uint64_t buf_flush_offset ;
+    uint32_t buf_flush_len ;
+
+    RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
+    RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
+    /*
+    ** adjust the size of the attributes of the local file
+    */
+    if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
+    {
+      file_p->attrs.size = buf_flush_offset + buf_flush_len;
+    }
+    /*
+    ** check if the update is requested
+    */
+    if (file_p->write_block_req == 0) 
+    {
+      /*
+      ** assert the pending flag in order to trigger the writeblock on flush and release
+      */
+      file_p->write_block_pending = 1;
+      goto out;
+    }
+    /*
+    ** there is a writeblock request check if there is a pending request
+    ** without pending request nothing takes place
+    */
+    if (file_p->write_block_pending ==0) 
+    {
+      file_p->write_block_req = 0;
+      goto out;
+    }
+    /*
+    ** clear the flag and update the metadata server
+    */
     START_PROFILING_NB(buffer_p,rozofs_ll_ioctl);
     ret = export_write_block_asynchrone(fuse_ctx_p, file_p, export_write_block_cbk);
     if (ret < 0) goto error; 
+    file_p->write_block_pending = 0;
+    file_p->write_block_req = 0;
     return;
-
-
 error:
     /*
     ** release the buffer if has been allocated
     */
+    RESTORE_FUSE_PARAM(fuse_ctx_p,trc_idx);
+    rozofs_trc_rsp(srv_rozofs_ll_ioctl,(fuse_ino_t)file_p,file_p->fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(fuse_ctx_p,rozofs_ll_ioctl);
+out:
     if (fuse_ctx_p != NULL) rozofs_fuse_release_saved_context(fuse_ctx_p);
     return;
 }
@@ -2159,7 +2278,7 @@ error:
  
 void export_write_block_cbk(void *this,void *param) 
 {
-   epgw_io_ret_t ret ;
+   epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
 
    
@@ -2168,11 +2287,14 @@ void export_write_block_cbk(void *this,void *param)
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_io_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   errno = 0;
+   int trc_idx;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
-   
+   RESTORE_FUSE_PARAM(param,trc_idx);
+
    rpc_reply.acpted_rply.ar_results.proc = NULL;
     /*
     ** get the pointer to the transaction context:
@@ -2269,10 +2391,16 @@ void export_write_block_cbk(void *this,void *param)
 
 
     if (ret.status_gw.status == EP_FAILURE) {
-        errno = ret.status_gw.ep_io_ret_t_u.error;
+        errno = ret.status_gw.ep_mattr_ret_t_u.error;
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** Update eid free quota
+    */
+    eid_set_free_quota(ret.free_quota);
+        
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
 //out:
 
@@ -2280,6 +2408,7 @@ error:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_ioctl,0/*ino*/,NULL,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_ioctl);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    

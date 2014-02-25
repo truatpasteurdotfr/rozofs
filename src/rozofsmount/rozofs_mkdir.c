@@ -43,9 +43,11 @@ void rozofs_ll_mkdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     epgw_mkdir_arg_t arg;
     int    ret;        
     void *buffer_p = NULL;
+    errno = 0;
     /*
     ** allocate a context for saving the fuse parameters
     */
+    int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_mkdir,parent,(char*)name);
     buffer_p = rozofs_fuse_alloc_saved_context();
     if (buffer_p == NULL)
     {
@@ -57,6 +59,7 @@ void rozofs_ll_mkdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     SAVE_FUSE_PARAM(buffer_p,parent);
     SAVE_FUSE_STRING(buffer_p,name);
     SAVE_FUSE_PARAM(buffer_p,mode);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
 
     START_PROFILING_NB(buffer_p,rozofs_ll_mkdir);
 
@@ -106,6 +109,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+    rozofs_trc_rsp(srv_rozofs_ll_mkdir,parent,NULL,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_mkdir);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -128,6 +132,7 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
    fuse_req_t req; 
    epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
+   errno = 0;
 
    
    int status;
@@ -138,11 +143,15 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
    mattr_t  attrs;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   int trc_idx;
+   fuse_ino_t parent;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
+   RESTORE_FUSE_PARAM(param,parent);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -240,6 +249,12 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+        
+    /*
+    ** Update eid free quota
+    */
+    eid_set_free_quota(ret.free_quota);
+    
     memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
@@ -262,8 +277,8 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (nie->size < stbuf.st_size) nie->size = stbuf.st_size;
-    stbuf.st_size = nie->size;
+    if (nie->attrs.size < stbuf.st_size) nie->attrs.size = stbuf.st_size;
+    stbuf.st_size = nie->attrs.size;
        
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
     fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
@@ -278,6 +293,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_mkdir,parent,(nie==NULL)?NULL:nie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_mkdir);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    

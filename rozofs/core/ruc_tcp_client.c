@@ -561,7 +561,7 @@ uint32_t ruc_tcp_client_socketCreate(ruc_tcp_client_t *pObj)
   IPPORT2STRING(name,pObj->IpAddr, pObj->tcpDestPort);
   pObj->tcpCnxClient = ruc_sockctl_connect (socketId,
                                           name,
-                                          1,
+                                          16,
                                           //64BITS pObj->ref,
                                           (void*) obj_ref,
                                           &ruc_tcp_client_callBack);

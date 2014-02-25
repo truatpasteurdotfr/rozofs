@@ -35,7 +35,6 @@
 #include "expgw_proto.h"
 #include <rozofs/rpc/epproto.h>
 
-DECLARE_PROFILING(epp_profiler_t);
 /*
 **__________________________________________________________________________
 */

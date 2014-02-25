@@ -38,7 +38,7 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
 #include <rozofs/rozofs_srv.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 
@@ -72,8 +72,6 @@ typedef struct cnxentry {
     mclient_t *cnx;
     list_t list;
 } cnxentry_t;
-
-DECLARE_PROFILING(epp_profiler_t);
 
 
 /*
@@ -712,7 +710,7 @@ static void *load_trash_dir_thread(void *v) {
     return 0;
 }
 
-int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
+int export_initialize(export_t * e, volume_t *volume,
         lv2_cache_t *lv2_cache, uint32_t eid, const char *root, const char *md5,
         uint64_t squota, uint64_t hquota) {
 
@@ -729,7 +727,7 @@ int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
     e->eid = eid;
     e->volume = volume;
     e->lv2_cache = lv2_cache;
-    e->layout = layout; // Layout used for this export
+    e->layout = volume->layout; // Layout used for this volume
 
     // Initialize the dirent level 0 cache
     dirent_cache_level0_initialize();
@@ -814,7 +812,7 @@ int export_stat(export_t * e, estat_t * st) {
     st->namemax = ROZOFS_FILENAME_MAX;
     st->ffree = stfs.f_ffree;
     st->blocks = e->fstat.blocks;
-    volume_stat(e->volume, e->layout, &vstat);
+    volume_stat(e->volume, &vstat);
 
     if (e->hquota > 0) {
         if (e->hquota < vstat.bfree) {
@@ -1104,6 +1102,18 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
         goto error;
     }
 
+    
+    /*
+    ** Check that some space os left for the new file in case a hard quota is set
+    */
+    if (e->hquota) {
+      if (e->fstat.blocks >= e->hquota) {
+        errno = ENOSPC;
+       goto error;
+      }
+    }
+
+
     // create the lv2 new file
     uuid_generate(node_fid);
     if (export_lv2_resolve_path(e, node_fid, node_path) != 0)
@@ -1114,7 +1124,7 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     // generate attributes
     uuid_copy(attrs->fid, node_fid);
-    if (volume_distribute(e->volume, e->layout, &attrs->cid, attrs->sids) != 0)
+    if (volume_distribute(e->volume, &attrs->cid, attrs->sids) != 0)
         goto error;
     attrs->mode = mode;
     attrs->uid = uid;
@@ -1211,6 +1221,18 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
         xerrno = EIO;
         goto error_read_only;
     }
+    
+    
+    /*
+    ** Check that some space is left for the new file in case a hard quota is set
+    */
+    if (e->hquota) {
+      if (e->fstat.blocks >= e->hquota) {
+        errno = ENOSPC;
+       goto error;
+      }
+    }    
+    
     // create the lv2 new file
     uuid_generate(node_fid);
     if (export_lv2_resolve_path(e, node_fid, node_path) != 0)
@@ -1342,6 +1364,10 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
     if (!(lv2 = export_lookup_fid(e, child_fid)))
         goto out;
 
+    // Return the fid of deleted file
+    memcpy(fid, child_fid, sizeof (fid_t));
+
+
     // Get nlink
     nlink = lv2->attributes.nlink;
 
@@ -1444,11 +1470,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
                 // Best effort
             }
         }
-
-        // Return the fid of deleted file
-        memcpy(fid, child_fid, sizeof (fid_t));
-
-        // Update export files
+       // Update export files
         if (export_update_files(e, -1) != 0)
             goto out;
 
@@ -1461,7 +1483,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
         lv2->attributes.ctime = time(NULL);
         export_lv2_write_attributes(lv2);
         // Return a empty fid because no inode has been deleted
-        memset(fid, 0, sizeof (fid_t));
+        //memset(fid, 0, sizeof (fid_t));
     }
 
     // Update parent
@@ -2534,10 +2556,13 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
         goto out;
     }
 
+    // Access time of the directory is not changed any more on readdir
+
+    
     // Update atime of parent
-    parent->attributes.atime = time(NULL);
-    if (export_lv2_write_attributes(parent) != 0)
-        goto out;
+    //parent->attributes.atime = time(NULL);
+    //if (export_lv2_write_attributes(parent) != 0)
+    //    goto out;
 
     status = 0;
 out:
@@ -2560,6 +2585,8 @@ out:
 
 #define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
 #define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
+#define DISPLAY_ATTR_LONG(name,val) p += sprintf(p,"%-7s : %llu\n",name,(unsigned long long int)val);
+#define DISPLAY_ATTR_2INT(name,val1,val2) p += sprintf(p,"%-7s : %d/%d\n",name,val1,val2);
 #define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
@@ -2577,8 +2604,12 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
                pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
 
+  DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.uid,lv2->attributes.gid);
+
+
   if (S_ISDIR(lv2->attributes.mode)) {
     DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
+    DISPLAY_ATTR_INT("CHILDREN",lv2->attributes.children);
     return (p-value);  
   }
 
@@ -2600,6 +2631,9 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   } 
   p += sprintf(p,"\n");
 
+  DISPLAY_ATTR_INT("NLINK",lv2->attributes.nlink);
+  DISPLAY_ATTR_LONG("SIZE",lv2->attributes.size);
+
 
   DISPLAY_ATTR_INT("LOCK",lv2->nb_locks);  
   if (lv2->nb_locks != 0) {
@@ -2615,6 +2649,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
       if (left > 4) p += sprintf(p,"...");
       return (p-value);
     }
+    
 
     /* List the locks */
     list_for_each_forward(pl, &lv2->file_lock) {

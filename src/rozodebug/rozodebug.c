@@ -48,7 +48,7 @@
 
 #define DEFAULT_TIMEOUT 4
 
-#define         MX_BUF (32*1024)
+#define         MX_BUF (384*1024)
 typedef struct  msg_s {
    UMA_MSGHEADER_S header;
    char            buffer[MX_BUF];
@@ -140,7 +140,7 @@ int debug_receive(int socketId, int silent) {
       printf("Receive too big %d\n", msg.header.len);
       return 0;
     }
-
+//    printf("FDL length %u\n",msg.header.len);
     recvLen = 0;
     while (recvLen < msg.header.len) {
       ret = recv(socketId,&msg.buffer[recvLen],msg.header.len-recvLen,0);

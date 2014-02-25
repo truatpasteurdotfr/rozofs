@@ -24,12 +24,10 @@
 #include <attr/xattr.h>
 #include <fcntl.h>
 
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 
 #include "mreg.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 int mreg_open(mreg_t *mreg, const char *path) {
     START_PROFILING(mreg_open);

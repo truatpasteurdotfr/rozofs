@@ -2,39 +2,64 @@
 
 kill_everybody ()
 {
-  nb=0
+  pid_list=""
   for pid in `ps -ef | grep -v grep | grep "storio -i" | awk '{print $2}'`
   do
-    kill $1 $pid
-    nb=$((nb+1))
+    kill $pid
+    pid_list=`echo "$pid_list $pid"`
   done
-  case $nb in
-    "0") exit;;
+  
+  case "$pid_list" in
+    "") return;;
   esac   
+
+  sleep $delay
+  
+  for pid in $pid_list
+  do
+    kill -9 $pid  > /dev/null 2>&1  
+  done   
+
 }
 kill_host ()
 {
-  nb=0
+  pid_list=""
   for pid in `ps -ef | grep -v grep | grep "storio -i" | grep "H $h" | awk '{print $2}'`
   do
-    kill $1 $pid
-    nb=$((nb+1))
+    kill $pid
+    pid_list=`echo "$pid_list $pid"`
   done
-  case $nb in
-    "0") exit;;
-  esac    
+  
+  case "$pid_list" in
+    "") return;;
+  esac  
+  
+  sleep $delay
+  
+  for pid in $pid_list
+  do
+    kill -9 $pid  > /dev/null 2>&1  
+  done       
 }
 kill_instance ()
 {
-  nb=0
+  pid_list=""
   for pid in `ps -ef | grep -v grep | grep "storio -i $i" | grep "H $h" | awk '{print $2}'`
   do
-    kill $1 $pid
-    nb=$((nb+1))
+    kill $pid
+    pid_list=`echo "$pid_list $pid"`
   done
-  case $nb in
-    "0") exit;;
+  
+  case "$pid_list" in
+    "") return;;
   esac  
+  
+  sleep $delay
+  
+  for pid in $pid_list
+  do
+    kill -9 $pid  > /dev/null 2>&1  
+  done      
 }
 
 while [ ! -z $1 ];
@@ -45,24 +70,19 @@ do
     -i) i=$2; shift 2;;
     *) shift 1;;
   esac
-done    
+done   
+
+delay="0.2" 
+
 
 if [  ! -z $h  ] && [ ! -z $i ];
 then
   kill_instance 
-  sleep 2
-  kill_instance -9
-  exit
-fi
-
-if [ ! -z $h ];
+elif [ ! -z $h ];
 then
   kill_host 
-  sleep 2
-  kill_host -9
-  exit
+else
+  kill_everybody 
 fi
-
-kill_everybody 
-sleep 2
-kill_everybody -9
+echo "storio killer $h $i finished"
+exit 0

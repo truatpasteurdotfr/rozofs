@@ -94,5 +94,19 @@ extern unsigned long long Global_timeBefore, Global_timeAfter;
 #define UMA_AGING_RUN   1
 #define UMA_AGING_AGED  2
 
+/*
+**____________________________________________________________________________
+*/
+/**
+* api for reading the cycles counter
+*/
+
+static inline unsigned long long ruc_rdtsc(void)
+{
+  unsigned hi,lo;
+  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+  return ((unsigned long long)lo)| (((unsigned long long)hi)<<32);
+
+}
 
 #endif

@@ -41,7 +41,7 @@
 #include <rozofs/core/rozofs_tx_common.h>
 #include <rozofs/core/north_lbg_api.h>
 #include <rpc/rpc.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/core/expgw_common.h>
 

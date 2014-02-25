@@ -87,6 +87,38 @@ static inline char * rozofs_ip2string(char *p, uint32_t ipAddr) {
 int is_this_ipV4_local(uint32_t ipv4);
 
 
+
+
+/*
+**__________________________________________________________________________
+*/
+/**
+   Get the port number reserved for a given service name 
+   (having a look at /etc/services)
+        
+   @param serviceName The name of the service
+   @param proto       The protocol of the service ("tcp","udp", NULL)
+   @param defaultPort The default port value to return when this service
+                      has not been found
+		      
+   retval: the service port
+
+*/
+static inline uint16_t get_service_port(char *serviceName, char * proto, uint16_t defaultPort){
+  struct servent *servinfo;
+  uint16_t        port;
+  
+  servinfo = getservbyname(serviceName, proto);
+  if(!servinfo) {
+     DEBUG("Default port %u used for %s:%s",defaultPort,serviceName,proto?proto:"any");
+     return defaultPort;
+  }
+  
+  port = servinfo->s_port;// s_port is an int
+  port = ntohs(port); 
+  DEBUG("Port %u defined in %s for %s:%s",port, _PATH_SERVICES,serviceName,proto?proto:"any");
+  return port;
+}  
 #ifdef __cplusplus
 }
 #endif /*__cplusplus */

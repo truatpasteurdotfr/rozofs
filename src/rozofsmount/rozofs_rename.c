@@ -53,6 +53,7 @@ void rozofs_ll_rename_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     /*
     ** allocate a context for saving the fuse parameters
     */
+    int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_rename,parent,(char*)newname);
     buffer_p = rozofs_fuse_alloc_saved_context();
     if (buffer_p == NULL)
     {
@@ -62,6 +63,7 @@ void rozofs_ll_rename_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     }
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,parent);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
 
     START_PROFILING_NB(buffer_p,rozofs_ll_rename);
 
@@ -106,6 +108,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+    rozofs_trc_rsp(srv_rozofs_ll_rename,parent,NULL,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_rename);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -132,9 +135,14 @@ void rozofs_ll_rename_cbk(void *this,void *param)
    int      bufsize;
    struct rpc_msg  rpc_reply;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
-
+   fuse_ino_t parent;
+   int trc_idx;
+   errno = 0;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,parent);
+   RESTORE_FUSE_PARAM(param,trc_idx);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -212,6 +220,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_rename,parent,(old_ie==0)?NULL:old_ie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_rename);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    

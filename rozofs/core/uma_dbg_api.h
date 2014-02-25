@@ -26,7 +26,7 @@
 /*
 ** Max length of the user payload when answering to a debug command
 */
-#define UMA_DBG_MAX_SEND_SIZE (1024*32)
+#define UMA_DBG_MAX_SEND_SIZE (1024*384)
 extern char uma_dbg_temporary_buffer[];
 
 /*__________________________________________________________________________

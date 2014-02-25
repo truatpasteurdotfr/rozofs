@@ -575,7 +575,7 @@ int af_unix_sock_create(char *src_sun_path,af_unix_socket_conf_t *conf_p)
    */
    sock_p->connectionId = ruc_sockctl_connect(sock_p->socketRef,  // Reference of the socket
                                               sock_p->nickname,   // name of the socket
-                                              3,                  // Priority within the socket controller
+                                              16,                  // Priority within the socket controller
                                               (void*)sock_p,      // user param for socketcontroller callback
                                               &af_unix_generic_callBack_sock);  // Default callbacks
     if (sock_p->connectionId == NULL)
