@@ -166,6 +166,7 @@ int storaged_rebuild_list(char * fid_list) {
   rozofs_rebuild_header_file_t  st2rebuild;
   rozofs_rebuild_entry_file_t   file_entry;
   rpcclt_t   rpcclt_export;
+  int        ret;
   
   
   fd = open(fid_list,O_RDWR);
@@ -266,11 +267,20 @@ int storaged_rebuild_list(char * fid_list) {
     }
 
     // Restore this entry
-    if (rbs_restore_one_rb_entry(&st2rebuild.storage, &re) != 0) {
+    ret = rbs_restore_one_rb_entry(&st2rebuild.storage, &re);
+
+    // Free storages cnt
+    if (re.storages != NULL) {
+      free(re.storages);
+      re.storages = NULL;
+    }  
+         
+    if (ret != 0) {
         //severe( "rbs_restore_one_rb_entry failed: %s", strerror(errno));
         continue; // Try with the next
     }
     
+   
     nbSuccess++;
     if ((nbSuccess % (16*1024)) == 0) {
       info("%s %d/%d",fid_list,nbSuccess,nbJobs);

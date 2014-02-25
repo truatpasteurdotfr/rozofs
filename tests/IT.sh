@@ -261,10 +261,10 @@ rebuild_one() {
       return
     fi    
   done    
-  ./test_rebuild -action delete -nbfiles $NBFILES
+#  ./test_rebuild -action delete -nbfiles $NBFILES
 }
 rebuild_all() {
-  NBFILES=30000
+  NBFILES=10000
   echo "Create $NBFILES files"
   ./test_rebuild -action create -nbfiles $NBFILES
 
@@ -282,7 +282,7 @@ rebuild_all() {
       return
     fi    
   done    
-  ./test_rebuild -action delete -nbfiles $NBFILES
+#  ./test_rebuild -action delete -nbfiles $NBFILES
 }
 
 ############### USAGE ##################################

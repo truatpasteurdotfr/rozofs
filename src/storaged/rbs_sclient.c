@@ -129,6 +129,7 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
 
     if (connected < nb_cnt_required) {
         free(rb_entry->storages);
+        rb_entry->storages = NULL;
         errno = EPROTO;
         return -1;
     }
