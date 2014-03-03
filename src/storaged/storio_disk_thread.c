@@ -307,6 +307,20 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   pbuf += rpcCtx->position;
   
   /*
+  ** Check that the received data length is consistent with the bins length
+  */
+  size = ruc_buf_getPayloadLen(rpcCtx->recv_buf) - rpcCtx->position;
+  if (size != args->len) {
+    severe("Inconsistent length received %d vs %d",size, args->len);
+    ret.sp_write_ret_t_u.error = EPIPE;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskWrite_error++; 
+    storio_send_response(thread_ctx_p,msg,-1); 
+    return;   
+  }
+  
+  
+  /*
   ** Use received buffer for the response
   */
   rpcCtx->xmitBuf  = rpcCtx->recv_buf;

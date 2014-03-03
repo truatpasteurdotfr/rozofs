@@ -148,71 +148,149 @@ char *argv[];
         usage();
     }
 }
+#define LOOP_NB  37
+#define BLKSIZE (1024*8)
+char    refblock[BLKSIZE];
+char    readblock[BLKSIZE];
+
+void update_block(int f, int b) {
+  char string[64];
+  int len;
+  
+  len = sprintf(string,"\n--%8.8d--%8.8d--\n",f,b);
+  memcpy(refblock,string,len);
+  
+}
+void init_block() {
+  int  idx;
+  char car;
+
+  car = '0';
+  for (idx=0; idx<BLKSIZE; idx++) {
+    refblock[idx] = car;
+    switch(car) {
+      case '9': car = 'a'; break;
+      case 'z': car = 'A'; break;
+      case 'Z': car = '0'; break;  
+      default:
+      car++;
+    }    
+  }
+}
+char path_file_name[128];
+char * getfilename(int idx) {
+  sprintf(path_file_name,"%d", idx);
+  return path_file_name;
+}
+
+int delete() {
+  int idx;
+  char * fname;
+
+  for (idx=1; idx <= nbfiles; idx++) {
+    fname = getfilename(idx); 
+    unlink(fname);
+  }        
+}
+int check() {
+  int idx,loop;
+  char * fname;
+  int    fd=-1;
+  int    ret;
+
+  for (idx=1; idx <= nbfiles; idx++) {
+
+    fname = getfilename(idx); 
+  	
+    fd = open(fname, O_RDONLY);
+    if (fd < 0) {
+      printf("CHECK open(%s) %s\n", fname, strerror(errno));
+      exit(-1);
+    }
+	
+    for (loop=0; loop < LOOP_NB; loop++) {
+
+      ret = pread(fd, readblock, BLKSIZE, loop*BLKSIZE);
+      if (ret < 0) {
+	printf("CHECK pread(%s) offset %d %s\n", fname, loop, strerror(errno));
+	exit(-1);
+      }
+
+      update_block(idx,loop);
+      
+      if (memcmp(readblock,refblock,BLKSIZE)!=0) {
+	printf("CHECK memcmp(%s) bad content loop %d\n", fname, loop);
+	exit(-1);  
+      } 
+    } 
+    
+    ret = close(fd);
+    if (ret < 0) { 	    
+      printf("CHECK close(%s) %s\n", fname, strerror(errno));
+      exit(-1);
+    } 
+  }        
+}
+int create() {
+  int idx,loop;
+  char * fname;
+  int    fd=-1;
+  int    ret;
+  
+  for (loop=0; loop < LOOP_NB; loop++) {
+    for (idx=1; idx <= nbfiles; idx++) {
+
+      fname = getfilename(idx); 
+      update_block(idx,loop);
+
+      if (loop == 0) fd = open(fname, O_CREAT | O_TRUNC | O_WRONLY, 0640);
+      else           fd = open(fname, O_WRONLY);
+      if (fd < 0) {
+	printf("CREATE open(%s) loop %d %s\n", fname,loop, strerror(errno));
+	exit(-1);
+      }
+      ret = pwrite(fd, refblock, BLKSIZE, loop*BLKSIZE);
+      if (ret != BLKSIZE) {
+	printf("CREATE write(%s) size %d offset %d %s\n", fname, BLKSIZE, loop, strerror(errno));
+	exit(-1);
+      }
+      ret = close(fd);
+      if (ret < 0) { 	    
+	printf("CREATE close(%s) %s\n", fname, strerror(errno));
+	exit(-1);
+      }
+    }
+  }    
+}
 
 
 int main(int argc, char **argv) {
-  int ret;
-  int fd;
-  char path[128];
-  char string[128];
-  int size;
-  int idx;
-  
     
   read_parameters(argc, argv);
 
   if (action == ACTION_NONE) {
     usage();
   }
+  
+  init_block();
 
   mkdir(PATH, 0640);
   chdir(PATH);
-  
-  for (idx=1; idx <= nbfiles; idx++) {
+ 
+  switch(action) {
 
-    sprintf(path,"%d", idx);
-    size = strlen(path)+1;
-    
-    switch(action) {
-    
-      case ACTION_CREATE:        
-        fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0640);
-	if (fd < 0) {
-	  printf("open(%s) %s", path, strerror(errno));
-	  exit(-1);
-	}
-        ret = write(fd, path, size);
-	if (ret != size) {
-	  printf("write(%s) size %d %s\n", path, size, strerror(errno));
-	  exit(-1);
-	}
-	close(fd);	
-        break;
-	
-      case ACTION_DELETE: 
-        unlink(path);
-        break;
-	
-      case ACTION_CHECK:
-        fd = open(path, O_RDONLY);
-	if (fd < 0) {
-	  printf("open(%s) %s", path, strerror(errno));
-	  exit(-1);
-	}
-        ret = read(fd, string, sizeof(string));
-	if (ret < 0) {
-	  printf("read(%s) %s", path, strerror(errno));
-	  exit(-1);
-	}
-	close(fd);
-	if (strcmp(string,path)!=0) {
-	  printf("read(%s) bad content", path);
-	  hexdump(string, 0, size);
-	  exit(-1);  
-	} 
-        break;
-    }
+    case ACTION_CREATE:  
+      create();
+      break;
+
+    case ACTION_DELETE: 
+      delete();
+      break;
+
+    case ACTION_CHECK:
+      check();
+      break;
   }
-  
+   
   exit(0);
 }

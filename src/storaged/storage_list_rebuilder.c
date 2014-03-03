@@ -167,8 +167,13 @@ int storaged_rebuild_list(char * fid_list) {
   rozofs_rebuild_entry_file_t   file_entry;
   rpcclt_t   rpcclt_export;
   int        ret;
-  
-  
+  uint8_t    rozofs_safe,rozofs_forward; 
+  uint8_t    prj;
+  int        device_id;
+  int        spare;
+  char       path[FILENAME_MAX];
+  int        version=0;
+      
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
       severe("Can not open file %s %s",fid_list,strerror(errno));
@@ -266,9 +271,54 @@ int storaged_rebuild_list(char * fid_list) {
         continue; // Try with the next
     }
 
-    // Restore this entry
-    ret = rbs_restore_one_rb_entry(&st2rebuild.storage, &re);
+    // Get rozofs layout parameters
+    rozofs_safe = rozofs_get_rozofs_safe(file_entry.layout);
+    rozofs_forward = rozofs_get_rozofs_forward(file_entry.layout);
 
+    // Compute the proj_id to rebuild
+    // Check if the storage to rebuild is
+    // a spare for this entry
+    for (prj = 0; prj < rozofs_safe; prj++) {
+        if (re.dist_set_current[prj] == st2rebuild.storage.sid)  break;
+    }  
+    if (prj >= rozofs_forward) spare = 1;
+    else                       spare = 0;
+
+    // Build the full path of directory that contains the bins file
+    device_id = -1; // The device must be allocated
+    if (storage_dev_map_distribution(DEVICE_MAP_SEARCH_CREATE, &st2rebuild.storage, &device_id,
+                                     re.fid, re.layout, re.dist_set_current, spare,
+                                     path, version) == NULL) {
+      severe("rbs_restore_one_rb_entry storage_dev_map_distribution");
+      continue;      
+    }  
+
+    // Check that this directory already exists, otherwise it will be created
+    if (access(path, F_OK) == -1) {
+        if (errno == ENOENT) {
+            // If the directory doesn't exist, create it
+            if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
+                severe("mkdir failed (%s) : %s", path, strerror(errno));
+                continue;
+            }
+        } else {
+            continue;
+        }
+    }
+
+    // Build the path of bins file
+    storage_map_projection(re.fid, path);
+
+
+    // Restore this entry
+    if (spare == 1) {
+      ret = rbs_restore_one_spare_entry(&st2rebuild.storage, &re, path, device_id, prj);      
+    }
+    else {
+      ret = rbs_restore_one_rb_entry(&st2rebuild.storage, &re, path, device_id, prj);
+    }
+    
+    
     // Free storages cnt
     if (re.storages != NULL) {
       free(re.storages);
@@ -290,15 +340,15 @@ int storaged_rebuild_list(char * fid_list) {
     pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry));
   }
   
+  close(fd);
+  fd = -1;   
 
   if (nbSuccess == nbJobs) {
     unlink(fid_list);
     info("%s rebuild success of %d files",fid_list,nbSuccess);    
-    close(fd);   
     return 0;
   }
-  
-  
+    
   info("%s rebuild failed %d/%d",fid_list,nbSuccess,nbJobs);
 
   

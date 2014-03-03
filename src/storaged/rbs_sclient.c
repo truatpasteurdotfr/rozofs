@@ -358,7 +358,106 @@ static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, cid_t cid,
 out:
     return status;
 }
+int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, cid_t cid,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
+        uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
+        rbs_storcli_ctx_t * working_ctx_p) {
+    int status = -1;
+    int i = 0;
+    uint8_t nb_diff_nb_blocks_recv = 0;
+    uint8_t stor_idx = 0;
+    int     success = 0;
 
+    DEBUG_FUNCTION;
+
+    // Get the parameters relative to this layout
+    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
+
+    *nb_blocks_read = 0;
+    memset(&rbs_blocks_recv_tb, 0, ROZOFS_SAFE_MAX *
+            sizeof (rbs_blocks_recv_ctx_t));
+
+    // For each existent storage associated with this entry
+    for (stor_idx = 0; stor_idx < rozofs_safe; stor_idx++) {
+
+        if (stor_idx == spare_idx) {
+          working_ctx_p->prj_ctx[spare_idx].prj_state = PRJ_READ_ERROR;	
+	  continue;
+        }
+        uint32_t curr_nb_blocks_read = 0;
+
+        // Check if the projection is already read
+        if (working_ctx_p->prj_ctx[stor_idx].prj_state == PRJ_READ_DONE) {
+            success++;	
+            continue;
+        }
+	
+        // Send one read request
+        if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
+                stor_idx, layout, dist_set, fid, first_block_idx,
+                nb_blocks_2_read, &curr_nb_blocks_read,
+                &working_ctx_p->prj_ctx[stor_idx]) != 0) {
+            continue; // Problem; try with the next storage;
+        }
+	
+	success++;
+
+        // If it's the first request received
+        if (nb_diff_nb_blocks_recv == 0) {
+            // Save the nb. of blocks received
+            rbs_blocks_recv_tb[nb_diff_nb_blocks_recv].nb_blocks_recv =
+                    curr_nb_blocks_read;
+            rbs_blocks_recv_tb[nb_diff_nb_blocks_recv].count++;
+            nb_diff_nb_blocks_recv++;
+
+            // Send others requests
+            continue;
+
+        } 
+	
+	// It's not the first response received
+        // Search if we have another response with the same
+        // nb. of blocks read
+        for (i = 0; i < nb_diff_nb_blocks_recv; i++) {
+
+            if (curr_nb_blocks_read ==
+                    rbs_blocks_recv_tb[i].nb_blocks_recv) {
+                // OK, we have already received a another response 
+                // with the same nb. of blocks returned
+                // So increment the counter
+                rbs_blocks_recv_tb[i].count++;
+		break;
+            }
+        }
+        // We received a response with a nb. of blocks different
+        if (i == nb_diff_nb_blocks_recv) {
+            // Save th nb. of blocks received
+            rbs_blocks_recv_tb[nb_diff_nb_blocks_recv].nb_blocks_recv
+                    = curr_nb_blocks_read;
+            rbs_blocks_recv_tb[nb_diff_nb_blocks_recv].count++;
+            nb_diff_nb_blocks_recv++;
+        }
+        
+    }
+    
+    if (success < rozofs_inverse) {
+      /* Not enough projection read to rebuild anything */
+      goto out;
+    } 
+    
+    for (i = 0; i < nb_diff_nb_blocks_recv; i++) {
+      if (rbs_blocks_recv_tb[i].count >= rozofs_inverse) {
+        if (rbs_blocks_recv_tb[i].nb_blocks_recv >= *nb_blocks_read) {
+	  *nb_blocks_read = rbs_blocks_recv_tb[i].nb_blocks_recv;
+	  status = 0;
+	}  
+      }
+    }
+
+out:
+    return status;
+}
 int rbs_read_blocks(sclient_t **storages, uint8_t layout, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,

@@ -62,23 +62,7 @@ int storage_error_on_device(storage_t * st, int device_nb) {
   return st->device_errors.errors[active][device_nb];
 }
 
-/*
- ** Build the path for the projection file
-  @param fid: unique file identifier
-  @param path : pointer to the buffer where reuslting path will be stored
-  
-  @retval pointer to the beginning of the path
-  
- */
-char *storage_map_projection_hdr(fid_t fid, char *path) {
-    char str[37];
 
-    uuid_unparse(fid, str);
-    strcat(path, str);
-    sprintf(str, ".hdr");
-    strcat(path, str);
-    return path;
-}
 
 /*
  ** Write a header/mapper file on a device
@@ -315,39 +299,7 @@ success:
     sprintf(path,"%s/%d/layout_%u/spare_%u/%s", st->root, *device_id, layout, spare, dist_set_string);
     return path;            
 }
-void storage_dev_map_distribution_remove(storage_t * st, fid_t fid, uint8_t layout,
-                                          sid_t dist_set[ROZOFS_SAFE_MAX], uint8_t spare) {
-    char                      dist_set_string[FILENAME_MAX];
-    char                      path[FILENAME_MAX];
-    int                       dev;
-    int                       hdrDevice;
 
-    DEBUG_FUNCTION;
-
-    /*
-    ** Pre-format distribution string
-    */
-    storage_dist_set_2_string(layout, dist_set, dist_set_string);
-  
-
-   /*
-   ** Loop on the reduncant devices that should hold a copy of the mapping file
-   */
-   for (dev=0; dev < st->mapper_redundancy ; dev++) {
-
-       hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);	
-       sprintf(path, "%s/%d/layout_%u/spare_%u/%s", st->root, hdrDevice, layout, spare, dist_set_string);            
-       storage_map_projection_hdr(fid,path);
-
-       // Check that the file exists
-       if (access(path, F_OK) == -1) continue;
-
-       // The file exist, let's remove it
-       if (unlink(path) < 0) {
-	   severe("unlink %s - %s", path, strerror(errno));
-       }
-   }
-}
 
 
 /*
@@ -953,7 +905,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t device_id,
     bins_file_rebuild_t **iterator;
 
     DEBUG_FUNCTION;
-    
+        
     /*
     ** Build the directory path
     */
@@ -996,6 +948,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t device_id,
             *iterator = xmalloc(sizeof (bins_file_rebuild_t)); // XXX FREE ?
             // Copy FID
             uuid_parse(fid_str, (*iterator)->fid);
+	    	    
             // Copy current dist_set
             memcpy((*iterator)->dist_set_current, dist_set,
                     sizeof (sid_t) * ROZOFS_SAFE_MAX);
@@ -1063,15 +1016,18 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid, uint8_t * devi
     if (memcmp(current_dist_set, empty_dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX) != 0)
         check_dist_set = 1;
 
-
+    device_it = *device_id;
+    layout_it = *layout;
+    spare_it  = *spare;
+    
     // Loop on all the devices
-    for (device_it = *device_id; device_it < st->device_number;device_it++) {
+    for (; device_it < st->device_number;device_it++,layout_it=0) {
 
 	// For each possible layout
-	for (layout_it = *layout; layout_it < LAYOUT_MAX; layout_it++) {
+	for (; layout_it < LAYOUT_MAX; layout_it++,spare_it=0) {
 
             // For spare and no spare
-            for (spare_it = *spare; spare_it < 2; spare_it++) {
+            for (; spare_it < 2; spare_it++) {
 
         	// Build path directory for this layout and this spare type
         	char path[FILENAME_MAX];
@@ -1169,5 +1125,6 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid, uint8_t * devi
     status = 0;
 
 out:
+
     return status;
 }

@@ -888,10 +888,18 @@ do_core ()
   *)        do_debugCore $1;;
   esac      
 }
-do_cou () 
+do_cou() {
+  shift 1
+  while [ ! -z $1 ];
+  do
+    do_one_cou $1
+    shift 1
+  done
+}
+do_one_cou () 
 {
   COUFILE=/tmp/.cou
-  shift 1
+
   
   case "$1" in
   "")       syntax;;

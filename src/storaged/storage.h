@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <uuid/uuid.h>
 #include <sys/param.h>
+#include <unistd.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/rozofs_srv.h>
@@ -396,5 +397,65 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,  uint8_t * dev
         uint8_t * layout, sid_t *dist_set, uint8_t * spare, uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof);
 
+/*
+ ** Build the path for the projection file
+  @param fid: unique file identifier
+  @param path : pointer to the buffer where reuslting path will be stored
+  
+  @retval pointer to the beginning of the path
+  
+ */
+static inline char *storage_map_projection_hdr(fid_t fid, char *path) {
+    char str[37];
+
+    uuid_unparse(fid, str);
+    strcat(path, str);
+    sprintf(str, ".hdr");
+    strcat(path, str);
+    return path;
+}
+/** Remove header files from disk
+ *
+ * @param st: the storage to use.
+ * @param fid: FID of the file
+ * @param layout: layout of the file
+ * @param dist_set: distribution set of the file
+ * @param spare: whether this is a spare sid
+*
+ * @return: 0 on success -1 otherwise (errno is set)
+ */	
+void static inline storage_dev_map_distribution_remove(storage_t * st, fid_t fid, uint8_t layout,
+                                          sid_t dist_set[ROZOFS_SAFE_MAX], uint8_t spare) {
+    char                      dist_set_string[FILENAME_MAX];
+    char                      path[FILENAME_MAX];
+    int                       dev;
+    int                       hdrDevice;
+
+    DEBUG_FUNCTION;
+
+    /*
+    ** Pre-format distribution string
+    */
+    storage_dist_set_2_string(layout, dist_set, dist_set_string);
+  
+
+   /*
+   ** Loop on the reduncant devices that should hold a copy of the mapping file
+   */
+   for (dev=0; dev < st->mapper_redundancy ; dev++) {
+
+       hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);	
+       sprintf(path, "%s/%d/layout_%u/spare_%u/%s", st->root, hdrDevice, layout, spare, dist_set_string);            
+       storage_map_projection_hdr(fid,path);
+
+       // Check that the file exists
+       if (access(path, F_OK) == -1) continue;
+
+       // The file exist, let's remove it
+       if (unlink(path) < 0) {
+	   severe("unlink %s - %s", path, strerror(errno));
+       }
+   }
+}
 #endif
 

@@ -125,6 +125,7 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
         sid_t sid_to_rebuild,
         uint8_t nb_cnt_required);
 
-int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re);
+int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int device_id, uint8_t proj_id_to_rebuild);
+int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, int device_id, uint8_t proj_id_to_rebuild);
 
 #endif

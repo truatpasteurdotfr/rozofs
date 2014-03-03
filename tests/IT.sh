@@ -32,10 +32,11 @@ storageFailed () {
   for sid in $(seq $NB_SID) 
   do
 
-    echo -ne "Stop storage $sid : "
+    echo -ne "Stop storage $sid\033[0K\r"
     ./setup.sh storage $sid stop
     sleep 3
     $1  
+    result=$?
     ./setup.sh storage $sid start 
     sleep 3
     if [ $result != 0 ];
@@ -57,7 +58,11 @@ storageReset_process () {
     do
       echo -ne "Reset storage $sid\033[0K\r"
       ./setup.sh storage $sid reset
-      sleep 7
+      
+      case "$1" in
+        "") sleep 7;;
+	*)  sleep $1;;
+      esac	
     done
   done
 }  
@@ -237,50 +242,96 @@ lock_bsd_blocking() {
   ./test_file_lock -process $process -loop $loop -file $file -bsd
   result=$?    
 }
+gruyere_one_reread() {
+  ./test_rebuild -action check -nbfiles $NBFILES_REBUILD  
+  result=$?
+  if [ $result -ne 0 ];
+  then
+    return $result
+  fi  
+  return 0
+}
+gruyere_reread() {
+
+  gruyere_one_reread  
+  if [ $result -ne 0 ];
+  then
+    return
+  fi  
+
+  storageFailed gruyere_one_reread
+  if [ $result -ne 0 ];
+  then
+    return
+  fi  
+}
+gruyere() {
+
+  case $NBFILES_REBUILD in
+    0) return;;
+  esac
+    
+  sleep 4
+ 
+  # Start process that reset the storages
+  storageReset_process& 
+
+  echo "Create $NBFILES_REBUILD files"
+  ./test_rebuild -action create -nbfiles $NBFILES_REBUILD
+  result=$?
+
+  # kill the storage reset process
+  kill  $!  2> /dev/null
+  wait 2> /dev/null 
+
+  if [ $result -ne 0 ];
+  then
+    return
+  fi  
+
+  sleep 4
+  NBFILES_REBUILD=0
+}
 rebuild_one() {
-  NBFILES=10000
-  echo "Create $NBFILES files"
-  ./test_rebuild -action create -nbfiles $NBFILES  
-  
+   
   for sid in $(seq $NB_SID) 
   do
+    for dev in $(seq 6)
+    do
   
-    ./setup.sh storage $sid device-delete 0
-    ./test_rebuild -action check -nbfiles $NBFILES
-    result=$?
+      ./setup.sh storage $sid device-delete $((dev-1))
+      
+      ./setup.sh storage $sid device-rebuild $((dev-1))
+      result=$?
+      if [ $result -ne 0 ];
+      then
+	return
+      fi        
+    done
+
+    gruyere_reread  
     if [ $result -ne 0 ];
     then
       return
-    fi    
-    
-    ./setup.sh storage $sid device-rebuild 0
-    ./test_rebuild -action check -nbfiles $NBFILES
-    result=$?
-    if [ $result -ne 0 ];
-    then
-      return
-    fi    
+    fi       
   done    
 #  ./test_rebuild -action delete -nbfiles $NBFILES
 }
 rebuild_all() {
-  NBFILES=10000
-  echo "Create $NBFILES files"
-  ./test_rebuild -action create -nbfiles $NBFILES
 
   for sid in $(seq $NB_SID) 
   do
   
     ./setup.sh storage $sid device-delete all
-
+      
     ./setup.sh storage $sid device-rebuild all
-
-    ./test_rebuild -action check -nbfiles $NBFILES
-    result=$?
+    
+    gruyere_reread
     if [ $result -ne 0 ];
     then
       return
-    fi    
+    fi  
+ 
   done    
 #  ./test_rebuild -action delete -nbfiles $NBFILES
 }
@@ -331,7 +382,7 @@ compile_programs () {
 # rozodebug profiler command for storclis
 rozodebug_stc_profiler_before()  {
   before=/tmp/stc_profiler.before
-  
+  ./dbg.sh stc profiler reset > $before
   ./dbg.sh stc profiler  > $before
 }
 rozodebug_stc_profiler_after()  {
@@ -579,14 +630,16 @@ fileSize=4
 loop=64
 process=8
 NB_SID=8
+NBFILES_REBUILD="2000"
+NBFILES_2REBUILD=$NBFILES_REBUILD
 
 # List of test
 TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_close wr_rd_random_close wr_close_rd_total wr_close_rd_partial wr_close_rd_random wr_close_rd_total_close wr_close_rd_partial_close wr_close_rd_random_close"
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 rebuild_one rebuild_all"
-TST_REBUILD="rebuild_one rebuild_all"
+TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 gruyere   gruyere_reread  rebuild_one rebuild_all "
+TST_REBUILD="gruyere gruyere_reread rebuild_one rebuild_all"
 
 # lock_bsd_passing lock_bsd_blocking
 
@@ -594,6 +647,7 @@ TSTS=""
 repeated=1
 nonstop=0
 FAIL=0
+already_created="no"
 
 # Read parameters
 while [ ! -z $1 ];

@@ -131,7 +131,7 @@ char *argv[];
     int ret;
     int val;
 
-    strcpy(FILENAME, DEFAULT_FILENAME);
+    sprintf(FILENAME, "%s.%d", DEFAULT_FILENAME,getpid());
 
     idx = 1;
     while (idx < argc) {
