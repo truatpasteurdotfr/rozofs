@@ -639,12 +639,14 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,
     if (memcmp(current_dist_set, empty_dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX) != 0)
         check_dist_set = 1;
 
+    layout_it = *layout;
+    spare_it  = *spare;
 
     // For each possible layout
-    for (layout_it = *layout; layout_it < LAYOUT_MAX; layout_it++) {
+    for (; layout_it < LAYOUT_MAX; layout_it++,spare_it=0) {
 
         // For spare and no spare
-        for (spare_it = *spare; spare_it < 2; spare_it++) {
+        for (; spare_it < 2; spare_it++) {
 
             // Build path directory for this layout and this spare type
             char path[FILENAME_MAX];

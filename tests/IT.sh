@@ -284,6 +284,38 @@ lock_bsd_blocking() {
   ./test_file_lock -process $process -loop $loop -file $file -bsd
   return $?    
 }
+rebuild_all() {
+  NBFILES_REBUILD=2000
+
+  echo "Create $NBFILES_REBUILD files"
+ ./test_rebuild -action create -nbfiles $NBFILES_REBUILD
+
+
+  for sid in $(seq 4) 
+  do
+  
+    ./setup.sh storage $sid delete
+
+    ./setup.sh storage $sid rebuild
+    
+     res=`./dbg.sh $sid rebuild | grep completed`
+     while [ "$res" == "" ];
+     do
+       sleep 1
+       res=`./dbg.sh std$sid rebuild | grep completed`  
+     done
+
+    ./test_rebuild -action check -nbfiles $NBFILES_REBUILD
+    result=$?
+    if [ $result -ne 0 ];
+    then
+      return $result
+    fi    
+  done  
+  return 0  
+#  ./test_rebuild -action delete -nbfiles $NBFILES
+}
+
 ############### USAGE ##################################
 usage () {
   echo "$name -l"
@@ -579,7 +611,7 @@ TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_c
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 $TST_RW"
+TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 rebuild_all $TST_RW"
 # lock_bsd_passing lock_bsd_blocking
 
 build_all_test_list
@@ -628,7 +660,7 @@ then
 fi  
 
 # Compile programs
-compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock rw2
+compile_programs rw read_parallel test_xattr test_link test_write test_readdir test_rename test_chmod test_trunc test_file_lock rw2 test_rebuild
 
 # Kill export gateway
 ./setup.sh expgw all stop 
