@@ -1257,8 +1257,8 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       /*
       ** The system MUST always returns a length that is a multiple of a projection block size
       */
-      nb_projection_blocks_returned = bins_len / (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
-      if ((bins_len % (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t))) != 0) 
+      nb_projection_blocks_returned = bins_len / (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+      if ((bins_len % (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t))) != 0) 
       {
           errno = EPROTO;
           STORCLI_ERR_PROF(read_prj_err);       

@@ -367,7 +367,7 @@ rebuild_storage_device()
     
     create_storage_device $1 $2
     
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost $dev
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost --sid $cid/$sid $dev
 }
 delete_storage_device() 
 {

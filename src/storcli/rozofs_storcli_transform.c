@@ -30,6 +30,9 @@
 #include "rozofs_storcli_transform.h"
 #include "rozofs_storcli.h"
 
+
+DECLARE_PROFILING(stcpp_profiler_t);
+
 /**
 * Local variables
 */
@@ -71,7 +74,7 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
 {
 
     int block_idx;
-    
+
     prj_ctx_p->raw_file_size = raw_file_size;
                     
     for (block_idx = 0; block_idx < number_of_blocks_returned; block_idx++) 
@@ -79,14 +82,23 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
       /*
       ** Get the pointer to the beginning of the block and extract its header
       */
-      rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p->bins 
-                                            +((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t))) * block_idx));
+      rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p->bins +
+      ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
+
+      rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
+				    
       if (rozofs_bins_hdr_p->s.timestamp == 0)
       {
         prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
         prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = ROZOFS_BSIZE;          
       }
-      else
+      else if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) 
+      {
+        prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
+        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = ROZOFS_BSIZE;
+	STORCLI_ERR_PROF(read_blk_footer);        
+      }
+      else 
       {
         prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
         prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = rozofs_bins_hdr_p->s.effective_length;                 
@@ -496,8 +508,8 @@ inline int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_
            ** Get the pointer to the beginning of the projection and extract the projection Id
            */
            prj_ctx_idx = rozofs_storcli_prj_idx_table[prj_count];
-           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins 
-                                                 +((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t))) * block_idx));
+           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins +
+	   ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
             
                                                  
            /*
@@ -622,8 +634,9 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           ** Indicates the memory area where the transformed data must be stored
           */
           projections[projection_id].bins = prj_ctx_p[projection_id].bins +
-                                           ((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t)))* (first_block_idx+i));
+                                           ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* (first_block_idx+i));
           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[projection_id].bins;
+          rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
           /*
           ** check if the user data block is empty: if the data block is empty no need to transform
           */
@@ -639,6 +652,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           */
           rozofs_bins_hdr_p->s.projection_id = projection_id;
           rozofs_bins_hdr_p->s.timestamp     = timestamp;
+	  rozofs_bins_foot_p->timestamp      = timestamp;
           /*
           ** set the effective size of the block. It is always ROZOFS_BSIZE except for the last block
           */

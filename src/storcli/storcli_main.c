@@ -142,7 +142,9 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
    gprofiler.probe[P_BYTES] = 0; \
 }
 
-
+#define SHOW_PROFILER_PROBE_COUNT(probe) pChar += sprintf(pChar," %-16s | %15"PRIu64"  | %9s  | %18s  | %15s |\n",\
+					#probe,gprofiler.probe[P_COUNT]," "," "," ");
+					
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-16s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15s |\n",\
 					#probe,\
 					gprofiler.probe[P_COUNT],\
@@ -192,6 +194,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE(read_prj_enoent);	
 	RESET_PROFILER_PROBE(read_prj_err);
 	RESET_PROFILER_PROBE(read_prj_tmo);
+	RESET_PROFILER_PROBE(read_blk_footer);
 	RESET_PROFILER_PROBE_BYTE(write)
 	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
 	RESET_PROFILER_PROBE_BYTE(write_prj);
@@ -228,18 +231,19 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(read);
     SHOW_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
     SHOW_PROFILER_PROBE_BYTE(read_prj);
-    SHOW_PROFILER_PROBE(read_prj_enoent);	
-    SHOW_PROFILER_PROBE(read_prj_err);
-    SHOW_PROFILER_PROBE(read_prj_tmo);
+    SHOW_PROFILER_PROBE_COUNT(read_prj_enoent);	
+    SHOW_PROFILER_PROBE_COUNT(read_prj_err);
+    SHOW_PROFILER_PROBE_COUNT(read_prj_tmo);
+    SHOW_PROFILER_PROBE_COUNT(read_blk_footer);
     SHOW_PROFILER_PROBE_BYTE(write)
     SHOW_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
     SHOW_PROFILER_PROBE_BYTE(write_prj);
-    SHOW_PROFILER_PROBE(write_prj_tmo);
-    SHOW_PROFILER_PROBE(write_prj_err);
+    SHOW_PROFILER_PROBE_COUNT(write_prj_tmo);
+    SHOW_PROFILER_PROBE_COUNT(write_prj_err);
     SHOW_PROFILER_PROBE_BYTE(truncate);
     SHOW_PROFILER_PROBE_BYTE(truncate_prj);
-    SHOW_PROFILER_PROBE(truncate_prj_tmo);
-    SHOW_PROFILER_PROBE(truncate_prj_err);
+    SHOW_PROFILER_PROBE_COUNT(truncate_prj_tmo);
+    SHOW_PROFILER_PROBE_COUNT(truncate_prj_err);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 

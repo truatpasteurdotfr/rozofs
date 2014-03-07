@@ -135,6 +135,10 @@ typedef union {
     } s;
 } rozofs_stor_bins_hdr_t;
 
+typedef struct {
+        uint64_t timestamp : 64; ///<  time stamp.
+} rozofs_stor_bins_footer_t;
+
 typedef struct child {
     char *name;
     fid_t fid;

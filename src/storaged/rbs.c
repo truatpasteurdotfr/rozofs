@@ -223,6 +223,7 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
     uint16_t projection_id;
     char   *  pforward = NULL;
     rozofs_stor_bins_hdr_t * rozofs_bins_hdr_p;
+    rozofs_stor_bins_footer_t * rozofs_bins_foot_p;
     rozofs_stor_bins_hdr_t * bins_hdr_local_p;    
     bin_t * loc_read_bins_p = NULL;
     size_t local_len_read;
@@ -234,7 +235,9 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
     uint8_t  rozofs_safe       = rozofs_get_rozofs_safe(layout);
     uint8_t  rozofs_forward    = rozofs_get_rozofs_forward(layout);
     uint8_t  rozofs_inverse    = rozofs_get_rozofs_inverse(layout);
-    uint16_t disk_block_size   = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t);
+    uint16_t disk_block_size   = (rozofs_get_max_psize(layout)*sizeof (bin_t)) 
+                               + sizeof (rozofs_stor_bins_hdr_t) 
+			       + sizeof(rozofs_stor_bins_footer_t);
     uint16_t disk_block_bins_size   = disk_block_size/sizeof(bin_t);
 
     // Clear the working context
@@ -330,9 +333,11 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
 
                 bins_hdr_local_p = (rozofs_stor_bins_hdr_t *) 
 			(loc_read_bins_p + (disk_block_bins_size * block_idx));
+		rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_get_max_psize(layout));	
 
                // Compare timestamp of local and distant block
-               if (bins_hdr_local_p->s.timestamp == pBlock->timestamp) {
+               if ((rozofs_bins_foot_p->timestamp == bins_hdr_local_p->s.timestamp) 
+	       &&  (bins_hdr_local_p->s.timestamp == pBlock->timestamp)) {
                    remove_file = 0;// This file must exist
                    continue; // Check next block
                }
@@ -404,6 +409,7 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
 	    // Allocate memory for regenerated projection
 	    if (pforward == NULL) pforward = xmalloc(disk_block_size);
 	    rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *) pforward;
+	    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));	
 	    
 	    // Describe projection to rebuild 
             rbs_projections[projection_id].angle.p = rozofs_get_angles_p(layout,projection_id);
@@ -424,7 +430,9 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
 	    rozofs_bins_hdr_p->s.timestamp         = pBlock->timestamp;			       
             rozofs_bins_hdr_p->s.version           = 0;
             rozofs_bins_hdr_p->s.filler            = 0;
-	    
+
+            rozofs_bins_foot_p->timestamp          = pBlock->timestamp;	
+	        
             // Store the projections on local bins file	
             ret = storage_write(st, &device_id, layout, re->dist_set_current, 1/*spare*/,
                 		re->fid, first_block_idx+block_idx, 1, version,
@@ -526,7 +534,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
             goto out;
         // Compute the nb. of blocks
         loc_file_init_blocks_nb = (loc_file_stat.st_size) /
-                ((rozofs_max_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t));
+                ((rozofs_max_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
     }
 
     // While we can read in the bins file
@@ -568,12 +576,13 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
 
             // Allocate memory for store projection
             working_ctx.prj_ctx[proj_id_to_rebuild].bins =
-                    xmalloc((rozofs_max_psize * sizeof (bin_t) +
-                    sizeof (rozofs_stor_bins_hdr_t)) * nb_blocks_read_distant);
+                    xmalloc((rozofs_max_psize * sizeof (bin_t) 
+		    + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) * 
+		    nb_blocks_read_distant);
 
             memset(working_ctx.prj_ctx[proj_id_to_rebuild].bins, 0,
                     (rozofs_max_psize * sizeof (bin_t) +
-                    sizeof (rozofs_stor_bins_hdr_t)) *
+                    sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) *
                     nb_blocks_read_distant);
 
             // Generate projections to rebuild
@@ -638,7 +647,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
             // Allocate memory for store local bins read
             loc_read_bins_p = xmalloc(nb_blocks_read_distant *
                     ((rozofs_max_psize * sizeof (bin_t))
-                    + sizeof (rozofs_stor_bins_hdr_t)));
+                    + sizeof (rozofs_stor_bins_hdr_t)+ sizeof(rozofs_stor_bins_footer_t)));
 
             // Read local bins
             ret = storage_read(st, &device_id, layout, re->dist_set_current, 0/*spare*/, re->fid,
@@ -653,7 +662,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
             // Compute the nb. of local blocks read
             local_blocks_nb_read = local_len_read /
                     ((rozofs_max_psize * sizeof (bin_t))
-                    + sizeof (rozofs_stor_bins_hdr_t));
+                    + sizeof (rozofs_stor_bins_hdr_t)+ sizeof(rozofs_stor_bins_footer_t));
 
             // For each block read on distant storages
             for (i = 0; i < nb_blocks_read_distant; i++) {
@@ -664,15 +673,15 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
                     // Get pointer on current bins header
                     bin_t * current_loc_bins_p = loc_read_bins_p +
                             ((rozofs_max_psize +
-                            (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t)))
+                            ((sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                             * i);
 
                     rozofs_stor_bins_hdr_t * bins_hdr_local_p =
                             (rozofs_stor_bins_hdr_t *) current_loc_bins_p;
-
+                    rozofs_stor_bins_footer_t * bins_foot_local_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_max_psize);
                     // Compare timestamp of local and distant block
-                    if (bins_hdr_local_p->s.timestamp ==
-                            working_ctx.block_ctx_table[i].timestamp) {
+                    if ((bins_hdr_local_p->s.timestamp == bins_foot_local_p->timestamp) 
+		    &&  (bins_hdr_local_p->s.timestamp == working_ctx.block_ctx_table[i].timestamp)) {
                         // The timestamp is the same on local
                         // Not need to generate a projection
                         if (DEBUG_RBS == 1) {
@@ -688,12 +697,12 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
                 // Allocate memory for store projection
                 working_ctx.prj_ctx[proj_id_to_rebuild].bins =
                         xmalloc((rozofs_max_psize * sizeof (bin_t) +
-                        sizeof (rozofs_stor_bins_hdr_t)) *
+                        sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) *
                         nb_blocks_read_distant);
 
                 memset(working_ctx.prj_ctx[proj_id_to_rebuild].bins, 0,
                         (rozofs_max_psize * sizeof (bin_t) +
-                        sizeof (rozofs_stor_bins_hdr_t)) *
+                        sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) *
                         nb_blocks_read_distant);
 
                 // Generate the nb_blocks_read projections
@@ -724,7 +733,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
 
                 bin_t * bins_to_write =
                         working_ctx.prj_ctx[proj_id_to_rebuild].bins +
-                        ((rozofs_max_psize + (sizeof (rozofs_stor_bins_hdr_t)
+                        ((rozofs_max_psize + ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))
                         / sizeof (bin_t))) * i);
 
                 // Store the projections on local bins file	
@@ -769,7 +778,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
     if (loc_file_exist && loc_file_init_blocks_nb > first_block_idx) {
 
         off_t length = first_block_idx * (rozofs_max_psize * sizeof (bin_t) 
-	             + sizeof (rozofs_stor_bins_hdr_t));
+	             + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
 
         // Check mtime of local file
         ret = ckeck_mtime(fd, loc_file_stat.st_mtim);

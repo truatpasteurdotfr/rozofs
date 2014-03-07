@@ -132,7 +132,7 @@ int af_unix_disk_sock_create_internal(char *nameOfSocket,int size)
 /**
 * encode the RCP reply
     
-  @param p       : pointer to the generic rpc context
+  @param p       : pointer to the generic rpc contextstorio_disk_thread.c:
   @param arg_ret : returned argument to encode 
   
   @retval none
@@ -307,24 +307,43 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   pbuf += rpcCtx->position;
   
   /*
+  ** Use received buffer for the response
+  */
+  rpcCtx->xmitBuf  = rpcCtx->recv_buf;
+  rpcCtx->recv_buf = NULL;
+
+  /*
   ** Check that the received data length is consistent with the bins length
   */
-  size = ruc_buf_getPayloadLen(rpcCtx->recv_buf) - rpcCtx->position;
+  size = ruc_buf_getPayloadLen(rpcCtx->xmitBuf) - rpcCtx->position;
   if (size != args->len) {
-    severe("Inconsistent length received %d vs %d",size, args->len);
+    severe("Inconsistent bins length %d > %d = payloadLen(%d) - position(%d)",
+            args->len, size, ruc_buf_getPayloadLen(rpcCtx->xmitBuf), rpcCtx->position);
     ret.sp_write_ret_t_u.error = EPIPE;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
     thread_ctx_p->stat.diskWrite_error++; 
     storio_send_response(thread_ctx_p,msg,-1); 
     return;   
   }
-  
-  
+
   /*
-  ** Use received buffer for the response
+  ** Check number of projection is consistent with the bins length
   */
-  rpcCtx->xmitBuf  = rpcCtx->recv_buf;
-  rpcCtx->recv_buf = NULL;
+  {
+     uint16_t proj_psize = rozofs_get_max_psize(args->layout)* sizeof (bin_t)
+            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);  
+     size =  args->nb_proj * proj_psize;
+	    
+     if (size > args->len) {
+       severe("Inconsistent bins length %d < %d = nb_proj(%d) x proj_size(%d)",
+               args->len, size, args->len, args->nb_proj, proj_psize);
+       ret.sp_write_ret_t_u.error = EIO;
+       storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+       thread_ctx_p->stat.diskWrite_error++; 
+       storio_send_response(thread_ctx_p,msg,-1); 
+       return;         
+     }	        
+  } 
   
 
   // Get the storage for the couple (cid;sid)

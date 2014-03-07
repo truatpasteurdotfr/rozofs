@@ -40,7 +40,13 @@ add_executable(test_dist
 add_executable(test_xattr
     test_xattr.c
 )
-
+add_executable(read_prj_blocks 
+    read_prj_blocks.c
+    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
+    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
+)
 add_executable(test_truncate
     test_truncate.c
 )

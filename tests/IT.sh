@@ -22,29 +22,81 @@
 
 
 
+
 ########################################## 
 # RUN ELEMENTARY TESTS WHILE ONE STORAGE
 # IS FAILED
 ##########################################
+print_refresh_string() {
+  echo -ne "$refresh_string\033[0K\r"
+}
+
+# $2 value of for success
+#
+#
+loop_wait_up () {
+
+  success=$1
+  counter=$2
+  command=$3
+
+  up=0
+
+  while [ $up -lt $success ]
+  do
+  
+    refresh_string=`echo "$refresh_string." `
+    print_refresh_string
+    
+    counter=$((counter-1))
+    if [ $counter -le 0 ];
+    then
+      echo $refresh_string
+      up=$success
+    else
+      up=`$command`
+      sleep 1
+    fi
+    
+  done   
+}
+check_rozofsmount_sid_up () {
+  res=`./dbg.sh io$1 cpu | grep "A:IO/" | wc -l`
+  echo $res
+}
+check_export_sid_up () {
+  res=`./dbg.sh exp vfstat_stor | grep UP | wc -l`
+  echo $res
+}
+wait_until_sid_up () {
+  loop_wait_up 2 10 "check_rozofsmount_sid_up $1"
+  loop_wait_up $NB_SID 10 "check_export_sid_up" 
+}
 
 storageFailed () {
 
   for sid in $(seq $NB_SID) 
   do
+  
+    refresh_string="Stop storage $sid"
+    print_refresh_string
 
-    echo -ne "Stop storage $sid\033[0K\r"
     ./setup.sh storage $sid stop
-    sleep 3
-    $1  
-    result=$?
+    sleep 2
+    
+    $1
+
     ./setup.sh storage $sid start 
-    sleep 3
+
     if [ $result != 0 ];
     then
       return
     fi
+    
+    refresh_string="Restart storage $sid"    
+    wait_until_sid_up $sid
+    
   done
-  return   
 }
 ########################################## 
 # RUN ELEMENTARY TESTS WHILE RESETTING THE
@@ -56,13 +108,15 @@ storageReset_process () {
   do
     for sid in $(seq $NB_SID)  
     do
-      echo -ne "Reset storage $sid\033[0K\r"
+
+      refresh_string="Reset storage $sid"
+      print_refresh_string
+
       ./setup.sh storage $sid reset
       
-      case "$1" in
-        "") sleep 7;;
-	*)  sleep $1;;
-      esac	
+      sleep 1
+      wait_until_sid_up $sid
+           	
     done
   done
 }  
@@ -100,7 +154,10 @@ StorcliReset_process () {
   while [ 1 ];
   do  
     nbreset=$((nbreset+1))
-    echo -ne "Reset storcli $nbreset\033[0K\r"
+    
+    refresh_string="Reset storcli $nbreset"
+    print_refresh_string
+
     do_StorcliReset
     sleep 7
   done
@@ -245,11 +302,6 @@ lock_bsd_blocking() {
 gruyere_one_reread() {
   ./test_rebuild -action check -nbfiles $NBFILES_REBUILD  
   result=$?
-  if [ $result -ne 0 ];
-  then
-    return $result
-  fi  
-  return 0
 }
 gruyere_reread() {
 
@@ -260,10 +312,6 @@ gruyere_reread() {
   fi  
 
   storageFailed gruyere_one_reread
-  if [ $result -ne 0 ];
-  then
-    return
-  fi  
 }
 gruyere() {
 
@@ -290,7 +338,8 @@ gruyere() {
   fi  
 
   sleep 4
-  NBFILES_REBUILD=0
+  
+  gruyere_reread
 }
 rebuild_one() {
    
@@ -309,7 +358,7 @@ rebuild_one() {
       fi        
     done
 
-    gruyere_reread  
+    gruyere_one_reread  
     if [ $result -ne 0 ];
     then
       return
@@ -325,13 +374,18 @@ rebuild_all() {
     ./setup.sh storage $sid device-delete all
       
     ./setup.sh storage $sid device-rebuild all
-    
-    gruyere_reread
+    result=$?
     if [ $result -ne 0 ];
     then
       return
-    fi  
- 
+    fi    
+          
+    gruyere_one_reread 
+    if [ $result -ne 0 ];
+    then
+      return
+    fi    
+     
   done    
 #  ./test_rebuild -action delete -nbfiles $NBFILES
 }
@@ -392,7 +446,7 @@ rozodebug_stc_profiler_after()  {
 
   ./dbg.sh stc profiler  > $after
   
-  diff -bBwy --suppress-common-lines $before $after | grep -v "GPROFILER" | grep "prj_err\|prj_tmo" > $dif
+  diff -bBwy --suppress-common-lines $before $after | grep -v "GPROFILER" | grep "err\|tmo\|footer" > $dif
   nbLine=`cat $dif | wc -l`
   if [ "$nbLine" == "0" ];
   then
@@ -631,15 +685,14 @@ loop=64
 process=8
 NB_SID=8
 NBFILES_REBUILD="2000"
-NBFILES_2REBUILD=$NBFILES_REBUILD
 
 # List of test
 TST_RW="wr_rd_total wr_rd_partial wr_rd_random wr_rd_total_close wr_rd_partial_close wr_rd_random_close wr_close_rd_total wr_close_rd_partial wr_close_rd_random wr_close_rd_total_close wr_close_rd_partial_close wr_close_rd_random_close"
 TST_STORAGE_FAILED="read_parallel $TST_RW"
 TST_STORAGE_RESET="read_parallel $TST_RW"
 TST_STORCLI_RESET="read_parallel $TST_RW"
-TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 gruyere   gruyere_reread  rebuild_one rebuild_all "
-TST_REBUILD="gruyere gruyere_reread rebuild_one rebuild_all"
+TST_BASIC="readdir xattr link rename chmod truncate lock_posix_passing lock_posix_blocking read_parallel rw2 gruyere rebuild_one rebuild_all "
+TST_REBUILD="gruyere rebuild_one rebuild_all"
 
 # lock_bsd_passing lock_bsd_blocking
 
@@ -705,7 +758,7 @@ do
 
   if [ $result != 0 ];
   then
-    break
+    repeated=0
   fi 
    
 done

@@ -936,7 +936,7 @@ retry:
      /*
      ** set the length of the bins part.
      */
-     int bins_len = ((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
+     int bins_len = ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
      request->len = bins_len; /**< bins length MUST be in bytes !!! */
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),write_prj,bins_len);
@@ -1130,7 +1130,7 @@ retry:
      /*
      ** set the length of the bins part.
      */
-     int bins_len = ((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
+     int bins_len = ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
      request->len = bins_len; /**< bins length MUST be in bytes !!! */
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      /*

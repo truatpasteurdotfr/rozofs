@@ -188,7 +188,7 @@ fi
 DBG_PORT_BASE="50000" 
 
 # Scan Export VIP in config file
-exp_host=`cat ${LOCAL_CONF}/export.conf | grep "exportd_vip = " | awk -F'\"' '{print $2}'`
+exp_host="localhost"
 port=$DBG_PORT_BASE
 exp_port=$port
 
@@ -240,10 +240,14 @@ case "$1" in
   *)                        who=all;;
 esac    
    
+filename=""   
 cmd=""   
 while [ ! -z "$1" ];
 do
-  cmd=`echo "$cmd $1"`
+  case $1 in
+    -f) filename=$2; shift 1;;
+     *) cmd=`echo "$cmd $1"`;;
+  esac   
   shift 1
 done  
 case "$cmd" in
@@ -252,7 +256,12 @@ case "$cmd" in
 esac  
 
 delta=0
-ask  
+
+case "$filename" in
+  "") ask;;
+  *)  ask > $filename;;
+esac
+  
 if [ ! -z $period ];
 then
   while [ 1 ];

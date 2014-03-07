@@ -561,8 +561,6 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
         rpc->record_len = ntohl(*record_len_p);
         if (rpc->record_len & (~0x7fffffff)) rpc->last_record = 1;
         rpc->record_len  &= 0x7fffffff;
-        rpc->in_tot_len  += rpc->record_len;
-        payloadLen = rpc->record_len;       
         /*
         ** check if the message does not exceed the max buffer size
         */
@@ -615,6 +613,8 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
         /*
         ** set the payload length in the buffer
         */
+        rpc->in_tot_len  += rpc->record_len;
+        payloadLen = rpc->record_len;       
         
         ruc_buf_setPayloadLen(buf_recv_p,(uint32_t)(payloadLen + recv_p->headerSize));
         /*

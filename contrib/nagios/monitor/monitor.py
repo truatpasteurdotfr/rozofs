@@ -103,7 +103,36 @@ class display_array:
       print line  
           
     print separator    
+#_____________________________________________  
+def parse_period( period_string ):
 
+  if period_string == None:
+    return parse_period(DEFAULT_PERIOD)
+    
+  last=period_string[-1:]
+  if last == 'h': 
+    units=int(3600)  
+    first=period_string[:-1]    
+  if last == 'm':
+    units=int(60)
+    first=period_string[:-1]        
+  elif last == 's':
+    units=int(1) 
+    first=period_string[:-1]        
+  else:
+    units=int(60)
+    first=period_string    
+           
+  try:
+    value=int(first)
+    return int(value * units)
+  except:
+    pass
+
+  return parse_period(DEFAULT_PERIOD)               
+    
+  
+ 
 #_____________________________________________  
 def find_between( s, first, last ):
     try:
@@ -213,7 +242,7 @@ def do_one_test( ):
         errors=errors+1
 
   if options.nodisplay == False:   
-    print "\n%s : %s"%(name,time.strftime('%Y/%m/%d %H:%M'))      	    	 
+    print "\n%s : %s"%(name,time.strftime('%Y/%m/%d %H:%M:%S'))      	    	 
     dis.display()  
   
   if errors != int(0):
@@ -263,7 +292,7 @@ DEFAULT_CFG_NAME="monitor.cfg"
 DEFAULT_PLUGIN_PATH="../pluggins"   
 DEFAULT_SMTP_SERVER="localhost"   
 DEFAULT_NAME=socket.gethostname() 
-DEFAULT_PERIOD=1 
+DEFAULT_PERIOD="1m"
 
 rozofs_status="OK"
 
@@ -279,10 +308,8 @@ parser.add_option("-x","--nodisplay", action="store_true",default=False, dest="n
   
 (options, args) = parser.parse_args()
 
-if options.period == None:
-  period=DEFAULT_PERIOD
-else:
-  period=int(options.period)
+
+period=parse_period(options.period)
 
   
 if options.name == None:
@@ -329,7 +356,7 @@ while True:
   do_one_test()  
   if period == 0:
     exit(0)	
-  time.sleep(period*60)	
+  time.sleep(period)	
       
   
 

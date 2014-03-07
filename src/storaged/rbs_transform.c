@@ -61,16 +61,18 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
                 (prj_ctx_p[prj_ctx_idx].bins
                 + ((rozofs_get_max_psize(layout)+
-                (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t)))
+                ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                 * block_idx));
+        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
 
+        // Header and footer have different time stamp.
+	// Let's consider this block invalid
+        if (rozofs_bins_hdr_p->s.timestamp != rozofs_bins_foot_p->timestamp) {
+	    rozofs_bins_hdr_p->s.timestamp = 0;
+	}
 
         // Case of ts = 0
         if (rozofs_bins_hdr_p->s.timestamp == 0) {
-            // Need to check that all the header is filled with 0
-            // to take it into account
-           if (rozofs_bins_hdr_p->s.effective_length == 0) {
-
                 // Update count
                 ts_empty_count += 1;
 
@@ -83,7 +85,6 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
                     // No enough projections
                     continue;
                 }
-            }
         }
 
         // First valid projection
@@ -169,8 +170,15 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
                 (prj_ctx_p[prj_ctx_idx].bins
                 + ((rozofs_get_max_psize(layout)+
-                (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t)))
+                ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                 * block_idx));
+        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
+
+        // Header and footer have different time stamp.
+	// Let's consider this block invalid
+        if (rozofs_bins_hdr_p->s.timestamp != rozofs_bins_foot_p->timestamp) {
+	    rozofs_bins_hdr_p->s.timestamp = 0;
+	}
 
         // First valid projection
         if (rbs_timestamp_next_free_idx == 0) {
@@ -297,7 +305,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
             rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p =
                     (rozofs_stor_bins_hdr_t*) (prj_ctx_p[prj_ctx_idx].bins
                     + ((rozofs_get_max_psize(layout)+
-                    (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t)))
+                    ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                     * block_idx));
 
             // Extract the projection_id from the header and fill the table
@@ -350,11 +358,13 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
         // Indicates the memory area where the transformed data must be stored
         projections[projection_id].bins = prj_ctx_p[projection_id].bins +
                 ((rozofs_get_max_psize(layout)+
-                (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t)))*
+                ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))*
                 (first_block_idx + i));
 
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
                 projections[projection_id].bins;
+        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
+                ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
 
         // Fill the header of the projection
         rozofs_bins_hdr_p->s.projection_id = projection_id;
@@ -362,6 +372,9 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
                 block_ctx_p[first_block_idx + i].timestamp;
         rozofs_bins_hdr_p->s.version = 0;
         rozofs_bins_hdr_p->s.filler = 0;
+
+        rozofs_bins_foot_p->timestamp =
+                block_ctx_p[first_block_idx + i].timestamp;
 
         // Set the effective size for this block
         rozofs_bins_hdr_p->s.effective_length =

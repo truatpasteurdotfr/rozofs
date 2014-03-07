@@ -300,8 +300,6 @@ success:
     return path;            
 }
 
-
-
 /*
  ** Build the path for the projection file
   @param fid: unique file identifier
@@ -552,9 +550,9 @@ open:
 
     // Compute the offset and length to write
     
-    bins_file_offset = bid * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
+    bins_file_offset = bid * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
     length_to_write = nb_proj * (rozofs_max_psize * sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t));
+            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
 
     // Write nb_proj * (projection + header)
     nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
@@ -655,9 +653,9 @@ open:
     // Compute the offset and length to read
     rozofs_max_psize = rozofs_get_max_psize(layout);
     bins_file_offset =
-            bid * ((off_t) (rozofs_max_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t));
+            bid * ((off_t) (rozofs_max_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
     length_to_read = nb_proj * (rozofs_max_psize * sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t));
+            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
 
     
     // Read nb_proj * (projection + header)
@@ -672,7 +670,7 @@ open:
 
     // Check the length read
     if ((nb_read % (rozofs_max_psize * sizeof (bin_t) +
-            sizeof (rozofs_stor_bins_hdr_t))) != 0) {
+            sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t))) != 0) {
         char fid_str[37];
         uuid_unparse(fid, fid_str);
         severe("storage_read failed (FID: %s): read inconsistent length",
@@ -712,8 +710,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     bid_t bid_truncate;
     size_t nb_write = 0;
     int open_flags;
-    
-    
+        
     /*
     ** If a device is given, the file is known so do not create it
     */
@@ -765,7 +762,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     bid_truncate = bid;
     if (last_seg!= 0) bid_truncate+=1;
     bins_file_offset =  
-       (bid_truncate) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
+       (bid_truncate) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
     status = ftruncate(fd, bins_file_offset);
     if (status < 0) goto out;
     
@@ -780,7 +777,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     if (last_seg!= 0) {
 	
       bins_file_offset =  
-         (bid) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t));
+         (bid) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
 
       /*
       ** Rewrite the whole given data block 
@@ -788,7 +785,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
       if (length_to_write!= 0)
       {
 
-        length_to_write = rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t);
+        length_to_write = rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);
 	nb_write = pwrite(fd, data, length_to_write, bins_file_offset);
 	if (nb_write != length_to_write) {
             status = -1;
@@ -800,6 +797,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
       }
       else {
       
+        // Write the block header
         rozofs_stor_bins_hdr_t bins_hdr;  
 	bins_hdr.s.timestamp        = last_timestamp;
 	bins_hdr.s.effective_length = last_seg;
@@ -811,7 +809,16 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
             severe("pwrite failed on last segment header : %s", strerror(errno));
 	    storage_error_on_device(st,*device_id);  				    
             goto out;
-        }     
+        }   
+        
+        // Write the block footer
+	bins_file_offset += (sizeof(rozofs_stor_bins_hdr_t) + rozofs_max_psize * sizeof (bin_t));
+	nb_write = pwrite(fd, &last_timestamp, sizeof(last_timestamp), bins_file_offset);
+	if (nb_write != sizeof(last_timestamp)) {
+            severe("pwrite failed on last segment footer : %s", strerror(errno));
+	    storage_error_on_device(st,*device_id);  				    
+            goto out;
+        }   	  
       }
     }  
     status = 0;

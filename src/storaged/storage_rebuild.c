@@ -71,6 +71,8 @@ static char *storaged_hostname = NULL;
 
 static uint16_t storaged_nrstorages = 0;
 
+int   cid=-1;
+int   sid=-1;
 
 uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
@@ -292,6 +294,10 @@ static inline void rbs_process_initialize(int parallel) {
     list_for_each_forward(p, &storaged_config.storages) {
 
         storage_config_t *sc = list_entry(p, storage_config_t, list);
+	
+	if ((cid!=-1)&&(sid!=-1)) {
+	  if ((cid != sc->cid) || (sid != sc->sid)) continue; 
+	}
 
         // Copy the configuration for the storage to rebuild
         strncpy(rbs_stor_configs[i].export_hostname, rbs_export_hostname,
@@ -371,6 +377,7 @@ void usage() {
             STORAGED_DEFAULT_CONFIG);
     printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
     printf("   -d, --device=device-number\trebuild only this device number. All devices are rebuilt when omitted.\n");
+    printf("   -s, --sid=<cid/sid>\tCluster and storage identifier to rebuild.\n");
     printf("   -p, --parallel\tNumber of rebuild processes in parallel per device to rebuild (default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_DEVICE);   
 
 }
@@ -385,6 +392,7 @@ int main(int argc, char *argv[]) {
         { "rebuild", required_argument, 0, 'r'},
         { "device", required_argument, 0, 'd'},
         { "host", required_argument, 0, 'H'},
+        { "sid", required_argument, 0, 's'},
         { "parallel", required_argument, 0, 'p'},	
         { 0, 0, 0, 0}
     };
@@ -396,7 +404,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:d:r:H:f:p:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:d:r:H:f:p:s:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -423,6 +431,18 @@ int main(int argc, char *argv[]) {
                 }
                 rbs_start_process = 1;
                 break;
+                break;
+            case 's':
+                {
+		  int ret;
+		  ret = sscanf(optarg,"%d/%d",&cid,&sid);
+		  if (ret != 2) {
+		    fprintf(stderr, "storage_rebuild failed: %s %s\n", optarg,
+                            strerror(errno));
+                    exit(EXIT_FAILURE);
+                  }
+                }
+                break;		
             case 'd':
 	        {
 		  int ret;
