@@ -208,6 +208,10 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsrotate=%u", rotate, 0),
     MYFS_OPT("posixlock", posix_file_lock, 1),
     MYFS_OPT("bsdlock", bsd_file_lock, 1),
+    MYFS_OPT("grpquota", quota, 2),
+    MYFS_OPT("noquota", quota, 0),
+    MYFS_OPT("quota", quota, 3),
+    MYFS_OPT("usrquota", quota, 1),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
