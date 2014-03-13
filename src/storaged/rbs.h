@@ -80,6 +80,9 @@ typedef struct rb_cluster {
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
  * @param root: the absolute path where rebuild bins file(s) will be store.
+ * @param dev: the atotal number of device.
+ * @param dev_mapper: the number of device holding header (mapper) files.
+ * @param dev_red: the number of replica of header files.
  * @param stor_idx: storage index used for display statistics.
  * @param device: device to rebuild or -1 when all devices.
  * @param fid_input: parameter of the file to rebuild.
@@ -87,7 +90,8 @@ typedef struct rb_cluster {
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
-        const char *root, uint8_t stor_idx,int device, int parallel,
+        const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
+	uint8_t stor_idx,int device, int parallel,
 	char * cfg_file);
 
 /** Check if possible to rebuild the storage with CID=cid, SID=sid,
@@ -97,11 +101,14 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
  * @param root: the absolute path where rebuild bins file(s) will be store.
+ * @param dev: the atotal number of device.
+ * @param dev_mapper: the number of device holding header (mapper) files.
+ * @param dev_red: the number of replica of header files.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
-        const char *root);
+        const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red);
 
 /** Get name of temporary rebuild directory
  *

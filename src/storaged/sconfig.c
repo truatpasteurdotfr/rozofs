@@ -51,12 +51,15 @@
 #define SDEV_RED        "device-redundancy"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
-        const char *root) {
+        const char *root, int dev, int dev_mapper, int dev_red) {
     DEBUG_FUNCTION;
 
     s->sid = sid;
     s->cid = cid;
     strncpy(s->root, root, PATH_MAX);
+    s->device.total      = dev;
+    s->device.mapper     = dev_mapper; 
+    s->device.redundancy = dev_red;
     list_init(&s->list);
     return 0;
 }
@@ -108,28 +111,6 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         severe("can't read %s : %s.", fname, config_error_text(&cfg));
         goto out;
     }
-
-    /*
-    ** Device configuration
-    */
-    if (!config_lookup_int(&cfg, SDEV_TOTAL, &devices)) {
-        errno = ENOKEY;
-        severe("can't fetch total device number.");
-        goto out;
-    }
-    config->device.total = devices;
-    
-    if (!config_lookup_int(&cfg, SDEV_MAPPER, &mapper)) {
-      mapper = devices;
-    }
-    config->device.mapper = mapper;
-    
-    if (!config_lookup_int(&cfg, SDEV_RED, &redundancy)) {
-      redundancy = 2;
-    }
-    config->device.redundancy = redundancy;
-
-
 
         
     if (!config_lookup_int(&cfg, STHREADS, &threads)) {
@@ -258,9 +239,27 @@ int sconfig_read(sconfig_t *config, const char *fname) {
             goto out;
         }
 
+	/*
+	** Device configuration
+	*/
+	if (!config_setting_lookup_int(ms, SDEV_TOTAL, &devices)) {
+            errno = ENOKEY;
+            severe("can't fetch total device number.");
+            goto out;
+	}
+
+	if (!config_setting_lookup_int(ms, SDEV_MAPPER, &mapper)) {
+	  mapper = devices;
+	}
+
+	if (!config_setting_lookup_int(ms, SDEV_RED, &redundancy)) {
+	  redundancy = 2;
+	}
+
+
         new = xmalloc(sizeof (storage_config_t));
         if (storage_config_initialize(new, (cid_t) cid, (sid_t) sid,
-                root) != 0) {
+                root, devices, mapper, redundancy) != 0) {
             if (new)
                 free(new);
             goto out;
@@ -319,7 +318,21 @@ int sconfig_validate(sconfig_t *config) {
             errno = EINVAL;
             goto out;
         }
+	
+	if (e1->device.total < e1->device.mapper) {
+            severe("device total is %d and mapper is %d", 
+	           e1->device.total, e1->device.mapper);
+            errno = EINVAL;
+            goto out;
+	}
 
+	if (e1->device.redundancy > e1->device.mapper) {
+            severe("device redundancy is %d and mapper is %d", 
+	           e1->device.redundancy, e1->device.mapper);
+            errno = EINVAL;
+            goto out;
+	}
+	
         list_for_each_forward(q, &config->storages) {
             storage_config_t *e2 = list_entry(q, storage_config_t, list);
             if (e1 == e2)

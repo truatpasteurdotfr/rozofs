@@ -25,26 +25,26 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/list.h>
 #include <rozofs/rpc/mproto.h>
-
-typedef struct storage_config {
-    sid_t sid;
-    cid_t cid;
-    char root[PATH_MAX];
-    list_t list;
-} storage_config_t;
-
 typedef struct _sconfig_devices_t {
     int                     total; 
     int                     mapper;
     int                     redundancy;
 } sconfig_devices_t;
-    
+ 
+typedef struct storage_config {
+    sid_t sid;
+    cid_t cid;
+    char root[PATH_MAX];
+    sconfig_devices_t       device;    
+    list_t list;
+} storage_config_t;
+
+   
 typedef struct sconfig {
     int                     nb_disk_threads; 
     int                     nb_cores;
     int                     io_addr_nb; 
     struct mp_io_address_t  io_addr[STORAGE_NODE_PORTS_MAX];
-    sconfig_devices_t       device;
     list_t storages;
 } sconfig_t;
 

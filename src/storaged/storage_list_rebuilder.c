@@ -94,9 +94,9 @@ static int storaged_initialize() {
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
                 sc->cid, sc->sid, sc->root,
-		storaged_config.device.total,
-		storaged_config.device.mapper,
-		storaged_config.device.redundancy) != 0) {
+		sc->device.total,
+		sc->device.mapper,
+		sc->device.redundancy) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;

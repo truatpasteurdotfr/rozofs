@@ -78,11 +78,11 @@ int send_reload_to_storio() {
 
 
 void usage() {
-
-    printf("Send reload signal to storio - %s\n", VERSION);
-    printf("Usage: storioçreload [OPTIONS]\n\n");
+    printf("Send reload signal to storio - RozoFS %s\n", VERSION);
+    printf("Usage: storio_reload [OPTIONS]\n\n");
     printf("   -h, --help\t\t\tprint this message.\n");
-    printf("   -H, --host=storaged-host\tspecify the hostname to use for build pid name (default: none).\n");   
+    printf("   -H, --host=storaged-host\tspecify the hostname of the storio to reload\n"); 
+    printf("                           \t(default: none).\n");   
 }
 
 int main(int argc, char *argv[]) {

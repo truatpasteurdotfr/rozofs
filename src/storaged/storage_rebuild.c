@@ -111,9 +111,9 @@ static int storaged_initialize() {
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
                 sc->cid, sc->sid, sc->root,
-		storaged_config.device.total,
-		storaged_config.device.mapper,
-		storaged_config.device.redundancy) != 0) {
+		sc->device.total,
+		sc->device.mapper,
+		sc->device.redundancy) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;
@@ -141,7 +141,8 @@ static int rbs_check() {
 
         // Sanity check for rebuild this storage
         if (rbs_sanity_check(rbs_export_hostname, sc->cid, sc->sid,
-                sc->root) != 0)
+                sc->root,
+		sc->device.total,sc->device.mapper,sc->device.redundancy) != 0)
             goto out;
     }
     status = 0;
@@ -149,11 +150,18 @@ out:
     return status;
 }
 
+typedef struct _rbs_devices_t {
+    uint32_t                     total; 
+    uint32_t                     mapper;
+    uint32_t                     redundancy;
+} rbs_devices_t;
+
 /** Structure used to store configuration for each storage to rebuild */
 typedef struct rbs_stor_config {
     char export_hostname[ROZOFS_HOSTNAME_MAX]; ///< export hostname or IP.
     cid_t cid; //< unique id of cluster that owns this storage.
     sid_t sid; ///< unique id of this storage for one cluster.
+    rbs_devices_t  device;    
     uint8_t stor_idx; ///< storage index used for display statistics.
     char root[PATH_MAX]; ///< absolute path.
 } rbs_stor_config_t;
@@ -220,6 +228,9 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
         // Try to rebuild the storage until it's over
         while (rbs_rebuild_storage(stor_confs[i].export_hostname,
                 stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
+		stor_confs[i].device.total,
+		stor_confs[i].device.mapper, 
+		stor_confs[i].device.redundancy, 
                 stor_confs[i].stor_idx,
 		rbs_device_number,
 		parallel,
@@ -305,6 +316,9 @@ static inline void rbs_process_initialize(int parallel) {
         rbs_stor_configs[i].cid = sc->cid;
         rbs_stor_configs[i].sid = sc->sid;
         rbs_stor_configs[i].stor_idx = i;
+	rbs_stor_configs[i].device.total      = sc->device.total;
+	rbs_stor_configs[i].device.mapper     = sc->device.mapper;
+	rbs_stor_configs[i].device.redundancy = sc->device.redundancy;
         strncpy(rbs_stor_configs[i].root, sc->root, PATH_MAX);
 
         i++;
@@ -366,25 +380,27 @@ static void on_stop() {
     closelog();
 }
 
-#define DEFAULT_PARALLEL_REBUILD_PER_DEVICE 3
+#define DEFAULT_PARALLEL_REBUILD_PER_SID 4
 void usage() {
 
-    printf("RozoFS storage daemon - %s\n", VERSION);
-    printf("Usage: storaged [OPTIONS]\n\n");
-    printf("   -h, --help\t\t\tprint this message.\n");
-    printf("   -H, --host=storaged-host\tspecify the hostname to use for build pid name (default: none).\n");
-    printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
-            STORAGED_DEFAULT_CONFIG);
-    printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
-    printf("   -d, --device=device-number\trebuild only this device number. All devices are rebuilt when omitted.\n");
-    printf("   -s, --sid=<cid/sid>\tCluster and storage identifier to rebuild.\n");
-    printf("   -p, --parallel\tNumber of rebuild processes in parallel per device to rebuild (default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_DEVICE);   
-
+    printf("Storage node rebuild - RozoFS %s\n", VERSION);
+    printf("Usage: storage_rebuild [OPTIONS]\n\n");
+    printf("   -h, --help                \tPrint this message.\n");
+    printf("   -H, --host=storaged-host  \tSpecify the hostname to rebuild (optional)\n");
+    printf("   -c, --config=config-file  \tSpecify config file to use\n");
+    printf("                             \t(default: %s).\n",STORAGED_DEFAULT_CONFIG);
+    printf("   -r, --rebuild=exportd-host\tHost where the export stands.\n");
+    printf("   -d, --device=device-number\tDevice number to rebuild.\n");
+    printf("                             \tAll devices are rebuilt when omitted.\n");
+    printf("   -s, --sid=<cid/sid>       \tCluster and storage identifier to rebuild.\n");
+    printf("                             \tAll <cid/sid> are rebuilt when omitted.\n");
+    printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
+    printf("                             \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
 }
 
 int main(int argc, char *argv[]) {
     int c;
-    int  parallel = DEFAULT_PARALLEL_REBUILD_PER_DEVICE;
+    int  parallel = DEFAULT_PARALLEL_REBUILD_PER_SID;
     
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
@@ -518,14 +534,6 @@ int main(int argc, char *argv[]) {
         goto error;
     }
     
-    
-    // Rebuilding all devices multiply by the number of device 
-    if (rbs_device_number == -1) {
-      parallel *= storaged_config.device.total;
-    }  
-    // Must not exceed a maximum
-    if (parallel > RBS_MAX_PARALLEL) parallel = RBS_MAX_PARALLEL;
-
     // Start rebuild storage   
     rbs_process_initialize(parallel);
     on_stop();

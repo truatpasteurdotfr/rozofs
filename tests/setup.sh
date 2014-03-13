@@ -116,10 +116,6 @@ gen_storage_conf ()
 
             printf "threads = $NB_DISK_THREADS;\n" >> $FILE
             printf "nbCores = $NB_CORES;\n" >> $FILE
-	    
-	    printf "device-total = $NB_DEVICE_PER_SID;\n" >> $FILE
-	    printf "device-mapper = $NB_DEVICE_MAPPER_PER_SID;\n" >> $FILE
-	    printf "device-redundancy = $NB_DEVICE_MAPPER_RED_PER_SID;\n" >> $FILE
 
             printf "listen = ( \n" >> $FILE
             printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
@@ -128,13 +124,13 @@ gen_storage_conf ()
             #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
 
             for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-                printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000;}"
+                printf " ,\n  {addr = \"192.168.$((idx+1)).$sid\"; port = 41000; }"
             done >>  $FILE
 
             printf "\n);\n" >>  $FILE
 
             echo 'storages = (' >> $FILE
-            echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\";}" >> $FILE
+            echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$sid\"; device-total = $NB_DEVICE_PER_SID; device-mapper = $NB_DEVICE_MAPPER_PER_SID; device-redundancy = $NB_DEVICE_MAPPER_RED_PER_SID;}" >> $FILE
             echo ');' >> $FILE
         done; 
     done;

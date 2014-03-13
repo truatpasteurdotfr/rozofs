@@ -817,15 +817,16 @@ extern sconfig_t storaged_config;
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_initialize(cid_t cid, sid_t sid, const char *storage_root) {
+int rbs_initialize(cid_t cid, sid_t sid, const char *storage_root, 
+                   uint32_t dev, uint32_t dev_mapper, uint32_t dev_red) {
     int status = -1;
     DEBUG_FUNCTION;
 
     // Initialize the storage to rebuild 
     if (storage_initialize(storage_to_rebuild, cid, sid, storage_root,
-		storaged_config.device.total,
-		storaged_config.device.mapper,
-		storaged_config.device.redundancy) != 0)
+		dev,
+		dev_mapper,
+		dev_red) != 0)
         goto out;
 
     // Initialize the list of cluster(s)
@@ -1400,14 +1401,14 @@ static int rbs_do_list_rebuild() {
 }
 
 int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
-        const char *root) {
+        const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red) {
 
     int status = -1;
 
     DEBUG_FUNCTION;
 
     // Try to initialize the storage to rebuild
-    if (rbs_initialize(cid, sid, root) != 0) {
+    if (rbs_initialize(cid, sid, root, dev, dev_mapper, dev_red) != 0) {
         // Probably a path problem
         fprintf(stderr, "Can't initialize rebuild storage (cid:%u; sid:%u;"
                 " path:%s): %s\n", cid, sid, root, strerror(errno));
@@ -1440,7 +1441,8 @@ out:
 }
 
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
-        const char *root, uint8_t stor_idx, int device,
+        const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
+	uint8_t stor_idx, int device,
 	int parallel, char * config_file) {
     int status = -1;
     int ret;
@@ -1450,7 +1452,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     rb_hash_table_initialize();
 
     // Initialize the storage to rebuild
-    if (rbs_initialize(cid, sid, root) != 0) {
+    if (rbs_initialize(cid, sid, root, dev, dev_mapper, dev_red) != 0) {
         severe("can't init. storage to rebuild (cid:%u;sid:%u;path:%s)",
                 cid, sid, root);
         goto out;
