@@ -45,9 +45,7 @@
 
 extern sconfig_t storaged_config;
 
-uint32_t storio_device_mapping_cache_count=0;  
-uint32_t   storio_device_mapping_consistency;
-
+storio_device_mapping_stat_t storio_device_mapping_stat = { 0 };
 
 /*
 **______________________________________________________________________________
@@ -85,11 +83,18 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
   if (strcmp(argv[1],"fid")==0) {
   
     if (argv[2] == NULL) {
-      pChar += sprintf(pChar,"Entries/max : %d/%d\n",storio_device_mapping_cache_count,STORIO_DEVICE_MAPPING_MAX_ENTRIES);
+      pChar += sprintf(pChar,"Entries/max : %llu/%d\n",(unsigned long long)storio_device_mapping_stat.count,
+                      STORIO_DEVICE_MAPPING_MAX_ENTRIES);
       pChar += sprintf(pChar,"Entry size  : %d\n",(int)sizeof(storio_device_mapping_t));
       pChar += sprintf(pChar,"Size/max    : %d/%d\n",
-                              (int)sizeof(storio_device_mapping_t)*storio_device_mapping_cache_count,
-			      (int)sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES);   
+                              (int)sizeof(storio_device_mapping_t)*storio_device_mapping_stat.count,
+			      (int)sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES); 
+      pChar += sprintf(pChar,"consistency : %llu\n", (unsigned long long)storio_device_mapping_stat.consistency);     
+      pChar += sprintf(pChar,"miss        : %llu\n", (unsigned long long)storio_device_mapping_stat.miss);   
+      pChar += sprintf(pChar,"match       : %llu\n", (unsigned long long)storio_device_mapping_stat.match);   
+      pChar += sprintf(pChar,"insert      : %llu\n", (unsigned long long)storio_device_mapping_stat.insert);   
+      pChar += sprintf(pChar,"release     : %llu\n", (unsigned long long)storio_device_mapping_stat.release);   
+      pChar += sprintf(pChar,"inconsistent: %llu\n", (unsigned long long)storio_device_mapping_stat.inconsistent);   
       uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
       return;       
     }     
@@ -100,18 +105,18 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
       pChar += sprintf(pChar,"%s no match found !!!\n",argv[1]);
     } 
     else {    
-      if (com_cache_entry_p->consistency == storio_device_mapping_consistency) {
+      if (com_cache_entry_p->consistency == storio_device_mapping_stat.consistency) {
         pChar += sprintf(pChar,"%s is stored on device %d (consistency %d)\n",
 	          argv[2],
 		  com_cache_entry_p->device_number,
-		  storio_device_mapping_consistency);
+		  storio_device_mapping_stat.consistency);
       }
       else {
         pChar += sprintf(pChar,"%s was stored on device %d (inconsistent %d vs %d)\n",
 	         argv[2],
 	         com_cache_entry_p->device_number,
 	         com_cache_entry_p->consistency, 
-		 storio_device_mapping_consistency);        
+		 storio_device_mapping_stat.consistency);        
       }
     }
     uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
@@ -122,7 +127,7 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
     storage_t   * st;
     int           faulty_devices[STORAGE_MAX_DEVICE_NB];
 
-    pChar += sprintf(pChar,"consistency index = %d\n",storio_device_mapping_consistency);
+    pChar += sprintf(pChar,"consistency index = %d\n",storio_device_mapping_stat.consistency);
  
     st = NULL;
     while ((st = storaged_next(st)) != NULL) {
@@ -296,7 +301,8 @@ void storio_device_mapping_release_entry(void *entry_p)
   com_cache_entry_t  *p = entry_p;
   com_cache_bucket_remove_entry(storio_device_mapping_p, p->usr_key_p);
   free(p);
-  storio_device_mapping_cache_count--;
+  storio_device_mapping_stat.release++;
+  storio_device_mapping_stat.count--;
 }
 void storio_device_mapping_delete_cbk(void * entry) 
 {
@@ -396,7 +402,7 @@ uint32_t storio_device_mapping_init()
     return 0;
   }
   
-  storio_device_mapping_consistency = 1;
+  storio_device_mapping_stat.consistency = 1;
   
   
   callbacks.usr_exact_match_fct = storio_device_mapping_exact_match;

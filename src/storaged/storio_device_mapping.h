@@ -58,8 +58,6 @@ extern "C" {
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
 
 
-extern uint32_t storio_device_mapping_cache_count;  
-
 
 typedef struct _storio_device_mapping_t
 {
@@ -69,7 +67,19 @@ typedef struct _storio_device_mapping_t
   uint32_t            consistency;     /**< Consistancy index */
 } storio_device_mapping_t;
 
-extern uint32_t   storio_device_mapping_consistency;
+typedef struct _storio_device_mapping_stat_t
+{
+  uint64_t            consistency;
+  uint64_t            count;   
+  uint64_t            miss;
+  uint64_t            match;
+  uint64_t            insert;
+  uint64_t            release;
+  uint64_t            inconsistent;   
+} storio_device_mapping_stat_t;
+
+extern storio_device_mapping_stat_t storio_device_mapping_stat;
+
 
 /*
 **______________________________________________________________________________
@@ -79,7 +89,7 @@ extern uint32_t   storio_device_mapping_consistency;
   
 */
 static inline void storage_device_mapping_increment_consistency() {
-  storio_device_mapping_consistency++;
+  storio_device_mapping_stat.consistency++;
 }
 /*
 **______________________________________________________________________________
@@ -128,7 +138,7 @@ static inline storio_device_mapping_t *storio_device_mapping_alloc_entry(fid_t f
   
   memcpy(&p->fid,fid,sizeof(fid_t));
   p->device_number = device_nb;
-  p->consistency   = storio_device_mapping_consistency;
+  p->consistency   = storio_device_mapping_stat.consistency;
 
   p->cache.usr_key_p   = p->fid;
   list_init(&p->cache.global_lru_link);
@@ -167,13 +177,15 @@ static inline storio_device_mapping_t * storio_device_mapping_insert(fid_t fid, 
   */
   p = storio_device_mapping_alloc_entry(fid,device_id);
   if (p == NULL) return NULL;
-  
+
+  storio_device_mapping_stat.count++;
+ 
   if (com_cache_bucket_insert_entry(storio_device_mapping_p, &p->cache) < 0) {
      severe("error device mapping insertion"); 
      storio_device_mapping_release_entry(p->cache.usr_entry_p);
      return NULL;
   }
-  storio_device_mapping_cache_count++;
+  storio_device_mapping_stat.insert++;
   return p;
 }
 /*
@@ -194,17 +206,22 @@ static inline storio_device_mapping_t * storio_device_mapping_search(void * fid)
   ** Lookup for an entry
   */
   p = com_cache_bucket_search_entry(storio_device_mapping_p,fid);
-  if (p == NULL) return NULL;
-  
+  if (p == NULL) {
+    storio_device_mapping_stat.miss++;   
+    return NULL;
+  }
   /*
   ** Check the entry is conistent
   */
-  if (p->consistency == storio_device_mapping_consistency) {
+  if (p->consistency == storio_device_mapping_stat.consistency) {
+    storio_device_mapping_stat.match++;   
     return p;
   }
   /*
   ** The entry is inconsistent and must be removed 
   */
+  storio_device_mapping_stat.inconsistent++; 
+  storio_device_mapping_stat.miss++;   
   storio_device_mapping_release_entry(p);  
   return NULL;
 }
