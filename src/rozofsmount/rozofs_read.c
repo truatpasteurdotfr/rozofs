@@ -743,9 +743,18 @@ void rozofs_ll_read_cbk(void *this,void *param)
        goto error;
     }   
     if (ret.status == STORCLI_FAILURE) {
-        errno = ret.storcli_read_ret_no_data_t_u.error;
+    
+        /*
+	** Case of the file that has not been written to disk 
+	*/
+        if (ret.storcli_read_ret_no_data_t_u.error == ENOENT) {
+	  errno = 0;
+	}  
+	else {
+          errno = ret.storcli_read_ret_no_data_t_u.error;
+	}  
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
-        goto error;
+        goto error;	
     }
     /*
     ** no error, so get the length of the data part: need to consider the case
