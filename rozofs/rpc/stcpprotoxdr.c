@@ -110,6 +110,15 @@ xdr_stcpp_profiler_t (XDR *xdrs, stcpp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->write_prj_err, 2,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->read_sid_miss, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->write_sid_miss, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->truncate_sid_miss, 2,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->io_process_ports, 32,
 		sizeof (uint16_t), (xdrproc_t) xdr_uint16_t))
 		 return FALSE;

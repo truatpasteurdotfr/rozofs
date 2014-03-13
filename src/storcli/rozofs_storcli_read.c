@@ -600,6 +600,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
     ** we must have  rozofs_safe storages in the distribution vector !!
     */
     error = EINVAL;
+    STORCLI_ERR_PROF(read_sid_miss);
     goto fatal;  
   }  
   /*
@@ -618,6 +619,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
       ** Out of storage !!-> too many storage down
       */
       error = EIO;
+      STORCLI_ERR_PROF(read_sid_miss);      
       goto fatal;
     }  
   }

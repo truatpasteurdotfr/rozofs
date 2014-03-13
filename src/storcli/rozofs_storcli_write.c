@@ -894,6 +894,7 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
        ** there is no enough valid storage !!
        */
        error = EIO;
+       STORCLI_ERR_PROF(write_sid_miss);
        goto fail;
     }
   }  

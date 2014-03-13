@@ -690,6 +690,7 @@ void rozofs_storcli_truncate_req_processing_exec(rozofs_storcli_ctx_t *working_c
        /*
        ** there is no enough valid storage !!
        */
+       STORCLI_ERR_PROF(truncate_sid_miss);       
        error = EIO;
        goto fail;
     }
