@@ -50,6 +50,8 @@
 
 /** Default mode to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_MODE S_IFREG | S_IRUSR | S_IWUSR
+#define ROZOFS_ST_BINS_FILE_MODE_RW S_IFREG | S_IRUSR | S_IWUSR
+#define ROZOFS_ST_BINS_FILE_MODE_RO S_IFREG | S_IRUSR
 
 /** Default mode to use for create subdirectories */
 #define ROZOFS_ST_DIR_MODE S_IRUSR | S_IWUSR | S_IXUSR
@@ -129,7 +131,8 @@ typedef struct _rozofs_rebuild_header_file_t {
 typedef struct _rozofs_rebuild_entry_file_t {
     fid_t fid; ///< unique file identifier associated with the file
     uint8_t layout; ///< layout used for this file.
-    uint8_t todo;  
+    uint8_t todo:1;  
+    uint8_t unlink:1;  
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes
 } rozofs_rebuild_entry_file_t; 
 
@@ -323,12 +326,13 @@ void storage_release(storage_t * st);
  * @param version: version of rozofs used by the client. (not used yet)
  * @param *file_size: size of file after the write operation.
  * @param *bins: bins to store.
+ * @param *is_fid_faulty: returns whether a fault is localized in the file
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
-        uint64_t *file_size, const bin_t * bins);
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty);
 
 /** Read nb_proj projections
  *
@@ -343,12 +347,13 @@ int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_
  * @param *bins: bins to store.
  * @param *len_read: the length read.
  * @param *file_size: size of file after the read operation.
+ * @param *is_fid_faulty: returns whether a fault is localized in the file
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins, size_t * len_read, uint64_t *file_size);
+        bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty);
 
 /** Truncate a bins file (not used yet)
  *
@@ -362,13 +367,16 @@ int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_s
  * @param bid: first block idx (offset).
  * @param last_seg: length of the last segment if not modulo prj. size
  * @param last_timestamp: timestamp to associate with the last_seg
+ * @param len: the len to writen in the last segment
+ * @param data: the data of the last segment to write
+ * @param is_fid_faulty: returns whether a fault is localized in the file
  
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,
-         uint16_t last_seg,uint64_t last_timestamp,u_int len, char * data);
+         uint16_t last_seg,uint64_t last_timestamp,u_int len, char * data,int * is_fid_faulty);
 
 /** Remove a bins file
  *

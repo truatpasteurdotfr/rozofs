@@ -45,7 +45,7 @@
 
 extern sconfig_t storaged_config;
 
-storio_device_mapping_stat_t storio_device_mapping_stat = { 0 };
+storio_device_mapping_stat_t storio_device_mapping_stat = { };
 
 /*
 **______________________________________________________________________________
@@ -54,6 +54,64 @@ storio_device_mapping_stat_t storio_device_mapping_stat = { 0 };
 **______________________________________________________________________________
 */
 com_cache_main_t  *storio_device_mapping_p = NULL; /**< pointer to the fid cache  */
+
+#define NB_STORIO_FAULTY_FID_MAX 15
+
+typedef struct _storio_disk_thread_file_desc_t {
+  fid_t        fid;
+  uint8_t      layout;
+  uint8_t      cid;
+  uint8_t      sid;
+  uint8_t      dist[ROZOFS_SAFE_MAX];
+} storio_disk_thread_file_desc_t;
+
+typedef struct _storio_disk_thread_faulty_fid_t {
+   uint32_t                         nb_faulty_fid_in_table;
+   storio_disk_thread_file_desc_t   file[NB_STORIO_FAULTY_FID_MAX];
+} storio_disk_thread_faulty_fid_t;
+
+storio_disk_thread_faulty_fid_t storio_faulty_fid[ROZOFS_MAX_DISK_THREADS] = {  };
+
+/*
+**____________________________________________________
+*/
+/*
+* Register the FID that has encountered an error
+  
+   @param threadNb the thread number
+   @parma layout   the file layout
+   @param cid      the faulty cid 
+   @param sid      the faulty sid
+   @param dist     the distribution      
+   @param fid      the FID in fault   
+*/
+void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t cid, uint8_t sid, uint32_t * dist, fid_t fid) {
+  storio_disk_thread_faulty_fid_t * p;
+  int                               idx;
+  storio_disk_thread_file_desc_t  * pf;
+    
+  if (threadNb >= ROZOFS_MAX_DISK_THREADS) return;
+  
+  p = &storio_faulty_fid[threadNb];
+  
+  // No space left to register this FID
+  if (p->nb_faulty_fid_in_table >= NB_STORIO_FAULTY_FID_MAX) return;
+  
+  // Check this FID is not already registered in the table
+  for (idx = 0; idx < p->nb_faulty_fid_in_table; idx++) {
+    if (memcmp(p->file[idx].fid, fid, sizeof(fid_t))== 0) return;
+  } 
+  
+  // Register this FID
+  pf = &p->file[p->nb_faulty_fid_in_table];
+  pf->layout = layout;
+  pf->cid    = cid;  
+  pf->sid    = sid;
+  memcpy(pf->dist,dist,ROZOFS_SAFE_MAX);
+  memcpy(pf->fid, fid, sizeof(fid_t));
+  p->nb_faulty_fid_in_table++;
+  return;
+}
 
 /*
 **______________________________________________________________________________
@@ -71,7 +129,9 @@ static char * storage_device_mapping_debug_help(char * pChar) {
 void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   fid_t                          fid;
   char                         * pChar=uma_dbg_get_buffer();
-  storio_device_mapping_t      * com_cache_entry_p;  
+  storio_device_mapping_t      * com_cache_entry_p; 
+  int                            idx,threadNb; 
+  int                            first;
 
  
   if (argv[1] == NULL) {
@@ -86,9 +146,9 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
       pChar += sprintf(pChar,"Entries/max : %llu/%d\n",(unsigned long long)storio_device_mapping_stat.count,
                       STORIO_DEVICE_MAPPING_MAX_ENTRIES);
       pChar += sprintf(pChar,"Entry size  : %d\n",(int)sizeof(storio_device_mapping_t));
-      pChar += sprintf(pChar,"Size/max    : %d/%d\n",
-                              (int)sizeof(storio_device_mapping_t)*storio_device_mapping_stat.count,
-			      (int)sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES); 
+      pChar += sprintf(pChar,"Size/max    : %llu/%llu\n",
+                      (unsigned long long)sizeof(storio_device_mapping_t)*storio_device_mapping_stat.count,
+		      (unsigned long long)sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES); 
       pChar += sprintf(pChar,"consistency : %llu\n", (unsigned long long)storio_device_mapping_stat.consistency);     
       pChar += sprintf(pChar,"miss        : %llu\n", (unsigned long long)storio_device_mapping_stat.miss);   
       pChar += sprintf(pChar,"match       : %llu\n", (unsigned long long)storio_device_mapping_stat.match);   
@@ -106,17 +166,17 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
     } 
     else {    
       if (com_cache_entry_p->consistency == storio_device_mapping_stat.consistency) {
-        pChar += sprintf(pChar,"%s is stored on device %d (consistency %d)\n",
+        pChar += sprintf(pChar,"%s is stored on device %d (consistency %llu)\n",
 	          argv[2],
 		  com_cache_entry_p->device_number,
-		  storio_device_mapping_stat.consistency);
+		  (unsigned long long)storio_device_mapping_stat.consistency);
       }
       else {
-        pChar += sprintf(pChar,"%s was stored on device %d (inconsistent %d vs %d)\n",
+        pChar += sprintf(pChar,"%s was stored on device %d (inconsistent %d vs %llu)\n",
 	         argv[2],
 	         com_cache_entry_p->device_number,
 	         com_cache_entry_p->consistency, 
-		 storio_device_mapping_stat.consistency);        
+		 (unsigned long long)storio_device_mapping_stat.consistency);        
       }
     }
     uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
@@ -126,22 +186,21 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
   if (strcmp(argv[1],"device")==0) {    
     storage_t   * st;
     int           faulty_devices[STORAGE_MAX_DEVICE_NB];
-
-    pChar += sprintf(pChar,"consistency index = %d\n",storio_device_mapping_stat.consistency);
  
     st = NULL;
     while ((st = storaged_next(st)) != NULL) {
       int           dev;
       int           fault=0;
-
-      pChar += sprintf(pChar,"    cid = %d sid = %d\n", st->cid, st->sid);
+      storio_disk_thread_file_desc_t * pf;
+       
+      pChar += sprintf(pChar,"cid = %d sid = %d\n", st->cid, st->sid);
             
-      pChar += sprintf(pChar,"        root              = %s\n", st->root);
-      pChar += sprintf(pChar,"        device_number     = %d\n",st->device_number);
-      pChar += sprintf(pChar,"        mapper_modulo     = %d\n",st->mapper_modulo);
-      pChar += sprintf(pChar,"        mapper_redundancy = %d\n",st->mapper_redundancy);		          
+      pChar += sprintf(pChar,"    root              = %s\n", st->root);
+      pChar += sprintf(pChar,"    mapper_modulo     = %d\n",st->mapper_modulo);
+      pChar += sprintf(pChar,"    mapper_redundancy = %d\n",st->mapper_redundancy);		          
+      pChar += sprintf(pChar,"    device_number     = %d\n",st->device_number);
       for (dev = 0; dev < st->device_number; dev++) {
-        pChar += sprintf(pChar,"           device %2d     %12llu blocks   errors total/period %d/%d\n", 
+        pChar += sprintf(pChar,"       device %2d     %12llu blocks   errors total/period %d/%d\n", 
                          dev, 
 		         (long long unsigned int)st->device_free.blocks[st->device_free.active][dev], 
                          st->device_errors.total[dev], 
@@ -151,10 +210,56 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
 	}  			 
       }
       
+      // Display faulty FID table
+      first = 1;
+      for (threadNb=0; threadNb < ROZOFS_MAX_DISK_THREADS; threadNb++) {
+        for (idx=0; idx < storio_faulty_fid[threadNb].nb_faulty_fid_in_table; idx++) {
+          if (first) {
+	    pChar += sprintf(pChar,"Faulty FIDs:\n");
+            first = 0;
+          }
+	  pf = &storio_faulty_fid[threadNb].file[idx];
+	  
+	  // Check whether this FID has already been listed
+	  {
+	    int already_listed = 0;
+	    int prevThread,prevIdx;
+            storio_disk_thread_file_desc_t * prevPf;	    
+	    for (prevThread=0; prevThread<threadNb; prevThread++) {
+              for (prevIdx=0; prevIdx < storio_faulty_fid[prevThread].nb_faulty_fid_in_table; prevIdx++) {
+	        prevPf = &storio_faulty_fid[prevThread].file[prevIdx];
+		if ((pf->cid == prevPf->cid) && (pf->sid == prevPf->sid)
+		&&  (memcmp(pf->fid, prevPf->fid, sizeof(fid_t))==0)) {
+		  already_listed = 1;
+		  break; 
+		}
+              }
+	      if (already_listed) break; 	      
+	    }
+	    if (already_listed) continue;
+	  }
+	  
+	  char display[128];
+	  int  i;
+	  char * pt=display;
+          int8_t rozofs_safe = rozofs_get_rozofs_safe(pf->layout);
+
+          pt += sprintf(pt,"-s %d/%d -f %d/",pf->cid, pf->sid, pf->layout);
+	  pt += sprintf(pt,"%3.3d",pf->dist[0]);
+	  for (i=1; i< rozofs_safe; i++) {
+	    pt += sprintf(pt,"-%3.3d",pf->dist[i]);
+	  }
+	  pt += sprintf(pt,"/");
+	  uuid_unparse((const unsigned char *)pf->fid, pt);
+	  
+          pChar += sprintf(pChar,"    %s\n", display);
+        }
+      } 
+      
       if (fault == 0) continue;
       
       // There is some faults on some devices
-      pChar += sprintf(pChar,"    !!! %d faulty devices cid=%d/sid=%d/devices=%d", 
+      pChar += sprintf(pChar,"\n    !!! %d faulty devices cid=%d/sid=%d/devices=%d", 
                        fault, st->cid, st->sid, faulty_devices[0]);
       
       for (dev = 1; dev < fault; dev++) {
@@ -249,11 +354,12 @@ void storio_device_mapping_periodic_ticker(void * param) {
     
     
     /*
-    ** Monitor errors on devces
+    ** Monitor errors on devices
     */
     if (st->device_errors.reset) {
       /* Reset error counters requested */
       memset(&st->device_errors, 0, sizeof(storage_device_errors_t));
+      memset(storio_faulty_fid, 0, sizeof(storio_faulty_fid));      
       continue;
       
     }
@@ -401,6 +507,7 @@ uint32_t storio_device_mapping_init()
   {
     return 0;
   }
+  
   
   storio_device_mapping_stat.consistency = 1;
   

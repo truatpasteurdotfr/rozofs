@@ -348,6 +348,16 @@ start_one_storage()
 	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
 	#sleep 1
 }
+rebuild_storage_fid() 
+{
+    sid=$2
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+    shift 3
+
+    echo "${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost $*"
+        
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost $*
+}
 rebuild_storage_device() 
 {
 
@@ -1039,13 +1049,14 @@ usage ()
     echo >&2 "$0 stop"
     echo >&2 "$0 pause"
     echo >&2 "$0 resume"
-    echo >&2 "$0 storage <sid|all> <stop|start|reset>"
-    echo >&2 "$0 storage <sid|all> <device-delete|device-rebuild> <device|all>"
-    echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
-    echo >&2 "$0 export <stop|start|reset>"
-    echo >&2 "$0 fsmount <stop|start|reset>"
+    echo >&2 "$0 storage <sid>|all stop|start|reset"
+    echo >&2 "$0 storage <sid>|all device-delete|device-rebuild <device>|all"
+    echo >&2 "$0 storage <sid> fid-rebuild -s <cid>/<sid> -f <layout>/<dist>/<fid>"
+    echo >&2 "$0 expgw <nb>|all stop|start|reset"
+    echo >&2 "$0 export stop|start|reset"
+    echo >&2 "$0 fsmount stop|start|reset"
     echo >&2 "$0 cou <fileName>"    
-    echo >&2 "$0 core [<remove>] <coredir/corefile>"
+    echo >&2 "$0 core [remove] <coredir>/<corefile>"
     echo >&2 "$0 process"
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
@@ -1304,12 +1315,13 @@ main ()
         *)          usage;;
       esac      
     elif [ "$1" == "storage" ]
-    then  
+    then  	
       case "$3" in 
         stop)            stop_one_storage $2;;
 	start)           start_one_storage $2;;
 	device-rebuild)  rebuild_storage_device $2 $4;;
 	device-delete)   delete_storage_device $2 $4;; 
+        fid-rebuild)     rebuild_storage_fid $*;;
 	reset)           reset_one_storage $2;;
         *)               usage;;
       esac

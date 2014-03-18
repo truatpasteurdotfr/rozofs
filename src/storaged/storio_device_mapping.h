@@ -249,8 +249,20 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st);
 */
  
 uint32_t storio_device_mapping_init();
-
-
+/*
+**____________________________________________________
+*/
+/*
+* Register the FID that has encountered an error
+  
+   @param threadNb the thread number
+   @parma layout   the file layout
+   @param cid      the faulty cid 
+   @param sid      the faulty sid
+   @param sid      the distribution      
+   @param fid      the FID in fault   
+*/
+void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t cid, uint8_t sid, uint32_t * dist, fid_t fid) ;
 #ifdef __cplusplus
 }
 #endif /*__cplusplus */

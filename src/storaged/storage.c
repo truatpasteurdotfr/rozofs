@@ -465,7 +465,7 @@ uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
 
 int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
-        uint64_t *file_size, const bin_t * bins) {
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty) {
     int status = -1;
     char path[FILENAME_MAX];
     int fd = -1;
@@ -479,6 +479,8 @@ int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_
 
     rozofs_max_psize = rozofs_get_max_psize(layout);
 
+    // No specific fault on this FID detected
+    *is_fid_faulty = 0;  
 
 open:    
     // If the device id is given as input, that proves that the file
@@ -557,7 +559,9 @@ open:
     // Write nb_proj * (projection + header)
     nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
     if (nb_write != length_to_write) {
-	storage_error_on_device(st,*device_id);     
+	storage_error_on_device(st,*device_id);
+	// A fault probably localized to this FID is detected   
+	*is_fid_faulty = 1;  
         severe("pwrite failed: %s", strerror(errno));
         goto out;
     }
@@ -592,7 +596,7 @@ uint8_t storage_read_optim[4096];
 
 int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins, size_t * len_read, uint64_t *file_size) {
+        bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty) {
 
     int status = -1;
     char path[FILENAME_MAX];
@@ -604,6 +608,8 @@ int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_s
     struct stat sb;
     int    device_id_is_given = 0;
 
+    // No specific fault on this FID detected
+    *is_fid_faulty = 0;  
     
     // If the device id is given as input, that proves that the file
     // has been existing with that name on this device sometimes ago. 
@@ -626,7 +632,7 @@ open:
     storage_map_projection(fid, path);
 
     // Open bins file
-    fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+    fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE_RO);
     if (fd < 0) {
     
         // Something definitively wrong on device
@@ -664,7 +670,9 @@ open:
     // Check error
     if (nb_read == -1) {
         severe("pread failed: %s", strerror(errno));
-	storage_error_on_device(st,*device_id);  	
+	storage_error_on_device(st,*device_id);  
+	// A fault probably localized to this FID is detected   
+	*is_fid_faulty = 1;   		
         goto out;
     }
 
@@ -676,6 +684,8 @@ open:
         severe("storage_read failed (FID: %s): read inconsistent length",
                 fid_str);
         errno = EIO;
+	// A fault probably localized to this FID is detected   
+	*is_fid_faulty = 1;  
         goto out;
     }
 
@@ -701,7 +711,7 @@ out:
 
 int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,uint16_t last_seg,uint64_t last_timestamp,
-	u_int length_to_write, char * data) {
+	u_int length_to_write, char * data, int * is_fid_faulty) {
     int status = -1;
     char path[FILENAME_MAX];
     int fd = -1;
@@ -710,6 +720,9 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     bid_t bid_truncate;
     size_t nb_write = 0;
     int open_flags;
+
+    // No specific fault on this FID detected
+    *is_fid_faulty = 0;  
         
     /*
     ** If a device is given, the file is known so do not create it
@@ -790,7 +803,9 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
 	if (nb_write != length_to_write) {
             status = -1;
             severe("pwrite failed on last segment: %s", strerror(errno));
-	    storage_error_on_device(st,*device_id);  				    
+	    storage_error_on_device(st,*device_id); 
+	    // A fault probably localized to this FID is detected   
+	    *is_fid_faulty = 1;  	     				    
             goto out;
 	}
       
@@ -807,7 +822,9 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
 	nb_write = pwrite(fd, &bins_hdr, sizeof(bins_hdr), bins_file_offset);
 	if (nb_write != sizeof(bins_hdr)) {
             severe("pwrite failed on last segment header : %s", strerror(errno));
-	    storage_error_on_device(st,*device_id);  				    
+	    storage_error_on_device(st,*device_id); 
+	    // A fault probably localized to this FID is detected   
+	    *is_fid_faulty = 1;  	     				    
             goto out;
         }   
         
@@ -817,6 +834,8 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
 	if (nb_write != sizeof(last_timestamp)) {
             severe("pwrite failed on last segment footer : %s", strerror(errno));
 	    storage_error_on_device(st,*device_id);  				    
+	    // A fault probably localized to this FID is detected   
+	    *is_fid_faulty = 1;  
             goto out;
         }   	  
       }

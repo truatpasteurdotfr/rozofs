@@ -70,7 +70,11 @@ static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 static char *storaged_hostname = NULL;
 
 static uint16_t storaged_nrstorages = 0;
+static fid_t    fid2rebuild={0};
+static char    *fid2rebuild_string=NULL;
 
+int       layout=-1;
+uint8_t   distribution[ROZOFS_SAFE_MAX]={0};
 int   cid=-1;
 int   sid=-1;
 
@@ -215,7 +219,12 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 	// and it error counters
 	send_reload_to_storio();
 
-	if (rbs_device_number == -1) {
+        if (fid2rebuild_string) {
+	   rbs_device_number = -2; // To tell one FID to rebuild 
+           info("Start rebuild process of FID %s (cid=%u;sid=%u).",
+                  fid2rebuild_string, stor_confs[i].cid, stor_confs[i].sid)	
+	}
+	else if (rbs_device_number == -1) {
            info("Start rebuild process of all devices (cid=%u;sid=%u).",
                   stor_confs[i].cid, stor_confs[i].sid);	    
 	}
@@ -226,7 +235,7 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 
 
         // Try to rebuild the storage until it's over
-        while (rbs_rebuild_storage(stor_confs[i].export_hostname,
+        while (rbs_rebuild_storage(stor_confs[i].export_hostname, 
                 stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
 		stor_confs[i].device.total,
 		stor_confs[i].device.mapper, 
@@ -234,7 +243,8 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
                 stor_confs[i].stor_idx,
 		rbs_device_number,
 		parallel,
-		storaged_config_file) != 0) {
+		storaged_config_file,
+		layout,distribution,fid2rebuild) != 0) {
 
             // Probably a problem when connecting with other members
             // of this cluster
@@ -394,8 +404,9 @@ void usage() {
     printf("                             \tAll devices are rebuilt when omitted.\n");
     printf("   -s, --sid=<cid/sid>       \tCluster and storage identifier to rebuild.\n");
     printf("                             \tAll <cid/sid> are rebuilt when omitted.\n");
+    printf("   -f, --fid=<layout>/<dist>/<FID>\tSpecify one FID to rebuild. -s must also be set.\n");
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
-    printf("                             \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
+    printf("                              \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
 }
 
 int main(int argc, char *argv[]) {
@@ -409,6 +420,7 @@ int main(int argc, char *argv[]) {
         { "device", required_argument, 0, 'd'},
         { "host", required_argument, 0, 'H'},
         { "sid", required_argument, 0, 's'},
+        { "fid", required_argument, 0, 'f'},
         { "parallel", required_argument, 0, 'p'},	
         { 0, 0, 0, 0}
     };
@@ -420,7 +432,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:d:r:H:f:p:s:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:d:r:H:f:p:s:f:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -458,7 +470,61 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                   }
                 }
-                break;		
+                break;	
+            case 'f':
+                {
+		  int ret;
+		  int j;
+		  int val;
+		  char * pt = optarg;
+		  ret = sscanf(optarg,"%d/",&layout);
+		  if (ret != 1) {
+		    fprintf(stderr, "storage_rebuild failed: bad layout %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  while ((*pt != 0) && (*pt!='/')) pt++;
+		  if (*pt != '/') {
+		    fprintf(stderr, "storage_rebuild failed: after layout %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  pt++;
+		  if (*pt == 0) {
+		    fprintf(stderr, "storage_rebuild failed: after layout %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  ret = sscanf(pt,"%d",&val);
+		  if (ret != 1) {
+		    fprintf(stderr, "storage_rebuild failed: 1rst sid %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  	
+		  distribution[0] = val; 
+		  j=1;
+		  pt += 3;		
+		  while (sscanf(pt,"-%d",&val)==1) {
+		    distribution[j] = val;
+		    j++;
+		    pt += 4;
+		  }	  
+                  if (*pt != '/') {
+		    fprintf(stderr, "storage_rebuild failed: after distribution %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  pt++;
+		  if (*pt==0) {
+		    fprintf(stderr, "storage_rebuild failed: after distribution %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+				  
+		  fid2rebuild_string = pt;
+		  ret = uuid_parse(fid2rebuild_string,fid2rebuild);
+		  if (ret != 0) {
+		    fprintf(stderr, "storage_rebuild failed: bad FID %s %s\n", optarg,
+                            strerror(errno));
+                    exit(EXIT_FAILURE);
+                  }
+                }
+                break;							
             case 'd':
 	        {
 		  int ret;
@@ -504,7 +570,16 @@ int main(int argc, char *argv[]) {
     if (rbs_start_process == 0){
         fprintf(stderr, "storage_rebuild failed. Missing --rebuild option.\n");
         exit(EXIT_FAILURE);
-    }  
+    } 
+    /*
+    ** When FID is given, eid and cid/sid is mandatory
+    */ 
+    if (fid2rebuild_string) {
+      if ((cid==-1)&&(sid==-1)) {
+        fprintf(stderr, "storage_rebuild failed. --fid option requires --sid option too.\n");
+        exit(EXIT_FAILURE);      
+      }
+    }
 
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {

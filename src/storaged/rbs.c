@@ -37,6 +37,7 @@
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/spproto.h>
+#include <rozofs/rpc/eproto.h>
 #include <rozofs/core/rozofs_host2ip.h>
 
 #include "sconfig.h"
@@ -228,6 +229,7 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
     bin_t * loc_read_bins_p = NULL;
     size_t local_len_read;
     int    remove_file;
+    int    is_fid_faulty;
 
         
     // Get rozofs layout parameters
@@ -292,7 +294,7 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
             // Read local bins
             ret = storage_read(st, &device_id, layout, re->dist_set_current, 1/*spare*/, re->fid,
                     first_block_idx, nb_blocks_read_distant, loc_read_bins_p,
-                    &local_len_read, &file_size);
+                    &local_len_read, &file_size, &is_fid_faulty);
 
             if (ret != 0) {
 	        local_len_read = 0;
@@ -352,7 +354,8 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
                // Store the projections on local bins file	
                ret = storage_write(st, &device_id, layout, re->dist_set_current, 1/*spare*/,
                 		   re->fid, first_block_idx+block_idx, 1, version,
-                		   &file_size, working_ctx.prj_ctx[prj_ctx_idx].bins);
+                		   &file_size, working_ctx.prj_ctx[prj_ctx_idx].bins,
+				   &is_fid_faulty);
                remove_file = 0;	// This file must exist   
                if (ret <= 0) {
                    severe("storage_write failed %s: %s", path, strerror(errno));
@@ -436,7 +439,8 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
             // Store the projections on local bins file	
             ret = storage_write(st, &device_id, layout, re->dist_set_current, 1/*spare*/,
                 		re->fid, first_block_idx+block_idx, 1, version,
-                		&file_size, (const bin_t *)rozofs_bins_hdr_p);
+                		&file_size, (const bin_t *)rozofs_bins_hdr_p,
+				&is_fid_faulty);
             remove_file = 0;// This file must exist		   
             if (ret <= 0) {
         	severe("storage_write failed %s: %s", path, strerror(errno));
@@ -513,6 +517,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
     bid_t first_block_idx = 0;
     uint64_t file_size = 0;
     rbs_storcli_ctx_t working_ctx;
+    int is_fid_faulty;
 
     // Get rozofs layout parameters
     uint8_t layout = re->layout;
@@ -611,7 +616,8 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
             // Store the projections on local bins file	
             ret = storage_write(st, &device_id, layout, re->dist_set_current, 0/*spare*/,
                     re->fid, first_block_idx, nb_blocks_read_distant, version,
-                    &file_size, working_ctx.prj_ctx[proj_id_to_rebuild].bins);
+                    &file_size, working_ctx.prj_ctx[proj_id_to_rebuild].bins,
+		    &is_fid_faulty);
 
             if (ret <= 0) {
                 severe("storage_write failed: %s", strerror(errno));
@@ -652,7 +658,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
             // Read local bins
             ret = storage_read(st, &device_id, layout, re->dist_set_current, 0/*spare*/, re->fid,
                     first_block_idx, nb_blocks_read_distant, loc_read_bins_p,
-                    &local_len_read, &file_size);
+                    &local_len_read, &file_size, &is_fid_faulty);
 
             if (ret != 0) {
                 severe("storage_read failed: %s", strerror(errno));
@@ -739,8 +745,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
                 // Store the projections on local bins file	
                 ret = storage_write(st, &device_id, layout, re->dist_set_current,
                         0/*spare*/, re->fid, first_block_idx + i, 1, version,
-                        &file_size,
-                        bins_to_write);
+                        &file_size,bins_to_write,&is_fid_faulty);
 
                 if (ret <= 0) {
                     severe("storage_write failed: %s", strerror(errno));
@@ -964,7 +969,8 @@ int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
 	
 		memcpy(file_entry.fid,iterator->fid, sizeof (fid_t));
 		file_entry.layout = iterator->layout;
-        	file_entry.todo = 1;      
+        	file_entry.todo   = 1;    
+	        file_entry.unlink = 0;       
         	memcpy(file_entry.dist_set_current, iterator->dist_set_current, sizeof (sid_t) * ROZOFS_SAFE_MAX);	    
 
         	ret = write(cfgfd[idx],&file_entry,sizeof(file_entry)); 
@@ -1167,6 +1173,61 @@ out:
     return status;
 }
 
+/** Build a list with just one FID
+ *
+ * @param cid: unique id of cluster that owns this storage.
+ * @param sid: the unique id for the storage to rebuild.
+ * @param fid2rebuild: the FID to rebuild
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+static int rbs_build_one_fid_list(cid_t cid, sid_t sid, uint8_t layout, uint8_t * dist, fid_t fid2rebuild) {
+  int            fd; 
+  rozofs_rebuild_entry_file_t file_entry;
+  char         * dir;
+  char           filename[FILENAME_MAX];
+  int            ret;
+  int            i;
+  
+  /*
+  ** Create FID list file files
+  */
+  dir = get_rebuild_directory_name();
+
+  sprintf(filename,"%s/c%d_s%d", dir, cid, sid);
+      
+  fd = open(filename,O_CREAT | O_TRUNC | O_WRONLY);
+  if (fd == -1) {
+    severe("Can not open file %s %s", filename, strerror(errno));
+    return 0;
+  }
+    
+  ret = write(fd,&st2rebuild,sizeof(st2rebuild));
+  if (ret != sizeof(st2rebuild)) {
+    severe("Can not write header in file %s %s", filename, strerror(errno));
+    return 0;      
+  }  
+
+  memcpy(file_entry.fid,fid2rebuild, sizeof (fid_t));
+  file_entry.layout = layout;
+  file_entry.todo   = 1;      
+  file_entry.unlink = 1;      
+  
+  
+  memcpy(file_entry.dist_set_current, dist, sizeof (file_entry.dist_set_current));	
+  for(i=0; i<ROZOFS_SAFE_MAX; i++) {
+    file_entry.dist_set_current[i] = dist[i];
+  }    
+
+  ret = write(fd,&file_entry,sizeof(file_entry)); 
+  if (ret != sizeof(file_entry)) {
+    severe("can not write file cid%d sid%d %s",cid,sid,strerror(errno));
+    return 0;
+  }  
+  
+  close(fd);
+  return 0;   
+}
 /** Retrieves the list of bins files to rebuild from the available disks
  *
  * @param cluster_entries: list of cluster(s).
@@ -1303,7 +1364,8 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
 	    
 	    memcpy(file_entry.fid,file_hdr.fid, sizeof (fid_t));
 	    file_entry.layout = file_hdr.layout;
-            file_entry.todo = 1;      
+            file_entry.todo   = 1;     
+	    file_entry.unlink = 0;       
             memcpy(file_entry.dist_set_current, file_hdr.dist_set_current, sizeof (sid_t) * ROZOFS_SAFE_MAX);	    
 	        
             ret = write(cfgfd[idx],&file_entry,sizeof(file_entry)); 
@@ -1327,7 +1389,6 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
   }  
   return 0;   
 }
-
 /** Rebuild list just produced 
  *
  */
@@ -1443,7 +1504,8 @@ out:
 int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
 	uint8_t stor_idx, int device,
-	int parallel, char * config_file) {
+	int parallel, char * config_file, 
+	uint8_t layout, uint8_t * distribution, fid_t fid2rebuild) {
     int status = -1;
     int ret;
 
@@ -1476,8 +1538,14 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     if (rbs_init_cluster_cnts(&cluster_entries, cid, sid) != 0)
         goto out;
 
-    // Get the list of bins files to rebuild for this storage
-    if (device == -1) {
+    // One FID to rebuild
+    if (device == -2) {
+      // Build the list for this FID only
+      if (rbs_build_one_fid_list(cid, sid, layout, distribution, fid2rebuild) != 0)
+        goto out;
+      rb_fid_table_count = 1;	
+    }
+    else if (device == -1) {
       // Build the list from the remote storages
       if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid, parallel) != 0)
         goto out;  	 	 	 

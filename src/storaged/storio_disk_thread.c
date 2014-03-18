@@ -35,6 +35,7 @@
 #include <rozofs/rpc/sproto.h>
 #include "storio_disk_thread_intf.h" 
 #include "storage.h" 
+#include "storio_device_mapping.h" 
 
 int af_unix_disk_socket_ref = -1;
  
@@ -193,6 +194,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   sp_read_arg_t          * args;
   rozorpc_srv_ctx_t      * rpcCtx;
   sp_read_ret_t            ret;
+  int                      is_fid_faulty;
     
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
@@ -243,13 +245,21 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
             (unsigned char *) args->fid, args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
             (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
-            &ret.sp_read_ret_t_u.rsp.file_size) != 0) 
+            &ret.sp_read_ret_t_u.rsp.file_size, &is_fid_faulty) != 0) 
   {
     ret.sp_read_ret_t_u.error = errno;
-    storio_encode_rpc_response(rpcCtx,(char*)&ret);
     if (errno == ENOENT)    thread_ctx_p->stat.diskRead_nosuchfile++;
     else if (!args->spare)  thread_ctx_p->stat.diskRead_error++;
     else                    thread_ctx_p->stat.diskRead_error_spare++;
+    if (is_fid_faulty) {
+      storio_register_faulty_fid(thread_ctx_p->thread_idx,
+                                 args->layout,
+				 args->cid,
+				 args->sid,
+				 args->dist_set,
+				 (uint8_t*)args->fid);
+    }     
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }  
@@ -286,6 +296,8 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   sp_write_ret_t           ret;
   uint8_t                  version = 0;
   int                      size;
+  int                      is_fid_faulty;
+    
   
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
@@ -336,7 +348,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
 	    
      if (size > args->len) {
        severe("Inconsistent bins length %d < %d = nb_proj(%d) x proj_size(%d)",
-               args->len, size, args->len, args->nb_proj, proj_psize);
+               args->len, size, args->nb_proj, proj_psize);
        ret.sp_write_ret_t_u.error = EIO;
        storio_encode_rpc_response(rpcCtx,(char*)&ret);  
        thread_ctx_p->stat.diskWrite_error++; 
@@ -362,12 +374,19 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   // Write projections
   size =  storage_write(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set, args->spare,
           (unsigned char *) args->fid, args->bid, args->nb_proj, version,
-          &ret.sp_write_ret_t_u.file_size,
-          (bin_t *) pbuf);
+          &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
   if (size <= 0)  {
     ret.sp_write_ret_t_u.error = errno;
-    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
     thread_ctx_p->stat.diskWrite_error++; 
+    if (is_fid_faulty) {
+      storio_register_faulty_fid(thread_ctx_p->thread_idx,
+                                 args->layout,
+				 args->cid,
+				 args->sid,
+				 args->dist_set,
+				 (uint8_t*)args->fid);
+    }       
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -402,6 +421,8 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   sp_status_ret_t          ret;
   uint8_t                  version = 0;
   int                      result;
+  int                      is_fid_faulty;
+    
   
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
@@ -445,11 +466,19 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   result = storage_truncate(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set,
         		    args->spare, (unsigned char *) args->fid, args->proj_id,
         		    args->bid,version,args->last_seg,args->last_timestamp,
-			    args->len, pbuf);
+			    args->len, pbuf, &is_fid_faulty);
   if (result != 0) {
     ret.sp_status_ret_t_u.error = errno;
-    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
     thread_ctx_p->stat.diskTruncate_error++; 
+    if (is_fid_faulty) {
+      storio_register_faulty_fid(thread_ctx_p->thread_idx,
+                                 args->layout,
+				 args->cid,
+				 args->sid,
+				 (uint32_t*) args->dist_set,
+				 (uint8_t*)args->fid);
+    }           
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }

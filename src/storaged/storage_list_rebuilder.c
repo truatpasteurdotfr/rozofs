@@ -242,13 +242,12 @@ int storaged_rebuild_list(char * fid_list) {
     
     if (file_entry.todo == 0) continue;
 
-    
     nbJobs++;
         
     // Compute the rozofs constants for this layout
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(file_entry.layout);
 
-#if 0  
+#if 0
   {
     char fid_string[128];
     uuid_unparse(file_entry.fid,fid_string);
@@ -309,6 +308,11 @@ int storaged_rebuild_list(char * fid_list) {
     // Build the path of bins file
     storage_map_projection(re.fid, path);
 
+    
+    if (file_entry.unlink) {
+      unlink(path);
+    }
+    
 
     // Restore this entry
     if (spare == 1) {
@@ -349,7 +353,7 @@ int storaged_rebuild_list(char * fid_list) {
     return 0;
   }
     
-  info("%s rebuild failed %d/%d",fid_list,nbSuccess,nbJobs);
+  info("%s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
 
   
 error:
