@@ -548,6 +548,9 @@ static int strquota_to_nbblocks(const char *str, uint64_t *blocks) {
         case 'G':
             *blocks = 1024 * 1024 * 1024 * value / ROZOFS_BSIZE;
             break;
+        case 'T':
+            *blocks = 1024 * 1024 * 1024 * 1024 * value / ROZOFS_BSIZE;
+            break;
         default: // no unit -> nb blocks
             *blocks = value;
             break;
