@@ -19,27 +19,23 @@
 
 . env.sh
 
-#$1 mount point
-#$2 levels
-#$3 directories per level
-#$4 files per directory
-#$5 file size (in blocks 8k for rozofs)
-#$6 file log
+#$1: mount point
 pjdtest() {
-	flog=${WORKING_DIR}/pjdtest_`date "+%Y%m%d_%Hh%Mm%Ss"`_`basename $1`.log
-	cd $1
-	prove -r ${LOCAL_PJDTESTS} 2>&1 | tee -a $flog
-	cd ${WORKING_DIR}
-	
+    flog=${WORKING_DIR}/pjdtest_`date "+%Y%m%d_%Hh%Mm%Ss"`_`basename $1`.log
+    cd $1
+    prove -r ${LOCAL_PJDTESTS} 2>&1 | tee -a $flog
+    EXIT_CODE=${PIPESTATUS[0]}
+    cd ${WORKING_DIR}
+    return ${EXIT_CODE}
 }
 
 usage() {
-	echo "$0: <mount point>"
-	exit 0
+    echo "$0: <mount point>"
+    exit 1  
 }
 
 [[ $# -lt 1 ]] && usage
 
 pjdtest $1
 
-exit 0
+exit $?
