@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii export.conf.5
 .\"
-.TH EXPORT.CONF 5 "MAY 2013" Rozofs "User Manuals"
+.TH EXPORT.CONF 5 "MARCH 2014" RozoFS "User Manuals"
 .SH NAME
-export.conf \- rozofs export daemon configuration file
+export.conf \- RozoFS export daemon configuration file
 .SH DESCRIPTION
 .B export.conf
 is manage throw 
@@ -13,6 +13,9 @@ and thus complies to the
 .B libconfig
 grammar.
 
+.SS nbcores (optional)
+
+Maximum number of core files to keep. (default: 2)
 
 .SS layout
     It's the transform layout used by rozofs. Each file data will be transform
