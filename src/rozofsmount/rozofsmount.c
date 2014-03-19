@@ -1746,34 +1746,47 @@ int main(int argc, char *argv[]) {
     if (conf.buf_size == 0) {
         conf.buf_size = 256;
     }
+
     if (conf.buf_size < 128) {
         fprintf(stderr,
                 "write cache size too low (%u KiB) - increased to 128 KiB\n",
                 conf.buf_size);
         conf.buf_size = 128;
     }
+
     if (conf.buf_size > 256) {
         fprintf(stderr,
                 "write cache size too big (%u KiB) - decreased to 256 KiB\n",
                 conf.buf_size);
         conf.buf_size = 256;
     }
+
     /* Bufsize must be a multiple of the block size */
-    if ((conf.buf_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    if ((conf.buf_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.buf_size > 256) {
+            conf.buf_size = conf.buf_size - (ROZOFS_BSIZE / 1024);
+        }
     }
     
     if (conf.min_read_size == 0) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = conf.buf_size;
     }
+
     if (conf.min_read_size > conf.buf_size) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = conf.buf_size;
     }
-    /* Bufsize must be a multiple of the block size */
-    if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
-    }    
-    
+
+    /* min_read_size must be a multiple of the block size */
+    if ((conf.min_read_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.min_read_size > conf.buf_size) {
+            conf.min_read_size = conf.min_read_size - (ROZOFS_BSIZE / 1024);
+        }
+    }
+
     if (conf.nbstorcli != 0) {
       if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {
           fprintf(stderr,
