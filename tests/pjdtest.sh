@@ -23,6 +23,8 @@
 pjdtest() {
     flog=${WORKING_DIR}/pjdtest_`date "+%Y%m%d_%Hh%Mm%Ss"`_`basename $1`.log
     cd $1
+    # SLEEP TIME BEFORE START TEST
+    sleep 2
     prove -r ${LOCAL_PJDTESTS} 2>&1 | tee -a $flog
     EXIT_CODE=${PIPESTATUS[0]}
     cd ${WORKING_DIR}
