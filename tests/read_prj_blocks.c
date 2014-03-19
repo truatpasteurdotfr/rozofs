@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/vfs.h>
+#include <ctype.h>
 
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/log.h>
@@ -115,7 +116,6 @@ void hexdump(void *mem, unsigned int offset, unsigned int len)
 
 int read_data_file() {
     int status = -1;
-    int ret = -1;
     uint64_t size = 0;
     int block_idx = 0;
     int idx =0;
@@ -137,15 +137,15 @@ int read_data_file() {
       }
     }
             
-    printf (" ______ ");
+    printf (" ______ __________ ");
     for (idx=0; idx < nb_file; idx++) printf (" __________________ ______ ____ ");
     printf ("\n");
 
-    printf("| %4s |","Blk");     
+    printf("| %4s | %8s |","Blk","Offset");     
     for (idx=0; idx < nb_file; idx++) printf("| %16s | %4s | %2s |", "Time stamp", "lgth", "id");
-    printf ("\n"); 
+    printf ("\n");  
     
-    printf ("|______|");
+    printf ("|______|__________|");
     for (idx=0; idx < nb_file; idx++) printf ("|__________________|______|____|");
     printf ("\n"); 
     
@@ -157,14 +157,21 @@ int read_data_file() {
 
       
       count = 0;
-      printf("| %4d |",block_idx);
+      printf("| %4d | %8d |",block_idx,block_idx*ROZOFS_BSIZE);
 
       for (idx=0; idx < nb_file; idx++) {
+      
+       if (fd[idx] == -1) {
+         printf("%32s"," ");
+	 continue;
+       }	 
 
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_idx*disk_block_size);
        
        if (size !=  disk_block_size) {
-	   printf("| ---------------- | ---- | -- |");         
+           printf ("|__________________|______|____|");
+	   close(fd[idx]);
+	   fd[idx] = -1;        
        }
        else {
            count++;
@@ -179,7 +186,7 @@ int read_data_file() {
 	   }
 	   else {
 	     printf("| %16llu | %4d | %2d |",
-        	    rozofs_bins_hdr_p->s.timestamp,    
+        	    (unsigned long long)rozofs_bins_hdr_p->s.timestamp,    
         	    rozofs_bins_hdr_p->s.effective_length,    
         	    rozofs_bins_hdr_p->s.projection_id);   
            }		  
@@ -191,10 +198,8 @@ int read_data_file() {
      block_idx++;
      if (block_number!=-1) break;
    }  	
-    printf ("|______|");
-    for (idx=0; idx < nb_file; idx++) printf ("|__________________|______|____|");
-    printf ("\n"); 
-    
+   printf ("|______|__________|\n");
+
    if (block_number!=-1) {
       for (idx=0; idx < nb_file; idx++) {
 
@@ -242,7 +247,7 @@ void usage() {
     printf("   -h, --help\t\t\tprint this message.\n");
     printf("   -f, --file=<filename> \tA data file name to read.\n");
     printf("   -l, --layout=<layout> \tThe data file layout.\n"); 
-    printf("   -b, --block=<block#>  \tThe block numlberto dump.\n");   
+    printf("   -b, --block=<block#>  \tThe block numlber to dump.\n");   
 }
 
 int main(int argc, char *argv[]) {

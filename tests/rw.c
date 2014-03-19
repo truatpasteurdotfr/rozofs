@@ -270,12 +270,12 @@ int do_total_read_and_check(int f, char *filename) {
         if (pReadBuff[idx2] != pCompareBuff[idx2]) {
   	    int dump;	
             ERROR("offset %d = 0x%x contains %x instead of %x\n",idx2, idx2, pReadBuff[idx2],pCompareBuff[idx2]);
-	    ERROR("offset %d of %d read at offset %d\n", (int)idx2,size,0);
+	    ERROR("offset %d of %d read at offset %d\n", (int)idx2,(int)size,0);
 	    dump = size - idx2;
 	    if (dump > 64) dump = 64;	            
-	    hexdump(pReadBuff,idx2-16, dump);	    
+	    hexdump(pReadBuff,idx2, dump);	    
 	    ERROR("ref buf\n");
-            hexdump(pCompareBuff,idx2-16, dump); 
+            hexdump(pCompareBuff,idx2, dump); 
             return -1;
         }
     }
@@ -307,12 +307,12 @@ int do_random_read_and_check(int f, char *filename) {
   	      int dump;
               ERROR("offset %d = 0x%x contains %x instead of %x\n", 
 	            idx2+offset, idx2+offset, pReadBuff[idx2],pCompareBuff[idx2+offset]);
-	      ERROR("offset %d of %d read at offset %d\n", (int)idx2,size,offset);
+	      ERROR("offset %d of %d read at offset %d\n", (int)idx2,(int)size,offset);
 	      dump = size - idx2;
 	      if (dump > 64) dump = 64;		      
-	      hexdump(pReadBuff,idx2-16, dump);	    
+	      hexdump(pReadBuff,idx2, dump);	    
 	      ERROR("ref buf\n");
-              hexdump(pCompareBuff,idx2+offset-16, dump); 
+              hexdump(pCompareBuff,idx2+offset, dump); 
               return -1;
           }
       }
@@ -329,7 +329,7 @@ int do_partial_read_and_check(int f, char *filename) {
       /* Skip non written parts of the file */
       while ((idx<READ_BUFFER_SIZE) && (pCompareBuff[idx] == 0)) idx++;
       
-      if (idx == READ_BUFFER_SIZE) return 0;
+      if (idx >= READ_BUFFER_SIZE) return 0;
       
       /* How much bytes to compare */
       offsetStart = idx;
@@ -350,12 +350,12 @@ int do_partial_read_and_check(int f, char *filename) {
             ERROR("offset %d = 0x%x contains %x instead of %x\n", 
 	             idx2+offsetStart, idx2+offsetStart,
 		     pReadBuff[idx2],pCompareBuff[idx2+offsetStart]);
-	    ERROR("offset %d of %d read at offset %d\n", (int)idx2,size,offsetStart);
+	    ERROR("offset %d of %d read at offset %d\n", (int)idx2,(int)size,offsetStart);
 	    dump = size - idx2;
-	    if (dump > 64) dump = 64;	    
-            hexdump(pReadBuff,idx2-16, dump);	    
+	    if (dump > 64) dump = 64;	 
+            hexdump(pReadBuff,idx2, dump);	    
 	    ERROR("ref buf\n");
-            hexdump(pCompareBuff,idx2+offsetStart-16, dump); 
+            hexdump(pCompareBuff,idx2+offsetStart, dump); 
             return -1;
         }
       }

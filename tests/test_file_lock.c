@@ -578,6 +578,6 @@ int main(int argc, char **argv) {
     }
   }
   free_result();
-  printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
+  if (ret) printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
   exit(ret);
 }

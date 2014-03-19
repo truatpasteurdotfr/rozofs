@@ -131,16 +131,15 @@ int do_one_test(char * filename, int count) {
 
   f = open(filename, O_RDWR | O_CREAT, 0640);
   if (f == -1) {
-      printf("proc %3d - open %d\n",myProcId, errno);
-      printf("proc %3d - Can not open %s\n",myProcId, filename);
+      printf("proc %3d - open(%s) %s\n",myProcId, filename,strerror(errno));
       return -1;
   }
 
   // read 1rts 32K 
   size = pread(f, pCompareBuff, READ_BUFFER_SIZE, 0);
   if (size < READ_BUFFER_SIZE) {
-      printf("proc %3d - pread %d\n",myProcId,errno);
-      printf("proc %3d - Can not read size 32K %d\n", myProcId, (int)size);    
+      printf("proc %3d - 1rst pread(%s) %s\n",
+           myProcId, filename,strerror(errno));   
       close(f);
       return -1;
   }    
@@ -150,7 +149,8 @@ int do_one_test(char * filename, int count) {
     offset += size;
     size = pread(f, pReadBuff, READ_BUFFER_SIZE, offset);
     if (size < 0) {
-      printf("proc %3d - pread %d\n",myProcId,errno);
+      printf("proc %3d - pread(%s,offset=%d) %s\n",
+           myProcId, filename,offset,strerror(errno));
       close(f);
       return -1;
     }
@@ -161,11 +161,12 @@ int do_one_test(char * filename, int count) {
     }
 
     if (memcmp(pCompareBuff,pReadBuff, size) != 0) {
-      printf("Unexpected pattern in file\n");
+      printf("proc %3d - pread(%s,offset=%d) - Unexpected pattern",
+           myProcId, filename,offset,strerror(errno));    
       close(f);
       return -1;
     }
-  }      
+  }        
 }
 int loop_test_process() {
   int count=0;   
