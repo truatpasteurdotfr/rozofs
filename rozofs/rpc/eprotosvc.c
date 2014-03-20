@@ -16,7 +16,6 @@
 #define SIG_PF void(*)(int)
 #endif
 #include <rozofs/rozofs.h>
-#include "export_profiler.h"
 
 void
 export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
@@ -57,9 +56,6 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 	xdrproc_t _xdr_argument, _xdr_result;
 	char *(*local)(char *, struct svc_req *);
 
-        // Default profiler export index
-        export_profiler_eid = 0; 
-    
 	switch (rqstp->rq_proc) {
 	case EP_NULL:
 		_xdr_argument = (xdrproc_t) xdr_void;
@@ -141,7 +137,7 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 
 	case EP_RENAME:
 		_xdr_argument = (xdrproc_t) xdr_epgw_rename_arg_t;
-		_xdr_result = (xdrproc_t) xdr_epgw_fid_ret_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_rename_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_rename_1_svc;
 		break;
 
@@ -264,7 +260,5 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		fprintf (stderr, "%s", "unable to free arguments");
 		exit (1);
 	}
-	
-	export_profiler_eid = 0;
 	return;
 }

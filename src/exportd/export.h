@@ -333,7 +333,8 @@ int export_readlink(export_t *e, fid_t fid, char link[PATH_MAX]);
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_rename(export_t * e, fid_t pfid, char *name, fid_t npfid,
-        char *newname, fid_t fid);
+        char *newname, fid_t fid,
+	mattr_t * attrs);
 
 /** Read to a regular file
  *

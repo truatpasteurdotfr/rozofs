@@ -508,6 +508,14 @@ struct epgw_rename_arg_t {
 };
 typedef struct epgw_rename_arg_t epgw_rename_arg_t;
 
+struct epgw_rename_ret_t {
+	struct ep_gateway_t hdr;
+	ep_fid_ret_t status_gw;
+	ep_mattr_ret_t child_attr;
+	ep_mattr_ret_t parent_attr;
+};
+typedef struct epgw_rename_ret_t epgw_rename_ret_t;
+
 struct ep_io_arg_t {
 	uint32_t eid;
 	ep_uuid_t fid;
@@ -767,8 +775,8 @@ extern  epgw_fid_ret_t * ep_rmdir_1_svc(epgw_rmdir_arg_t *, struct svc_req *);
 extern  epgw_mattr_ret_t * ep_symlink_1(epgw_symlink_arg_t *, CLIENT *);
 extern  epgw_mattr_ret_t * ep_symlink_1_svc(epgw_symlink_arg_t *, struct svc_req *);
 #define EP_RENAME 14
-extern  epgw_fid_ret_t * ep_rename_1(epgw_rename_arg_t *, CLIENT *);
-extern  epgw_fid_ret_t * ep_rename_1_svc(epgw_rename_arg_t *, struct svc_req *);
+extern  epgw_rename_ret_t * ep_rename_1(epgw_rename_arg_t *, CLIENT *);
+extern  epgw_rename_ret_t * ep_rename_1_svc(epgw_rename_arg_t *, struct svc_req *);
 #define EP_READDIR 15
 extern  epgw_readdir_ret_t * ep_readdir_1(epgw_readdir_arg_t *, CLIENT *);
 extern  epgw_readdir_ret_t * ep_readdir_1_svc(epgw_readdir_arg_t *, struct svc_req *);
@@ -863,8 +871,8 @@ extern  epgw_fid_ret_t * ep_rmdir_1_svc();
 extern  epgw_mattr_ret_t * ep_symlink_1();
 extern  epgw_mattr_ret_t * ep_symlink_1_svc();
 #define EP_RENAME 14
-extern  epgw_fid_ret_t * ep_rename_1();
-extern  epgw_fid_ret_t * ep_rename_1_svc();
+extern  epgw_rename_ret_t * ep_rename_1();
+extern  epgw_rename_ret_t * ep_rename_1_svc();
 #define EP_READDIR 15
 extern  epgw_readdir_ret_t * ep_readdir_1();
 extern  epgw_readdir_ret_t * ep_readdir_1_svc();
@@ -995,6 +1003,7 @@ extern  bool_t xdr_ep_readdir_ret_t (XDR *, ep_readdir_ret_t*);
 extern  bool_t xdr_epgw_readdir_ret_t (XDR *, epgw_readdir_ret_t*);
 extern  bool_t xdr_ep_rename_arg_t (XDR *, ep_rename_arg_t*);
 extern  bool_t xdr_epgw_rename_arg_t (XDR *, epgw_rename_arg_t*);
+extern  bool_t xdr_epgw_rename_ret_t (XDR *, epgw_rename_ret_t*);
 extern  bool_t xdr_ep_io_arg_t (XDR *, ep_io_arg_t*);
 extern  bool_t xdr_epgw_io_arg_t (XDR *, epgw_io_arg_t*);
 extern  bool_t xdr_ep_write_block_arg_t (XDR *, ep_write_block_arg_t*);
@@ -1097,6 +1106,7 @@ extern bool_t xdr_ep_readdir_ret_t ();
 extern bool_t xdr_epgw_readdir_ret_t ();
 extern bool_t xdr_ep_rename_arg_t ();
 extern bool_t xdr_epgw_rename_arg_t ();
+extern bool_t xdr_epgw_rename_ret_t ();
 extern bool_t xdr_ep_io_arg_t ();
 extern bool_t xdr_epgw_io_arg_t ();
 extern bool_t xdr_ep_write_block_arg_t ();
