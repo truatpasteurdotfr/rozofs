@@ -28,7 +28,8 @@ case "${PJD_TRACE}" in
 esac 
 mkdir -p $TRACE_DIR
 TRACE_FILE="$TRACE_DIR/$test.res"
-date > $TRACE_FILE
+zedate=`date`
+printf "\n%s/%s[  0] : %s\n" ${subject} ${test} "${zedate}" > $TRACE_FILE
 
 
 
@@ -75,7 +76,7 @@ test_is_failed() {
 } >> $TRACE_FILE
 
 test_begin() {
-  printf "\n%s[%3d] : $*" ${subject} ${ntest}
+  printf "%s/%s[%3d] : $*\n" ${subject} ${test} ${ntest}
 } >> $TRACE_FILE
 
 create_too_long()
