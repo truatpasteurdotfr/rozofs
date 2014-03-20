@@ -269,6 +269,10 @@ void rozofs_ll_mknod_cbk(void *this,void *param)
     fep.ino = nie->inode;
     mattr_to_stat(&attrs, &stbuf);
     stbuf.st_ino = nie->inode;
+    /**
+    *  update the timestamp in the ientry context
+    */
+    nie->timestamp = rozofs_get_ticker_us();    
     /*
     ** update the attributes in the ientry
     */

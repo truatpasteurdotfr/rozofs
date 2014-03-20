@@ -1143,8 +1143,8 @@ out:
     @retval: EP_FAILURE :error code associated with the operation (errno)
 */
 
-epgw_fid_ret_t * ep_rename_1_svc(epgw_rename_arg_t * arg, struct svc_req * req) {
-    static epgw_fid_ret_t ret;
+epgw_rename_ret_t * ep_rename_1_svc(epgw_rename_arg_t * arg, struct svc_req * req) {
+    static epgw_rename_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
 
@@ -1159,7 +1159,8 @@ epgw_fid_ret_t * ep_rename_1_svc(epgw_rename_arg_t * arg, struct svc_req * req) 
         goto error;
     if (export_rename(exp, (unsigned char *) arg->arg_gw.pfid, arg->arg_gw.name,
             (unsigned char *) arg->arg_gw.npfid, arg->arg_gw.newname,
-            (unsigned char *) ret.status_gw.ep_fid_ret_t_u.fid) != 0)
+            (unsigned char *) ret.status_gw.ep_fid_ret_t_u.fid,
+	    (mattr_t *) &ret.child_attr.ep_mattr_ret_t_u.attrs) != 0)
         goto error;
 
     ret.hdr.eid = arg->arg_gw.eid ;  
