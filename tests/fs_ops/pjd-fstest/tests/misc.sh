@@ -18,6 +18,20 @@ fi
 fstest="${maindir}/fstest"
 . ${maindir}/tests/conf
 
+
+# Execution trace
+subject=`echo ${dir} | awk -F'/' '{print $NF }'`
+test=`basename $0`
+case "${PJD_TRACE}" in
+ "") TRACE_DIR=/tmp/pjd_result/$subject;;
+ *)  TRACE_DIR=${PJD_TRACE}/$subject;;
+esac 
+mkdir -p $TRACE_DIR
+TRACE_FILE="$TRACE_DIR/$test.res"
+date > $TRACE_FILE
+
+
+
 run_getconf()
 {
 	if val=$(getconf "${1}" .); then
@@ -55,6 +69,15 @@ long_dir="${long_dir}/x"
 
 too_long="${long_dir}/${name_max}"
 
+
+test_is_failed() {
+  printf "\n!!!\nTest is failed\n!!!\n "
+} >> $TRACE_FILE
+
+test_begin() {
+  printf "\n%s[%3d] : $*" ${subject} ${ntest}
+} >> $TRACE_FILE
+
 create_too_long()
 {
 	mkdir -p ${long_dir}
@@ -67,6 +90,7 @@ unlink_too_long()
 
 expect()
 {
+        test_begin "expect $*"  
 	e="${1}"
 	shift
 	r=`${fstest} $* 2>/dev/null | tail -1`
@@ -75,12 +99,14 @@ expect()
 		echo "ok ${ntest}"
 	else
 		echo "not ok ${ntest}"
+		test_is_failed
 	fi
 	ntest=`expr $ntest + 1`
 }
 
 jexpect()
 {
+        test_begin "jexpect $*" 
 	s="${1}"
 	d="${2}"
 	e="${3}"
@@ -91,16 +117,23 @@ jexpect()
 		echo "ok ${ntest}"
 	else
 		echo "not ok ${ntest}"
+		test_is_failed
+
 	fi
 	ntest=`expr $ntest + 1`
 }
 
 test_check()
 {
+        test_begin "test_check $*" 
+
 	if [ $* ]; then
 		echo "ok ${ntest}"
 	else
 		echo "not ok ${ntest}"
+		test_is_failed
+
+
 	fi
 	ntest=`expr $ntest + 1`
 }

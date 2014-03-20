@@ -25,9 +25,14 @@ pjdtest() {
     cd $1
     # SLEEP TIME BEFORE START TEST
     sleep 2
+    export PJD_TRACE=${LOCAL_PJDTESTS}/result
     prove -r ${LOCAL_PJDTESTS} 2>&1 | tee -a $flog
     EXIT_CODE=${PIPESTATUS[0]}
     cd ${WORKING_DIR}
+    case "${EXIT_CODE}" in
+      0);;
+      *) echo "See execution traces under $PJD_TRACE";;
+    esac  
     return ${EXIT_CODE}
 }
 
