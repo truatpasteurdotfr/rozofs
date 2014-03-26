@@ -7,6 +7,7 @@
 
 @menu
 * Rozodebug tools::
+* RozoFS Nagios Plugins::
 @end menu
 
 RozoFS comes with a command line tool called @command{rozodebug} that lets the
@@ -19,7 +20,7 @@ informations related to the system health. The communication with
 @command{rozodebug} is achieved thanks to @acronym{TCP}.
 
 @c *** Section [Rozodebug tools]
-@node       Rozodebug tools, , Monitoring, Monitoring
+@node       Rozodebug tools, RozoFS Nagios Plugins, Monitoring, Monitoring
 @section    Rozodebug tools
 @ifnotdocbook
 @cindex Rozodebug
@@ -1364,4 +1365,172 @@ storio localhost1> buffer
 @item @strong{Pool_rcv/Pool_snd}: pool used receiving and sending message from/to @emph{storcli}.
 @end itemize
 
+@c *** Section [RozoFS Nagios Plugins]
+@node       RozoFS Nagios Plugins, , Rozodebug tools, Monitoring
+@section    RozoFS Nagios Plugins
+@ifnotdocbook
+@cindex Rozodebug
+@cindex Nagios
+@cindex Monitoring
+@end ifnotdocbook
 
+@menu
+* Installation::
+* Plugins Description::
+@end menu
+
+We develop Nagios Plugins for monitoring RozoFS process. These plugins are suitable for monitoring the status of each RozoFS daemon (@strong{rozofsmount}, @strong{storcli}, @strong{exportd}, @strong{storaged} and @strong{storio}).
+
+@c *** Subsection [Installation]
+@node       Installation, Plugins Description, , RozoFS Nagios Plugins
+@subsection Installation
+
+@menu
+* Plugins Installation::
+* Commands Configuration File Installation::
+* Logos Installation::
+@end menu
+
+@c *** Subsubsection [Plugins Installation]
+@node   Plugins Installation, Commands Configuration File Installation, , Installation
+@subsubsection  Plugins Installation
+
+Under @file{plugins} directory are the RozoFS Nagios plugins to be copied under
+@file{/usr/lib/nagios/plugins/} where your Nagios runs.
+
+@c *** Subsubsection [Commands Configuration File Installation]
+@node   Commands Configuration File Installation, Logos Installation, Plugins Installation, Installation
+@subsubsection  Commands Configuration File Installation
+
+Under @file{cfg} directory stand files related to RozoFS plugins command definitions. 
+You should find the Nagios top configuration file on your Nagios server under @file{/etc/nagios3/nagios.cfg}. Open it and insert at the end the following lines to include the RozoFS configuration files.
+
+@example
+cfg_file=/etc/nagios-plugins/config/rozofs-commands.cfg
+@end example
+
+Copy file @file{rozofs-commands.cfg} under @file{/etc/nagios-plugins/config/} directory.
+
+This file defines the commands to invoke the different plugins and do not depends on your RozoFS cluster configuration.
+
+@c *** Subsubsection [Logos Installation]
+@node           Logos Installation, , Commands Configuration File Installation, Installation
+@subsubsection  Logos Installation
+
+Copy all RozoFS logo files under @file{/usr/share/nagios/htdocs/images/logos/rozofs} directory and make a symbolic link:
+@example
+# ln -sf /usr/share/nagios3/htdocs/images/logos/rozofs \
+ /usr/share/nagios/htdocs/images/logos/rozofs
+@end example
+
+@c *** Subsection [Plugins Description]
+@node       Plugins Description, , Installation, RozoFS Nagios Plugins
+@subsection Plugins Description
+
+@menu
+* check_rozofs_volume.sh::
+* check_rozofs_storaged.sh::
+* check_rozofs_rozofsmount.sh::
+@end menu
+
+@c *** Subsubsection [check_rozofs_volume.sh]
+@node   check_rozofs_volume.sh, check_rozofs_storaged.sh, , Plugins Description
+@subsubsection  check_rozofs_volume.sh
+
+This plugin is used to monitor the state of a volume id using the @strong{rozodebug} interface. It gets as mandatory parameters the host where the @strong{exportd} handling this volume runs (VIP) and the acceptable critical/warning thresholds for the free volume space.
+
+The plugin pings the host of the @strong{exportd} and on success requests the @strong{exportd} for the volume statistics, and checks the status of the storage nodes servicing the volume.
+
+The result is @strong{OK} when:
+@itemize
+@item all storages nodes are up,
+@*
+AND
+@item the free volume space is over the warning threshold.
+@end itemize
+
+The result is @strong{CRITICAL} when:
+@itemize
+@item the free volume space is below the critical threshold,
+@*
+OR
+@item no storage node is up.
+@end itemize
+
+The result is @strong{WARNING} in all other cases so:
+@itemize
+@item the free volume space is between the warning and critical thresholds,
+@*
+AND/OR
+@item some storage nodes but not all are down.
+@end itemize
+
+@c *** Subsubsection [check_rozofs_storaged.sh]
+@node   check_rozofs_storaged.sh, check_rozofs_rozofsmount.sh, check_rozofs_volume.sh, Plugins Description
+@subsubsection check_rozofs_storaged.sh
+
+This plugin is used to monitor the state of a storage node using the @strong{rozodebug} interface. It gets as mandatory parameter the host of the storage node.
+
+The plugin pings the storage node and then checks access to the @strong{rozodebug} interface of the @strong{storaged} and each @strong{storio} of the storage node.
+
+The result is @strong{OK} when:
+@itemize
+@item the @strong{storaged} and all the @strong{storio} are up.
+@end itemize
+
+The result is @strong{WARNING} when:
+@itemize
+@item some @strong{storio} is not responding.
+@end itemize
+
+The result is @strong{CRITICAL} when:
+@itemize
+@item the @strong{storaged} is down or when all @strong{storios} are down.
+@end itemize
+
+@c *** Subsubsection [check_rozofs_rozofsmount.sh]
+@node   check_rozofs_rozofsmount.sh, , check_rozofs_storaged.sh, Plugins Description
+@subsubsection check_rozofs_rozofsmount.sh
+
+This plugin is used to monitor the state of a RozoFS client using the @strong{rozodebug} interface. It gets as mandatory parameters the host of the RozoFS client.
+
+The plugin pings the host of the RozoFS client.
+It checks the status of the @strong{rozofsmount} interface toward the @strong{exportd}.
+It checks the status of the @strong{rozofsmount} interfaces toward its @strong{storcli}.
+It checks the status of the @strong{storcli} interfaces toward the storage nodes.
+
+The result is @strong{OK} when:
+@itemize
+@item the @strong{rozofsmount} has its interface toward the @strong{exportd} UP,
+@*
+AND
+@item the @strong{rozofsmount} has its 2 interfaces toward the @strong{storcli} UP,
+@*
+AND
+@item the one or two @strong{storcli} have their interfaces toward the @strong{storages} UP.
+@end itemize
+
+The result is @strong{CRITICAL} when:
+@itemize
+@item the @strong{rozofsmount} is unreachable,
+@*
+OR
+@item the @strong{rozofsmount} has its interface toward the @strong{exportd} DOWN,
+@*
+OR
+@item the @strong{rozofsmount} has one of its interfaces toward a @strong{storcli} DOWN,
+@*
+OR
+@item one of the @strong{storcli} has more than one interface DOWN toward a storage node.
+@end itemize
+
+The result is @strong{WARNING} when:
+@itemize
+@item the @strong{rozofsmount} has its interface UP toward the @strong{exportd},
+@*
+AND
+@item the @strong{rozofsmount} has its 2 interfaces up toward the @strong{storcli},
+@*
+AND
+@item no @strong{storcli} has more than one interface DOWN toward a storage node.
+@end itemize

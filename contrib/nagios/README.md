@@ -1,13 +1,13 @@
 Installation
 ============
 
-Plugins installation
+Plugins Installation
 --------------------
 
 Under `plugins` directory are the RozoFS Nagios plugins to be copied under
 `/usr/lib/nagios/plugins/` where your Nagios runs.
 
-Commands configuration file installation 
+Commands Configuration File Installation
 ----------------------------------------
 
 Under `cfg` directory stand files related to RozoFS plugins command definitions. 
@@ -22,7 +22,7 @@ Copy file `rozofs-commands.cfg` under `/etc/nagios-plugins/config/` directory.
 This file defines the commands to invoke the different plugins and do not 
 depends on your RozoFS cluster configuration.
 
-Logos installation
+Logos Installation
 ------------------
 
 Copy all RozoFS logo files under `/usr/share/nagios/htdocs/images/logos/rozofs`
@@ -48,7 +48,7 @@ the volume.
 
 The result is **OK** when:
 
--   all storages nodes are up
+-   all storages nodes are up,
 
 AND
 
@@ -60,7 +60,7 @@ The result is **CRITICAL** when:
 
 OR
 
--   no storage node is up
+-   no storage node is up.
 
 The result is **WARNING** in all other cases so:
 
@@ -84,9 +84,9 @@ The result is **OK** when:
 
 -   the `storaged` and all the `storio` are up.
 
-The result is **WARNING**  when:
+The result is **WARNING** when:
 
--   some `storio` is not responding
+-   some `storio` is not responding.
 
 The result is **CRITICAL** when:
 
@@ -107,27 +107,27 @@ It checks the status of the `storcli` interfaces toward the storage nodes.
 
 The result is **OK** when:
 
--   the `rozofsmount` has its interface toward the `exportd` UP
+-   the `rozofsmount` has its interface toward the `exportd` UP,
 
 AND
 
--   the `rozofsmount` has its 2 interfaces toward the `storcli` UP
+-   the `rozofsmount` has its 2 interfaces toward the `storcli` UP,
 
 AND
 
--   the one or two `storcli` have their interfaces toward the `storages` UP
+-   the one or two `storcli` have their interfaces toward the `storages` UP.
 
 The result is **CRITICAL** when:
 
--   the rozofsmount is unreachable
+-   the `rozofsmount` is unreachable
   
 OR
 
--   the `rozofsmount` has its interface toward the `exportd` DOWN
+-   the `rozofsmount` has its interface toward the `exportd` DOWN,
 
 OR
 
--   the `rozofsmount` has one of its interfaces toward a `storcli` DOWN
+-   the `rozofsmount` has one of its interfaces toward a `storcli` DOWN,
   
 OR
 
@@ -136,11 +136,11 @@ OR
 
 The result is **WARNING** when:
 
--   the `rozofsmount` has its interface UP toward the `exportd`
+-   the `rozofsmount` has its interface UP toward the `exportd`,
 
 AND
 
--   the `rozofsmount` has its 2 interfaces up toward the `storcli`
+-   the `rozofsmount` has its 2 interfaces up toward the `storcli`,
 
 AND
 
