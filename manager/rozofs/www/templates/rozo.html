@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+            <title>RozoFS web console</title>
+            <link rel="stylesheet" type="text/css" href="static/easyui/themes/default/easyui.css">
+            <link rel="stylesheet" type="text/css" href="static/easyui/themes/icon.css">
+            <link rel="stylesheet" type="text/css" href="static/rozo.css">
+            <script type="text/javascript" src="static/easyui/jquery.min.js"></script>
+            <script type="text/javascript" src="static/easyui/jquery.easyui.min.js"></script>
+            <script type="text/javascript" src="static/highcharts/highcharts.js"></script>
+            <script type="text/javascript" src="static/highcharts/modules/exporting.js"></script>
+            <script type="text/javascript" src="static/rozo.js"></script>
+		</meta>
+    </head>
+    <body class="easyui-layout">
+		<div data-options="region:'north',border:false" style="padding:10px"><img src="static/rozofs.png"></div>
+		<div data-options="region:'west',split:true, border:false" style="width:300px">				
+			<table class="easyui-treegrid" id="platformTree"
+				data-options="
+					title: 'Platform view',
+					method: 'get',
+					fit: true,
+					rownumbers: false,
+					idField: 'id',
+					treeField: 'text',
+					onContextMenu: platformTreeOnContextMenu,
+					onClickRow: platformTreeOnClickRow,
+					onBeforeLoad: function() {if (exportd=='') {return false;} else {showLoader();}},
+					onLoadSuccess: hideLoader,
+					onLoadError: function(e) {hideLoader(); showError(e);},
+					tools:[{iconCls:'icon-reload', handler:function(){$('#platformTree').treegrid('reload'); $('#detailView').empty();}}]">
+				<thead>
+					<tr>
+						<th data-options="field:'text'" width="200">Platform</th>
+						<th data-options="field:'status', formatter:platformTreeStatusFormatter" align="center">Status</th>
+					</tr>
+				</thead>
+			</table>
+			<div id="platformTreePlatformContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Platform Nodes</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Platform Nodes</div>
+				<div onclick="expandVolume();" data-options="iconCls:'icon-add'">Add Volume...</div>
+			</div>
+			<div id="platformTreeVolumeContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Volume Storage Nodes</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Volume Storage Nodes</div>
+				<div onclick="expandVolume();" data-options="iconCls:'icon-add'">Expand Volume...</div>
+				<div onclick="removeVolume();" data-options="iconCls:'icon-remove'">Remove Volume</div>
+			</div>
+			<div id="platformTreeStoragesContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Volume Storage Nodes</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Volume Storage Nodes</div>
+			</div>
+			<div id="platformTreeClusterContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Cluster Storage Nodes</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Cluster Storage Nodes</div>
+			</div>
+			<div id="platformTreeStorageContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Storage Node</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Storage Node</div>
+			</div>
+			<div id="platformTreeExportsContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Exports Mounts Nodes</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Exports Mounts Nodes</div>
+				<div onclick="mountExports();" data-options="iconCls:'icon-start'">Mount Exports on Nodes</div>
+				<div onclick="umountExports();" data-options="iconCls:'icon-stop'">Umount Exports on Nodes</div>
+				<div onclick="addExport();" data-options="iconCls:'icon-add'">Add Export...</div>
+			</div>
+			<div id="platformTreeExportContextMenu" class="easyui-menu">
+				<div onclick="mountExports();" data-options="iconCls:'icon-start'">Mount Export on Nodes</div>
+				<div onclick="umountExports();" data-options="iconCls:'icon-stop'">Umount Export on Nodes</div>
+				<div onclick="removeExport();" data-options="iconCls:'icon-remove'">Remove Export</div>
+			</div>
+			<div id="platformTreeMountContextMenu" class="easyui-menu">
+				<div onclick="nodesStart();" data-options="iconCls:'icon-start'">Start Mount</div>
+				<div onclick="nodesStop();" data-options="iconCls:'icon-stop'">Stop Mount</div>
+			</div>
+		</div>
+		<div data-options="region:'south',border:false" style="height:40px;padding:10px;">TODO STATUS BAR</div>
+		<div data-options="region:'center', border: false">
+			<div id="detailView" class="easyui-panel" title="Statistics" data-options="fit:true"></div>
+		</div>
+		<div id="spinner" style="display:none;">
+			<div class="loader">
+				<div></div>
+				<div></div>
+				<div></div>
+				<div></div>
+				<div></div>
+				<div></div>
+				<div></div>
+				<div></div>
+			</div>
+		</div>
+		<div id="login" style="text-align:center; display:block;">
+			<div style="margin:50px;">
+				<img src="/static/rozofs-512.png"/>
+			</div>
+			<div>
+				<label style="margin-right:5px; color:white;">Hostname:</label>
+				<input id="exportd" class="easyui-validatebox" type="text" data-options="required:true"/>
+				<a class="easyui-linkbutton" data-options="iconCls:'icon-ok'" style="margin:5px;" onclick="login();">Go</a>
+			</div>	
+		</div>
+	</body>
+</html>

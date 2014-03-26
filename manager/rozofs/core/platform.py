@@ -101,7 +101,7 @@ class Node(object):
         if self._up == False:
             # is it reachable ?
             with open('/dev/null', 'w') as devnull:
-                if subprocess.call(['ping', '-c', '1', self._host], stdout=devnull,
+                if subprocess.call(['ping', '-c', '1', '-W', '1', self._host], stdout=devnull,
                     stderr=devnull) is not 0:
                         return False
             # yes, so try to connect to agents

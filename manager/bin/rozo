@@ -94,6 +94,8 @@ def main(argv=None):  # IGNORE:C0111
 
         topic_agent_parser = topic_subparsers.add_parser('agent', help='agent commands', add_help=False)
 
+        topic_www_parser = topic_subparsers.add_parser('www', help='www commands', add_help=False)
+
         topic_layout_parser = topic_subparsers.add_parser('layout', help='layout commands', add_help=False)
         topic_layout_parser.add_argument('-E', '--exportd', required=True, help='running platform agent host (be sure to provide virtual ip if used).')
 
@@ -129,6 +131,13 @@ def main(argv=None):  # IGNORE:C0111
         action_agent_restart_parser = action_agent_subparsers.add_parser('restart', add_help=False, help='restart agent')
         action_agent_restart_parser.add_argument('-p', '--pacemaker', nargs='?', const='exportd_rozofs', help='exportd cluster resource name when exportd is managed thru pacemaker (default: exportd_rozofs).')
         action_agent_restart_parser.add_argument('-l', '--listeners', nargs='*', choices=[[], EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER], default=[], help='list of listeners.')
+
+        # Www
+        action_www_parser = ArgumentParser(add_help=False, prog='rozo www')
+
+        action_www_subparsers = action_www_parser.add_subparsers(help='www available actions', dest='action')
+
+        action_www_status_parser = action_www_subparsers.add_parser('start', add_help=False, help='start www server')
 
         # Layout
         action_layout_parser = ArgumentParser(add_help=False, prog='rozo layout')
