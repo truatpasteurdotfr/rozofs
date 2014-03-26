@@ -26,7 +26,7 @@ setup(
     author='Fizians S.A.S.',
     author_email='devel@rozofs.com',
     url='http://www.fizians.com/',
-    description='Rozofs platform management tools',
+    description='RozoFS platform management tools',
     license='Copyright Fizians S.A.S.',
     packages=['rozofs', 'rozofs.ext', 'rozofs.core', 'rozofs.cli', 'rozofs.www'],
     package_dir={'rozofs': '@CMAKE_CURRENT_SOURCE_DIR@/manager/rozofs',

@@ -69,8 +69,7 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         if (rozofs_bins_hdr_p->s.timestamp == 0) {
             // Need to check that all the header is filled with 0
             // to take it into account
-            if ((rozofs_bins_hdr_p->s.effective_length == 0)
-                    && (rozofs_bins_hdr_p->s.projection_id == 0)) {
+            if (rozofs_bins_hdr_p->s.effective_length == 0) {
 
                 // Update count
                 ts_empty_count += 1;
@@ -143,7 +142,92 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
 
     return -1;
 }
+int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
+        uint32_t block_idx, uint8_t *prj_idx_tb_p, uint64_t *timestamp_p,
+        uint16_t *effective_length_p) {
 
+    uint8_t prj_ctx_idx = 0;
+    uint8_t ts_entry_idx = 0;
+    rbs_timestamp_ctx_t *ts_ctx_p = NULL;
+    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
+    uint8_t and_the_winner_is = -1;
+
+    *timestamp_p = 0;
+    rbs_timestamp_next_free_idx = 0;
+
+    // For each projection
+    for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++) {
+
+        // Check projection state
+        if (prj_ctx_p[prj_ctx_idx].prj_state != PRJ_READ_DONE) {
+            // This projection context does not contain valid data, so skip it
+            continue;
+        }
+
+        // Get the pointer to the projection header
+        rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
+                (prj_ctx_p[prj_ctx_idx].bins
+                + ((rozofs_get_max_psize(layout)+
+                (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t)))
+                * block_idx));
+
+        // First valid projection
+        if (rbs_timestamp_next_free_idx == 0) {
+            ts_ctx_p = &rbs_timestamp_tb[rbs_timestamp_next_free_idx];
+            ts_ctx_p->timestamp = rozofs_bins_hdr_p->s.timestamp;
+            ts_ctx_p->count = 0;
+            ts_ctx_p->prj_idx_tb[ts_ctx_p->count] = prj_ctx_idx;
+            ts_ctx_p->count++;
+            rbs_timestamp_next_free_idx++;
+            continue;
+        }
+
+        // More than 1 entry in the timestamp table
+        for (ts_entry_idx = 0; ts_entry_idx < rbs_timestamp_next_free_idx;
+                ts_entry_idx++) {
+
+            ts_ctx_p = &rbs_timestamp_tb[ts_entry_idx];
+
+            if (rozofs_bins_hdr_p->s.timestamp != ts_ctx_p->timestamp)
+                continue;
+
+            // Same timestamp: register the projection index and check if we
+            // have reached rozofs_inverse projections to stop the search
+            ts_ctx_p->prj_idx_tb[ts_ctx_p->count] = prj_ctx_idx;
+            ts_ctx_p->count++;
+
+            if (ts_ctx_p->count >= rozofs_inverse) {
+
+                and_the_winner_is = ts_entry_idx;
+
+                // Assert the timestamp that is common to all projections used
+                // to rebuild that block
+                *timestamp_p = ts_ctx_p->timestamp;
+                *effective_length_p = rozofs_bins_hdr_p->s.effective_length;
+            }
+	    break;
+        }
+	if (ts_entry_idx < rbs_timestamp_next_free_idx) continue;
+
+        // This timestamp does not exist, so create an entry for it
+        ts_ctx_p = &rbs_timestamp_tb[rbs_timestamp_next_free_idx];
+        ts_ctx_p->timestamp = rozofs_bins_hdr_p->s.timestamp;
+        ts_ctx_p->count = 0;
+        ts_ctx_p->prj_idx_tb[ts_ctx_p->count] = prj_ctx_idx;
+        ts_ctx_p->count++;
+        rbs_timestamp_next_free_idx++;
+    }
+
+    // Is there a winer ?
+    if (and_the_winner_is != -1) {
+    
+       ts_ctx_p = &rbs_timestamp_tb[and_the_winner_is];
+       memcpy(prj_idx_tb_p, ts_ctx_p->prj_idx_tb, ts_ctx_p->count);
+       return ts_ctx_p->count;
+    }
+    return -1;
+}
 int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         uint32_t first_block_idx, uint32_t number_of_blocks,
         rbs_inverse_block_t *block_ctx_p, char *data) {

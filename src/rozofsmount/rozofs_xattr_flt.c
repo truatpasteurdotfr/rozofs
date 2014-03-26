@@ -132,8 +132,8 @@ int rozofs_xattr_flt_remove(char *name)
 */
 void rozofs_xattr_flt_status(char *pChar)
 {
-   pChar+sprintf(pChar,"xattribute filter state: %s\n",(rozofs_xattr_flt_enable==0)?"Disabled":"Enabled");
-   pChar+sprintf(pChar,"number of filters      : %d/%d\n",rozofs_xattr_flt_count,ROZOFS_XATTR_FILTR_MAX);
+   pChar+=sprintf(pChar,"xattribute filter state: %s\n",(rozofs_xattr_flt_enable==0)?"Disabled":"Enabled");
+   pChar+=sprintf(pChar,"number of filters      : %d/%d\n",rozofs_xattr_flt_count,ROZOFS_XATTR_FILTR_MAX);
 
 }
 
@@ -145,10 +145,9 @@ void show_xattr_flt_buffer(char *pChar)
 {
    int i;
    rozofs_xattr_flt_t *p;
-   int len;
    
-   pChar+sprintf(pChar,"xattribute filter state: %s\n",(rozofs_xattr_flt_enable==0)?"Disabled":"Enabled");
-   pChar+sprintf(pChar,"number of filters      : %d/%d\n",rozofs_xattr_flt_count,ROZOFS_XATTR_FILTR_MAX);
+   pChar+=sprintf(pChar,"xattribute filter state: %s\n",(rozofs_xattr_flt_enable==0)?"Disabled":"Enabled");
+   pChar+=sprintf(pChar,"number of filters      : %d/%d\n",rozofs_xattr_flt_count,ROZOFS_XATTR_FILTR_MAX);
 
    for (i = 0; i < ROZOFS_XATTR_FILTR_MAX; i++)
    {

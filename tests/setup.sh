@@ -357,6 +357,19 @@ start_one_storage_rebuild()
     ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost
     #sleep 1
 }
+storage_delete() 
+{
+    sid=$1
+    cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+    dir="${LOCAL_STORAGES_ROOT}_$cid-$sid/"
+    if [ -d $dir ];
+    then
+      echo "delete $cid/$sid : $dir" 
+      \rm -rf $dir/*
+    else
+      echo "$dir does not exist !!!"         	  
+    fi
+}
 
 
 stop_one_storage () {
@@ -917,7 +930,7 @@ usage ()
     echo >&2 "$0 stop"
     echo >&2 "$0 pause"
     echo >&2 "$0 resume"
-    echo >&2 "$0 storage <sid|all> <stop|start|start-rebuild|reset>"
+    echo >&2 "$0 storage <sid|all> <stop|start|delete|rebuild|reset>"
     echo >&2 "$0 expgw <nb|all> <stop|start|reset>"
     echo >&2 "$0 export <stop|start|reset>"
     echo >&2 "$0 fsmount <stop|start|reset>"
@@ -1177,7 +1190,8 @@ main ()
       case "$3" in 
         stop)    stop_one_storage $2;;
 		start)   start_one_storage $2;;
-		start-rebuild)   start_one_storage_rebuild $2;;
+		rebuild) stop_one_storage $2; sleep 8; start_one_storage_rebuild $2;;
+		delete)  storage_delete $2;;
 		reset)   reset_one_storage $2;;
         *)       usage;;
       esac

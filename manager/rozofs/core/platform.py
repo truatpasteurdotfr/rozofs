@@ -539,7 +539,7 @@ class Platform(object):
 
             for c in squota:
                 if not c.isdigit():
-                    if c not in ['K', 'M', 'G']:
+                    if c not in ['K', 'M', 'G', 'T']:
                         raise Exception("Invalid squota format: %s." % squota)
                     else:
                         break
@@ -551,7 +551,7 @@ class Platform(object):
 
             for c in hquota:
                 if not c.isdigit():
-                    if c not in ['K', 'M', 'G']:
+                    if c not in ['K', 'M', 'G', 'T']:
                         raise Exception("Invalid hquota format: %s." % squota)
                     else:
                         break
@@ -611,7 +611,7 @@ class Platform(object):
 
                 for c in squota:
                     if not c.isdigit():
-                        if c not in ['K', 'M', 'G']:
+                        if c not in ['K', 'M', 'G', 'T']:
                             raise Exception("Invalid squota format: %s." % squota)
                         else:
                             break
@@ -624,7 +624,7 @@ class Platform(object):
 
                 for c in hquota:
                     if not c.isdigit():
-                        if c not in ['K', 'M', 'G']:
+                        if c not in ['K', 'M', 'G', 'T']:
                             raise Exception("Invalid hquota format: %s." % squota)
                         else:
                             break

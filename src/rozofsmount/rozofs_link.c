@@ -967,14 +967,13 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
     ** end of decoding
     */
     if ((ie = get_ientry_by_fid(fid))) {
+        // Update nlookup
         ie->nlookup--;
-
-      /*
-      ** Update number of link
-      */
-      ie->attrs.nlink--; 
-      //info("%d nlookup %d nlink %d",ie->inode, ie->nlookup, ie->attrs.nlink);
-
+        // Invalidate attrs cache
+        ie->timestamp = 0;
+        // Update nlink
+        if (ie->attrs.nlink > 0)
+            ie->attrs.nlink--;
     }
 
     xdr_free(decode_proc, (char *) &ret);    

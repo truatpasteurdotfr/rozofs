@@ -26,16 +26,14 @@
 
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/sproto.h>
+#include <rozofs/rpc/export_profiler.h>
 
 #include "export.h"
 #include "volume.h"
 #include "exportd.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 void *ep_null_1_svc(void *noargs, struct svc_req *req) {
     DEBUG_FUNCTION;
@@ -155,6 +153,10 @@ void exportd_reinit_storage_configuration_message()
 epgw_status_ret_t * ep_poll_conf_1_svc(ep_gateway_t *args, struct svc_req *req)
 {
     static epgw_status_ret_t ret;
+    
+    // Default profiler export index
+    export_profiler_eid = args->eid;    
+    
     START_PROFILING(ep_poll);
 
     if (args->hash_config == export_configuration_file_hash) 
@@ -189,11 +191,19 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(ep_path_t * arg, struct svc_req * req) {
     int stor_idx = 0;
     int exist = 0;
     ep_cnf_storage_node_t *storage_cnf_p;
-    
 
     DEBUG_FUNCTION;
-    START_PROFILING(ep_mount);
     
+    // XXX exportd_lookup_id could return export_t *
+    eid = exports_lookup_id(*arg);	
+
+    // XXX exportd_lookup_id could return export_t *
+    if (eid) export_profiler_eid = *eid;
+    else     export_profiler_eid = 0;
+	
+    START_PROFILING(ep_configuration);
+    if (!eid) goto error;
+        
     exportd_reinit_storage_configuration_message();
 #if 0
 #warning fake xdrmem_create
@@ -203,9 +213,7 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(ep_path_t * arg, struct svc_req * req) {
     char *pchar = malloc(size);
     xdrmem_create(&xdrs,(char*)pchar,size,XDR_ENCODE);    
 #endif
-    // XXX exportd_lookup_id could return export_t *
-    if (!(eid = exports_lookup_id(*arg)))
-        goto error;
+
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 
@@ -355,16 +363,21 @@ ep_gw_gateway_configuration_ret_t *ep_conf_expgw_1_svc(ep_path_t * arg, struct s
     list_t *iterator_expgw;    
     ep_gateway_configuration_t *expgw_conf_p= &ret.status_gw.ep_gateway_configuration_ret_t_u.config;
 
-    START_PROFILING(ep_conf_gateway);
-	ret.hdr.eid          = 0;      /* NS */
-	ret.hdr.nb_gateways  = 0; /* NS */
-	ret.hdr.gateway_rank = 0; /* NS */
-	ret.hdr.hash_config  = 0; /* NS */
-    
+    // XXX exportd_lookup_id could return export_t *
+    eid = exports_lookup_id(*arg);	
 
     // XXX exportd_lookup_id could return export_t *
-    if (!(eid = exports_lookup_id(*arg)))
-        goto error;
+    if (eid) export_profiler_eid = *eid;
+    else     export_profiler_eid = 0;
+	
+    START_PROFILING(ep_conf_gateway);
+    ret.hdr.eid          = 0;      /* NS */
+    ret.hdr.nb_gateways  = 0; /* NS */
+    ret.hdr.gateway_rank = 0; /* NS */
+    ret.hdr.hash_config  = 0; /* NS */
+      
+    if (!eid) goto error; 
+
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 
@@ -472,11 +485,15 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     
 
     DEBUG_FUNCTION;
-    START_PROFILING(ep_mount);
 
     // XXX exportd_lookup_id could return export_t *
-    if (!(eid = exports_lookup_id(*arg)))
-        goto error;
+    eid = exports_lookup_id(*arg);    
+    if (eid) export_profiler_eid = *eid;	
+    else     export_profiler_eid = 0; 
+        
+    START_PROFILING(ep_mount);
+    if (!eid) goto error;
+
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 
@@ -664,6 +681,10 @@ epgw_statfs_ret_t * ep_statfs_1_svc(uint32_t * arg, struct svc_req * req) {
     static epgw_statfs_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+    
+    // Set profiler export index
+    export_profiler_eid = * arg;	
+        
     START_PROFILING(ep_statfs);
 
     if (!(exp = exports_lookup_export((eid_t) * arg)))
@@ -693,6 +714,10 @@ epgw_mattr_ret_t * ep_lookup_1_svc(epgw_lookup_arg_t * arg, struct svc_req * req
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_lookup);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -732,6 +757,10 @@ epgw_mattr_ret_t * ep_getattr_1_svc(epgw_mfile_arg_t * arg, struct svc_req * req
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_getattr);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -769,6 +798,10 @@ epgw_mattr_ret_t * ep_setattr_1_svc(epgw_setattr_arg_t * arg, struct svc_req * r
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_setattr);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -809,6 +842,10 @@ epgw_readlink_ret_t * ep_readlink_1_svc(epgw_mfile_arg_t * arg,
     static epgw_readlink_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_readlink);
 
     xdr_free((xdrproc_t) xdr_epgw_readlink_ret_t, (char *) &ret);
@@ -849,6 +886,10 @@ epgw_mattr_ret_t * ep_link_1_svc(epgw_link_arg_t * arg, struct svc_req * req) {
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_link);
     
     ret.parent_attr.status = EP_EMPTY;
@@ -888,6 +929,10 @@ epgw_mattr_ret_t * ep_mknod_1_svc(epgw_mknod_arg_t * arg, struct svc_req * req) 
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_mknod);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -928,6 +973,10 @@ epgw_mattr_ret_t * ep_mkdir_1_svc(epgw_mkdir_arg_t * arg, struct svc_req * req) 
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_mkdir);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -968,6 +1017,10 @@ epgw_fid_ret_t * ep_unlink_1_svc(epgw_unlink_arg_t * arg, struct svc_req * req) 
     static epgw_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_unlink);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -1006,6 +1059,10 @@ epgw_fid_ret_t * ep_rmdir_1_svc(epgw_rmdir_arg_t * arg, struct svc_req * req) {
     static epgw_fid_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_rmdir);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -1044,6 +1101,10 @@ epgw_mattr_ret_t * ep_symlink_1_svc(epgw_symlink_arg_t * arg, struct svc_req * r
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_symlink);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -1082,10 +1143,14 @@ out:
     @retval: EP_FAILURE :error code associated with the operation (errno)
 */
 
-epgw_fid_ret_t * ep_rename_1_svc(epgw_rename_arg_t * arg, struct svc_req * req) {
-    static epgw_fid_ret_t ret;
+epgw_rename_ret_t * ep_rename_1_svc(epgw_rename_arg_t * arg, struct svc_req * req) {
+    static epgw_rename_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_rename);
     
     ret.parent_attr.status = EP_EMPTY;
@@ -1094,7 +1159,8 @@ epgw_fid_ret_t * ep_rename_1_svc(epgw_rename_arg_t * arg, struct svc_req * req) 
         goto error;
     if (export_rename(exp, (unsigned char *) arg->arg_gw.pfid, arg->arg_gw.name,
             (unsigned char *) arg->arg_gw.npfid, arg->arg_gw.newname,
-            (unsigned char *) ret.status_gw.ep_fid_ret_t_u.fid) != 0)
+            (unsigned char *) ret.status_gw.ep_fid_ret_t_u.fid,
+	    (mattr_t *) &ret.child_attr.ep_mattr_ret_t_u.attrs) != 0)
         goto error;
 
     ret.hdr.eid = arg->arg_gw.eid ;  
@@ -1124,6 +1190,10 @@ epgw_readdir_ret_t * ep_readdir_1_svc(epgw_readdir_arg_t * arg,
     static epgw_readdir_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_readdir);
 
     xdr_free((xdrproc_t) xdr_epgw_readdir_ret_t, (char *) &ret);
@@ -1184,6 +1254,10 @@ epgw_read_block_ret_t * ep_read_block_1_svc(epgw_io_arg_t * arg, struct svc_req 
     uint32_t nb_blks = 0;
 
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING_IO(ep_read_block, arg->arg_gw.length);
 
     // Free memory buffers for xdr
@@ -1234,6 +1308,10 @@ epgw_mattr_ret_t * ep_write_block_1_svc(epgw_write_block_arg_t * arg,
     static epgw_mattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING_IO(ep_write_block, arg->arg_gw.length);
 
     ret.parent_attr.status = EP_EMPTY;
@@ -1320,6 +1398,9 @@ epgw_status_ret_t * ep_setxattr_1_svc(epgw_setxattr_arg_t * arg, struct svc_req 
     export_t *exp;
     DEBUG_FUNCTION;
 
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_setxattr);
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
@@ -1355,6 +1436,9 @@ epgw_getxattr_ret_t * ep_getxattr_1_svc(epgw_getxattr_arg_t * arg, struct svc_re
     export_t *exp;
     ssize_t size = -1;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
 
     START_PROFILING(ep_getxattr);
 
@@ -1399,6 +1483,9 @@ epgw_status_ret_t * ep_removexattr_1_svc(epgw_removexattr_arg_t * arg, struct sv
     export_t *exp;
     DEBUG_FUNCTION;
 
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_removexattr);
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
@@ -1433,6 +1520,9 @@ epgw_listxattr_ret_t * ep_listxattr_1_svc(epgw_listxattr_arg_t * arg, struct svc
     export_t *exp;
     ssize_t size = -1;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
 
     START_PROFILING(ep_listxattr);
 
@@ -1492,6 +1582,9 @@ epgw_lock_ret_t * ep_set_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req *
     export_t *exp;
     DEBUG_FUNCTION;
 
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_set_file_lock);
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
@@ -1530,6 +1623,9 @@ epgw_status_ret_t * ep_clear_client_file_lock_1_svc(epgw_lock_arg_t * arg, struc
     export_t *exp;
     DEBUG_FUNCTION;
 
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
+
     START_PROFILING(ep_clearclient_flock);
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
@@ -1563,6 +1659,9 @@ epgw_status_ret_t * ep_clear_owner_file_lock_1_svc(epgw_lock_arg_t * arg, struct
     static epgw_status_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
 
     START_PROFILING(ep_clearowner_flock);
 
@@ -1598,6 +1697,9 @@ epgw_lock_ret_t * ep_get_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req *
     int    res;
     export_t *exp;
     DEBUG_FUNCTION;
+    
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
 
     START_PROFILING(ep_get_file_lock);
 
@@ -1636,6 +1738,9 @@ epgw_status_ret_t * ep_poll_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_re
     static epgw_status_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
+
+    // Set profiler export index
+    export_profiler_eid = arg->arg_gw.eid;
 
     START_PROFILING(ep_poll_file_lock);
 

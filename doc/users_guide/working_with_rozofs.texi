@@ -309,7 +309,7 @@ root@node1:~# rozo node config -E 192.168.1.10
       hquota: ''
 @end verbatim
 
-The output of rozo config let us know each node configuration according to its
+The output of @command{rozo node config} let us know each node configuration according to its
 role. We especially notice that this platform has one volume with one export
 relying on it.
 
@@ -322,7 +322,7 @@ relying on it.
 @end ifnotdocbook
 
 Extend the platform is easy (add nodes) with the @command{rozo volume expand} command, for
-example purpose we will add all the nodes already involved in volume 1
+example purpose we will add four new storages nodes.
 
 @verbatim
 root@node1:~# rozo volume expand 192.168.1.201 \
@@ -333,10 +333,11 @@ root@node1:~# rozo volume expand 192.168.1.201 \
 @end verbatim
 
 As we added nodes without indicating the volume we want to expand,
-@command{rozo} has created a new volume (with id 2) as illustrated in the rozo
-volume list output extract below:
+@command{rozo} has created a new volume (with id 2) as illustrated in the @command{rozo
+volume list} output extract below:
 
 @verbatim
+root@node1:~# rozo volume list -E 192.168.1.10
 EXPORTD on 192.168.1.10:
 - VOLUME 1:
   - CLUSTER 1:
@@ -350,11 +351,7 @@ EXPORTD on 192.168.1.10:
     - {STORAGE 2: 192.168.1.202}
     - {STORAGE 3: 192.168.1.203}
     - {STORAGE 4: 192.168.1.204}
-
 @end verbatim
-
-Indication of a volume id (e.g 1) would have resulted in the creation of a new
-cluster in this volume.
 
 @c *** Subsection [Add an Export to the Platform]
 @node       Add an Export to the Platform, , Extend the Platform, Using the Rozo Console Manager
@@ -364,14 +361,20 @@ cluster in this volume.
 @cindex Delete an export
 @end ifnotdocbook
 
-rozo export and unexport commands manage the creation (and deletion) of new exports
+@command{rozo export create} and (@command{rozo export remove}) commands manage the creation (and deletion) of new exports.
 
 @verbatim
-root@node1:~# rozofs export create 1 -E 192.168.1.10
+root@node1:~ # rozo export create 2 -E 192.168.1.10
 @end verbatim
 
-This will create a new export on volume 1, and configure all nodes with a
-rozofsmount role to mount this new export as illustrated in the @command{df} output
+This will create a new export on volume 2.
+
+@verbatim
+root@node1:~ # rozo export mount -e 2 -E 192.168.1.10
+@end verbatim
+
+@command{rozo export mount} command will configure all nodes with a
+rozofsmount role to mount this new export (id=2) as illustrated in the @command{df} output
 on one of the node.
 
 @verbatim
@@ -379,4 +382,5 @@ root@node1:~# df | grep /mnt/rozofs
 rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_1
 rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_2
 @end verbatim
+
 

@@ -160,6 +160,7 @@ static void usage() {
     fprintf(stderr, "    -o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
     fprintf(stderr, "    -o debug_port=N\t\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "    -o instance=N\t\tdefine instance number (default: 0)\n");
+    fprintf(stderr, "    -o nbcores=N\t\tdefine the maximum number of core files to keep (default: 2)\n");
     fprintf(stderr, "    -o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "    -o rozofsmode=N\t\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
     fprintf(stderr, "    -o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
@@ -208,6 +209,10 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsrotate=%u", rotate, 0),
     MYFS_OPT("posixlock", posix_file_lock, 1),
     MYFS_OPT("bsdlock", bsd_file_lock, 1),
+    MYFS_OPT("grpquota", quota, 2),
+    MYFS_OPT("noquota", quota, 0),
+    MYFS_OPT("quota", quota, 3),
+    MYFS_OPT("usrquota", quota, 1),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -995,7 +1000,9 @@ void show_trc_fuse_buffer(char * pChar)
 	uuid_unparse(fake_fid, str); 
       if (p->hdr.s.req)
       {
-        pChar+=sprintf(pChar,"[%8llu ]--> %-8s %4d %12.12llx ",(p->ts - cur_ts),trc_fuse_display_srv(p->hdr.s.service_id),p->hdr.s.index,p->ino);
+        pChar+=sprintf(pChar,"[%8llu ]--> %-8s %4d %12.12llx ",
+	         (unsigned long long int)(p->ts - cur_ts),trc_fuse_display_srv(p->hdr.s.service_id),p->hdr.s.index,
+		 (unsigned long long int)p->ino);
         switch (p->hdr.s.trc_type)
 	{
 	  default:
@@ -1004,7 +1011,7 @@ void show_trc_fuse_buffer(char * pChar)
             pChar+=sprintf(pChar,"%s\n",str);
 	    break;
 	  case rozofs_trc_type_io:
-            pChar+=sprintf(pChar,"%s %8llu/%d\n",str,p->par.io.off,p->par.io.size);
+            pChar+=sprintf(pChar,"%s %8llu/%d\n",str,(unsigned long long int)p->par.io.off,(int)p->par.io.size);
 	    break;	
 	  case rozofs_trc_type_name:
             pChar+=sprintf(pChar,"%s\n",p->par.name.name);
@@ -1016,10 +1023,10 @@ void show_trc_fuse_buffer(char * pChar)
       {
      
         pChar+=sprintf(pChar,"[%8llu ]<-- %-8s %4d %12.12llx %s %d:%s\n",
-	               (p->ts - cur_ts),
+	               (unsigned long long int)(p->ts - cur_ts),
 		       trc_fuse_display_srv(p->hdr.s.service_id),
 		       p->hdr.s.index,
-		       p->ino,
+		       (unsigned long long int)p->ino,
 		       str,
 		       p->errno_val,strerror(p->errno_val));      
       }
@@ -1112,8 +1119,8 @@ void show_trc_fuse(char * argv[], uint32_t tcpRef, void *bufRef) {
 	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 	return;   	
     }
-    pChar+=sprintf(pChar,"trace entry size : %u Bytes\n",sizeof(rozofs_trace_t));
-    pChar+=sprintf(pChar,"ino size         : %u Bytes\n",sizeof(fuse_ino_t));
+    pChar+=sprintf(pChar,"trace entry size : %lu Bytes\n",sizeof(rozofs_trace_t));
+    pChar+=sprintf(pChar,"ino size         : %lu Bytes\n",sizeof(fuse_ino_t));
     show_trc_fuse_buffer(pChar);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
  }
@@ -1739,34 +1746,47 @@ int main(int argc, char *argv[]) {
     if (conf.buf_size == 0) {
         conf.buf_size = 256;
     }
+
     if (conf.buf_size < 128) {
         fprintf(stderr,
                 "write cache size too low (%u KiB) - increased to 128 KiB\n",
                 conf.buf_size);
         conf.buf_size = 128;
     }
+
     if (conf.buf_size > 256) {
         fprintf(stderr,
                 "write cache size too big (%u KiB) - decreased to 256 KiB\n",
                 conf.buf_size);
         conf.buf_size = 256;
     }
+
     /* Bufsize must be a multiple of the block size */
-    if ((conf.buf_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    if ((conf.buf_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.buf_size > 256) {
+            conf.buf_size = conf.buf_size - (ROZOFS_BSIZE / 1024);
+        }
     }
     
     if (conf.min_read_size == 0) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = conf.buf_size;
     }
+
     if (conf.min_read_size > conf.buf_size) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = conf.buf_size;
     }
-    /* Bufsize must be a multiple of the block size */
-    if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
-    }    
-    
+
+    /* min_read_size must be a multiple of the block size */
+    if ((conf.min_read_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.min_read_size > conf.buf_size) {
+            conf.min_read_size = conf.min_read_size - (ROZOFS_BSIZE / 1024);
+        }
+    }
+
     if (conf.nbstorcli != 0) {
       if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {
           fprintf(stderr,

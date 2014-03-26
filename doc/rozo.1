@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii rozo.1
 .\"
-.TH ROZO 1 "DECEMBER 2013" Rozofs "User Manuals"
+.TH ROZO 1 "March 2014" RozoFS "User Manuals"
 .SH NAME
-rozo \- rozofs management tool
+rozo \- RozoFS management tool
 .SH SYNOPSIS
 .B rozo
 [\fB\-d\fP]
@@ -247,7 +247,7 @@ A running exportd hostname.
 .SS create
 .B rozo export create \fIvid\fP \fB\-E\fP | \fB--exportd\fP \fIhost\fP [\fB\-n\fP | \fP\-\-name\fP\fI name\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP]
 .TP
-Export a new filesytem on the given volume by \fIvid\fP.
+Export a new filesystem on the given volume by \fIvid\fP.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
@@ -259,10 +259,10 @@ The name to give to the new export. If not set a name will be generated (export_
 Password to set.
 .TP
 \fB\-s\fP, \fB\-\-squota \fP\fIsquota
-Soft quota to set. (value [K | M | G]) 
+Soft quota to set. (value [K | M | G | T]) 
 .TP
 \fB\-a\fP, \fB\-\-hquota \fP\fIhquota
-Hard quota to set. (value [K | M | G]) 
+Hard quota to set. (value [K | M | G | T]) 
 
 .SS update
 .B rozo export update \fIeid\fP \fB\-E\fP | \fB--exportd\fP \fIhost\fP [\fB\-c\fP | \fB--current\fP\fI password\fP] [\fB\-p\fP | \fB--passwd\fP\fI password\fP] [\fB\-s\fP | \fB--squota\fP\fI squota\fP] [\fB\-a\fP | \fB--hquota\fP\fI hquota\fP]
@@ -279,10 +279,10 @@ Current password (needed with \fB-p\fP).
 Password to set.
 .TP
 \fB\-s\fP, \fB\-\-squota \fP\fIsquota
-Soft quota to set. (value [K | M | G]) 
+Soft quota to set. (value [K | M | G | T]) 
 .TP
 \fB\-a\fP, \fB\-\-hquota \fP\fIhquota
-Hard quota to set. (value [K | M | G]) 
+Hard quota to set. (value [K | M | G | T]) 
 
 .SS remove
 .B rozo export remove [\fB\-f\fP | \fB--force\fP] \fIeid\fP... \fB\-E\fP | \fB--exportd\fP \fIhost\fP

@@ -63,6 +63,7 @@ static htable_t htable_fid;
 static rpcclt_t rpcclt_export;
 /* nb. of retries for get bins on storages */
 static uint32_t retries = 10;
+uint8_t prj_id_present[ROZOFS_SAFE_MAX];
 
 static inline int fid_cmp(void *key1, void *key2) {
     return memcmp(key1, key2, sizeof (fid_t));
@@ -103,6 +104,290 @@ static int ckeck_mtime(int fd, struct timespec st_mtim) {
     return -1;
 }
 
+static int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, uint8_t spare_idx) {
+    int status = -1;
+    int i = 0;
+    int fd = -1;
+    int ret = -1;
+    struct stat loc_file_stat;
+    uint32_t loc_file_init_blocks_nb = 0;
+    uint8_t version = 0;
+    uint32_t nb_blocks_read_distant = ROZOFS_BLOCKS_MAX;
+    bid_t first_block_idx = 0;
+    uint64_t file_size = 0;
+    rbs_storcli_ctx_t working_ctx;
+    int block_idx = 0;
+    uint8_t rbs_prj_idx_table[ROZOFS_SAFE_MAX];
+    int     count;
+    rbs_inverse_block_t * pBlock;
+    int prj_count;
+    uint16_t prj_ctx_idx;
+    uint16_t projection_id;
+    char   *  pforward = NULL;
+    rozofs_stor_bins_hdr_t * rozofs_bins_hdr_p;
+    rozofs_stor_bins_hdr_t * bins_hdr_local_p;    
+    bin_t * loc_read_bins_p = NULL;
+    size_t local_len_read;
+    int    remove_file;
+
+        
+    // Get rozofs layout parameters
+    uint8_t  layout            = re->layout;
+    uint8_t  rozofs_safe       = rozofs_get_rozofs_safe(layout);
+    uint8_t  rozofs_forward    = rozofs_get_rozofs_forward(layout);
+    uint8_t  rozofs_inverse    = rozofs_get_rozofs_inverse(layout);
+    uint16_t disk_block_size   = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t);
+    uint16_t disk_block_bins_size   = disk_block_size/sizeof(bin_t);
+
+    // Clear the working context
+    memset(&working_ctx, 0, sizeof (rbs_storcli_ctx_t));
+
+    // Check that this file already exists on the storage to rebuild
+    if (stat(path, &loc_file_stat) == 0) {
+    
+        // Compute the nb. of blocks	
+	loc_file_init_blocks_nb = loc_file_stat.st_size - ROZOFS_ST_BINS_FILE_HDR_SIZE;
+        loc_file_init_blocks_nb /= disk_block_size;
+		
+	// Allocate memory to read the local file	
+        loc_read_bins_p = xmalloc(ROZOFS_BLOCKS_MAX*disk_block_size);
+	
+	remove_file = 1; // This file probably needs to be removed
+    }
+    else {
+        remove_file = 0;	
+    }
+
+    // While we can read in the bins file
+    while (nb_blocks_read_distant == ROZOFS_BLOCKS_MAX) {
+         
+        // Free bins read in previous round
+	for (i = 0; i < rozofs_safe; i++) {
+            if (working_ctx.prj_ctx[i].bins) {
+        	free(working_ctx.prj_ctx[i].bins);
+		working_ctx.prj_ctx[i].bins      = NULL;
+	    }	   
+	    working_ctx.prj_ctx[i].prj_state = PRJ_READ_IDLE;
+	}
+    
+        // Read every available bins
+	ret = rbs_read_all_available_proj(re->storages, spare_idx, layout, st->cid,
+                                	  re->dist_set_current, re->fid, first_block_idx,
+                                	  ROZOFS_BLOCKS_MAX, &nb_blocks_read_distant,
+                                	  &working_ctx);
+					  
+	// Reading at least inverse projection has failed				  
+        if (ret != 0) {
+            remove_file	= 0;// Better keep the file	
+            errno = EIO;	
+            goto out;
+        }
+	
+	if (nb_blocks_read_distant == 0) break; // End of file	
+	 
+	// If local file exist and has some interesting blocks
+	local_len_read = 0;
+	if (loc_file_init_blocks_nb > first_block_idx) {
+	
+            // Read local bins
+            ret = storage_read(st, layout, re->dist_set_current, 1/*spare*/, re->fid,
+                    first_block_idx, nb_blocks_read_distant, loc_read_bins_p,
+                    &local_len_read, &file_size);
+
+            if (ret != 0) {
+	        local_len_read = 0;
+                severe("storage_read failed: %s", strerror(errno));
+            }
+            else {
+                // Compute the nb. of local blocks read
+                local_len_read = local_len_read / disk_block_size;
+	    }		      	
+	}
+	
+	// Loop on the received blocks
+        pBlock = &working_ctx.block_ctx_table[0];	
+        for (block_idx = 0; block_idx < nb_blocks_read_distant; block_idx++,pBlock++) {
+
+            count = rbs_count_timestamp_tb(working_ctx.prj_ctx, layout, block_idx,
+                                           rbs_prj_idx_table, 
+			  		   &pBlock->timestamp,
+                                           &pBlock->effective_length);
+					   
+	    // Less than rozofs_inverse projection. Can not regenerate anything 
+	    // from what has been read				   	
+	    if (count < 0) {
+                remove_file = 0;// Better keep the file	    
+        	errno = EIO;	
+        	goto out;	      
+	    }
+	    
+	    // All projections have been read. Nothing to regenerate for this block
+	    if (count >= rozofs_forward) continue;
+
+	       
+            // Enough projection read to regenerate data, but not as much as required.   
+
+
+            // Is this block already written on local disk
+            if (block_idx < local_len_read) {
+
+                bins_hdr_local_p = (rozofs_stor_bins_hdr_t *) 
+			(loc_read_bins_p + (disk_block_bins_size * block_idx));
+
+               // Compare timestamp of local and distant block
+               if (bins_hdr_local_p->s.timestamp == pBlock->timestamp) {
+                   remove_file = 0;// This file must exist
+                   continue; // Check next block
+               }
+	    }   
+	    
+
+            // Case of the empty block
+            if (pBlock->timestamp == 0) {
+	     
+	       prj_ctx_idx = rbs_prj_idx_table[0];
+	           
+               // Store the projections on local bins file	
+               ret = storage_write(st, layout, re->dist_set_current, 1/*spare*/,
+                		   re->fid, first_block_idx+block_idx, 1, version,
+                		   &file_size, working_ctx.prj_ctx[prj_ctx_idx].bins);
+               remove_file = 0;	// This file must exist   
+               if (ret <= 0) {
+                   severe("storage_write failed %s: %s", path, strerror(errno));
+                   goto out;
+               }	       
+	       continue;
+	    }  		
+	    
+	    // Need to regenerate a projection and need 1rst to regenerate initial data.	
+	    
+	    // Allocate memory for initial data
+            if (working_ctx.data_read_p == NULL) {
+	      working_ctx.data_read_p = xmalloc(ROZOFS_BSIZE);
+	    }		
+
+
+            memset(prj_id_present,0,sizeof(prj_id_present));
+	    
+            for (prj_count = 0; prj_count < count; prj_count++) {
+
+        	// Get the pointer to the beginning of the projection and extract
+        	// the projection ID
+        	prj_ctx_idx = rbs_prj_idx_table[prj_count];
+
+        	rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p =
+                	(rozofs_stor_bins_hdr_t*) (working_ctx.prj_ctx[prj_ctx_idx].bins
+                	+ (disk_block_bins_size * block_idx));
+
+        	// Extract the projection_id from the header and fill the table
+        	// of projections for the block block_idx for each projection
+        	projection_id = rozofs_bins_hdr_p->s.projection_id;
+		
+		prj_id_present[projection_id] = 1;
+		
+		if (prj_count < rozofs_inverse) {
+        	    rbs_projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
+        	    rbs_projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
+        	    rbs_projections[prj_count].size    = rozofs_get_psizes(layout,projection_id);
+        	    rbs_projections[prj_count].bins    = (bin_t*) (rozofs_bins_hdr_p + 1);
+		}   
+            }
+
+            // Inverse data for the block (first_block_idx + block_idx)
+            transform_inverse((pxl_t *) working_ctx.data_read_p,
+                	      rozofs_inverse,
+                	      ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                	      rozofs_inverse, rbs_projections);
+	    
+	    // Find out which projection id to regenerate
+            for (projection_id = 0; projection_id < rozofs_safe; projection_id++) {
+	        if (prj_id_present[projection_id] == 0) break;
+	    }
+	    
+	    // Allocate memory for regenerated projection
+	    if (pforward == NULL) pforward = xmalloc(disk_block_size);
+	    rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *) pforward;
+	    
+	    // Describe projection to rebuild 
+            rbs_projections[projection_id].angle.p = rozofs_get_angles_p(layout,projection_id);
+            rbs_projections[projection_id].angle.q = rozofs_get_angles_q(layout,projection_id);
+            rbs_projections[projection_id].size    = rozofs_get_psizes(layout,projection_id);
+            rbs_projections[projection_id].bins    = (bin_t*) (rozofs_bins_hdr_p + 1);
+
+            // Generate projections to rebuild
+            transform_forward_one_proj((const bin_t *)working_ctx.data_read_p, 
+	                               rozofs_inverse, 
+	                               ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+				       projection_id, 
+				       rbs_projections);
+				
+	    // Fill projection header			       
+	    rozofs_bins_hdr_p->s.projection_id     = projection_id;			       
+	    rozofs_bins_hdr_p->s.effective_length  = pBlock->effective_length;
+	    rozofs_bins_hdr_p->s.timestamp         = pBlock->timestamp;			       
+            rozofs_bins_hdr_p->s.version           = 0;
+            rozofs_bins_hdr_p->s.filler            = 0;  
+	    
+            // Store the projections on local bins file	
+            ret = storage_write(st, layout, re->dist_set_current, 1/*spare*/,
+                		re->fid, first_block_idx+block_idx, 1, version,
+                		&file_size, (const bin_t *)rozofs_bins_hdr_p);
+            remove_file = 0;// This file must exist		   
+            if (ret <= 0) {
+        	severe("storage_write failed %s: %s", path, strerror(errno));
+        	goto out;
+            }	       
+        }
+	
+	first_block_idx += nb_blocks_read_distant;
+	    				  
+    }	
+    
+    
+    // Check if the initial local bins file size is bigger
+    // than others bins files
+    if (loc_file_init_blocks_nb > first_block_idx) {
+
+        off_t length = ROZOFS_ST_BINS_FILE_HDR_SIZE + first_block_idx * disk_block_size;
+        ret = truncate(path, length);
+        if (ret != 0) {
+            severe("truncate(%s) failed: %s", path, strerror(errno));
+            goto out;
+        }
+    }
+        
+    status = 0;
+    			      
+out:
+    // This spare file used to exist but is not needed any more
+    if (remove_file) {
+        storage_rm_file(st, layout, re->dist_set_current,re->fid);
+    }  
+    
+    for (i = 0; i < rozofs_safe; i++) {
+        if (working_ctx.prj_ctx[i].bins) {
+            free(working_ctx.prj_ctx[i].bins);
+	    working_ctx.prj_ctx[i].bins = NULL;
+	}	   
+    }    
+    if (fd != -1) {
+      close(fd);
+      fd = -1;
+    }  
+    if (working_ctx.data_read_p) {
+      free(working_ctx.data_read_p);
+      working_ctx.data_read_p = NULL;
+    }  
+    if (pforward) {
+      free(pforward);
+      pforward = NULL;
+    }
+    if (loc_read_bins_p) {
+      free(loc_read_bins_p);
+      loc_read_bins_p = NULL;
+    }	
+    return status;
+}
 static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
     int status = -1;
     int i = 0;
@@ -139,8 +424,6 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
             proj_id_to_rebuild = i;
             if (i >= rozofs_forward) {
                 spare = 1;
-                status = 0;
-                goto out;
             }
         }
     }
@@ -163,6 +446,12 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
 
     // Build the path of bins file
     storage_map_projection(re->fid, path);
+    
+    // Process specifically the case of the spare storage
+    if (spare == 1) {
+      status = rbs_restore_one_spare_entry(st, re, path, proj_id_to_rebuild);
+      goto out;
+    }    
 
     // Check that this file already exists
     // on the storage to rebuild
