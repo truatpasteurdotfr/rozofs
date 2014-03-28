@@ -91,7 +91,7 @@ function addExport() {
 		contentType: 'application/json',
 		data: JSON.stringify(args),
 		dataType: 'json',
-		url: '/exports/add',
+		url: '/'+exportd+'/exports/add',
 		success: function (e) {
 			hideLoader();
 			$('#platformTree').treegrid('reload');
