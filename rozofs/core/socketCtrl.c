@@ -230,9 +230,9 @@ void ruc_sockCtrl_remove_socket(int *sock_table_p,int nb_sockets,int socket_id)
 void ruc_sockCtrl_ctx_show(uint32_t tcpRef, void * bufRef) {
   char           *pChar=myBuf;
 
-  pChar += sprintf(pChar,"ruc_sockObj_t         : %lu bytes \n",sizeof(ruc_sockObj_t));
-  pChar += sprintf(pChar,"af_unix_ctx_generic_t : %lu bytes \n",sizeof(af_unix_ctx_generic_t));
-  pChar += sprintf(pChar,"north_lbg_ctx_t       : %lu bytes \n",sizeof(north_lbg_ctx_t));
+  pChar += sprintf(pChar,"ruc_sockObj_t         : %lu bytes \n",(long unsigned int)sizeof(ruc_sockObj_t));
+  pChar += sprintf(pChar,"af_unix_ctx_generic_t : %lu bytes \n",(long unsigned int)sizeof(af_unix_ctx_generic_t));
+  pChar += sprintf(pChar,"north_lbg_ctx_t       : %lu bytes \n",(long unsigned int)sizeof(north_lbg_ctx_t));
   uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
 
 }
@@ -270,7 +270,7 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   gettimeofday_cycles = 0;
   gettimeofday_count  = 0;	
 
-  pChar += sprintf(pChar,"rucRdFdSet %p (%lu) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
+  pChar += sprintf(pChar,"rucRdFdSet %p (%lu) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,(long unsigned int) sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
   
   
   pChar += sprintf(pChar,"select max cpu time : %u us\n",ruc_sockCtrl_looptimeMax);

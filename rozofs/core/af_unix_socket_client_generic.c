@@ -271,10 +271,8 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
    }
    /*
    ** call the user callback on connect
-   */
-   uint64_t userRef = (uint64_t) sock_p->userRef;
-   
-   (sock_p->userConnectCallBack)((void*)userRef,sock_p->index,ret,error);
+   */   
+   (sock_p->userConnectCallBack)(sock_p->userRef,sock_p->index,ret,error);
    return RUC_OK;
 
 }
