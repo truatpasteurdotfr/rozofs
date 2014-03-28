@@ -20,6 +20,8 @@ def compute_one_layout(block,forward,inverse):
     q = 1
     bsize = int(block) * 1024
     psizes = abs(prj - forward / 2) * (inverse - 1) + (bsize / 8 / inverse - 1) + 1
+    # Add header 2 + footer 1
+    psizes = psizes + header + footer
     psizes_sum = psizes_sum + psizes	     
     if psizes > psizes_max:
       psizes_max = psizes
@@ -35,9 +37,12 @@ if len(sys.argv) < 2:
   print "Usage ./layout.py <nb faults>"
   exit(-1)
   
+header=2
+footer=1  
 loop=7 
 fault=int(sys.argv[1])
 
+print "\nHeader size %d bins / Footer size %d bins"%(header,footer)
 dis = display_array(2+loop*2)
 dis.new_line() 
 dis.set_column(1,'%d'%(fault),'')
