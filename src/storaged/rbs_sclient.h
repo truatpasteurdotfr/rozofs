@@ -88,5 +88,8 @@ int rbs_read_blocks(sclient_t **storages, uint8_t layout, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
         rbs_storcli_ctx_t * working_ctx_p);
-
+int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, cid_t cid,
+        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
+        uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
+        rbs_storcli_ctx_t * working_ctx_p);
 #endif

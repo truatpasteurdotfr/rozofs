@@ -1119,8 +1119,8 @@ void show_trc_fuse(char * argv[], uint32_t tcpRef, void *bufRef) {
 	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 	return;   	
     }
-    pChar+=sprintf(pChar,"trace entry size : %lu Bytes\n",sizeof(rozofs_trace_t));
-    pChar+=sprintf(pChar,"ino size         : %lu Bytes\n",sizeof(fuse_ino_t));
+    pChar+=sprintf(pChar,"trace entry size : %lu Bytes\n",(long unsigned int)sizeof(rozofs_trace_t));
+    pChar+=sprintf(pChar,"ino size         : %lu Bytes\n",(long unsigned int)sizeof(fuse_ino_t));
     show_trc_fuse_buffer(pChar);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
  }
