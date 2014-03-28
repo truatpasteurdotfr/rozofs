@@ -627,7 +627,7 @@ def do_compile_program(program):
 # compile program if program.c is younger
 #___________________________________________________
 
-  if os.stat(program).st_mtime < os.stat("%s.c"%(program)).st_mtime:
+  if not os.path.exists(program) or os.stat(program).st_mtime < os.stat("%s.c"%(program)).st_mtime:
     os.system("gcc %s.c -lpthread -o %s -g"%(program,program))
      
 #___________________________________________________
