@@ -173,8 +173,6 @@ int stc_rng_release_entry(int entry_idx, void **next_running_p,
 
     stc_rng_entry_t *p;
     stc_rng_entry_t *cur_p;
-    uint64_t bid;
-    uint16_t nb_blks = 0;
     int cur_idx = 0;
     *next_running_p = NULL;
 
@@ -193,8 +191,7 @@ int stc_rng_release_entry(int entry_idx, void **next_running_p,
     if (stc_rng_rd_idx == entry_idx) {
         stc_rng_rd_idx = (stc_rng_rd_idx + 1) % STORCLI_RING_SZ;
     }
-    bid = 0;
-    nb_blks = 0;
+
     int read_idx_increment_allowed = 1;
     for (cur_idx = stc_rng_rd_idx; cur_idx != stc_rng_wr_idx;
             cur_idx = (cur_idx + 1) % STORCLI_RING_SZ) {
