@@ -460,7 +460,75 @@ void storage_release(storage_t * st) {
     st->cid = 0;
     st->root[0] = 0;
 }
+static inline void storage_get_projection_size(uint8_t spare, 
+                                               sid_t sid, 
+					       uint8_t layout, 
+					       sid_t * dist_set,
+					       uint16_t * msg,
+				    	       uint16_t * disk) { 
+  int prj_id;
+  int forward;
 
+  *msg = rozofs_get_max_psize(layout) * sizeof (bin_t) 
+       + sizeof (rozofs_stor_bins_hdr_t) 
+       + sizeof(rozofs_stor_bins_footer_t);
+  
+  /*
+  ** On a spare storage, we store the projections as received.
+  ** That is one block takes the maximum projection block size.
+  */
+  if (spare) {
+    *disk = *msg;
+    return;
+  }
+    
+  /*
+  ** On a non spare storage, we store the projections on its exact size.
+  */
+  
+  /* Retrieve the block size of this projection */
+  forward = rozofs_get_rozofs_forward(layout);
+  for (prj_id=0; prj_id < forward; prj_id++) {
+    if (sid == dist_set[prj_id]) break;
+  }
+  
+  if (prj_id == forward) {
+    severe("storage_write spare %d sid %d",spare, sid);
+    /* Isn't that storage a spare storage !? */
+    *disk = *msg;
+    return;
+  }
+
+  *disk = rozofs_get_psizes(layout,prj_id) * sizeof (bin_t) 
+        + sizeof (rozofs_stor_bins_hdr_t) 
+        + sizeof(rozofs_stor_bins_footer_t);	
+}  
+static inline void storage_get_projid_size(uint8_t spare, 
+                                           uint8_t prj_id, 
+					   uint8_t layout, 
+					   uint16_t * msg,
+				    	   uint16_t * disk) { 
+
+  *msg = rozofs_get_max_psize(layout) * sizeof (bin_t) 
+       + sizeof (rozofs_stor_bins_hdr_t) 
+       + sizeof(rozofs_stor_bins_footer_t);
+  
+  /*
+  ** On a spare storage, we store the projections as received.
+  ** That is one block takes the maximum projection block size.
+  */
+  if (spare) {
+    *disk = *msg;
+    return;
+  }
+    
+  /*
+  ** On a non spare storage, we store the projections on its exact size.
+  */
+  *disk = rozofs_get_psizes(layout,prj_id) * sizeof (bin_t) 
+        + sizeof (rozofs_stor_bins_hdr_t) 
+        + sizeof(rozofs_stor_bins_footer_t);		
+} 
 uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
 
 int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
@@ -472,12 +540,11 @@ int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_
     size_t nb_write = 0;
     size_t length_to_write = 0;
     off_t bins_file_offset = 0;
-    uint16_t rozofs_max_psize = 0;
+    uint16_t rozofs_msg_psize;
+    uint16_t rozofs_disk_psize;
     struct stat sb;
     int open_flags;
     int    device_id_is_given;
-
-    rozofs_max_psize = rozofs_get_max_psize(layout);
 
     // No specific fault on this FID detected
     *is_fid_faulty = 0;  
@@ -549,15 +616,48 @@ open:
 	goto open;    
     }
 
-
+    /*
+    ** Retrieve the projection size in the message
+    ** and the projection size on disk 
+    */
+    storage_get_projection_size(spare, st->sid, layout, dist_set,
+                                &rozofs_msg_psize, &rozofs_disk_psize); 
+	       
     // Compute the offset and length to write
     
-    bins_file_offset = bid * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
-    length_to_write = nb_proj * (rozofs_max_psize * sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+    bins_file_offset = bid * rozofs_disk_psize;
+    length_to_write  = nb_proj * rozofs_disk_psize;
 
-    // Write nb_proj * (projection + header)
-    nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
+    /*
+    ** Writting the projection as received directly on disk
+    */
+    if (rozofs_msg_psize == rozofs_disk_psize) {
+      nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
+    }
+
+    /*
+    ** Writting the projections on a different size on disk
+    */
+    else {
+      struct iovec       vector[STORIO_CACHE_BCOUNT*2]; 
+      int                i;
+      char *             pMsg;
+      
+      if (nb_proj >= (STORIO_CACHE_BCOUNT*2)) {  
+        severe("storage_write more blocks than possible %d vs max %d",
+	        nb_proj,STORIO_CACHE_BCOUNT*2);
+        errno = ESPIPE;	
+        goto out;
+      }
+      pMsg  = (char *) bins;
+      for (i=0; i< nb_proj; i++) {
+        vector[i].iov_base = pMsg;
+        vector[i].iov_len  = rozofs_disk_psize;
+	pMsg += rozofs_msg_psize;
+      }
+      nb_write = pwritev(fd, vector, nb_proj, bins_file_offset);      
+    } 
+
     if (nb_write != length_to_write) {
 	storage_error_on_device(st,*device_id);
 	// A fault probably localized to this FID is detected   
@@ -581,7 +681,7 @@ open:
 
 
     // Write is successful
-    status = length_to_write;
+    status = nb_proj * rozofs_msg_psize;
 
 out:
     if (fd != -1) close(fd);
@@ -604,7 +704,8 @@ int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_s
     size_t nb_read = 0;
     size_t length_to_read = 0;
     off_t bins_file_offset = 0;
-    uint16_t rozofs_max_psize = 0;
+    uint16_t rozofs_msg_psize;
+    uint16_t rozofs_disk_psize;
     struct stat sb;
     int    device_id_is_given = 0;
 
@@ -656,17 +757,49 @@ open:
 	goto open;
     }	
 
-    // Compute the offset and length to read
-    rozofs_max_psize = rozofs_get_max_psize(layout);
-    bins_file_offset =
-            bid * ((off_t) (rozofs_max_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
-    length_to_read = nb_proj * (rozofs_max_psize * sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+    /*
+    ** Retrieve the projection size in the message 
+    ** and the projection size on disk
+    */
+    storage_get_projection_size(spare, st->sid, layout, dist_set,
+                                &rozofs_msg_psize, &rozofs_disk_psize); 
+	       
+    // Compute the offset and length to write
+    
+    bins_file_offset = bid * rozofs_disk_psize;
+    length_to_read   = nb_proj * rozofs_disk_psize;
 
     
-    // Read nb_proj * (projection + header)
-    nb_read = pread(fd, bins, length_to_read, bins_file_offset);
-
+    /*
+    ** Reading the projection directly as they will be sent in message
+    */
+    if (rozofs_msg_psize == rozofs_disk_psize) {    
+      // Read nb_proj * (projection + header)
+      nb_read = pread(fd, bins, length_to_read, bins_file_offset);
+    }
+    /*
+    ** Projections are smaller on disk than in message
+    */
+    else {
+      struct iovec vector[STORIO_CACHE_BCOUNT*2]; 
+      int          i;
+      char *       pMsg;
+      
+      if (nb_proj >= (STORIO_CACHE_BCOUNT*2)) {  
+        severe("storage_read more blocks than possible %d vs max %d",
+	        nb_proj,STORIO_CACHE_BCOUNT*2);
+        errno = ESPIPE;			
+        goto out;
+      }
+      pMsg  = (char *) bins;
+      for (i=0; i< nb_proj; i++) {
+        vector[i].iov_base = pMsg;
+        vector[i].iov_len  = rozofs_disk_psize;
+	pMsg += rozofs_msg_psize;
+      }
+      nb_read = preadv(fd, vector, nb_proj, bins_file_offset);      
+    } 
+    
     // Check error
     if (nb_read == -1) {
         severe("pread failed: %s", strerror(errno));
@@ -677,8 +810,7 @@ open:
     }
 
     // Check the length read
-    if ((nb_read % (rozofs_max_psize * sizeof (bin_t) +
-            sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t))) != 0) {
+    if ((nb_read % rozofs_disk_psize) != 0) {
         char fid_str[37];
         uuid_unparse(fid, fid_str);
         severe("storage_read failed (FID: %s): read inconsistent length",
@@ -690,7 +822,7 @@ open:
     }
 
     // Update the length read
-    *len_read = nb_read;
+    *len_read = (nb_read/rozofs_disk_psize)*rozofs_msg_psize;
 
 
     // Stat file for return the size of bins file after the read operation
@@ -716,7 +848,8 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     char path[FILENAME_MAX];
     int fd = -1;
     off_t bins_file_offset = 0;
-    uint16_t rozofs_max_psize = 0;
+    uint16_t rozofs_msg_psize;
+    uint16_t rozofs_disk_psize;
     bid_t bid_truncate;
     size_t nb_write = 0;
     int open_flags;
@@ -770,12 +903,17 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     }
 
 
-    // Compute the offset from the truncate
-    rozofs_max_psize = rozofs_get_max_psize(layout);
+    /*
+    ** Retrieve the projection size in the message 
+    ** and the projection size on disk
+    */
+    storage_get_projid_size(spare, proj_id, layout, 
+                            &rozofs_msg_psize, &rozofs_disk_psize); 
+	       
+     // Compute the offset from the truncate
     bid_truncate = bid;
     if (last_seg!= 0) bid_truncate+=1;
-    bins_file_offset =  
-       (bid_truncate) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+    bins_file_offset = bid_truncate * rozofs_disk_psize;
     status = ftruncate(fd, bins_file_offset);
     if (status < 0) goto out;
     
@@ -789,8 +927,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     */
     if (last_seg!= 0) {
 	
-      bins_file_offset =  
-         (bid) * (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+      bins_file_offset = bid * rozofs_disk_psize;
 
       /*
       ** Rewrite the whole given data block 
@@ -798,7 +935,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
       if (length_to_write!= 0)
       {
 
-        length_to_write = rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);
+        length_to_write = rozofs_disk_psize;
 	nb_write = pwrite(fd, data, length_to_write, bins_file_offset);
 	if (nb_write != length_to_write) {
             status = -1;
@@ -829,7 +966,8 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
         }   
         
         // Write the block footer
-	bins_file_offset += (sizeof(rozofs_stor_bins_hdr_t) + rozofs_max_psize * sizeof (bin_t));
+	bins_file_offset += (sizeof(rozofs_stor_bins_hdr_t) 
+	        + rozofs_get_psizes(layout,proj_id) * sizeof (bin_t));
 	nb_write = pwrite(fd, &last_timestamp, sizeof(last_timestamp), bins_file_offset);
 	if (nb_write != sizeof(last_timestamp)) {
             severe("pwrite failed on last segment footer : %s", strerror(errno));

@@ -335,14 +335,17 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
 
                 bins_hdr_local_p = (rozofs_stor_bins_hdr_t *) 
 			(loc_read_bins_p + (disk_block_bins_size * block_idx));
-		rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_get_max_psize(layout));	
+		if (bins_hdr_local_p->s.timestamp == pBlock->timestamp) {
+		    // Check footer too
+		    projection_id = bins_hdr_local_p->s.projection_id;
+		    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_get_psizes(layout,projection_id));	
 
-               // Compare timestamp of local and distant block
-               if ((rozofs_bins_foot_p->timestamp == bins_hdr_local_p->s.timestamp) 
-	       &&  (bins_hdr_local_p->s.timestamp == pBlock->timestamp)) {
-                   remove_file = 0;// This file must exist
-                   continue; // Check next block
-               }
+        	    // Compare timestamp of local and distant block
+        	    if (rozofs_bins_foot_p->timestamp == bins_hdr_local_p->s.timestamp) {
+                       remove_file = 0;// This file must exist
+                       continue; // Check next block
+        	    }
+	        }	 
 	    }   
 	    
 
@@ -412,7 +415,7 @@ int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, in
 	    // Allocate memory for regenerated projection
 	    if (pforward == NULL) pforward = xmalloc(disk_block_size);
 	    rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *) pforward;
-	    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));	
+	    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,projection_id));	
 	    
 	    // Describe projection to rebuild 
             rbs_projections[projection_id].angle.p = rozofs_get_angles_p(layout,projection_id);
@@ -521,6 +524,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
 
     // Get rozofs layout parameters
     uint8_t layout = re->layout;
+    uint16_t rozofs_disk_psize = rozofs_get_psizes(layout,proj_id_to_rebuild);
     uint16_t rozofs_max_psize = rozofs_get_max_psize(layout);
 
     // Clear the working context
@@ -539,7 +543,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
             goto out;
         // Compute the nb. of blocks
         loc_file_init_blocks_nb = (loc_file_stat.st_size) /
-                ((rozofs_max_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+                ((rozofs_disk_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
     }
 
     // While we can read in the bins file
@@ -684,7 +688,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
 
                     rozofs_stor_bins_hdr_t * bins_hdr_local_p =
                             (rozofs_stor_bins_hdr_t *) current_loc_bins_p;
-                    rozofs_stor_bins_footer_t * bins_foot_local_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_max_psize);
+                    rozofs_stor_bins_footer_t * bins_foot_local_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_get_psizes(layout,proj_id_to_rebuild));
                     // Compare timestamp of local and distant block
                     if ((bins_hdr_local_p->s.timestamp == bins_foot_local_p->timestamp) 
 		    &&  (bins_hdr_local_p->s.timestamp == working_ctx.block_ctx_table[i].timestamp)) {
@@ -782,7 +786,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
     // than others bins files
     if (loc_file_exist && loc_file_init_blocks_nb > first_block_idx) {
 
-        off_t length = first_block_idx * (rozofs_max_psize * sizeof (bin_t) 
+        off_t length = first_block_idx * (rozofs_disk_psize * sizeof (bin_t) 
 	             + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
 
         // Check mtime of local file

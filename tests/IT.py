@@ -19,7 +19,7 @@ nbGruyere=int(1000)
 stopOnFailure=False
 fuseTrace=False
 
-DEFAULT_RETRIES=int(15)
+DEFAULT_RETRIES=int(20)
  
 
 #___________________________________________________
@@ -145,7 +145,32 @@ def wait_until_one_sid_down (retries=DEFAULT_RETRIES) :
   if loop_wait_until(NB_SID-1,retries,'storcli_count_sid_available') == False:
     return False
   return True   
+#___________________________________________________
+def storageStart (sid,count=int(1)) :
 
+  while count != 0:
+  
+    sys.stdout.write("\rStorage %d restart"%(sid+1)) 
+    sys.stdout.flush()
+        
+    os.system("./setup.sh storage %s start"%(sid+1))    
+
+    if wait_until_all_sid_up() == True:
+      return 0
+    count=count-1
+        
+  return 1 
+#___________________________________________________
+def storageStop (sid) :
+  
+  sys.stdout.write("\r                                 ")
+  sys.stdout.flush()  
+  sys.stdout.write("\rStorage %d stop"%(sid+1))
+  sys.stdout.flush()
+
+  os.system("./setup.sh storage %s stop"%(sid+1))
+  wait_until_one_sid_down()   
+    
 #___________________________________________________
 def storageFailed (test) :
 # Run test names <test> implemented in function <test>()
@@ -157,14 +182,7 @@ def storageFailed (test) :
 
   for sid in range(NB_SID):
 
-    sys.stdout.write("\r                                 ")
-    sys.stdout.flush()  
-    sys.stdout.write("\rStorage %d stop"%(sid+1))
-    sys.stdout.flush()
-    
-    os.system("./setup.sh storage %s stop"%(sid+1))
-    wait_until_one_sid_down()    
-
+    storageStop(sid)
     reset_counters()
     
     try:
@@ -173,16 +191,12 @@ def storageFailed (test) :
     except:
       ret = 1
       
-    sys.stdout.write("\rStorage %d restart"%(sid+1)) 
-    sys.stdout.flush()
-        
-    os.system("./setup.sh storage %s start"%(sid+1))    
-
-    if wait_until_all_sid_up() == False:
-      return 1
-    
     if ret != 0:
       return 1
+      
+    ret = storageStart(sid)  
+
+      
   return 0
 
 #___________________________________________________
@@ -828,7 +842,7 @@ TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_r
 # Basic test list
 TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking']
 # Rebuild test list
-TST_REBUILD=['gruyere','rebuild_one','rebuild_all','rebuild_fid']
+TST_REBUILD=['gruyere','rebuild_fid','rebuild_one','rebuild_all']
 
 
 

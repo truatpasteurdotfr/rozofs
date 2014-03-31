@@ -123,18 +123,24 @@ int read_data_file() {
     rozofs_stor_bins_hdr_t * rozofs_bins_hdr_p;
     rozofs_stor_bins_footer_t * rozofs_bins_foot_p;
     char * loc_read_bins_p = NULL;
-
-    uint16_t disk_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+    int      forward = rozofs_get_rozofs_forward(layout);
+    uint16_t disk_block_size; 
+    uint16_t max_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
 
     // Allocate memory for reading
-    loc_read_bins_p = xmalloc(disk_block_size);   
+    loc_read_bins_p = xmalloc(max_block_size);   
 
     for (idx=0; idx < nb_file; idx++) {
-      fd[idx] = open(filename[idx],O_RDWR);
-      if (fd < 0) {
-	  severe("Can not open file %s %s",filename[idx],strerror(errno));
-	  goto out;
+      if (strcmp(filename[idx],"NULL") == 0) {
+        fd[idx] = -1;
       }
+      else {
+	fd[idx] = open(filename[idx],O_RDWR);
+	if (fd < 0) {
+	    severe("Can not open file %s %s",filename[idx],strerror(errno));
+	    goto out;
+	}
+      }	
     }
             
     printf (" ______ __________ ");
@@ -164,8 +170,13 @@ int read_data_file() {
        if (fd[idx] == -1) {
          printf("%32s"," ");
 	 continue;
+       }
+       if (idx < forward) {	 
+         disk_block_size = (rozofs_get_psizes(layout,idx)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
        }	 
-
+       else {
+         disk_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+       }
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_idx*disk_block_size);
        
        if (size !=  disk_block_size) {
@@ -176,7 +187,8 @@ int read_data_file() {
        else {
            count++;
 	   rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;
-	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
+	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) 
+	              ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,rozofs_bins_hdr_p->s.projection_id));
 	   
 	   if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) {
 	     printf("| xxxxxxxxxxxxxxxx | xxxx | xx |");	     
@@ -203,8 +215,13 @@ int read_data_file() {
    if (block_number!=-1) {
       for (idx=0; idx < nb_file; idx++) {
 
+       if (idx < forward) {	 
+         disk_block_size = (rozofs_get_psizes(layout,idx)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+       }	 
+       else {
+         disk_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+       }  
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_number*disk_block_size);
-       
        if (size !=  disk_block_size) {
 	   printf("Can not read block %d of %s\n", block_number, filename[idx]);       
        }
@@ -214,8 +231,8 @@ int read_data_file() {
 	     printf("Block %d of %s is a whole\n", block_number, filename[idx]);
 	   }
 	   else {
-	     printf("Block %d of %s\n", block_number, filename[idx]);	     
-	     hexdump(rozofs_bins_hdr_p+1, 0, disk_block_size-sizeof(rozofs_stor_bins_hdr_t));   
+	     printf("Size %d Block %d of %s\n",disk_block_size, block_number, filename[idx]);	     
+	     hexdump(rozofs_bins_hdr_p, 0, disk_block_size);   
            }		  
        }
 
@@ -229,11 +246,11 @@ out:
 
     for (idx=0; idx < nb_file; idx++) {
       if (fd[idx] != -1) close(fd[idx]);
-    }  
+    }  	
     if (loc_read_bins_p) {
       free(loc_read_bins_p);
       loc_read_bins_p = NULL;
-    }	
+    }
     return status;
 }
 
@@ -244,10 +261,12 @@ void usage() {
 
     printf("RozoFS data file reader - %s\n", VERSION);
     printf("Usage: %s [OPTIONS]\n\n",utility_name);
-    printf("   -h, --help\t\t\tprint this message.\n");
-    printf("   -f, --file=<filename> \tA data file name to read.\n");
+    printf("   -h, --help\n      print this message.\n");
+    printf("   -f, --files=<f1>...<finverse>...<fforward>...<fsafe>\n");
+    printf("      The list of files on the distribution.\n"); 
+    printf("      NULL to tell the file is not present\n");
     printf("   -l, --layout=<layout> \tThe data file layout.\n"); 
-    printf("   -b, --block=<block#>  \tThe block numlber to dump.\n");   
+    printf("   -b, --block=<block#>  \tThe block number to dump.\n");   
 }
 
 int main(int argc, char *argv[]) {

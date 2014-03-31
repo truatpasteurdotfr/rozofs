@@ -946,7 +946,7 @@ do_one_cou ()
   
   # Attribute file
   file=${LOCAL_EXPORTS_ROOT}_$eid/$slice/$fid
-  size=`ls -sh $file  | awk '{ printf $1 }'`
+  size=`ls -l $file  | awk '{ printf $5 }'`
   printf "%10s %s\n" $size $file
   
   # Header and bins files
@@ -960,7 +960,7 @@ do_one_cou ()
       case $doSpace in
        Yes) printf "\n"; doSpace="No";;
       esac	
-      size=`ls -sh $file  | awk '{ printf $1 }'`
+      size=`ls -l $file  | awk '{ printf $5 }'`
       printf "%10s %s\n" $size $file
     done
   done     

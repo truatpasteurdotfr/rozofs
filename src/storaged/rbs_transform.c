@@ -63,7 +63,8 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
                 + ((rozofs_get_max_psize(layout)+
                 ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                 * block_idx));
-        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
+        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
+	        ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,rozofs_bins_hdr_p->s.projection_id));
 
         // Header and footer have different time stamp.
 	// Let's consider this block invalid
@@ -172,7 +173,8 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
                 + ((rozofs_get_max_psize(layout)+
                 ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                 * block_idx));
-        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
+        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
+	       ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,prj_ctx_idx));
 
         // Header and footer have different time stamp.
 	// Let's consider this block invalid
@@ -364,7 +366,7 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
                 projections[projection_id].bins;
         rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
-                ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_max_psize(layout));
+                ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,projection_id));
 
         // Fill the header of the projection
         rozofs_bins_hdr_p->s.projection_id = projection_id;
