@@ -446,6 +446,37 @@ char *argv[];
       continue;
     }  
       
+    /* -fw <host:port> */
+    if (strcmp(argv[idx],"-c")==0) {
+      idx++;
+      if (idx == argc) {
+	printf ("%s option but missing value !!!\n",argv[idx-1]);
+	syntax();
+      }
+      if (strcmp(argv[idx],"all") == 0) {
+        allCmd = 1;
+	idx++;
+      }
+      else {
+        int start = idx;
+	int size  = 0;
+        while (idx < argc) {
+	  if (argv[idx][0] == '-') break;
+	  size += strlen(argv[idx])+1;
+	  idx++;
+	}
+	if (size > 1) {
+	  char * cmd = malloc(size+1);
+	  char * p = cmd;
+	  for  (;start<idx; start++) p += sprintf(p,"%s ", argv[start]);
+	  *p = 0;
+	  add_cmd_in_list(cmd,size);
+	  free(cmd);
+	} 	  
+      }	
+      continue;
+    }
+          
     /* -c <command> */
     if (strcmp(argv[idx],"-c")==0) {
       idx++;
