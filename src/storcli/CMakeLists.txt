@@ -43,6 +43,8 @@ add_executable(storcli
     storage_lbg.c
     rozofs_storcli_cnx_supervision.c
     rozofs_storcli_truncate.c        
+    storcli_ring.c
+    storcli_ring.h
 )
 #pthread need by fuse
 target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY})
