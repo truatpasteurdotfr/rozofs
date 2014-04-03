@@ -796,9 +796,22 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    working_ctx_p->opcode_key = STORCLI_WRITE;
    {
        int ret;
+       uint64_t wr_bid;
+       uint64_t wr_nb_blocks;
+       if (storcli_write_rq_p->empty_file == 0)
+       {
+            wr_bid = working_ctx_p->wr_bid;
+            wr_nb_blocks = working_ctx_p->wr_nb_blocks;
+        }
+       else
+       {
+           wr_bid = 0;
+           wr_nb_blocks= 0;
+           wr_nb_blocks--;
+       }
        ret = stc_rng_insert((void*)working_ctx_p,
                STORCLI_WRITE,working_ctx_p->fid_key,
-               working_ctx_p->wr_bid,working_ctx_p->wr_nb_blocks,
+               wr_bid,wr_nb_blocks,
                &working_ctx_p->sched_idx);
        if (ret == 0)
        {

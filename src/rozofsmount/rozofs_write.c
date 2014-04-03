@@ -844,9 +844,9 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     args.data.data_val = (char*)buf;  
     
     /* If file was empty at openning tell it to storcli at 1rts write */
-    if (f->attrs.size == 0) {
+    if (f->file2create == 1) {
       args.empty_file = 1;
-      f->attrs.size = -1;
+      f->file2create = 0;
     }
     else {
       args.empty_file = 0;
@@ -955,15 +955,21 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     }
     
     if (ie->attrs.size < (off + size)) {
-
         /*
-	** Check whether the size extension is compatible 
-	** with the export hard quota
-	*/
-        if (! eid_check_free_quota(ie->attrs.size,off + size)) {
-          goto error; // errno is already set	  
-	}
-	
+         ** Check whether the size extension is compatible
+         ** with the export hard quota
+         */
+        if (!eid_check_free_quota(ie->attrs.size, off + size)) {
+            goto error;
+            // errno is already set
+        }
+        /*
+         ** if the size is 0, assert file2create: it will be checked by storcli in order
+         ** to exclude any other request concerning the same fid: fix a potential issue
+         ** when storcli is configure to handle request in parallel
+         */
+        if (ie->attrs.size == 0)
+            file->file2create = 1;
         ie->attrs.size = (off + size);
         file->attrs.size = (off + size);
     }

@@ -113,6 +113,7 @@ typedef struct file {
     int              write_block_counter;  /**< increment each time a write block is called */
     int              write_block_pending;  /**< asserted when a write must be sent          */
     int              write_block_req;  /**< to force the write towards the metadata service (flush and close)          */
+    int              file2create;     /**< assert to one on a write when the attributes indicates a file size of 0    */
 #if 0
     char *buffer;
     int buf_write_wait;
@@ -159,6 +160,7 @@ static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
     file->write_block_counter = 0;
     file->write_block_req = 0;
     file->write_block_pending = 0;
+    file->file2create = 0;
 }
 
 
