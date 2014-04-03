@@ -80,20 +80,19 @@ int rozofs_xattr_flt_insert(char *name)
   /*
   ** search for a free entry
   */
-  for (i = 0; i < ROZOFS_XATTR_FILTR_MAX; i++)
-  {
-    p= &rozofs_xattr_flt_filter[i];
-    if (p->status == 0)
-    {
-      len = strlen(name);
-      p->buffer = malloc(len);
-      if (p->buffer == NULL) return -1;
-      strcpy(p->buffer,name);
-      p->status = 1;  
-      rozofs_xattr_flt_count++;
-      return 0;  
-    }   
-  } 
+    for (i = 0; i < ROZOFS_XATTR_FILTR_MAX; i++) {
+        p = &rozofs_xattr_flt_filter[i];
+        if (p->status == 0) {
+            len = strlen(name) + 1;
+            p->buffer = malloc(len);
+            if (p->buffer == NULL)
+                return -1;
+            strcpy(p->buffer, name);
+            p->status = 1;
+            rozofs_xattr_flt_count++;
+            return 0;
+        }
+    }
   return -1; 
 }
 /*
