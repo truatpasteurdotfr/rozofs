@@ -23,5 +23,3 @@ override_dh_strip:
 	mv $(CURDIR)/debian/rozofs-dbg/usr/lib/debug/usr/lib/pyshared/python2.7/rozofs \
 	   $(CURDIR)/debian/rozofs-dbg/usr/lib/debug/usr/lib/pymodules/python2.7/rozofs
 
-override_dh_compress:
-	dh_compress -Xgenerate_rozofs_dynamic.sh -Xinput_example
