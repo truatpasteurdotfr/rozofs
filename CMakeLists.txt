@@ -119,7 +119,7 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/
 #
 if(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release CACHE STRING
-  "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+  "Choose the type of build, options are: None Debug Debug++ Release RelWithDebInfo MinSizeRel."
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
@@ -139,7 +139,12 @@ else()
     FORCE)
 endif()
 
-set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE " CACHE STRING
+set(CMAKE_C_FLAGS_DEBUG "-g -O -Wall -D_FORTIFY_SOURCE=2 -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
+    "Flags used by the C compiler during maintainer builds."
+    FORCE)
+
+### Without Optimization flag
+set(CMAKE_C_FLAGS_DEBUG++ "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
 
