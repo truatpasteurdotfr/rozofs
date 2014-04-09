@@ -21,11 +21,15 @@
 #include <inttypes.h>
 #include <unistd.h>
 
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_srv.h>
 
 #include "export.h"
+
+export_one_profiler_t  * export_profiler[EXPGW_EXPORTD_MAX_IDX] = { 0 };
+uint32_t		 export_profiler_eid = 0;
 
 DEFINE_PROFILING(epp_profiler_t);
 
@@ -90,7 +94,7 @@ int main(int argc, char **argv) {
     printf("created\n");
 
     printf("volume:\t\t\t");
-    if (volume_initialize(&volume, 1) != 0) {
+    if (volume_initialize(&volume, 1, 0) != 0) {
         perror("can't initialize volume.");
         return errno;
     }
@@ -101,7 +105,7 @@ int main(int argc, char **argv) {
     printf("initialized\n");
 
     printf("export:\t\t\t");
-    if (export_initialize(&export, &volume, 0, &cache, 1, "./export_test_directory", "", 0, 0) != 0) {
+    if (export_initialize(&export, &volume, &cache, 1, "./export_test_directory", "", 0, 0) != 0) {
         perror("can't initialize export");
         return errno;
     }

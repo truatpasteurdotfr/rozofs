@@ -68,6 +68,17 @@ void *storcli_north_buffer_pool_p = NULL;  /**< reference of the read/write buff
 */
 void * rozofs_storcli_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref,uint32_t len)
 {
+    uint32_t free_count = rozofs_storcli_get_free_transaction_context();
+
+    if (free_count < STORCLI_CTX_MIN_CNT) {
+        storcli_buf_depletion_count++;
+        return NULL;
+    }
+
+    if (stc_rng_is_full()) {
+        storcli_rng_full_count++;
+        return NULL;
+    }
 
    /*
    ** check if a small or a large buffer must be allocated

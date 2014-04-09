@@ -40,7 +40,7 @@
 #include "north_lbg_timer.h"
 #include "north_lbg_timer_api.h"
 
-#define NORTH__LBG_MAX_ENTRY    (1<<5) /**< max number of entries on a north load-balancer  */
+#define NORTH__LBG_MAX_ENTRY    (1<<4) /**< max number of entries on a north load-balancer  */
 #define NORTH__LBG_TB_MAX_ENTRY  (NORTH__LBG_MAX_ENTRY/sizeof(uint8_t))
 /**
 * state of a loab balancer eny
@@ -170,7 +170,7 @@ void north_lbg_rechain_when_lbg_gets_down(int idx);
 * Prototypes
 */
 char * lbg_north_state2String (int x);
-void north_lbg_debug_show(uint32_t tcpRef, void *bufRef);
+void north_lbg_debug_show(char *argv[],uint32_t tcpRef, void *bufRef);
 void north_lbg_debug(char * argv[], uint32_t tcpRef, void *bufRef);
 void north_lbg_debug_init();
 north_lbg_ctx_t *north_lbg_getObjCtx_p(uint32_t north_lbg_ctx_id);

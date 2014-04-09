@@ -174,6 +174,7 @@ union ep_mattr_ret_t switch (ep_status_t status) {
 struct epgw_mattr_ret_t
 {
   struct ep_gateway_t hdr;
+  uint64_t          free_quota;
   ep_mattr_ret_t    status_gw;
   ep_mattr_ret_t    parent_attr;
 };
@@ -449,6 +450,15 @@ struct  epgw_rename_arg_t
   ep_rename_arg_t    arg_gw;
 };
 
+struct epgw_rename_ret_t
+{
+  struct ep_gateway_t hdr;
+  ep_fid_ret_t    status_gw;
+  ep_mattr_ret_t    child_attr;  
+  ep_mattr_ret_t    parent_attr;
+
+};
+
 struct ep_io_arg_t {
     uint32_t    eid;
     ep_uuid_t   fid;
@@ -666,7 +676,7 @@ program EXPORT_PROGRAM {
         epgw_mattr_ret_t
         EP_SYMLINK(epgw_symlink_arg_t)            = 13;
 
-        epgw_fid_ret_t
+        epgw_rename_ret_t
         EP_RENAME(epgw_rename_arg_t)              = 14;
 
         epgw_readdir_ret_t

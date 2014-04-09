@@ -25,16 +25,20 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/rpc/mpproto.h>
 
+#ifndef MICROLONG
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
+#endif
 
 #define DECLARE_PROFILING(the_type) extern the_type gprofiler
-
 #define DEFINE_PROFILING(the_type) the_type gprofiler
 
+#ifndef P_COUNT
 #define P_COUNT     0
 #define P_ELAPSE    1
 #define P_BYTES     2
+#endif
 
+#ifndef START_PROFILING
 #define START_PROFILING(the_probe)\
     uint64_t tic, toc;\
     struct timeval tv;\
@@ -43,7 +47,9 @@
         gettimeofday(&tv,(struct timezone *)0);\
         tic = MICROLONG(tv);\
     }
+#endif
 
+#ifndef START_PROFILING_IO
 #define START_PROFILING_IO(the_probe, the_bytes)\
     uint64_t tic, toc;\
     struct timeval tv;\
@@ -53,13 +59,18 @@
         tic = MICROLONG(tv);\
         gprofiler.the_probe[P_BYTES] += the_bytes;\
     }
+#endif
 
+#ifndef STOP_PROFILING
 #define STOP_PROFILING(the_probe)\
     {\
         gettimeofday(&tv,(struct timezone *)0);\
         toc = MICROLONG(tv);\
         gprofiler.the_probe[P_ELAPSE] += (toc - tic);\
     }
+#endif
+
+#ifndef STOP_PROFILING_IO
 #define STOP_PROFILING_IO(the_probe,the_bytes)\
     {\
         gettimeofday(&tv,(struct timezone *)0);\
@@ -67,16 +78,21 @@
         gprofiler.the_probe[P_ELAPSE] += (toc - tic);\
         gprofiler.the_probe[P_BYTES]  += the_bytes;\
 }
+#endif
+
+#ifndef SET_PROBE_VALUE
 #define SET_PROBE_VALUE(the_probe, the_value)\
     {\
         gprofiler.the_probe = the_value;\
-    }\
+    }
+#endif
 
+#ifndef CLEAR_PROBE
 #define CLEAR_PROBE(the_probe)\
     {\
         memset(gprofiler.the_probe, 0, sizeof(gprofiler.the_probe));\
     }
-
+#endif
 
 
 #endif

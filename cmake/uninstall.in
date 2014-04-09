@@ -20,7 +20,9 @@ FOREACH(file ${files})
     ENDIF(EXISTS "${file}")
 ENDFOREACH(file)
 
-MESSAGE(STATUS "Removing directories")
+MESSAGE(STATUS "Removing config directories")
+EXECUTE_PROCESS(COMMAND rm -rf @ROZOFS_CONFIG_DIR@)
+MESSAGE(STATUS "Removing /sbin/mount.rozofs")
 EXECUTE_PROCESS(COMMAND rm -rf @ROZOFS_CONFIG_DIR@)
 
 # RozoFS manager uninstall

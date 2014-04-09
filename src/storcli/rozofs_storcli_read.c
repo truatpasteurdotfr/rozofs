@@ -403,18 +403,18 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
    memcpy(working_ctx_p->fid_key, storcli_read_rq_p->fid, sizeof (sp_uuid_t));
    working_ctx_p->opcode_key = STORCLI_READ;
    {
-     rozofs_storcli_ctx_t *ctx_lkup_p = storcli_hash_table_search_ctx(working_ctx_p->fid_key);
-     /*
-     ** Insert the current request in the queue associated with the hash(fid)
-     */
-     storcli_hash_table_insert_ctx(working_ctx_p);
-     if (ctx_lkup_p != NULL)
-     {
-       /*
-       ** there is a current request that is processed with the same fid
-       */
-       return;    
-     }       
+       int ret;
+       ret = stc_rng_insert((void*)working_ctx_p,
+               STORCLI_READ,working_ctx_p->fid_key,
+               storcli_read_rq_p->bid,storcli_read_rq_p->nb_proj,
+               &working_ctx_p->sched_idx);
+       if (ret == 0)
+       {
+           /*
+            ** there is a current request that is processed with the same fid and there is a collision
+            */
+           return;
+       }
 
      /*
      ** no request pending with that fid, so we can process it right away

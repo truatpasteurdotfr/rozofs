@@ -249,7 +249,12 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
             pChar += sprintf(pChar, "   Xmit Queue            : %s\n", ruc_objIsEmptyList((ruc_obj_desc_t*) & sock_p->xmit.xmitList[0]) ? "EMPTY" : "NON EMPTY");
             pChar += sprintf(pChar, "   xmit/Recv Statistics:\n");
             pChar += sprintf(pChar, "    totalXmitBytes     : %16llu\n", (unsigned long long int) stats_p->totalXmitBytes);
-            pChar += sprintf(pChar, "    totalXmitAttempts  : %16llu\n", (unsigned long long int) stats_p->totalXmitAttempts);
+            pChar += sprintf(pChar, "    totalXmitAttempts  : %16llu (%llu cycles [%llu/%llu])\n", 
+	                    (unsigned long long int) stats_p->totalXmitAttempts,
+                            (stats_p->totalXmitAttemptsCycles==0)?0:(unsigned long long int)(stats_p->totalXmitCycles/stats_p->totalXmitAttemptsCycles),
+                             (unsigned long long int)stats_p->totalXmitCycles,(unsigned long long int)stats_p->totalXmitAttemptsCycles);
+			     stats_p->totalXmitCycles = 0;
+			     stats_p->totalXmitAttemptsCycles = 0;
             pChar += sprintf(pChar, "    totalXmitSuccess   : %16llu\n", (unsigned long long int) stats_p->totalXmitSuccess);
             pChar += sprintf(pChar, "    totalXmitCongested : %16llu\n", (unsigned long long int) stats_p->totalXmitCongested);
             pChar += sprintf(pChar, "    totalXmitError     : %16llu\n", (unsigned long long int) stats_p->totalXmitError);

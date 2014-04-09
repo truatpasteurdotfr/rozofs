@@ -64,7 +64,7 @@ typedef struct _rozofs_gcache_stats_t
 /**
 * size of a payload of a cache unit entry
 */
-#define ROZOFS_CACHE_BSIZE 8192
+#define ROZOFS_CACHE_BSIZE ROZOFS_BSIZE
 /**
 * number of unit entries per cache buffer
 */

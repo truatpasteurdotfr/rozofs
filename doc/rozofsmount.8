@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZOFSMOUNT 8 "OCTOBER 2013" RozoFS "User Manuals"
+.TH ROZOFSMOUNT 8 "MARCH 2014" RozoFS "User Manuals"
 .SH NAME
 rozofsmount \- RozoFS fuse mount
 .SH SYNOPSIS
@@ -87,6 +87,9 @@ Specify the base debug port for rozofsmount (default: none).
 .TP
 \fB\-o instance=\fP\fIN\fP
 Specify rozofsmount instance number (default: 0).
+.TP
+\fB\-o nbcores=\fP\fIN\fP
+Specify the maximum number of core files to keep (default: 2).
 .TP
 \fB\-o rozofscachemode=\fP\fIN\fP
 Specify the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0).

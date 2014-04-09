@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii export.conf.5
 .\"
-.TH EXPORT.CONF 5 "MAY 2013" Rozofs "User Manuals"
+.TH EXPORT.CONF 5 "MARCH 2014" RozoFS "User Manuals"
 .SH NAME
-export.conf \- rozofs export daemon configuration file
+export.conf \- RozoFS export daemon configuration file
 .SH DESCRIPTION
 .B export.conf
 is manage throw 
@@ -13,6 +13,9 @@ and thus complies to the
 .B libconfig
 grammar.
 
+.SS nbcores (optional)
+
+Maximum number of core files to keep. (default: 2)
 
 .SS layout
     It's the transform layout used by rozofs. Each file data will be transform
@@ -94,10 +97,10 @@ grammar.
                - for no hard quota use empty hquota.
 
        for squota and hquota:
-               - quotas are express in nb. of blocks (no suffix), Kilo, Mega or
-                 Giga Bytes accordind to suffix K, M or G. Only the first 
-                 letter of  suffix is used that is: 128G is equivalent to
-                 128Giga wich in turn can be 128GigaBytes etc...
+               - quotas are express in nb. of blocks (no suffix), Kilo, Mega,
+                 Giga or Tera Bytes according to suffix K, M, G or T. Only the
+                  first letter of  suffix is used that is: 128G is equivalent to
+                 128Giga which in turn can be 128GigaBytes etc...
                - warning: any other suffix leads to quota express in blocks.
 
        vid: (volume identifier used to store file data for this filesystem)

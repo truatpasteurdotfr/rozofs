@@ -795,18 +795,31 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    memcpy(working_ctx_p->fid_key, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
    working_ctx_p->opcode_key = STORCLI_WRITE;
    {
-     rozofs_storcli_ctx_t *ctx_lkup_p = storcli_hash_table_search_ctx(working_ctx_p->fid_key);
-     /*
-     ** Insert the current request in the queue associated with the hash(fid)
-     */
-     storcli_hash_table_insert_ctx(working_ctx_p);
-     if (ctx_lkup_p != NULL)
-     {
-       /*
-       ** there is a current request that is processed with the same fid
-       */
-       return;    
-     }
+       int ret;
+       uint64_t wr_bid;
+       uint64_t wr_nb_blocks;
+       if (storcli_write_rq_p->empty_file == 0)
+       {
+            wr_bid = working_ctx_p->wr_bid;
+            wr_nb_blocks = working_ctx_p->wr_nb_blocks;
+        }
+       else
+       {
+           wr_bid = 0;
+           wr_nb_blocks= 0;
+           wr_nb_blocks--;
+       }
+       ret = stc_rng_insert((void*)working_ctx_p,
+               STORCLI_WRITE,working_ctx_p->fid_key,
+               wr_bid,wr_nb_blocks,
+               &working_ctx_p->sched_idx);
+       if (ret == 0)
+       {
+           /*
+            ** there is a current request that is processed with the same fid and there is a collision
+            */
+           return;
+       }
      /*
      ** no request pending with that fid, so we can process it right away
      */
@@ -1910,6 +1923,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
       /*
       ** THIS MUST NOT HAPPEN
       */
+     ruc_buf_freeBuffer(xmit_buf); 
      errno = EFAULT;
      severe(" rpc header encode error ");
      wr_proj_buf_p->state = ROZOFS_WR_ST_ERROR;
@@ -1930,6 +1944,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
    */
    if (xdr_storcli_read_arg_t(&xdrs,request) == FALSE)
    {
+     ruc_buf_freeBuffer(xmit_buf); 
      severe(" internal read request encoding error ");
      errno = EFAULT;
      wr_proj_buf_p->state = ROZOFS_WR_ST_ERROR;

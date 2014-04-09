@@ -179,6 +179,8 @@ typedef struct rozofs_socket_stats_t
    */
    uint64_t totalXmitBytes;         /**< total number of bytes that has been sent */
    uint64_t totalXmitAttempts;  /**< total number of messages submitted       */
+   uint64_t totalXmitAttemptsCycles;  /**< total number of messages submitted reset on show      */
+   uint64_t totalXmitCycles;    /**< number of cpu cycles       */
    uint64_t totalXmitSuccess;   /**< total number of messages submitted with success  */
    uint64_t totalXmitCongested; /**< total number of messages submitted for with EWOULDBLOCK is returned  */
    uint64_t totalXmitError;     /**< total number of messages submitted with an error  */

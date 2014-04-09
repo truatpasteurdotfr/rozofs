@@ -19,7 +19,7 @@
 #define SOCKET_CTRL_H
 
 #include <rozofs/common/types.h>
-
+#include <sys/select.h>
 #include "ruc_common.h"
 #include "ruc_list.h"
 #include "ruc_sockCtl_api.h"
@@ -28,6 +28,9 @@
 **  max number of priority
 */
 #define RUC_SOCKCTL_MAXPRIO 4
+
+#define RUC_SOCKCTL_POLLCOUNT 16 /**< default value for former receiver ready callbacks */
+#define RUC_SOCKCTL_POLLFREQ (40*1000) /**< default polling frequency in us */
 
 
 /*
@@ -60,7 +63,12 @@ typedef struct _ruc_sockObj_t
 
 
 
-
+/*
+** file descriptor for receiving and transmitting events
+*/
+extern fd_set  rucRdFdSet;   
+extern fd_set  rucWrFdSet;   
+extern fd_set  rucWrFdSetCongested;
 
 /*
 **  private API

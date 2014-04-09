@@ -39,7 +39,7 @@ extern "C" {
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/common/mattr.h>
 #include <rozofs/core/com_cache.h>
 

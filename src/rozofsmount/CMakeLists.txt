@@ -57,6 +57,8 @@ add_executable(rozofsmount
     rozofs_rw_load_balancing.h
     rozofs_rw_load_balancing.c
     rozofs_file_lock.c
+    rozofs_xattr_flt.h
+    rozofs_xattr_flt.c
 )
 #pthread need by fuse
 target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${UUID_LIBRARY} ${CRYPT_LIBRARY})
@@ -70,3 +72,7 @@ install(TARGETS rozofsmount
 )
 
 install(PROGRAMS storcli_starter.sh storcli_killer.sh  DESTINATION bin)
+
+# Create symbolic link /sbin/mount.rozofs -> /sbin/mount.fuse (mount.rozofs command)
+install(CODE "MESSAGE(\"Create symbolic link /sbin/mount.rozofs -> /sbin/mount.fuse\")")
+install(CODE "EXECUTE_PROCESS (COMMAND ln -sf /sbin/mount.fuse /sbin/mount.rozofs)" COMPONENT client)

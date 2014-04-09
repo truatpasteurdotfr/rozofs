@@ -7,10 +7,8 @@
 #include <rozofs/rpc/gwproto.h>
 #include <rozofs/rozofs.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
-
-DECLARE_PROFILING(epp_profiler_t);
 
 #define GW_NAME_LEN (ROZOFS_HOSTNAME_MAX/4)
 //  uint32_t           eid[EXPGW_EID_MAX_IDX];  
@@ -81,8 +79,11 @@ int
 gw_poll_1_nblocking(gw_header_t *argp, int lbg_id,void *ctx_p)
 {
 	static gw_status_t clnt_res;
+        uint64_t           val;
+	
+	GET_EID_PROB_COUNT(val,(argp->export_id),gw_poll);		
 
-	if (rozofs_rpc_non_blocking_req_send (lbg_id,GW_PROGRAM,GW_VERSION, GW_POLL,DEFINE_RPC_GENERIC_PROBE(gw_poll),
+	if (rozofs_rpc_non_blocking_req_send (lbg_id,GW_PROGRAM,GW_VERSION, GW_POLL,&val,
 		(xdrproc_t) xdr_gw_header_t, (caddr_t) argp,
 		(xdrproc_t) xdr_gw_status_t, (void*) &clnt_res,sizeof(clnt_res),
 		gw_poll_1_nblocking_cbk,ctx_p) < 0 ) {

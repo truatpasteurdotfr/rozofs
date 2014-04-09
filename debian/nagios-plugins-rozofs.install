@@ -1,2 +1,3 @@
-contrib/nagios/pluggins/*.sh /usr/lib/nagios/plugins/
-contrib/nagios/cfg/rozofs_static.cfg /etc/nagios-plugins/config/
+contrib/nagios/plugins/*.sh /usr/lib/nagios/plugins/
+contrib/nagios/cfg/rozofs-commands.cfg /etc/nagios-plugins/config/
+contrib/nagios/logos/*.png /usr/share/nagios/htdocs/images/logos/rozofs

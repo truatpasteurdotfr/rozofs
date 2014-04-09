@@ -120,11 +120,11 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       break;
 
     case SP_TRUNCATE:
-      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_truncate_arg_t;
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_truncate_arg_no_bins_t;
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_status_ret_t;
 //      local = sp_truncate_1_svc_nb;
       local = sp_truncate_1_svc_disk_thread;
-      size = sizeof (sp_truncate_arg_t);
+      size = sizeof (sp_truncate_arg_no_bins_t);
       break;
 
     default:

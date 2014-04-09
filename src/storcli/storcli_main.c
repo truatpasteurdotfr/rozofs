@@ -1096,7 +1096,14 @@ int main(int argc, char *argv[]) {
         sprintf(name, "storcli %d of rozofsmount %d", conf.module_index, conf.rozofsmount_instance);
         uma_dbg_set_name(name);
     }
-
+    /**
+    * init of the scheduler ring
+    */
+    ret  = stc_rng_init();
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error while initializing scheduler ring\n");
+        goto error;
+    }
     /*
      ** Get the configuration from the export
      */

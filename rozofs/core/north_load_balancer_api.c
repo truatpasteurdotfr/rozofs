@@ -235,7 +235,7 @@ void  north_lbg_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void 
     if (entry_p->state != NORTH_LBG_DOWN) 
     { 
       north_lbg_entry_state_change(entry_p,NORTH_LBG_DOWN);
-      warning("north_lbg_userDiscCallBack->Disconnect for %d \n",socket_context_ref);
+      warning("north_lbg_userDiscCallBack : LBG %s entry %d \n",lbg_p->name, entry_p->index);
       up2down_transition = 1;
     }
     /*
