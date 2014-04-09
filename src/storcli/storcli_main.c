@@ -57,6 +57,7 @@
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_reload_storage_config.h"
+#include "rozofs_storcli_mojette_thread_intf.h"
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -1103,6 +1104,15 @@ int main(int argc, char *argv[]) {
     if (ret < 0) {
         fprintf(stderr, "Fatal error while initializing scheduler ring\n");
         goto error;
+    }
+    /*
+    ** Initialize the disk thread interface and start the disk threads
+    */	
+    ret = rozofs_stcmoj_thread_intf_create(conf.host, conf.rozofsmount_instance,conf.module_index,
+                                           ROZOFS_MAX_DISK_THREADS,ROZOFS_MAX_DISK_THREADS ) ;
+    if (ret < 0) {
+      fatal("Mojette_disk_thread_intf_create");
+      return -1;
     }
     /*
      ** Get the configuration from the export

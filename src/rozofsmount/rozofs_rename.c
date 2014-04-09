@@ -213,11 +213,14 @@ void rozofs_ll_rename_cbk(void *this,void *param)
     if ((old_ie = get_ientry_by_fid(fid))) {
         old_ie->nlookup--;
     }
+
+
     /*
     ** Update renamed FID attributes
     */
     memcpy(fid, &ret.child_attr.ep_mattr_ret_t_u.attrs.fid, sizeof (fid_t));
     if ((nie = get_ientry_by_fid(fid))) {
+      uint64_t cur_size;
       /**
       *  update the timestamp in the ientry context
       */
@@ -225,7 +228,9 @@ void rozofs_ll_rename_cbk(void *this,void *param)
       /*
       ** update the attributes in the ientry
       */
-      memcpy(&nie->attrs,&ret.child_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));    
+      cur_size = nie->attrs.size;
+      memcpy(&nie->attrs,&ret.child_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));  
+      if (cur_size > nie->attrs.size ) nie->attrs.size = cur_size; 
     }
     
     fuse_reply_err(req, 0);

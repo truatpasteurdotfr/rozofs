@@ -264,6 +264,16 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
 
     DEBUG("getxattr (inode: %lu, name: %s, size: %llu) \n",
             (unsigned long int) ino, name, (unsigned long long int) size);
+    /*
+    ** check if xattr are enable
+    ** when it is disabled anwser with ENOSYS will imply that xattr will
+    ** disabled at FS level by fuse: note is does not affect set_xattr and list_xattr
+    */
+    if (rozofs_xattr_disable) 
+    {
+      errno = ENOSYS;
+      goto error;
+    }
 
     /// XXX: respond with the error ENODATA for these calls
     // to avoid that the getxattr called on export at each write to this file

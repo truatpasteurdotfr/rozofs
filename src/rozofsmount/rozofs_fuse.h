@@ -49,6 +49,10 @@ typedef struct _rozofs_fuse_read_write_stats
     uint64_t   read_fuse_cpt;    /**< number of times read request is received from fuse       */
 }  rozofs_fuse_read_write_stats;
 
+extern uint64_t rozofs_fuse_req_count;
+extern uint64_t rozofs_fuse_req_eagain_count;
+extern uint64_t rozofs_fuse_req_enoent_count;
+
 #define ROZOFS_PAGE_SZ  4096
 
 #define ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX  ((256*1024)/ROZOFS_PAGE_SZ) /**< 64 sections of BUFSIZE  */

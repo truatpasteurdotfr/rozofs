@@ -132,7 +132,6 @@ int stc_rng_insert(void *obj_ptr,uint8_t opcode, fid_t fid,uint64_t bid,uint64_t
       */
       found = 0;
       stc_rng_collision_count++;
-
       runnable = 0;
       break;
    }
@@ -145,6 +144,10 @@ int stc_rng_insert(void *obj_ptr,uint8_t opcode, fid_t fid,uint64_t bid,uint64_t
    memcpy(p->fid,fid,sizeof(fid));
    p->bid = bid;
    p->nb_blks = nb_blks;
+   if (p->obj_ptr != NULL)
+   {
+      severe("!!!!!ring is FULL");
+   }
    p->obj_ptr = obj_ptr;
    p->opcode = opcode;
    p->state = runnable;
@@ -185,6 +188,7 @@ int stc_rng_release_entry(int entry_idx, void **next_running_p,
     }
     cur_p = &stc_rng_request_p[entry_idx];
     cur_p->obj_ptr = NULL;
+   
     /*
      ** update read index of the entry match the current one
      */

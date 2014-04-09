@@ -93,6 +93,7 @@ int rozofs_trc_last_idx; /**< last entry in the trace buffer */
 int rozofs_trc_enabled = 0;  /**< assert to 1 when the trace is enable */
 int rozofs_trc_index = 0;
 rozofs_trace_t *rozofs_trc_buffer = NULL;  /**< pointer to the trace buffer */
+int rozofs_xattr_disable = 0; /**< assert to one to disable xattr for the exported file system */
 
 /**______________________________________________________________________________
 */
@@ -663,6 +664,16 @@ void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef)
    } 
    rozofs_cache_mode = cache_mode;
    uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
+}
+
+/*__________________________________________________________________________
+*/
+
+void rozofs_disable_xattr(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+
+   rozofs_xattr_disable = 1;
+   uma_dbg_send(tcpRef, bufRef, TRUE, "Extended Attributes are now disabled\n");
 }
 
 /*__________________________________________________________________________
@@ -1472,7 +1483,18 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("flock", show_flock);
     uma_dbg_addTopic("trc_fuse", show_trc_fuse);
     uma_dbg_addTopic("xattr_flt", show_xattr_flt);
-    
+    uma_dbg_addTopic("xattr_disable", rozofs_disable_xattr);
+    /*
+    ** clear write flush alignement stats
+    */
+    {
+      int k;
+      for (k= 0;k < 2;k++)
+      {
+        rozofs_aligned_write_start[k] = 0;
+        rozofs_aligned_write_end[k] = 0;
+      }
+    }
     /*
     ** init of the trace buffer
     */

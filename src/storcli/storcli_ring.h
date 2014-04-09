@@ -19,7 +19,7 @@
 #ifndef STORCLI_RING_H
 #define STORCLI_RING_H
 
-#define STORCLI_RING_SZ 128
+#define STORCLI_RING_SZ 512
 #define STORCLI_RUN  1
 #define STORCLI_WAIT 0
 

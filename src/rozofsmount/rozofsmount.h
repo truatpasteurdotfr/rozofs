@@ -109,6 +109,13 @@ typedef struct ientry {
 ** About exportd id quota
 */
 extern uint64_t eid_free_quota;
+extern int rozofs_xattr_disable; /**< assert to one to disable xattr for the exported file system */
+/*
+** write alignment statistics
+*/
+extern uint64_t    rozofs_aligned_write_start[2];
+extern uint64_t    rozofs_aligned_write_end[2];
+
 /**______________________________________________________________________________
 */
 /**

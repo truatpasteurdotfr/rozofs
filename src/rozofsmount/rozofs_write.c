@@ -25,6 +25,7 @@
 #include "rozofs_fuse_api.h"
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_rw_load_balancing.h"
+#include "rozofs_sharedmem.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
 
@@ -34,6 +35,12 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
 
 void rozofs_ll_write_cbk(void *this,void *param);
 void rozofs_clear_file_lock_owner(file_t * f);
+/*
+** write alignment statistics
+*/
+uint64_t    rozofs_write_buf_flush = 0;
+uint64_t    rozofs_aligned_write_start[2];
+uint64_t    rozofs_aligned_write_end[2];
 
 #define CLEAR_WRITE(p) \
 { \
@@ -841,10 +848,21 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.off = off;
     args.data.data_len = len;
+    /**
+    * write alignement stats
+    */
+    rozofs_aligned_write_start[(off%ROZOFS_BSIZE==0)?0:1]++;
+    rozofs_aligned_write_end[((off+len)%ROZOFS_BSIZE==0)?0:1]++;
+    
     args.data.data_val = (char*)buf;  
     
-    /* If file was empty at openning tell it to storcli at 1rts write */
+    /* If file was empty at opening tell it to storcli at 1rts write */
+    if (f->attrs.size == 0)
+    {
+      f->attrs.size = -1;
+    }
     if (f->file2create == 1) {
+
       args.empty_file = 1;
       f->file2create = 0;
     }
@@ -856,7 +874,43 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     */
     storcli_idx = stclbg_storcli_idx_from_fid(f->fid);
 //    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
-
+    /*
+    ** allocate a shared buffer for writing
+    */
+#if 1
+    uint32_t *p32;
+    int shared_buf_idx = -1;
+    uint32_t length;
+    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(storcli_idx);
+    if (shared_buf_ref != NULL)
+    {
+      /*
+      ** clear the first 4 bytes of the array that is supposed to contain
+      ** the reference of the transaction
+      */
+       p32 = (uint32_t *)ruc_buf_getPayload(shared_buf_ref);
+       *p32 = 0;
+       /*
+       ** store the length to write 
+       */
+       p32[1] = args.data.data_len;
+       /*
+       ** get the index of the shared payload in buffer
+       */
+       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,storcli_idx,&length);
+       if (shared_buf_idx != -1)
+       {
+	 /*
+	 ** indicate to the transmitter that shared memory request type must be used
+	 */
+	 args.data.data_len = 0x80000000 | shared_buf_idx;
+         /*
+         ** save the reference of the shared buffer in the fuse context
+         */
+         SAVE_FUSE_PARAM(buffer_p,shared_buf_ref);
+       }
+    }
+#endif 
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -864,7 +918,9 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     f->buf_write_pending++;
     f->write_block_pending = 1;
     ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
-                              STORCLI_WRITE,(xdrproc_t) xdr_storcli_write_arg_t,(void *)&args,
+                              STORCLI_WRITE,
+			      (shared_buf_idx!=-1)?(xdrproc_t) xdr_storcli_write_arg_no_data_t: (xdrproc_t)xdr_storcli_write_arg_t,
+			      (void *)&args,
                               callback,buffer_p,storcli_idx,f->fid); 
     if (ret < 0) goto error;
     
@@ -920,6 +976,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
             (unsigned long int) ino, (unsigned long long int) size,
             (unsigned long long int) off);
 
+
+
    /*
    ** stats
    */
@@ -955,21 +1013,23 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     }
     
     if (ie->attrs.size < (off + size)) {
+
         /*
-         ** Check whether the size extension is compatible
-         ** with the export hard quota
-         */
-        if (!eid_check_free_quota(ie->attrs.size, off + size)) {
-            goto error;
-            // errno is already set
-        }
-        /*
-         ** if the size is 0, assert file2create: it will be checked by storcli in order
-         ** to exclude any other request concerning the same fid: fix a potential issue
-         ** when storcli is configure to handle request in parallel
-         */
-        if (ie->attrs.size == 0)
-            file->file2create = 1;
+	** Check whether the size extension is compatible 
+	** with the export hard quota
+	*/
+        if (! eid_check_free_quota(ie->attrs.size,off + size)) {
+          goto error; // errno is already set	  
+	}
+	/*
+	** if the size is 0, assert file2create: it will be checked by storcli in order
+	** to exclude any other request concerning the same fid: fix a potential issue
+	** when storcli is configure to handle request in parallel
+	*/
+	if (ie->attrs.size == 0) 
+	{
+	  file->file2create = 1;
+        }	
         ie->attrs.size = (off + size);
         file->attrs.size = (off + size);
     }
@@ -2180,8 +2240,8 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     memcpy(arg.arg_gw.fid, file_p->fid, sizeof (fid_t));
     arg.arg_gw.bid = 0;
     arg.arg_gw.nrb = 1;
-    arg.arg_gw.length = file_p->attrs.size; //buf_flush_len;
-    arg.arg_gw.offset = 0; //buf_flush_offset;
+    arg.arg_gw.length = 0; //buf_flush_len;
+    arg.arg_gw.offset = file_p->attrs.size; //buf_flush_offset;
     arg.arg_gw.dist = 0;
     /*
     ** now initiates the transaction towards the remote end
