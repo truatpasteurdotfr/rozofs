@@ -288,7 +288,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
         {
             char name[256];
-	    sprintf(name, "storio %s", arg_p->hostname);
+	    sprintf(name, "storio%d %s", arg_p->instance_id, arg_p->hostname);
             uma_dbg_set_name(name);
         }
         /*
@@ -354,7 +354,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Initialize the disk thread interface and start the disk threads
   */	
-  ret = storio_disk_thread_intf_create(args_p->hostname,storaged_config.nb_disk_threads, ROZORPC_SRV_CTX_CNT) ;
+  ret = storio_disk_thread_intf_create(args_p->hostname,args_p->instance_id, storaged_config.nb_disk_threads, ROZORPC_SRV_CTX_CNT) ;
   if (ret < 0) {
     fatal("storio_disk_thread_intf_create");
     return -1;
@@ -368,7 +368,7 @@ int storio_start_nb_th(void *args) {
     fatal("Fatal error on storio_north_interface_buffer_init()\n");
     return -1;
   }
-  ret = storio_north_interface_init(args_p->hostname);
+  ret = storio_north_interface_init(args_p->hostname,args_p->instance_id);
   if (ret < 0) {
     fatal("Fatal error on storio_north_interface_init()\n");
     return -1;

@@ -440,7 +440,7 @@ start_storaged ()
 	      sid=$((sid+1))
               echo "start storaged" ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
 echo ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON}
-              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} $MULTIIO -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
            done
 	done
     done
@@ -1124,37 +1124,35 @@ show_process () {
     fi    
   done  
   printf "\n"
-  printf " cid sid storaged     storio\n"
-  for sid in $(seq 16)
+  printf " cid sid storaged     storio(s)\n"
+  for sid in $(seq $nbaddr)
   do
   
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))  
     std=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
 
-    if ls stor*_${LOCAL_STORAGE_NAME_BASE}$sid.pid > /dev/null 2>&1
+    printf " %3d %3d " $cid $sid
+
+    file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      printf " %6d     " $proc 
+    else
+      printf "     --      "         
+    fi 
+    
+    if ls storio_${LOCAL_STORAGE_NAME_BASE}$sid.*.pid > /dev/null 2>&1
     then
 
-      printf " %3d %3d " $cid $sid
-
-      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
-      if [ -f $file ];
-      then
-	proc=`cat $file`
-	printf " %6d     " $proc 
-      else
-	printf "     --      "         
-      fi 
-
-      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
-      if [ -f $file ];
-      then
-	proc=`cat $file`
-	printf " %6d     " $proc 
-      else
-	printf "     --      "         
-      fi 
-      printf "\n"   
-    fi   
+      for file in storio_${LOCAL_STORAGE_NAME_BASE}$sid.*.pid
+      do
+        nb=`echo $file | awk -F'.' '{print $2}'`
+	    proc=`cat $file`
+	    printf " %d:%-6d " $nb $proc 
+      done
+    fi  
+    printf "\n"          
   done
   
   # Clients 
@@ -1193,7 +1191,7 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1
     NB_CLUSTERS_BY_VOLUME=2
-    NB_PORTS_PER_STORAGE_HOST=1
+    NB_PORTS_PER_STORAGE_HOST=2
     NB_DISK_THREADS=3
     NB_CORES=4
     WRITE_FILE_BUFFERING_SIZE=256
@@ -1206,7 +1204,11 @@ main ()
     NB_DEVICE_PER_SID=6
     NB_DEVICE_MAPPER_PER_SID=4
     NB_DEVICE_MAPPER_RED_PER_SID=2
-    
+
+
+    # Only one storio per storage or one storio per listening port ?
+    #MULTIIO="-m"
+    MULTIIO=""   
     
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE

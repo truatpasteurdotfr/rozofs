@@ -133,7 +133,7 @@ int af_unix_disk_sock_create_internal(char *nameOfSocket,int size)
 /**
 * encode the RCP reply
     
-  @param p       : pointer to the generic rpc contextstorio_disk_thread.c:
+  @param p       : pointer to the generic rpc context
   @param arg_ret : returned argument to encode 
   
   @retval none
@@ -555,7 +555,7 @@ void *storio_disk_thread(void *arg) {
 *  
 * @retval 0 on success -1 in case of error
 */
-int storio_disk_thread_create(char * hostname, int nb_threads) {
+int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) {
    int                        i;
    int                        err;
    pthread_attr_t             attr;
@@ -569,7 +569,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads) {
    /*
    ** create the common socket to receive requests on
    */
-   sprintf(socketName,"%s_%s",ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname);
+   sprintf(socketName,"%s_%d_%s",ROZOFS_SOCK_FAMILY_DISK_NORTH,instance_id, hostname);
    af_unix_disk_socket_ref = af_unix_disk_sock_create_internal(socketName,1024*32);
    if (af_unix_disk_socket_ref < 0) {
       fatal("af_unix_disk_thread_create af_unix_disk_sock_create_internal(%s) %s",socketName,strerror(errno));
@@ -585,7 +585,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads) {
      /*
      ** create the thread specific socket to send the response from 
      */
-     sprintf(socketName,"%s_%s_%d",ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname,i);
+     sprintf(socketName,"%s_%d_%s_%d",ROZOFS_SOCK_FAMILY_DISK_NORTH,instance_id,hostname,i);
      thread_ctx_p->sendSocket = af_unix_disk_sock_create_internal(socketName,1024*32);
      if (thread_ctx_p->sendSocket < 0) {
 	fatal("af_unix_disk_thread_create af_unix_disk_sock_create_internal(%s) %s",socketName, strerror(errno));

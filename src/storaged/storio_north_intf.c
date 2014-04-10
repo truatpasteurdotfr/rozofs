@@ -259,7 +259,7 @@ int storio_north_interface_buffer_init(int read_write_buf_count,int read_write_b
 @retval          RUC_NOK : out of memory
 */
 
-int storio_north_interface_init(char * host) {
+int storio_north_interface_init(char * host, int instance_id) {
   int i;
   int ret;
 
@@ -267,20 +267,26 @@ int storio_north_interface_init(char * host) {
   ** create the listening af unix sockets on the north interface
   */  
   for (i=0; i< storaged_config.io_addr_nb; i++) {     
-     
-    /*
-    ** Create the listening sockets
-    */ 
-    ret = af_inet_sock_listening_create("IO",
-                                        storaged_config.io_addr[i].ipv4,
-					storaged_config.io_addr[i].port,
-					&af_inet_rozofs_north_conf);
-    if (ret < 0) {
-      uint32_t ip = storaged_config.io_addr[i].ipv4;
-      fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
-              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.io_addr[i].port);
-      return -1;
-    }  
+    /* 
+    ** Instance 0 listens on all ports.
+    ** Instance i listens on ith port
+    */
+    if ((instance_id == 0) || (instance_id == i+1)) {
+
+      /*
+      ** Create the listening sockets
+      */ 
+      ret = af_inet_sock_listening_create("IO",
+                                          storaged_config.io_addr[i].ipv4,
+					  storaged_config.io_addr[i].port,
+					  &af_inet_rozofs_north_conf);
+      if (ret < 0) {
+	uint32_t ip = storaged_config.io_addr[i].ipv4;
+	fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
+        	ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.io_addr[i].port);
+	return -1;
+      } 
+    } 
   }
   return 0;
 }
