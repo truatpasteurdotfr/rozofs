@@ -51,6 +51,7 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
