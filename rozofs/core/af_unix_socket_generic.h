@@ -914,5 +914,13 @@ static inline void af_inet_attach_application_availability_callback(af_unix_ctx_
    sock_p->userAvailabilityCallBack = available_callback;
    sock_p->availability_param = param;
 }
+/**
+*  Set the maximum qlen of a AF_UNIX datagram socket
 
+ @param  len : The length of the AF_UNIX datagram socket
+
+ @retval: 0 success, all the socket have been created
+ @retval < 0 error on at least one socket creation
+*/
+int af_unix_socket_set_datagram_socket_len(int len);
 #endif

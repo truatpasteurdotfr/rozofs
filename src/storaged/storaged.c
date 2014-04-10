@@ -331,6 +331,8 @@ static void on_start() {
         
     DEBUG_FUNCTION;
 
+    af_unix_socket_set_datagram_socket_len(128);
+
     storage_process_filename[0] = 0;
 
     // Initialization of the storage configuration

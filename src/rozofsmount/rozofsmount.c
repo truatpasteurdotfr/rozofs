@@ -1944,6 +1944,9 @@ int main(int argc, char *argv[]) {
                 strerror(errno));
     }
 
+    // Change AF_UNIX datagram socket length
+    af_unix_socket_set_datagram_socket_len(128);
+
     res = fuseloop(&args, fg);
 
     fuse_opt_free_args(&args);
