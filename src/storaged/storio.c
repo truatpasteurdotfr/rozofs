@@ -160,9 +160,9 @@ static void on_start(void) {
     storage_process_filename[0] = 0;
     char *pid_name_p = storage_process_filename;
     if (storaged_hostname != NULL) {
-        sprintf(pid_name_p, "%s%s_%s.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname);
+        sprintf(pid_name_p, "%s%s_%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname,storio_instance);
     } else {
-        sprintf(pid_name_p, "%s%s.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE);
+        sprintf(pid_name_p, "%s%s.%d.pid", DAEMON_PID_DIRECTORY,STORIO_PID_FILE,storio_instance);
     }
     int ppfd;
     if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
@@ -179,9 +179,17 @@ static void on_start(void) {
      */
     
     conf.instance_id = storio_instance;
-    conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT + storio_instance;
-    /* Try to get debug port from /etc/services */    
-    conf.debug_port  = get_service_port("rozo_storio_dbg",NULL,conf.debug_port);
+    
+    if (storio_instance == 0) {
+      conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT + 1;
+      /* Try to get debug port from /etc/services */    
+      //conf.debug_port  = get_service_port("rozo_storio_dbg",NULL,conf.debug_port);
+    }
+    else {
+      conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT + storio_instance;
+      /* Try to get debug port from /etc/services */    
+      //conf.debug_port  = get_service_port("rozo_storio_dbg",NULL,conf.debug_port);    
+    }  
     if (storaged_hostname != NULL) 
       strcpy(conf.hostname, storaged_hostname);
     else 

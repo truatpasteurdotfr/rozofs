@@ -81,6 +81,7 @@ static SVCXPRT *storaged_profile_svc = 0;
 uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
+int     multiio=0; /* Default is one storio */
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
 
@@ -374,13 +375,27 @@ static void on_start() {
     /*
     ** Then start storio
     */
-    p = cmd;
-    p += sprintf(p, "storio_starter.sh storio -i 1 -c %s ", storaged_config_file);
-    if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
-    p += sprintf(p, "&");
+    if (multiio==0) {
+      p = cmd;
+      p += sprintf(p, "storio_starter.sh storio -i 0 -c %s ", storaged_config_file);
+      if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+      p += sprintf(p, "&");
 
-    // Launch storio_starter script
-    system(cmd);
+      // Launch storio_starter script
+      system(cmd);
+    }
+    else {
+      int idx;
+      for (idx = 0; idx < storaged_nb_ports; idx++) {
+	p = cmd;
+	p += sprintf(p, "storio_starter.sh storio -i %d -c %s ", idx+1, storaged_config_file);
+	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+	p += sprintf(p, "&");
+
+	// Launch storio_starter script
+	system(cmd);        
+      }
+    }
 
     // Create the debug thread of the parent
     storaged_start_conf_param_t conf;     
@@ -405,6 +420,7 @@ void usage() {
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
     printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
+    printf("   -m, --multiio\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -415,6 +431,7 @@ int main(int argc, char *argv[]) {
         { "config", required_argument, 0, 'c'},
         { "rebuild", required_argument, 0, 'r'},
         { "host", required_argument, 0, 'H'},
+        { "multiio", no_argument, 0, 'm'},
         { 0, 0, 0, 0}
     };
 
@@ -426,7 +443,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:r:H:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hmc:r:H:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -437,6 +454,10 @@ int main(int argc, char *argv[]) {
                 usage();
                 exit(EXIT_SUCCESS);
                 break;
+
+            case 'm':
+                multiio = 1;
+                break;		
             case 'c':
                 if (!realpath(optarg, storaged_config_file)) {
                     fprintf(stderr, "storaged failed: %s %s\n", optarg,
