@@ -592,7 +592,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
                                        uint16_t last_block_size,
                                        char *data) 
  {
-
+    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
     projection_t *projections; // Table of projections used to transform data
     uint16_t projection_id = 0;
     uint32_t i = 0;    
@@ -600,7 +600,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     int empty_block = 0;
 
-    projections = rozofs_storcli_projections;
+    projections = rozofs_fwd_projections;
 
     // For each projection
     for (projection_id = 0; projection_id < rozofs_forward; projection_id++) {
