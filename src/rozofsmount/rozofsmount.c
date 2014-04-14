@@ -169,7 +169,7 @@ static void usage() {
     fprintf(stderr, "    -o rozofsrotate=N\t\tdefine the modulo on read distribution rotation (default: 0)\n");
     fprintf(stderr, "    -o posixlock\t\tactive support for POSIX file lock\n");
     fprintf(stderr, "    -o bsdlock\t\t\tactive support for BSD file lock\n");
-    fprintf(stderr, "    -o noXattr\t\t\tdisable support of extened attributes\n");
+    fprintf(stderr, "    -o noXattr\t\t\tdisable support of extended attributes\n");
 
 }
 
