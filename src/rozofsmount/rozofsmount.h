@@ -70,6 +70,7 @@ typedef struct rozofsmnt_conf {
     unsigned bsd_file_lock;  
     unsigned max_write_pending ; /**< Maximum number pending write */
     unsigned quota; /* ignored */
+    unsigned noXattr;
 } rozofsmnt_conf_t;
 
 typedef struct dirbuf {

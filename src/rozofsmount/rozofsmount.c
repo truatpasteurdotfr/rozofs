@@ -169,6 +169,8 @@ static void usage() {
     fprintf(stderr, "    -o rozofsrotate=N\t\tdefine the modulo on read distribution rotation (default: 0)\n");
     fprintf(stderr, "    -o posixlock\t\tactive support for POSIX file lock\n");
     fprintf(stderr, "    -o bsdlock\t\t\tactive support for BSD file lock\n");
+    fprintf(stderr, "    -o noXattr\t\t\tdisable support of extened attributes\n");
+
 }
 
 static rozofsmnt_conf_t conf;
@@ -214,6 +216,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("noquota", quota, 0),
     MYFS_OPT("quota", quota, 3),
     MYFS_OPT("usrquota", quota, 1),
+    MYFS_OPT("noXattr", noXattr, 1),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -424,6 +427,8 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
+  DISPLAY_UINT32_CONFIG(noXattr);  
+
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }  
 /*__________________________________________________________________________
@@ -1484,6 +1489,14 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("trc_fuse", show_trc_fuse);
     uma_dbg_addTopic("xattr_flt", show_xattr_flt);
     uma_dbg_addTopic("xattr_disable", rozofs_disable_xattr);
+    
+    /*
+    ** Disable extended attributes if required
+    */
+    if (conf.noXattr) {
+      rozofs_xattr_disable = 1;
+    }  
+      
     /*
     ** clear write flush alignement stats
     */
@@ -1743,6 +1756,8 @@ int main(int argc, char *argv[]) {
     conf.rotate = 0;
     conf.posix_file_lock = 0; // No posix file lock until explicitly activated  man 2 fcntl)
     conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
+    conf.noXattr = 0;   // By default extended attributes are supported
+
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
     }
