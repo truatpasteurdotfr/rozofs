@@ -61,7 +61,6 @@ ruc_sockCallBack_t rozofs_fuse_callBack_sock=
 
 void rozofs_fuse_get_ticker()
 {
-  unsigned long long time;
   struct timeval     timeDay;  
 
   gettimeofday(&timeDay,(struct timezone *)0);  

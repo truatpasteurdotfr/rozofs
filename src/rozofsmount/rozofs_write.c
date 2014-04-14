@@ -1319,7 +1319,7 @@ void rozofs_ll_flush_nb(fuse_req_t req, fuse_ino_t ino,
     ientry_t *ie = 0;
     void *buffer_p= NULL;
     int ret;
-    int trc_idx;
+    int trc_idx=0;
     errno = 0;
 
     DEBUG_FUNCTION;

@@ -665,7 +665,7 @@ void rozofs_storcli_truncate_req_processing_exec(rozofs_storcli_ctx_t *working_c
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
   int       storage_idx;
-  int       error;
+  int       error=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   
@@ -922,7 +922,7 @@ void rozofs_storcli_truncate_projection_retry(rozofs_storcli_ctx_t *working_ctx_
     uint8_t   rozofs_forward;
     uint8_t   layout;
     storcli_truncate_arg_t *storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
-    int error;
+    int error=0;
     int storage_idx;
 
     rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   

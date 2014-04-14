@@ -124,7 +124,7 @@ uint32_t export_configuration_file_hash = 0;  /**< hash value of the configurati
 */
 int hash_file_compute(char *path,uint32_t *hash_p)
 {
-  uint32_t hash;
+  uint32_t hash=0;
   uint8_t c;
 
   FILE *fp = fopen( path,"r");

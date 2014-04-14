@@ -1289,7 +1289,7 @@ void rozofs_start_storcli() {
 int fuseloop(struct fuse_args *args, int fg) {
     int i = 0;
     int ret;
-    int err;
+    int err=0;
     char *c;
     int piped[2];
     piped[0] = piped[1] = -1;

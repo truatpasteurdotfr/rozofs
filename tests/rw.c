@@ -283,8 +283,8 @@ int do_random_read_and_check(int f) {
     ssize_t      size;
     int          idx2;    
     unsigned int nbControl;
-    unsigned int blockSize;
-    unsigned int offset;    
+    unsigned int blockSize=0;
+    unsigned int offset=0;    
 
     nbControl = loop;    
     while (nbControl--) {
@@ -360,8 +360,8 @@ int do_partial_read_and_check(int f) {
     return 0;
 }
 int do_one_test(int * f, char * filename, int count) {
-    unsigned int blockSize;
-    unsigned int offset;
+    unsigned int blockSize=0;
+    unsigned int offset=0;
     unsigned int nbWrite;
     int          ret;
 

@@ -560,6 +560,9 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t layout,
 
     DEBUG_FUNCTION;
 
+    // Use iterator
+    iterator = children;
+
     // Build the full path of directory that contains the bins file
     storage_map_distribution(st, layout, dist_set, spare, path);
 
@@ -576,8 +579,6 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t layout,
             ep = readdir(dp);
     }
 
-    // Use iterator
-    iterator = children;
 
     // The current nb. of bins files in the list
     i = *current_files_nb;
