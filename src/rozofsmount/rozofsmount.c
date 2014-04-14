@@ -1808,7 +1808,7 @@ int main(int argc, char *argv[]) {
     }
     
     if (conf.min_read_size == 0) {
-        conf.min_read_size = conf.buf_size;
+        conf.min_read_size = 4;
     }
 
     if (conf.min_read_size > conf.buf_size) {
