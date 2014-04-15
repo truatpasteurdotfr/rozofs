@@ -81,7 +81,6 @@ static SVCXPRT *storaged_profile_svc = 0;
 uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
-int     multiio=0; /* Default is one storio */
 
 DEFINE_PROFILING(spp_profiler_t) = {0};
 
@@ -375,7 +374,7 @@ static void on_start() {
     /*
     ** Then start storio
     */
-    if (multiio==0) {
+    if (storaged_config.multiio==0) {
       p = cmd;
       p += sprintf(p, "storio_starter.sh storio -i 0 -c %s ", storaged_config_file);
       if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
@@ -425,6 +424,7 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     int c;
+    int  multiio=0; /* Default is one storio */
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
@@ -518,6 +518,13 @@ int main(int argc, char *argv[]) {
         sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE, storaged_hostname);
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
+    }
+    
+    /*
+    ** When -m is set force multiple storio mode
+    */
+    if (multiio) {
+      storaged_config.multiio = 1; 
     }
 
     daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
