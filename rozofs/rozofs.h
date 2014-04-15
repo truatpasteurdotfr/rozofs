@@ -35,7 +35,7 @@
 #define ROZOFS_UUID_SIZE_RPC (ROZOFS_UUID_SIZE/sizeof(uint32_t))
 #define ROZOFS_UUID_SIZE_NET ROZOFS_UUID_SIZE_RPC
 #define ROZOFS_HOSTNAME_MAX 128
-#define ROZOFS_BSIZE 4096       // could it be export specific ?
+#define ROZOFS_BSIZE 8192 // could it be export specific?
 #define ROZOFS_SAFE_MAX 36
 #define ROZOFS_SAFE_MAX_RPC  (ROZOFS_SAFE_MAX/sizeof(uint32_t))
 /* Instead of using an array of sid_t for store the dist_set, we use an
