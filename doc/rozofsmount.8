@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozofsmount.8
 .\"
-.TH ROZOFSMOUNT 8 "MARCH 2014" RozoFS "User Manuals"
+.TH ROZOFSMOUNT 8 "APRIL 2014" RozoFS "User Manuals"
 .SH NAME
 rozofsmount \- RozoFS fuse mount
 .SH SYNOPSIS
@@ -59,10 +59,10 @@ Address (or dns name) where exportd daemon is running (default is empty).
 Specify size of I/O buffer in KiB (in range: 128..8192 - default: 256).
 .TP
 \fB\-o rozofsminreadsize=\fP\fIN\fP
-Specify minimum read size on disk in KiB (default value is same as the option rozofsbufsize).
+Specify minimum read size on disk in KiB (default value is same as RozoFS block size).
 .TP
 \fB\-o rozofsmaxwritepending=\fP\fIN\fP
-Specify the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: 32).
+Specify the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: 4).
 .TP
 \fB\-o rozofsmaxretry=\fP\fIN\fP
 Specify number of retries before I/O error is returned (default: 50).
@@ -71,10 +71,10 @@ Specify number of retries before I/O error is returned (default: 50).
 Specify timeout in seconds for exportd requests (default: 25).
 .TP
 \fB\-o rozofsstoragetimeout=\fP\fIN\fP
-Specify timeout in seconds for IO storaged requests (default: 3).
+Specify timeout in seconds for IO storaged requests (default: 4).
 .TP
 \fB\-o rozofsstorclitimeout=\fP\fIN\fP
-Specify timeout in seconds for storcli requests (default: 10).
+Specify timeout in seconds for storcli requests (default: 15).
 .TP
 \fB\-o rozofsattrtimeout=\fP\fIN\fP
 Specify timeout in seconds for which file/directory attributes are cached (default: 10).
@@ -111,6 +111,9 @@ Active support for POSIX file lock.
 .TP
 \fB\-o bsdlock
 Active support for BSD file lock.
+.TP
+\fB\-o noXattr
+Disable support of extended attributes.
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.
