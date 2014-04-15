@@ -116,6 +116,7 @@ gen_storage_conf ()
 
             printf "threads = $NB_DISK_THREADS;\n" >> $FILE
             printf "nbCores = $NB_CORES;\n" >> $FILE
+            printf "storio  = \"$STORIO_MODE\";" >> $FILE
 
             printf "listen = ( \n" >> $FILE
             printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
@@ -401,7 +402,7 @@ start_storaged ()
 	      sid=$((sid+1))
               echo "start storaged" ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
 echo ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON}
-              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -m -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
+              ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'${c}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}${sid}
            done
 	done
     done
@@ -1080,6 +1081,9 @@ main ()
     ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
     SQUOTA=""
     HQUOTA=""
+
+    STORIO_MODE="multiple"
+    #STORIO_MODE="single"
 
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
