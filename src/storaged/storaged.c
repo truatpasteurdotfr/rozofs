@@ -419,7 +419,7 @@ void usage() {
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
     printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
-    printf("   -m, --multiio\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
+    printf("   -m, --multiio\t\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -457,7 +457,7 @@ int main(int argc, char *argv[]) {
 
             case 'm':
                 multiio = 1;
-                break;		
+                break;
             case 'c':
                 if (!realpath(optarg, storaged_config_file)) {
                     fprintf(stderr, "storaged failed: %s %s\n", optarg,

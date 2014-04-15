@@ -37,9 +37,9 @@
 
 /* Settings names for storage configuration file */
 #define SSTORAGES   "storages"
-#define SSID	    "sid"
-#define SCID	    "cid"
-#define SROOT	    "root"
+#define SSID        "sid"
+#define SCID        "cid"
+#define SROOT       "root"
 #define STHREADS    "threads"
 #define SIOLISTEN   "listen"
 #define SIOADDR     "addr"
@@ -121,12 +121,12 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     */
     config->multiio = 0;
     if (config_lookup_string(&cfg, SSTORIO, &char_value)) {
-        if (strcasecmp(char_value,"multiple") == 0) {
-	    config->multiio = 1;
-	}  
-	else if (strcasecmp(char_value,"single") != 0) {
-	    severe("%s has unexpected value \"%s\". Assume single storio.", SSTORIO, char_value);  
-	}
+        if (strcasecmp(char_value, "multiple") == 0) {
+            config->multiio = 1;
+        } else if (strcasecmp(char_value, "single") != 0) {
+            severe("%s has unexpected value \"%s\". Assume single storio.",
+                    SSTORIO, char_value);
+        }
     }
 
     if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
