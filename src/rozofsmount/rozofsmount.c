@@ -1748,7 +1748,7 @@ int main(int argc, char *argv[]) {
     conf.max_retry = 50;
     conf.buf_size = 0;
     conf.min_read_size = 0;
-    conf.max_write_pending = ROZOFSMOUNT_MAX_TX; /* No limit */ 
+    conf.max_write_pending = 4; /*  */ 
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
