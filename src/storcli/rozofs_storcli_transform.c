@@ -684,7 +684,6 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
  {
     projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
     projection_t *projections; // Table of projections used to transform data
-    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX]; 
     uint16_t projection_id = 0;
     uint32_t i = 0;    
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
