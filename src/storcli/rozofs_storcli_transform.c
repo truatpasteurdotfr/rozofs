@@ -682,7 +682,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
                                        uint16_t last_block_size,
                                        char *data) 
  {
-
+    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
     projection_t *projections; // Table of projections used to transform data
     projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX]; 
     uint16_t projection_id = 0;

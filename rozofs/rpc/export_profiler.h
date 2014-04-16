@@ -115,7 +115,7 @@ extern export_one_profiler_t * export_profiler[];
 extern uint32_t                export_profiler_eid;
 
 #define START_PROFILING(the_probe)\
-    uint64_t tic, toc;\
+    uint64_t tic=0, toc;\
     struct timeval tv;\
     if (export_profiler_eid <= EXPGW_EXPORTD_MAX_IDX) {\
        export_one_profiler_t * prof = export_profiler[export_profiler_eid];\
@@ -137,7 +137,7 @@ extern uint32_t                export_profiler_eid;
     }
 
 #define START_PROFILING_IO(the_probe, the_bytes)\
-    uint64_t tic, toc;\
+    uint64_t tic=0, toc;\
     struct timeval tv;\
     if (export_profiler_eid <= EXPGW_EXPORTD_MAX_IDX) {\
        export_one_profiler_t * prof = export_profiler[export_profiler_eid];\

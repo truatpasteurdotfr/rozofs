@@ -783,4 +783,32 @@ int af_unix_socket_family_create (char *basename_p, int base_instance,int nb_ins
   }
   return 0;
 }
+/**
+*  Set the maximum qlen of a AF_UNIX datagram socket
 
+ @param  len : The length of the AF_UNIX datagram socket
+
+ @retval: 0 success, all the socket have been created
+ @retval < 0 error on at least one socket creation
+*/
+#define QLEN_FILE "/proc/sys/net/unix/max_dgram_qlen"
+int af_unix_socket_set_datagram_socket_len(int len) {
+  char new_value[32];
+  int fd;
+  int ret = 0;
+  
+  if ((fd=open(QLEN_FILE, O_RDWR)) < 0) {
+    severe("set_datagram_socket_len(%d) open(%s) %s", len, QLEN_FILE,strerror(errno));
+    return 1;
+  } 
+  
+  sprintf(new_value,"%d",len);
+  
+  if (write (fd, &new_value, strlen(new_value)) < 0) {
+    severe("set_datagram_socket_len(%d) write(%s) %s", len,QLEN_FILE, strerror(errno));
+    ret = 1;
+  } 
+  
+  close(fd);
+  return ret;
+}

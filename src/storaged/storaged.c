@@ -51,6 +51,7 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
@@ -331,6 +332,8 @@ static void on_start() {
         
     DEBUG_FUNCTION;
 
+    af_unix_socket_set_datagram_socket_len(128);
+
     storage_process_filename[0] = 0;
 
     // Initialization of the storage configuration
@@ -371,13 +374,27 @@ static void on_start() {
     /*
     ** Then start storio
     */
-    p = cmd;
-    p += sprintf(p, "storio_starter.sh storio -i 1 -c %s ", storaged_config_file);
-    if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
-    p += sprintf(p, "&");
+    if (storaged_config.multiio==0) {
+      p = cmd;
+      p += sprintf(p, "storio_starter.sh storio -i 0 -c %s ", storaged_config_file);
+      if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+      p += sprintf(p, "&");
 
-    // Launch storio_starter script
-    system(cmd);
+      // Launch storio_starter script
+      system(cmd);
+    }
+    else {
+      int idx;
+      for (idx = 0; idx < storaged_nb_ports; idx++) {
+	p = cmd;
+	p += sprintf(p, "storio_starter.sh storio -i %d -c %s ", idx+1, storaged_config_file);
+	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+	p += sprintf(p, "&");
+
+	// Launch storio_starter script
+	system(cmd);        
+      }
+    }
 
     // Create the debug thread of the parent
     storaged_start_conf_param_t conf;     
@@ -402,16 +419,19 @@ void usage() {
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
     printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
+    printf("   -m, --multiio\t\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
 }
 
 int main(int argc, char *argv[]) {
     int c;
+    int  multiio=0; /* Default is one storio */
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "config", required_argument, 0, 'c'},
         { "rebuild", required_argument, 0, 'r'},
         { "host", required_argument, 0, 'H'},
+        { "multiio", no_argument, 0, 'm'},
         { 0, 0, 0, 0}
     };
 
@@ -423,7 +443,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:r:H:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hmc:r:H:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -433,6 +453,10 @@ int main(int argc, char *argv[]) {
             case 'h':
                 usage();
                 exit(EXIT_SUCCESS);
+                break;
+
+            case 'm':
+                multiio = 1;
                 break;
             case 'c':
                 if (!realpath(optarg, storaged_config_file)) {
@@ -494,6 +518,13 @@ int main(int argc, char *argv[]) {
         sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE, storaged_hostname);
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
+    }
+    
+    /*
+    ** When -m is set force multiple storio mode
+    */
+    if (multiio) {
+      storaged_config.multiio = 1; 
     }
 
     daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,

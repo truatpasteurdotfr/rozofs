@@ -95,7 +95,7 @@ typedef struct _storio_disk_thread_msg_t
 *
 *  @retval 0 on success -1 in case of error
 */
-int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffer) ;
+int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads, int nb_buffer) ;
 
 /*__________________________________________________________________________
 */

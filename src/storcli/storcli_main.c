@@ -1076,11 +1076,13 @@ int main(int argc, char *argv[]) {
     sprintf(storcli_process_filename, "%s%s_%d_storcli_%d", DAEMON_PID_DIRECTORY, "rozofsmount",conf.rozofsmount_instance, conf.module_index);
 
     if ((ppfd = open(storcli_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
-        severe("can't open process file");
+        severe("can't open process file %s",strerror(errno));
     } else {
         char str[10];
         sprintf(str, "%d\n", getpid());
-        write(ppfd, str, strlen(str));
+        if (write(ppfd, str, strlen(str))<0) {
+          severe("can't write process file %s",strerror(errno));
+	}
         close(ppfd);
     }    
     

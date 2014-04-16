@@ -116,6 +116,7 @@ gen_storage_conf ()
 
             printf "threads = $NB_DISK_THREADS;\n" >> $FILE
             printf "nbCores = $NB_CORES;\n" >> $FILE
+            printf "storio  = \"$STORIO_MODE\";" >> $FILE
 
             printf "listen = ( \n" >> $FILE
             printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
@@ -587,6 +588,7 @@ deploy_clients_local ()
                     option="$option -o rozofsshaper=$SHAPER"
                     option="$option -o posixlock"
                     option="$option -o bsdlock"
+                    option="$option -o rozofsrotate=3"		    
                     let "INSTANCE=${idx_client}-1"
                     option="$option -o instance=$INSTANCE"
 
@@ -1002,37 +1004,35 @@ show_process () {
     fi    
   done  
   printf "\n"
-  printf " cid sid storaged     storio\n"
-  for sid in $(seq 16)
+  printf " cid sid storaged     storio(s)\n"
+  for sid in $(seq $nbaddr)
   do
   
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))  
     std=storaged_${LOCAL_STORAGE_NAME_BASE}$sid
 
-    if ls stor*_${LOCAL_STORAGE_NAME_BASE}$sid.pid > /dev/null 2>&1
+    printf " %3d %3d " $cid $sid
+
+    file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
+    if [ -f $file ];
+    then
+      proc=`cat $file`
+      printf " %6d     " $proc 
+    else
+      printf "     --      "         
+    fi 
+    
+    if ls storio_${LOCAL_STORAGE_NAME_BASE}$sid.*.pid > /dev/null 2>&1
     then
 
-      printf " %3d %3d " $cid $sid
-
-      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
-      if [ -f $file ];
-      then
-	proc=`cat $file`
-	printf " %6d     " $proc 
-      else
-	printf "     --      "         
-      fi 
-
-      file=storaged_${LOCAL_STORAGE_NAME_BASE}$sid.pid
-      if [ -f $file ];
-      then
-	proc=`cat $file`
-	printf " %6d     " $proc 
-      else
-	printf "     --      "         
-      fi 
-      printf "\n"   
-    fi   
+      for file in storio_${LOCAL_STORAGE_NAME_BASE}$sid.*.pid
+      do
+        nb=`echo $file | awk -F'.' '{print $2}'`
+	    proc=`cat $file`
+	    printf " %d:%-6d " $nb $proc 
+      done
+    fi  
+    printf "\n"          
   done
   
   # Clients 
@@ -1072,7 +1072,7 @@ main ()
     NB_EXPORTS=1
     NB_VOLUMES=1
     NB_CLUSTERS_BY_VOLUME=2
-    NB_PORTS_PER_STORAGE_HOST=1
+    NB_PORTS_PER_STORAGE_HOST=2
     NB_DISK_THREADS=3
     NB_CORES=4
     WRITE_FILE_BUFFERING_SIZE=256
@@ -1081,6 +1081,9 @@ main ()
     ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
     SQUOTA=""
     HQUOTA=""
+
+    STORIO_MODE="multiple"
+    #STORIO_MODE="single"
 
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE

@@ -79,13 +79,14 @@ int storio_north_interface_buffer_init(int read_write_buf_count,int read_write_b
   Creation of the north interface listening sockets (AF_INET)
 
 
-@param host   storaged hostname
+@param host          storaged hostname
+@param instance_id   storio instance id
 
 @retval   : RUC_OK : done
 @retval          RUC_NOK : out of memory
 */
 
-int storio_north_interface_init(char * host);
+int storio_north_interface_init(char * host, int instance_id);
 
 
 #endif

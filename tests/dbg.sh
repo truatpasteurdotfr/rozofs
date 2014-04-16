@@ -188,7 +188,7 @@ fi
 DBG_PORT_BASE="50000" 
 
 # Scan Export VIP in config file
-exp_host=`cat ${LOCAL_CONF}/export.conf | grep "exportd_vip = " | awk -F'\"' '{print $2}'`
+exp_host=localhost
 port=$DBG_PORT_BASE
 exp_port=$port
 

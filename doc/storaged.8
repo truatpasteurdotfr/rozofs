@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii storaged.8
 .\"
-.TH storaged 8 "MAY 2013" Rozofs "User Manuals"
+.TH storaged 8 "APRIL 2014" RozoFS "User Manuals"
 .SH NAME
-storaged \- rozofs storage daemon
+storaged \- RozoFS storage daemon
 .SH SYNOPSIS
 .B storaged 
 [
@@ -14,7 +14,7 @@ storaged \- rozofs storage daemon
 .B
 .SH DESCRIPTION
 .B storaged
-Rozofs storaged daemon. Store encoded data for the
+RozoFS storaged daemon. Store encoded data for the
 .BR rozofs (7)
 filesystem.
 .SH OPTIONS
@@ -41,6 +41,10 @@ storage declared in the configuration file.
 Use
 .I export_host
 as address (or dns name) where exportd daemon is running.
+.RE
+.IP "-m, --multiio"
+.RS
+With this option the storaged daemon starts as many storio process(es) as listening port(s) exist in the configuration file.
 
 .RE
 .SH FILES
