@@ -28,6 +28,7 @@
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/ruc_buffer_debug.h>
 #include <rozofs/core/com_cache.h>
+#include <rozofs/rozofs_srv.h>
 
 #include "rozofs_storcli_mojette_thread_intf.h"
 #include "config.h"
@@ -41,6 +42,7 @@ char       destination_socketName[128];
 int        af_unix_mojette_thread_count=0;
 int        af_unix_mojette_pending_req_count = 0;
 int        af_unix_mojette_pending_req_max_count = 0;
+int        af_unix_mojette_empty_recv_count = 0;
 
 struct  sockaddr_un storio_south_socket_name;
 struct  sockaddr_un storio_north_socket_name;
@@ -52,7 +54,8 @@ int rozofs_stcmoj_thread_create(char * hostname,int eid,int storcli_idx, int nb_
 
 void * af_unix_mojette_pool_send = NULL;
 void * af_unix_mojette_pool_recv = NULL;
-int rozofs_stcmoj_thread_enable;
+int rozofs_stcmoj_thread_write_enable;
+int rozofs_stcmoj_thread_read_enable;
 uint32_t rozofs_stcmoj_thread_len_threshold;
 
 /*__________________________________________________________________________
@@ -99,12 +102,11 @@ uint32_t rozofs_stcmoj_thread_len_threshold;
   display_div(sum1,sum2)
 static char * mojette_thread_debug_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"MojetteThreads reset       : reset statistics\n");
-  pChar += sprintf(pChar,"MojetteThreads enable      : enable Mojette threads\n");
-  pChar += sprintf(pChar,"MojetteThreads disable     : disable Mojette threads\n");
-  pChar += sprintf(pChar,"MojetteThreads reset       : reset statistics\n");
-  pChar += sprintf(pChar,"MojetteThreads             : display statistics\n");  
-  pChar += sprintf(pChar,"MojetteThreads size <count>: adjust the bytes threshold for thread activation (unit byte)\n");  
+  pChar += sprintf(pChar,"MojetteThreads reset                : reset statistics\n");
+  pChar += sprintf(pChar,"MojetteThreads <read|write> enable  : enable Mojette threads \n");
+  pChar += sprintf(pChar,"MojetteThreads <read|write> disable : disable Mojette threads\n");
+  pChar += sprintf(pChar,"MojetteThreads                      : display statistics\n");  
+  pChar += sprintf(pChar,"MojetteThreads size <count>         : adjust the bytes threshold for thread activation (unit byte)\n");  
   return pChar; 
 }  
 void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
@@ -122,14 +124,50 @@ void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done\n");
       return;
     }
-    if (strcmp(argv[1],"enable")==0) {
-      rozofs_stcmoj_thread_enable = 1;        
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette Threads are enabled\n");
+    if (strcmp(argv[1],"read")==0) {
+      if(argv[2]!= NULL)
+      {
+	if (strcmp(argv[2],"enable")==0) {
+	  rozofs_stcmoj_thread_read_enable = 1;        
+	  uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette read Threads are enabled\n");
+	  return;
+	}
+	if (strcmp(argv[2],"disable")==0) {
+	  rozofs_stcmoj_thread_read_enable = 0;        
+	  uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette read Threads are disabled\n");
+	  return;
+	}
+        pChar += sprintf(pChar, "unexpected value %s\n",argv[2]);
+	pChar = mojette_thread_debug_help(pChar);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	return;
+      }
+      pChar += sprintf(pChar, "missing parameter\n");
+      pChar = mojette_thread_debug_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
       return;
     }
-    if (strcmp(argv[1],"disable")==0) {
-      rozofs_stcmoj_thread_enable = 0;        
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette Threads are disabled\n");
+    if (strcmp(argv[1],"write")==0) {
+      if(argv[2]!= NULL)
+      {
+	if (strcmp(argv[2],"enable")==0) {
+	  rozofs_stcmoj_thread_write_enable = 1;        
+	  uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette write Threads are enabled\n");
+	  return;
+	}
+	if (strcmp(argv[2],"disable")==0) {
+	  rozofs_stcmoj_thread_write_enable = 0;        
+	  uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette write Threads are disabled\n");
+	  return;
+	}
+        pChar += sprintf(pChar, "unexpected value %s\n",argv[2]);
+	pChar = mojette_thread_debug_help(pChar);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	return;
+      }
+      pChar += sprintf(pChar, "missing parameter\n");
+      pChar = mojette_thread_debug_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
       return;
     }
     if (strcmp(argv[1],"count")==0) {
@@ -159,14 +197,21 @@ void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
     return;      
   }
-  if (rozofs_stcmoj_thread_enable==0)
+  if ((rozofs_stcmoj_thread_write_enable==0)&&(rozofs_stcmoj_thread_read_enable==0)) 
   {  
      uma_dbg_send(tcpRef,bufRef,TRUE,"Mojette Threads are disabled\n");
      return;  
   }
   pChar+=sprintf(pChar,"Thread activation threshold: %u bytes\n",rozofs_stcmoj_thread_len_threshold);
   pChar+=sprintf(pChar,"max pending Mojette req cnt: %u\n",af_unix_mojette_pending_req_max_count);
+  pChar+=sprintf(pChar,"receive empty counter      : %u\n",af_unix_mojette_empty_recv_count);
+  pChar+=sprintf(pChar,"read/write thread status   : %s/%s\n",
+         (rozofs_stcmoj_thread_read_enable==1)?"ENABLE":"DISABLE",
+         (rozofs_stcmoj_thread_write_enable==1)?"ENABLE":"DISABLE"
+	 );
+
   af_unix_mojette_pending_req_max_count = 0;
+  af_unix_mojette_empty_recv_count = 0;
   new_line("Thread number");
   for (i=0; i<af_unix_mojette_thread_count; i++) {
     display_val(p[i].thread_idx);
@@ -179,6 +224,7 @@ void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_line_val_and_sum("   Cumulative Time (us)",MojetteInverse_time);
   display_line_div_and_sum("   Average Bytes",MojetteInverse_Byte_count,MojetteInverse_count);  
   display_line_div_and_sum("   Average Time (us)",MojetteInverse_time,MojetteInverse_count);
+  display_line_div_and_sum("   Average Cycle",MojetteInverse_cycle,MojetteInverse_count);
   display_line_div_and_sum("   Throughput (MBytes/s)",MojetteInverse_Byte_count,MojetteInverse_time);  
   
   display_line_topic("Write Requests");  
@@ -305,6 +351,60 @@ uint32_t af_unix_disk_rcvReadysock(void * unused,int socketId)
 {
   return TRUE;
 }
+/**
+*  process the end of Mojette inverse transform process
+
+  @param working_ctx_p : pointer to the working context of the read
+  @retval none:
+*/
+void rozofs_storcli_inverse_threaded_end(rozofs_storcli_ctx_t * working_ctx_p)
+{
+   rozofs_storcli_projection_ctx_t  *read_prj_work_p = NULL;
+   uint32_t   projection_id;
+   storcli_read_arg_t *storcli_read_rq_p;
+
+   storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
+   uint8_t layout         = storcli_read_rq_p->layout;
+   uint8_t rozofs_safe    = rozofs_get_rozofs_safe(layout);
+
+    /*
+    ** now the inverse transform is finished, release the allocated ressources used for
+    ** rebuild
+    */
+    read_prj_work_p = working_ctx_p->prj_ctx;
+    for (projection_id = 0; projection_id < rozofs_safe; projection_id++)
+    {
+      if  (read_prj_work_p[projection_id].prj_buf != NULL) {
+        ruc_buf_freeBuffer(read_prj_work_p[projection_id].prj_buf);
+      }	
+      read_prj_work_p[projection_id].prj_buf = NULL;
+      read_prj_work_p[projection_id].prj_state = ROZOFS_PRJ_READ_IDLE;
+    }
+
+    /*
+    ** update the index of the next block to read
+    */
+    working_ctx_p->cur_nmbs2read += working_ctx_p->nb_projections2read;
+    /*
+    ** check if it was the last read
+    */
+    if (working_ctx_p->cur_nmbs2read < storcli_read_rq_p->nb_proj)
+    {
+      /*
+      ** attempt to read block with the next distribution
+      */
+      return rozofs_storcli_read_req_processing(working_ctx_p);        
+    }    
+    /*
+    ** read is finished, send back the buffer to the client (rozofsmount)
+    */       
+    rozofs_storcli_read_reply_success(working_ctx_p);
+    /*
+    ** release the root context and the transaction context
+    */
+    rozofs_storcli_release_context(working_ctx_p);  
+
+}
 /*
 **__________________________________________________________________________
 */
@@ -323,29 +423,21 @@ void af_unix_mojette_thread_response(rozofs_stcmoj_thread_msg_t *msg)
 
   rozofs_stcmoj_thread_request_e   opcode;
   rozofs_storcli_ctx_t            * working_ctx_p;
-  int                            ret;
-  uint64_t                       tic, toc;  
-  struct timeval                 tv;  
   working_ctx_p = msg->working_ctx;
+
   opcode = msg->opcode;
-  tic    = msg->timeStart;
 
   switch (opcode) {
-  
-    case STORCLI_MOJETTE_THREAD_INV:
-//      STOP_PROFILING_IO(read,msg->size);
-
-      break;
-
     case STORCLI_MOJETTE_THREAD_FWD:
-//      STOP_PROFILING_IO(write,msg->size);
-	/*
-	** send the projection to the storage nodes
-	*/
-        rozofs_storcli_write_req_processing(working_ctx_p);
+       /*
+       ** send the projection to the storage nodes
+       */
+       rozofs_storcli_write_req_processing(working_ctx_p);
+       break;     
 
-      break;     
-
+    case STORCLI_MOJETTE_THREAD_INV:
+       rozofs_storcli_inverse_threaded_end(working_ctx_p);
+       break;
 
     default:
       severe("Unexpected opcode %d", opcode);
@@ -405,6 +497,7 @@ uint32_t af_unix_disk_rcvMsgsock(void * unused,int socketId)
         /*
         ** the socket is empty
         */
+	af_unix_mojette_empty_recv_count++;
         return TRUE;
 
        case EINTR:
@@ -435,6 +528,11 @@ uint32_t af_unix_disk_rcvMsgsock(void * unused,int socketId)
       fatal("Disk Thread Response socket is dead %s !!\n",strerror(errno));
       exit(0);    
     } 
+    /*
+    ** clear the fd in the receive set to avoid computing it twice
+    */
+    ruc_sockCtrl_clear_rcv_bit(socketId);
+    
     af_unix_mojette_pending_req_count--;
     if (  af_unix_mojette_pending_req_count < 0) 
     {
@@ -493,6 +591,7 @@ void storio_send_response (rozofs_mojette_thread_ctx_t *thread_ctx_p, rozofs_stc
      fatal("storio_send_response %d sendto(%s) %s", thread_ctx_p->thread_idx, storio_south_socket_name.sun_path, strerror(errno));
      exit(0);  
   }
+  sched_yield();
 }
 
 /*__________________________________________________________________________
@@ -671,7 +770,8 @@ int rozofs_stcmoj_thread_intf_create(char * hostname,int eid,int storcli_idx, in
   ** attach the callback on socket controller
   */
   ruc_sockCtrl_attach_applicative_poller(af_unix_mojette_scheduler_entry_point);  
-  rozofs_stcmoj_thread_enable = 1;
+  rozofs_stcmoj_thread_write_enable = 1;
+  rozofs_stcmoj_thread_read_enable = 0;
   rozofs_stcmoj_thread_len_threshold = 16*ROZOFS_BSIZE;
    
   return rozofs_stcmoj_thread_create(hostname,eid,storcli_idx, nb_threads);

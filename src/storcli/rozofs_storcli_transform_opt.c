@@ -29,6 +29,7 @@
 
 #include "rozofs_storcli_transform.h"
 #include "rozofs_storcli.h"
+#include "transform_layout0_4096.h"
 
 /**
 * Local variables
@@ -375,6 +376,46 @@ inline int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_
     return ret;
 }
 
+
+
+#if 1
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Classfy the projection in the increasing order of the angles
+
+   @param inverse: number of projection needed for inverse
+   @param forward: number of projection needed for forward
+   
+   @retval table that contains the idx and projection_id 
+*/
+static inline uint64_t projection_classify(rozofs_storcli_projection_ctx_t *prj_ctx_p,int block_idx,
+                                           uint8_t  layout,uint8_t inverse,uint8_t forward,
+					   uint8_t *rozofs_storcli_prj_idx_table)
+{
+   int prj_ctx_idx;
+   uint16_t projection_id = 0;
+   uint64_t pr_id_and_prj_idx;
+   pr_id_and_prj_idx = 0;
+   int i;
+    
+  for (i =0; i < inverse; i++)
+  {
+     prj_ctx_idx = rozofs_storcli_prj_idx_table[i];
+     rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins 
+                                                 +((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t))) * block_idx));
+     /*
+     ** Extract the projection_id from the header
+     ** and Fill the table of projections for the block block_idx
+     **   For each meta-projection
+     */
+     projection_id = rozofs_bins_hdr_p->s.projection_id;
+     pr_id_and_prj_idx |= ((i<<4|(projection_id+1))<< ((forward -projection_id)*8));
+
+  }
+  return pr_id_and_prj_idx;
+}
 /*
 **____________________________________________________________________________
 */
@@ -414,16 +455,11 @@ static __inline__ unsigned long long rdtsc(void)
 
 {
 
-    projection_t *projections = NULL;
     int block_idx;
-    uint16_t projection_id = 0;
-    int prj_ctx_idx;
     int ret;
-    unsigned long long cycleBefore, cycleAfter;
 
    
     *number_of_blocks_p = 0;
-        cycleBefore = rdtsc();
     
     for (block_idx = 0; block_idx < number_of_blocks; block_idx++) {
         if (block_ctx_p[block_idx].state == ROZOFS_BLK_TRANSFORM_DONE)
@@ -459,9 +495,6 @@ static __inline__ unsigned long long rdtsc(void)
         }      	
     }
     *number_of_blocks_p = (block_idx++);
-        cycleAfter = rdtsc();
-	severe("FDL debug rozofs_storcli_transform_inverse_check %llu cycles",cycleAfter - cycleBefore);
-
     return 0;
 }
 /*
@@ -481,6 +514,7 @@ static __inline__ unsigned long long rdtsc(void)
  * @param number_of_blocks: number of blocks to write
  * @param *data: pointer to the source data that must be transformed
    @param *number_of_blocks_p: pointer to the array where the function returns number of blocks on which the transform was applied
+  @param *rozofs_storcli_prj_idx_table: pointer to the array used for storing the projections index for inverse process
  *
  * @return: the length written on success, -1 otherwise (errno is set)
  */
@@ -492,6 +526,7 @@ static __inline__ unsigned long long rdtsc(void)
                                        char *data,
                                        uint32_t *number_of_blocks_p,
 				       uint8_t  *rozofs_storcli_prj_idx_table) 
+
  {
 
     projection_t *projections = NULL;
@@ -499,13 +534,13 @@ static __inline__ unsigned long long rdtsc(void)
     int block_idx;
     uint16_t projection_id = 0;
     int prj_ctx_idx;
-    int ret;
-    unsigned long long cycleBefore, cycleAfter;
-   
-    // *number_of_blocks_p = 0;
+    
+    *number_of_blocks_p = 0;
     
     
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
+    uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
     
     projections = rozofs_inv_projections;
     
@@ -533,12 +568,10 @@ static __inline__ unsigned long long rdtsc(void)
         ** It might be possible that we run out of storage since rozofs_safe has been reached and we have not reached
         ** rozofs_inserse projection!!
         */
-
         ret =  rozofs_storcli_transform_inverse_check(prj_ctx_p,layout,
                                                       block_idx, rozofs_storcli_prj_idx_table,
                                                       &block_ctx_p[block_idx].timestamp,
                                                       &block_ctx_p[block_idx].effective_length);
-
         if (ret < 0)
         {
           /*
@@ -580,34 +613,79 @@ static __inline__ unsigned long long rdtsc(void)
         ** been read!!
         */
         int prj_count = 0;
-        for (prj_count = 0; prj_count < rozofs_inverse; prj_count++)
+        uint64_t idx_proj_set = projection_classify(prj_ctx_p,block_idx,layout,rozofs_inverse,rozofs_forward,
+	                                            rozofs_storcli_prj_idx_table);
+        /*
+        ** search for a count of inverse projection
+        */
+        uint8_t  *p8;
+        int idx;
+        int number_of_projections = 0;
+        int key_prog = 0;
+        p8= (uint8_t*) &idx_proj_set;
+        for (prj_count = 0; prj_count < rozofs_safe; prj_count++,p8++)
         {
+           /*
+           ** check for valid entry
+           */
+           if (*p8 == 0) continue;
+           /*
+           ** valid entry extract the index and the projection_id
+           */
+           idx = (*p8>>4) &0xf;
+           projection_id = (*p8&0xf)-1; 
+           key_prog |=  projection_id << ((rozofs_inverse -1 - number_of_projections)*2);     
            /*
            ** Get the pointer to the beginning of the projection and extract the projection Id
            */
-           prj_ctx_idx = rozofs_storcli_prj_idx_table[prj_count];
+           prj_ctx_idx = rozofs_storcli_prj_idx_table[idx];
+
            rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins 
                                                  +((rozofs_get_max_psize(layout)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t))) * block_idx));
             
-                                                 
+//           projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
+//           projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
+//           projections[prj_count].size = rozofs_get_psizes(layout,projection_id);
+           projections[number_of_projections].bins = (bin_t*)(rozofs_bins_hdr_p+1); 
+           number_of_projections++; 
            /*
-           ** Extract the projection_id from the header
-           ** and Fill the table of projections for the block block_idx
-           **   For each meta-projection
+           ** check if inverse is reached
            */
-           projection_id = rozofs_bins_hdr_p->s.projection_id;
-           projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
-           projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
-           projections[prj_count].size = rozofs_get_psizes(layout,projection_id);
-           projections[prj_count].bins = (bin_t*)(rozofs_bins_hdr_p+1);                   
+           if (number_of_projections == rozofs_inverse) break;                  
         }
-        
+ 
+          switch (key_prog)
+         {
+            case 9: /*(p21)*/
+               transform_inverse_inline_l0_p12((pxl_t *)  (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
+                                                rozofs_inverse,
+                                                ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                                                rozofs_inverse, projections);
+               break;
+            case 4: /*(p10)*/
 
+               transform_inverse_inline_l0_p01((pxl_t *)  (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
+                                                rozofs_inverse,
+                                                ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                                                rozofs_inverse, projections);
+               break;
+            case 8: /*(p20)*/
+               transform_inverse_inline_l0_p02((pxl_t *)  (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
+                                                rozofs_inverse,
+                                                ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                                                rozofs_inverse, projections);
+               break;
+           default:
+            severe("go_test_transform_inverse_new_preinit: unsupported projection sets :%d (%x) \n",key_prog,key_prog);
+            break;
+       }       
+#if 0
         // Inverse data for the block (first_block_idx + block_idx)
         transform_inverse_inline((pxl_t *) (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
                 rozofs_inverse,
                 ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
                 rozofs_inverse, projections);
+#endif
         /*
         ** indicate that transform has been done for the projection
         */
@@ -628,11 +706,11 @@ static __inline__ unsigned long long rdtsc(void)
     ** now the inverse transform is finished, release the allocated ressources used for
     ** rebuild
     */
-//    *number_of_blocks_p = number_of_blocks;
+    *number_of_blocks_p = number_of_blocks;
     return 0;   
 }
 
-
+#endif
 /**
 *  That function check if the user data block to transform is empty
 
@@ -693,13 +771,14 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
 
     projections = rozofs_fwd_projections;
 
+#if 0
     // For each projection
     for (projection_id = 0; projection_id < rozofs_forward; projection_id++) {
         projections[projection_id].angle.p =  rozofs_get_angles_p(layout,projection_id);
         projections[projection_id].angle.q =  rozofs_get_angles_q(layout,projection_id);
         projections[projection_id].size    =  rozofs_get_psizes(layout,projection_id);
     }
-
+#endif
     /* Transform the data */
     // For each block to send
     for (i = 0; i < number_of_blocks; i++) 
@@ -752,16 +831,24 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
         */
         if (empty_block == 0)
         {
-          /*
-          ** Apply the erasure code transform for the block i+first_block_idx
-          */
-          transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
-                  rozofs_inverse,
-                  ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
-                  rozofs_forward, projections);
+          switch (layout)
+          {
+            case 0:
+              transform_forward_layout0((pxl_t *) (data + (i * ROZOFS_BSIZE)),
+                      rozofs_inverse,
+                      ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                      rozofs_forward, projections);
+              break;
+            default:
+            case 1:
+              transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
+                      rozofs_inverse,
+                      ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                      rozofs_forward, projections);
+            break;
+           }
         }
     }
-
     return 0;
 }
  

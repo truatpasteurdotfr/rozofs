@@ -200,7 +200,7 @@ typedef struct rozofs_socket_stats_t
 #define AF_UNIX_CONGESTION_DEFAULT_THRESHOLD 2  /**< number of loop before restarting to send after
 eoc */
 #define AF_UNIX_XMIT_CREDIT_DEFAULT 8
-#define AF_UNIX_RECV_CREDIT_DEFAULT 8
+#define AF_UNIX_RECV_CREDIT_DEFAULT 4
 /**
 * transmitter generic Context
 */

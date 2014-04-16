@@ -45,6 +45,7 @@ uint64_t rozofs_fuse_req_eagain_count = 0;
 uint64_t rozofs_fuse_req_enoent_count = 0;
 uint64_t rozofs_fuse_req_tic = 0;
 uint64_t rozofs_fuse_buffer_depletion_count = 0;
+int rozofs_fuse_loop_count = 2;
 
 
 /*
@@ -61,7 +62,6 @@ ruc_sockCallBack_t rozofs_fuse_callBack_sock=
 
 void rozofs_fuse_get_ticker()
 {
-  unsigned long long time;
   struct timeval     timeDay;  
 
   gettimeofday(&timeDay,(struct timezone *)0);  
@@ -146,31 +146,31 @@ int rozofs_fuse_kern_chan_receive(struct fuse_chan **chp, char *buf,
 
 restart:
 	res = read(fuse_chan_fd(ch), buf, size);
-	err = errno;
 
 	if (fuse_session_exited(se))
 		return 0;
-	if (res == -1) {
-		/* ENOENT means the operation was interrupted, it's safe
-		   to restart */
-		if (err == ENOENT)
-		{
-		  rozofs_fuse_req_enoent_count++;
-	          goto restart;
-	        }
-
-		if (err == ENODEV) {
-            severe("Exit from RozofsMount required!!!");
-			fuse_session_exit(se);
-            rozofs_exit();
-			return 0;
-		}
-		/* Errors occurring during normal operation: EINTR (read
-		   interrupted), EAGAIN (nonblocking I/O), ENODEV (filesystem
-		   umounted) */
-		if (err != EINTR && err != EAGAIN)
-			perror("fuse: reading device");
-		return -err;
+	if (res == -1) 
+	{
+	  /* ENOENT means the operation was interrupted, it's safe
+	  to restart */
+	  err = errno;
+	  if (err == ENOENT)
+	  {
+	    rozofs_fuse_req_enoent_count++;
+	    goto restart;
+	  }
+	  if (err == ENODEV) {
+	    severe("Exit from RozofsMount required!!!");
+	    fuse_session_exit(se);
+	    rozofs_exit();
+	    return 0;
+	  }
+	  /* Errors occurring during normal operation: EINTR (read
+	     interrupted), EAGAIN (nonblocking I/O), ENODEV (filesystem
+	     umounted) */
+	  if (err != EINTR && err != EAGAIN) severe("fuse: reading device");
+	  if ((err == EAGAIN)|| (err == EINTR)) rozofs_fuse_req_eagain_count++;
+	  return -err;
 	}
 #if 0
 	if ((size_t) res < sizeof(struct fuse_in_header)) {
@@ -178,15 +178,8 @@ restart:
 		return -EIO;
 	}
 #endif
-        if ((err == EAGAIN)|| (err == EINTR))
-	{
-	   rozofs_fuse_req_eagain_count++;
-	}
-	else 
-	{
-	   rozofs_fuse_req_count++;
-	   rozofs_fuse_req_byte_in+=res;
-	}
+	rozofs_fuse_req_count++;
+	rozofs_fuse_req_byte_in+=res;
 	return res;
 }
 /*
@@ -357,10 +350,21 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
 uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
 {
     rozofs_fuse_ctx_t  *ctx_p;
+    int k;
+    uint32_t            buffer_count;
     
-    ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;    
-    
-    rozofs_fuse_session_loop(ctx_p);
+    ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;   
+     
+     for (k = 0; k < rozofs_fuse_loop_count; k++)
+     {
+       buffer_count = ruc_buf_getFreeBufferCount(ctx_p->fuseReqPoolRef);
+       if (buffer_count < 2) 
+       {
+	 rozofs_fuse_buffer_depletion_count++;
+	 return TRUE;
+       }    
+       rozofs_fuse_session_loop(ctx_p);
+     }
     
     return TRUE;
 }
@@ -520,8 +524,38 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
 void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t            buffer_count=0;
   char                status[16];
+  int   new_val;   
+  
   char *pChar = uma_dbg_get_buffer();
 
+  if (argv[1] != NULL)
+  {
+      if (strcmp(argv[1],"loop")==0) 
+      {
+	 errno = 0;
+	 if (argv[2] == NULL)
+	 {
+           pChar += sprintf(pChar, "argument is missing\n");
+	   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	   return;	  	  
+	 }
+	 new_val = (int) strtol(argv[2], (char **) NULL, 10);   
+	 if (errno != 0) {
+           pChar += sprintf(pChar, "bad value %s\n",argv[2]);
+	   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	   return;
+	 }
+	 /*
+	 ** 
+	 */
+	 if (new_val == 0) {
+           pChar += sprintf(pChar, "unsupported value %s\n",argv[2]);
+	   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	   return;
+	 }	 
+	 rozofs_fuse_loop_count = new_val;
+      }
+  }
   uint64_t old_ticker = rozofs_fuse_req_tic;
   rozofs_fuse_get_ticker();  
   buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
@@ -536,6 +570,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   /*
   ** display the cache mode
   */
+  pChar +=  sprintf(pChar,"poll count : %d\n",rozofs_fuse_loop_count); 
   pChar +=  sprintf(pChar,"FS Mode    : "); 
   if (rozofs_mode== 0)
   {
@@ -632,6 +667,22 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+
+/*__________________________________________________________________________
+*/
+/**
+*   entry point for fuse socket polling
+*
+
+   @param current_time : current time provided by the socket controller
+   
+   
+   @retval none
+*/
+void rozofs_fuse_scheduler_entry_point(uint64_t current_time)
+{
+  rozofs_fuse_rcvMsgsock((void*)rozofs_fuse_ctx_p,rozofs_fuse_ctx_p->fd);
 }
 
 /*
@@ -771,6 +822,10 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      status = 0;
      break;
   }
+  /*
+  ** attach the callback on socket controller
+  */
+  ruc_sockCtrl_attach_applicative_poller(rozofs_fuse_scheduler_entry_point); 
   
   uma_dbg_addTopic("fuse", rozofs_fuse_show);
   return status;

@@ -36,7 +36,8 @@
 #define RUC_SOCKCTRL_DEBUG_TOPIC      "cpu"
 #define RUC_SOCKCTRL_CTX_TOPIC        "ctx_size"
 
-
+#define APP_POLLING 1
+#define APP_POLLING_OPT 0
 /*
 **  G L O B A L   D A T A
 */
@@ -86,6 +87,8 @@ uint32_t ruc_sockCtrl_looptimeMax = 0;
 
 ruc_scheduler_t ruc_applicative_traffic_shaper = NULL;
 ruc_scheduler_t ruc_applicative_poller = NULL;
+uint64_t ruc_applicative_poller_cycles = 0;
+uint64_t ruc_applicative_poller_count = 0;
 /*
 ** table used for storing the index of the socket for which there is the associated bit asserted
 */
@@ -254,21 +257,27 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   pChar += sprintf(pChar,"max socket events        : %u \n",ruc_sockCtrl_max_nr_select);
   ruc_sockCtrl_max_nr_select = 0;
   pChar += sprintf(pChar,"xmit/recv prepare cycles : %llu cycles [%llu/%llu)\n",
-                                                               (ruc_count_prepare==0)?0:(long long unsigned)ruc_time_prepare/ruc_count_prepare,
-                                                               (long long unsigned)ruc_time_prepare,(long long unsigned)ruc_count_prepare);
+                   (ruc_count_prepare==0)?0:(long long unsigned)ruc_time_prepare/ruc_count_prepare,
+                   (long long unsigned)ruc_time_prepare,(long long unsigned)ruc_count_prepare);
   ruc_time_prepare = 0;
   ruc_count_prepare = 0;
   pChar += sprintf(pChar,"xmit/recv receive cycles : %llu cycles [%llu/%llu)\n",
-                                                               (ruc_count_receive==0)?0:(long long unsigned)ruc_time_receive/ruc_count_receive,
-                                                               (long long unsigned)ruc_time_receive,(long long unsigned)ruc_count_receive);
+                   (ruc_count_receive==0)?0:(long long unsigned)ruc_time_receive/ruc_count_receive,
+                   (long long unsigned)ruc_time_receive,(long long unsigned)ruc_count_receive);
   ruc_time_receive = 0;
   ruc_count_receive = 0;							       
 
   pChar += sprintf(pChar,"gettimeofday cycles      : %llu cycles [%llu/%llu)\n",
-                                                               (gettimeofday_count==0)?0:(long long unsigned)gettimeofday_cycles/gettimeofday_count,
-                                                               (long long unsigned)gettimeofday_cycles,(long long unsigned)gettimeofday_count);
+                   (gettimeofday_count==0)?0:(long long unsigned)gettimeofday_cycles/gettimeofday_count,
+                   (long long unsigned)gettimeofday_cycles,(long long unsigned)gettimeofday_count);
   gettimeofday_cycles = 0;
   gettimeofday_count  = 0;	
+
+  pChar += sprintf(pChar,"application poll cycles  : %llu cycles [%llu/%llu)\n",
+                   (ruc_applicative_poller_count==0)?0:(long long unsigned)ruc_applicative_poller_cycles/ruc_applicative_poller_count,
+                   (long long unsigned)ruc_applicative_poller_cycles,(long long unsigned)ruc_applicative_poller_count);
+  ruc_applicative_poller_cycles = 0;
+  ruc_applicative_poller_count  = 0;	
 
   pChar += sprintf(pChar,"rucRdFdSet %p (%lu) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,(long unsigned int)sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
   
@@ -873,12 +882,19 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
       */
       if (ruc_applicative_traffic_shaper != NULL)
       {
+
        (*ruc_applicative_traffic_shaper)(timeAfter);
       }
+
+#if APP_POLLING
       if (ruc_applicative_poller != NULL)
       {
-       (*ruc_applicative_poller)(0);
+	ruc_applicative_poller_count++;
+	uint64_t cycles_start = rdtsc();  	
+	(*ruc_applicative_poller)(0);
+        ruc_applicative_poller_cycles += (rdtsc() - cycles_start);
       }
+#endif
       if(FD_ISSET(socketId, &rucRdFdSet))
       {
         /*
@@ -944,7 +960,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
 /*
 **____________________________________________________________________________
 */
-static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
+/*static inline */ void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
 {
 
   int i;
@@ -953,16 +969,25 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
   int socketId;
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
-  
+#if APP_POLLING_OPT
+  uint64_t  ruc_applicative_poller_ticker = rozofs_ticker_microseconds;
+#endif  
   timeBefore = 0;
   timeAfter  = 0;
+
   uint64_t cycles_before,cycles_after;
   cycles_before = rdtsc();
-
+#if APP_POLLING_OPT
   if (ruc_applicative_poller != NULL)
   {
-   (*ruc_applicative_poller)(0);
+	ruc_applicative_poller_count++;
+	uint64_t cycles_start = rdtsc();  	
+	(*ruc_applicative_poller)(0);
+        ruc_applicative_poller_cycles += (rdtsc() - cycles_start);
   }
+  ruc_applicative_poller_ticker +=100;
+#endif
+  cycles_before = rdtsc();
   /*
   ** build the table for the receive and xmit sides
   */
@@ -972,7 +997,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
   cycles_after = rdtsc();
   ruc_time_receive += (cycles_after - cycles_before);
   ruc_count_receive++;
-    
+
   for (i = 0; i <socket_recv_count ; i++)
   {
     socketId = socket_recv_table[i];
@@ -983,10 +1008,6 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
     if (ruc_applicative_traffic_shaper != NULL)
     {
      (*ruc_applicative_traffic_shaper)(timeAfter);
-    }
-    if (ruc_applicative_poller != NULL)
-    {
-     (*ruc_applicative_poller)(0);
     }
     p = socket_ctx_table[socketId];
     if (p == NULL) 
@@ -1008,6 +1029,20 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
     p->lastTime = (uint32_t)(timeAfter - timeBefore);
     p->cumulatedTime += p->lastTime;
     p->nbTimes ++;        
+#if APP_POLLING_OPT
+    if (ruc_applicative_poller != NULL)
+    {
+        if (ruc_applicative_poller_ticker < timeAfter)
+	{
+	  ruc_applicative_poller_count++;
+	  uint64_t cycles_start = rdtsc();  	
+	  (*ruc_applicative_poller)(0);
+          ruc_applicative_poller_cycles += (rdtsc() - cycles_start);  
+	  ruc_applicative_poller_ticker = timeAfter+200;
+	}
+
+    }
+#endif
   }
   
   for (i = 0; i <socket_xmit_count ; i++)
@@ -1127,11 +1162,15 @@ static inline void ruc_sockCtl_prepareRcvAndXmitBits()
                              &ruc_sockctl_pnextCur))!=(ruc_sockObj_t*)NULL) 
     {
       ruc_sockCtrl_nb_socket_conditional++;
+#if APP_POLLING
       if (ruc_applicative_poller != NULL)
       {
-       (*ruc_applicative_poller)(0);
+	ruc_applicative_poller_count++;
+	uint64_t cycles_start = rdtsc();  	
+	(*ruc_applicative_poller)(0);
+        ruc_applicative_poller_cycles += (rdtsc() - cycles_start);
       }
-
+#endif
       FD_CLR(p->socketId,&rucWrFdSet);
       FD_CLR(p->socketId,&rucRdFdSet);
       ret = (*((p->callBack)->isRcvReadyFunc))(p->objRef,p->socketId);
@@ -1299,7 +1338,6 @@ static inline void ruc_sockCtrl_roundRobbin()
 
 
 }
-
 /*
 **____________________________________________________________________________
 */
@@ -1368,7 +1406,7 @@ void ruc_sockCtrl_selectWait()
       if (cpt_yield == 0)
       {
 	cpt_yield = 2;
-        sched_yield();
+//         sched_yield();
       }
       /*
       ** wait for event 
@@ -1416,4 +1454,15 @@ void ruc_sockCtrl_selectWait()
 	ruc_sockCtrl_nbTimesScheduler ++;     
       }   
     }
+}
+
+/**
+* clear the associated fd bit in the fdset
+
+  @param int fd : file descriptor to clear
+*/
+void ruc_sockCtrl_clear_rcv_bit(int fd)
+{
+  if (fd < 0) return;
+  FD_CLR(fd,&rucRdFdSet);
 }

@@ -310,6 +310,7 @@ int af_unix_sock_listening_create(char *nickname,char *remote_sun_path,af_unix_s
 int af_unix_socket_listening_family_create (char *nicknamebase_p,char *basename_p, int base_instance,int nb_instances,
                                              int *socket_ctx_tb_p,af_unix_socket_conf_t *conf_p);
 
+void af_unix_info_getsockopt(int fd,char *file,int line);
 
 
 #endif

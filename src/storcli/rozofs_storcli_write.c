@@ -499,7 +499,7 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
     storcli_write_arg_no_data_t *storcli_write_rq_p = &working_ctx_p->storcli_write_arg;
     uint8_t layout = storcli_write_rq_p->layout;
     int i;
-    int errcode;
+    int errcode=0;
     int ret;
     int read_req = 0;
 
@@ -540,7 +540,8 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
    ** check if there some read request pending: if it is the case
    ** do not use the thread
    */
-   if ((rozofs_stcmoj_thread_enable) &&(read_req == 0)&& (storcli_write_rq_p->len >rozofs_stcmoj_thread_len_threshold))
+   if ((rozofs_stcmoj_thread_write_enable) &&(read_req == 0)&& 
+        (storcli_write_rq_p->len >rozofs_stcmoj_thread_len_threshold))
    {
      ret = rozofs_stcmoj_thread_intf_send(STORCLI_MOJETTE_THREAD_FWD,working_ctx_p,0);
      if (ret < 0) 
@@ -931,7 +932,7 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
   int       storage_idx;
-  int       error;
+  int       error=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   
@@ -1134,7 +1135,7 @@ void rozofs_storcli_write_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,u
     uint8_t   rozofs_forward;
     uint8_t   layout;
     storcli_write_arg_no_data_t *storcli_write_rq_p = (storcli_write_arg_no_data_t*)&working_ctx_p->storcli_write_arg;
-    int error;
+    int error=0;
     int storage_idx;
 
     rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   

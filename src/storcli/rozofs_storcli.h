@@ -252,6 +252,7 @@ typedef struct _rozofs_storcli_ctx_t
   dist_t                            wr_distribution;  /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
   ruc_obj_desc_t                      timer_list;    /**< timer linked list used as a guard timer upon received first projection */
+  uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX];  /**< table of the projection used by the inverse process */
 
   /*
   ** working variables for truncate
@@ -1299,4 +1300,16 @@ static inline void rozofs_storcli_update_lbg_for_safe_range(rozofs_storcli_ctx_t
  */
   
 void storcli_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p);
+
+/*
+**__________________________________________________________________________
+*/
+/*
+** That function is called when all the projection are ready to be sent
+
+ @param working_ctx_p: pointer to the root context associated with the top level write request
+
+*/
+void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p);
+
 #endif

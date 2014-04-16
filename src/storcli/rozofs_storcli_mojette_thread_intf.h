@@ -32,7 +32,7 @@
 #include "rozofs_storcli.h"
 
 
-#define ROZOFS_MAX_DISK_THREADS  8
+#define ROZOFS_MAX_DISK_THREADS  4
 
 
 typedef struct _rozofs_disk_thread_stat_t {
@@ -68,7 +68,8 @@ typedef struct _rozofs_mojette_thread_ctx_t
 } rozofs_mojette_thread_ctx_t;
 
 extern rozofs_mojette_thread_ctx_t rozofs_mojette_thread_ctx_tb[];
-extern int rozofs_stcmoj_thread_enable;
+extern int rozofs_stcmoj_thread_write_enable;
+extern int rozofs_stcmoj_thread_read_enable;
 extern uint32_t rozofs_stcmoj_thread_len_threshold;
 
 /**
@@ -76,8 +77,8 @@ extern uint32_t rozofs_stcmoj_thread_len_threshold;
 */
 
 typedef enum _rozofs_stcmoj_thread_request_e {
-  STORCLI_MOJETTE_THREAD_INV=1,
-  STORCLI_MOJETTE_THREAD_FWD,
+  STORCLI_MOJETTE_THREAD_INV = 0,
+  STORCLI_MOJETTE_THREAD_FWD = 1
 } rozofs_stcmoj_thread_request_e;
 
 typedef struct _rozofs_stcmoj_thread_msg_t

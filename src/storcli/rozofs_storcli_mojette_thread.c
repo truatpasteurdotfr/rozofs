@@ -145,27 +145,47 @@ int af_unix_mojette_sock_create_internal(char *nameOfSocket,int size)
 static inline void storcli_mojette_inverse(rozofs_mojette_thread_ctx_t *thread_ctx_p,rozofs_stcmoj_thread_msg_t * msg) {
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
-  rozofs_storcli_ctx_t      * working_ctx;
-  sp_read_ret_t            ret;
+  rozofs_storcli_ctx_t      * working_ctx_p;
+  unsigned long long cycleBefore, cycleAfter;
+  storcli_read_arg_t *storcli_read_rq_p;
     
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
+
+  cycleBefore = rdtsc();
 	          
   /*
   ** update statistics
   */
   thread_ctx_p->stat.MojetteInverse_count++;
   
-  working_ctx = msg->working_ctx;
-
-  storio_send_response(thread_ctx_p,msg,0);
+  working_ctx_p = msg->working_ctx;
+  storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
+  uint8_t layout         = storcli_read_rq_p->layout;
+  
+  rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
+                                   layout,
+                                   working_ctx_p->cur_nmbs2read,
+                                   working_ctx_p->nb_projections2read,
+                                   working_ctx_p->block_ctx_table,
+                                   working_ctx_p->data_read_p,
+                                   &working_ctx_p->effective_number_of_blocks,
+				   &working_ctx_p->rozofs_storcli_prj_idx_table[0]);
 
   /*
   ** Update statistics
   */
+  cycleAfter = rdtsc();
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
+  thread_ctx_p->stat.MojetteInverse_Byte_count += (working_ctx_p->effective_number_of_blocks*ROZOFS_BSIZE);
+  thread_ctx_p->stat.MojetteInverse_cycle +=(cycleAfter-cycleBefore);  
   thread_ctx_p->stat.MojetteInverse_time +=(timeAfter-timeBefore);  
+  /*
+  ** send the response
+  */
+  storio_send_response(thread_ctx_p,msg,0);
+
 }
 /*__________________________________________________________________________
 */
@@ -182,12 +202,10 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
   unsigned long long timeBefore, timeAfter;
   unsigned long long cycleBefore, cycleAfter;
   rozofs_storcli_ctx_t      * working_ctx_p;
-  int size;
   rozofs_storcli_ingress_write_buf_t  *wr_proj_buf_p;;
   storcli_write_arg_no_data_t *storcli_write_rq_p;;
   uint8_t layout;;
   int i;
-  int errcode;
   int ret;
   int block_count = 0;
     
@@ -211,10 +229,9 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
     if ( wr_proj_buf_p[i].state == ROZOFS_WR_ST_TRANSFORM_REQ)
     {
 //       STORCLI_START_KPI(storcli_kpi_transform_forward);
-       uint64_t *p64 = (uint64_t*)wr_proj_buf_p[i].data;
 
        block_count += wr_proj_buf_p[i].number_of_blocks;
-       ret = rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
+       ret =rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
                                                layout,
                                                wr_proj_buf_p[i].first_block_idx, 
                                                wr_proj_buf_p[i].number_of_blocks, 
@@ -282,7 +299,7 @@ void *rozofs_stcmoj_thread(void *arg) {
 	severe("error on sched_setscheduler: %s",strerror(errno));	
       }
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
-          severe("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority,
+          severe("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :

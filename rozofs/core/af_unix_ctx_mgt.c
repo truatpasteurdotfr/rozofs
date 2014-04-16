@@ -184,6 +184,38 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
   -
   RETURN: none
   ==========================================================================*/
+char * af_unix_debug_getsockopt(int fd,char *pChar)
+{
+   int sendsize = 0;
+   int rcvsize = 0;
+   int optionsize=sizeof(sendsize);
+  
+   if (fd < 0) return pChar;
+   getsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&sendsize,(socklen_t*)&optionsize);
+   getsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&rcvsize,(socklen_t*)&optionsize);
+   pChar += sprintf(pChar, "   rcv/snd size:%d/%d\n",rcvsize,sendsize);
+   return pChar;
+
+
+
+}
+
+void af_unix_info_getsockopt(int fd,char *file,int line)
+{
+   int sendsize = 0;
+   int rcvsize = 0;
+   int optionsize=sizeof(sendsize);
+  
+   if (fd < 0) return ;
+   getsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&sendsize,(socklen_t*)&optionsize);
+   getsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&rcvsize,(socklen_t*)&optionsize);
+   severe("%s:%d fd %d rcv/snd size:%d/%d\n",file,line,fd,rcvsize,sendsize);
+   return ;
+
+
+
+}
+
 void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     pChar += sprintf(pChar, "number of AF_UNIX contexts [size](initial/allocated) :[%u] %u/%u\n", (unsigned int) sizeof (af_unix_ctx_generic_t), (unsigned int) af_unix_context_count,
@@ -243,6 +275,7 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
                     //          sock_p->remote_port_host    = port;
                     pChar += sprintf(pChar, "   IP/port(src):%u.%u.%u.%u:%u\n", (ipAddr >> 24)&0xFF, (ipAddr >> 16)&0xFF, (ipAddr >> 8)&0xFF, (ipAddr)&0xFF, port);
                 }
+		pChar = af_unix_debug_getsockopt(sock_p->socketRef,pChar);
             }
             pChar += sprintf(pChar, "   transmitter state     : %d /%d\n", sock_p->xmit.state, sock_p->xmit.xmit_credit);
             pChar += sprintf(pChar, "   Up/Down Transitions   : %llu\n", (unsigned long long int) stats_p->totalUpDownTransition);
