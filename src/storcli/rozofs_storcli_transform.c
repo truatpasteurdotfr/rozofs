@@ -419,12 +419,9 @@ static __inline__ unsigned long long rdtsc(void)
     uint16_t projection_id = 0;
     int prj_ctx_idx;
     int ret;
-    unsigned long long cycleBefore, cycleAfter;
 
    
-    *number_of_blocks_p = 0;
-        cycleBefore = rdtsc();
-    
+    *number_of_blocks_p = 0;    
     for (block_idx = 0; block_idx < number_of_blocks; block_idx++) {
         if (block_ctx_p[block_idx].state == ROZOFS_BLK_TRANSFORM_DONE)
         {
@@ -459,8 +456,6 @@ static __inline__ unsigned long long rdtsc(void)
         }      	
     }
     *number_of_blocks_p = (block_idx++);
-        cycleAfter = rdtsc();
-	severe("FDL debug rozofs_storcli_transform_inverse_check %llu cycles",cycleAfter - cycleBefore);
 
     return 0;
 }
@@ -684,7 +679,6 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
  {
     projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
     projection_t *projections; // Table of projections used to transform data
-    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX]; 
     uint16_t projection_id = 0;
     uint32_t i = 0;    
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
