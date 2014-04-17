@@ -349,7 +349,7 @@ int rozos_cache_write_not_aligned(uint8_t *buf_cache256K_p,uint64_t off,uint8_t 
   int last_len;
   int block_len        = ROZOFS_CACHE_BSIZE;
   int first_block;
-  int i;
+  int i=0;
   int effective_length;
   uint64_t aligned_offset;
   

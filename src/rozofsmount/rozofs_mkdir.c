@@ -128,6 +128,7 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
 {
    struct fuse_entry_param fep;
    ientry_t *nie = 0;
+   ientry_t *pie = 0;
    struct stat stbuf;
    fuse_req_t req; 
    epgw_mattr_ret_t ret ;
@@ -141,6 +142,7 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    mattr_t  attrs;
+   mattr_t  pattrs;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
    int trc_idx;
@@ -256,6 +258,7 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
     eid_set_free_quota(ret.free_quota);
     
     memcpy(&attrs, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    memcpy(&pattrs, &ret.parent_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding section
@@ -263,7 +266,6 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
        nie = alloc_ientry(attrs.fid);
     }
-
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
     mattr_to_stat(&attrs, &stbuf);
@@ -273,6 +275,16 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
     ** update the attributes in the ientry
     */
     memcpy(&nie->attrs,&attrs, sizeof (mattr_t));
+    nie->timestamp = rozofs_get_ticker_us();
+    /*
+    ** get the parent attributes
+    */
+    pie = get_ientry_by_fid(pattrs.fid);
+    if (pie != NULL)
+    {
+      memcpy(&pie->attrs,&pattrs, sizeof (mattr_t));
+      pie->timestamp = rozofs_get_ticker_us();
+    }   
      /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry

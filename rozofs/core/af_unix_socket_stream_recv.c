@@ -185,12 +185,14 @@ uint32_t af_unix_recv_stream_generic_cbk(void * socket_pointer,int socketId)
            /*
            ** we don't get the full header so no change, wait for the next receiver event
            */
+	   sock_p->stats.emptyRecv++;
            return TRUE;
 
           case RUC_PARTIAL:
           /*
           ** update the count and re-attempt until getting a EAGAIN or a full header
           */
+	  sock_p->stats.partialRecv++;
           sock_p->stats.totalRecvBytes += len_read;
           recv_p->nbread += len_read;
           break;
@@ -344,12 +346,14 @@ uint32_t af_unix_recv_stream_generic_cbk(void * socket_pointer,int socketId)
            /*
            ** we don't get the full message so no change, wait for the next receiver event
            */
+	   sock_p->stats.emptyRecv++;
            return TRUE;
 
           case RUC_PARTIAL:
           /*
           ** update the count and re-attempt until getting a EAGAIN or a full header
           */
+	  sock_p->stats.partialRecv++;
           sock_p->stats.totalRecvBytes += len_read;
           recv_p->nbread += len_read;
           break;
@@ -521,12 +525,14 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
            /*
            ** we don't get the full header so no change, wait for the next receiver event
            */
+	   sock_p->stats.emptyRecv++;
            return TRUE;
 
           case RUC_PARTIAL:
           /*
           ** update the count and re-attempt until getting a EAGAIN or a full header
           */
+	  sock_p->stats.partialRecv++;
           sock_p->stats.totalRecvBytes += len_read;
           recv_p->nbread += len_read;
           break;
@@ -692,12 +698,14 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
            /*
            ** we don't get the full message so no change, wait for the next receiver event
            */
+	   sock_p->stats.emptyRecv++;
            return TRUE;
 
           case RUC_PARTIAL:
           /*
           ** update the count and re-attempt until getting a EAGAIN or a full header
           */
+	  sock_p->stats.partialRecv++;
           sock_p->stats.totalRecvBytes += len_read;
           recv_p->nbread += len_read;
           break;

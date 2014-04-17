@@ -47,6 +47,7 @@ typedef struct exportclt {
     eid_t eid;
     list_t storages; // XXX: Need a lock?
     uint8_t layout; // Layout for this export
+    uint32_t listen_port; /**< listening port of the exportd for regular service */
     fid_t rfid;
     uint32_t bufsize;
     uint32_t min_read_size;

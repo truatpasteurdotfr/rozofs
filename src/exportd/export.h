@@ -41,7 +41,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/dist.h>
-
+#include <rozofs/common/export_track.h>
 #include "volume.h"
 #include "cache.h"
 #include "export_expgw_conf.h"
@@ -68,6 +68,7 @@
 /** File size treshold: if a removed file is bigger than or equel to this size
  *  it will be push in front of list */
 #define RM_FILE_SIZE_TRESHOLD 0x40000000LL
+#define TRACKING_PTHREAD_FREQUENCY_SEC 60  /**< default polling period of tracking thread */
 
 
 
@@ -86,9 +87,33 @@ typedef struct trash_bucket {
     list_t rmfiles; ///< List of files to delete
     pthread_rwlock_t rm_lock; ///< Lock for the list of files to delete
 } trash_bucket_t;
+/**
+* structuire for tracking file for which there is a deletion in progress
+  it corresponds to the structure saved on diosk
+*/
+typedef struct _rmfentry_disk_t {
+    fid_t trash_inode;      /**< reference of the trash inode */
+    uint64_t size;          /**< size of the file */
+    fid_t fid;              /**<  unique file id .*/
+    cid_t cid;              /**< unique cluster id where the file is stored.*/
+    sid_t initial_dist_set[ROZOFS_SAFE_MAX];
+    ///< initial sids of storage nodes target for this file.
+    sid_t current_dist_set[ROZOFS_SAFE_MAX];
+} rmfentry_disk_t;
 
-
-
+/**
+ *  Structure used for store information about a file to remove
+ */
+typedef struct rmfentry {
+    fid_t trash_inode;      /**< reference of the trash inode */
+    fid_t fid; ///<  unique file id.
+    cid_t cid; /// unique cluster id where the file is stored.
+    sid_t initial_dist_set[ROZOFS_SAFE_MAX];
+    ///< initial sids of storage nodes target for this file.
+    sid_t current_dist_set[ROZOFS_SAFE_MAX];
+    ///< current sids of storage nodes target for this file.
+    list_t list; ///<  pointer for extern list.
+} rmfentry_t;
 
 /**
 * exportd gateway entry structure
@@ -114,6 +139,8 @@ typedef struct export {
     int fdstat; ///< open file descriptor on stat file
     fid_t rfid; ///< root fid
     lv2_cache_t *lv2_cache; ///< cache of lv2 entries
+    export_tracking_table_t *trk_tb_p; 
+
     trash_bucket_t trash_buckets[RM_MAX_BUCKETS]; ///< table for store the list
     // of files to delete for each bucket trash
     pthread_t load_trash_thread; ///< pthread for load the list of trash files
@@ -122,6 +149,19 @@ typedef struct export {
 
 extern uint32_t export_configuration_file_hash;  /**< hash value of the configuration file */
 
+/*____________________________________________________________
+*/
+/**
+*  Reload in memory the files that have not yet been deleted
+
+   @param e : pointer to the export structure
+   
+*/
+int export_load_rmfentry(export_t * e) ;
+/**
+* statistics for tracking thread
+*/
+void show_tracking_thread(char * argv[], uint32_t tcpRef, void *bufRef);
 
 /** Remove bins files from trash 
  *
@@ -149,10 +189,11 @@ int export_is_valid(const char *root);
  * generate root uuid create lv2 directory
  *
  * @param root: root directory to create file in
+ * @param export: pointer to the export
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_create(const char *root);
+int export_create(const char *root,export_t * e);
 
 /** initialize an export
  *
@@ -499,9 +540,12 @@ extern volatile int expgwc_non_blocking_thread_started; /**< clear on start, and
 typedef struct _exportd_start_conf_param_t
 {
    uint16_t debug_port;   /**< port value to be used by rmonitor  */
+   uint16_t slave;        /**< flag to indicate that the export is a slave */
    uint16_t instance;     /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
    char     *exportd_hostname;  /**< hostname of the exportd: needed by nobody!!! */
 } exportd_start_conf_param_t;
+
+extern exportd_start_conf_param_t  expgwc_non_blocking_conf;  /**< configuration of the non blocking side */
 
 /*
  *_______________________________________________________________________
@@ -647,4 +691,93 @@ int export_get_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_
  * On failure, -1 is returned and errno is set appropriately.
  */
 int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested) ;
+/*
+**______________________________________________________________________________
+*/
+extern int export_instance_id;    /**< instance id of the export  : 0 is the master   */
+extern int export_master;         /**< assert to 1 for export Master                  */
+/*
+**______________________________________________________________________________
+*/
+/**
+*  exportd set instance value and role
+
+   @param instance_id
+   
+   @retval none
+*/
+static inline void exportd_set_export_instance_and_role(int instance_id,int role)
+{
+   export_instance_id = instance_id;
+   export_master = role;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*  get the instance id of the export
+
+  retval: instance of the export
+*/
+static inline int exportd_get_export_instance()
+{
+  return export_instance_id;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*  get role of the export
+*/
+static inline int exportd_is_master()
+{
+  return (export_master==0?0:1);
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+*  check if the eid matches the instance
+
+   @param eid: export identifier
+   @retval 1 : if it matches
+   @retval 0 otherwise
+*/
+static inline int exportd_is_eid_match_with_instance(int eid)
+{
+
+    int idx = (eid-1)%EXPORT_SLICE_PROCESS_NB +1;
+    if (idx == export_instance_id) return 1;
+    return 0;
+
+
+}   
+
+/*
+**_______________________________________________________________________________
+*/
+/**
+* The purpose of that service is to check the content of the tracking file and
+  to truncate or delete the tracking file when is possible for releasing blocks
+  to the filesystem
+
+   e: pointer to the export
+   type : type of the tracking files
+   
+*/   
+int exp_trck_inode_release_poll(export_t * e,int type);
+
+/*
+**_______________________________________________________________________________
+*/
+/**
+*  open the parent directory
+
+   @param e : pointer to the export structure
+   @param parent : fid of the parent directory
+   
+   @retval > 0 : fd of the directory
+   @retval < 0 error
+*/
+int export_open_parent_directory(export_t *e,fid_t parent);
 #endif

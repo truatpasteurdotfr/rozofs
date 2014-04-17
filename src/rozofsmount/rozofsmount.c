@@ -93,6 +93,7 @@ int rozofs_trc_last_idx; /**< last entry in the trace buffer */
 int rozofs_trc_enabled = 0;  /**< assert to 1 when the trace is enable */
 int rozofs_trc_index = 0;
 rozofs_trace_t *rozofs_trc_buffer = NULL;  /**< pointer to the trace buffer */
+int rozofs_xattr_disable = 0; /**< assert to one to disable xattr for the exported file system */
 
 /**______________________________________________________________________________
 */
@@ -150,16 +151,17 @@ static void usage() {
     fprintf(stderr, "    -E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "    -P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "    -o rozofsbufsize=N\t\tdefine size of I/O buffer in KiB (default: 256)\n");
-    fprintf(stderr, "    -o rozofsminreadsize=N\tdefine minimum read size on disk in KiB (default value is same as the option rozofsbufsize)\n");
-    fprintf(stderr, "    -o rozofsmaxwritepending=N\tdefine the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: %u)\n", ROZOFSMOUNT_MAX_TX);
+    fprintf(stderr, "    -o rozofsminreadsize=N\tdefine minimum read size on disk in KiB (default: %u)\n", ROZOFS_BSIZE/1024);
+    fprintf(stderr, "    -o rozofsmaxwritepending=N\tdefine the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: 4)\n");
     fprintf(stderr, "    -o rozofsmaxretry=N\t\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "    -o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
-    fprintf(stderr, "    -o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
-    fprintf(stderr, "    -o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 10)\n");
+    fprintf(stderr, "    -o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 4)\n");
+    fprintf(stderr, "    -o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 15)\n");
     fprintf(stderr, "    -o rozofsattrtimeout=N\tdefine timeout (s) for which file/directory attributes are cached (default: 10)\n");
     fprintf(stderr, "    -o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
     fprintf(stderr, "    -o debug_port=N\t\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "    -o instance=N\t\tdefine instance number (default: 0)\n");
+    fprintf(stderr, "    -o nbcores=N\t\tdefine the maximum number of core files to keep (default: 2)\n");
     fprintf(stderr, "    -o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "    -o rozofsmode=N\t\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
     fprintf(stderr, "    -o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
@@ -167,6 +169,8 @@ static void usage() {
     fprintf(stderr, "    -o rozofsrotate=N\t\tdefine the modulo on read distribution rotation (default: 0)\n");
     fprintf(stderr, "    -o posixlock\t\tactive support for POSIX file lock\n");
     fprintf(stderr, "    -o bsdlock\t\t\tactive support for BSD file lock\n");
+    fprintf(stderr, "    -o noXattr\t\t\tdisable support of extended attributes\n");
+
 }
 
 static rozofsmnt_conf_t conf;
@@ -212,6 +216,8 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("noquota", quota, 0),
     MYFS_OPT("quota", quota, 3),
     MYFS_OPT("usrquota", quota, 1),
+    MYFS_OPT("noXattr", noXattr, 1),
+
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
     FUSE_OPT_KEY("-P ", KEY_EXPORT_PASSWD),
@@ -421,6 +427,8 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
+  DISPLAY_UINT32_CONFIG(noXattr);  
+
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }  
 /*__________________________________________________________________________
@@ -661,6 +669,16 @@ void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef)
    } 
    rozofs_cache_mode = cache_mode;
    uma_dbg_send(tcpRef, bufRef, TRUE, "Success\n");
+}
+
+/*__________________________________________________________________________
+*/
+
+void rozofs_disable_xattr(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+
+   rozofs_xattr_disable = 1;
+   uma_dbg_send(tcpRef, bufRef, TRUE, "Extended Attributes are now disabled\n");
 }
 
 /*__________________________________________________________________________
@@ -1271,7 +1289,7 @@ void rozofs_start_storcli() {
 int fuseloop(struct fuse_args *args, int fg) {
     int i = 0;
     int ret;
-    int err;
+    int err=0;
     char *c;
     int piped[2];
     piped[0] = piped[1] = -1;
@@ -1470,7 +1488,26 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("flock", show_flock);
     uma_dbg_addTopic("trc_fuse", show_trc_fuse);
     uma_dbg_addTopic("xattr_flt", show_xattr_flt);
+    uma_dbg_addTopic("xattr_disable", rozofs_disable_xattr);
     
+    /*
+    ** Disable extended attributes if required
+    */
+    if (conf.noXattr) {
+      rozofs_xattr_disable = 1;
+    }  
+      
+    /*
+    ** clear write flush alignement stats
+    */
+    {
+      int k;
+      for (k= 0;k < 2;k++)
+      {
+        rozofs_aligned_write_start[k] = 0;
+        rozofs_aligned_write_end[k] = 0;
+      }
+    }
     /*
     ** init of the trace buffer
     */
@@ -1711,7 +1748,7 @@ int main(int argc, char *argv[]) {
     conf.max_retry = 50;
     conf.buf_size = 0;
     conf.min_read_size = 0;
-    conf.max_write_pending = ROZOFSMOUNT_MAX_TX; /* No limit */ 
+    conf.max_write_pending = 4; /*  */ 
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
@@ -1719,6 +1756,8 @@ int main(int argc, char *argv[]) {
     conf.rotate = 0;
     conf.posix_file_lock = 0; // No posix file lock until explicitly activated  man 2 fcntl)
     conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
+    conf.noXattr = 0;   // By default extended attributes are supported
+
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
     }
@@ -1757,21 +1796,30 @@ int main(int argc, char *argv[]) {
         conf.buf_size = 256;
     }
     /* Bufsize must be a multiple of the block size */
-    if ((conf.buf_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    if ((conf.buf_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.buf_size > 256) {
+            conf.buf_size = conf.buf_size - (ROZOFS_BSIZE / 1024);
+        }
     }
     
     if (conf.min_read_size == 0) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = 4;
     }
     if (conf.min_read_size > conf.buf_size) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = conf.buf_size;
     }
-    /* Bufsize must be a multiple of the block size */
-    if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
-    }    
-    
+
+    /* min_read_size must be a multiple of the block size */
+    if ((conf.min_read_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.min_read_size > conf.buf_size) {
+            conf.min_read_size = conf.min_read_size - (ROZOFS_BSIZE / 1024);
+        }
+    }
+
     if (conf.nbstorcli != 0) {
       if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {
           fprintf(stderr,
@@ -1906,6 +1954,9 @@ int main(int argc, char *argv[]) {
         warning("Failed to change maximum size of core file: %s",
                 strerror(errno));
     }
+
+    // Change AF_UNIX datagram socket length
+    af_unix_socket_set_datagram_socket_len(128);
 
     res = fuseloop(&args, fg);
 

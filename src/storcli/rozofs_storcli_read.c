@@ -49,6 +49,8 @@
 #include <rozofs/rpc/sproto.h>
 #include "storcli_main.h"
 #include <rozofs/rozofs_timer_conf.h>
+#include "rozofs_storcli_mojette_thread_intf.h"
+
 DECLARE_PROFILING(stcpp_profiler_t);
 
 
@@ -403,18 +405,18 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
    memcpy(working_ctx_p->fid_key, storcli_read_rq_p->fid, sizeof (sp_uuid_t));
    working_ctx_p->opcode_key = STORCLI_READ;
    {
-     rozofs_storcli_ctx_t *ctx_lkup_p = storcli_hash_table_search_ctx(working_ctx_p->fid_key);
-     /*
-     ** Insert the current request in the queue associated with the hash(fid)
-     */
-     storcli_hash_table_insert_ctx(working_ctx_p);
-     if (ctx_lkup_p != NULL)
+     int ret;
+     ret = stc_rng_insert((void*)working_ctx_p,
+                           STORCLI_READ,working_ctx_p->fid_key,
+			   storcli_read_rq_p->bid,storcli_read_rq_p->nb_proj,
+			   &working_ctx_p->sched_idx);
+     if (ret == 0)
      {
        /*
-       ** there is a current request that is processed with the same fid
+       ** there is a current request that is processed with the same fid and there is a collision
        */
        return;    
-     }       
+     }   		
 
      /*
      ** no request pending with that fid, so we can process it right away
@@ -1347,9 +1349,6 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     
     /*
     ** That's fine, all the projections have been received start rebuild the initial message
-    */
-    STORCLI_START_KPI(storcli_kpi_transform_inverse);
-    /*
     ** for the case of the shared memory, we must check if the rozofsmount has not aborted the request
     */
     if (working_ctx_p->shared_mem_p != NULL)
@@ -1364,16 +1363,28 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
         goto io_error;
       }    
     }    
-    
-    ret = rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
+    /*
+    ** check if we can proceed with transform inverse
+    */
+    ret = rozofs_storcli_transform_inverse_check_for_thread(working_ctx_p->prj_ctx,
                                      layout,
                                      working_ctx_p->cur_nmbs2read,
                                      working_ctx_p->nb_projections2read,
                                      working_ctx_p->block_ctx_table,
-                                     working_ctx_p->data_read_p,
-                                     &working_ctx_p->effective_number_of_blocks);
+                                     &working_ctx_p->effective_number_of_blocks,
+				     &working_ctx_p->rozofs_storcli_prj_idx_table[0]);				     
+
     if (ret < 0)
     {
+      /*
+      ** check if we have some read request pending. If it is the case wait for the 
+      ** response of the request pending, otherwise attempt to read one more
+      */
+      if (rozofs_storcli_check_read_in_progress_projections(layout,
+         working_ctx_p->prj_ctx) != 0) {
+	 rozofs_tx_free_from_ptr(this);
+	 return;
+      }
        /*
        ** There is no enough projection to rebuild the initial message
        ** check if we still have storage on which we can read some more projection
@@ -1398,6 +1409,48 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
        rozofs_tx_free_from_ptr(this);
        rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,0);   
        return;     
+    }
+    /*
+    ** we have all the projections with the good timestamp so proceed with
+    ** the inverse transform
+    */
+
+
+    if (working_ctx_p->effective_number_of_blocks != 0)
+    {
+      /*
+      **  check if Mojette threads are enable , if the length is greater than the threshold
+      **  and there is no read request pending then use them
+      */
+      int blocklen = working_ctx_p->effective_number_of_blocks*ROZOFS_BSIZE;
+      if ((rozofs_stcmoj_thread_read_enable) && (blocklen >rozofs_stcmoj_thread_len_threshold)&&
+          (rozofs_storcli_check_read_in_progress_projections(layout,working_ctx_p->prj_ctx) == 0)) 
+      {
+	ret = rozofs_stcmoj_thread_intf_send(STORCLI_MOJETTE_THREAD_INV,working_ctx_p,0);
+	if (ret < 0) 
+	{
+           errno = EPROTO;
+	   goto io_error;
+	}
+	/*
+	** release the transaction context
+	*/
+        rozofs_tx_free_from_ptr(this);
+	return;   
+      }
+      STORCLI_START_KPI(storcli_kpi_transform_inverse);
+      rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
+                                       layout,
+                                       working_ctx_p->cur_nmbs2read,
+                                       working_ctx_p->nb_projections2read,
+                                       working_ctx_p->block_ctx_table,
+                                       working_ctx_p->data_read_p,
+                                       &working_ctx_p->effective_number_of_blocks,
+				       &working_ctx_p->rozofs_storcli_prj_idx_table[0]);
+    }
+    else
+    {
+      STORCLI_START_KPI(storcli_kpi_transform_inverse);    
     }
     STORCLI_STOP_KPI(storcli_kpi_transform_inverse,0);
 

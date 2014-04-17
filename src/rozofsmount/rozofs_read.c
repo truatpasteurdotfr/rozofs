@@ -88,10 +88,6 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
    nb_prj = len / ROZOFS_BSIZE;
-   if (nb_prj > 32)
-   {
-     severe("bad nb_prj %d bid %llu off %llu len %u",nb_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
-   }
    
     if (rozofs_rotation_read_modulo == 0) {
       f->rotation_idx = 0;

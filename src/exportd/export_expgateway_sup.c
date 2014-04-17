@@ -30,7 +30,6 @@
 #include "export_internal_channel.h"
 #include <rozofs/rpc/gwproto.h>
 #include "export_expgateway_conf.h"
-#include "expgw_gwprotosvc.h"
 
 
  

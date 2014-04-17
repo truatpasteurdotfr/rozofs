@@ -24,6 +24,12 @@
 
 #include <config.h>
 
+#define P_COUNT     0
+#define P_ELAPSE    1
+#define P_BYTES     2
+
+#define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
+
 /*
 ** Port on which storaged services MPROTO and SPPROTO
 */
@@ -35,7 +41,8 @@
 #define ROZOFS_UUID_SIZE_RPC (ROZOFS_UUID_SIZE/sizeof(uint32_t))
 #define ROZOFS_UUID_SIZE_NET ROZOFS_UUID_SIZE_RPC
 #define ROZOFS_HOSTNAME_MAX 128
-#define ROZOFS_BSIZE 8192       // could it be export specific ?
+//#define ROZOFS_BSIZE 8192       // could it be export specific ?
+#define ROZOFS_BSIZE 4096
 #define ROZOFS_SAFE_MAX 36
 #define ROZOFS_SAFE_MAX_RPC  (ROZOFS_SAFE_MAX/sizeof(uint32_t))
 /* Instead of using an array of sid_t for store the dist_set, we use an
@@ -67,7 +74,10 @@
 /* First TCP port used */
 #define STORAGE_PORT_NUM_BEGIN 40000
 
-#define MAX_DIR_ENTRIES 100
+#define ROZOFS_INODE_SZ  512  /**< rozofs inode size (memory and disk)*/
+#define ROZOFS_XATTR_BLOCK_SZ 4096 /**< rozofs xattr block size */
+
+#define MAX_DIR_ENTRIES 50
 #define ROZOFS_MD5_SIZE 22
 #define ROZOFS_MD5_NONE "0000000000000000000000"
 
@@ -76,12 +86,8 @@
 #define EXPGW_EXPGW_MAX_IDX 32 /**< max number of export gateway per exportd */
 #define EXPGW_EXPORTD_MAX_IDX 64 /**< max number of exportd */
 
+#define EXPORT_SLICE_PROCESS_NB 8 /**< number of processes for the slices */
 
-#define P_COUNT     0
-#define P_ELAPSE    1
-#define P_BYTES     2
-
-#define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 
 /* Value max for an Exportd Gateway */
 #define GWID_MAX 32
@@ -103,6 +109,32 @@ typedef uint8_t sid_t; /**< storage id */
 typedef uint16_t cid_t; /**< cluster id */
 typedef uint16_t vid_t; /**< volume id */
 typedef uint32_t eid_t; /**< export id */
+
+/**
+*  type of the exportd attributes
+*/
+typedef enum
+{
+   ROZOFS_EXTATTR = 0, /**< extended attributes */
+   ROZOFS_TRASH,   /**< pending trash */
+   ROZOFS_REG,  /**< regular file & symbolic links */
+   ROZOFS_DIR,     /**< directory    */
+   ROZOFS_SLNK,    /**< name of symbolic link */
+
+   ROZOFS_MAXATTR
+} export_attr_type_e;
+
+typedef union
+{
+   uint64_t fid[2];   /**<   */
+   struct {
+     uint64_t  fid_high:64;   /**< higher part of the fid */
+     uint64_t  usr_id:8;     /**< usr defined value-> for exportd;it is the slice   */
+     uint64_t  file_id:40;    /**< bitmap file index within the slice                */
+     uint64_t  idx:11;     /**< inode relative to the bitmap file index           */
+     uint64_t  key:5;     /**< inode relative to the bitmap file index           */
+   } s;
+} rozofs_inode_t;
 
 // storage stat
 
@@ -139,6 +171,8 @@ typedef struct {
         uint64_t timestamp : 64; ///<  time stamp.
 } rozofs_stor_bins_footer_t;
 
+
+
 typedef struct child {
     char *name;
     fid_t fid;
@@ -161,11 +195,49 @@ static inline void mstor_get_slice_and_subslice(fid_t fid, uint32_t *slice, uint
     uint32_t hash = 0;
     uint8_t *c = 0;
 
-    for (c = fid; c != fid + 16; c++)
+    for (c = fid; c != fid + 8; c++)
         hash = *c + (hash << 6) + (hash << 16) - hash;
 
     *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
     hash = hash >> MAX_SLICE_BIT;
     *subslice = hash & ((1 << MAX_SUBSLICE_BIT) - 1);
 }
+
+/*
+**__________________________________________________________________
+*/
+/**
+*  Get the slice number from the upper part of the unique file id (fid)
+
+  @param fid : unique file identifier
+  
+  @retval : slice value
+*/
+static inline void exp_trck_get_slice(fid_t fid, uint32_t *slice) {
+    uint32_t hash = 0;
+    uint8_t *c = 0;
+
+    for (c = fid; c != fid + 8; c++)
+        hash = *c + (hash << 6) + (hash << 16) - hash;
+
+    *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
+    hash = hash >> MAX_SLICE_BIT;
+}
+
+/**
+*  check if the slice is local to the export process
+  
+   @param slice : slice number
+   
+   @retval 1 : the slice is local
+   @retval 0: the slice is not local
+*/
+static inline int exp_trck_is_local_slice(uint32_t slice)
+{
+   return 1;
+
+}
+
+
+
 #endif

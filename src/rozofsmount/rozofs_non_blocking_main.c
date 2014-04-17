@@ -15,12 +15,12 @@
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
  */
-
 #include <rozofs/core/ruc_common.h>
 #include <rozofs/core/uma_tcp_main_api.h>
 #include <rozofs/core/ruc_tcpServer_api.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <pthread.h>
 
 #include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
@@ -44,11 +44,12 @@ void rozofs_flock_service_init(void) ;
   
   @param host : hostname or IP address of the exportd Master
   @param eid : exportid associated with the rozofsmount
+  @param export_listening_port : listening port of the export for this eid
   
   @retval RUC_OK on success
   @retval RUC_NOK on failure
 */
-int rozofs_expgateway_init(char *host,int eid)
+int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port)
 {
     int ret;
     
@@ -61,12 +62,18 @@ int rozofs_expgateway_init(char *host,int eid)
     if (ret != RUC_OK) return ret;
 
 //#warning only 1 gateway: localhost1
-
+#define exportd port is hardcoded : 53000  et slice process port = 8
     ret = expgw_export_add_eid(eid,   // exportd id
                                eid,   // eid
                                host,  // hostname of the Master exportd
-                               0,  // port
+#if 0
+                               53000,  // port
+                               EXPORT_SLICE_PROCESS_NB,  // nb Gateway
+#else
+//#warning multi-slice is temporary removed
+                               export_listening_port,  // port
                                0,  // nb Gateway
+#endif
                                0   // gateway rank: not significant for an rozofsmount
                                );
     if (ret < 0) {
@@ -74,25 +81,27 @@ int rozofs_expgateway_init(char *host,int eid)
         fatal("Fatal error on expgw_export_add_eid()");
         goto error;
     }
-#if 0    
-    ret = expgw_add_export_gateway(1, "localhost1",60000,0);  
-    if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
-        goto error;
-    }    
-    ret = expgw_add_export_gateway(1, "localhost2",60000,1);  
-    if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_add_export_gateway()\n");
-        goto error;
-    }  
+//#warning multi-slice is temporary removed
+#if 0
+    for (i = 0; i < EXPORT_SLICE_PROCESS_NB; i++)
+    {
+    
+      ret =  expgw_add_export_gateway(eid, host, 53000+i+1,(uint16_t) i);
+      if (ret < 0) {
+          fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
+          fatal("Fatal error on expgw_export_add_eid()");
+          goto error;
+      }    
+    }
 #endif
+
     return RUC_OK;
 error: 
    return RUC_NOK;
 
 }
 
-uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
+uint32_t ruc_init(uint32_t test, uint16_t debug_port,uint16_t export_listening_port) {
     int ret;
 
 
@@ -211,7 +220,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
         if (ret != RUC_OK) break;
 #endif    
         exportclt_t *exportclt = args_p->exportclt;
-        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid);
+        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid,export_listening_port);
         if (ret != RUC_OK) break;
 
         break;
@@ -263,10 +272,48 @@ int rozofs_stat_start(void *args) {
     int ret;
     //sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
     args_p = args;
+    exportclt_t *exportclt_p = (exportclt_t*)args_p->exportclt;
+    
+    /*
+    ** change the scheduling policy
+    */
+    {
+      struct sched_param my_priority;
+      int policy=-1;
+      int ret= 0;
+
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          severe("RozoFS thread Scheduling policy   = %s\n",
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+ #if 0
+      my_priority.sched_priority= 98;
+      policy = SCHED_FIFO;
+      ret = pthread_setschedparam(pthread_self(),policy,&my_priority);
+      if (ret < 0) 
+      {
+	severe("error on sched_setscheduler: %s",strerror(errno));	
+      }
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          severe("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority,
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+
+ #endif        
+     
+    }
+
 
     uint16_t debug_port = args_p->debug_port;
+    uint16_t export_listening_port = (uint16_t)exportclt_p->listen_port;
+    
+    severe("FDL debug exportd listening port %d",export_listening_port);
 
-    ret = ruc_init(FALSE, debug_port);
+    ret = ruc_init(FALSE, debug_port,export_listening_port);
     if (ret != RUC_OK) {
         /*
          ** fatal error
@@ -293,7 +340,9 @@ int rozofs_stat_start(void *args) {
     /*
      ** Perform the init with exportd--> setup of the TCP connection associated with the load balancing group
      */
-    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, 0) != 0) {
+#warning set exportd port number to 53000
+    info("exportd slave port number %d\n",53000);
+    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, export_listening_port) != 0) {
         severe("Cannot setup the load balancing group towards Exportd");
     }
     //#warning storcli instances are hardcoded

@@ -33,4 +33,8 @@
 void daemon_start(char * path, int nbCoreFiles, const char *name, void (*on_start) (void),
         void (*on_stop) (void), void (*on_hup) (void)) ;
 
+
+void no_daemon_start(char * path, int nbCoreFiles, const char *name, void (*on_start) (void),
+        void (*on_stop) (void), void (*on_hup) (void)) ;
+
 #endif

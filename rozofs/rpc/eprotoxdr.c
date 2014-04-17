@@ -267,6 +267,8 @@ xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->listen_port))
+		 return FALSE;
 	 if (!xdr_ep_md5_t (xdrs, objp->md5))
 		 return FALSE;
 	 if (!xdr_ep_uuid_t (xdrs, objp->rfid))

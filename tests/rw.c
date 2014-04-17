@@ -373,7 +373,6 @@ int do_one_test(int * f, char * filename, int count) {
 //    nbWrite = 1 + count % 3;
     nbWrite = 1 ;    
     while (nbWrite--) {
-
       offset    = (random()+offset)    % file_mb; 
       blockSize = (random()+blockSize) % RANDOM_BLOCK_SIZE;      
       if (blockSize == 0) blockSize = 1;

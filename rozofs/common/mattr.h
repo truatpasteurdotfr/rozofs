@@ -44,6 +44,28 @@ typedef struct mattr {
     uint32_t children;              /**< number of children (excluding . and ..) */
 } mattr_t;
 
+/**
+*  extended attributes structure
+*/
+#define ROZOFS_OBJ_NAME_MAX 96
+typedef union
+{
+   char inode_buf[512];
+   struct {
+     mattr_t attrs;  /**< standard attributes       */
+     fid_t   pfid;   /**< parent fid                */
+     uint32_t i_extra_isize;  /**< array reserved for extended attributes */
+     uint32_t i_state;     /**< inode state               */
+     uint64_t i_file_acl;  /**< extended inode */
+     uint64_t i_link_name;  /**< symlink block */
+     char    name[ROZOFS_OBJ_NAME_MAX]; 
+   } s;
+} ext_mattr_t;
+
+#define ROZOFS_I_EXTRA_ISIZE (sizeof(mattr_t)+sizeof(fid_t)+ \
+                              2*sizeof(uint32_t)+sizeof(uint64_t)+\
+			      ROZOFS_OBJ_NAME_MAX)
+
 /** initialize mattr_t
  *
  * fid is not initialized

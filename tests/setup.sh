@@ -1185,7 +1185,10 @@ main ()
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
     # to reach storio_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/$storaged_dir
-
+    # to reach exports_starter.sh  
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/exportd
+    # to reach exportd slave  
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/exportd    
     set_layout 0
 
     NB_EXPORTS=1

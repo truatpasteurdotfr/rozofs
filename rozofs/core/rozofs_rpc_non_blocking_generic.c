@@ -513,8 +513,9 @@ void rozofs_rpc_generic_reply_cbk(void *this,void *param)
    XDR       xdrs;    
    int      bufsize;
    xdrproc_t decode_proc;
-   int xdr_free_done;;
-   
+   int xdr_free_done;
+   rozofs_tx_ctx_t      *rozofs_tx_ctx_p = NULL;
+     
    /*
    ** get the decoding function from the user rpc context
    */
@@ -541,7 +542,7 @@ void rozofs_rpc_generic_reply_cbk(void *this,void *param)
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
     */
-    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+    rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
     /*    
     ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
     */

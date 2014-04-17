@@ -47,6 +47,9 @@ int fdl_debug_bucket_idx = 203;
 /**
  *  Global Data
  */
+int dirent_current_eid;  /**< current eid: used by dirent writeback cache */
+
+
 #define DIRENT_WRITE_DEBUG 0
 
 #if DIRENT_WRITE_DEBUG
@@ -1578,8 +1581,8 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
     
     }
 #endif
-    
-    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
+    if ((fd = DIRENT_OPENAT_READ(dirfd, path_p, flag, S_IRWXU,dirent_hdr_p->dirent_idx[0])) == -1) {    
+//    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         //DIRENT_SEVERE("Cannot open the file %s, error %s at line %d\n",path_p,strerror(errno),__LINE__);
 	/*
 	** check if the file exists. If might be possible that the file does not exist, it can be considered
@@ -2013,290 +2016,6 @@ error:
     return NULL ;
 }
 
-#if 0
-#warning WRITE_MDIRENTS_FILE  not optimized
-/*
- **______________________________________________________________________________
- */
-/**
- * Write a mdirents file on disk
- *
- * @param dirfd: file descriptor of the parent directory
- * @param *dirent_cache_p: pointer to cache entry to re-write
- *
- * @retval 0 on success
- * @retval -1 on error
- */
-int write_mdirents_file(int dirfd,mdirents_cache_entry_t *dirent_cache_p)
-{
-    int fd = -1;
-    int flag = O_WRONLY | O_CREAT | O_NOATIME;
-    char pathname[64];
-    char *path_p;
-    mdirents_file_t *dirent_file_p = NULL;
-
-    /*
-     ** build the filename of the dirent file to read
-     */
-    path_p = dirent_build_filename(&dirent_cache_p->header,pathname);
-    if (path_p == NULL)
-    {
-        /*
-         ** something wrong that must not happen
-         */
-        DIRENT_SEVERE("Cannot build filename( line %d\n)",__LINE__);
-        goto error;
-    }
-#if DIRENT_WRITE_DEBUG
-    printf("write file %s:\n",path_p);
-#endif
-
-    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1)
-    {
-        DIRENT_SEVERE("Cannot open file( line %d\n)",__LINE__);
-        goto error;
-    }
-    /*
-     ** allocate a working array for storing the content of the file except the part
-     ** that contains the name/fid and mode
-     */
-    dirent_file_p = DIRENT_MALLOC(sizeof(mdirents_file_t));
-    if (dirent_file_p == NULL)
-    {
-        /*
-         ** the system runs out of memory
-         */
-        DIRENT_SEVERE("Out of memory( line %d\n)",__LINE__);
-        goto error;
-    }
-//    memset(dirent_file_p,0xbb,sizeof(mdirents_file_t));
-
-    /*
-     ** fill the sector 0 to the dirent file buffer
-     */
-    {
-        mdirent_sector0_not_aligned_t *sect0_p;
-
-        sect0_p = DIRENT_VIRT_TO_PHY_OFF(dirent_cache_p,sect0_p);
-        if (sect0_p == (mdirent_sector0_not_aligned_t*)NULL)
-        {
-            DIRENT_SEVERE("sector 0 ptr does not exist( line %d\n)",__LINE__);
-            goto error;
-        }
-        memcpy(&dirent_file_p->sect0,sect0_p,sizeof(mdirent_sector0_not_aligned_t));
-    }
-
-    /*
-     ** Copy  the sector 1 ( name/fid/type bitmap) to the dirent file buffer
-     */
-    {
-        mdirents_btmap_free_chunk_t *sect1_p;
-
-        sect1_p = DIRENT_VIRT_TO_PHY_OFF(dirent_cache_p,name_bitmap_p);
-        if (sect1_p == (mdirents_btmap_free_chunk_t*)NULL)
-        {
-            DIRENT_SEVERE("sector 0 ptr does not exist( line %d\n)",__LINE__);
-            goto error;
-        }
-        memcpy(&dirent_file_p->sect1,sect1_p,sizeof(mdirents_btmap_free_chunk_t));
-    }
-
-    /*
-     ** Copy  the sector 2 ( 256 hash buckets of 16 bits) to the dirent file buffer
-     */
-    {
-        mdirents_hash_ptr_t *hash_tbl_p;
-        int i;
-        mdirents_hash_ptr_t *file_ptr = (mdirents_hash_ptr_t*)&dirent_file_p->sect2;
-        for (i = 0; i < MDIRENTS_HASH_TB_CACHE_MAX_IDX; i++)
-        {
-#if DIRENT_WRITE_DEBUG
-            printf("hash_tbl_p[%d]: rd:%d dirty:%d val:%llx\n",i,dirent_cache_p->hash_tbl_p[i].s.rd,
-                    dirent_cache_p->hash_tbl_p[i].s.dirty,
-                    (unsigned long long int)dirent_cache_p->hash_tbl_p[i].s.val);
-#endif
-            hash_tbl_p = DIRENT_VIRT_TO_PHY_OFF(dirent_cache_p,hash_tbl_p[i]);
-            if (hash_tbl_p == (mdirents_hash_ptr_t*)NULL)
-            {
-                /*
-                 ** apply the default value
-                 */
-                memset(file_ptr,0,sizeof(mdirents_hash_ptr_t)*MDIRENTS_HASH_TB_CACHE_MAX_ENTRY);
-            }
-            else
-            {
-                memcpy(file_ptr,hash_tbl_p,sizeof(mdirents_hash_ptr_t)*MDIRENTS_HASH_TB_CACHE_MAX_ENTRY);
-            }
-            file_ptr += MDIRENTS_HASH_TB_CACHE_MAX_ENTRY;
-            /*
-             ** clear the dirty bit
-             */
-            dirent_cache_p->hash_tbl_p[i].s.dirty = 0;
-        }
-    }
-    /*
-     ** Copy the sectors 3&4 that contain the hash entries
-     */
-    {
-        mdirents_hash_entry_t *hash_entry_p;
-        int i;
-        mdirents_hash_entry_t *file_ptr = (mdirents_hash_entry_t*)&dirent_file_p->sect3;
-        for (i = 0; i < MDIRENTS_HASH_CACHE_MAX_IDX; i++)
-        {
-#if DIRENT_WRITE_DEBUG
-            printf("hash_entry_p[%d]: rd:%d dirty:%d val:%llx\n",i,dirent_cache_p->hash_entry_p[i].s.rd,
-                    dirent_cache_p->hash_entry_p[i].s.dirty,
-                    (unsigned long long int)dirent_cache_p->hash_entry_p[i].s.val);
-
-#endif
-            hash_entry_p = DIRENT_VIRT_TO_PHY_OFF(dirent_cache_p,hash_entry_p[i]);
-            if (hash_entry_p == (mdirents_hash_entry_t*)NULL)
-            {
-                /*
-                 ** apply the default value
-                 */
-                memset(file_ptr,0,sizeof(mdirents_hash_entry_t)*MDIRENTS_HASH_CACHE_MAX_ENTRY);
-            }
-            else
-            {
-                memcpy(file_ptr,hash_entry_p,sizeof(mdirents_hash_entry_t)*MDIRENTS_HASH_CACHE_MAX_ENTRY);
-            }
-            /*
-             ** clear the dirty bit
-             */
-            dirent_cache_p->hash_entry_p[i].s.dirty = 0;
-            file_ptr += MDIRENTS_HASH_CACHE_MAX_ENTRY;
-        }
-
-    }
-    /*
-     ** OK now lest's write the mandatory sectors
-     */
-    if (DIRENT_PWRITE(fd, dirent_file_p, sizeof (mdirents_file_t), 0) != (sizeof (mdirents_file_t))) {
-        DIRENT_SEVERE("pwrite failed for file %s: %s at line %d", pathname, strerror(errno),__LINE__);
-        goto error;
-    }
-    /*
-     ** OK now check if there is some name entry array to write on disk: for this we check the
-     ** name_entry_array_btmap_wr_req bitmap. Each bit asserted indicates that 2 virtual sectors
-     ** of 512 bytes have to be re-write on disk
-     */
-    {
-        int first_chunk_of_array;
-        uint8_t *mem_p;
-        int bit_idx = 0;
-        int next_bit_idx;
-        int loop_cnt;
-
-        int ret;
-        while (bit_idx < MDIRENTS_NAME_PTR_MAX)
-        {
-#if 1
-            if (bit_idx%8 == 0)
-            {
-                next_bit_idx = check_bytes(dirent_cache_p->name_entry_array_btmap_wr_req,bit_idx,MDIRENTS_NAME_PTR_MAX,&loop_cnt);
-                if (next_bit_idx < 0) break;
-                /*
-                 ** next  chunk
-                 */
-                bit_idx = next_bit_idx;
-            }
-#endif
-            first_chunk_of_array = bit_idx*MDIRENTS_CACHE_NB_CHUNK_PER_CHUNK_ARRAY;
-            ret = dirent_test_chunk_bit(bit_idx,dirent_cache_p->name_entry_array_btmap_wr_req);
-            if (ret == 0)
-            {
-                /*
-                 ** nothing to re-write->next entry
-                 */
-                bit_idx ++;
-                continue;
-            }
-            /*
-             ** get the pointer to the beginning of the memory array
-             */
-            mem_p = (uint8_t*) dirent_get_entry_name_ptr(fd,dirent_cache_p,first_chunk_of_array,DIRENT_CHUNK_NO_ALLOC);
-            if (mem_p == NULL)
-            {
-                /*
-                 ** something wrong that must not occur
-                 */
-                DIRENT_SEVERE("write_mdirents_file: out of chunk error at line %d\n",__LINE__);
-                goto error;
-            }
-            /*
-             ** let's write it on disk
-             */
-
-#if 0
-
-            if (DIRENT_PWRITE(fd, mem_p, MDIRENTS_CACHE_CHUNK_ARRAY_SZ,
-                            DIRENT_HASH_NAME_BASE_SECTOR*MDIRENT_SECTOR_SIZE +MDIRENTS_CACHE_CHUNK_ARRAY_SZ*bit_idx) != MDIRENTS_CACHE_CHUNK_ARRAY_SZ) {
-                DIRENT_SEVERE("pwrite failed for file %s: %s, at line %d", pathname, strerror(errno),__LINE__);
-                goto error;
-            }
-#else
-#warning Name entry write is disabled
-#endif
-            /*
-             ** clear the write request and assert the presence of data in that array
-             */
-            dirent_clear_chunk_bit(bit_idx,dirent_cache_p->name_entry_array_btmap_wr_req);
-            dirent_set_chunk_bit(bit_idx,dirent_cache_p->name_entry_array_btmap_presence);
-
-#if 0
-#warning need more testing
-            /*
-             ** release the associated memory pointer
-             */
-            uint8_t *free_p = mem_p;
-            mem_p = (uint8_t*)dirent_cache_del_ptr(&dirent_cache_p->name_entry_lvl0_p[0],
-                    &mdirent_cache_name_ptr_distrib,
-                    bit_idx,(void *)mem_p);
-            if (mem_p != NULL)
-            {
-                /*
-                 ** that case must not happen because we just get it before calling deletion
-                 */
-                DIRENT_SEVERE("dirent_cache_del_entry_name_ptr error at line %d\n",__LINE__);
-                goto error;
-
-            }
-            /*
-             ** release the memory
-             */
-            DIRENT_FREE((void*)free_p);
-
-#endif
-            /*
-             ** next bit
-             */
-            bit_idx ++;
-
-        }
-    }
-
-    /*
-     ** Indicate that the disk update has been done
-     */
-    DIRENT_ROOT_UPDATE_DONE(dirent_cache_p);
-
-    /*
-     ** release the resources
-     */
-    close(fd);
-    DIRENT_FREE(dirent_file_p);
-
-    return 0;
-
-    error:
-    if (fd != -1)
-    close(fd);
-    if (dirent_file_p != NULL) DIRENT_FREE(dirent_file_p);
-    return -1;
-}
-
-#else
 
 /*
 ** Debug 
@@ -2353,8 +2072,16 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
 #if DIRENT_WRITE_DEBUG
     printf("write file %s:\n",path_p);
 #endif
+    /*
+    ** update the root_idx bitmap if necessary
+    */
+    if (dirent_cache_p->header.level_index == 0) 
+    {
+       dirent_set_root_idx_bit(dirent_cache_p->header.dirent_idx[0]);    
+    }
 
-    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
+    if ((fd = DIRENT_OPENAT(dirfd, path_p, flag, S_IRWXU,dirent_cache_p->key.dir_fid,dirent_cache_p->header.dirent_idx[0])) == -1) {
+//    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         DIRENT_SEVERE("Cannot open file %s (%s)",path_p,strerror(errno));
 	errno = EIO;
         goto error;
@@ -2655,7 +2382,7 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
      ** release the resources
      */
     if (fd != -1)
-        close(fd);
+        DIRENT_CLOSE(fd);
     if ((dirent_file_p != NULL )&& (writeback_cache== 0))DIRENT_FREE(dirent_file_p);
 
     return 0;
@@ -2663,15 +2390,10 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p) {
 error: 
     DIRENT_ROOT_SET_READ_ONLY();
     if (fd != -1)
-        close(fd);
+        DIRENT_CLOSE(fd);
     if ((dirent_file_p != NULL )&& (writeback_cache== 0))DIRENT_FREE(dirent_file_p);
     return -1;
 }
-
-#endif
-
-
-
 /*
  **______________________________________________________________________________
  */
@@ -2710,8 +2432,8 @@ int dirent_write_name_array_to_disk(int dirfd,
 	errno = EIO;
         goto error;
     }
-
-    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
+    if ((fd = DIRENT_OPENAT(dirfd, path_p, flag, S_IRWXU,dirent_cache_p->key.dir_fid,dirent_cache_p->header.dirent_idx[0])) == -1) {
+//    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         DIRENT_SEVERE("Cannot open file:%s error %s)",path_p,strerror(errno));
 	errno = EIO;
         goto error;
@@ -2787,13 +2509,13 @@ int dirent_write_name_array_to_disk(int dirfd,
     /*
      ** release the resources
      */
-    close(fd);
+    DIRENT_CLOSE(fd);
     return 0;
 
 error: 
     DIRENT_ROOT_SET_READ_ONLY();
     if (fd != -1)
-        close(fd);
+        DIRENT_CLOSE(fd);
     return -1;
 }
 
@@ -2874,8 +2596,11 @@ int dirent_read_name_array_from_disk(int dirfd,
         DIRENT_SEVERE("out of memory for file %s",pathname);
         goto error;
     }
-
-    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
+    /*
+    ** check if the writeback cache must be flush
+    */
+    if ((fd = DIRENT_OPENAT_READ(dirfd, path_p, flag, S_IRWXU,dirent_hdr_p->dirent_idx[0])) == -1) {    
+//    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         DIRENT_SEVERE("Cannot open the file %s (%s)",path_p,strerror(errno));
 	errno = EIO;
         goto error;

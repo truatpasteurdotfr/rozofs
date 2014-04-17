@@ -195,12 +195,14 @@ typedef struct rozofs_socket_stats_t
    uint64_t totalRecvBadLength;     /**< total number of messages submitted with an error  */
    uint64_t totalRecvOutoFBuf;     /**< total number of messages submitted with an error  */
    uint64_t totalRecvError;     /**< total number of messages submitted with an error  */
+   uint64_t partialRecv;     /**< total of partial receive  */
+   uint64_t emptyRecv;        /**< total of empty receive  */
 } rozofs_socket_stats_t;
 
 #define AF_UNIX_CONGESTION_DEFAULT_THRESHOLD 2  /**< number of loop before restarting to send after
 eoc */
 #define AF_UNIX_XMIT_CREDIT_DEFAULT 8
-#define AF_UNIX_RECV_CREDIT_DEFAULT 8
+#define AF_UNIX_RECV_CREDIT_DEFAULT 4
 /**
 * transmitter generic Context
 */
@@ -914,5 +916,13 @@ static inline void af_inet_attach_application_availability_callback(af_unix_ctx_
    sock_p->userAvailabilityCallBack = available_callback;
    sock_p->availability_param = param;
 }
+/**
+*  Set the maximum qlen of a AF_UNIX datagram socket
 
+ @param  len : The length of the AF_UNIX datagram socket
+
+ @retval: 0 success, all the socket have been created
+ @retval < 0 error on at least one socket creation
+*/
+int af_unix_socket_set_datagram_socket_len(int len);
 #endif

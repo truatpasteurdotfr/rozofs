@@ -50,7 +50,8 @@ typedef struct expgwc_internal_channel_conf_t
 typedef enum
 {
   EXPGWC_NULL = 0,
-  EXPGWC_LOAD_CONF = 1 /**< opcode for adding the export gateway configuration  */
+  EXPGWC_LOAD_CONF = 1, /**< opcode for adding the export gateway configuration  */
+  EXPORT_LOAD_CONF = 2 /**< opcode for exportd configuration reload  */
 
 } expgwc_internal_channel_opcode_e;
 
@@ -66,7 +67,13 @@ typedef struct _expgwc_int_chan_msg_t
     uint32_t  length; /**< length of the payload */
 } expgwc_int_chan_msg_t;
 
+typedef struct _export_reload_conf_status_t
+{
+   int done;   /**< assert to 1 when the configuration has been processed  */
+   int status; /**< reload configuration status */
+} export_reload_conf_status_t;
 
+extern export_reload_conf_status_t export_reload_conf_status;
 extern gw_configuration_t  expgw_conf_local;
 extern int expgw_configuration_available;
 /*
@@ -108,6 +115,20 @@ static inline uint32_t expgwc_get_internal_channel_buf_send_size()
 */
 int expgwc_internal_channel_send(uint32_t opcode,uint32_t length, void *message );
 
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   reload of the configuration initiated from the non-blocking thread
+
+  @param none
+  
+  @retval 0 on success
+  @retval -1 on error
+  
+*/
+int export_reload_nb();
+
 
 /*
  *_______________________________________________________________________
@@ -124,4 +145,6 @@ uint32_t expgwc_sup_createInternalSocket(expgwc_internal_channel_conf_t *p);
 uint32_t expgwc_sup_deleteInternalSocket(expgwc_internal_channel_conf_t *p);
 uint32_t expgwc_int_chan_moduleInit();
 
+int gw_configuration_1_nblocking(gw_configuration_t *argp, int lbg_id,void *ctx_p);
+int gw_poll_1_nblocking(gw_header_t *argp, int lbg_id,void *ctx_p);
 #endif

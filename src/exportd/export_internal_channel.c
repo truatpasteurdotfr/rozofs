@@ -36,7 +36,6 @@
 #include "export_internal_channel.h"
 #include <rozofs/rpc/gwproto.h>
 #include "export_expgateway_conf.h"
-#include "expgw_export.h"
 
 
 
@@ -406,6 +405,7 @@ uint32_t expgwc_internal_channel_recv_cbk(void * not_significant,int socketId)
   uint32_t      socketIdx;
   int         bytesRcvd;
   char       *pchar;
+  int         ret;
   expgwc_int_chan_msg_t *msg = (expgwc_int_chan_msg_t*)expgwc_internal_channel_buf_recv;
   //int ret;
 
@@ -461,6 +461,12 @@ uint32_t expgwc_internal_channel_recv_cbk(void * not_significant,int socketId)
     case EXPGWC_LOAD_CONF:
       expgwc_load_conf_proc(pchar,msg->length);
 //      info("EXPGWC_LOAD_CONF received -> length %d",msg->length);
+      break;
+
+    case EXPORT_LOAD_CONF:
+      ret = export_reload_nb();
+      export_reload_conf_status.done   = 1;
+      export_reload_conf_status.status = ret;
       break;
     default:
        severe("bad opcode:%d",msg->opcode);

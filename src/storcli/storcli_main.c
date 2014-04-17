@@ -57,6 +57,7 @@
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_reload_storage_config.h"
+#include "rozofs_storcli_mojette_thread_intf.h"
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -101,6 +102,8 @@ char storcli_process_filename[NAME_MAX];
 /**
  *  Global and local datas
  */
+ 
+
 static storcli_conf conf;
 exportclt_t exportclt; /**< structure associated to exportd, needed for communication */
 uint32_t *rozofs_storcli_cid_table[ROZOFS_CLUSTERS_MAX];
@@ -184,7 +187,6 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     {
       if (strcmp(argv[1],"reset")==0) {
 	RESET_PROFILER_PROBE_BYTE(read);
-	RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
 	RESET_PROFILER_PROBE(read_sid_miss);	
 	RESET_PROFILER_PROBE_BYTE(read_prj);
 	RESET_PROFILER_PROBE(read_prj_enoent);	
@@ -192,7 +194,6 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE(read_prj_tmo);
 	RESET_PROFILER_PROBE(read_blk_footer);
 	RESET_PROFILER_PROBE_BYTE(write)
-	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);
 	RESET_PROFILER_PROBE(write_sid_miss);		
 	RESET_PROFILER_PROBE_BYTE(write_prj);
 	RESET_PROFILER_PROBE(write_prj_tmo);
@@ -221,6 +222,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     secs = (int) (elapse % 60);
 
 
+
     pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
     pChar += sprintf(pChar, "   procedure        |     count        |  time(us)  | cumulated time(us)  |     bytes       |\n");
     pChar += sprintf(pChar, "--------------------+------------------+------------+---------------------+-----------------+\n");
@@ -245,6 +247,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(truncate_prj);
     SHOW_PROFILER_PROBE_COUNT(truncate_prj_tmo);
     SHOW_PROFILER_PROBE_COUNT(truncate_prj_err);
+    
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
@@ -1080,11 +1083,13 @@ int main(int argc, char *argv[]) {
     sprintf(storcli_process_filename, "%s%s_%d_storcli_%d", DAEMON_PID_DIRECTORY, "rozofsmount",conf.rozofsmount_instance, conf.module_index);
 
     if ((ppfd = open(storcli_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
-        severe("can't open process file");
+        severe("can't open process file %s",strerror(errno));
     } else {
         char str[10];
         sprintf(str, "%d\n", getpid());
-        write(ppfd, str, strlen(str));
+        if (write(ppfd, str, strlen(str))<0) {
+          severe("can't write process file %s",strerror(errno));
+	}
         close(ppfd);
     }    
     
@@ -1101,7 +1106,24 @@ int main(int argc, char *argv[]) {
         sprintf(name, "storcli %d of rozofsmount %d", conf.module_index, conf.rozofsmount_instance);
         uma_dbg_set_name(name);
     }
+    /**
+    * init of the scheduler ring
+    */
+    ret  = stc_rng_init();
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error while initializing scheduler ring\n");
+        goto error;
+    }
 
+    /*
+    ** Initialize the disk thread interface and start the disk threads
+    */	
+    ret = rozofs_stcmoj_thread_intf_create(conf.host, conf.rozofsmount_instance,conf.module_index,
+                                           ROZOFS_MAX_DISK_THREADS,ROZOFS_MAX_DISK_THREADS ) ;
+    if (ret < 0) {
+      fatal("Mojette_disk_thread_intf_create");
+      return -1;
+    }
     /*
      ** Get the configuration from the export
      */

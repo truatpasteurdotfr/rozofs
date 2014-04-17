@@ -25,11 +25,13 @@
 #include <string.h>
  
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
-#include <rozofs/rpc/export_profiler.h>
+
 #include "cache.h"
 
 
+DECLARE_PROFILING(epp_profiler_t);
 
 /*
 **___________________________FILE LOCK SERVICE_____________________________
@@ -767,7 +769,7 @@ void lv2_cache_free_file_lock(rozofs_file_lock_t * lock) {
 
 
 
-
+#if 0
 
 
 /**
@@ -786,8 +788,10 @@ static inline int lv2_cmp(void *k1, void *k2) {
     return uuid_compare(k1, k2);
 }
 
-#define LV2_BUKETS 128
-#define LV2_MAX_ENTRIES 256
+#define LV2_BUKETS 1024
+#define LV2_MAX_ENTRIES (256*1024)
+
+#endif
 
 char * lv2_cache_display(lv2_cache_t *cache, char * pChar) {
 
@@ -802,6 +806,8 @@ char * lv2_cache_display(lv2_cache_t *cache, char * pChar) {
 		   (unsigned int)sizeof(lv2_entry_t)*cache->max); 
   return pChar;		   
 }
+
+#if 0
 static inline void lv2_cache_unlink(lv2_cache_t *cache,lv2_entry_t *entry) {
   file_lock_remove_fid_locks(&entry->file_lock);
   mattr_release(&entry->attributes);
@@ -974,3 +980,4 @@ void lv2_cache_del(lv2_cache_t *cache, fid_t fid) {
     }
     STOP_PROFILING(lv2_cache_del);
 }
+#endif

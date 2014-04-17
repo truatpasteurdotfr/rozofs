@@ -116,6 +116,7 @@ int dirent_bucket_cache_max_level0_collisions = 0; /**< max number of collision 
 int dirent_bucket_cache_max_level1_collisions = 0; /**< max number of collision at level 1  */
 
 int dirent_root_read_only = 0;
+void *dirent_cur_root_idx_bitmap_p;
 
 
 #if 1
@@ -662,46 +663,6 @@ int dirent_cache_bucket_remove_entry(dirent_cache_main_t *cache, fid_t fid, uint
 }
 
 
-/*
- **______________________________________________________________________________
- */
-
-/**
- *   Compute the hash values for the name and fid
-
- @param key1 : pointer to a string ended by \0
- @param key2 : pointer to a fid (16 bytes)
- @param hash2 : pointer to the second hash value that is returned
- @param len : pointer an array when the length of the filename will be returned (it includes \0)
-
- @retval primary hash value
- */
-static inline uint32_t filename_uuid_hash_fnv(uint32_t h, void *key1, void *key2, uint32_t *hash2, int *len) {
-
-    unsigned char *d = (unsigned char *) key1;
-    int i = 0;
-
-    if (h == 0) h = 2166136261U;
-    /*
-     ** hash on name
-     */
-    for (d = key1; *d != '\0'; d++, i++) {
-        h = (h * 16777619)^ *d;
-
-    }
-    *len = i;
-
-    *hash2 = h;
-    /*
-     ** hash on fid
-     */
-    d = (unsigned char *) key2;
-    for (d = key2; d != key2 + 16; d++) {
-        h = (h * 16777619)^ *d;
-
-    }
-    return h;
-}
 
 
 
@@ -800,15 +761,36 @@ int dirent_remove_root_entry_from_cache(fid_t fid, int root_idx) {
 /*
  ** Print the dirent cache bucket statistics
  */
-void dirent_cache_bucket_print_stats() {
-    printf("Level 0 cache state : %s\n", (dirent_bucket_cache_enable == 0) ? "Disabled" : "Enabled");
-    printf("Number of entries insert in level 0 cache %u\n", dirent_bucket_cache_append_counter);
-    printf("hit/miss %llu/%llu\n", (long long unsigned int) dirent_bucket_cache_hit_counter,
+char* dirent_cache_display(char *pChar) {
+    pChar+=sprintf(pChar,"Level 0 cache state            : %s\n", (dirent_bucket_cache_enable == 0) ? "Disabled" : "Enabled");
+    pChar+=sprintf(pChar,"Number of entries level 0      : %u\n", dirent_bucket_cache_append_counter);
+    pChar+=sprintf(pChar,"hit/miss                       : %llu/%llu\n", 
+            (long long unsigned int) dirent_bucket_cache_hit_counter,
             (long long unsigned int) dirent_bucket_cache_miss_counter);
-    printf("collisions cumul  level0/level1 %llu/%llu\n", (long long unsigned int) dirent_bucket_cache_collision_level0_counter,
-            (long long unsigned int) dirent_bucket_cache_collision_counter);
-    printf("collisions Max level0/level1 %u/%u\n", dirent_bucket_cache_max_level0_collisions, dirent_bucket_cache_max_level1_collisions);
+    pChar+=sprintf(pChar,"collisions cumul level0/level1 : %llu/%llu\n", 
+                  (long long unsigned int) dirent_bucket_cache_collision_level0_counter,
+                  (long long unsigned int) dirent_bucket_cache_collision_counter);
+    pChar+=sprintf(pChar,"LRU stats \n");
+    pChar+=sprintf(pChar,"global cpt (ok/err)            : %llu/%llu\n", 
+                  (long long unsigned int) dirent_bucket_cache_lru_counter_global,
+                  (long long unsigned int) dirent_bucket_cache_lru_global_error);
+    pChar+=sprintf(pChar,"coll cpt   (ok/err)            : %llu/%llu\n", 
+                  (long long unsigned int) dirent_bucket_cache_lru_counter_coll,
+                  (long long unsigned int) dirent_bucket_cache_lru_coll_error);
+    pChar+=sprintf(pChar,"collisions Max level0/level1   : %u/%u\n", 
+                   dirent_bucket_cache_max_level0_collisions, dirent_bucket_cache_max_level1_collisions);
+
+    return pChar;
 }
+
+void dirent_cache_bucket_print_stats()
+{
+   char buffer[1024];
+   dirent_cache_display(buffer);
+   printf("%s\n",buffer);
+
+}
+
 /*
  **______________________________________________________________________________
  */
@@ -850,7 +832,7 @@ int dirent_update_entry = 0;
  * @retval  0 on success
  * @retval -1 on failure
  */
-int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t type) {
+int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t type) {
 
     int root_idx = 0;
     int bucket_idx = 0;
@@ -870,6 +852,11 @@ int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_hash_ptr_t mdirents_hash_ptr;
     
     START_PROFILING(put_mdirentry);
+
+   /*
+   ** set the pointer to the root idx bitmap
+   */
+   dirent_set_root_idx_bitmap_ptr(root_idx_bitmap_p);
 
     /*
     ** Allow a priori to read and write on the root cache entry
@@ -946,10 +933,6 @@ int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
              ** We just need to update the fid and re-write the associated name entry array
              ** on disk
              */
-
-
-            /// XXX: BUG when reput a other size of name
-
             memcpy(name_entry_p->fid, fid, sizeof (fid_t));
             dirent_update_entry += 1;
             //          printf("FDL BUG : udpated : (len %d/%d) %s\n",len,strlen(name),name);
@@ -1173,7 +1156,7 @@ int fdl_root_idx = -1;
 int fdl_root_count = 0;
 #endif
 
-int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type) {
+int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type) {
     int root_idx = 0;
     int status = -1;
     int cached = 0;
@@ -1190,6 +1173,10 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     
     START_PROFILING(get_mdirentry);
 
+   /*
+   ** set the pointer to the root idx bitmap
+   */
+   dirent_set_root_idx_bitmap_ptr(root_idx_bitmap_p);
     /*
      ** dirfd is the file descriptor associated with the parent directory
      */
@@ -1229,8 +1216,19 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
      ** ok now it depends if the entry exist on not
      */
     if (root_entry_p == NULL) {
+        /*
+	** cleat the bit in the root_idx bitmap
+	*/
+        dirent_clear_root_idx_bit(root_idx);    
         goto out;
     }
+    /*
+    ** set the corresponding bit in the root_idx bitmap. The goal
+    ** is to fix an issue that can happen if the bitmap file was
+    ** not correctly updated on disk
+    */
+    dirent_set_root_idx_bit(root_idx);    
+
     /*
      ** Check if the entry has to be inserted in the cache
      */
@@ -1377,7 +1375,7 @@ static inline void dirent_dbg_check_cache_entry(fid_t fid_parent, int root_idx) 
 
 
 
-int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type) {
+int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type) {
     int root_idx = 0;
     int cached = 0;
     int status = -1;
@@ -1394,6 +1392,10 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
     mdirents_cache_entry_t *returned_prev_entry_p;
     
     START_PROFILING(del_mdirentry);
+   /*
+   ** set the pointer to the root idx bitmap
+   */
+   dirent_set_root_idx_bitmap_ptr(root_idx_bitmap_p);
     
     /*
     ** Allow a priori to read and write on the root cache entry
@@ -1532,9 +1534,21 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
              ** build the filename of the dirent file to read
              */
             path_p = dirent_build_filename(&cache_entry_p->header, pathname);
+	    if (cache_entry_p->header.level_index == 0) 
+	    {
+	       dirent_clear_root_idx_bit(cache_entry_p->header.dirent_idx[0]);    
+	    }
 #ifndef DIRENT_SKIP_DISK
             int flags = 0;
             int ret;
+	    /*
+	    ** before removing the file need to check the presence in the cache
+	    ** for that purpose we request a cache flush before removing the file
+	    */
+	    if (dirent_writeback_cache_enable != 0)
+	    {
+	      dirent_wbcache_check_flush_on_read(dirent_current_eid,(char *)path_p,cache_entry_p->header.dirent_idx[0]);
+	    }
             ret = unlinkat(dirfd, path_p, flags);
             if (ret < 0) {
                 DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path_p, strerror(errno), __LINE__);
@@ -1603,7 +1617,10 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t 
                  ** build the filename of the dirent file to read
                  */
                 path_p = dirent_build_filename(&root_entry_p->header, pathname);
-
+		if (root_entry_p->header.level_index == 0) 
+		{
+		   dirent_clear_root_idx_bit(root_entry_p->header.dirent_idx[0]);    
+		}
                 /*
                  ** now release the associated memory
                  */
@@ -1712,7 +1729,7 @@ typedef union _dirent_list_cookie_t {
     } s;
 } dirent_list_cookie_t;
 
-int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t *cookie, uint8_t * eof) {
+int list_mdirentries(void *root_idx_bitmap_p,int dir_fd, fid_t fid_parent, child_t ** children, uint64_t *cookie, uint8_t * eof) {
     int root_idx = 0;
     int cached = 0;
     child_t ** iterator;
@@ -1732,8 +1749,13 @@ int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t
     int chunk_u8_idx;
     uint8_t *coll_bitmap_p;
     int next_hash_entry_idx;
+    int root_idx_bit;
 
     START_PROFILING(list_mdirentries);
+   /*
+   ** set the pointer to the root idx bitmap
+   */
+   dirent_set_root_idx_bitmap_ptr(root_idx_bitmap_p);
 
     dirent_readdir_stats_call_count++;
     /*
@@ -1767,33 +1789,40 @@ int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children, uint64_t
 	   ** disk, the rigths may be downgraded to read only.
 	   */
 	   DIRENT_ROOT_SET_READ_WRITE();
-
-            /*
-             ** attempt to get the dirent root file from the cache
-             */
-            root_entry_p = dirent_get_root_entry_from_cache(fid_parent, root_idx);
-            if (root_entry_p == NULL) {
-                /*
-                 ** dirent file is not in the cache need to read it from disk
-                 */
-                dirent_hdr.type = MDIRENT_CACHE_FILE_TYPE;
-                dirent_hdr.level_index = 0;
-                dirent_hdr.dirent_idx[0] = root_idx;
-                dirent_hdr.dirent_idx[1] = 0;
-                root_entry_p = read_mdirents_file(dir_fd, &dirent_hdr);
-            } else {
-                /*
-                 ** found one, so process its content
-                 */
-                cached = 1;
-                break;
-            }
-            /*
-             ** ok now it depends if the entry exist on not
-             */
-            if (root_entry_p != NULL) {
-                break;
-            }
+	   
+	   /*
+	   ** check if the bit is asserted for the root_idx
+	   */
+	   root_idx_bit = dirent_check_root_idx_bit(root_idx);
+	   if (root_idx_bit == 1)
+	   {
+              /*
+               ** attempt to get the dirent root file from the cache
+               */
+              root_entry_p = dirent_get_root_entry_from_cache(fid_parent, root_idx);
+              if (root_entry_p == NULL) {
+                  /*
+                   ** dirent file is not in the cache need to read it from disk
+                   */
+                  dirent_hdr.type = MDIRENT_CACHE_FILE_TYPE;
+                  dirent_hdr.level_index = 0;
+                  dirent_hdr.dirent_idx[0] = root_idx;
+                  dirent_hdr.dirent_idx[1] = 0;
+                  root_entry_p = read_mdirents_file(dir_fd, &dirent_hdr);
+              } else {
+                  /*
+                   ** found one, so process its content
+                   */
+                  cached = 1;
+                  break;
+              }
+              /*
+               ** ok now it depends if the entry exist on not
+               */
+              if (root_entry_p != NULL) {
+                  break;
+              }
+	    }
             /*
              ** That root file does not exist-> need to check the next root_idx
              */

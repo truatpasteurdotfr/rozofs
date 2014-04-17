@@ -278,11 +278,14 @@ int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long pr
      af_inet_exportd_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_exportd_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
      
-     exportclt->export_lbg_id = north_lbg_create_af_inet("EXPORTD",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,lbg_size,&af_inet_exportd_conf);
+     exportclt->export_lbg_id = north_lbg_create_af_inet("METADATA",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,lbg_size,&af_inet_exportd_conf);
      if (exportclt->export_lbg_id >= 0)
      {
+       /*
+       ** the timer is started only to address the case of a dynamic port
+       */
        status = 0;
-       export_lbg_start_timer (exportclt);      
+       if (port_num == 0) export_lbg_start_timer (exportclt);      
        return status;    
      }
      severe("Cannot create Load Balancing Group for Exportd");
@@ -468,7 +471,7 @@ int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname,
   /*
   ** create the load balancing group
   */
-  if (expgw_export_lbg_initialize(&expgw_exportd_table[exportd_id],EXPORT_PROGRAM, EXPORT_VERSION, 0) != 0)
+  if (expgw_export_lbg_initialize(&expgw_exportd_table[exportd_id],EXPORT_PROGRAM, EXPORT_VERSION, port) != 0)
   {
     return -1;
   }
@@ -536,7 +539,7 @@ int expgw_add_export_gateway(uint16_t exportd_id, char *hostname,
   if ((Pgw->ipaddr != ipaddr) || (Pgw->port  != port)) config_change = 1;
   Pgw->ipaddr = ipaddr;
   Pgw->port   = port;  
-  
+#if 0 // not needed anymore since export gateway  are not used
   if (gateway_rank == expgw_exportd_table[exportd_id].gateway_rank)
   {
     /*
@@ -555,6 +558,7 @@ int expgw_add_export_gateway(uint16_t exportd_id, char *hostname,
     Pgw->entry_state = EXPGW_STATE_SYNCED;
     return 0;  
   }
+#endif
   /*
   ** in case of change : ip addr or port, we need to delete the previous
   ** lbg before creating a new one
@@ -713,6 +717,8 @@ int expgw_get_export_gateway_lbg(uint16_t eid,fid_t fid)
    mstor_get_slice_and_subslice(fid,&slice,&subslice);
    srv_rank = slice%expgw_exportd_table[exportd_id].nb_gateways;
    lbg_id = expgw_exportd_table[exportd_id].expgw_list[srv_rank].gateway_lbg_id ;
+//#warning there is not default route: only valid in presence of export gateway (#if 1 is set for test only)
+#if 1 // there is not default route: only valid in presence of export gateway
    if (lbg_id == -1)
    {
      return expgw_exportd_table[exportd_id].export_lbg_id;
@@ -724,6 +730,7 @@ int expgw_get_export_gateway_lbg(uint16_t eid,fid_t fid)
    {
      return expgw_exportd_table[exportd_id].export_lbg_id;   
    }
+#endif
    return lbg_id;
 }
 

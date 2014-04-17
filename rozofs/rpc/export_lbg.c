@@ -197,7 +197,10 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
      if (client->lbg_id >= 0)
      {
        status = 0;
-       export_lbg_start_timer (exportclt);      
+       /*
+       ** the timer is started only to address the case of a dynamic port
+       */
+       if (port_num == 0) export_lbg_start_timer (exportclt);      
        return status;    
      }
      severe("Cannot create Load Balancing Group for Exportd");

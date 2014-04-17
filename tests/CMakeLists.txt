@@ -148,62 +148,30 @@ add_executable(test_econfig
 )
 target_link_libraries(test_econfig ${CONFIG_LIBRARY})
 
-add_executable(test_mdirent
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_journal.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file_repair.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/writeback_cache.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_cache.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_search.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_insert.c
-    test_mdirent.c
-)
-target_link_libraries(test_mdirent ${UUID_LIBRARY})
 
-add_executable(test_export
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
-    ${CMAKE_SOURCE_DIR}/rozofs/common/htable.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/htable.c
-    ${CMAKE_SOURCE_DIR}/rozofs/common/list.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/mattr.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/mattr.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mproto.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoxdr.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoclt.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mclient.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/volume.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/volume.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/cache.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/cache.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/mreg.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mreg.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdir.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mslnk.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/mslnk.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdir.c
-    # New mdirent version
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_journal.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file_repair.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/writeback_cache.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_cache.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_search.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_insert.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/export.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/export.c
-    test_export.c
-)
-target_link_libraries(test_export ${UUID_LIBRARY} ${PTHREAD_LIBRARY})
+#add_executable(test_mdirent
+#    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_journal.h
+#    ${CMAKE_SOURCE_DIR}/src/exportd/mdirent.h
+#    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file_repair.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/writeback_cache.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_file.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_cache.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_search.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/dirent_insert.c
+#    test_mdirent.c
+#)
+#target_link_libraries(test_mdirent ${UUID_LIBRARY})
+
+
+#add_executable(export_tool
+#       ${CMAKE_SOURCE_DIR}//src/exportd/cache.c
+#       ${CMAKE_SOURCE_DIR}//src/exportd/exp_cache.c
+#       ${CMAKE_SOURCE_DIR}//src/exportd/exp_cache.h
+#    export_tool.c
+#)
+#target_link_libraries(export_tool rozofs ${CONFIG_LIBRARY} ${UUID_LIBRARY})
 
 
 add_executable(rw

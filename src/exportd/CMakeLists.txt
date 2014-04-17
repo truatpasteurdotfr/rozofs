@@ -41,9 +41,10 @@ add_executable(exportd
     dirent_enum2String_file_repair_cause_e.h
     cache.h
     cache.c
-
+    exp_cache.c
+    exp_cache.h
     export.h
-    export.c
+    export_tracking.c
     eproto.c
     monitor.h
     monitor.c
@@ -60,7 +61,30 @@ add_executable(exportd
     export_expgateway_conf.c
     export_expgateway_conf.h
     export_expgateway_sup.c
-    export_gwprotoclt.c   
+    export_gwprotoclt.c      
+    eproto_nb.c
+    eproto_nb.h    
+    export_north_intf.c     
+    export_share.c     
+    export_share.h     
+    eprotosvc_nb.c
+   xattr_acl.c
+   xattr_main.c
+   xattr_nocache.c
+   xattr_security.c
+   xattr_stub.c
+   xattr_system.c
+   xattr_trusted.c
+   xattr_user.c
+   acl.h
+   exp_cache.h
+   posix_acl_attr.h
+   rozofs_ext4.h
+   xattr.h
+   xattr_main.h
+   export_tracking_poll.c
+   dirent_writeback_cache.c
+   export_trash_reload.c
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -103,3 +127,4 @@ install(TARGETS exportd
 
 install(FILES export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
 install(FILES export.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
+install(FILES exports_starter.sh exports_killer.sh exports_reload.sh DESTINATION bin)

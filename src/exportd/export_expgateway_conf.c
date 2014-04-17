@@ -146,7 +146,7 @@ void export_expgw_conf_ctx_delete(int rank)
     ret = north_lbg_delete(p->gateway_lbg_id);
     if (ret < 0)
     {
-      severe("error on load bala,cing group deletion: %d ",p->gateway_lbg_id);
+      severe("error on load balancing group deletion: %d ",p->gateway_lbg_id);
     }
     p->gateway_lbg_id = -1;
     export_expgw_conf_ctx_init(p,rank); 

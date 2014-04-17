@@ -86,6 +86,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     /* Copy eid, layout, root fid */
     clt->eid = ret->status_gw.ep_mount_ret_t_u.export.eid;
     clt->layout = ret->status_gw.ep_mount_ret_t_u.export.rl;
+    clt->listen_port = ret->status_gw.ep_mount_ret_t_u.export.listen_port;
     memcpy(clt->rfid, ret->status_gw.ep_mount_ret_t_u.export.rfid, sizeof (fid_t));
 
     /* Initialize the list of physical storage nodes */

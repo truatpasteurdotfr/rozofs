@@ -20,6 +20,8 @@ set (librozofs_sources
     common/transform.c
     common/xmalloc.h
     common/xmalloc.c
+    common/exp_trck_inode_srv_v2.c
+    common/export_track.h
     rpc/eproto.h
     rpc/eprotoxdr.c
     rpc/eprotosvc.c

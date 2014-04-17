@@ -100,6 +100,7 @@ struct ep_storage_node_t {
 struct ep_export_t {
     uint32_t            hash_conf;
     uint32_t            eid;
+    uint32_t            listen_port;
     ep_md5_t            md5;
     ep_uuid_t           rfid;   /*root fid*/
     uint8_t             rl;     /* rozofs layout */

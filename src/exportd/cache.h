@@ -28,6 +28,7 @@
 #include "mreg.h"
 #include "mdir.h"
 #include "mslnk.h"
+#include "exp_cache.h"
 
 #define FILE_LOCK_POLL_DELAY_MAX  480
 
@@ -45,7 +46,9 @@ rozofs_file_lock_t * lv2_cache_allocate_file_lock(ep_lock_t * lock) ;
  *
  * lv2 cache is common to several exports to take care of max fd opened.
  */
-
+ 
+ 
+#if 0
 /** lv2 entry cached */
 typedef struct lv2_entry {
     mattr_t attributes; ///< attributes of this entry
@@ -125,7 +128,7 @@ lv2_entry_t *lv2_cache_get(lv2_cache_t *cache, fid_t fid);
  *
  */
 void lv2_cache_del(lv2_cache_t *cache, fid_t fid);
-
+#endif
 /** Format statistics information about the lv2 cache
  *
  *
@@ -136,6 +139,23 @@ void lv2_cache_del(lv2_cache_t *cache, fid_t fid);
  */
 char * lv2_cache_display(lv2_cache_t *cache, char * pChar) ;
 
+
+/*
+*___________________________________________________________________
+* lock service init 
+*
+* @param none
+*___________________________________________________________________
+*/
+void file_lock_service_init(void);
+/*
+*___________________________________________________________________
+* lock remove fid locks 
+*
+* @param lock_list: linked list of the locks
+*___________________________________________________________________
+*/
+void file_lock_remove_fid_locks(list_t * lock_list);
 /*
 *___________________________________________________________________
 * Remove all the locks of a client and then remove the client 

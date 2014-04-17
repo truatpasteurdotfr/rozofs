@@ -41,7 +41,7 @@ typedef enum {
 #define ROZOFS_TRC_NAME_MAX 32
 typedef struct _rozofs_trc_name_t
 {
-   char name[32];
+   char name[64];
 } rozofs_trc_name_t;
 
 typedef struct _rozofs_trc_io_t

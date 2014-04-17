@@ -20,6 +20,7 @@
 #define DIRENT_VERS1_H
 
 #include <string.h>
+#include <pthread.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -82,6 +83,9 @@
  */
 extern uint64_t malloc_size; /**< cumulative allocated bytes */
 extern uint32_t malloc_size_tb[]; /**< @ingroup DIRENT_MALLOC per memory block statistics */
+
+extern int dirent_current_eid;  /**< current eid: used by dirent writeback cache */
+
 /*
  *__________________________________________________
  */
@@ -317,86 +321,6 @@ static inline void dirent_cache_lookup_update_stats(uint32_t coll_cnt) {
 }
 
 #define DIRENT_CACHE_LOOKUP_UPDATE_STATS(coll_cnt) dirent_cache_lookup_update_stats(coll_cnt);
-
-/**
- *__________________________________________________
- *  API RELATED TO PREAD/PRWITE
- *__________________________________________________
- */
-
-/** @defgroup DIRENT_RW_DISK  Disk Read/write
- *  This module provides services related to disk read/write operations
- */
-
-extern uint64_t dirent_read_bytes_count; /**< @ingroup DIRENT_RW_DISK cumulative number of bytes read */
-extern uint64_t dirent_pread_count; /**< @ingroup DIRENT_RW_DISK cumaltive number of read requests  */
-extern uint64_t dirent_write_bytes_count; /**< @ingroup DIRENT_RW_DISK cumulative number of bytes written */
-extern uint64_t dirent_write_count; /**< @ingroup DIRENT_RW_DISK cumaltive number of write requests  */
-
-/**
- * @ingroup DIRENT_RW_DISK
- *  API for reading on disk: see pread() man for details
- */
-static inline ssize_t dirent_pread(int fd, void *buf, size_t count,
-        off_t offset) {
-    dirent_read_bytes_count += count;
-    dirent_pread_count++;
-#if DIRENT_NO_DISK
-    return count;
-#else
-    return pread(fd, buf, count, offset);
-#endif
-}
-
-#define DIRENT_PREAD dirent_pread  /**<@ingroup DIRENT_RW_DISK */
-/**
- * @ingroup DIRENT_RW_DISK
- *  API for reading on disk: see pwrite() man for details
- */
-static inline ssize_t dirent_pwrite(int fd, const void *buf, size_t count,
-        off_t offset) {
-    dirent_write_bytes_count += count;
-    dirent_write_count++;
-//  printf("FDL BUG dirent_pwrite count %d offset %d (%x) \n",(int)count,(int)offset,(unsigned int)offset);
-#if DIRENT_NO_DISK
-    return count;
-#else
-    return pwrite(fd, buf, count, offset);
-#endif
-}
-
-#define DIRENT_PWRITE dirent_pwrite  /**<@ingroup DIRENT_RW_DISK */
-
-/**
- @ingroup DIRENT_RW_DISK
- *
- *  clear the disk read/write statistics
- */
-static inline void dirent_disk_clear_stats() {
-
-    dirent_read_bytes_count = 0; /**< cumulative number of bytes read */
-    dirent_pread_count = 0; /**< cumaltive number of read requests  */
-    dirent_write_bytes_count = 0; /**< cumulative number of bytes written */
-    dirent_write_count = 0; /**< cumaltive number of write requests  */
-
-}
-
-/**
- @ingroup DIRENT_RW_DISK
-
- *  Print  disk read/write statistics
- */
-static inline void dirent_disk_print_stats() {
-    printf("File System usage statistics:\n");
-    printf("Total Read : memory %llu (%llu) requests %llu\n",
-            (long long unsigned int) dirent_read_bytes_count / 1000000,
-            (long long unsigned int) dirent_read_bytes_count,
-            (long long unsigned int) dirent_pread_count);
-    printf("Total Write: memory %llu (%llu) requests %llu\n\n",
-            (long long unsigned int) dirent_write_bytes_count / 1000000,
-            (long long unsigned int) dirent_write_bytes_count,
-            (long long unsigned int) dirent_write_count);
-}
 
 /**
  *_______________________________________________________________________________________
@@ -998,6 +922,51 @@ static inline int select_collision_index(void *pvAllocated, void *pvNotFull, int
 }
 
 #endif
+
+
+
+/*
+ **______________________________________________________________________________
+ */
+
+/**
+ *   Compute the hash values for the name and fid
+
+ @param key1 : pointer to a string ended by \0
+ @param key2 : pointer to a fid (16 bytes)
+ @param hash2 : pointer to the second hash value that is returned
+ @param len : pointer an array when the length of the filename will be returned (it includes \0)
+
+ @retval primary hash value
+ */
+static inline uint32_t filename_uuid_hash_fnv(uint32_t h, void *key1, void *key2, uint32_t *hash2, int *len) {
+
+    unsigned char *d = (unsigned char *) key1;
+    int i = 0;
+
+    if (h == 0) h = 2166136261U;
+    /*
+     ** hash on name
+     */
+    for (d = key1; *d != '\0'; d++, i++) {
+        h = (h * 16777619)^ *d;
+
+    }
+    *len = i;
+
+    *hash2 = h;
+    /*
+     ** hash on fid
+     */
+    d = (unsigned char *) key2;
+    for (d = key2; d != key2 + 16; d++) {
+        h = (h * 16777619)^ *d;
+
+    }
+    return h;
+}
+
+
 /** @ingroup DIRENT_BITMAP
  *  That function go throught the bitmap of free chunk by skipping allocated chunks
  it returns the next chunk to check or -1 if there is no more free chunk
@@ -3524,7 +3493,7 @@ int dirent_write_name_array_to_disk(int dirfd,
  * @retval  0 on success
  * @retval -1 on failure
  */
-int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid,
+int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid,
         uint32_t type);
 
 /*
@@ -3541,7 +3510,7 @@ int put_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid,
  * @retval  0 on success
  * @retval -1 on failure
  */
-int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid,
+int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid,
         uint32_t * type);
 
 /*
@@ -3558,7 +3527,7 @@ int get_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid,
  * @retval  0 on success
  * @retval -1 on failure
  */
-int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid,
+int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid,
         uint32_t * type);
 /*
  **______________________________________________________________________________
@@ -3574,7 +3543,7 @@ int del_mdirentry(int dirfd, fid_t fid_parent, char * name, fid_t fid,
  * @retval  0 on success
  * @retval -1 on failure
  */
-int list_mdirentries(int dir_fd, fid_t fid_parent, child_t ** children,
+int list_mdirentries(void *root_idx_bitmap_p,int dir_fd, fid_t fid_parent, child_t ** children,
         uint64_t *cookie, uint8_t * eof);
 
 /*
@@ -3835,4 +3804,425 @@ void dirent_file_repair_stats_clear();
  */
 void dirent_file_repair_stats_print();
 
+/*
+ **______________________________________________________________________________
+ 
+    DIRENT  WRITEBACK CACHE SECTION
+ **______________________________________________________________________________
+*/    
+
+#define DIRENT_CACHE_MAX_ENTRY   4096
+#define DIRENT_CACHE_MAX_CHUNK   16
+#define DIRENT_MAX_NAME 32
+#define DIRENT_WBCACHE_FD_MASK   0x4000000   /**< indicates that the fd comes from cache */
+
+typedef struct _dirent_chunk_cache_t
+{
+    uint32_t  wr_cpt;   /**< incremented on each write / clear when synced   */
+    uint32_t  size;     /**< size of the block */
+    off_t  off;         /**< offset of the chunk  */
+    char   *chunk_p;    /**< pointer to the chunk array  */
+}  dirent_chunk_cache_t;
+
+/**
+*  write back cache entry
+*/
+typedef struct _dirent_writeback_entry_t
+{
+     int fd;     /**< current fd: used as a key during the write  */
+     pthread_rwlock_t lock;  /**< entry lock  */
+     int dir_fd; /**< file descriptor of the directory          */
+     int state;  /**< O free: 1 busy*/
+     /*
+     ** identifier of the dirent file
+     */
+     fid_t     dir_fid;  /**< fid of the directory     */
+     uint16_t   eid;     /**< reference of the export  */
+     char       pathname[DIRENT_MAX_NAME]; /**< dirent file local pathname */
+     /*
+     **  pointer to the header of the dirent file (mdirents_file_t)
+     */
+     uint32_t  wr_cpt;   /**< incremented on each write / clear when synced   */
+     uint32_t  size;     /**< size of the block */
+     char *dirent_header;
+     dirent_chunk_cache_t  chunk[DIRENT_CACHE_MAX_CHUNK];
+} dirent_writeback_entry_t;
+
+
+/*
+** pointer to the dirent write back cache
+*/
+extern dirent_writeback_entry_t   *dirent_writeback_cache_p ;
+extern int dirent_writeback_cache_enable;
+extern int dirent_writeback_cache_initialized;
+extern uint64_t dirent_wbcache_hit_counter;
+extern uint64_t dirent_wbcache_miss_counter;
+extern uint64_t dirent_wb_cache_write_bytes_count;
+extern uint64_t dirent_wb_write_count;
+extern uint64_t dirent_wb_write_chunk_count;  /**< incremented each time a chunk need to be flushed for making some room */
+extern uint64_t dirent_wbcache_flush_counter;
+/**
+*____________________________________________________________
+*/
+static inline char *dirent_wbcache_display_stats(char *pChar) {
+    pChar+=sprintf(pChar,"WriteBack cache statistics:\n");
+    pChar+=sprintf(pChar,"state          :%s\n",(dirent_writeback_cache_enable==0)?"Disabled":"Enabled");
+    pChar+=sprintf(pChar,"NB entries     :%d\n",DIRENT_CACHE_MAX_ENTRY);
+    pChar+=sprintf(pChar,"hit/miss/flush : %llu/%llu/%llu\n",
+            (long long unsigned int) dirent_wbcache_hit_counter,
+            (long long unsigned int) dirent_wbcache_miss_counter,
+            (long long unsigned int) dirent_wbcache_flush_counter
+	    );
+    pChar+=sprintf(pChar,"total Write : memory %llu MBytes (%llu Bytes) requests %llu ejected chunks %llu\n\n",
+            (long long unsigned int) dirent_wb_cache_write_bytes_count / (1024*1024),
+            (long long unsigned int) dirent_wb_cache_write_bytes_count,
+            (long long unsigned int) dirent_wb_write_count,
+	    (long long unsigned int) dirent_wb_write_chunk_count);
+    return pChar;
+}
+
+void show_wbcache_thread(char * argv[], uint32_t tcpRef, void *bufRef);
+/**
+*____________________________________________________________
+*/
+/**
+*  create cache entry
+   
+  @param dir_fid : fid of the directory
+  @param fd : file descriptor 
+  @param eid : export identifier
+  @param pathname : local pathname of the dirent file
+  @param fd_dir : file descriptor of the directory 
+
+*/
+int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,int root_idx);
+/**
+*____________________________________________________________
+*/
+/**
+*  write the in the cache
+
+   @param fd : file descriptor
+   @param buf: buffer to write
+   @param count : length to write
+   @param offset: offset within the file
+   
+   @retval >= 0 : number of bytes written in the writeback cache
+   @retval < 0 : error see errno for details
+*/
+int dirent_wbcache_write(int fd,void *buf,size_t count,off_t offset);
+
+/**
+*____________________________________________________________
+*/
+/**
+*  check if the write back cache must be flushed on disk
+   
+  @param eid : export identifier
+  @param pathname : local pathname of the dirent file
+  @param root_idx : root index of the file (key)
+
+*/
+int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx);
+/**
+*____________________________________________________________
+*/
+/**
+*  close a file associated with a dirent writeback cache entry
+
+   @param fd : file descriptor
+   
+   @retval >= 0 : number of bytes written in the writeback cache
+   @retval < 0 : error see errno for details
+*/
+int dirent_wbcache_close(int fd);
+
+/**
+*____________________________________________________________
+*/
+/**
+* init of the write back cache
+
+  @retval 0 on success
+  @retval < 0 error (see errno for details)
+*/
+int dirent_wbcache_init();
+/**
+*____________________________________________________________
+*/
+/**
+*  writeback cache enable
+*/
+static inline void dirent_wbcache_enable()
+{
+  if (dirent_writeback_cache_initialized) dirent_writeback_cache_enable = 1;
+}
+/**
+*____________________________________________________________
+*/
+/**
+*  writeback cache enable
+*/
+static inline void dirent_wbcache_disable()
+{
+  dirent_writeback_cache_enable = 0;
+
+}
+/**
+ *__________________________________________________
+ *  API RELATED TO PREAD/PRWITE
+ *__________________________________________________
+ */
+
+/** @defgroup DIRENT_RW_DISK  Disk Read/write
+ *  This module provides services related to disk read/write operations
+ */
+
+extern uint64_t dirent_read_bytes_count; /**< @ingroup DIRENT_RW_DISK cumulative number of bytes read */
+extern uint64_t dirent_pread_count; /**< @ingroup DIRENT_RW_DISK cumaltive number of read requests  */
+extern uint64_t dirent_write_bytes_count; /**< @ingroup DIRENT_RW_DISK cumulative number of bytes written */
+extern uint64_t dirent_write_count; /**< @ingroup DIRENT_RW_DISK cumaltive number of write requests  */
+/**
+*____________________________________________________________
+*/
+/**
+ * @ingroup DIRENT_RW_DISK
+ *  API for reading on disk: see pread() man for details
+ */
+static inline ssize_t dirent_pread(int fd, void *buf, size_t count,
+        off_t offset) {
+    dirent_read_bytes_count += count;
+    dirent_pread_count++;
+#if DIRENT_NO_DISK
+    return count;
+#else
+    return pread(fd, buf, count, offset);
+#endif
+}
+
+#define DIRENT_PREAD dirent_pread  /**<@ingroup DIRENT_RW_DISK */
+/**
+*____________________________________________________________
+*/
+/**
+ * @ingroup DIRENT_RW_DISK
+ *  API for reading on disk: see pwrite() man for details
+ */
+static inline ssize_t dirent_pwrite(int fd, const void *buf, size_t count,
+        off_t offset) {
+
+//  printf("FDL BUG dirent_pwrite count %d offset %d (%x) \n",(int)count,(int)offset,(unsigned int)offset);
+#if DIRENT_NO_DISK
+    return count;
+#else
+    /*
+    ** check if the fd comes from the writeback cache
+    */
+    if (fd & DIRENT_WBCACHE_FD_MASK)
+    {
+      fd  = fd &(~DIRENT_WBCACHE_FD_MASK);
+
+//      severe("FDL %s[%d]=%d write offset %llu len %u",dirent_writeback_cache_p[fd].pathname,
+//              fd,dirent_writeback_cache_p[fd].fd,offset,count);
+      return dirent_wbcache_write(fd,(void*)buf, count, offset);
+    }
+    /*
+    ** no write back cache
+    */
+    dirent_write_bytes_count += count;
+    dirent_write_count++;
+    return pwrite(fd, buf, count, offset);
+#endif
+}
+
+#define DIRENT_PWRITE dirent_pwrite  /**<@ingroup DIRENT_RW_DISK */
+
+/**
+*____________________________________________________________
+*/
+/**
+ * @ingroup DIRENT_RW_DISK
+ *  API for opening a dirent file for writing
+ 
+   @param dirfd : file descriptor of the directory
+   @param pathname: pathname of the dirent file relative to the directory
+   @param flags : opening flags
+   @param mode :  mode
+   @param dir_fid : fid of the directory
+   
+ */
+static inline int dirent_openat(int dirfd, const char *pathname, int flags, mode_t mode,fid_t dir_fid,int root_idx)
+{
+  int fd;
+  if (dirent_writeback_cache_enable == 0)
+  {
+    fd = openat(dirfd, pathname,flags,mode);
+    return fd;
+  }
+  /*
+  ** write back cache is enable, so attempt to take one entry
+  */   
+  int fd_local = dirent_wbcache_open(dirfd,0,dirent_current_eid,(char*)pathname,dir_fid,root_idx);
+  if (fd_local < 0)
+  {
+    /*
+    ** writeback cache is full, so by-pass it
+    */
+    fd = openat(dirfd, pathname,flags,mode);
+    return fd;
+  }
+  /*
+  ** write back cache is used, assert the bit that indicates that the fd comes from the writeback cache
+  */
+  fd_local |= DIRENT_WBCACHE_FD_MASK;
+  return fd_local;
+}
+#define DIRENT_OPENAT dirent_openat
+
+
+/**
+*____________________________________________________________
+*/
+/**
+ * @ingroup DIRENT_RW_DISK
+ *  API for opening a dirent file for reading
+ 
+   @param dirfd : file descriptor of the directory
+   @param pathname: pathname of the dirent file relative to the directory
+   @param flags : opening flags
+   @param mode :  mode
+   @param dir_fid : fid of the directory
+   
+ */
+static inline int dirent_openat_read(int dirfd, const char *pathname, int flags, mode_t mode,int root_idx)
+{
+  int fd;
+  if (dirent_writeback_cache_enable != 0)
+  {
+    /*
+    ** check if the write back cachemust be flushed
+    */   
+    dirent_wbcache_check_flush_on_read(dirent_current_eid,(char *)pathname,root_idx);
+  }
+  fd = openat(dirfd, pathname,flags,mode);
+  return fd;
+}
+#define DIRENT_OPENAT_READ dirent_openat_read
+
+/**
+*____________________________________________________________
+*/
+/**
+ * @ingroup DIRENT_RW_DISK
+ *  API for closing a dirent file opened for writing
+ 
+   @param fd : file descriptor of the dirent file
+
+   
+ */
+static inline int dirent_close(int fd)
+{
+    /*
+    ** check if the fd comes from the writeback cache
+    */
+    if (fd& DIRENT_WBCACHE_FD_MASK)
+    {
+      fd  = fd &(~DIRENT_WBCACHE_FD_MASK);
+      return dirent_wbcache_close(fd);
+    }
+    /*
+    ** the write back cache was not used
+    */
+    return close(fd);      
+}
+#define DIRENT_CLOSE dirent_close
+
+
+
+
+
+/**
+ @ingroup DIRENT_RW_DISK
+ *
+ *  clear the disk read/write statistics
+ */
+static inline void dirent_disk_clear_stats() {
+
+    dirent_read_bytes_count = 0; /**< cumulative number of bytes read */
+    dirent_pread_count = 0; /**< cumaltive number of read requests  */
+    dirent_write_bytes_count = 0; /**< cumulative number of bytes written */
+    dirent_write_count = 0; /**< cumaltive number of write requests  */
+
+}
+
+/**
+ @ingroup DIRENT_RW_DISK
+
+ *  Print  disk read/write statistics
+ */
+static inline void dirent_disk_print_stats() {
+    printf("File System usage statistics:\n");
+    printf("Total Read : memory %llu (%llu) requests %llu\n",
+            (long long unsigned int) dirent_read_bytes_count / 1000000,
+            (long long unsigned int) dirent_read_bytes_count,
+            (long long unsigned int) dirent_pread_count);
+    printf("Total Write: memory %llu (%llu) requests %llu\n\n",
+            (long long unsigned int) dirent_write_bytes_count / 1000000,
+            (long long unsigned int) dirent_write_bytes_count,
+            (long long unsigned int) dirent_write_count);
+}
+
+static inline char *dirent_disk_display_stats(char *pChar) {
+    pChar+=sprintf(pChar,"File System usage statistics:\n");
+    pChar+=sprintf(pChar,"Total Read : memory %llu MBytes (%llu Bytes) requests %llu\n",
+            (long long unsigned int) dirent_read_bytes_count / (1024*1024),
+            (long long unsigned int) dirent_read_bytes_count,
+            (long long unsigned int) dirent_pread_count);
+    pChar+=sprintf(pChar,"Total Write: memory %llu MBytes (%llu Bytes) requests %llu\n\n",
+            (long long unsigned int) dirent_write_bytes_count / (1024*1024),
+            (long long unsigned int) dirent_write_bytes_count,
+            (long long unsigned int) dirent_write_count);
+    return pChar;
+}
+
+/*
+________________________________________________________________________
+
+*  BITMAP MANAGEMENT OF THE ROOT FILE INDEXES
+________________________________________________________________________
+*/
+/**
+*  set the pointer to the root_idx bitmap
+*/
+extern void *dirent_cur_root_idx_bitmap_p;
+
+static inline void dirent_set_root_idx_bitmap_ptr(void *root_idx_bitmap_p)
+{
+  dirent_cur_root_idx_bitmap_p = root_idx_bitmap_p;
+
+}
+void export_dir_update_root_idx_bitmap(void *ctx_p,int root_idx,int set);
+
+/**
+* clear the root_idx bit in the current directory
+*/
+static inline void dirent_clear_root_idx_bit(int root_idx)
+{
+   export_dir_update_root_idx_bitmap(dirent_cur_root_idx_bitmap_p,root_idx,0);
+}
+
+/**
+* set the root_idx bit in the current directory
+*/
+
+static inline void dirent_set_root_idx_bit(int root_idx)
+{
+   export_dir_update_root_idx_bitmap(dirent_cur_root_idx_bitmap_p,root_idx,1);
+}
+
+int export_dir_check_root_idx_bitmap_bit(void *ctx_p,int root_idx);
+static inline int dirent_check_root_idx_bit(int root_idx)
+{
+   return export_dir_check_root_idx_bitmap_bit(dirent_cur_root_idx_bitmap_p,root_idx);
+}
 #endif

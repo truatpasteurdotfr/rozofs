@@ -23,6 +23,8 @@
 #include <fcntl.h> 
 #include <sys/un.h>             
 #include <errno.h>  
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -30,20 +32,28 @@
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/af_unix_socket_generic.h>
-#include "expgw_export.h"
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/rozofs_socket_family.h>
 #include <rozofs/core/af_inet_stream_api.h>
- /**
+#include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/ruc_buffer_debug.h>
+#include <rozofs/core/rozofs_host2ip.h>
+
+#include "eprotosvc_nb.h"
+#include "export.h"
+#include "export_share.h"
+
+/**
 * Buffers information
 */
-int expgw_rozofs_read_write_buf_count= 0;   /**< number of buffer allocated for read/write on north interface */
-int expgw_rozofs_read_write_buf_sz= 0;      /**<read:write buffer size on north interface */
+int expnb_buf_count= 0;   /**< number of buffer allocated for read/write on north interface */
+int expnb_buf_sz= 0;      /**<read:write buffer size on north interface */
 
-void *expgw_rozofs_north_buffer_pool_p = NULL;  /**< reference of the read/write buffer pool */
+void *expnb_receive_buffer_pool_p = NULL;  /**< reference of the read/write buffer pool */
+void *expnb_xmit_buffer_pool_p = NULL;  /**< reference of the read/write buffer pool */
  
 
-
+extern void expnb_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf);
 
 /*
 **____________________________________________________
@@ -64,17 +74,26 @@ void *expgw_rozofs_north_buffer_pool_p = NULL;  /**< reference of the read/write
  @retval <>NULL pointer to a receive buffer
  @retval == NULL no buffer 
 */
-void * expgw_rozofs_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref,uint32_t len)
+void * expnb_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref,uint32_t len)
 {
+  /*
+  ** We need at least a response buffer
+  */
+  uint32_t free_count = ruc_buf_getFreeBufferCount(expnb_xmit_buffer_pool_p);  
+  if (free_count < 1)
+  {
+    return NULL;
+  }
+
 
    /*
    ** check if a small or a large buffer must be allocated
    */
-   if (len >  expgw_rozofs_read_write_buf_sz)
+   if (len >  expnb_buf_sz)
    {   
      return NULL;   
    }
-   return ruc_buf_getBuffer(expgw_rozofs_north_buffer_pool_p);      
+   return ruc_buf_getBuffer(expnb_receive_buffer_pool_p);      
 }
 
 /*
@@ -87,7 +106,12 @@ void * expgw_rozofs_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_cont
    The module is intended to return if the receiver is ready to receive a new message
    and FALSE otherwise
    
-   The application is ready to received if the north read/write buffer pool is not empty
+   The application is ready to received if there is still some rpc decoding context
+   in the decoded_rpc_buffer_pool pool.
+   The system cannot rely on the number TCP buffer since there are less TCP receive
+   buffers than number of TCP connection. So to avoid a potential deadlockk it is better
+   to rely on the number of rpc contexts that are allocated after the full reception of
+   a rpc message.
 
 
   @param socket_ctx_p: pointer to the af unix socket
@@ -96,12 +120,11 @@ void * expgw_rozofs_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_cont
   @retval : TRUE-> receiver ready
   @retval : FALSE-> receiver not ready
 */
-uint32_t expgw_rozofs_north_userRcvReadyCallBack(void * socket_ctx_p,int socketId)
+uint32_t expnb_north_userRcvReadyCallBack(void * socket_ctx_p,int socketId)
 {
-
-    uint32_t free_count = expgw_get_free_transaction_context();
+    uint32_t free_count = ruc_buf_getFreeBufferCount(decoded_rpc_buffer_pool);
     
-    if (free_count < EXPGW_CTX_MIN_CNT)
+    if (free_count < 1)
     {
       return FALSE;
     }
@@ -129,7 +152,7 @@ uint32_t expgw_rozofs_north_userRcvReadyCallBack(void * socket_ctx_p,int socketI
  
  @retval none
 */
-void  expgw_rozofs_north_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void *bufRef,int err_no)
+void  expnb_north_userDiscCallBack(void *userRef,uint32_t socket_context_ref,void *bufRef,int err_no)
 {
 
     /*
@@ -157,12 +180,12 @@ void  expgw_rozofs_north_userDiscCallBack(void *userRef,uint32_t socket_context_
 
   (1024*256), //        bufSize;         /* length of buffer (xmit and received)        */
   (300*1024), //        so_sendbufsize;  /* length of buffer (xmit and received)        */
-  expgw_rozofs_north_RcvAllocBufCallBack,  //    userRcvAllocBufCallBack; /* user callback for buffer allocation */
-  expgw_rozofs_req_rcv_cbk,           //    userRcvCallBack;   /* callback provided by the connection owner block */
-  expgw_rozofs_north_userDiscCallBack,   //    userDiscCallBack; /* callBack for TCP disconnection detection         */
+  expnb_north_RcvAllocBufCallBack,  //    userRcvAllocBufCallBack; /* user callback for buffer allocation */
+  expnb_req_rcv_cbk,           //    userRcvCallBack;   /* callback provided by the connection owner block */
+  expnb_north_userDiscCallBack,   //    userDiscCallBack; /* callBack for TCP disconnection detection         */
   NULL,   //userConnectCallBack;     /**< callback for client connection only         */
   NULL,  //    userXmitDoneCallBack; /**< optional call that must be set when the application when to be warned when packet has been sent */
-  expgw_rozofs_north_userRcvReadyCallBack,  //    userRcvReadyCallBack; /* NULL for default callback                     */
+  expnb_north_userRcvReadyCallBack,  //    userRcvReadyCallBack; /* NULL for default callback                     */
   NULL,  //    userXmitReadyCallBack; /* NULL for default callback                    */
   NULL,  //    userXmitEventCallBack; /* NULL for default callback                    */
   rozofs_tx_get_rpc_msg_len_cbk,        /* userHdrAnalyzerCallBack ->NULL by default, function that analyse the received header that returns the payload  length  */
@@ -174,16 +197,15 @@ void  expgw_rozofs_north_userDiscCallBack(void *userRef,uint32_t socket_context_
   NULL   //    *recvPool; /* user pool reference or -1 */
 }; 
 
+
 /*
 **____________________________________________________
 */
 /**
    
 
-  Creation of the north interface for rozofsmount (AF_INET)
-
-@param     : src_ipaddr_host : source IP address in host format
-@param     : src_port_host : port in host format
+  Creation of the north interface buffers (AF_INET)
+  
 @param     : read_write_buf_count : number of read/write buffer
 @param     : read_write_buf_sz : size of a read/write buffer
 
@@ -191,41 +213,84 @@ void  expgw_rozofs_north_userDiscCallBack(void *userRef,uint32_t socket_context_
 @retval          RUC_NOK : out of memory
 */
 
-int expgw_rozofs_north_interface_init(uint32_t src_ipaddr_host,uint16_t src_port_host,
-                             int read_write_buf_count,int read_write_buf_sz)
+int expnb_north_interface_buffer_init(int read_write_buf_count,int read_write_buf_sz)
 {
-   int ret = 0;
    
-
-    expgw_rozofs_read_write_buf_count  = read_write_buf_count;
-    expgw_rozofs_read_write_buf_sz     = read_write_buf_sz    ;
-    while(1)
-    {
-      /*
-      ** create the pool for receiving requests from rozofsmount
-      */
-      expgw_rozofs_north_buffer_pool_p = ruc_buf_poolCreate(expgw_rozofs_read_write_buf_count,
-                                                            expgw_rozofs_read_write_buf_sz);
-      if (expgw_rozofs_north_buffer_pool_p == NULL)
-      {
-         ret = -1;
-         severe( "ruc_buf_poolCreate(%d,%d)", expgw_rozofs_read_write_buf_count, expgw_rozofs_read_write_buf_sz ); 
-         break;
-      }
-      /*
-      ** create the listening af unix socket on the north interface
-      */
-      af_inet_rozofs_north_conf.rpc_recv_max_sz = expgw_rozofs_read_write_buf_sz;
-      ret =  af_inet_sock_listening_create("ROZOFSMOUNT",
-                                            src_ipaddr_host,src_port_host, 
-                                            &af_inet_rozofs_north_conf   
-                                            );
-
-      break; 
+    expnb_buf_count  = read_write_buf_count;
+    expnb_buf_sz     = read_write_buf_sz    ;
     
+    af_inet_rozofs_north_conf.rpc_recv_max_sz = expnb_buf_sz;
+    
+    /*
+    ** create the pool for receiving requests from rozofsmount
+    */
+    expnb_receive_buffer_pool_p = ruc_buf_poolCreate(expnb_buf_count, expnb_buf_sz);
+    if (expnb_receive_buffer_pool_p == NULL)
+    {
+       severe( "ruc_buf_poolCreate(%d,%d)", expnb_buf_count, expnb_buf_sz ); 
+       return -1;
     }
-    return ret;
+    ruc_buffer_debug_register_pool("Pool_meta_rcv",  expnb_receive_buffer_pool_p);
+
+    /*
+    ** create the pool for sending requests to rozofsmount
+    */
+    expnb_xmit_buffer_pool_p = ruc_buf_poolCreate(expnb_buf_count, expnb_buf_sz);
+    if (expnb_xmit_buffer_pool_p == NULL)
+    {
+       severe( "ruc_buf_poolCreate(%d,%d)", expnb_buf_count, expnb_buf_sz ); 
+       return -1;
+    }
+    ruc_buffer_debug_register_pool("Pool_meta_snd",  expnb_xmit_buffer_pool_p);
+
+    return 0;
 
 }
+/*
+**____________________________________________________
+*/
+/**
+   
+  Creation of the north interface listening socket (AF_INET) of the non-blocking exportd slave
+  
+  @param host : IP address in dot notation or hostname
+  @param port:    listening port value
 
+   @retval 0 succcess
+   @retval  < 0 error
+*/
+
+int expnb_north_interface_init(char *host,uint16_t port) {
+
+  int ret;
+  uint32_t ipaddr = INADDR_ANY;
+
+  /*
+  ** create the listening af unix sockets on the north interface
+  */ 
+  if (host != NULL)
+  {
+    ret = rozofs_host2ip(host,&ipaddr);
+    if (ret < 0)
+    {
+       fatal("Bad IP address : %s",host);
+       return -1;
+    } 
+  }
+  export_sharemem_set_listening_metadata_port(port);    
+  /*
+  ** Create the listening sockets
+  */ 
+  ret = af_inet_sock_listening_create("EXPNB",
+                                      ipaddr,
+				      port,
+				      &af_inet_rozofs_north_conf);
+  if (ret < 0) {
+    uint32_t ip = ipaddr;
+    fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
+            ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, port);
+    return -1;
+  }  
+  return 0;
+}
 

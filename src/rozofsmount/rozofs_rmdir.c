@@ -124,12 +124,14 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
    epgw_fid_ret_t ret ;
    fid_t fid;
    ientry_t *ie2 = 0;
+   ientry_t *pie = 0;
    struct rpc_msg  rpc_reply;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
    errno = 0;
    int trc_idx;
    fuse_ino_t parent;
+   mattr_t pattrs;
    
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
@@ -243,6 +245,10 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
         goto error;
     }
     memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (ep_uuid_t));
+    /*
+    ** get the parent attributes
+    */
+    memcpy(&pattrs, &ret.parent_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
     ** end of decoding section
@@ -251,6 +257,18 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
     if ((ie2 = get_ientry_by_fid(fid))) {
         ie2->nlookup--;
     }
+    /*
+    ** get the parent attributes
+    */
+    pie = get_ientry_by_fid(pattrs.fid);
+    if (pie != NULL)
+    {
+      memcpy(&pie->attrs,&pattrs, sizeof (mattr_t));
+      /**
+      *  update the timestamp in the ientry context
+      */
+      pie->timestamp = rozofs_get_ticker_us();
+    }   
     fuse_reply_err(req, 0);
     goto out;
 error:

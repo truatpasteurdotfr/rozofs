@@ -23,7 +23,11 @@
 #include <rozofs/rpc/rozofs_rpc_util.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
-
+#include <rozofs/core/ruc_buffer_debug.h>
+typedef struct _rozorpc_profiler_t
+{
+     uint64_t forward_reply[2];
+} rozorpc_profiler_t;
 
 
 rozorpc_srv_ctx_t *rozorpc_srv_ctx_freeListHead;  /**< head of list of the free context  */
@@ -35,7 +39,7 @@ rozorpc_srv_ctx_t *rozorpc_srv_ctx_pfirst;  /**< pointer to the first context of
 uint64_t  rozorpc_srv_global_object_index = 0;
 
 
-
+static DEFINE_PROFILING(rozorpc_profiler_t);
 
 uint64_t rozorpc_srv_stats[ROZORPC_SRV_COUNTER_MAX];
 
@@ -61,6 +65,14 @@ uint32_t rozorpc_srv_seqnum = 1;
 #define ROZORPC_SRV_DEBUG_TOPIC      "rpc_resources"
 static char    myBuf[UMA_DBG_MAX_SEND_SIZE];
 
+
+
+#define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-14s | %15llu | %9llu | %18llu |\n",\
+                    #probe,\
+                    (long long unsigned int)gprofiler.probe[P_COUNT],\
+                    (long long unsigned int)(gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0),\
+                    (long long unsigned int)gprofiler.probe[P_ELAPSE]);
+
 /*__________________________________________________________________________
   Trace level debug function
   ==========================================================================
@@ -82,6 +94,13 @@ void rozorpc_srv_debug_show(uint32_t tcpRef, void *bufRef) {
   pChar += sprintf(pChar,"NO_CTX_ERROR   : %10llu\n",(unsigned long long int)rozorpc_srv_stats[ROZORPC_SRV_NO_CTX_ERROR]);  
   pChar += sprintf(pChar,"NO_BUFFER_ERROR: %10llu\n",(unsigned long long int)rozorpc_srv_stats[ROZORPC_SRV_NO_BUFFER_ERROR]);  
   pChar += sprintf(pChar,"\n");
+  pChar += sprintf(pChar, "   procedure    |     count       |  time(us) | cumulated time(us) |\n");
+  pChar += sprintf(pChar, "----------------+-----------------+-----------+--------------------+\n");
+  SHOW_PROFILER_PROBE(forward_reply);
+  gprofiler.forward_reply[0] = 0;
+  gprofiler.forward_reply[1] = 0;
+  pChar += sprintf(pChar,"\n");
+
   pChar += sprintf(pChar,"Buffer Pool (name[size] :initial/current\n");
   pChar += sprintf(pChar,"North interface Buffers            \n");  
   pChar += sprintf(pChar,"  small[%6d]  : %6d/%d\n",rozorpc_srv_north_small_buf_sz,rozorpc_srv_north_small_buf_count,
@@ -493,6 +512,8 @@ void rozorpc_srv_forward_reply (rozorpc_srv_ctx_t *p,char * arg_ret)
    XDR xdrs;
    int len;
 
+   START_PROFILING(forward_reply);
+   
    if (p->xmitBuf == NULL)
    {
       ROZORPC_SRV_STATS(ROZORPC_SRV_NO_BUFFER_ERROR);
@@ -526,6 +547,7 @@ void rozorpc_srv_forward_reply (rozorpc_srv_ctx_t *p,char * arg_ret)
     total_len +=sizeof(uint32_t);
     ruc_buf_setPayloadLen(p->xmitBuf,total_len);
 
+
     /*
     ** Get the callback for sending back the response:
     ** A callback is needed since the request for read might be local or remote
@@ -545,6 +567,7 @@ void rozorpc_srv_forward_reply (rozorpc_srv_ctx_t *p,char * arg_ret)
       ROZORPC_SRV_STATS(ROZORPC_SRV_SEND_ERROR);
     }
 error:
+    STOP_PROFILING(forward_reply);
     return;
 }
 
@@ -568,6 +591,7 @@ uint32_t rozorpc_srv_module_init()
    ruc_obj_desc_t *pnext;
    uint32_t ret = RUC_OK;
    
+    memset(&gprofiler,0,sizeof(gprofiler));
 
     rozorpc_srv_north_small_buf_count  = ROZORPC_SRV_NORTH_MOD_INTERNAL_READ_BUF_CNT ;
     rozorpc_srv_north_small_buf_sz     = ROZORPC_SRV_NORTH_MOD_INTERNAL_READ_BUF_SZ    ;
@@ -643,6 +667,8 @@ uint32_t rozorpc_srv_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", rozorpc_srv_north_small_buf_count, rozorpc_srv_north_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("rpc_rcv_small",  rozorpc_srv_pool[_ROZORPC_SRV_NORTH_SMALL_POOL]);
+
       rozorpc_srv_pool[_ROZORPC_SRV_NORTH_LARGE_POOL] = ruc_buf_poolCreate(rozorpc_srv_north_large_buf_count,rozorpc_srv_north_large_buf_sz);
       if (rozorpc_srv_pool[_ROZORPC_SRV_NORTH_LARGE_POOL] == NULL)
       {
@@ -650,6 +676,8 @@ uint32_t rozorpc_srv_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", rozorpc_srv_north_large_buf_count, rozorpc_srv_north_large_buf_sz ); 
 	 break;
      }
+     ruc_buffer_debug_register_pool("rpc_rcv_large",  rozorpc_srv_pool[_ROZORPC_SRV_NORTH_LARGE_POOL]);
+
       rozorpc_srv_pool[_ROZORPC_SRV_SOUTH_SMALL_POOL]= ruc_buf_poolCreate(rozorpc_srv_south_small_buf_count,rozorpc_srv_south_small_buf_sz);
       if (rozorpc_srv_pool[_ROZORPC_SRV_SOUTH_SMALL_POOL] == NULL)
       {
@@ -657,6 +685,8 @@ uint32_t rozorpc_srv_module_init()
          severe( "xmit ruc_buf_poolCreate(%d,%d)", rozorpc_srv_south_small_buf_count, rozorpc_srv_south_small_buf_sz ); 
          break;
       }
+      ruc_buffer_debug_register_pool("rpc_xmit_small",  rozorpc_srv_pool[_ROZORPC_SRV_SOUTH_SMALL_POOL]);
+
       rozorpc_srv_pool[_ROZORPC_SRV_SOUTH_LARGE_POOL] = ruc_buf_poolCreate(rozorpc_srv_south_large_buf_count,rozorpc_srv_south_large_buf_sz);
       if (rozorpc_srv_pool[_ROZORPC_SRV_SOUTH_LARGE_POOL] == NULL)
       {
@@ -664,6 +694,8 @@ uint32_t rozorpc_srv_module_init()
          severe( "rcv ruc_buf_poolCreate(%d,%d)", rozorpc_srv_south_large_buf_count, rozorpc_srv_south_large_buf_sz ); 
 	 break;
       }
+      ruc_buffer_debug_register_pool("rpc_xmit_large",  rozorpc_srv_pool[_ROZORPC_SRV_SOUTH_LARGE_POOL]);
+
    break;
    }
    return ret;

@@ -233,6 +233,17 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
     RUC_WARNING(errno);
    return -1;
   }
+  /*
+  ** set a new size for emission and
+  ** reception socket's buffer
+  */
+  ret=setsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&fdsize,sizeof(int));
+  if(ret<0)
+  {
+    RUC_WARNING(errno);
+   return -1;
+  }
+
 #if 1
   int UMA_TCP_NODELAY = 1;
   if (setsockopt (fd,IPPROTO_TCP,

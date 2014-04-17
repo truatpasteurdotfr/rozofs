@@ -36,7 +36,7 @@ int mdir_open(mdir_t *mdir, const char *path) {
 
     START_PROFILING(mdir_open);
 
-    if ((mdir->fdp = open(path, O_RDONLY | O_NOATIME, S_IRWXU)) < 0) {
+    if ((mdir->fdp = open(path, O_RDONLY  | O_NOATIME, S_IRWXU)) < 0) {
         goto out;
     }
 

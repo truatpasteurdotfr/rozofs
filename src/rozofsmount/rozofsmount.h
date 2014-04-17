@@ -70,6 +70,7 @@ typedef struct rozofsmnt_conf {
     unsigned bsd_file_lock;  
     unsigned max_write_pending ; /**< Maximum number pending write */
     unsigned quota; /* ignored */    
+    unsigned noXattr;
 } rozofsmnt_conf_t;
 
 typedef struct dirbuf {
@@ -109,6 +110,13 @@ typedef struct ientry {
 ** About exportd id quota
 */
 extern uint64_t eid_free_quota;
+extern int rozofs_xattr_disable; /**< assert to one to disable xattr for the exported file system */
+/*
+** write alignment statistics
+*/
+extern uint64_t    rozofs_aligned_write_start[2];
+extern uint64_t    rozofs_aligned_write_end[2];
+
 /**______________________________________________________________________________
 */
 /**
@@ -163,7 +171,9 @@ static inline uint32_t fuse_ino_hash(void *n) {
 }
 
 static inline int fuse_ino_cmp(void *v1, void *v2) {
-    return (*(fuse_ino_t *) v1 - *(fuse_ino_t *) v2);
+      return memcmp(v1, v2, sizeof (fuse_ino_t));
+//    return (*(fuse_ino_t *) v1 - *(fuse_ino_t *) v2);
+
 }
 
 static inline int fid_cmp(void *key1, void *key2) {
@@ -192,7 +202,7 @@ static inline void ientries_release() {
 }
 
 static inline void put_ientry(ientry_t * ie) {
-    DEBUG("put inode: %lu\n", ie->inode);
+    DEBUG("put inode: %llx\n",(unsigned long long int)ie->inode);
     rozofs_ientries_count++;
     htable_put(&htable_inode, &ie->inode, ie);
     htable_put(&htable_fid, ie->fid, ie);
@@ -200,7 +210,7 @@ static inline void put_ientry(ientry_t * ie) {
 }
 
 static inline void del_ientry(ientry_t * ie) {
-    DEBUG("del inode: %lu\n", ie->inode);
+    DEBUG("del inode: %llx\n",(unsigned long long int) ie->inode);
     rozofs_ientries_count--;
     htable_del(&htable_inode, &ie->inode);
     htable_del(&htable_fid, ie->fid);
@@ -217,10 +227,13 @@ static inline ientry_t *get_ientry_by_fid(fid_t fid) {
 
 static inline ientry_t *alloc_ientry(fid_t fid) {
 	ientry_t *ie;
+	rozofs_inode_t *inode_p ;
+	
+	inode_p = (rozofs_inode_t*) fid;
 
 	ie = xmalloc(sizeof(ientry_t));
 	memcpy(ie->fid, fid, sizeof(fid_t));
-	ie->inode = fid_hash(fid);
+	ie->inode = inode_p->fid[1]; //fid_hash(fid);
 	list_init(&ie->list);
 	ie->db.size = 0;
 	ie->db.eof = 0;

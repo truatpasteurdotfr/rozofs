@@ -150,6 +150,7 @@ extern uint8_t      rozofs_storcli_prj_idx_table[];
  * @param number_of_blocks: number of blocks to write
  * @param *data: pointer to the source data that must be transformed
    @param *number_of_blocks_p: pointer to the array where the function returns number of blocks on which the transform was applied
+   @param *rozofs_storcli_prj_idx_table: pointer to the array used for storing the projections index for inverse process
  *
  * @return: the length written on success, -1 otherwise (errno is set)
  */
@@ -159,7 +160,8 @@ extern uint8_t      rozofs_storcli_prj_idx_table[];
                                        uint32_t number_of_blocks, 
                                        rozofs_storcli_inverse_block_t *block_ctx_p,
                                        char *data,
-                                       uint32_t *number_of_blocks_p);
+                                       uint32_t *number_of_blocks_p,
+				       uint8_t  *rozofs_storcli_prj_idx_table);
 
                  
                                        
@@ -245,5 +247,28 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
 */     
 int  rozofs_storcli_transform_get_read_len_in_bytes(rozofs_storcli_inverse_block_t *inverse_res_p, 
                                                     uint32_t number_of_blocks_read,uint8_t *eof_p);
-                                                    
+ 
+ 
+ /*
+**__________________________________________________________________________
+*/
+/**
+*  that procedure check if the received projections permit to rebuild
+   the initial message
+
+  @param *prj_ctx_p: pointer to the working array of the projection
+  @param first_block_idx: index of the first block to transform
+  @param number_of_blocks: number of blocks to write
+  @param *number_of_blocks_p: pointer to the array where the function returns number of blocks on which the transform was applied
+  @param *rozofs_storcli_prj_idx_table: pointer to the array used for storing the projections index for inverse process
+ 
+  @return: the length written on success, -1 otherwise (errno is set)
+*/
+ int rozofs_storcli_transform_inverse_check_for_thread(rozofs_storcli_projection_ctx_t *prj_ctx_p,  
+                                       uint8_t layout,
+                                       uint32_t first_block_idx, 
+                                       uint32_t number_of_blocks, 
+                                       rozofs_storcli_inverse_block_t *block_ctx_p,
+                                       uint32_t *number_of_blocks_p,
+				       uint8_t  *rozofs_storcli_prj_idx_table) ;                                                   
 #endif

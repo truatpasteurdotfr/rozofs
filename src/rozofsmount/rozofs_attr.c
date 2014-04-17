@@ -86,8 +86,10 @@ DECLARE_PROFILING(mpp_profiler_t);
 //    severe("FDL ie %llu cur_time %llu %s %u",ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000,rozofs_get_ticker_us(),
 //     ((ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000) > rozofs_get_ticker_us())?"Match":"no Match",
 //     rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000);
-    if (((rozofs_mode == 1) || ((ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000) > rozofs_get_ticker_us()))
-         &&(S_ISREG(ie->attrs.mode))) 
+    if ((rozofs_mode == 1) || 
+         (((ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000) > rozofs_get_ticker_us())&&(S_ISREG(ie->attrs.mode))) ||
+	 (((ie->timestamp+500) > rozofs_get_ticker_us())&&(S_ISDIR(ie->attrs.mode)))
+	 ) 
     {
       mattr_to_stat(&ie->attrs, &stbuf);
       stbuf.st_ino = ino; 

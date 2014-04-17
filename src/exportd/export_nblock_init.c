@@ -56,16 +56,23 @@
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_debug_ports.h>
-
+#include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include "export.h"
 #include "export_expgateway_conf.h"
+#include "export_north_intf.h"
+#include "export_share.h"
+#include "mdirent.h"
 
 DECLARE_PROFILING(epp_profiler_t);
 
 int short_display = 0;
+
+
+void * decoded_rpc_buffer_pool = NULL;
 
 /*
 **_________________________________________________________________________
@@ -256,6 +263,21 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
   short_display = 1;
   show_profiler(argv, tcpRef, bufRef);
   short_display = 0;  
+}
+/*
+*_______________________________________________________________________
+*/
+/**
+* dirent cache
+*/
+char *dirent_cache_display(char *pChar);
+
+void show_dirent_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = uma_dbg_get_buffer();
+    pChar = dirent_cache_display(pChar);
+    pChar = dirent_disk_display_stats(pChar);
+    pChar = dirent_wbcache_display_stats(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
 }
 /*
 *_______________________________________________________________________
@@ -487,8 +509,8 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance) {
    ** initialize the socket controller:
    **   for: NPS, Timer, Debug, etc...
    */
-//#warning set the number of contexts for socketCtrl to 256
-   ret = ruc_sockctl_init(256);
+//#warning set the number of contexts for socketCtrl to 1024
+   ret = ruc_sockctl_init(1024);
    if (ret != RUC_OK)
    {
      fatal( " socket controller init failed" );
@@ -540,8 +562,8 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance) {
      **  
      */    
      ret = af_unix_module_init(mx_af_unix_ctx,
-                               32,1024*32, // xmit(count,size)
-                               32,1024*32 // recv(count,size)
+                               2,1024*1, // xmit(count,size)
+                               2,1024*1 // recv(count,size)
                                );
      if (ret != RUC_OK) break;   
 
@@ -560,6 +582,12 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance) {
      
      ret = rozofs_rpc_module_init();
      if (ret != RUC_OK) break;   
+
+     /*
+     ** RPC SERVER MODULE INIT
+     */
+     ret = rozorpc_srv_module_init();
+     if (ret != RUC_OK) break; 
      /*
      ** Init of the module that handles the configuration channel with main process of exportd
      */
@@ -592,7 +620,14 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance) {
 
     {
         char name[32];
-        sprintf(name, "exportd %d ",  exportd_instance);
+	if (exportd_is_master())
+	{
+          sprintf(name, "exportd-M");
+	}
+	else
+	{
+          sprintf(name, "exportd-S%d ",  exportd_instance);	
+	}
         uma_dbg_set_name(name);
     }
 
@@ -645,9 +680,15 @@ int expgwc_start_nb_blocking_th(void *args) {
 
 
     int ret;
+    int size;
     //sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
     exportd_start_conf_param_t *args_p = (exportd_start_conf_param_t*)args;
-
+ 
+    /*
+    ** set the uptime
+    */
+    gprofiler.uptime = time(0);
+    
     ret = expgwc_non_blocking_init(args_p->debug_port, args_p->instance);
     if (ret != RUC_OK) {
         /*
@@ -657,17 +698,92 @@ int expgwc_start_nb_blocking_th(void *args) {
         return -1;
     }
     /*
+    ** create the shared memory for exportd slaves
+    */
+
+    export_sharemem_create_or_attach(args_p);
+    /*
+    ** Create a buffer pool to decode spproto RPC requests
+    */
+    union {
+	    ep_path_t ep_mount_1_arg;
+	    uint32_t ep_umount_1_arg;
+	    uint32_t ep_statfs_1_arg;
+	    epgw_lookup_arg_t ep_lookup_1_arg;
+	    epgw_mfile_arg_t ep_getattr_1_arg;
+	    epgw_setattr_arg_t ep_setattr_1_arg;
+	    epgw_mfile_arg_t ep_readlink_1_arg;
+	    epgw_mknod_arg_t ep_mknod_1_arg;
+	    epgw_mkdir_arg_t ep_mkdir_1_arg;
+	    epgw_unlink_arg_t ep_unlink_1_arg;
+	    epgw_rmdir_arg_t ep_rmdir_1_arg;
+	    epgw_symlink_arg_t ep_symlink_1_arg;
+	    epgw_rename_arg_t ep_rename_1_arg;
+	    epgw_readdir_arg_t ep_readdir_1_arg;
+	    epgw_io_arg_t ep_read_block_1_arg;
+	    epgw_write_block_arg_t ep_write_block_1_arg;
+	    epgw_link_arg_t ep_link_1_arg;
+	    epgw_setxattr_arg_t ep_setxattr_1_arg;
+	    epgw_getxattr_arg_t ep_getxattr_1_arg;
+	    epgw_removexattr_arg_t ep_removexattr_1_arg;
+	    epgw_listxattr_arg_t ep_listxattr_1_arg;
+	    uint16_t ep_list_cluster_1_arg;
+	    ep_path_t ep_conf_storage_1_arg;
+	    ep_gateway_t ep_poll_conf_1_arg;
+	    ep_path_t ep_conf_expgw_1_arg;
+	    epgw_lock_arg_t ep_set_file_lock_1_arg;
+	    epgw_lock_arg_t ep_get_file_lock_1_arg;
+	    epgw_lock_arg_t ep_clear_owner_file_lock_1_arg;
+	    epgw_lock_arg_t ep_clear_client_file_lock_1_arg;
+	    epgw_lock_arg_t ep_poll_file_lock_1_arg;
+    } argument;
+    size = sizeof(argument);
+    decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
+    if (decoded_rpc_buffer_pool == NULL) {
+      fatal("Can not allocate decoded_rpc_buffer_pool");
+      return -1;
+    }
+    ruc_buffer_debug_register_pool("rpcDecodedRequest",decoded_rpc_buffer_pool);    
+
+    /*
+    ** Init of the north interface (read/write request processing)
+    */ 
+    ret = expnb_north_interface_buffer_init(EXPNB_BUF_RECV_CNT, EXPNB_BUF_RECV_SZ);
+    if (ret < 0) {
+      fatal("Fatal error on storio_north_interface_buffer_init()\n");
+      return -1;
+    }
+    ret = expnb_north_interface_init(args_p->exportd_hostname,EXPNB_SLAVE_PORT+args_p->instance);
+    if (ret < 0) {
+      fatal("Fatal error on expnb_north_interface_init()\n");
+      return -1;
+    }
+    /*
     ** add profiler subject (exportd statistics)
     */
     uma_dbg_addTopic("profiler", show_profiler);
-//    uma_dbg_addTopic("profiler_conf", show_profiler_conf);
+    uma_dbg_addTopic("profiler_conf", show_profiler_conf);
     uma_dbg_addTopic("profiler_short", show_profiler_short);
-    uma_dbg_addTopic("vfstat", show_vfstat);
-    uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
-    uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
-    uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
+    /*
+    ** dirent cache stats
+    */
+    uma_dbg_addTopic("dirent_cache",show_dirent_cache);
+    uma_dbg_addTopic("dirent_wbthread",show_wbcache_thread);
+    /*
+    ** do not provide volume stats for the case of the slaves
+    */
+    if (args_p->slave == 0)
+    {
+      uma_dbg_addTopic("vfstat", show_vfstat);
+      uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
+      uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
+      uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
+      uma_dbg_addTopic("exp_slave", show_export_slave);
+    }
     uma_dbg_addTopic("lv2_cache",show_lv2_attribute_cache);
-    uma_dbg_addTopic("flock",    show_flock);
+    uma_dbg_addTopic("flock",    show_flock);    
+    uma_dbg_addTopic("trk_thread", show_tracking_thread);
+    
     expgwc_non_blocking_thread_started = 1;
     
     info("exportd non-blocking thread started (instance: %d, port: %d).",
@@ -675,6 +791,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     /*
      ** main loop
      */
+    export_sharemem_change_state("running");
     while (1) {
         ruc_sockCtrl_selectWait();
     }

@@ -89,5 +89,11 @@ static inline void ruc_sockCtrl_attach_applicative_poller(ruc_scheduler_t callba
    ruc_applicative_poller = callback;
 }
 
+/**
+* clear the associated fd bit in the fdset
+
+  @param int fd : file descriptor to clear
+*/
+void ruc_sockCtrl_clear_rcv_bit(int fd);
 
 #endif

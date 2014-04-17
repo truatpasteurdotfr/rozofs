@@ -34,7 +34,8 @@ uint64_t  rozofs_storcli_global_object_index = 0;
 
 uint64_t storcli_hash_lookup_hit_count = 0;
 uint32_t storcli_serialization_forced = 0;     /**< assert to 1 to force serialisation for all request whitout taking care of the fid */
-
+uint64_t storcli_buf_depletion_count = 0; /**< buffer depletion on storcli buffers */
+uint64_t storcli_rng_full_count = 0; /**< ring request full counter */
 /*
 ** Table should probably be allocated 
 ** with a length depending on the number of entry given at nfs_lbg_cache_ctx_init
@@ -76,8 +77,15 @@ void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
 
   pChar += sprintf(pChar,"number of transaction contexts (initial/allocated) : %u/%u\n",rozofs_storcli_ctx_count,rozofs_storcli_ctx_allocated);
   pChar += sprintf(pChar,"Statistics\n");
-  pChar += sprintf(pChar,"req serialized : %10llu\n",(unsigned long long int)storcli_hash_lookup_hit_count);  
-  pChar += sprintf(pChar,"serialize mode : %s\n",(storcli_serialization_forced==0)?"NORMAL":"FORCED");  
+//  pChar += sprintf(pChar,"req serialized : %10llu\n",(unsigned long long int)storcli_hash_lookup_hit_count);
+//  pChar += sprintf(pChar,"serialize mode : %s\n",(storcli_serialization_forced==0)?"NORMAL":"FORCED");
+  pChar += sprintf(pChar,"serialize mode : %s\n",(stc_rng_serialize==0)?"NORMAL":"FORCED");
+  pChar += sprintf(pChar,"req submit/coll: %10llu/%llu\n",
+                   (unsigned long long int)stc_rng_submit_count,
+                   (unsigned long long int)stc_rng_collision_count);
+  pChar += sprintf(pChar,"FID in parallel: %10llu\n",(unsigned long long int)stc_rng_parallel_count);
+  pChar += sprintf(pChar,"buf. depletion : %10llu\n",(unsigned long long int)storcli_buf_depletion_count);
+  pChar += sprintf(pChar,"ring full      : %10llu\n",(unsigned long long int)storcli_rng_full_count);
   pChar += sprintf(pChar,"SEND           : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_SEND]);  
   pChar += sprintf(pChar,"SEND_ERR       : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_SEND_ERROR]);  
   pChar += sprintf(pChar,"RECV_OK        : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_RECV_OK]);  
@@ -103,6 +111,22 @@ void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
   else printf("%s",uma_dbg_get_buffer());
 
 }
+
+/*__________________________________________________________________________
+  Trace level debug function
+  ==========================================================================
+  PARAMETERS:
+  -
+  RETURN: none
+  ==========================================================================*/
+static char * rozofs_storcli_debug_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"storcli_buf             : display statistics\n");
+  pChar += sprintf(pChar,"storcli_buf serialize   : serialize the requests for the same FID \n");
+  pChar += sprintf(pChar,"storcli_buf parallel    : process in parallel the requests for the same FID \n");
+  return pChar;
+}
+
 /*__________________________________________________________________________
   Trace level debug function
   ==========================================================================
@@ -111,6 +135,40 @@ void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
   RETURN: none
   ==========================================================================*/
 void rozofs_storcli_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = uma_dbg_get_buffer();
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"serialize")==0) {
+        stc_rng_serialize = 1;
+        uma_dbg_send(tcpRef, bufRef, TRUE, "requests are serialized\n");
+        return;
+
+      }
+      if (strcmp(argv[1],"parallel")==0) {
+        stc_rng_serialize = 0;
+        uma_dbg_send(tcpRef, bufRef, TRUE, "requests are processed in parallel\n");
+        return;
+
+      }
+      if (strcmp(argv[1],"reset")==0) {
+        stc_rng_submit_count = 0;
+        stc_rng_parallel_count = 0;
+        stc_rng_collision_count = 0;
+        storcli_rng_full_count = 0;
+        storcli_buf_depletion_count = 0;
+        uma_dbg_send(tcpRef, bufRef, TRUE, "stats scheduler reset done\n");
+        return;
+
+      }
+      if (strcmp(argv[1],"?")==0) {
+        rozofs_storcli_debug_help(pChar);
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+        return;
+      }
+      rozofs_storcli_debug_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+      return;
+    }
   rozofs_storcli_debug_show(tcpRef,bufRef);
 }
 
@@ -413,6 +471,11 @@ void  rozofs_storcli_ctxInit(rozofs_storcli_ctx_t *p,uint8_t creation)
   p->write_ctx_lock = 0;
   p->read_ctx_lock  = 0;
   memset(p->fid_key,0, sizeof (sp_uuid_t));
+  /*
+   ** clear the scheduler idx: -1 indicates that the entry is not present
+   ** in the request scheduler table
+   */
+  p->sched_idx = -1;
   
   p->opcode_key = STORCLI_NULL;
    p->shared_mem_p = NULL;
@@ -577,25 +640,30 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
    ** check if there is request with the same fid that is waiting for execution
    */
    {
-     rozofs_storcli_ctx_t *next_p = storcli_hash_table_search_ctx(ctx_p->fid_key);
-     if ( next_p != NULL)
-     {
-       switch (next_p->opcode_key)
+
+       rozofs_storcli_ctx_t *next_p;
+       uint8_t opcode;
+
+       if (ctx_p->sched_idx == -1) return;
+       stc_rng_release_entry(ctx_p->sched_idx,(void**) &next_p,&opcode);
+       if ( next_p != NULL)
        {
-         case STORCLI_READ:
-           rozofs_storcli_read_req_processing(next_p);
-           return;       
-         case STORCLI_WRITE:
-           rozofs_storcli_write_req_processing_exec(next_p);
-           return;       
-         case STORCLI_TRUNCATE:
-           rozofs_storcli_truncate_req_processing(next_p);
-           return;       
-         default:
-           return;
-       }   
-     } 
-   } 
+           switch (next_p->opcode_key)
+           {
+           case STORCLI_READ:
+               rozofs_storcli_read_req_processing(next_p);
+               return;
+           case STORCLI_WRITE:
+               rozofs_storcli_write_req_processing_exec(next_p);
+               return;
+           case STORCLI_TRUNCATE:
+               rozofs_storcli_truncate_req_processing(next_p);
+               return;
+           default:
+               return;
+           }
+       }
+   }
 }
 
 

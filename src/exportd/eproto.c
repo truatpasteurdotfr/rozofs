@@ -30,7 +30,7 @@
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/export_profiler.h>
-
+#include "export_north_intf.h"
 #include "export.h"
 #include "volume.h"
 #include "exportd.h"
@@ -193,7 +193,7 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(ep_path_t * arg, struct svc_req * req) {
     ep_cnf_storage_node_t *storage_cnf_p;
 
     DEBUG_FUNCTION;
-    
+        
     // XXX exportd_lookup_id could return export_t *
     eid = exports_lookup_id(*arg);	
 
@@ -286,7 +286,7 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(ep_path_t * arg, struct svc_req * req) {
     ret_cnf_p->status_gw.ep_conf_ret_t_u.export.eid = *eid;
     ret_cnf_p->status_gw.ep_conf_ret_t_u.export.hash_conf = export_configuration_file_hash;
     memcpy(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
-    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rl = exp->layout;
+    ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rl = exp->layout;    
     memcpy(ret_cnf_p->status_gw.ep_conf_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
 
     if ((errno = pthread_rwlock_unlock(&config_lock)) != 0) {
@@ -316,7 +316,7 @@ out:
 #if 0
     if (pchar != NULL) free(pchar);
 #endif
-    STOP_PROFILING(ep_mount);
+    STOP_PROFILING(ep_configuration);
     return ret_out;
 }
 
@@ -483,9 +483,7 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     int stor_idx = 0;
     int exist = 0;
     
-
     DEBUG_FUNCTION;
-
     // XXX exportd_lookup_id could return export_t *
     eid = exports_lookup_id(*arg);    
     if (eid) export_profiler_eid = *eid;	
@@ -563,7 +561,8 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     ret.status_gw.ep_mount_ret_t_u.export.storage_nodes_nb = stor_idx;
     ret.status_gw.ep_mount_ret_t_u.export.eid = *eid;
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
-
+    uint32_t port = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + EXPNB_SLAVE_PORT+1;
+    ret.status_gw.ep_mount_ret_t_u.export.listen_port = port;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
     ret.status_gw.ep_mount_ret_t_u.export.rl = exp->layout;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));

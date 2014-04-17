@@ -270,7 +270,8 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
     // But these calls have overhead (each one requires a context switch)
     // It's seems to be a bug in kernel.
     if (strcmp("security.capability", name) == 0) {
-        errno = ENODATA;
+//        errno = ENODATA;
+        errno = ENOSYS;
         goto error;
     }
     	    
