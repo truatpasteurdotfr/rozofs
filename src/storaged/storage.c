@@ -643,7 +643,7 @@ open:
       int                i;
       char *             pMsg;
       
-      if (nb_proj >= (STORIO_CACHE_BCOUNT*2)) {  
+      if (nb_proj > (STORIO_CACHE_BCOUNT*2)) {  
         severe("storage_write more blocks than possible %d vs max %d",
 	        nb_proj,STORIO_CACHE_BCOUNT*2);
         errno = ESPIPE;	
@@ -785,7 +785,7 @@ open:
       int          i;
       char *       pMsg;
       
-      if (nb_proj >= (STORIO_CACHE_BCOUNT*2)) {  
+      if (nb_proj > (STORIO_CACHE_BCOUNT*2)) {  
         severe("storage_read more blocks than possible %d vs max %d",
 	        nb_proj,STORIO_CACHE_BCOUNT*2);
         errno = ESPIPE;			
