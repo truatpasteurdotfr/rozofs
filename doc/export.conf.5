@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii export.conf.5
 .\"
-.TH EXPORT.CONF 5 "MARCH 2014" RozoFS "User Manuals"
+.TH EXPORT.CONF 5 "APRIL 2014" RozoFS "User Manuals"
 .SH NAME
 export.conf \- RozoFS export daemon configuration file
 .SH DESCRIPTION
@@ -18,11 +18,12 @@ grammar.
 Maximum number of core files to keep. (default: 2)
 
 .SS layout
-    It's the transform layout used by rozofs. Each file data will be transform
-    in *forward* chunks, only *inverse* of them will be need to reconstruct
-    data (read data), and they will be distributed over *safe* storages.  
+    It's the default transform layout used by RozoFS for each volume.
+    Each file data will be transform in *forward* chunks, only *inverse* of them
+    will be need to reconstruct data (read data), and they will be distributed
+    over *safe* storages.
 
-       Valid layouts are :
+       Valid layouts are:
            - 0 (inverse = 2, forward = 3, safe = 4);
            - 1 (inverse = 4, forward = 6, safe = 8);
            - 2 (inverse = 8, forward = 12, safe = 16);
@@ -37,6 +38,11 @@ Maximum number of core files to keep. (default: 2)
        vid: (volume identifier)
                - must be an integer.
                - must be unique for each volume managed by this exportd.
+
+       layout: (specific layout for this volume / optional)
+               - Valid layouts are 0, 1 or 2.
+               - Optional field (if no layout is specified for this volume, the
+                 default layout is used instead).
 
        cid: (cluster identifier)
                - must be an integer.
@@ -153,6 +159,7 @@ volumes =  # List of volumes
     {
         # Second volume
         vid = 2; # Volume identifier = 2
+        layout = 1; # Specific layout for this volume
         cids =   # List of clusters for the volume 2
         (
             {
@@ -163,8 +170,11 @@ volumes =  # List of volumes
                     {sid = 01; host = "storage-node-3-1";},
                     {sid = 02; host = "storage-node-3-2";},
                     {sid = 03; host = "storage-node-3-3";},
-                    {sid = 04; host = "storage-node-3-4";}
-                    # ...
+                    {sid = 04; host = "storage-node-3-4";},
+                    {sid = 05; host = "storage-node-3-5";},
+                    {sid = 06; host = "storage-node-3-6";},
+                    {sid = 07; host = "storage-node-3-7";},
+                    {sid = 08; host = "storage-node-3-8";}
                 );
             }
         );
