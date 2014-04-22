@@ -37,7 +37,8 @@ typedef enum _action_e {
   ACTION_NONE,
   ACTION_CREATE,
   ACTION_DELETE,  
-  ACTION_CHECK
+  ACTION_CHECK,
+  ACTION_CHECK_ONE
 } action_e;
 action_e action  = ACTION_NONE;
 int      nbfiles = DEFAULT_NBFILE;
@@ -91,8 +92,8 @@ void hexdump(void *mem, unsigned int offset, unsigned int len)
 
 static void usage() {
     printf("Parameters:\n");
-    printf("[ -nbfiles <NB> ]                      Number of files (default %s)\n", DEFAULT_NBFILE);
-    printf("[ -action <create|check|delete> ]      What to do with these files\n");
+    printf("[ -nbfiles <NB> ]                               Number of files (default %s)\n", DEFAULT_NBFILE);
+    printf("[ -action <create|check|checkone|delete> ]      What to do with these files\n");
     exit(-100);
 }
 
@@ -119,6 +120,7 @@ char *argv[];
             if      (strcmp(argv[idx],"create")==0) action = ACTION_CREATE;
 	    else if (strcmp(argv[idx],"delete")==0) action = ACTION_DELETE;
 	    else if (strcmp(argv[idx],"check")==0)  action = ACTION_CHECK;
+	    else if (strcmp(argv[idx],"checkone")==0)  action = ACTION_CHECK_ONE;
 	    else {
               printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
 	      usage();	      
@@ -192,43 +194,60 @@ int delete() {
     unlink(fname);
   }        
 }
-int check() {
-  int idx,loop;
+void check_one(int idx) {
+  int    blkidx;
   char * fname;
   int    fd=-1;
   int    ret;
+  int    i;
 
-  for (idx=1; idx <= nbfiles; idx++) {
+  fname = getfilename(idx); 
 
-    fname = getfilename(idx); 
-  	
-    fd = open(fname, O_RDONLY);
-    if (fd < 0) {
-      printf("CHECK open(%s) %s\n", fname, strerror(errno));
+  fd = open(fname, O_RDONLY);
+  if (fd < 0) {
+    printf("CHECK open(%s) %s\n", fname, strerror(errno));
+    exit(-1);
+  }
+
+  for (blkidx=0; blkidx < LOOP_NB; blkidx++) {
+
+    ret = pread(fd, readblock, BLKSIZE, blkidx*BLKSIZE);
+    if (ret < 0) {
+      printf("CHECK pread(%s) block %d %s\n", fname, blkidx, strerror(errno));
       exit(-1);
     }
-	
-    for (loop=0; loop < LOOP_NB; loop++) {
+    if (ret != BLKSIZE) {
+      printf("CHECK pread(%s) block %d too short %d/%d\n", fname, blkidx, ret,BLKSIZE);
+      exit(-1);      
+    }
 
-      ret = pread(fd, readblock, BLKSIZE, loop*BLKSIZE);
-      if (ret < 0) {
-	printf("CHECK pread(%s) offset %d %s\n", fname, loop, strerror(errno));
-	exit(-1);
-      }
+    update_block(idx,blkidx);
 
-      update_block(idx,loop);
-      
-      if (memcmp(readblock,refblock,BLKSIZE)!=0) {
-	printf("CHECK memcmp(%s) bad content loop %d\n", fname, loop);
-	exit(-1);  
-      } 
+    for(i=0; i<BLKSIZE; i++) {
+      if (readblock[i] != refblock[i]) {
+        printf("CHECK %s bad content in block %d offset %d\n", fname, blkidx, i);
+	if (i<21) i = 0;
+	ret = 80;
+	if ((ret+i) >= BLKSIZE) ret = BLKSIZE-i;
+	hexdump(readblock, i, ret);
+	printf("---ref\n");
+	hexdump(refblock, i, ret);
+        exit(-1);
+      }	  
     } 
-    
-    ret = close(fd);
-    if (ret < 0) { 	    
-      printf("CHECK close(%s) %s\n", fname, strerror(errno));
-      exit(-1);
-    } 
+  } 
+
+  ret = close(fd);
+  if (ret < 0) { 	    
+    printf("CHECK close(%s) %s\n", fname, strerror(errno));
+    exit(-1);
+  }        
+}
+void check() {
+  int idx;
+
+  for (idx=1; idx <= nbfiles; idx++) {
+    check_one(idx);
   }        
 }
 int create() {
@@ -274,8 +293,18 @@ int main(int argc, char **argv) {
   
   init_block();
 
-  mkdir(PATH, 0640);
-  chdir(PATH);
+
+  if (mkdir(PATH, 0640) != 0) { 
+    if (errno != EEXIST) {
+      printf("mkdir(%s) %s",PATH,strerror(errno));
+      exit(-1);
+    }
+  }
+  
+  if( chdir(PATH) != 0) {
+    printf("chdir(%s) %s",PATH,strerror(errno));
+    exit(-1);
+  }
  
   switch(action) {
 
@@ -290,6 +319,9 @@ int main(int argc, char **argv) {
     case ACTION_CHECK:
       check();
       break;
+    case ACTION_CHECK_ONE:
+      check_one(nbfiles);
+      break;      
   }
    
   exit(0);

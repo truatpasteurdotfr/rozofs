@@ -488,7 +488,7 @@ static __inline__ unsigned long long rdtsc(void)
           /*
           ** we have reached end of file
           */
-          block_ctx_p[block_idx].state = ROZOFS_BLK_TRANSFORM_DONE;
+          //block_ctx_p[block_idx].state = ROZOFS_BLK_TRANSFORM_DONE;
           *number_of_blocks_p = (block_idx++);
           
           return 0;        

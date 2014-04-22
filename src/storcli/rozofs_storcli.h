@@ -252,7 +252,7 @@ typedef struct _rozofs_storcli_ctx_t
   dist_t                            wr_distribution;  /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
   ruc_obj_desc_t                      timer_list;    /**< timer linked list used as a guard timer upon received first projection */
-  uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX];  /**< table of the projection used by the inverse process */
+  uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*ROZOFS_DISTRIBUTION_MAX_SIZE];  /**< table of the projection used by the inverse process */
 
   /*
   ** working variables for truncate

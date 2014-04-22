@@ -25,12 +25,12 @@
 #include "xmalloc.h"
 #include "transform.h"
 
-int transform_buf_offset[1024];
 
 void transform_forward(const bin_t * support, int rows, int cols, int np,
         projection_t * projections) {
     int *offsets;
     int i, l, k;
+    int transform_buf_offset[1024];
     DEBUG_FUNCTION;
 
     //    offsets = xcalloc(np, sizeof (int));
@@ -85,7 +85,6 @@ static int compare_slope(const void *e1, const void *e2) {
 static inline int max(int a, int b) {
     return a > b ? a : b;
 }
-int transform_buf_k_offsets[1024];
 
 void transform_inverse(pxl_t * support, int rows, int cols, int np,
         projection_t * projections) {
