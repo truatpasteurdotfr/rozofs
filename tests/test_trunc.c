@@ -166,7 +166,7 @@ char *argv[];
     }
 }
 
-int check_size(char * file, size_t fsize, size_t writen) {
+int check_size(char * file, size_t fsize, char * ref) {
   struct stat stats;
   int ret;
   int i;
@@ -177,12 +177,12 @@ int check_size(char * file, size_t fsize, size_t writen) {
     
   ret = lstat(file,&stats);
   if (ret < 0) {
-    printf ("check_size fsize = %d writen = %d\n",fsize,writen);  
+    printf ("check_size %s fsize = %d \n",file, fsize);  
     printf("lstat(%s) %s\n",file,strerror(errno));
     return -1;
   }
   if (stats.st_size != fsize) {
-    printf ("check_size fsize = %d writen = %d\n",fsize,writen);  
+    printf ("check_size %s fsize = %d \n",file, fsize);  
     printf("%s has size %d while expecting %d\n",file,stats.st_size,size);
     return -1;    
   }
@@ -190,7 +190,7 @@ int check_size(char * file, size_t fsize, size_t writen) {
   
   f = open(file, O_RDONLY);
   if (f == -1) {
-      printf ("check_size fsize = %d writen = %d\n",fsize,writen);    
+    printf ("check_size %s fsize = %d \n",file, fsize);  
       printf("proc %d - open(%s) %s\n",myProcId, file, strerror(errno));
       return -1;
   }  
@@ -199,31 +199,23 @@ int check_size(char * file, size_t fsize, size_t writen) {
   
   size = pread(f, buf, fsize, 0);
   if (size != fsize) {
-    printf ("check_size fsize = %d (%x) writen = %d (%x)\n",fsize,fsize,writen,writen);    
+    printf ("check_size %s fsize = %d \n",file, fsize);  
     printf("proc %d - pread %s\n",myProcId,strerror(errno));
     close(f);
     free(buf);
     return -1;
   } 
    
-  for (i=0; i < writen; i++) {
-    if (buf[i] != ((char)i)) {
-      printf ("check_size fsize = %d (%x) writen = %d (%x)\n",fsize,fsize,writen,writen);    
+  for (i=0; i < fsize;i++) {
+    if (buf[i] != ref[i]) {
+    printf ("check_size %s fsize = %d \n",file, fsize);  
       printf("proc %d - offset %d(0x%x) contains %x\n",myProcId, i, i, buf[i]);
       hexdump(buf,i-64,128);
+      printf("______________\n");
+      hexdump(ref,i-64,128);      
       close(f);
       free(buf);
       return -1;      
-    }
-  }
-  for (; i < fsize; i++) {
-    if (buf[i] != 0) {
-      printf ("check_size fsize = %d (%x) writen = %d (%x)\n",fsize,fsize,writen,writen);    
-      printf("proc %d - extra offset %d(0x%x) contains %x\n",myProcId, i, i, buf[i]);
-      hexdump(buf,i-64,128);
-      close(f);
-      free(buf);
-      return -1;          
     }
   }
   close(f);
@@ -231,26 +223,42 @@ int check_size(char * file, size_t fsize, size_t writen) {
   return 0;
 }
 
-int do_one_test(char * f, int * fsize) {
+int do_one_test(char * f, int * fsize, char * ref) {
   int ret = 0;
   size_t size;
   
-  *fsize -= (random() % (*fsize/2)); 
+  
+  {
+    int new_size,i;
+    new_size = *fsize;
+    new_size -= (random() % (*fsize/2)); 
+    for (i=new_size; i < *fsize;i++) ref[i] = 0;
+    *fsize = new_size;
+  }  
 
   ret = truncate(f, *fsize);
   if (ret < 0) {
     printf("truncate(%s,%d) %s\n",f,*fsize,strerror(errno));
     return -1;
   }  
-  ret =  check_size(f,*fsize, *fsize);
-  if (ret != 0) return ret;
-
+  ret = check_size(f,*fsize, ref);
+  if (ret != 0) {
+    sleep(1);
+    check_size(f,*fsize, ref);    
+    return ret;
+  }
+  
   ret = truncate(f, *fsize+3743);
   if (ret < 0) {
     printf("truncate(%s,%d) %s\n",f,*fsize+3743,strerror(errno));
     return -1;
   }  
-  return check_size(f,*fsize+3743, *fsize);  
+  ret = check_size(f,*fsize+3743, ref);
+  if (ret != 0) {
+    sleep(1);  
+    check_size(f,*fsize+3743, ref);  
+  }  
+  return ret; 
 }
 
 int loop_test_process() {
@@ -267,14 +275,14 @@ int loop_test_process() {
   getcwd(path,128);  
   sprintf(fileName, "%s/%s/f%u", path, mount,pid);
   
-  f = open(fileName, O_RDWR | O_CREAT, 0640);
+  f = open(fileName, O_RDWR | O_TRUNC | O_CREAT, 0640);
   if (f == -1) {
       printf("proc %d - open(%s) %s\n",myProcId, fileName, strerror(errno));
       return -1;
   }  
 
-  buf = malloc(file_mb);
-  for (i=0; i < file_mb; i++) buf[i] = i;
+  buf = malloc(file_mb+10000);
+  for (i=0; i < (file_mb+10000); i++) buf[i] = 0x41 + (i%26) ;
   
   fsize = pwrite(f, buf, file_mb, 0);
   if (fsize != file_mb) {
@@ -283,11 +291,13 @@ int loop_test_process() {
     return -1;
   }  
   close(f);
-  free(buf);
+
   
-  ret = check_size(fileName,fsize,fsize); 
+  ret = check_size(fileName,fsize, buf); 
   if (ret != 0) {
     printf("Inital checksize\n");
+    sleep(1);    
+    check_size(fileName,fsize, buf);  
     return ret; 
   }
   count = 0;
@@ -296,7 +306,7 @@ int loop_test_process() {
   
     count ++;
        
-    ret = do_one_test(fileName,&fsize);   
+    ret = do_one_test(fileName,&fsize, buf);   
     if (ret < 0) {
       printf("proc %3d - test failed in loop %d\n", myProcId, count);  
       return ret;
@@ -306,7 +316,8 @@ int loop_test_process() {
       unlink(fileName);    
       return 0;
     }
-  }    
+  } 
+  free(buf);     
 }  
 void free_result(void) {
   struct shmid_ds   ds;
@@ -387,6 +398,6 @@ int main(int argc, char **argv) {
     }
   }
   free_result();
-  printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
+  if (ret) printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
   exit(ret);
 }

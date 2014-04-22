@@ -30,13 +30,16 @@
 #include <sys/wait.h>
 
 
-#define DEFAULT_FILENAME    "mnt1_1/this_is_the_default_rw_test_file_name"
+#define DEFAULT_MNT         "mnt1_1"
+#define DEFAULT_FILENAME    "this_is_the_default_rw_test_file_name"
 #define DEFAULT_NB_PROCESS    20
 #define DEFAULT_LOOP         200
 #define DEFAULT_FILE_SIZE_MB   1
 
 #define RANDOM_BLOCK_SIZE      (9*1024)
 #define READ_BUFFER_SIZE       (RANDOM_BLOCK_SIZE+file_mb)
+
+#define ERROR(...) printf("%d proc %d %s - ", __LINE__,myProcId,filename); printf(__VA_ARGS__)
 
 
 int shmid;
@@ -113,6 +116,7 @@ int * result;
 
 static void usage() {
     printf("Parameters:\n");
+    printf("[ -mount <mount> ]         The mount point (default %s)\n", DEFAULT_MNT);
     printf("[ -file <name> ]           file to do the test on (default %s)\n", DEFAULT_FILENAME);
     printf("[ -process <nb> ]          The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
     printf("[ -loop <nb> ]             <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
@@ -131,7 +135,9 @@ char *argv[];
     int ret;
     int val;
 
-    strcpy(FILENAME, DEFAULT_FILENAME);
+    char * mnt = NULL;
+    char * fname = NULL;
+    
 
     idx = 1;
     while (idx < argc) {
@@ -143,15 +149,21 @@ char *argv[];
                 printf("%s option set but missing value !!!\n", argv[idx-1]);
                 usage();
             }
-            ret = sscanf(argv[idx], "%s", FILENAME);
-            if (ret != 1) {
-                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
-                usage();
-            }
+            fname = argv[idx];
             idx++;
             continue;
         }
-	
+        /* -mnt <name> */
+        if (strcmp(argv[idx], "-mount") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            mnt = argv[idx];
+            idx++;
+            continue;
+        }	
         /* -process <nb>  */
         if (strcmp(argv[idx], "-process") == 0) {
             idx++;
@@ -239,52 +251,69 @@ char *argv[];
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
+    
+    
+    char * p = FILENAME;
+    if (mnt == NULL) {
+      p += sprintf(p,"%s/",DEFAULT_MNT);
+    }
+    else {
+      p += sprintf(p,"%s/",mnt);
+    }
+    if (fname == NULL) {
+      p += sprintf(p,"%s",DEFAULT_FILENAME);
+    }
+    else {
+      p += sprintf(p,"%s",fname);
+    }    
+    p += sprintf(p,".%d",getpid());    
 }
 
 
-int do_write_offset(int f, int offset, int blockSize) {
+int do_write_offset(int f, int offset, int blockSize, char *filename) {
     ssize_t size;
    
     memcpy(&pCompareBuff[offset],pBlock,blockSize);
 //   printf("PWRITE off [%x,%x] size %d\n",offset,offset+blockSize,blockSize);
     size = pwrite(f, pBlock, blockSize, offset);
     if (size != blockSize) {
-        printf("proc %3d - pwrite %d\n",myProcId,errno);
-        printf("proc %3d - Can not write %d size at offset %d\n", myProcId, blockSize, offset);
+        ERROR("pwrite size %d offset %d %s\n",blockSize, offset, strerror(errno));
         return -1;
     }
     return 0;
 
 }
-int do_total_read_and_check(int f) {
+int do_total_read_and_check(int f, char *filename) {
     ssize_t size;
     int idx2;
     size = pread(f, pReadBuff, READ_BUFFER_SIZE, 0);
     if (size <= 0) {
-        printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read size %llu\n", myProcId, READ_BUFFER_SIZE);    
+        ERROR("pread size %llu %s\n",READ_BUFFER_SIZE,strerror(errno));
         return -1;
     }
 //    printf("PREAD size = %d (%x)\n",size,size);
     for (idx2 = 0; idx2 < size; idx2++) {
         if (pReadBuff[idx2] != pCompareBuff[idx2]) {
-            printf("\nproc %3d - offset %d = 0x%x contains %x instead of %x\n", myProcId, idx2, idx2, pReadBuff[idx2],pCompareBuff[idx2]);
-	    printf("proc %3d - file (%d has been read)\n", myProcId,(int)size);
-            hexdump(pReadBuff,idx2-16, 64);	    
-	    printf("proc %3d - ref buf\n", myProcId);
-            hexdump(pCompareBuff,idx2-16, 64); 
+  	    int dump;	
+            ERROR("offset %d = 0x%x contains %x instead of %x\n",idx2, idx2, pReadBuff[idx2],pCompareBuff[idx2]);
+	    ERROR("offset %d of %d read at offset %d\n", (int)idx2,(int)size,0);
+	    dump = size - idx2;
+	    if (dump > 64) dump = 64;	            
+	    hexdump(pReadBuff,idx2, dump);	    
+	    ERROR("ref buf\n");
+            hexdump(pCompareBuff,idx2, dump); 
             return -1;
         }
     }
     
     return 0;
 }
-int do_random_read_and_check(int f) {
+int do_random_read_and_check(int f, char *filename) {
     ssize_t      size;
     int          idx2;    
     unsigned int nbControl;
-    unsigned int blockSize=0;
-    unsigned int offset=0;    
+    unsigned int blockSize;
+    unsigned int offset;    
 
     nbControl = loop;    
     while (nbControl--) {
@@ -296,26 +325,28 @@ int do_random_read_and_check(int f) {
       memset(pReadBuff,0,blockSize);
       size = pread(f, pReadBuff, blockSize, offset);
       if (size < 0) {
-        printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read offset %u size %u\n", myProcId, offset, blockSize);
+        ERROR("pread offset %u size %u %s\n",offset, blockSize, strerror(errno));
         return -1;
       }      
       for (idx2 = 0; idx2 < blockSize; idx2++) {
           if (pReadBuff[idx2] != pCompareBuff[idx2+offset]) {
-              printf("\nproc %3d - offset %d = 0x%x contains %x instead of %x\n", myProcId, idx2+offset, idx2+offset, 
-		      pReadBuff[idx2],pCompareBuff[idx2+offset]);
-	      printf("proc %3d - file (%d has been read)\n", myProcId,(int)size);
-              hexdump(pReadBuff,idx2-16, 64);	    
-	      printf("proc %3d - ref buf\n", myProcId);
-              hexdump(pCompareBuff,idx2+offset-16, 64); 
+  	      int dump;
+              ERROR("offset %d = 0x%x contains %x instead of %x\n", 
+	            idx2+offset, idx2+offset, pReadBuff[idx2],pCompareBuff[idx2+offset]);
+	      ERROR("offset %d of %d read at offset %d\n", (int)idx2,(int)size,offset);
+	      dump = size - idx2;
+	      if (dump > 64) dump = 64;		      
+	      hexdump(pReadBuff,idx2, dump);	    
+	      ERROR("ref buf\n");
+              hexdump(pCompareBuff,idx2+offset, dump); 
               return -1;
           }
       }
     }
     return 0;
 }
-int do_partial_read_and_check(int f) {
-    ssize_t size;
+int do_partial_read_and_check(int f, char *filename) {
+    ssize_t size,len;
     int idx=0,idx2;
     int offsetStart;
     
@@ -324,34 +355,33 @@ int do_partial_read_and_check(int f) {
       /* Skip non written parts of the file */
       while ((idx<READ_BUFFER_SIZE) && (pCompareBuff[idx] == 0)) idx++;
       
-      if (idx == READ_BUFFER_SIZE) return 0;
+      if (idx >= READ_BUFFER_SIZE) return 0;
       
       /* How much bytes to compare */
       offsetStart = idx;
       while ((idx<READ_BUFFER_SIZE) && (pCompareBuff[idx] != 0)) idx++; 
+      
+      len = idx-offsetStart;
 
-      size = pread(f, pReadBuff, idx-offsetStart, offsetStart);
-      if (size <= 0) {
-        printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read size %u\n", myProcId, idx-offsetStart);    
-        return -1;
-      }      
-      if (size != (idx-offsetStart)) {
-        printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can only read size %lld\n", myProcId, (long long) size);    
+      size = pread(f, pReadBuff, len, offsetStart);     
+      if (size != len) {
+        ERROR("pread size %lld %s\n",(long long) size, strerror(errno));
         return -1;
       }            
       
       /* Compare */
       for (idx2 = 0; idx2 < size; idx2++) {
         if (pReadBuff[idx2] != pCompareBuff[idx2+offsetStart]) {
-            printf("\nproc %3d - offset %d = 0x%x contains %x instead of %x\n", 
-	             myProcId, idx2+offsetStart, idx2+offsetStart,
+	    int dump;
+            ERROR("offset %d = 0x%x contains %x instead of %x\n", 
+	             idx2+offsetStart, idx2+offsetStart,
 		     pReadBuff[idx2],pCompareBuff[idx2+offsetStart]);
-	    printf("proc %3d - file (%d has been read)\n", myProcId,(int)size);
-            hexdump(pReadBuff,idx2-16, 64);	    
-	    printf("proc %3d - ref buf\n", myProcId);
-            hexdump(pCompareBuff,idx2+offsetStart-16, 64); 
+	    ERROR("offset %d of %d read at offset %d\n", (int)idx2,(int)size,offsetStart);
+	    dump = size - idx2;
+	    if (dump > 64) dump = 64;	 
+            hexdump(pReadBuff,idx2, dump);	    
+	    ERROR("ref buf\n");
+            hexdump(pCompareBuff,idx2+offsetStart, dump); 
             return -1;
         }
       }
@@ -360,8 +390,8 @@ int do_partial_read_and_check(int f) {
     return 0;
 }
 int do_one_test(int * f, char * filename, int count) {
-    unsigned int blockSize=0;
-    unsigned int offset=0;
+    unsigned int blockSize;
+    unsigned int offset;
     unsigned int nbWrite;
     int          ret;
 
@@ -369,13 +399,12 @@ int do_one_test(int * f, char * filename, int count) {
 //    nbWrite = 1 + count % 3;
     nbWrite = 1 ;    
     while (nbWrite--) {
-
       offset    = (random()+offset)    % file_mb; 
       blockSize = (random()+blockSize) % RANDOM_BLOCK_SIZE;      
       if (blockSize == 0) blockSize = 1;
 
-      if (do_write_offset(*f, offset, blockSize) != 0) {
-	printf("proc %3d - ERROR !!! do_write_offset blocksize %6d  - offset %6d\n", myProcId, blockSize, offset);
+      if (do_write_offset(*f, offset, blockSize, filename) != 0) {
+	ERROR("blocksize %6d  - offset %6d\n", blockSize, offset);
 	close(*f);      
 	return -1;
       }  
@@ -384,35 +413,30 @@ int do_one_test(int * f, char * filename, int count) {
     if (closeBetween) {
       ret = close(*f);
       if (ret != 0) {
-          printf("proc %3d - close %d\n",myProcId,errno);
-          printf("proc %3d - Can not close %s\n", myProcId, filename);
-          printf("proc %3d - last offset %d size %d block %d\n", myProcId, offset,blockSize, offset/8096);
+          ERROR("close %s\n",strerror(errno));
+          ERROR("last offset %d size %d block %d\n", offset,blockSize, offset/8096);
           return -1;
       }
 
       *f = open(filename, O_RDWR);
       if (*f < 0) {
-          printf("proc %3d - re-open %d\n",myProcId,errno);
-          printf("proc %3d - Can not re-open %s\n", myProcId,filename);
+          ERROR("re-open %s\n",strerror(errno));
           return -1;
       }
     }
     
     switch (ckeck_mode) {
       case CHECK_MODE_TOTAL:
-	return do_total_read_and_check(*f);
-	break;
+	return do_total_read_and_check(*f,filename);
 	
       case CHECK_MODE_PARTIAL:	
-	return do_partial_read_and_check(*f);
-	break;
+	return do_partial_read_and_check(*f,filename);
 	
       case CHECK_MODE_RANDOM:	
-	return do_random_read_and_check(*f);
-	break;
+	return do_random_read_and_check(*f,filename);
 	
       default:
-        printf("proc %3d - unknown ckeck_mode %d\n",myProcId,ckeck_mode);   	
+        ERROR("unknown ckeck_mode %d\n",ckeck_mode);   	
         return -1;    
     }
 }
@@ -423,24 +447,21 @@ int read_empty_file(char * filename) {
 
     f = open(filename, O_RDWR | O_CREAT, 0640);
     if (f == -1) {
-        printf("proc %3d - open %d\n",myProcId, errno);
-        printf("proc %3d - Can not open %s\n",myProcId, filename);
+        ERROR("open %s\n",strerror(errno));
         return 0;
     }
 
 
     size = pread(f, pReadBuff, READ_BUFFER_SIZE, 0);
     if (size < 0) {
-        printf("proc %3d - pread %d\n",myProcId,errno);
-        printf("proc %3d - Can not read %s size %llu\n", myProcId, filename, READ_BUFFER_SIZE);    
+        ERROR("pread size %llu %s\n", READ_BUFFER_SIZE, strerror(errno));
         close(f);
         return 0;
     }
     
     f = close(f);
     if (f != 0) {
-        printf("proc %3d - close %d\n",myProcId,errno);
-        printf("proc %3d - Can not close %s\n", myProcId, filename);
+        ERROR("close %s\n",strerror(errno));
     }
     return 1;
 }
@@ -496,37 +517,40 @@ int loop_test_process() {
   sprintf(filename,"%s.%d",FILENAME, myProcId);
   if (unlink(filename) == -1) {
     if (errno != ENOENT) {
-      printf("proc %3d - ERROR !!! can not remove %s %s\n", myProcId, filename, strerror(errno));
+      printf("proc %3d - ERROR !!! unlink(%s) %s\n", myProcId, filename, strerror(errno));
       return -1;
     }
   }
 
   fd = open(&filename[0], O_RDWR | O_CREAT, 0640);
   if (fd == -1) {
-      printf("proc %3d - open %d\n",myProcId, errno);
-      printf("proc %3d - Can not open %s\n",myProcId, filename);
+      printf("proc %3d - open(%s) %s\n",myProcId, filename, strerror(errno));
       return -1;
   }
           
   while (1) {
     count++;    
     if  (do_one_test(&fd,filename,count) != 0) {
-      printf("proc %3d - ERROR in loop %d\n", myProcId, count);   
+      ERROR("ERROR in loop %d\n", count);   
       close(fd);   
       return -1;
     } 
     
     if (loop==count) {
-      close(fd);
+      if (close(fd)<0) {
+        ERROR("ERROR in loop %d. close %s\n", count,strerror(errno)); 
+	return -1;          
+      }
       return 0;
     }
       
     if (closeAfter) {
-      close(fd);
+      if (close(fd)<0) {
+        ERROR("ERROR in loop %d. close() %s\n", count,strerror(errno));  
+      }      
       fd = open(&filename[0], O_RDWR);
       if (fd == -1) {
-	  printf("proc %3d - open %d\n",myProcId, errno);
-	  printf("proc %3d - Can not open %s\n",myProcId, filename);
+	  ERROR("open %s\n",strerror(errno));
 	  return -1;
       }             
     }  
@@ -602,10 +626,10 @@ int main(int argc, char **argv) {
   ret = 0;
   for (proc=0; proc < nbProcess; proc++) {
     if (result[proc] != 0) {
-      ret--;
+      ret++;
     }
   }
   free_result();
-  printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
+  if (ret != 0) printf("OK %d / FAILURE %d\n",nbProcess-ret, ret);
   exit(ret);
 }

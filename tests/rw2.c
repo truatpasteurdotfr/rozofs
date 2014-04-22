@@ -205,7 +205,6 @@ void * loop_writer_thread(void * ctx) {
     pCtx->who = TEST_READER;
 
     if (pCtx->loop==count) {
-      printf ("WRITER NORMAL END\n");
       close(fd);
       return NULL;
     }
@@ -238,7 +237,6 @@ void * loop_reader_thread(void * ctx) {
     if (pCtx->loop==count) {
       pCtx->reader_res = 0;
       close(fd);    
-      printf ("READER NORMAL END\n");
       pCtx->who = TEST_MASTER;
       return NULL;
     }    
