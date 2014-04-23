@@ -41,7 +41,8 @@ EXPORTD_HOSTNAME = "exportd_hostname"
 # only NFS for now
 # PROTOCOLS_VALUES = ["nfs"]
 
-LAYOUT = "layout"
+
+THREADS = "threads"
 LISTEN = "listen"
 LISTEN_ADDR = "addr"
 LISTEN_PORT = "port"
@@ -51,6 +52,7 @@ STORAGE_SID = "sid"
 STORAGE_ROOT = "root"
 SID_MAX = 255
 
+LAYOUT = "layout"
 VOLUMES = "volumes"
 VOLUME_VID = "vid"
 VOLUME = "volume"
