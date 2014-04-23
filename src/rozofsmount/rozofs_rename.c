@@ -125,16 +125,17 @@ error:
 void rozofs_ll_rename_cbk(void *this,void *param) 
 {    
    ientry_t *old_ie = 0;
+   ientry_t *nie = 0;
    fid_t fid;
    fuse_req_t req; 
-   epgw_fid_ret_t ret;
+   epgw_rename_ret_t ret;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_rename_ret_t;
    fuse_ino_t parent;
    int trc_idx;
    errno = 0;
@@ -212,8 +213,7 @@ void rozofs_ll_rename_cbk(void *this,void *param)
     if ((old_ie = get_ientry_by_fid(fid))) {
         old_ie->nlookup--;
     }
-#warning need to report the fix about renamed FID attributes update
-#if 0
+
     /*
     ** Update renamed FID attributes
     */
@@ -231,7 +231,7 @@ void rozofs_ll_rename_cbk(void *this,void *param)
       memcpy(&nie->attrs,&ret.child_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));  
       if (cur_size > nie->attrs.size ) nie->attrs.size = cur_size; 
     }
-#endif
+    
     fuse_reply_err(req, 0);
     goto out;
 error:

@@ -2632,7 +2632,8 @@ out:
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
-        char *newname, fid_t fid) {
+        char *newname, fid_t fid,
+	mattr_t * attrs) {
     int status = -1;
     lv2_entry_t *lv2_old_parent = 0;
     lv2_entry_t *lv2_new_parent = 0;
@@ -2987,6 +2988,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
     if (export_lv2_write_attributes(e->trk_tb_p,lv2_to_rename) != 0)
         goto out;
 
+    memcpy(attrs,&lv2_to_rename->attributes,sizeof(mattr_t));
     status = 0;
 
 out:

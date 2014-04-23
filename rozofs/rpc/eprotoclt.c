@@ -205,15 +205,15 @@ ep_symlink_1(epgw_symlink_arg_t *argp, CLIENT *clnt)
 	return (&clnt_res);
 }
 
-epgw_fid_ret_t *
+epgw_rename_ret_t *
 ep_rename_1(epgw_rename_arg_t *argp, CLIENT *clnt)
 {
-	static epgw_fid_ret_t clnt_res;
+	static epgw_rename_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_RENAME,
 		(xdrproc_t) xdr_epgw_rename_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_epgw_fid_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_rename_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}

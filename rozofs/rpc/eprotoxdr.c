@@ -1098,6 +1098,22 @@ xdr_epgw_rename_arg_t (XDR *xdrs, epgw_rename_arg_t *objp)
 }
 
 bool_t
+xdr_epgw_rename_ret_t (XDR *xdrs, epgw_rename_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_fid_ret_t (xdrs, &objp->status_gw))
+		 return FALSE;
+	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->child_attr))
+		 return FALSE;
+	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->parent_attr))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_io_arg_t (XDR *xdrs, ep_io_arg_t *objp)
 {
 	//register int32_t *buf;

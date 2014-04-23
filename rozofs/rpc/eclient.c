@@ -720,7 +720,7 @@ out:
 int exportclt_rename(exportclt_t * clt, fid_t parent, char *name, fid_t newparent, char *newname, fid_t * fid) {
     int status = -1;
     epgw_rename_arg_t arg;
-    epgw_fid_ret_t *ret = 0;
+    epgw_rename_ret_t *ret = 0;
     int retry = 0;
     DEBUG_FUNCTION;
 
