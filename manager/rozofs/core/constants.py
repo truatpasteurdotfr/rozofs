@@ -41,6 +41,7 @@ EXPORTD_HOSTNAME = "exportd_hostname"
 # only NFS for now
 # PROTOCOLS_VALUES = ["nfs"]
 
+NBCORES = "nbcores"
 
 THREADS = "threads"
 LISTEN = "listen"

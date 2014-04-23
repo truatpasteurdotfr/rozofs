@@ -28,7 +28,7 @@ from rozofs.core.libconfig import config_setting_add, CONFIG_TYPE_INT, \
 from rozofs.core.daemon import DaemonManager
 from rozofs.core.constants import LAYOUT, STORAGES, STORAGE_SID, STORAGE_CID, STORAGE_ROOT, \
     LAYOUT_2_3_4, STORAGED_MANAGER, LAYOUT_4_6_8, LAYOUT_8_12_16, LISTEN, \
-    LISTEN_ADDR, LISTEN_PORT, THREADS
+    LISTEN_ADDR, LISTEN_PORT, THREADS, NBCORES
 from rozofs.core.agent import Agent, ServiceStatus
 from rozofs import __sysconfdir__
 import collections
@@ -47,8 +47,9 @@ class ListenConfig():
         self.port = port
 
 class StoragedConfig():
-    def __init__(self, threads=None, listens=[], storages={}):
+    def __init__(self, threads=None, nbcores=None, listens=[], storages={}):
         self.threads = threads
+        self.nbcores = nbcores
         # keys is a tuple (cid, sid)
         self.storages = storages
         self.listens = listens
@@ -60,6 +61,10 @@ class StoragedConfigurationParser(ConfigurationParser):
         if configuration.threads is not None:
             threads_setting = config_setting_add(config.root, THREADS, CONFIG_TYPE_INT)
             config_setting_set_int(threads_setting, int(configuration.threads))
+
+        if configuration.nbcores is not None:
+            nbcores_setting = config_setting_add(config.root, NBCORES, CONFIG_TYPE_INT)
+            config_setting_set_int(nbcores_setting, int(configuration.nbcores))
 
         listen_settings = config_setting_add(config.root, LISTEN, CONFIG_TYPE_LIST)
         for listen in configuration.listens:
@@ -84,6 +89,10 @@ class StoragedConfigurationParser(ConfigurationParser):
         threads_setting = config_lookup(config, THREADS)
         if threads_setting is not None:
             configuration.threads = config_setting_get_int(threads_setting)
+
+        nbcores_setting = config_lookup(config, NBCORES)
+        if nbcores_setting is not None:
+            configuration.nbcores = config_setting_get_int(nbcores_setting)
 
         listen_settings = config_lookup(config, LISTEN)
         configuration.listens = []
