@@ -512,8 +512,8 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
     {
       if (wr_proj_buf_p[i].state == ROZOFS_WR_ST_RD_REQ)
       {
-         read_req = 1;
-         ret = rozofs_storcli_internal_read_req(working_ctx_p,&wr_proj_buf_p[i]);
+        read_req = 1;
+        ret = rozofs_storcli_internal_read_req(working_ctx_p,&wr_proj_buf_p[i]);
          if (ret < 0)
          {
            working_ctx_p->write_ctx_lock = 0;
@@ -541,7 +541,7 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
    ** do not use the thread
    */
    if ((rozofs_stcmoj_thread_write_enable) &&(read_req == 0)&& 
-        (storcli_write_rq_p->len >rozofs_stcmoj_thread_len_threshold))   
+        (storcli_write_rq_p->len >rozofs_stcmoj_thread_len_threshold))
    {
      ret = rozofs_stcmoj_thread_intf_send(STORCLI_MOJETTE_THREAD_FWD,working_ctx_p,0);
      if (ret < 0) 
@@ -549,8 +549,7 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
         errno = EPROTO;
 	goto failure;
      }
-     return;
-   
+     return;   
    }
     /*
     ** Just to address the case of the buffer on which the fransform must apply
@@ -852,31 +851,31 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    memcpy(working_ctx_p->fid_key, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
    working_ctx_p->opcode_key = STORCLI_WRITE;
    {
-     int ret;
-     uint64_t wr_bid;
-     uint64_t wr_nb_blocks;
-     if (storcli_write_rq_p->empty_file == 0)
-     {
-       wr_bid = working_ctx_p->wr_bid;
-       wr_nb_blocks = working_ctx_p->wr_nb_blocks;
-     }
-     else
-     {
-       wr_bid = 0;
-       wr_nb_blocks= 0;
-       wr_nb_blocks--;
-     }
-     ret = stc_rng_insert((void*)working_ctx_p,
-                           STORCLI_WRITE,working_ctx_p->fid_key,
-			   wr_bid,wr_nb_blocks,
-			   &working_ctx_p->sched_idx);
-     if (ret == 0)
-     {
-       /*
-       ** there is a current request that is processed with the same fid and there is a collision
-       */
-       return;    
-     }   		
+       int ret;
+       uint64_t wr_bid;
+       uint64_t wr_nb_blocks;
+       if (storcli_write_rq_p->empty_file == 0)
+       {
+	 wr_bid = working_ctx_p->wr_bid;
+	 wr_nb_blocks = working_ctx_p->wr_nb_blocks;
+       }
+       else
+       {
+	 wr_bid = 0;
+	 wr_nb_blocks= 0;
+	 wr_nb_blocks--;
+       }
+       ret = stc_rng_insert((void*)working_ctx_p,
+                             STORCLI_WRITE,working_ctx_p->fid_key,
+			     wr_bid,wr_nb_blocks,
+			     &working_ctx_p->sched_idx);
+       if (ret == 0)
+       {
+           /*
+            ** there is a current request that is processed with the same fid and there is a collision
+            */
+           return;
+       }
 
      /*
      ** no request pending with that fid, so we can process it right away
@@ -935,7 +934,7 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
   int       storage_idx;
-  int       error;
+  int       error=0;
 
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
@@ -960,7 +959,7 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
         error = EPROTO;
         goto fail;
       }      
-  }            
+  }   
   /*
   ** set the current state of each load balancing group belonging to the rozofs_safe group
   */
@@ -1042,7 +1041,7 @@ retry:
      */
      working_ctx_p->write_ctx_lock = 1;
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_WR_IN_PRG;
-          
+     
      ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
                                          (xdrproc_t) xdr_sp_write_arg_no_bins_t, (caddr_t) request,
                                           xmit_buf,

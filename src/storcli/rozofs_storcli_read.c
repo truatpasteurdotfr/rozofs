@@ -1442,7 +1442,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
                                        layout,
                                        working_ctx_p->cur_nmbs2read,
-                                       working_ctx_p->nb_projections2read,
+                                       working_ctx_p->effective_number_of_blocks,
                                        working_ctx_p->block_ctx_table,
                                        working_ctx_p->data_read_p,
                                        &working_ctx_p->effective_number_of_blocks,
