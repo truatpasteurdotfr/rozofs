@@ -29,30 +29,30 @@
 
 #include "econfig.h"
 
-#define ELAYOUT	    "layout"
-#define EVIP	    "exportd_vip"
+#define ELAYOUT     "layout"
+#define EVIP        "exportd_vip"
 #define EVOLUMES    "volumes"
 #define EVID        "vid"
 #define ECIDS       "cids"
 #define ECID        "cid"
 #define ESTORAGES   "storages"
 #define ESIDS       "sids"
-#define ESID	    "sid"
-#define EHOST	    "host"
+#define ESID        "sid"
+#define EHOST       "host"
 #define EEXPORTS    "exports"
 #define EEID        "eid"
 #define EROOT       "root"
 #define EMD5        "md5"
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
-#define ECORES     "nbCores"
+#define ECORES      "nbcores"
 /*
 ** constant for exportd gateways
 */
-#define EXPORTDID     "export_gateways"
-#define EDAEMONID     "daemon_id"
-#define EGWIDS     "gwids"
-#define EGWID     "gwid"
+#define EXPORTDID       "export_gateways"
+#define EDAEMONID       "daemon_id"
+#define EGWIDS          "gwids"
+#define EGWID           "gwid"
 
 int storage_node_config_initialize(storage_node_config_t *s, uint8_t sid,
         const char *host) {
@@ -268,15 +268,15 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config, int elayout
             goto out;
         }
 
-        // Check whether a layout is specified for this volume in the configuration file
-	// or take the layout from the export default value
-        if (config_setting_lookup_int(vol_set, ELAYOUT, &vlayout) == CONFIG_FALSE) {
-	  /* 
-	  ** No specific layout given for this volume. Get the export default layout.
-	  */
-          vlayout = elayout;	
+        // Check whether a layout is specified for this volume in the
+        // configuration file or take the layout from the export default value
+        if (config_setting_lookup_int(vol_set, ELAYOUT,
+                &vlayout) == CONFIG_FALSE) {
+            // No specific layout given for this volume.
+            // Get the export default layout.
+            vlayout = elayout;
         }
-	
+
         // Allocate new volume_config
         vconfig = (volume_config_t *) xmalloc(sizeof (volume_config_t));
         if (volume_config_initialize(vconfig, (vid_t) vid, (uint8_t) vlayout) != 0) {
