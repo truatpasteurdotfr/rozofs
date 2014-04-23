@@ -85,7 +85,7 @@ int rozofs_xattr_flt_insert(char *name)
     p= &rozofs_xattr_flt_filter[i];
     if (p->status == 0)
     {
-      len = strlen(name);
+      len = strlen(name)+1;
       p->buffer = malloc(len);
       if (p->buffer == NULL) return -1;
       strcpy(p->buffer,name);
