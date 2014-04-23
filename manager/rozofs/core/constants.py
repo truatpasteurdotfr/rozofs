@@ -44,6 +44,7 @@ EXPORTD_HOSTNAME = "exportd_hostname"
 NBCORES = "nbcores"
 
 THREADS = "threads"
+STORIO = "storio"
 LISTEN = "listen"
 LISTEN_ADDR = "addr"
 LISTEN_PORT = "port"
