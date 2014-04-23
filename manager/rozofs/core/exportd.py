@@ -91,8 +91,9 @@ class ClusterConfig():
 
 
 class VolumeConfig():
-    def __init__(self, vid, clusters=None):
+    def __init__(self, vid, layout=None, clusters=None):
         self.vid = vid
+        self.layout = layout
         if clusters is None:
             self.clusters = {}
         else:
@@ -150,8 +151,14 @@ class ExportdConfigurationParser(ConfigurationParser):
         volumes_settings = config_setting_add(config.root, VOLUMES, CONFIG_TYPE_LIST)
         for volume in configuration.volumes.values():
             volume_settings = config_setting_add(volumes_settings, VOLUME, CONFIG_TYPE_GROUP)
+
             vid_setting = config_setting_add(volume_settings, VOLUME_VID, CONFIG_TYPE_INT)
             config_setting_set_int(vid_setting, int(volume.vid))
+            
+            if volume.layout is not None:
+                volume_layout_setting = config_setting_add(volume_settings, LAYOUT, CONFIG_TYPE_INT)
+                config_setting_set_int(volume_layout_setting, int(volume.layout))
+
             clusters_settings = config_setting_add(volume_settings, VOLUME_CIDS, CONFIG_TYPE_LIST)
             for cluster in volume.clusters.values():
                 cluster_setting = config_setting_add(clusters_settings, '', CONFIG_TYPE_GROUP)
@@ -201,8 +208,15 @@ class ExportdConfigurationParser(ConfigurationParser):
         if volumes_setting is not None:
             for i in range(config_setting_length(volumes_setting)):
                 volume_setting = config_setting_get_elem(volumes_setting, i)
+                
                 vid_setting = config_setting_get_member(volume_setting, VOLUME_VID)
                 vid = config_setting_get_int(vid_setting)
+
+                layout = None
+                volume_layout_setting =  config_setting_get_member(volume_setting, LAYOUT)
+                if volume_layout_setting is not None:
+                    layout = config_setting_get_int(volume_layout_setting)
+
                 clusters_setting = config_setting_get_member(volume_setting, VOLUME_CIDS)
                 clusters = {}
                 for j in range(config_setting_length(clusters_setting)):
@@ -219,7 +233,7 @@ class ExportdConfigurationParser(ConfigurationParser):
                         host = config_setting_get_string(host_setting)
                         storages[sid] = host
                         clusters[cid] = ClusterConfig(cid, storages)
-                    configuration.volumes[vid] = VolumeConfig(vid, clusters)
+                    configuration.volumes[vid] = VolumeConfig(vid, layout, clusters)
 
         export_settings = config_lookup(config, EXPORTS)
         # if export_settings == None:
