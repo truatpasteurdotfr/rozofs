@@ -1427,7 +1427,7 @@ void ruc_sockCtrl_selectWait()
       
         if (nbrSelect < 0) {
          if (errno == EINTR) {
-           RUC_WARNING(errno);
+           //RUC_WARNING(errno);
            continue;
          }
          

@@ -45,6 +45,7 @@
 #include "rbs_sclient.h"
 #include "rbs_eclient.h"
 #include "rbs.h"
+#include "storage.h"
 
 DECLARE_PROFILING(spp_profiler_t);
 
@@ -477,7 +478,7 @@ out:
     }  
     // Nothing has been written to disk
     else if (access(path, F_OK) == -1) {
-        storage_dev_map_distribution_remove(st, re->fid, layout, re->dist_set_current, 1/*spare*/);
+        storage_dev_map_distribution_remove(st, re->fid, 1/*spare*/);
     }
     
     
@@ -931,7 +932,7 @@ out:
 int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
         sid_t sid, int parallel, int *cfgfd) {
     int status = -1;
-    uint8_t layout = 0;
+    uint16_t slice = 0;
     uint8_t spare = 0;
     uint8_t device = 0;
     uint64_t cookie = 0;
@@ -956,7 +957,7 @@ int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
 
         // Send a request to storage to get the list of bins file(s)
         if (rbs_get_rb_entry_list(&rb_stor->mclient, cid, rb_stor->sid, sid,
-                &device, &spare, &layout, dist_set, &cookie, &children, &eof) != 0) {
+                &device, &spare, &slice, &cookie, &children, &eof) != 0) {
             severe("rbs_get_rb_entry_list failed: %s\n", strerror(errno));
             goto out;
         }
@@ -1059,8 +1060,8 @@ int rbs_init_cluster_cnts(list_t * cluster_entries, cid_t cid,
 
                 // Get connections for this storage
                 if (rbs_stor_cnt_initialize(rb_stor) != 0) {
-                    severe("rbs_stor_cnt_initialize failed: %s",
-                            strerror(errno));
+                    severe("rbs_stor_cnt_initialize cid/sid %d/%d failed: %s",
+                            cid, rb_stor->sid, strerror(errno));
                     goto out;
                 }
             }
@@ -1131,7 +1132,7 @@ static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
     
       sprintf(filename,"%s/c%d_s%d_dall.%2.2d", dir, cid, sid, idx);
 
-      cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY);
+      cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
       if (cfgfd[idx] == -1) {
 	severe("Can not open file %s %s", filename, strerror(errno));
 	return -1;
@@ -1200,16 +1201,16 @@ static int rbs_build_one_fid_list(cid_t cid, sid_t sid, uint8_t layout, uint8_t 
 
   sprintf(filename,"%s/c%d_s%d", dir, cid, sid);
       
-  fd = open(filename,O_CREAT | O_TRUNC | O_WRONLY);
+  fd = open(filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
   if (fd == -1) {
     severe("Can not open file %s %s", filename, strerror(errno));
-    return 0;
+    return -1;
   }
     
   ret = write(fd,&st2rebuild,sizeof(st2rebuild));
   if (ret != sizeof(st2rebuild)) {
     severe("Can not write header in file %s %s", filename, strerror(errno));
-    return 0;      
+    return -1;      
   }  
 
   memcpy(file_entry.fid,fid2rebuild, sizeof (fid_t));
@@ -1218,7 +1219,6 @@ static int rbs_build_one_fid_list(cid_t cid, sid_t sid, uint8_t layout, uint8_t 
   file_entry.unlink = 1;      
   
   
-  memcpy(file_entry.dist_set_current, dist, sizeof (file_entry.dist_set_current));	
   for(i=0; i<ROZOFS_SAFE_MAX; i++) {
     file_entry.dist_set_current[i] = dist[i];
   }    
@@ -1226,7 +1226,7 @@ static int rbs_build_one_fid_list(cid_t cid, sid_t sid, uint8_t layout, uint8_t 
   ret = write(fd,&file_entry,sizeof(file_entry)); 
   if (ret != sizeof(file_entry)) {
     severe("can not write file cid%d sid%d %s",cid,sid,strerror(errno));
-    return 0;
+    return -1;
   }  
   
   close(fd);
@@ -1245,13 +1245,12 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
 						     sid_t sid,
 						     int device_to_rebuild,
 						     int parallel) {
-  char           path[FILENAME_MAX];						     
+  char           dir_path[FILENAME_MAX];						     
+  char           slicepath[FILENAME_MAX];						     
+  char           filepath[FILENAME_MAX];						     
   int            device_it;
-  int            layout_it;
   int            spare_it;
   DIR           *dir1;
-  struct dirent *distrib;    
-  DIR           *dir2;
   struct dirent *file;
   int            fd; 
   size_t         nb_read;
@@ -1262,6 +1261,7 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
   char           filename[FILENAME_MAX];
   int            cfgfd[RBS_MAX_PARALLEL];
   int            ret;
+  int            slice;
   
   /*
   ** Create FID list file files
@@ -1271,7 +1271,7 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
 
     sprintf(filename,"%s/c%d_s%d_d%d.%2.2d", dir, cid, sid, device_to_rebuild, idx);
       
-    cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY);
+    cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
     if (cfgfd[idx] == -1) {
       severe("Can not open file %s %s", filename, strerror(errno));
       return 0;
@@ -1293,98 +1293,80 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
     // Do not read the disk to rebuild
     if (device_it == device_to_rebuild) continue;
 
-    // For each possible layout
-    for (layout_it = 0; layout_it < LAYOUT_MAX; layout_it++) {
+    // For spare and no spare
+    for (spare_it = 0; spare_it < 2; spare_it++) {
 
-      // For spare and no spare
-      for (spare_it = 0; spare_it < 2; spare_it++) {
+      // Build path directory for this layout and this spare type        	
+      sprintf(dir_path, "%s/%d/hdr_%u", storage_to_rebuild->root, device_it, spare_it);
 
-        // Build path directory for this layout and this spare type        	
-        sprintf(path, "%s/%d/layout_%u/spare_%u/", 
-		storage_to_rebuild->root, device_it, layout_it, spare_it);
+      // Check that this directory already exists, otherwise it will be create
+      if (access(dir_path, F_OK) == -1) continue;
+
+      for (slice=0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+
+        storage_build_hdr_path(slicepath, storage_to_rebuild->root, device_it, spare_it, slice);
 
         // Open this directory
-        dir1 = opendir(path);
-	if (dir1 == NULL) continue;
+        dir1 = opendir(slicepath);
+        if (dir1 == NULL) continue;
 
-	// Loop on distibution sub directories
-	while ((distrib = readdir(dir1)) != NULL) {
 
-          // Do not process . and .. entries
-          if (distrib->d_name[0] == '.') {
-	    if (distrib->d_name[1] == 0) continue;
-	    if ((distrib->d_name[1] == '.') && (distrib->d_name[2] == 0)) continue;	    	    
-	  } 
-	  
-          sprintf(path, "%s/%d/layout_%u/spare_%u/%s", 
-		storage_to_rebuild->root, device_it, layout_it, spare_it, distrib->d_name);
+        // Loop on header files in slice directory
+        while ((file = readdir(dir1)) != NULL) {
+          int i;
 
-	  dir2 = opendir(path);
-	  if (dir2 == NULL) continue;	
+          // Read the file
+          sprintf(filepath, "%s/%s",slicepath, file->d_name);
 
-	  // Loop on file stored in distibution sub directory
-	  while ((file = readdir(dir2)) != NULL) {
-	    int i;
+	      fd = open(filepath, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+	      if (fd < 0) continue;
 
-	    // Just care about file with .hdr suffix
-            if (strstr(file->d_name, ".hdr") == NULL) continue;
+          nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
+	      close(fd);	    
 
-            // Read the file
-            sprintf(path, "%s/%d/layout_%u/spare_%u/%s/%s", 
-		storage_to_rebuild->root, device_it, layout_it, spare_it, distrib->d_name,file->d_name);
+          // What to do with such an error ?
+	      if (nb_read != sizeof(file_hdr)) continue;
 
-	    fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-	    if (fd < 0) continue;
+	      // Check whether this file should have a header(mapper) file on 
+          // the device we are rebuilding
+          for (i=0; i < storage_to_rebuild->mapper_redundancy; i++) {
+	        int dev;
 
-            nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
-	    close(fd);	    
+            dev = storage_mapper_device(file_hdr.fid,i,storage_to_rebuild->mapper_modulo);
 
-            // What to do with such an error ?
-	    if (nb_read != sizeof(file_hdr)) continue;
-	    
-	    // Check whether this file should have a header(mapper) file on 
-	    // the device we are rebuilding
-	    for (i=0; i < storage_to_rebuild->mapper_redundancy; i++) {
-	      int dev;
-	      
-	      dev = storage_mapper_device(file_hdr.fid,i,storage_to_rebuild->mapper_modulo);
-	      
-	      if (dev == device_to_rebuild) {
-	        // Let's re-write the header file on the device to rebuild            
-                sprintf(path, "%s/%d/layout_%u/spare_%u/%s/", 
-		       storage_to_rebuild->root, device_to_rebuild, layout_it, spare_it, distrib->d_name); ;  
-                storage_write_header_file(NULL,dev,path,&file_hdr);		   		
-	        break;
-	      } 
-	    }  
-	    
-            // Not a file whose data part stand on the device to rebuild
-            if (file_hdr.device_id != device_to_rebuild) continue;
+ 	        if (dev == device_to_rebuild) {
+	          // Let's re-write the header file  
+              storage_build_hdr_path(filepath, storage_to_rebuild->root, device_to_rebuild, spare_it, slice);
+              storage_write_header_file(NULL,dev,filepath,&file_hdr);	
+	          break;
+	        } 
+	       }  
 
-            // Check whether this FID is already set in the list
-	    if (rb_hash_table_search(file_hdr.fid) != 0) continue;
+          // Not a file whose data part stand on the device to rebuild
+          if (file_hdr.device_id != device_to_rebuild) continue;
 
-	    rb_hash_table_insert(file_hdr.fid);	    
-	    
-	    memcpy(file_entry.fid,file_hdr.fid, sizeof (fid_t));
-	    file_entry.layout = file_hdr.layout;
-            file_entry.todo   = 1;     
-	    file_entry.unlink = 0;       
-            memcpy(file_entry.dist_set_current, file_hdr.dist_set_current, sizeof (sid_t) * ROZOFS_SAFE_MAX);	    
-	        
-            ret = write(cfgfd[idx],&file_entry,sizeof(file_entry)); 
-	    if (ret != sizeof(file_entry)) {
-	      severe("can not write file cid%d sid%d %d %s",cid,sid,idx,strerror(errno));
-	    }
-	    
-	    idx++;
-	    if (idx >= parallel) idx = 0; 
+          // Check whether this FID is already set in the list
+	      if (rb_hash_table_search(file_hdr.fid) != 0) continue;
 
-	  } // End of loop on file in a distribution 
-	  closedir(dir2);  
-	} // End of loop on distributions
-	closedir(dir1);
-      }
+	      rb_hash_table_insert(file_hdr.fid);	    
+
+	      memcpy(file_entry.fid,file_hdr.fid, sizeof (fid_t));
+	      file_entry.layout = file_hdr.layout;
+          file_entry.todo   = 1;     
+	      file_entry.unlink = 0;       
+          memcpy(file_entry.dist_set_current, file_hdr.dist_set_current, sizeof (sid_t) * ROZOFS_SAFE_MAX);	    
+
+          ret = write(cfgfd[idx],&file_entry,sizeof(file_entry)); 
+	      if (ret != sizeof(file_entry)) {
+	        severe("can not write file cid%d sid%d %d %s",cid,sid,idx,strerror(errno));
+	      }
+
+	      idx++;
+	      if (idx >= parallel) idx = 0; 
+
+	    } // End of loop in one slice 
+	    closedir(dir1);  
+      } // End of slices
     }
   } 
 
@@ -1393,6 +1375,42 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
   }  
   return 0;   
 }
+/** Remove empty rebuild list files 
+ *
+ */
+static int rbs_do_remove_lists() {
+  char         * dirName;
+  char           fileName[FILENAME_MAX];
+  DIR           *dir;
+  struct dirent *file;
+    
+  /*
+  ** Start one rebuild process par rebuild file
+  */
+  dirName = get_rebuild_directory_name();
+  
+  /*
+  ** Open this directory
+  */
+  dir = opendir(dirName);
+  if (dir == NULL) {
+    if (errno == ENOENT) return 0;
+    severe("opendir(%s) %s", dirName, strerror(errno));
+    return -1;
+  } 	  
+  /*
+  ** Loop on distibution sub directories
+  */
+  while ((file = readdir(dir)) != NULL) {  
+    if (strcmp(file->d_name,".")==0)  continue;
+    if (strcmp(file->d_name,"..")==0) continue;
+    sprintf(fileName,"%s/%s",dirName,file->d_name);
+    unlink(fileName);
+  }
+  
+  closedir(dir);
+  return 0;
+} 
 /** Rebuild list just produced 
  *
  */
@@ -1541,6 +1559,9 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     // Get connections for this given cluster
     if (rbs_init_cluster_cnts(&cluster_entries, cid, sid) != 0)
         goto out;
+	
+    // Remove any old files that should exist in the process directory
+    ret = rbs_do_remove_lists();
 
     // One FID to rebuild
     if (device == -2) {
@@ -1548,6 +1569,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
       if (rbs_build_one_fid_list(cid, sid, layout, distribution, fid2rebuild) != 0)
         goto out;
       rb_fid_table_count = 1;	
+      parallel           = 1; 
     }
     else if (device == -1) {
       // Build the list from the remote storages
@@ -1569,14 +1591,21 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
 
 
     // Actually process the rebuild
-    info("%llu files to rebuild by %d processes",
-         (unsigned long long int)rb_fid_table_count,parallel);
-    ret = rbs_do_list_rebuild();
-    while (ret != 0) {
-      info("Rebuild failed. Will retry within %d seconds", TIME_BETWEEN_2_RB_ATTEMPS);
-      sleep(TIME_BETWEEN_2_RB_ATTEMPS); 
-      ret = rbs_do_list_rebuild();
+    if (rb_fid_table_count==0) {
+      info("No file to rebuild");
+      ret = rbs_do_remove_lists();
     }
+    else {
+      info("%llu files to rebuild by %d processes",
+           (unsigned long long int)rb_fid_table_count,parallel);
+      ret = rbs_do_list_rebuild();
+      while (ret != 0) {
+	info("Rebuild failed. Will retry within %d seconds", TIME_BETWEEN_2_RB_ATTEMPS);
+	sleep(TIME_BETWEEN_2_RB_ATTEMPS); 
+	ret = rbs_do_list_rebuild();
+      }
+    }
+    
     rmdir(get_rebuild_directory_name());
     return status;
     

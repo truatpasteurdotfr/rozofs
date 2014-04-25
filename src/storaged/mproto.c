@@ -139,9 +139,8 @@ void mp_list_bins_files_1_svc_nb(void * pt_req,
 
     if (storage_list_bins_files_to_rebuild(st, args->rebuild_sid,
             &args->device,
-            &args->layout,
-            (sid_t *) & args->dist_set,
             &args->spare,
+	    &args->slice,
             &args->cookie,
             (bins_file_rebuild_t **)
             & ret->mp_list_bins_files_ret_t_u.reply.children,
@@ -151,11 +150,9 @@ void mp_list_bins_files_1_svc_nb(void * pt_req,
     }
 
     ret->mp_list_bins_files_ret_t_u.reply.cookie = args->cookie;
-    memcpy(&ret->mp_list_bins_files_ret_t_u.reply.dist_set, &args->dist_set,
-            sizeof (sid_t) * ROZOFS_SAFE_MAX);
-    ret->mp_list_bins_files_ret_t_u.reply.layout = args->layout;
     ret->mp_list_bins_files_ret_t_u.reply.spare = args->spare;    
     ret->mp_list_bins_files_ret_t_u.reply.device = args->device;
+    ret->mp_list_bins_files_ret_t_u.reply.slice = args->slice;
 
     ret->status = MP_SUCCESS;
 

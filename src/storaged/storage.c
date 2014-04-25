@@ -17,6 +17,7 @@
  */
 
 #define _XOPEN_SOURCE 500
+#define STORAGE_C
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -42,6 +43,7 @@
 #include "storio_cache.h"
 #include "storio_bufcache.h"
 #include "storio_device_mapping.h"
+
 
 /*
 ** API to be called when an error occurs on a device
@@ -78,31 +80,18 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   int                       fd;
   char                      my_path[FILENAME_MAX];
 
-    
-  // Check that this directory already exists, otherwise it will be create
-  if (access(path, F_OK) == -1) {
-    if (errno == ENOENT) {
-      // If the directory doesn't exist, create it
-      if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
-	if (errno != EEXIST) { 
-	  // The directory is not created !!!
-	  storage_error_on_device(st,dev);
-	  return -1;
-	}	
-	// Well someone else has created the directory in the meantime
-      }
-    } 
-    else {
-      storage_error_on_device(st,dev);
-      return -1;
-    }
+  /*
+  ** Create directory when needed */
+  if (storage_create_dir(path) < 0) {   
+    storage_error_on_device(st,dev);
+    return -1;
   }   
       
   /* 
   ** Read the mapping file
   */
   strcpy(my_path,path); // Not to modify input path
-  storage_map_projection_hdr(hdr->fid,my_path);
+  storage_complete_path_with_fid(hdr->fid, my_path);  
 
   // Open bins file
   fd = open(my_path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
@@ -133,7 +122,6 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
 				   uint8_t spare, 
 				   char *path, 
 				   int version) {
-    char                      dist_set_string[FILENAME_MAX];
     int                       dev;
     int                       hdrDevice;
     size_t                    nb_read;
@@ -141,15 +129,15 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
     int                       result;
     rozofs_stor_bins_file_hdr_t file_hdr;
     int                       device_result[STORAGE_MAX_DEVICE_NB];
+    int                       storage_slice;
 
     DEBUG_FUNCTION;
-
-
-    /*
-    ** Pre-format distribution string
-    */
-    storage_dist_set_2_string(layout, dist_set, dist_set_string);
     
+    /*
+    ** Compute storage slice from FID
+    */
+    storage_slice = rozofs_storage_fid_slice(fid);
+     
     memset(device_result,0,sizeof(device_result));    
 
     /*
@@ -164,56 +152,41 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
       */
       for (dev=0; dev < st->mapper_redundancy ; dev++) {
 
-        hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);	
-	sprintf(path, "%s/%d/layout_%u/spare_%u/%s", st->root, hdrDevice, layout, spare, dist_set_string);            
-
+        hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
+	storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
+	            
 	// Check that this directory already exists, otherwise it will be create
-	if (access(path, F_OK) == -1) {
-            if (errno == ENOENT) {
-        	// If the directory doesn't exist, create it
-        	if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
-		  if (errno != EEXIST) { 
-	            // The directory is not created !!!
-		    device_result[dev] = errno;	
-		    storage_error_on_device(st,hdrDevice);   
-                    continue;
-		  }	
-		  // Well someone else has created the directory in the meantime
-        	}
-            } 
-	    else {
+        if (storage_create_dir(path) < 0) {
 	      device_result[dev] = errno;		    
               storage_error_on_device(st,hdrDevice);
               continue;
-            }
 	}   
 
-      
-	/* 
-	** Fullfill the path with the name of the mapping file
-	*/
-        storage_map_projection_hdr(fid,path);
+        /* 
+        ** Fullfill the path with the name of the mapping file
+        */
+        storage_complete_path_with_fid(fid,path);
 
-	// Open bins file
-	fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-	if (fd < 0) {
-	  device_result[dev] = errno;	
+        // Open hdr file
+        fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+        if (fd < 0) {
+          device_result[dev] = errno;	
           continue;
-	}
+        }
         nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
-	if (nb_read != sizeof(file_hdr)) {
-	  device_result[dev] = EINVAL;	
-	  close(fd);
-	  storage_error_on_device(st,hdrDevice);
-	  continue;
-	}
+        if (nb_read != sizeof(file_hdr)) {
+          device_result[dev] = EINVAL;	
+          close(fd);
+          storage_error_on_device(st,hdrDevice);
+          continue;
+        }
 	
-	close(fd);
+        close(fd);
 	
-	/* Wonderfull. We have found the device number in a mapping file */
-	*device_id = file_hdr.device_id;
-	device_result[dev] = 0;		
-	break;	
+        /* Wonderfull. We have found the device number in a mapping file */
+        *device_id = file_hdr.device_id;
+        device_result[dev] = 0;		
+        break;	
       }	         
  
       break;
@@ -240,7 +213,7 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
     */    
     
     if (*device_id != -1) {
-       /* The fid exist on *device_id */
+       /* The fid exist on *device_id */         
        goto success;
     }   
    
@@ -250,7 +223,7 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
     
     for (dev=0; dev < st->mapper_redundancy ; dev++) {
       if (device_result[dev] != ENOENT) {
-	break;
+	    break;
       }	  
     } 
     /*
@@ -273,7 +246,7 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
       int ret;
 
       hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
-      sprintf(path, "%s/%d/layout_%u/spare_%u/%s", st->root, hdrDevice, layout, spare, dist_set_string); 
+      storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
                  
       // Prepare file header
       memcpy(file_hdr.dist_set_current, dist_set, ROZOFS_SAFE_MAX * sizeof (sid_t));
@@ -296,30 +269,10 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
        
     
 success: 
-    sprintf(path,"%s/%d/layout_%u/spare_%u/%s", st->root, *device_id, layout, spare, dist_set_string);
+    storage_build_bins_path(path, st->root, *device_id, spare, storage_slice);
     return path;            
 }
 
-/*
- ** Build the path for the projection file
-  @param fid: unique file identifier
-  @param path : pointer to the buffer where reuslting path will be stored
-  @param device_number: number of device handled by the sid
-  @param mapper_modulo: number of device to hold mapping file
-  @param mapper_redundancy: number of mapping file instance to write per FID
-    
-  @retval pointer to the beginning of the path
-  
- */
-char *storage_map_projection(fid_t fid, char *path) {
-    char str[37];
-
-    uuid_unparse(fid, str);
-    strcat(path, str);
-    sprintf(str, ".bins");
-    strcat(path, str);
-    return path;
-}
 /*
 ** 
   @param device_number: number of device handled by the sid
@@ -335,7 +288,6 @@ int storage_initialize(storage_t *st,
 		       uint32_t mapper_modulo, 
 		       uint32_t mapper_redundancy) {
     int status = -1;
-    uint8_t layout = 0;
     char path[FILENAME_MAX];
     struct stat s;
     int dev;
@@ -394,55 +346,78 @@ int storage_initialize(storage_t *st,
             goto out;
 	}
 
-	// Build directories for each possible layout if necessary
-	for (layout = 0; layout < LAYOUT_MAX; layout++) {
+        /*
+	** Build 2nd level directories
+	*/
 
-            // Build layout level directory
-            sprintf(path, "%s/%d/layout_%u", st->root, dev, layout);
-            if (access(path, F_OK) == -1) {
-        	if (errno == ENOENT) {
-                    // If the directory doesn't exist, create it
-                    if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
-	        	if (errno != EEXIST) { 		
-                	goto out;
-			}
-	        	// Well someone else has created the directory in the meantime
-		    }    
-        	} else {
-                    goto out;
-        	}
-            }
+	
+        sprintf(path, "%s/%d/hdr_0", st->root, dev);
+        if (access(path, F_OK) != 0) {
+          if (storage_create_dir(path) < 0) {
+            severe("%s creation %s",path, strerror(errno));
+          }
+#if FID_STORAGE_SLICE_SIZE != 1
+	  int slice;
+          char slicepath[FILENAME_MAX];
+	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	    sprintf(slicepath,"%s/%d",path,slice);
+            if (storage_create_dir(slicepath) < 0) {
+              severe("%s creation %s",slicepath, strerror(errno));
+            }	    
+	  }
+#endif	  
+	}  
 
-            // Build spare level directories
-            sprintf(path, "%s/%d/layout_%u/spare_0", st->root, dev, layout);
-            if (access(path, F_OK) == -1) {
-        	if (errno == ENOENT) {
-                    // If the directory doesn't exist, create it
-                    if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
-	        	if (errno != EEXIST) { 		
-                	goto out;
-			}
-	        	// Well someone else has created the directory in the meantime
-		    }    
-        	} else {
-                    goto out;
-        	}
-            }
-            sprintf(path, "%s/%d/layout_%u/spare_1", st->root, dev, layout);
-            if (access(path, F_OK) == -1) {
-        	if (errno == ENOENT) {
-                    // If the directory doesn't exist, create it
-                    if (mkdir(path, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
-	        	if (errno != EEXIST) { 		
-                	goto out;
-			}
-	        	// Well someone else has created the directory in the meantime
-		    }    
-        	} else {
-                    goto out;
-        	}
-            }
-	}
+        sprintf(path, "%s/%d/hdr_1", st->root, dev);
+        if (access(path, F_OK) != 0) {
+          if (storage_create_dir(path) < 0) {
+            severe("%s creation %s",path, strerror(errno));
+          }	
+#if FID_STORAGE_SLICE_SIZE != 1
+	  int slice;
+          char slicepath[FILENAME_MAX];
+	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	    sprintf(slicepath,"%s/%d",path,slice);
+            if (storage_create_dir(slicepath) < 0) {
+              severe("%s creation %s",slicepath, strerror(errno));
+            }	    
+	  }
+#endif
+	} 
+	
+        sprintf(path, "%s/%d/bins_0", st->root, dev);
+        if (access(path, F_OK) != 0) {
+          if (storage_create_dir(path) < 0) {
+            severe("%s creation %s",path, strerror(errno));
+          }	
+#if FID_STORAGE_SLICE_SIZE != 1
+	  int slice;
+          char slicepath[FILENAME_MAX];
+	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	    sprintf(slicepath,"%s/%d",path,slice);
+            if (storage_create_dir(slicepath) < 0) {
+              severe("%s creation %s",slicepath, strerror(errno));
+            }	    
+	  }
+#endif
+	} 
+	
+        sprintf(path, "%s/%d/bins_1", st->root, dev);
+        if (access(path, F_OK) != 0) {
+          if (storage_create_dir(path) < 0) {
+            severe("%s creation %s",path, strerror(errno));
+          }	
+#if FID_STORAGE_SLICE_SIZE != 1
+	  int slice;
+          char slicepath[FILENAME_MAX];
+	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	    sprintf(slicepath,"%s/%d",path,slice);
+            if (storage_create_dir(slicepath) < 0) {
+              severe("%s creation %s",slicepath, strerror(errno));
+            }	    
+	  }
+#endif	  
+	} 	
     }
     st->sid = sid;
     st->cid = cid;
@@ -568,28 +543,17 @@ open:
                                      path, version) == NULL) {
       severe("storage_write storage_dev_map_distribution");
       goto out;      
-    }   
+    }  
+    
 
     // Check that this directory already exists, otherwise it must be created
-    if (access(path, F_OK) == -1) {
-        if (errno == ENOENT) {
-            // If the directory doesn't exist, create it
-            if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
-	      if (errno != EEXIST) { 
-	        // The directory is not created !!!
-		storage_error_on_device(st,*device_id);
-                goto out;
-	      }	
-	      // Well someone else has created the directory in the meantime
-            }
-        } else {
-	    storage_error_on_device(st,*device_id);
-            goto out;
-        }
+    if (storage_create_dir(path) < 0) {
+      storage_error_on_device(st,*device_id);
+      goto out;
     }
 
     // Build the path of bins file
-    storage_map_projection(fid, path);
+    storage_complete_path_with_fid(fid, path);
 
 
     // Open bins file
@@ -730,7 +694,7 @@ open:
     }   
     
     // Build the path of bins file
-    storage_map_projection(fid, path);
+    storage_complete_path_with_fid(fid, path);
 
     // Open bins file
     fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE_RO);
@@ -873,25 +837,13 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     }   
 
     // Check that this directory already exists, otherwise it will be create
-    if (access(path, F_OK) == -1) {
-        if (errno == ENOENT) {
-            // If the directory doesn't exist, create it
-            if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
-	      if (errno != EEXIST) { 
-	        // The directory is not created !!!
-	        storage_error_on_device(st,*device_id);  			
-                goto out;
-	      }	
-	      // Well someone else has created the directory in the meantime
-            }
-        } else {
-	    storage_error_on_device(st,*device_id);  				
-            goto out;
-        }
-    }
+    if (storage_create_dir(path) < 0) {
+      storage_error_on_device(st,*device_id);
+      goto out;
+    }   
 
     // Build the path of bins file
-    storage_map_projection(fid, path);
+    storage_complete_path_with_fid(fid, path);
 
 
     // Open bins file
@@ -1005,7 +957,7 @@ int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
         }					 
 
         // Build the path of bins file
-        storage_map_projection(fid, path);
+        storage_complete_path_with_fid(fid, path);
 
         // Check that this file exists
         if (access(path, F_OK) == -1)
@@ -1017,13 +969,13 @@ int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
                         path, strerror(errno));
                 goto out;
             }
-        } else {
-            // It's not possible for one storage to store one bins file
-            // in directories spare and no spare.
-            status = 0;
-            storage_dev_map_distribution_remove(st, fid,layout, dist_set, spare);
-            goto out;
-        }
+        } 
+	
+        // It's not possible for one storage to store one bins file
+        // in directories spare and no spare.
+        status = 0;
+        storage_dev_map_distribution_remove(st, fid, spare);
+        goto out;
     }
     status = 0;
 out:
@@ -1056,26 +1008,27 @@ out:
     return status;
 }
 
-bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t device_id, uint8_t layout,
-        sid_t * dist_set, uint8_t spare, uint64_t * cookie,
-        bins_file_rebuild_t ** children, uint8_t * eof,
-        uint64_t * current_files_nb) {
+bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t device_id, 
+                                              uint8_t spare, uint16_t slice, uint64_t * cookie,
+        				      bins_file_rebuild_t ** children, uint8_t * eof,
+        				      uint64_t * current_files_nb) {
     int i = 0;
-    int j = 0;
     char path[FILENAME_MAX];
-    char * pt;
     DIR *dp = NULL;
     struct dirent *ep = NULL;
-    bins_file_rebuild_t **iterator;
+    bins_file_rebuild_t **iterator = children;
+    rozofs_stor_bins_file_hdr_t file_hdr;
+    int                         fd;
+    int                         nb_read;
+    int                         sid_idx;
+    int                         safe;
 
     DEBUG_FUNCTION;
         
     /*
     ** Build the directory path
     */
-    pt = path;
-    pt += sprintf(pt, "%s/%d/layout_%u/spare_%u/", st->root, device_id, layout, spare); 
-    pt = storage_dist_set_2_string (layout, dist_set, pt);
+    storage_build_hdr_path(path, st->root, device_id, spare, slice);
     
      
     // Open directory
@@ -1085,39 +1038,49 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t device_id,
     // Readdir first time
     ep = readdir(dp);
 
-    // Go to cookie index in this dir
-    for (j = 0; j < *cookie; j++) {
-        if (ep)
-            ep = readdir(dp);
+    // Step to the cookie index
+    if (*cookie != 0) {
+      seekdir(dp, *cookie);
     }
-
-    // Use iterator
-    iterator = children;
 
     // The current nb. of bins files in the list
     i = *current_files_nb;
 
     // Readdir the next entries
     while (ep && i < MAX_REBUILD_ENTRIES) {
+    
+        if ((strcmp(ep->d_name,".") != 0) && (strcmp(ep->d_name,"..") != 0)) {      
 
-        // Pattern matching
-        if (fnmatch("*.bins", ep->d_name, 0) == 0) {
+            // Read the file
+            storage_build_hdr_path(path, st->root, device_id, spare, slice);
+            strcat(path,ep->d_name);
 
-            // Get the FID for this bins file
-            char fid_str[37];
-            if (sscanf(ep->d_name, "%36s.bins", fid_str) != 1)
-                continue;
+	    fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+	    if (fd < 0) continue;
+
+            nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
+	    close(fd);	    
+
+            // What to do with such an error ?
+	    if (nb_read != sizeof(file_hdr)) continue;
+	    
+	    // Check the requested sid is in the distribution
+	    safe = rozofs_get_rozofs_safe(file_hdr.layout);
+	    for (sid_idx=0; sid_idx<safe; sid_idx++) {
+	      if (file_hdr.dist_set_current[sid_idx] == sid) break;
+	    }
+	    if (sid_idx == safe) continue;
+	    
 
             // Alloc a new bins_file_rebuild_t
             *iterator = xmalloc(sizeof (bins_file_rebuild_t)); // XXX FREE ?
             // Copy FID
-            uuid_parse(fid_str, (*iterator)->fid);
-	    	    
+            uuid_parse(ep->d_name, (*iterator)->fid);
             // Copy current dist_set
-            memcpy((*iterator)->dist_set_current, dist_set,
+            memcpy((*iterator)->dist_set_current, file_hdr.dist_set_current,
                     sizeof (sid_t) * ROZOFS_SAFE_MAX);
             // Copy layout
-            (*iterator)->layout = layout;
+            (*iterator)->layout = file_hdr.layout;
 
             // Go to next entry
             iterator = &(*iterator)->next;
@@ -1125,9 +1088,6 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t device_id,
             // Increment the current nb. of bins files in the list
             i++;
         }
-
-        j++;
-
         // Readdir for next entry
         ep = readdir(dp);
     }
@@ -1135,17 +1095,18 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, uint8_t device_id,
     // Update current nb. of bins files in the list
     *current_files_nb = i;
 
-    // Close directory
-    if (closedir(dp) == -1)
-        goto out;
-
     if (ep) {
         // It's not the EOF
         *eof = 0;
-        *cookie = j;
+	// Save where we are
+        *cookie = telldir(dp);
     } else {
         *eof = 1;
     }
+
+    // Close directory
+    if (closedir(dp) == -1)
+        goto out;
 
     *iterator = NULL;
 out:
@@ -1153,137 +1114,64 @@ out:
 }
 
 int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid, uint8_t * device_id,
-        uint8_t * layout, sid_t *dist_set, uint8_t * spare, uint64_t * cookie,
+        uint8_t * spare, uint16_t * slice, uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof) {
 
     int status = -1;
-    char **p;
-    size_t cnt;
-    glob_t glob_results;
-    uint8_t layout_it = 0;
     uint8_t spare_it = 0;
     uint64_t current_files_nb = 0;
     bins_file_rebuild_t **iterator = NULL;
-    uint8_t check_dist_set = 0;
     uint8_t device_it = 0;
+    uint16_t slice_it = 0;
 
     DEBUG_FUNCTION;
 
     // Use iterator
     iterator = children;
 
-    sid_t current_dist_set[ROZOFS_SAFE_MAX];
-    sid_t empty_dist_set[ROZOFS_SAFE_MAX];
-    memset(empty_dist_set, 0, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-    memcpy(current_dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-
-    if (memcmp(current_dist_set, empty_dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX) != 0)
-        check_dist_set = 1;
-
     device_it = *device_id;
-    layout_it = *layout;
     spare_it  = *spare;
+    slice_it  = *slice;
     
     // Loop on all the devices
-    for (; device_it < st->device_number;device_it++,layout_it=0) {
+    for (; device_it < st->device_number;device_it++,spare_it=0) {
 
-	// For each possible layout
-	for (; layout_it < LAYOUT_MAX; layout_it++,spare_it=0) {
-
-            // For spare and no spare
-            for (; spare_it < 2; spare_it++) {
+        // For spare and no spare
+        for (; spare_it < 2; spare_it++,slice_it=0) {
+	
+            // For slice
+            for (; slice_it < FID_STORAGE_SLICE_SIZE; slice_it++) {
 
         	// Build path directory for this layout and this spare type
         	char path[FILENAME_MAX];
-        	sprintf(path, "%s/%d/layout_%u/spare_%u/", 
-		        st->root, device_it, layout_it, spare_it);
+        	storage_build_hdr_path(path, st->root, device_it, spare_it, slice_it);
 
         	// Go to this directory
         	if (chdir(path) != 0)
                     continue;
 
-        	// Build pattern for globbing
-        	char pattern[FILENAME_MAX];
-        	sprintf(pattern, "*%.3u*", sid);
+                // List the bins files for this specific directory
+                if ((iterator = storage_list_bins_file(st, sid, device_it, spare_it, slice_it, 
+		                                       cookie, iterator, eof,
+                                                       &current_files_nb)) == NULL) {
+                    severe("storage_list_bins_file failed: %s\n",
+                            strerror(errno));
+                    continue;
+                }
+		
 
-        	// Globbing function
-        	if (glob(pattern, GLOB_ONLYDIR, 0, &glob_results) == 0) {
-
-                    // For all the directories matching pattern
-                    for (p = glob_results.gl_pathv, cnt = glob_results.gl_pathc;
-                            cnt; p++, cnt--) {
-
-                	// Get the dist_set for this directory
-                	switch (layout_it) {
-                            case LAYOUT_2_3_4:
-                        	if (sscanf(*p, "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "",
-                                	&dist_set[0], &dist_set[1],
-                                	&dist_set[2], &dist_set[3]) != 4) {
-                                    continue;
-                        	}
-                        	break;
-                            case LAYOUT_4_6_8:
-                        	if (sscanf(*p, "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "-%" SCNu8 "",
-                                	&dist_set[0], &dist_set[1], &dist_set[2],
-                                	&dist_set[3], &dist_set[4], &dist_set[5],
-                                	&dist_set[6], &dist_set[7]) != 8) {
-                                    continue;
-                        	}
-                        	break;
-                            case LAYOUT_8_12_16:
-                        	if (sscanf(*p, "%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "-%" SCNu8 "-%" SCNu8 "-"
-                                	"%" SCNu8 "",
-                                	&dist_set[0], &dist_set[1], &dist_set[2],
-                                	&dist_set[3], &dist_set[4], &dist_set[5],
-                                	&dist_set[6], &dist_set[7], &dist_set[8],
-                                	&dist_set[9], &dist_set[10], &dist_set[11],
-                                	&dist_set[12], &dist_set[13], &dist_set[14],
-                                	&dist_set[15]) != 16) {
-                                    continue;
-                        	}
-                        	break;
-                	}
-
-                	// Check dist_set
-                	if (check_dist_set) {
-                            if (memcmp(current_dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX) != 0)
-                        	continue;
-                	}
-
-                	check_dist_set = 0;
-
-                	// List the bins files for this specific directory
-                	if ((iterator = storage_list_bins_file(st, device_it, layout_it,
-                        	dist_set, spare_it, cookie, iterator, eof,
-                        	&current_files_nb)) == NULL) {
-                            severe("storage_list_bins_file failed: %s\n",
-                                    strerror(errno));
-                            continue;
-                	}
-
-                	// Check if EOF
-                	if (0 == *eof) {
-                            status = 0;
-			    *device_id = device_it;
-                            *spare = spare_it;
-                            *layout = layout_it;
-                            goto out;
-                	} else {
-                            *cookie = 0;
-                	}
-
-                    }
-                    globfree(&glob_results);
-        	}
+                // Check if EOF
+                if (0 == *eof) {
+                    status = 0;
+		            *device_id = device_it;
+                    *spare = spare_it;
+                    *slice = slice_it;
+                    goto out;
+                } else {
+                    *cookie = 0;
+                }
             }
-	}
+	    }    
     }
     *eof = 1;
     status = 0;

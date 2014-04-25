@@ -24,6 +24,9 @@
 #include <uuid/uuid.h>
 #include <sys/param.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/rozofs_srv.h>
@@ -192,29 +195,63 @@ static inline void storage_device_mapping_reset_error_counters() {
   }
 }
 
+/*
+** FID storage slice computing
+*/
 
+#ifdef STORAGE_C
+#warning FID_STORAGE_SLICE_SIZE should be set to a correct value
+#endif
 
-
-/** Transform a distribution set into a string
- *
- * @param st: the storage to be initialized.
- * @param layout: layout used for store this file.
- * @param dist_set: storages nodes used for store this file.
- * @param spare: indicator on the status of the projection.
- * @param path: the directory path.
- *
- * @return: the directory path
- */
-static inline char * storage_dist_set_2_string(int layout, sid_t * dist_set, char * str) {
-    char    * pt    = str;
-    uint8_t   loop  = rozofs_get_rozofs_safe(layout) - 1;   
-    int       i;
-                 
-    for (i = 0; i < loop; i++) pt += sprintf(pt, "%.3u-", dist_set[i]);
-    pt += sprintf(pt, "%.3u/", dist_set[i]);
-    
-    return pt;
-}
+#define FID_STORAGE_SLICE_SIZE 8
+static inline unsigned int rozofs_storage_fid_slice(void * fid) {
+#if FID_STORAGE_SLICE_SIZE == 1
+  return 0;
+#else  
+  rozofs_inode_t *pFid = (rozofs_inode_t*) fid;
+  return pFid->s.file_id % FID_STORAGE_SLICE_SIZE;
+} 
+#endif
+/*
+** Build a path on storage disk
+**
+** @param path       where to write the path
+** @param root_path  The cid/sid root path
+** @param device     The device to access
+** @param spare      Whether this is a path to a spare file
+** @param slice      the storage slice number
+*/
+static inline void storage_build_hdr_path(char * path, 
+                               char * root_path, 
+			       uint32_t device, 
+			       uint8_t spare, 
+			       int     slice) {	       
+#if FID_STORAGE_SLICE_SIZE == 1
+   sprintf(path, "%s/%d/hdr_%u/", root_path, device, spare);  
+#else 
+    sprintf(path, "%s/%d/hdr_%u/%d/", root_path, device, spare, slice);  
+#endif 
+}     
+/*
+** Build a path on storage disk
+**
+** @param path       where to write the path
+** @param root_path  The cid/sid root path
+** @param device     The device to access
+** @param spare      Whether this is a path to a spare file
+** @param slice      the storage slice number
+*/
+static inline void storage_build_bins_path(char * path, 
+                               char * root_path, 
+			       uint32_t device, 
+			       uint8_t spare, 
+			       int     slice) {
+#if FID_STORAGE_SLICE_SIZE == 1
+   sprintf(path, "%s/%d/bins_%u/", root_path, device, spare);  
+#else 			       
+   sprintf(path, "%s/%d/bins_%u/%d/", root_path, device, spare, slice);  
+#endif   
+} 
 
 /** Compute the 
  *
@@ -402,7 +439,7 @@ int storage_stat(storage_t * st, sstat_t * sstat);
 
 
 int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,  uint8_t * device_id,
-        uint8_t * layout, sid_t *dist_set, uint8_t * spare, uint64_t * cookie,
+        uint8_t * spare, uint16_t * slice, uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof);
 
 /*
@@ -413,39 +450,54 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,  uint8_t * dev
   @retval pointer to the beginning of the path
   
  */
-static inline char *storage_map_projection_hdr(fid_t fid, char *path) {
-    char str[37];
-
-    uuid_unparse(fid, str);
-    strcat(path, str);
-    sprintf(str, ".hdr");
-    strcat(path, str);
-    return path;
+static inline void storage_complete_path_with_fid(fid_t fid, char *path) {
+    int len = strlen(path);
+    uuid_unparse(fid, &path[len]);
 }
+/*
+ ** Create a directory if it does not yet exist
+  @param path : path toward the directory
+  
+  @retval 0 on success
+  
+ */
+static inline int storage_create_dir(char *path) {
+
+  /* Directory exist */
+  if (access(path, F_OK) == 0) return 0;
+  
+  /* Unhandled error on directory access */
+  if (errno != ENOENT) return -1;
+  
+  /* The directory doesn't exist, let's create it */
+  if (mkdir(path, ROZOFS_ST_DIR_MODE) == 0) return 0;
+  
+  /* Someone else has just created the directory */ 
+  if (errno == EEXIST) return 0;		
+
+  /* Unhandled error on directory creation */
+  return -1;
+}  
 /** Remove header files from disk
  *
  * @param st: the storage to use.
  * @param fid: FID of the file
- * @param layout: layout of the file
  * @param dist_set: distribution set of the file
  * @param spare: whether this is a spare sid
 *
  * @return: 0 on success -1 otherwise (errno is set)
  */	
-void static inline storage_dev_map_distribution_remove(storage_t * st, fid_t fid, uint8_t layout,
-                                          sid_t dist_set[ROZOFS_SAFE_MAX], uint8_t spare) {
-    char                      dist_set_string[FILENAME_MAX];
+void static inline storage_dev_map_distribution_remove(storage_t * st, fid_t fid, uint8_t spare) {
     char                      path[FILENAME_MAX];
     int                       dev;
     int                       hdrDevice;
 
     DEBUG_FUNCTION;
-
+ 
     /*
-    ** Pre-format distribution string
+    ** Compute storage slice from FID
     */
-    storage_dist_set_2_string(layout, dist_set, dist_set_string);
-  
+    int storage_slice = rozofs_storage_fid_slice(fid);
 
    /*
    ** Loop on the reduncant devices that should hold a copy of the mapping file
@@ -453,8 +505,9 @@ void static inline storage_dev_map_distribution_remove(storage_t * st, fid_t fid
    for (dev=0; dev < st->mapper_redundancy ; dev++) {
 
        hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);	
-       sprintf(path, "%s/%d/layout_%u/spare_%u/%s", st->root, hdrDevice, layout, spare, dist_set_string);            
-       storage_map_projection_hdr(fid,path);
+       storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
+
+       storage_complete_path_with_fid(fid,path);
 
        // Check that the file exists
        if (access(path, F_OK) == -1) continue;

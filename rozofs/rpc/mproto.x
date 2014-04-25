@@ -78,9 +78,8 @@ struct bins_files_list_t {
     mp_children_t   children;
     uint8_t         eof;
     uint8_t         device;    
-    uint8_t         layout;
+    uint16_t        slice;
     uint8_t         spare;
-    uint8_t         dist_set[ROZOFS_SAFE_MAX];
     uint64_t        cookie;
 };
 
@@ -95,9 +94,8 @@ struct mp_list_bins_files_arg_t {
     uint8_t    sid;
     uint8_t    rebuild_sid;
     uint8_t    device;
-    uint8_t    layout;
-    uint8_t    dist_set[ROZOFS_SAFE_MAX];
     uint8_t    spare;
+    uint16_t   slice;
     uint64_t   cookie;
 };
 

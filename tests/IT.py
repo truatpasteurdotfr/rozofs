@@ -18,8 +18,8 @@ NB_SID=int(8)
 nbGruyere=int(1000)
 stopOnFailure=False
 fuseTrace=False
-
 DEFAULT_RETRIES=int(20)
+
  
 
 #___________________________________________________
@@ -64,6 +64,24 @@ def reset_counters():
     string='./dbg.sh fs1 trc_fuse disable'
     parsed = shlex.split(string)
     cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  
+
+#___________________________________________________
+def get_sid_nb():
+# Use debug interface to get the number of sid from exportd
+#___________________________________________________
+
+  sid=int(0)
+  
+  string='./dbg.sh exp vfstat_stor'
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+  for line in cmd.stdout:
+    if "UP" in line or "DOWN" in line:
+      sid=sid+1
+      
+  return sid    
 
 #___________________________________________________
 def export_count_sid_up ():
@@ -311,7 +329,7 @@ def snipper (target):
   try:
     ret = getattr(sys.modules[__name__],func)()         
   except:
-    print "No such snipper target %s"%(target)
+    print "No such snipper %s"%(func)
     ret = 1
   return ret  
 
@@ -605,17 +623,45 @@ def rebuild_fid() :
 
     # loop on the bins file constituting this file, and ask
     # the storages for a rebuild of the file
+    bins_list = []
     for line in cmd.stdout:
-      if ".bins" in line:
+    
+      if "STORAGE" in line:
+        words=line.split();
+	if len(words) >= 2:
+          dist=words[2]
+	  continue
+	  
+      if "FID" in line:
+        words=line.split();
+	if len(words) >= 2:
+          fid=words[2]
+	  continue
+	  
+      if "LAYOUT" in line:
+        words=line.split();
+	if len(words) >= 2:
+          layout=words[2]
+	  continue	
+	    
+      if "/bins_" in line:
+        bins_list.append(line)
+	continue	  
+
+    # loop on the bins file constituting this file, and ask
+    # the storages for a rebuild of the file
+    for line in bins_list:
         words=line.split();
 	if len(words) >= 2:
 	
 	  name=words[1].split('/')
-	  fid=name[len(name)-1].split('.')[0]	  
-	  dist=name[len(name)-2]
-	  cidsid=name[len(name)-6].split("storage_")[1].split('-')	  
-  
-          string="./setup.sh storage %s fid-rebuild -s %s/%s -f 0/%s/%s "%(cidsid[1],cidsid[0],cidsid[1],dist,fid)
+	  check=name[len(name)-2]
+	  if check == "bins_0" or check == "bins_1": 
+	    cidsid=name[len(name)-4].split("storage_")[1].split('-')	  
+          else:
+	    cidsid=name[len(name)-5].split("storage_")[1].split('-')	  
+	  
+          string="./setup.sh storage %s fid-rebuild -s %s/%s -f %s/%s/%s "%(cidsid[1],cidsid[0],cidsid[1],layout,dist,fid)
           parsed = shlex.split(string)
           cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
           cmd.wait()
@@ -865,6 +911,7 @@ if options.list == True:
   exit(0)
   
 if options.snipper != None:
+  NB_SID=get_sid_nb()
   snipper(options.snipper)
   exit(0)  
     
@@ -913,4 +960,5 @@ if len(list) == 0:
   usage()
   
 # Run the requested test list
+NB_SID=get_sid_nb()
 do_run_list(list)

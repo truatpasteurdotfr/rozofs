@@ -46,33 +46,34 @@ int send_reload_to_storio() {
   int fd;
   int ret;
   int pid;
+  int i;
 
-  if (storaged_hostname != NULL) {
-      sprintf(pid_file, "%s%s_%s.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname);
-  } else {
-      sprintf(pid_file, "%s%s.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE);
-  }  
-  
-  fd = open(pid_file, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-  if (fd < 0) {
-    severe("open(%s) %s",pid_file,strerror(errno));
-    return -1;
-  }
-  
-  ret = pread(fd, &pid_file, sizeof(pid_file), 0);
-  close(fd);
-  if (ret <= 0) {
-    severe("pread(%s) %s",pid_file,strerror(errno));
-    return -1;
-  }
-  
-  ret = sscanf(pid_file,"%u",&pid);
-  if (ret != 1) {
-    severe("sscanf(%s) %d",pid_file,ret);
-    return -1;
-  }
-  
-  kill(pid,1);
+  for (i=0; i< 16; i++) {
+
+    if (storaged_hostname != NULL) {
+	sprintf(pid_file, "%s%s_%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname,i);
+    } else {
+	sprintf(pid_file, "%s%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE,i);
+    }  
+
+    fd = open(pid_file, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+    if (fd < 0) continue;
+
+    ret = pread(fd, &pid_file, sizeof(pid_file), 0);
+    close(fd);
+    if (ret <= 0) {
+      severe("pread(%s) %s",pid_file,strerror(errno));
+      return -1;
+    }
+
+    ret = sscanf(pid_file,"%u",&pid);
+    if (ret != 1) {
+      severe("sscanf(%s) %d",pid_file,ret);
+      return -1;
+    }
+
+    kill(pid,1);
+  }   
   return 0;
 }
 

@@ -179,19 +179,15 @@ xdr_bins_files_list_t (XDR *xdrs, bins_files_list_t *objp)
 {
 	//register int32_t *buf;
 
-	//int i;
 	 if (!xdr_mp_children_t (xdrs, &objp->children))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->eof))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->device))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->layout))
+	 if (!xdr_uint16_t (xdrs, &objp->slice))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
-		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->cookie))
 		 return FALSE;
@@ -225,7 +221,6 @@ xdr_mp_list_bins_files_arg_t (XDR *xdrs, mp_list_bins_files_arg_t *objp)
 {
 	//register int32_t *buf;
 
-	//int i;
 	 if (!xdr_uint16_t (xdrs, &objp->cid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
@@ -234,12 +229,9 @@ xdr_mp_list_bins_files_arg_t (XDR *xdrs, mp_list_bins_files_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->device))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->layout))
-		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
-		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint16_t (xdrs, &objp->slice))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->cookie))
 		 return FALSE;

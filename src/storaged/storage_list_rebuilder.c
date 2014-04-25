@@ -173,6 +173,7 @@ int storaged_rebuild_list(char * fid_list) {
   int        spare;
   char       path[FILENAME_MAX];
   int        version=0;
+  int        res;
       
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
@@ -293,20 +294,10 @@ int storaged_rebuild_list(char * fid_list) {
     }  
 
     // Check that this directory already exists, otherwise it will be created
-    if (access(path, F_OK) == -1) {
-        if (errno == ENOENT) {
-            // If the directory doesn't exist, create it
-            if (mkdir(path, ROZOFS_ST_DIR_MODE) != 0) {
-                severe("mkdir failed (%s) : %s", path, strerror(errno));
-                continue;
-            }
-        } else {
-            continue;
-        }
-    }
+    if (storage_create_dir(path) < 0) continue;
 
     // Build the path of bins file
-    storage_map_projection(re.fid, path);
+    storage_complete_path_with_fid(re.fid, path);
 
     
     if (file_entry.unlink) {

@@ -74,7 +74,7 @@ static fid_t    fid2rebuild={0};
 static char    *fid2rebuild_string=NULL;
 
 int       layout=-1;
-uint8_t   distribution[ROZOFS_SAFE_MAX]={0};
+uint8_t   distribution[ROZOFS_SAFE_MAX+1]={0};
 int   cid=-1;
 int   sid=-1;
 
@@ -98,10 +98,7 @@ static int storaged_initialize() {
     list_t *p = NULL;
     DEBUG_FUNCTION;
 
-    /* Initialize rozofs constants (redundancy) */
-    rozofs_layout_initialize();
-
-    storaged_nrstorages = 0;
+   storaged_nrstorages = 0;
 
     storaged_nb_io_processes = 1;
     
@@ -183,7 +180,9 @@ void send_reload_to_storio() {
   } else {
       sprintf(command, "storio_reload");
   } 
-  system(command);  
+  if (system(command) < 0) {
+      severe("%s %s",command, strerror(errno));
+  }
 }
 
 /** Starts a thread for rebuild given storage(s)
@@ -218,20 +217,6 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 	// Send a reload signal to the storio to invalidate its cache table
 	// and it error counters
 	send_reload_to_storio();
-
-        if (fid2rebuild_string) {
-	   rbs_device_number = -2; // To tell one FID to rebuild 
-           info("Start rebuild process of FID %s (cid=%u;sid=%u).",
-                  fid2rebuild_string, stor_confs[i].cid, stor_confs[i].sid)	
-	}
-	else if (rbs_device_number == -1) {
-           info("Start rebuild process of all devices (cid=%u;sid=%u).",
-                  stor_confs[i].cid, stor_confs[i].sid);	    
-	}
-	else {
-           info("Start rebuild process of device %d (cid=%u;sid=%u).",
-                rbs_device_number, stor_confs[i].cid, stor_confs[i].sid);
-	}		  
 
 
         // Try to rebuild the storage until it's over
@@ -429,6 +414,8 @@ int main(int argc, char *argv[]) {
     rozofs_tmr_init_configuration();
     storaged_hostname = NULL;
 
+    /* Initialize rozofs constants (redundancy) */
+    rozofs_layout_initialize();
     while (1) {
 
         int option_index = 0;
@@ -501,11 +488,15 @@ int main(int argc, char *argv[]) {
 		  distribution[0] = val; 
 		  j=1;
 		  pt += 3;		
-		  while (sscanf(pt,"-%d",&val)==1) {
+		  while ((sscanf(pt,"-%d",&val)==1)&&(j<=ROZOFS_SAFE_MAX)) {
 		    distribution[j] = val;
 		    j++;
 		    pt += 4;
 		  }	  
+		  if (j != rozofs_get_rozofs_safe(layout)) {
+		    fprintf(stderr, "storage_rebuild failed: bad layout/distribution\n");
+                    exit(EXIT_FAILURE);		    
+		  }
                   if (*pt != '/') {
 		    fprintf(stderr, "storage_rebuild failed: after distribution %s\n", optarg);
                     exit(EXIT_FAILURE);
@@ -523,6 +514,7 @@ int main(int argc, char *argv[]) {
                             strerror(errno));
                     exit(EXIT_FAILURE);
                   }
+		          rbs_device_number = -2; // To tell one FID to rebuild 
                 }
                 break;							
             case 'd':
@@ -563,6 +555,14 @@ int main(int argc, char *argv[]) {
     }
     openlog("RBS", LOG_PID, LOG_DAEMON);
     
+    {
+      char command[256];
+      char * p = command;
+      int i;
+      
+      for (i=0; i< argc; i++) p += sprintf(p, "%s ", argv[i]);
+      info("%s",command);
+    }
     
     /*
     ** Check parameter consistency

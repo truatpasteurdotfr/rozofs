@@ -416,7 +416,7 @@ stop_one_storage () {
      "all") stop_storaged; return;;
    esac
    
-   process_killer storaged_${LOCAL_STORAGE_NAME_BASE}$1
+   process_killer "storaged_${LOCAL_STORAGE_NAME_BASE}$1."
 }   
 reset_one_storage () {
   stop_one_storage $1
@@ -609,6 +609,7 @@ deploy_clients_local ()
 
             for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
 
+                option=""
                 mountpoint -q ${LOCAL_MNT_ROOT}${j}_${idx_client}
 
                 if [ "$?" -ne 0 ]
@@ -797,6 +798,7 @@ do_start_all_processes() {
      start_storaged ${STORAGES_BY_CLUSTER}
      #start_expgw
      start_exportd 1
+     sleep 2
      deploy_clients_local
 }
 
@@ -955,7 +957,7 @@ do_one_cou ()
     sid=`expr $sid + 0`
     dir="${LOCAL_STORAGES_ROOT}_$cluster-$sid"
     doSpace="Yes"
-    for file in `find $dir/*/layout_$lay/spare_*/$dist/ -name "$fid*"`
+    for file in `find $dir -name $fid`
     do
       case $doSpace in
        Yes) printf "\n"; doSpace="No";;
@@ -1075,7 +1077,7 @@ set_layout () {
   # Get default layout from /tmp/rozo.layout if not given as parameter
   ROZOFS_LAYOUT=$1
   case "$ROZOFS_LAYOUT" in
-    "") ROZOFS_LAYOUT=`cat /tmp/rozo.layout`
+    "") ROZOFS_LAYOUT=`cat ${WORKING_DIR}/layout.saved`
   esac
 
   case "$ROZOFS_LAYOUT" in
@@ -1097,7 +1099,7 @@ set_layout () {
     };
   esac  
   # Save layout
-  echo $ROZOFS_LAYOUT > /tmp/rozo.layout
+  echo $ROZOFS_LAYOUT > ${WORKING_DIR}/layout.saved
 }
 	
 show_process () {
@@ -1189,7 +1191,18 @@ main ()
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/exportd
     # to reach exportd slave  
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/exportd    
-    set_layout 0
+    
+    # Set new layout when given on start command
+    # or read saved layout 
+    if [ "$1" == "start" -a $# -ge 2 ];
+    then
+        # Set layout and save it
+        set_layout $2  
+    else
+        # Read saved layout
+        set_layout
+    fi
+    
 
     NB_EXPORTS=1
     NB_VOLUMES=1
@@ -1222,11 +1235,6 @@ main ()
     
     if [ "$1" == "start" ]
     then
-
-        [ $# -lt 2 ] && usage
-
-        # Set layout
-        set_layout $2
 
         check_build
         do_stop
@@ -1332,7 +1340,6 @@ main ()
       esac
     elif [ "$1" == "process" ]
     then 
-       set_layout
        show_process 
     elif [ "$1" == "clean" ]
     then
