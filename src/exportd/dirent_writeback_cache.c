@@ -187,7 +187,7 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
   dirent_chunk_cache_t *chunk_p;
   int i;
   int status = -1;
-  int fd_dir;
+  int fd_dir=-1;
 
   /*
   ** take the lock associated with the entry
@@ -263,7 +263,7 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
 
 error:
   if(fd != -1) close(fd);
-  close(fd_dir);
+  if (fd_dir!= -1) close(fd_dir);
   if ((errno = pthread_rwlock_unlock(&cache_p->lock)) != 0) {
       severe("can't lock writeback cache entry: %s", strerror(errno));
       return -1;
@@ -423,7 +423,7 @@ int dirent_wbcache_chunk_diskflush(dirent_writeback_entry_t  *cache_p)
   int flag = O_WRONLY | O_CREAT | O_NOATIME;
   dirent_chunk_cache_t *chunk_p;
   int status = -1;
-  int fd_dir;
+  int fd_dir=-1;
   /*
   ** open the directory associated with the dirent file
   */
@@ -456,7 +456,7 @@ int dirent_wbcache_chunk_diskflush(dirent_writeback_entry_t  *cache_p)
 
 error:
   if(fd != -1) close(fd);
-  close(fd_dir);
+  if(fd_dir != -1) close(fd_dir);
 
   return status;   
 

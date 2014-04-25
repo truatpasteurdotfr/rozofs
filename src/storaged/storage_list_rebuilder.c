@@ -173,7 +173,6 @@ int storaged_rebuild_list(char * fid_list) {
   int        spare;
   char       path[FILENAME_MAX];
   int        version=0;
-  int        res;
       
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {

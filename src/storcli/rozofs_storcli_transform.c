@@ -67,7 +67,6 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
 {
 
     int block_idx;
-    rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p;
     rozofs_stor_bins_footer_t *rozofs_bins_foot_p;
     prj_ctx_p->raw_file_size = raw_file_size;
                     

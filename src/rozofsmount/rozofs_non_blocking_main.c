@@ -280,7 +280,6 @@ int rozofs_stat_start(void *args) {
     {
       struct sched_param my_priority;
       int policy=-1;
-      int ret= 0;
 
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
           severe("RozoFS thread Scheduling policy   = %s\n",
@@ -289,6 +288,7 @@ int rozofs_stat_start(void *args) {
                     (policy == SCHED_RR)    ? "SCHED_RR" :
                     "???");
  #if 0
+      int ret= 0;
       my_priority.sched_priority= 98;
       policy = SCHED_FIFO;
       ret = pthread_setschedparam(pthread_self(),policy,&my_priority);

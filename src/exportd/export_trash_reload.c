@@ -60,7 +60,7 @@
 
 int export_load_rmfentry(export_t * e) 
 {
-   int ret;
+   int ret=0;
    int user_id;
    uint64_t count = 0;
    uint64_t file_id;

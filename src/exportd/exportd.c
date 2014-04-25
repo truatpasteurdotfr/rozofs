@@ -244,7 +244,7 @@ void export_reload_all_export_slave() {
 */
 int hash_file_compute(char *path,uint32_t *hash_p)
 {
-  uint32_t hash;
+  uint32_t hash=0;
   uint8_t c;
 
   FILE *fp = fopen( path,"r");
