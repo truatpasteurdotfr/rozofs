@@ -10,12 +10,16 @@ Under `plugins` directory are the RozoFS Nagios plugins to be copied under
 Commands Configuration File Installation
 ----------------------------------------
 
-Under `cfg` directory stand files related to RozoFS plugins command definitions. 
+Under `cfg` directory stand files related to RozoFS plugins command definitions.
 You should find the Nagios top configuration file on your Nagios server under
 `/etc/nagios3/nagios.cfg`. Open it and insert at the end the following lines to
- include the RozoFS configuration files.
+ include the RozoFS configuration files:
 
     cfg_file=/etc/nagios-plugins/config/rozofs-commands.cfg
+
+or
+
+    cfg_dir=/etc/nagios-plugins/config
 
 Copy file `rozofs-commands.cfg` under `/etc/nagios-plugins/config/` directory.
 
@@ -28,7 +32,7 @@ Logos Installation
 Copy all RozoFS logo files under `/usr/share/nagios/htdocs/images/logos/rozofs`
 directory and make a symbolic link:
 
-    # ln -sf /usr/share/nagios3/htdocs/images/logos/rozofs /usr/share/nagios/htdocs/images/logos/rozofs
+    # ln -sf  /usr/share/nagios/htdocs/images/logos/rozofs /usr/share/nagios3/htdocs/images/logos/rozofs
 
 
 Plugins Description
