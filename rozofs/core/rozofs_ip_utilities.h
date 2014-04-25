@@ -88,6 +88,16 @@ int is_this_ipV4_local(uint32_t ipv4);
 
 
 
+/*__________________________________________________________________________
+*/
+/**
+* Check whether an IP address is configured localy
+*
+* @param ipV4 IP address to test
+*
+* @retval 1 when local 0 else
+*/
+int is_this_ipV4_configured(uint32_t ipv4) ;
 
 /*
 **__________________________________________________________________________

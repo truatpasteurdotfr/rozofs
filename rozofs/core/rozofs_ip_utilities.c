@@ -43,8 +43,6 @@ void get_local_ip_addresse_list() {
   struct ifreq ifr[MAX_IP_LIST];
   int i;
 
-  nb_local_ip_addresses = 0;
-
   s = socket(PF_INET, SOCK_STREAM, 0);
   if (s < 0) {
     severe("socket %s",strerror(errno));
@@ -56,10 +54,17 @@ void get_local_ip_addresse_list() {
 
   if (ioctl(s, SIOCGIFCONF, &ifconf) == -1) {
     severe("ioctl(SIOCGIFCONF) %s",strerror(errno));
+    close(s);
     return;
   }
 
   nb_local_ip_addresses = ifconf.ifc_len / sizeof(ifr[0]);
+  if (nb_local_ip_addresses > MAX_IP_LIST) {
+    severe("get_local_ip_addresse_list %d addresses while table is %d size",
+            nb_local_ip_addresses, MAX_IP_LIST);
+    nb_local_ip_addresses = MAX_IP_LIST;
+  } 
+  
   for (i = 0; i < nb_local_ip_addresses; i++) {
     struct sockaddr_in *s_in = (struct sockaddr_in *) &ifr[i].ifr_addr;
     local_ip_addresses_list[i] = ntohl(s_in->sin_addr.s_addr);
@@ -81,6 +86,28 @@ int is_this_ipV4_local(uint32_t ipv4) {
   if (nb_local_ip_addresses == 0) {
     get_local_ip_addresse_list();
   }
+  
+  for (i=0; i < nb_local_ip_addresses; i++) {
+    if (ipv4 == local_ip_addresses_list[i]) return 1;
+  }
+  return 0;
+}
+/*__________________________________________________________________________
+*/
+/**
+* Check whether an IP address is configured localy
+*
+* @param ipV4 IP address to test
+*
+* @retval 1 when local 0 else
+*/
+int is_this_ipV4_configured(uint32_t ipv4) {
+  int i;
+
+  /*
+  ** Read list of local IP addresses
+  */
+  get_local_ip_addresse_list();
   
   for (i=0; i < nb_local_ip_addresses; i++) {
     if (ipv4 == local_ip_addresses_list[i]) return 1;
