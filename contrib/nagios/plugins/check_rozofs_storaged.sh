@@ -271,19 +271,33 @@ case $res in
 esac
 
 # get the number of I/O processes
-test_storage_io
-if [ $? -eq 0 ]
-then
-  display_output $STATE_CRITICAL "I/O process do not respond to rozodebug"
-fi
+$ROZDBG -c storio_nb >  $TMPFILE
+res=`grep "storio_nb" $TMPFILE`
+case $res in
+  "") {
+    display_output $STATE_CRITICAL "$host do not respond to rozodebug storio_nb"
+  };;  
+esac
 
-# Teste whether devices are OK
-faulty_devices=""
-test_storage_io_devices
-if [ $? -eq 0 ]
-then
-  display_output $STATE_CRITICAL "Some devices are faulty : $faulty_devices"
-fi
+storio_nb=`echo $res | awk '{ print $3 }'`
+for i in $(seq $storio) 
+do
+
+  test_storage_io
+  if [ $? -eq 0 ]
+  then
+    display_output $STATE_CRITICAL "I/O process $i do not respond to rozodebug"
+  fi
+
+  # Test whether devices are OK
+  faulty_devices=""
+  test_storage_io_devices
+  if [ $? -eq 0 ]
+  then
+    display_output $STATE_CRITICAL "Some devices are faulty : $faulty_devices"
+  fi
+  
+done
 
 # Hurra !!!
 display_output $STATE_OK 
