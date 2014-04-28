@@ -64,7 +64,7 @@ uma_dbg_catcher_function_t	uma_dbg_catcher = uma_dbg_catcher_DFT;
 
 typedef struct uma_dbg_session_s {
   ruc_obj_desc_t            link;
-  uint32_t		    ref;
+  void 		            * ref;
   uint32_t                    ipAddr;
   uint16_t                    port;
   uint32_t                    tcpCnxRef;
@@ -391,7 +391,7 @@ UMA_DBG_SESSION_S *uma_dbg_findFromAddrAndPort(uint32_t ipAddr, uint16_t port) {
 **----------------------------------------------------------------------------
 */
 
-UMA_DBG_SESSION_S *uma_dbg_findFromRef(uint32_t ref) {
+UMA_DBG_SESSION_S *uma_dbg_findFromRef(void * ref) {
   ruc_obj_desc_t    * pnext;
   UMA_DBG_SESSION_S * p;
 
@@ -623,7 +623,6 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   UMA_MSGHEADER_S *pHead;
   uint32_t           idx;
   UMA_DBG_SESSION_S * p;
-  uint64_t         userRef = (uint64_t)opaque;
   int                 replay=0;
 
   /*
@@ -633,7 +632,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
 
   /* Retrieve the session context from the referecne */
 
-  if ((p = uma_dbg_findFromRef((uint32_t)userRef)) == NULL) {
+  if ((p = uma_dbg_findFromRef(opaque)) == NULL) {
     uma_dbg_send(tcpCnxRef,bufRef,TRUE,"Internal error");
     return;
   }
@@ -764,9 +763,8 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
 //64BITS void uma_dbg_disc_CBK(uint32_t refObj,uint32 tcpCnxRef) {
 void uma_dbg_disc_CBK(void *opaque,uint32_t tcpCnxRef) {
   UMA_DBG_SESSION_S * pObj;
-  uint64_t refObj =(uint64_t) opaque;
 
-  if ((pObj = uma_dbg_findFromRef((uint32_t)refObj)) == NULL) {
+  if ((pObj = uma_dbg_findFromRef(opaque)) == NULL) {
     return;
   }
 
@@ -836,11 +834,7 @@ uint32_t uma_dbg_accept_CBK(uint32_t userRef,int socketId,struct sockaddr * sock
   pconf->bufSize          = 2048*4;
   pconf->userRcvCallBack  = uma_dbg_receive_CBK;
   pconf->userDiscCallBack = uma_dbg_disc_CBK;
-//64BITS
-{
-  uint64_t val64 = (uint64_t)pObj->ref;  /* reference of the debug session */
-  pconf->userRef          =  (void*)val64;
-}
+  pconf->userRef          =  pObj->ref;
   pconf->socketRef        = socketId;
   pconf->xmitPool         = NULL; /* use the default XMIT pool ref */
   pconf->recvPool         = pObj->recvPool; /* Use a big buffer pool */
@@ -877,7 +871,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   ruc_tcp_server_connect_t  inputArgs;
   UMA_DBG_SESSION_S         *p;
   ruc_obj_desc_t            *pnext ;
-  uint32_t                    idx;
+  void                      *idx;
   uint32_t                    tcpCnxServer;
 
   /* Service already initialized */
@@ -900,7 +894,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   pnext = NULL;
   idx = 0;
   while (( p = (UMA_DBG_SESSION_S*) ruc_objGetNext(&uma_dbg_freeList->link, &pnext)) != NULL) {
-    p->ref       = idx++;
+    p->ref       = (void *) idx++;
     p->ipAddr    = (uint32_t)-1;
     p->port      = (uint16_t)-1;
     p->tcpCnxRef = (uint32_t)-1;
