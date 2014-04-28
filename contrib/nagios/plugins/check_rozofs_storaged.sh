@@ -280,7 +280,7 @@ case $res in
 esac
 
 storio_nb=`echo $res | awk '{ print $3 }'`
-for i in $(seq $storio) 
+for i in $(seq ${storio_nb}) 
 do
 
   test_storage_io
