@@ -329,6 +329,7 @@ char storage_process_filename[NAME_MAX];
 static void on_start() {
     char cmd[128];
     char * p;
+    storaged_start_conf_param_t conf;     
         
     DEBUG_FUNCTION;
 
@@ -371,6 +372,9 @@ static void on_start() {
     // Launch killer script
     system(cmd);
 
+
+    conf.io_port = 0;
+
     /*
     ** Then start storio
     */
@@ -382,6 +386,7 @@ static void on_start() {
 
       // Launch storio_starter script
       system(cmd);
+      conf.io_port++;
     }
     else {
       int idx;
@@ -392,14 +397,13 @@ static void on_start() {
 	p += sprintf(p, "&");
 
 	// Launch storio_starter script
-	system(cmd);        
+	system(cmd);  
+        conf.io_port++;      
       }
     }
 
     // Create the debug thread of the parent
-    storaged_start_conf_param_t conf;     
     conf.instance_id = 0;
-    conf.io_port     = 0;
     conf.debug_port  = rzdbg_default_base_port + RZDBG_STORAGED_PORT;
     /* Try to get debug port from /etc/services */    
     conf.debug_port = get_service_port("rozo_storaged_dbg",NULL,conf.debug_port);
