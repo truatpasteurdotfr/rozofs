@@ -46,7 +46,7 @@
 #define EMD5        "md5"
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
-#define ECORES     "nbCores"
+#define ECORES      "nbcores"
 /*
 ** constant for exportd gateways
 */

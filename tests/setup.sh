@@ -115,7 +115,7 @@ gen_storage_conf ()
             echo "#${DATE_LABEL}" >> $FILE
 
             printf "threads = $NB_DISK_THREADS;\n" >> $FILE
-            printf "nbCores = $NB_CORES;\n" >> $FILE
+            printf "nbcores = $NB_CORES;\n" >> $FILE
 
             printf "listen = ( \n" >> $FILE
             printf "  {addr = \"192.168.2.$sid\"; port = 41000;}" >> $FILE
@@ -165,7 +165,7 @@ gen_export_gw_conf ()
     echo "#${DATE_LABEL}" >> $FILE
     echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
     echo "exportd_vip = \"${EXPORTD_VIP}\" ;" >> $FILE    
-    echo "nbCores = $NB_CORES;" >> $FILE
+    echo "nbcores = $NB_CORES;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
 
