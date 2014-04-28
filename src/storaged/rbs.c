@@ -940,7 +940,6 @@ int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
     uint16_t slice = 0;
     uint8_t spare = 0;
     uint8_t device = 0;
-    uint8_t bsize = 0;
     uint64_t cookie = 0;
     uint8_t eof = 0;
     sid_t dist_set[ROZOFS_SAFE_MAX];

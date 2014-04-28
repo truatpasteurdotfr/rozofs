@@ -477,7 +477,6 @@ static __inline__ unsigned long long rdtsc(void)
     uint16_t projection_id = 0;
     int prj_ctx_idx;
 
-    int ret;
     uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
     *number_of_blocks_p = 0;
     

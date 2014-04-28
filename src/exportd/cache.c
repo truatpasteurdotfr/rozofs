@@ -25,7 +25,6 @@
 #include <string.h>
  
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/export_profiler.h>
 #include "cache.h"

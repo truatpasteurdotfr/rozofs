@@ -189,7 +189,9 @@ static void on_start(void) {
     } else {
         char str[10];
         sprintf(str, "%d\n", getpid());
-        write(ppfd, str, strlen(str));
+        if (write(ppfd, str, strlen(str))<0) {
+          severe("can't write process file %s",strerror(errno));	  
+	}
         close(ppfd);
     }
 

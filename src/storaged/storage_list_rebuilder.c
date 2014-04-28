@@ -333,7 +333,10 @@ int storaged_rebuild_list(char * fid_list) {
     } 
     file_entry.todo = 0;
     
-    pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry));
+    if (pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry))<0) {
+      severe("pwrite size %lu offset %llu %s",(unsigned long int)sizeof(file_entry), 
+             (unsigned long long int) offset-sizeof(file_entry), strerror(errno));
+    }
   }
   
   close(fd);
