@@ -266,7 +266,7 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
     memcpy(&nie->attrs,&attrs, sizeof (mattr_t));
     
     memset(&fep, 0, sizeof (fep));
-    mattr_to_stat(&attrs, &stbuf);
+    mattr_to_stat(&attrs, &stbuf,exportclt.bsize);
     stbuf.st_ino = nie->inode;
     fep.ino = nie->inode;
     /*

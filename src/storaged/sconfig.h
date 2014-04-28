@@ -45,6 +45,7 @@ typedef struct sconfig {
     int                     nb_cores;
     int                     io_addr_nb; 
     struct mp_io_address_t  io_addr[STORAGE_NODE_PORTS_MAX];
+    int                     multiio; /* When set to 1, requests one storio per listening port */
     list_t storages;
 } sconfig_t;
 

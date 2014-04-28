@@ -29,7 +29,7 @@
 #include <ctype.h>
 #include <sys/wait.h>
 
-#define PATH "mnt1_1/rebuild/"
+#define DEFAULT_MOUNT "mnt1_1"
 
 #define DEFAULT_NBFILE       30000
 
@@ -41,6 +41,7 @@ typedef enum _action_e {
 } action_e;
 action_e action  = ACTION_NONE;
 int      nbfiles = DEFAULT_NBFILE;
+char path[128];
 
 #define HEXDUMP_COLS 16
 void hexdump(void *mem, unsigned int offset, unsigned int len)
@@ -91,6 +92,7 @@ void hexdump(void *mem, unsigned int offset, unsigned int len)
 
 static void usage() {
     printf("Parameters:\n");
+    printf("[ -mount <mount> ]                     The mount point(default %s)\n", DEFAULT_MOUNT);
     printf("[ -nbfiles <NB> ]                      Number of files (default %s)\n", DEFAULT_NBFILE);
     printf("[ -action <create|check|delete> ]      What to do with these files\n");
     exit(-100);
@@ -103,11 +105,22 @@ char *argv[];
     unsigned int idx;
     int ret;
     int val;
+    char * mount = NULL;
 
     idx = 1;
     while (idx < argc) {
 
-	
+        /* -mount <mount>  */
+        if (strcmp(argv[idx], "-mount") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            mount = argv[idx];
+            idx++;
+            continue;
+        }	
 	
         /* -action <create|check|delete>  */
         if (strcmp(argv[idx], "-action") == 0) {
@@ -147,6 +160,11 @@ char *argv[];
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
+    
+  if (mount == NULL) 
+    sprintf(path,"%s/rebuild", DEFAULT_MOUNT);
+  else      
+    sprintf(path,"%s/rebuild", mount);
 }
 #define LOOP_NB  37
 #define BLKSIZE (1024*8)
@@ -274,8 +292,8 @@ int main(int argc, char **argv) {
   
   init_block();
 
-  mkdir(PATH, 0640);
-  chdir(PATH);
+  mkdir(path, 0640);
+  chdir(path);
  
   switch(action) {
 

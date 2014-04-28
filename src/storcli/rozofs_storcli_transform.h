@@ -75,7 +75,7 @@ typedef struct _rozofs_storcli_projection_ctx_t
    void    *prj_buf;         /**< ruc buffer that contains the payload             */ 
    bin_t  *bins;             /**< pointer to the payload (data read)               */
    uint64_t timestamp;       /**< monitoring timestamp                             */
-   rozofs_stor_bins_hdr_t block_hdr_tab[ROZOFS_DISTRIBUTION_MAX_SIZE];
+   rozofs_stor_bins_hdr_t block_hdr_tab[ROZOFS_MAX_BLOCK_PER_MSG];
    uint64_t raw_file_size;    /**< file size reported from a fstat on the projection file */
 } rozofs_storcli_projection_ctx_t;
 
@@ -124,7 +124,7 @@ extern uint8_t      rozofs_storcli_prj_idx_table[];
  * @return: the length written on success, -1 otherwise (errno is set)
  */
  int rozofs_storcli_transform_forward(rozofs_storcli_projection_ctx_t *prj_ctx_p,  
-                                       uint8_t layout,
+                                       uint8_t layout,uint32_t bsize,
                                        uint32_t first_block_idx, 
                                        uint32_t number_of_blocks,
                                        uint64_t timestamp, 
@@ -155,7 +155,7 @@ extern uint8_t      rozofs_storcli_prj_idx_table[];
  * @return: the length written on success, -1 otherwise (errno is set)
  */
  int rozofs_storcli_transform_inverse(rozofs_storcli_projection_ctx_t *prj_ctx_p,  
-                                       uint8_t layout,
+                                       uint8_t layout, uint32_t bsize,
                                        uint32_t first_block_idx, 
                                        uint32_t number_of_blocks, 
                                        rozofs_storcli_inverse_block_t *block_ctx_p,
@@ -218,6 +218,7 @@ int rozofs_storcli_check_projection2rebuild(rozofs_storcli_projection_ctx_t *prj
     
     @param prj_ctx_p : pointer to the projection context
     @param layout : layout associated with the file
+    @param bsize : Block size as defined in ROZOFS_BSIZE_E
     @param number_of_blocks_returned : number of blocks in the projection
     @param number_of_blocks_requested : number of blocks requested
     @param raw_file_size : raw file_size reported from a fstat on the projection file (on storage)
@@ -225,7 +226,7 @@ int rozofs_storcli_check_projection2rebuild(rozofs_storcli_projection_ctx_t *prj
     @retval none
 */     
 void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *prj_ctx_p, 
-                                             uint8_t  layout,
+                                             uint8_t  layout, uint32_t bsize,
                                              uint32_t number_of_blocks_returned,
                                              uint32_t number_of_blocks_requested,
                                              uint64_t raw_file_size);

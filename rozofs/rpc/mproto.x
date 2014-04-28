@@ -33,8 +33,6 @@ union mp_status_ret_t switch (mp_status_t status) {
 struct mp_remove_arg_t {
     uint16_t    cid;
     uint8_t     sid;
-    uint8_t     layout;
-    uint32_t    dist_set[ROZOFS_SAFE_MAX_NET];
     mp_uuid_t   fid;
 };
 
@@ -70,6 +68,7 @@ typedef struct mp_child_t *mp_children_t;
 struct mp_child_t { 
     mp_uuid_t       fid;
     uint8_t         layout;
+    uint8_t         bsize;
     uint8_t         dist_set[ROZOFS_SAFE_MAX];    
     mp_children_t   next;
 };
@@ -77,7 +76,7 @@ struct mp_child_t {
 struct bins_files_list_t {
     mp_children_t   children;
     uint8_t         eof;
-    uint8_t         device;    
+    uint8_t         device; 
     uint16_t        slice;
     uint8_t         spare;
     uint64_t        cookie;

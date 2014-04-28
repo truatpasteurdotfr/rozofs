@@ -74,7 +74,8 @@ static fid_t    fid2rebuild={0};
 static char    *fid2rebuild_string=NULL;
 
 int       layout=-1;
-uint8_t   distribution[ROZOFS_SAFE_MAX+1]={0};
+int       bsize=-1;
+uint8_t   distribution[ROZOFS_SAFE_MAX]={0};
 int   cid=-1;
 int   sid=-1;
 
@@ -229,7 +230,7 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 		rbs_device_number,
 		parallel,
 		storaged_config_file,
-		layout,distribution,fid2rebuild) != 0) {
+		layout,bsize,distribution,fid2rebuild) != 0) {
 
             // Probably a problem when connecting with other members
             // of this cluster
@@ -389,7 +390,7 @@ void usage() {
     printf("                             \tAll devices are rebuilt when omitted.\n");
     printf("   -s, --sid=<cid/sid>       \tCluster and storage identifier to rebuild.\n");
     printf("                             \tAll <cid/sid> are rebuilt when omitted.\n");
-    printf("   -f, --fid=<layout>/<dist>/<FID>\tSpecify one FID to rebuild. -s must also be set.\n");
+    printf("   -f, --fid=<layout>/<bsize>/<dist>/<FID>\tSpecify one FID to rebuild. -s must also be set.\n");
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
     printf("                              \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
 }
@@ -479,6 +480,23 @@ int main(int argc, char *argv[]) {
 		    fprintf(stderr, "storage_rebuild failed: after layout %s\n", optarg);
                     exit(EXIT_FAILURE);
                   }
+		  
+		  ret = sscanf(pt,"%d/",&bsize);
+		  if (ret != 1) {
+		    fprintf(stderr, "storage_rebuild failed: bad bsize %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }	
+		  while ((*pt != 0) && (*pt!='/')) pt++;
+		  if (*pt != '/') {
+		    fprintf(stderr, "storage_rebuild failed: after bsize %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  pt++;
+		  if (*pt == 0) {
+		    fprintf(stderr, "storage_rebuild failed: after bsize %s\n", optarg);
+                    exit(EXIT_FAILURE);
+                  }
+		  		  	  
 		  ret = sscanf(pt,"%d",&val);
 		  if (ret != 1) {
 		    fprintf(stderr, "storage_rebuild failed: 1rst sid %s\n", optarg);

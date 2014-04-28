@@ -176,13 +176,14 @@ void file_lock_poll_client(uint64_t client_ref) ;
 *___________________________________________________________________
 * Check whether two lock2 must free or update lock1
 *
+* @param bsize       The blok size as defined in ROZOFS_BSIZE_E
 * @param lock_free   The free lock operation
 * @param lock_set    The set lock that must be checked
 *
 * @retval 1 when locks are compatible, 0 else
 *___________________________________________________________________
 */
-int must_file_lock_be_removed(struct ep_lock_t * lock_free, struct ep_lock_t * lock_set, rozofs_file_lock_t ** new_lock_ctx);
+int must_file_lock_be_removed(uint8_t bsize, struct ep_lock_t * lock_free, struct ep_lock_t * lock_set, rozofs_file_lock_t ** new_lock_ctx) ;
 /*
 *___________________________________________________________________
 * Check whether two locks are compatible in oreder to set a new one.
@@ -211,13 +212,14 @@ int are_file_locks_overlapping(struct ep_lock_t * lock1, struct ep_lock_t * lock
 *___________________________________________________________________
 * Try to concatenate overlapping locks in lock1
 *
+* @param bsize   The blok size as defined in ROZOFS_BSIZE_E
 * @param lock1   1rst lock
 * @param lock2   2nd lock
 *
 * @retval 1 when locks overlap, 0 else
 *___________________________________________________________________
 */
-int try_file_locks_concatenate(struct ep_lock_t * lock1, struct ep_lock_t * lock2) ;
+int try_file_locks_concatenate(uint8_t bsize, struct ep_lock_t * lock1, struct ep_lock_t * lock2);
 
 char * display_file_lock(char * pChar) ;
 #endif

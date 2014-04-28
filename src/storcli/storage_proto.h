@@ -52,12 +52,5 @@ typedef struct _sproto_status_hdr_t
     int status ;
     int errcode;
 } sproto_status_hdr_t;
-/*
-**__________________________________________
-*/
-/**
-*  SP_READ_RQ
-*/
-#define ROZOFS_DISTRIBUTION_MAX_SIZE (256*1024)/ROZOFS_BSIZE /**< max number of distribution entries for 256K!! */
 
 #endif

@@ -19,6 +19,7 @@
 #ifndef ROZOFS_CACHE_H
 #define ROZOFS_CACHE_H
 
+#include "rozofsmount.h"
 /**
 * structure of the buffer cache
 */
@@ -64,7 +65,7 @@ typedef struct _rozofs_gcache_stats_t
 /**
 * size of a payload of a cache unit entry
 */
-#define ROZOFS_CACHE_BSIZE ROZOFS_BSIZE
+#define ROZOFS_CACHE_BSIZE ROZOFS_BSIZE_BYTES(exportclt.bsize)
 /**
 * number of unit entries per cache buffer
 */

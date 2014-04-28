@@ -43,7 +43,7 @@ xdr_epp_estat_t (XDR *xdrs, epp_estat_t *objp)
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->vid))
 		 return FALSE;
-	 if (!xdr_uint16_t (xdrs, &objp->bsize))
+	 if (!xdr_uint32_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->blocks))
 		 return FALSE;

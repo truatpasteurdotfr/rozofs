@@ -289,9 +289,10 @@ static inline void buf_align_write_from(file_t *p)
 {
    uint64_t off2start_w;
    uint64_t off2start;
+   uint32_t bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
 
-   off2start_w = (p->write_from/ROZOFS_BSIZE);
-   off2start = off2start_w*ROZOFS_BSIZE;
+   off2start_w = (p->write_from/bbytes);
+   off2start = off2start_w*bbytes;
    if ( off2start >= p->read_from)
    {
      p->write_from = off2start;
@@ -311,16 +312,17 @@ static inline void buf_align_write_from(file_t *p)
 static inline void buf_align_write_pos(file_t *p)
 {        
    uint64_t off2end;
+   uint32_t bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
 
    /*
    ** attempt to align write_pos on a block boundary
    */
-   if (p->write_pos%ROZOFS_BSIZE)
+   if (p->write_pos%bbytes)
    {
       /*
       ** not on a block boundary
       */
-      off2end = ((p->write_pos/ROZOFS_BSIZE)+1)*ROZOFS_BSIZE;
+      off2end = ((p->write_pos/bbytes)+1)*bbytes;
       if (off2end <= p->read_pos)
       {
         /*
@@ -844,6 +846,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     // Fill request
     args.cid = f->attrs.cid;
     args.layout = f->export->layout;
+    args.bsize = exportclt.bsize;
     memcpy(args.dist_set, f->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.off = off;
@@ -851,8 +854,8 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     /**
     * write alignement stats
     */
-    rozofs_aligned_write_start[(off%ROZOFS_BSIZE==0)?0:1]++;
-    rozofs_aligned_write_end[((off+len)%ROZOFS_BSIZE==0)?0:1]++;
+    rozofs_aligned_write_start[(off%ROZOFS_BSIZE_BYTES(exportclt.bsize)==0)?0:1]++;
+    rozofs_aligned_write_end[((off+len)%ROZOFS_BSIZE_BYTES(exportclt.bsize)==0)?0:1]++;
     
     args.data.data_val = (char*)buf;  
     
@@ -1017,7 +1020,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
 	** Check whether the size extension is compatible 
 	** with the export hard quota
 	*/
-        if (! eid_check_free_quota(ie->attrs.size,off + size)) {
+        if (! eid_check_free_quota(exportclt.bsize, ie->attrs.size,off + size)) {
           goto error; // errno is already set	  
 	}
 	/*

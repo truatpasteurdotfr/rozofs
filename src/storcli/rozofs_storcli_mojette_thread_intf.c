@@ -772,7 +772,7 @@ int rozofs_stcmoj_thread_intf_create(char * hostname,int eid,int storcli_idx, in
   ruc_sockCtrl_attach_applicative_poller(af_unix_mojette_scheduler_entry_point);  
   rozofs_stcmoj_thread_write_enable = 1;
   rozofs_stcmoj_thread_read_enable = 0;
-  rozofs_stcmoj_thread_len_threshold = 16*ROZOFS_BSIZE;
+  rozofs_stcmoj_thread_len_threshold = 16*ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_4K);
    
   return rozofs_stcmoj_thread_create(hostname,eid,storcli_idx, nb_threads);
 }

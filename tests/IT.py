@@ -18,6 +18,8 @@ NB_SID=int(8)
 nbGruyere=int(1000)
 stopOnFailure=False
 fuseTrace=False
+DEFAULT_MNT="mnt1_1"
+mnt=DEFAULT_MNT
 DEFAULT_RETRIES=int(20)
 
  
@@ -338,7 +340,7 @@ def wr_rd_total ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  ret=os.system("./rw -process %d -loop %d -fileSize %d -total"%(process,loop,fileSize))
+  ret=os.system("./rw -process %d -loop %d -fileSize %d -total -mount %s"%(process,loop,fileSize,mnt))
   return ret  
 
 #___________________________________________________
@@ -346,49 +348,49 @@ def wr_rd_partial ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -partial -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_rd_random ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -random -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_rd_total_close ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeAfter"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeAfter -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_rd_partial_close ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial -closeAfter"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -partial -closeAfter -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_rd_random_close ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeAfter"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeAfter -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_close_rd_total ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeBetween"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeBetween -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  ret=os.system("./rw -process %d -loop %d -fileSize %d -partial -closeBetween"%(process,loop,fileSize))
+  ret=os.system("./rw -process %d -loop %d -fileSize %d -partial -closeBetween -mount %s"%(process,loop,fileSize,mnt))
   return ret 
 
 #___________________________________________________
@@ -396,35 +398,35 @@ def wr_close_rd_random ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeBetween"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeBetween -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_close_rd_total_close ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeBetween -closeAfter"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial_close ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial -closeBetween -closeAfter"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def wr_close_rd_random_close ():
 #___________________________________________________
 
   do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeBetween -closeAfter"%(process,loop,fileSize))
+  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,mnt))
 
 #___________________________________________________
 def rw2 ():
 #___________________________________________________
 
   do_compile_program('./rw2')
-  return os.system("./rw2 -loop %s -file mnt1_1/ze_rw2_test_file"%(loop))
+  return os.system("./rw2 -loop %s -file %s/ze_rw2_test_file"%(loop,mnt))
 
 #___________________________________________________
 def prepare_file_to_read(filename,mega):
@@ -438,7 +440,7 @@ def read_parallel ():
 #___________________________________________________
 
   do_compile_program('./read_parallel')
-  zefile='mnt1_1/myfile'
+  zefile='%s/myfile'%(mnt)
   prepare_file_to_read(zefile,fileSize) 
   ret=os.system("./read_parallel -process %s -loop %s -file %s"%(process,loop,zefile)) 
   return ret   
@@ -448,28 +450,28 @@ def xattr():
 #___________________________________________________
 
   do_compile_program('./test_xattr')  
-  return os.system("./test_xattr -process %d -loop %d -mount mnt1_1"%(process,loop))
+  return os.system("./test_xattr -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def link():
 #___________________________________________________
 
   do_compile_program('./test_link')  
-  return os.system("./test_link -process %d -loop %d -mount mnt1_1"%(process,loop))
+  return os.system("./test_link -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def readdir():
 #___________________________________________________
 
   do_compile_program('./test_readdir')  
-  return os.system("./test_readdir -process %d -loop %d -mount mnt1_1"%(process,loop))
+  return os.system("./test_readdir -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def rename():
 #___________________________________________________
 
   do_compile_program('./test_rename')  
-  ret=os.system("./test_rename -process %d -loop %d -mount mnt1_1"%(process,loop))
+  ret=os.system("./test_rename -process %d -loop %d -mount %s"%(process,loop,mnt))
   return ret 
 
 #___________________________________________________
@@ -477,21 +479,21 @@ def chmod():
 #___________________________________________________
 
   do_compile_program('./test_chmod')  
-  return os.system("./test_chmod -process %d -loop %d -mount mnt1_1"%(process,loop))
+  return os.system("./test_chmod -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def truncate():
 #___________________________________________________
 
   do_compile_program('./test_trunc')  
-  return os.system("./test_trunc -process %d -loop %d -mount mnt1_1"%(process,loop))
+  return os.system("./test_trunc -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def lock_posix_passing():
 #___________________________________________________
 
   do_compile_program('./test_file_lock')  
-  zefile='mnt1_1/lock'
+  zefile='%s/lock'%(mnt)
   try:
     os.remove(zefile)
   except:
@@ -503,7 +505,7 @@ def lock_posix_blocking():
 #___________________________________________________
 
   do_compile_program('./test_file_lock')  
-  zefile='mnt1_1/lock'
+  zefile='%s/lock'%(mnt)
   try:
     os.remove(zefile)
   except:
@@ -516,7 +518,7 @@ def lock_bsd_passing():
 #___________________________________________________
 
   do_compile_program('./test_file_lock')  
-  zefile='mnt1_1/lock'
+  zefile='%s/lock'%(mnt)
   try:
     os.remove(zefile)
   except:
@@ -528,7 +530,7 @@ def lock_bsd_blocking():
 #___________________________________________________
 
   do_compile_program('./test_file_lock')  
-  zefile='mnt1_1/lock'
+  zefile='%s/lock'%(mnt)
   try:
     os.remove(zefile)
   except:
@@ -542,7 +544,7 @@ def gruyere_one_reread():
 #___________________________________________________
 
   do_compile_program('./test_rebuild')  
-  return os.system("./test_rebuild -action check -nbfiles %d"%(int(nbGruyere)))
+  return os.system("./test_rebuild -action check -nbfiles %d -mount %s"%(int(nbGruyere),mnt))
 
 #___________________________________________________
 def gruyere_reread():
@@ -561,7 +563,7 @@ def gruyere_write():
 #___________________________________________________
 
   do_compile_program('./test_rebuild')  
-  return os.system("./test_rebuild -action create -nbfiles %d"%(int(nbGruyere)))  
+  return os.system("./test_rebuild -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
 
 #___________________________________________________
 def gruyere():
@@ -617,7 +619,7 @@ def rebuild_fid() :
   for f in range(int(nbGruyere)/5):
 
     # Get the split of file on storages      
-    string="./setup.sh cou mnt1_1/rebuild/%d"%(f+1)
+    string="./setup.sh cou %s/rebuild/%d"%(mnt,f+1)
     parsed = shlex.split(string)
     cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -642,8 +644,14 @@ def rebuild_fid() :
         words=line.split();
 	if len(words) >= 2:
           layout=words[2]
-	  continue	
-	    
+	  continue
+	  	
+      if "BSIZE" in line:
+        words=line.split();
+	if len(words) >= 2:
+          bsize=words[2]
+	  continue
+	  	    
       if "/bins_" in line:
         bins_list.append(line)
 	continue	  
@@ -661,7 +669,7 @@ def rebuild_fid() :
           else:
 	    cidsid=name[len(name)-5].split("storage_")[1].split('-')	  
 	  
-          string="./setup.sh storage %s fid-rebuild -s %s/%s -f %s/%s/%s "%(cidsid[1],cidsid[0],cidsid[1],layout,dist,fid)
+          string="./setup.sh storage %s fid-rebuild -s %s/%s -f %s/%s/%s/%s "%(cidsid[1],cidsid[0],cidsid[1],layout,bsize,dist,fid)
           parsed = shlex.split(string)
           cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
           cmd.wait()
@@ -856,6 +864,7 @@ def usage():
   print "      [--process <nb>]   The number of processes that will run the test in paralell. (default %d)"%(process)
   print "      [--count <nb>]     The number of loop that each process will do. (default %s)"%(loop) 
   print "      [--fileSize <nb>]  The size in MB of the file for the test. (default %d)"%(fileSize)   
+  print "      [--mount <mount>]  The mount directory. (default %s)"%(DEFAULT_MNT)   
   print "    Test group and names can be displayed thanks to ./IT.py -l"
   print "       - all              designate all the tests."
   print "       - rw               designate the read/write test list."
@@ -882,6 +891,7 @@ parser.add_option("-s","--stop", action="store_true",dest="stop", default=False,
 parser.add_option("-t","--fusetrace", action="store_true",dest="fusetrace", default=False, help="To stop on 1rst failure.")
 parser.add_option("-F","--fast", action="store_true",dest="fast", default=False, help="To run 2 times faster tests.")
 parser.add_option("-L","--long", action="store_true",dest="long", default=False, help="To run 2 times longer tests.")
+parser.add_option("-m","--mount", action="store", type="string", dest="mount", help="The mount point to test on.")
 
 # Read/write test list
 TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_rd_total_close','wr_rd_partial_close','wr_rd_random_close','wr_close_rd_total','wr_close_rd_partial','wr_close_rd_random','wr_close_rd_total_close','wr_close_rd_partial_close','wr_close_rd_random_close']
@@ -894,6 +904,12 @@ TST_REBUILD=['gruyere','rebuild_fid','rebuild_one','rebuild_all']
 
 (options, args) = parser.parse_args()
 
+if options.mount != None:
+  mnt=options.mount  
+if not os.path.isdir(mnt):
+  print "%s is not a directory"%(mnt)
+  exit(-1) 
+ 
 if options.process != None:
   process=int(options.process)
   

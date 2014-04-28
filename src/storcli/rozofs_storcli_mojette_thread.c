@@ -164,7 +164,7 @@ static inline void storcli_mojette_inverse(rozofs_mojette_thread_ctx_t *thread_c
   uint8_t layout         = storcli_read_rq_p->layout;
   
   rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
-                                   layout,
+                                   layout, storcli_read_rq_p->bsize,
                                    working_ctx_p->cur_nmbs2read,
                                    working_ctx_p->nb_projections2read,
                                    working_ctx_p->block_ctx_table,
@@ -178,7 +178,7 @@ static inline void storcli_mojette_inverse(rozofs_mojette_thread_ctx_t *thread_c
   cycleAfter = rdtsc();
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->stat.MojetteInverse_Byte_count += (working_ctx_p->effective_number_of_blocks*ROZOFS_BSIZE);
+  thread_ctx_p->stat.MojetteInverse_Byte_count += (working_ctx_p->effective_number_of_blocks*ROZOFS_BSIZE_BYTES(storcli_read_rq_p->bsize));
   thread_ctx_p->stat.MojetteInverse_cycle +=(cycleAfter-cycleBefore);  
   thread_ctx_p->stat.MojetteInverse_time +=(timeAfter-timeBefore);  
   /*
@@ -221,6 +221,8 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
   wr_proj_buf_p = working_ctx_p->wr_proj_buf;
   storcli_write_rq_p = &working_ctx_p->storcli_write_arg;
   layout = storcli_write_rq_p->layout;
+  uint32_t bbytes = ROZOFS_BSIZE_BYTES(storcli_write_rq_p->bsize);
+
   /*
   ** Just to address the case of the buffer on which the fransform must apply
   */
@@ -232,7 +234,7 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
 
        block_count += wr_proj_buf_p[i].number_of_blocks;
        ret =rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
-                                               layout,
+                                               layout,storcli_write_rq_p->bsize,
                                                wr_proj_buf_p[i].first_block_idx, 
                                                wr_proj_buf_p[i].number_of_blocks, 
                                                working_ctx_p->timestamp,
@@ -242,8 +244,8 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
 //       STORCLI_STOP_KPI(storcli_kpi_transform_forward,0);
     }    
   }
-  msg->size = block_count*ROZOFS_BSIZE;
-  thread_ctx_p->stat.MojetteForward_Byte_count += (block_count*ROZOFS_BSIZE);
+  msg->size = block_count*bbytes;
+  thread_ctx_p->stat.MojetteForward_Byte_count += (block_count*bbytes);
   /*
   ** Update statistics
   */

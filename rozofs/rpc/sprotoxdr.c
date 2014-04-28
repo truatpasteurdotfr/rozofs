@@ -70,7 +70,7 @@ xdr_sp_write_arg_t (XDR *xdrs, sp_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_proj))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->alignment))
+	 if (!xdr_uint32_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_bytes (xdrs, (char **)&objp->bins.bins_val, (u_int *) &objp->bins.bins_len, ~0))
 		 return FALSE;
@@ -102,7 +102,7 @@ xdr_sp_write_arg_no_bins_t (XDR *xdrs, sp_write_arg_no_bins_t *objp)
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->nb_proj))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->alignment))
+	 if (!xdr_uint32_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->len))
 		 return FALSE;
@@ -120,6 +120,8 @@ xdr_sp_read_arg_t (XDR *xdrs, sp_read_arg_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
@@ -147,7 +149,11 @@ xdr_sp_truncate_arg_no_bins_t (XDR *xdrs, sp_truncate_arg_no_bins_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->padding))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
@@ -179,7 +185,11 @@ xdr_sp_truncate_arg_t (XDR *xdrs, sp_truncate_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->padding))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
@@ -188,7 +198,7 @@ xdr_sp_truncate_arg_t (XDR *xdrs, sp_truncate_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->proj_id))
 		 return FALSE;
-	 if (!xdr_uint16_t (xdrs, &objp->last_seg))
+	 if (!xdr_uint32_t (xdrs, &objp->last_seg))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->last_timestamp))
 		 return FALSE;

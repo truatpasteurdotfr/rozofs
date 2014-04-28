@@ -96,6 +96,7 @@ extern uint8_t rbs_prj_idx_table[];
  * @param *prj_ctx_p: pointer to the working array of the projection
  * @param *block_ctx_p: pointer to the working array of blocks
  * @param layout: rozofs layout used
+ * @param bsize: Block size as define in enum ROZOFS_BSIZE_E 
  * @param first_block_idx: index of the first block to transform
  * @param number_of_blocks: number of blocks to transform
  * @param projection_id: id of projection to generate
@@ -104,7 +105,7 @@ extern uint8_t rbs_prj_idx_table[];
  * @return: 0 on success -1 otherwise
  */
 int rbs_transform_forward_one_proj(rbs_projection_ctx_t *prj_ctx_p,
-        rbs_inverse_block_t * block_ctx_p, uint8_t layout,
+        rbs_inverse_block_t * block_ctx_p, uint8_t layout,uint32_t bsize,
         uint32_t first_block_idx, uint32_t number_of_blocks,
         tid_t projection_id, char *data);
 
@@ -119,6 +120,7 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t *prj_ctx_p,
  * 
  * @param *prj_ctx_p: pointer to the working array of the projections set
  * @param layout: rozofs layout used for store data
+ * @param bsize: Block size as define in enum ROZOFS_BSIZE_E 
  * @param first_block_idx: index of the first block to transform
  * @param number_of_blocks: number of blocks to write
  * @param *block_ctx_p: pointer to the working array of blocks
@@ -126,7 +128,7 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t *prj_ctx_p,
  *
  * @return: 0 on success -1 otherwise
  */
-int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
+int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,uint32_t bsize,
         uint32_t first_block_idx, uint32_t number_of_blocks,
         rbs_inverse_block_t *block_ctx_p, char *data);
 
@@ -137,6 +139,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
  * 
  * @param *prj_ctx_p: pointer to the working array of the projections set
  * @param layout: rozofs layout used for store data
+ * @param bsize: Block size as define in enum ROZOFS_BSIZE_E 
  * @param block_idx: index of the block
  * @param *block_ctx_p: pointer to the list of coherent projections
  * @param *timestamp_p: the timestamp of these projections
@@ -144,7 +147,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
  *
  * @return: 0 on success -1 otherwise
  */
-int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
+int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint32_t bsize,
         uint32_t block_idx, uint8_t *prj_idx_tb_p, uint64_t *timestamp_p,
         uint16_t *effective_length_p);
 #endif

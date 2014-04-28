@@ -214,7 +214,7 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t 
     if (opcode == SP_READ)
     {
       sp_read_arg_t *request = (sp_read_arg_t*)msg2encode_p;
-      uint32_t rozofs_max_psize = (uint32_t) rozofs_get_max_psize(request->layout); 
+      uint32_t rozofs_max_psize = (uint32_t) rozofs_get_max_psize(request->layout,request->bsize); 
 
       uint32_t rsp_size = request->nb_proj*rozofs_max_psize*sizeof(bin_t);
       uint32_t disk_time = 0;
@@ -298,9 +298,12 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
     */
 
 
-    data_len = rozofs_storcli_transform_get_read_len_in_bytes(p->block_ctx_table,
-                                                              p->effective_number_of_blocks,
-                                                              &eof_flag);
+    if (p->effective_number_of_blocks) {
+      data_len = p->effective_number_of_blocks * ROZOFS_BSIZE_BYTES(p->storcli_read_arg.bsize);
+    }
+    else {
+      data_len = 0;
+    }  
     STORCLI_STOP_NORTH_PROF(p,read,data_len);
 
     //int position;

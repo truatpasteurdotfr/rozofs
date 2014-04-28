@@ -561,6 +561,7 @@ epgw_mount_ret_t *ep_mount_1_svc(ep_path_t * arg, struct svc_req * req) {
     ret.status_gw.ep_mount_ret_t_u.export.storage_nodes_nb = stor_idx;
     ret.status_gw.ep_mount_ret_t_u.export.eid = *eid;
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
+    ret.status_gw.ep_mount_ret_t_u.export.bs = exp->bsize;
     uint32_t port = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + EXPNB_SLAVE_PORT+1;
     ret.status_gw.ep_mount_ret_t_u.export.listen_port = port;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
@@ -688,7 +689,7 @@ epgw_statfs_ret_t * ep_statfs_1_svc(uint32_t * arg, struct svc_req * req) {
 
     if (!(exp = exports_lookup_export((eid_t) * arg)))
         goto error;
-    if (export_stat(exp, (estat_t *) & ret.status_gw.ep_statfs_ret_t_u.stat) != 0)
+    if (export_stat(exp, & ret.status_gw.ep_statfs_ret_t_u.stat) != 0)
         goto error;
     ret.status_gw.status = EP_SUCCESS;
     goto out;

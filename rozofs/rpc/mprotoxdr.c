@@ -50,15 +50,9 @@ xdr_mp_remove_arg_t (XDR *xdrs, mp_remove_arg_t *objp)
 {
 	//register int32_t *buf;
 
-	//int i;
 	 if (!xdr_uint16_t (xdrs, &objp->cid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
-		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->layout))
-		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX_NET,
-		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
 	 if (!xdr_mp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
@@ -165,6 +159,8 @@ xdr_mp_child_t (XDR *xdrs, mp_child_t *objp)
 	 if (!xdr_mp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))

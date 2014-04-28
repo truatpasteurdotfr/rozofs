@@ -30,7 +30,8 @@
 #include <sys/wait.h>
 
 
-#define DEFAULT_FILENAME    "mnt1_1/this_is_the_default_rw_test_file_name"
+#define DEFAULT_MNT         "mnt1_1"
+#define DEFAULT_FILENAME    "this_is_the_default_rw_test_file_name"
 #define DEFAULT_NB_PROCESS    20
 #define DEFAULT_LOOP         200
 #define DEFAULT_FILE_SIZE_MB   1
@@ -115,6 +116,7 @@ int * result;
 
 static void usage() {
     printf("Parameters:\n");
+    printf("[ -mount <mount> ]         The mount point (default %s)\n", DEFAULT_MNT);
     printf("[ -file <name> ]           file to do the test on (default %s)\n", DEFAULT_FILENAME);
     printf("[ -process <nb> ]          The test will be done by <nb> process simultaneously (default %d)\n", DEFAULT_NB_PROCESS);
     printf("[ -loop <nb> ]             <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
@@ -133,7 +135,9 @@ char *argv[];
     int ret;
     int val;
 
-    sprintf(FILENAME, "%s.%d", DEFAULT_FILENAME,getpid());
+    char * mnt = NULL;
+    char * fname = NULL;
+    
 
     idx = 1;
     while (idx < argc) {
@@ -145,15 +149,21 @@ char *argv[];
                 printf("%s option set but missing value !!!\n", argv[idx-1]);
                 usage();
             }
-            ret = sscanf(argv[idx], "%s", FILENAME);
-            if (ret != 1) {
-                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
-                usage();
-            }
+            fname = argv[idx];
             idx++;
             continue;
         }
-	
+        /* -mnt <name> */
+        if (strcmp(argv[idx], "-mount") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            mnt = argv[idx];
+            idx++;
+            continue;
+        }	
         /* -process <nb>  */
         if (strcmp(argv[idx], "-process") == 0) {
             idx++;
@@ -241,6 +251,22 @@ char *argv[];
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
+    
+    
+    char * p = FILENAME;
+    if (mnt == NULL) {
+      p += sprintf(p,"%s/",DEFAULT_MNT);
+    }
+    else {
+      p += sprintf(p,"%s/",mnt);
+    }
+    if (fname == NULL) {
+      p += sprintf(p,"%s",DEFAULT_FILENAME);
+    }
+    else {
+      p += sprintf(p,"%s",fname);
+    }    
+    p += sprintf(p,".%d",getpid());    
 }
 
 

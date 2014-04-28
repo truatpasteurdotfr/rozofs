@@ -87,6 +87,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     clt->eid = ret->status_gw.ep_mount_ret_t_u.export.eid;
     clt->layout = ret->status_gw.ep_mount_ret_t_u.export.rl;
     clt->listen_port = ret->status_gw.ep_mount_ret_t_u.export.listen_port;
+    clt->bsize = ret->status_gw.ep_mount_ret_t_u.export.bs;
     memcpy(clt->rfid, ret->status_gw.ep_mount_ret_t_u.export.rfid, sizeof (fid_t));
 
     /* Initialize the list of physical storage nodes */
@@ -231,7 +232,7 @@ void exportclt_release(exportclt_t * clt) {
     rpcclt_release(&clt->rpcclt);
 }
 
-int exportclt_stat(exportclt_t * clt, estat_t * st) {
+int exportclt_stat(exportclt_t * clt, ep_statfs_t * st) {
     int status = -1;
     epgw_statfs_ret_t *ret = 0;
     int retry = 0;
@@ -262,7 +263,7 @@ int exportclt_stat(exportclt_t * clt, estat_t * st) {
         errno = ret->status_gw.ep_statfs_ret_t_u.error;
         goto out;
     }
-    memcpy(st, &ret->status_gw.ep_statfs_ret_t_u.stat, sizeof (estat_t));
+    memcpy(st, &ret->status_gw.ep_statfs_ret_t_u.stat, sizeof (ep_statfs_t));
     status = 0;
 out:
     if (ret)

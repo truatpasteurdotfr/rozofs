@@ -101,6 +101,7 @@ typedef struct storage {
  */
 typedef struct rozofs_stor_bins_file_hdr {
     uint8_t layout; ///< layout used for this file.
+    uint8_t bsize;  ///< Block size as defined in enum ROZOFS_BSIZE_E
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
     sid_t dist_set_next[ROZOFS_SAFE_MAX]; ///< next sids of storage nodes target for this. file (not used yet)
     uint8_t version; ///<  version of rozofs. (not used yet)
@@ -114,6 +115,7 @@ typedef struct rozofs_stor_bins_file_hdr {
 typedef struct bins_file_rebuild {
     fid_t fid;
     uint8_t layout; ///< layout used for this file.
+    uint8_t bsize; ///< Block size as defined in ROZOFS_BSIZE_E
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
     struct bins_file_rebuild *next;
 } bins_file_rebuild_t;
@@ -134,6 +136,7 @@ typedef struct _rozofs_rebuild_header_file_t {
 typedef struct _rozofs_rebuild_entry_file_t {
     fid_t fid; ///< unique file identifier associated with the file
     uint8_t layout; ///< layout used for this file.
+    uint8_t bsize;
     uint8_t todo:1;  
     uint8_t unlink:1;  
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes
@@ -276,26 +279,13 @@ static inline int storage_mapper_device(fid_t fid, int rank, int modulo) {
  */
 int storage_write_header_file(storage_t * st,int device, char * path, rozofs_stor_bins_file_hdr_t * hdr);
  
+
 /** Get the directory path for a given [storage, layout, dist_set, spare]
  *
- * @param st: the storage to be initialized.
- * @param layout: layout used for store this file.
- * @param dist_set: storages nodes used for store this file.
- * @param spare: indicator on the status of the projection.
- * @param path: the directory path.
- *
- * @return: the directory path
- */
-char *storage_map_distribution(storage_t * st, uint8_t layout,
-        sid_t dist_set[ROZOFS_SAFE_MAX], uint8_t spare, char *path);
-	
-	
-/** Get the directory path for a given [storage, layout, dist_set, spare]
- *
- * @param read_operation: from DEVICE_MAP_OPERATION_E
  * @param st: the storage to be initialized.
  * @param device_id: input current device id or -1 when unkown
  *                   output chossen device id or -1 on error
+ * @param bsize: the block size as defined in ROZOFS_BSIZE_E 
  * @param fid: the fid of the file 
  * @param layout: layout used for store this file.
  * @param dist_set: storages nodes used for store this file.
@@ -305,21 +295,23 @@ char *storage_map_distribution(storage_t * st, uint8_t layout,
  *
  * @return: the directory path or NULL on case of error
  */
-typedef enum device_map_operation_e {
-  DEVICE_MAP_SEARCH_CREATE = 0,
-  DEVICE_MAP_SEARCH_ONLY,
-} DEVICE_MAP_OPERATION_E;
 
-char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E read_operation, 
+char *storage_dev_map_distribution_write( 
                                     storage_t * st, 
-				    int * device_id, 
+				    int * device_id,
+				    uint32_t bsize, 
 				    fid_t fid, 
 				    uint8_t layout,
                                     sid_t dist_set[ROZOFS_SAFE_MAX], 
 				    uint8_t spare, 
 				    char *path, 
 				    int version);
-	
+				    
+char *storage_dev_map_distribution_read(  storage_t * st, 
+					  int * device_id,
+					  fid_t fid, 
+					  uint8_t spare, 
+					  char *path);	
 /** Add the fid bins file to a given path
  *
  * @param fid: unique file id.
@@ -355,6 +347,7 @@ void storage_release(storage_t * st);
  * @param st: the storage to use.
  * @param device_id: device_id holding FID or -1 when unknown
  * @param layout: layout used for store this file.
+ * @param bsize: Block size from enum ROZOFS_BSIZE_E
  * @param dist_set: storages nodes used for store this file.
  * @param spare: indicator on the status of the projection.
  * @param fid: unique file id.
@@ -367,7 +360,7 @@ void storage_release(storage_t * st);
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
+int storage_write(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
         uint64_t *file_size, const bin_t * bins, int * is_fid_faulty);
 
@@ -376,6 +369,7 @@ int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_
  * @param st: the storage to use.
  * @param device_id: device_id holding FID or -1 when unknown
  * @param layout: layout used by this file.
+ * @param bsize: Block size from enum ROZOFS_BSIZE_E
  * @param dist_set: storages nodes used for store this file.
  * @param spare: indicator on the status of the projection.
  * @param fid: unique file id.
@@ -388,7 +382,7 @@ int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
+int storage_read(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
         bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty);
 
@@ -397,6 +391,7 @@ int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_s
  * @param st: the storage to use.
  * @param device_id: device_id holding FID or -1 when unknown
  * @param layout: layout used by this file.
+ * @param bsize: Block size from enum ROZOFS_BSIZE_E
  * @param dist_set: storages nodes used for store this file.
  * @param spare: indicator on the status of the projection.
  * @param fid: unique file id.
@@ -411,22 +406,18 @@ int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_s
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
+int storage_truncate(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,
          uint16_t last_seg,uint64_t last_timestamp,u_int len, char * data,int * is_fid_faulty);
 
 /** Remove a bins file
  *
  * @param st: the storage to use.
- * @param layout: layout used by this file.
- * @param dist_set: storages nodes used for store this file.
  * @param fid: unique file id.
- * @param version: version of rozofs used by the client. (not used yet)
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
-        fid_t fid);
+int storage_rm_file(storage_t * st, fid_t fid);
 
 /** Stat a storage
  *

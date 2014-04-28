@@ -177,6 +177,7 @@ int rbs_get_rb_entry_list(mclient_t * mclt, cid_t cid, sid_t sid,
         memcpy((*it2)->fid, it1->fid, sizeof (fid_t));
         memcpy((*it2)->dist_set_current, it1->dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
         (*it2)->layout = it1->layout;
+	(*it2)->bsize = it1->bsize;
         it2 = &(*it2)->next;
         it1 = it1->next;
     }
@@ -197,7 +198,7 @@ out:
 }
 
 int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
-        uint8_t layout, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
+        uint8_t layout, uint32_t bsize, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
         bid_t first_block_idx, uint32_t nb_blocks_2_read,
         uint32_t * nb_blocks_read, rbs_projection_ctx_t * proj_ctx_p) {
 
@@ -215,10 +216,10 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
 
     // Memory allocation for store response
     bin_t * bins = xmalloc(nb_blocks_2_read *
-            ((rozofs_get_max_psize(layout) * sizeof (bin_t))
+            ((rozofs_get_max_psize(layout,bsize) * sizeof (bin_t))
             + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)));
 
-    memset(bins, 0, nb_blocks_2_read * ((rozofs_get_max_psize(layout) * sizeof (bin_t))
+    memset(bins, 0, nb_blocks_2_read * ((rozofs_get_max_psize(layout,bsize) * sizeof (bin_t))
             + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)));
 
 
@@ -228,7 +229,7 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
     }
 
     // Read request
-    ret = sclient_read_rbs(storage, cid, sid, layout, spare, dist_set, fid,
+    ret = sclient_read_rbs(storage, cid, sid, layout, bsize, spare, dist_set, fid,
             first_block_idx, nb_blocks_2_read, nb_blocks_read, bins);
     // Error
     if (ret != 0) {
@@ -255,7 +256,7 @@ typedef struct rbs_blocks_recv_ctx {
 
 rbs_blocks_recv_ctx_t rbs_blocks_recv_tb[ROZOFS_SAFE_MAX];
 
-static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, cid_t cid,
+static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
         rbs_storcli_ctx_t * working_ctx_p) {
@@ -293,7 +294,7 @@ static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, cid_t cid,
 
             // Send one read request
             if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
-                    stor_idx, layout, dist_set, fid, first_block_idx,
+                    stor_idx, layout, bsize, dist_set, fid, first_block_idx,
                     nb_blocks_2_read, &curr_nb_blocks_read,
                     &working_ctx_p->prj_ctx[stor_idx]) != 0) {
                 continue; // Problem; try with the next storage;
@@ -355,7 +356,7 @@ static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, cid_t cid,
 out:
     return status;
 }
-int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, cid_t cid,
+int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
         rbs_storcli_ctx_t * working_ctx_p) {
@@ -392,7 +393,7 @@ int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t lay
 	
         // Send one read request
         if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
-                stor_idx, layout, dist_set, fid, first_block_idx,
+                stor_idx, layout, bsize, dist_set, fid, first_block_idx,
                 nb_blocks_2_read, &curr_nb_blocks_read,
                 &working_ctx_p->prj_ctx[stor_idx]) != 0) {
             continue; // Problem; try with the next storage;
@@ -455,7 +456,7 @@ int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t lay
 out:
     return status;
 }
-int rbs_read_blocks(sclient_t **storages, uint8_t layout, cid_t cid,
+int rbs_read_blocks(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
         rbs_storcli_ctx_t * working_ctx_p) {
@@ -471,7 +472,7 @@ int rbs_read_blocks(sclient_t **storages, uint8_t layout, cid_t cid,
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
     // Read projections on storages
-    ret = rbs_read_proj_set(storages, layout, cid, dist_set, fid,
+    ret = rbs_read_proj_set(storages, layout, bsize, cid, dist_set, fid,
             first_block_idx, nb_blocks_2_read, &real_nb_blocks_read,
             retry_nb, working_ctx_p);
 
@@ -493,12 +494,12 @@ int rbs_read_blocks(sclient_t **storages, uint8_t layout, cid_t cid,
 
     // Memory allocation for store reconstructed blocks
     working_ctx_p->data_read_p = xmalloc(real_nb_blocks_read
-            * (ROZOFS_BSIZE * sizeof (char)));
+            * (ROZOFS_BSIZE_BYTES(bsize) * sizeof (char)));
 
 transform_inverse:
 
     // Check timestamp and perform transform inverse
-    ret = rbs_transform_inverse(working_ctx_p->prj_ctx, layout, 0,
+    ret = rbs_transform_inverse(working_ctx_p->prj_ctx, layout, bsize, 0,
             real_nb_blocks_read, working_ctx_p->block_ctx_table,
             working_ctx_p->data_read_p);
     if (ret < 0) {
@@ -520,7 +521,7 @@ transform_inverse:
 
             // Send one another read request
             if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
-                    stor_idx, layout, dist_set, fid, first_block_idx,
+                    stor_idx, layout, bsize, dist_set, fid, first_block_idx,
                     nb_blocks_2_read, &nb_blocks_read,
                     &working_ctx_p->prj_ctx[stor_idx]) != 0) {
                 continue; // Problem: try with the next storage;

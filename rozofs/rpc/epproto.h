@@ -32,7 +32,7 @@ typedef struct epp_status_ret_t epp_status_ret_t;
 struct epp_estat_t {
 	uint32_t eid;
 	uint32_t vid;
-	uint16_t bsize;
+	uint32_t bsize;
 	uint64_t blocks;
 	uint64_t bfree;
 	uint64_t files;

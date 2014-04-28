@@ -27,6 +27,7 @@
 
 #include "rpcclt.h"
 #include "sclient.h"
+#include "eproto.h"
 
 typedef struct mstorage {
     char host[ROZOFS_HOSTNAME_MAX];
@@ -48,6 +49,7 @@ typedef struct exportclt {
     list_t storages; // XXX: Need a lock?
     uint8_t layout; // Layout for this export
     uint32_t listen_port; /**< listening port of the exportd for regular service */
+    uint32_t bsize; // Block size from enum ROZOFS_BSIZE_E
     fid_t rfid;
     uint32_t bufsize;
     uint32_t min_read_size;
@@ -67,7 +69,7 @@ int exportclt_reload(exportclt_t * clt);
 
 void exportclt_release(exportclt_t * clt);
 
-int exportclt_stat(exportclt_t * clt, estat_t * st);
+int exportclt_stat(exportclt_t * clt, ep_statfs_t * st);
 
 int exportclt_lookup(exportclt_t * clt, fid_t parent, char *name,
         mattr_t * attrs);

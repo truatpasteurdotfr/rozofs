@@ -91,7 +91,7 @@ DECLARE_PROFILING(mpp_profiler_t);
 	 (((ie->timestamp+500) > rozofs_get_ticker_us())&&(S_ISDIR(ie->attrs.mode)))
 	 ) 
     {
-      mattr_to_stat(&ie->attrs, &stbuf);
+      mattr_to_stat(&ie->attrs, &stbuf, exportclt.bsize);
       stbuf.st_ino = ino; 
       fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
       goto out;   
@@ -282,7 +282,7 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
     ** store the decoded information in the array that will be
     ** returned to the caller
     */
-    mattr_to_stat(&attr, &stbuf);
+    mattr_to_stat(&attr, &stbuf, exportclt.bsize);
     stbuf.st_ino = ino;
     /*
     ** get the ientry associated with the fuse_inode
@@ -368,6 +368,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     int     ret;
     void *buffer_p = NULL;
     int trc_idx;
+    uint32_t bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
 
     /*
     ** set to attr the attributes that must be set: indicated by to_set
@@ -440,8 +441,8 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       /*
       ** translate the size in a block index for the storaged
       */
-      bid = attr.size / ROZOFS_BSIZE;
-      last_seg = (attr.size % ROZOFS_BSIZE);
+      bid = attr.size / bbytes;
+      last_seg = (attr.size % bbytes);
 
       SAVE_FUSE_PARAM(buffer_p,to_set);
       SAVE_FUSE_STRUCT(buffer_p,stbuf,sizeof(struct stat ));      
@@ -452,6 +453,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       */
       args.cid = ie->attrs.cid;
       args.layout = exportclt.layout;
+      args.bsize = exportclt.bsize;
       memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
       memcpy(args.fid, ie->fid, sizeof (fid_t));
       args.bid      = bid;
@@ -664,7 +666,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     ** end of the the decoding part
     */
 
-    mattr_to_stat(&attr, &o_stbuf);
+    mattr_to_stat(&attr, &o_stbuf, exportclt.bsize);
     o_stbuf.st_ino = ino;
     /*
     ** get the ientry associated with the fuse_inode

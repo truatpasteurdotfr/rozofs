@@ -609,7 +609,7 @@ void ep_statfs_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
     if (!(exp = exports_lookup_export((eid_t) * arg)))
         goto error;
-    if (export_stat(exp, (estat_t *) & ret.status_gw.ep_statfs_ret_t_u.stat) != 0)
+    if (export_stat(exp, & ret.status_gw.ep_statfs_ret_t_u.stat) != 0)
         goto error;
     ret.status_gw.status = EP_SUCCESS;
     goto out;

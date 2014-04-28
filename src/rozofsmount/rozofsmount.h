@@ -139,19 +139,20 @@ static inline void eid_set_free_quota(uint64_t free_quota) {
 * @retval 1 there is the requested space
 *
 */
-static inline int eid_check_free_quota(uint64_t oldSize, uint64_t newSize) {
+static inline int eid_check_free_quota(uint32_t bsize, uint64_t oldSize, uint64_t newSize) {
   uint64_t oldBlocks;
   uint64_t newBlocks;
+  uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
 
   if (eid_free_quota == -1) return 1; // No quota so go on
 
   // Compute current number of blocks of the file
-  oldBlocks = oldSize / ROZOFS_BSIZE;
-  if (oldSize % ROZOFS_BSIZE) oldBlocks++;
+  oldBlocks = oldSize / bbytes;
+  if (oldSize % bbytes) oldBlocks++;
 
   // Compute futur number of blocks of the file
-  newBlocks = newSize / ROZOFS_BSIZE;
-  if (newSize % ROZOFS_BSIZE) newBlocks++;  
+  newBlocks = newSize / bbytes;
+  if (newSize % bbytes) newBlocks++;  
   
   if ((newBlocks-oldBlocks) > eid_free_quota) {
     errno = ENOSPC;
@@ -296,7 +297,7 @@ static inline int flush_write_ientry(ientry_t * ie) {
     return 1;
 }
 
-static inline struct stat *mattr_to_stat(mattr_t * attr, struct stat *st) {
+static inline struct stat *mattr_to_stat(mattr_t * attr, struct stat *st, uint32_t bsize) {
     memset(st, 0, sizeof (struct stat));
     st->st_mode = attr->mode;
     st->st_nlink = attr->nlink;
@@ -304,7 +305,7 @@ static inline struct stat *mattr_to_stat(mattr_t * attr, struct stat *st) {
     st->st_ctime = attr->ctime;
     st->st_atime = attr->atime;
     st->st_mtime = attr->mtime;
-    st->st_blksize = ROZOFS_BSIZE;
+    st->st_blksize = ROZOFS_BSIZE_BYTES(bsize);
     st->st_blocks = ((attr->size + 512 - 1) / 512);
     st->st_dev = 0;
     st->st_uid = attr->uid;

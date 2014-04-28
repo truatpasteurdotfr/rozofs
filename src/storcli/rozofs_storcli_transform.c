@@ -60,7 +60,7 @@ DECLARE_PROFILING(stcpp_profiler_t);
     @retval none
 */     
 void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *prj_ctx_p, 
-                                             uint8_t  layout,
+                                             uint8_t  layout, uint32_t bsize,
                                              uint32_t number_of_blocks_returned,
                                              uint32_t number_of_blocks_requested,
                                              uint64_t raw_file_size)
@@ -69,29 +69,31 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
     int block_idx;
     rozofs_stor_bins_footer_t *rozofs_bins_foot_p;
     prj_ctx_p->raw_file_size = raw_file_size;
-                    
+    uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
+    rozofs_stor_bins_hdr_t* rozofs_bins_hdr_p;
+                       
     for (block_idx = 0; block_idx < number_of_blocks_returned; block_idx++) 
     {
       /*
       ** Get the pointer to the beginning of the block and extract its header
       */
-      rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p->bins +
-      ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
+      rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p->bins +
+      ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
 
 				    
       if (rozofs_bins_hdr_p->s.timestamp == 0)
       {
         prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
-        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = ROZOFS_BSIZE;          
+        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;          
       }
       else {
         rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) 
-	       ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,rozofs_bins_hdr_p->s.projection_id));
+	       ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,rozofs_bins_hdr_p->s.projection_id));
       
 	if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) 
 	{
           prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
-          prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = ROZOFS_BSIZE;
+          prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;
 	  STORCLI_ERR_PROF(read_blk_footer);        
 	}
 	else 
@@ -111,41 +113,7 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
     } 
 }    
 
-
-
-
-/*
-**__________________________________________________________________________
-*/
-/**
-    API to get the exact read size from an application standpoint.
-     That function go through the effective length of each blocks and
-     cumulates that length on the number of effective read blocks provided in the input arguments.
-     
-     if EOF is encountered, the eof flag is asserted
-         
-    @param prj_ctx_p : pointer to the projection context
-    @param eof_p : pointer to the array where end of file state is reported (asserted to 1 if EOF is encountered
-    
-    @retval len of the data read
-*/     
-int  rozofs_storcli_transform_get_read_len_in_bytes(rozofs_storcli_inverse_block_t *inverse_res_p, 
-                                                    uint32_t number_of_blocks_read,uint8_t *eof_p)
-{
-
-    int len = 0;
-    
-    *eof_p = 0;
-    
-    /*
-    ** compute the number of 8K full
-    */
-    if (number_of_blocks_read != 0)
-    {
-      len = ROZOFS_BSIZE*(number_of_blocks_read);
-    }                
-    return len;
-}    
+ 
 
 /*
 **__________________________________________________________________________
@@ -493,7 +461,7 @@ static __inline__ unsigned long long rdtsc(void)
  * @return: the length written on success, -1 otherwise (errno is set)
  */
  int rozofs_storcli_transform_inverse(rozofs_storcli_projection_ctx_t *prj_ctx_p,  
-                                       uint8_t layout,
+                                       uint8_t layout, uint32_t bsize,
                                        uint32_t first_block_idx, 
                                        uint32_t number_of_blocks, 
                                        rozofs_storcli_inverse_block_t *block_ctx_p,
@@ -509,7 +477,11 @@ static __inline__ unsigned long long rdtsc(void)
     uint16_t projection_id = 0;
     int prj_ctx_idx;
 
-    *number_of_blocks_p = 0;    
+    int ret;
+    uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
+    *number_of_blocks_p = 0;
+    
+    
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     
     projections = rozofs_inv_projections;
@@ -554,13 +526,13 @@ static __inline__ unsigned long long rdtsc(void)
         ** Check the case of the file that has no data (there is a hole in the file), this is indicated by
         ** reporting a timestamp of 0
         */
-        if ((block_ctx_p[block_idx].timestamp == 0)  && (block_ctx_p[block_idx].effective_length == ROZOFS_BSIZE ))
+        if ((block_ctx_p[block_idx].timestamp == 0)  && (block_ctx_p[block_idx].effective_length == bbytes ))
         {
           /*
           ** clear the memory
           */
           ROZOFS_STORCLI_STATS(ROZOFS_STORCLI_EMPTY_READ);
-          memset( data + (ROZOFS_BSIZE * (first_block_idx + block_idx)),0,ROZOFS_BSIZE);
+          memset( data + (bbytes * (first_block_idx + block_idx)),0,bbytes);
           block_ctx_p[block_idx].state = ROZOFS_BLK_TRANSFORM_DONE;
           continue;
         
@@ -591,7 +563,7 @@ static __inline__ unsigned long long rdtsc(void)
            */
            prj_ctx_idx = rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*block_idx+prj_count];
            rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins +
-	   ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
+	   ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
             
                                                  
            /*
@@ -602,15 +574,15 @@ static __inline__ unsigned long long rdtsc(void)
            projection_id = rozofs_bins_hdr_p->s.projection_id;
            projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
            projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
-           projections[prj_count].size = rozofs_get_psizes(layout,projection_id);
+           projections[prj_count].size = rozofs_get_psizes(layout,bsize, projection_id);
            projections[prj_count].bins = (bin_t*)(rozofs_bins_hdr_p+1);                   
         }
         
 
         // Inverse data for the block (first_block_idx + block_idx)
-        transform_inverse_inline((pxl_t *) (data + (ROZOFS_BSIZE * (first_block_idx + block_idx))),
+        transform_inverse_inline((pxl_t *) (data + (bbytes * (first_block_idx + block_idx))),
                 rozofs_inverse,
-                ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                bbytes / rozofs_inverse / sizeof (pxl_t),
                 rozofs_inverse, projections);
         /*
         ** indicate that transform has been done for the projection
@@ -619,13 +591,13 @@ static __inline__ unsigned long long rdtsc(void)
         /*
         ** check the case of a block that is not full: need to zero's that part
         */
-        if (block_ctx_p[block_idx].effective_length < ROZOFS_BSIZE)
+        if (block_ctx_p[block_idx].effective_length < bbytes)
         {
            /*
            ** clear the memory
            */
-           char *raz_p = data + (ROZOFS_BSIZE * (first_block_idx + block_idx)) + block_ctx_p[block_idx].effective_length;
-           memset( raz_p,0,(ROZOFS_BSIZE-block_ctx_p[block_idx].effective_length) );
+           char *raz_p = data + (bbytes * (first_block_idx + block_idx)) + block_ctx_p[block_idx].effective_length;
+           memset( raz_p,0,(bbytes-block_ctx_p[block_idx].effective_length) );
         }
     }
     /*
@@ -679,7 +651,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
  * @return: the length written on success, -1 otherwise (errno is set)
  */
  int rozofs_storcli_transform_forward(rozofs_storcli_projection_ctx_t *prj_ctx_p,  
-                                       uint8_t layout,
+                                       uint8_t layout, uint32_t bsize,
                                        uint32_t first_block_idx, 
                                        uint32_t number_of_blocks,
                                        uint64_t timestamp, 
@@ -693,6 +665,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     int empty_block = 0;
+    uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
 
     projections = rozofs_fwd_projections;
 
@@ -700,14 +673,14 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
     for (projection_id = 0; projection_id < rozofs_forward; projection_id++) {
         projections[projection_id].angle.p =  rozofs_get_angles_p(layout,projection_id);
         projections[projection_id].angle.q =  rozofs_get_angles_q(layout,projection_id);
-        projections[projection_id].size    =  rozofs_get_psizes(layout,projection_id);
+        projections[projection_id].size    =  rozofs_get_psizes(layout, bsize,projection_id);
     }
 
     /* Transform the data */
     // For each block to send
     for (i = 0; i < number_of_blocks; i++) 
     {
-         empty_block = rozofs_data_block_check_empty(data + (i * ROZOFS_BSIZE), ROZOFS_BSIZE);
+         empty_block = rozofs_data_block_check_empty(data + (i * bbytes), bbytes);
 
         // seek bins for each projection
         for (projection_id = 0; projection_id < rozofs_forward; projection_id++) 
@@ -716,9 +689,9 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           ** Indicates the memory area where the transformed data must be stored
           */
           projections[projection_id].bins = prj_ctx_p[projection_id].bins +
-                                           ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* (first_block_idx+i));
+                                           ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* (first_block_idx+i));
           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[projection_id].bins;
-          rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,projection_id));
+          rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,projection_id));
           /*
           ** check if the user data block is empty: if the data block is empty no need to transform
           */
@@ -744,7 +717,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           }
           else
           {
-            rozofs_bins_hdr_p->s.effective_length = ROZOFS_BSIZE;          
+            rozofs_bins_hdr_p->s.effective_length = bbytes;          
           } 
           /*
           ** update the pointer to point out the first bins
@@ -760,9 +733,9 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           /*
           ** Apply the erasure code transform for the block i+first_block_idx
           */
-          transform_forward((pxl_t *) (data + (i * ROZOFS_BSIZE)),
+          transform_forward((pxl_t *) (data + (i * bbytes)),
                   rozofs_inverse,
-                  ROZOFS_BSIZE / rozofs_inverse / sizeof (pxl_t),
+                  bbytes / rozofs_inverse / sizeof (pxl_t),
                   rozofs_forward, projections);
         }
     }

@@ -268,7 +268,7 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    mattr_to_stat(&attrs, &stbuf);
+    mattr_to_stat(&attrs, &stbuf,exportclt.bsize);
     stbuf.st_ino = nie->inode;
 
     /*

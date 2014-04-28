@@ -241,7 +241,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   // Lookup for the device id for this FID
   msg->device_id_back = msg->device_id_sent;
   // Read projections
-  if (storage_read(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set, args->spare,
+  if (storage_read(st, &msg->device_id_back, args->layout, args->bsize,(sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
             (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
@@ -254,6 +254,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
                                  args->layout,
+				 args->bsize,
 				 args->cid,
 				 args->sid,
 				 args->dist_set,
@@ -342,7 +343,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   ** Check number of projection is consistent with the bins length
   */
   {
-     uint16_t proj_psize = rozofs_get_max_psize(args->layout)* sizeof (bin_t)
+     uint16_t proj_psize = rozofs_get_max_psize(args->layout,args->bsize)* sizeof (bin_t)
             + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);  
      size =  args->nb_proj * proj_psize;
 	    
@@ -372,7 +373,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   msg->device_id_back = msg->device_id_sent;
   
   // Write projections
-  size =  storage_write(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set, args->spare,
+  size =  storage_write(st, &msg->device_id_back, args->layout, args->bsize, (sid_t *) args->dist_set, args->spare,
           (unsigned char *) args->fid, args->bid, args->nb_proj, version,
           &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
   if (size <= 0)  {
@@ -381,6 +382,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
                                  args->layout,
+				 args->bsize,
 				 args->cid,
 				 args->sid,
 				 args->dist_set,
@@ -463,7 +465,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   msg->device_id_back = msg->device_id_sent;  
 
   // Truncate bins file
-  result = storage_truncate(st, &msg->device_id_back, args->layout, (sid_t *) args->dist_set,
+  result = storage_truncate(st, &msg->device_id_back, args->layout, args->bsize, (sid_t *) args->dist_set,
         		    args->spare, (unsigned char *) args->fid, args->proj_id,
         		    args->bid,version,args->last_seg,args->last_timestamp,
 			    args->len, pbuf, &is_fid_faulty);
@@ -473,6 +475,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
                                  args->layout,
+				 args->bsize,
 				 args->cid,
 				 args->sid,
 				 (uint32_t*) args->dist_set,

@@ -151,7 +151,7 @@ static void usage() {
     fprintf(stderr, "    -E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "    -P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "    -o rozofsbufsize=N\t\tdefine size of I/O buffer in KiB (default: 256)\n");
-    fprintf(stderr, "    -o rozofsminreadsize=N\tdefine minimum read size on disk in KiB (default: %u)\n", ROZOFS_BSIZE/1024);
+    fprintf(stderr, "    -o rozofsminreadsize=N\tdefine minimum read size on disk in KiB (default: %u)\n", ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_MIN)/1024);
     fprintf(stderr, "    -o rozofsmaxwritepending=N\tdefine the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: 4)\n");
     fprintf(stderr, "    -o rozofsmaxretry=N\t\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "    -o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
@@ -430,7 +430,13 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(noXattr);  
 
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-}  
+} 
+/*__________________________________________________________________________
+*/  
+void show_layout(char * argv[], uint32_t tcpRef, void *bufRef) {
+  rozofs_display_size( uma_dbg_get_buffer(), exportclt.layout, exportclt.bsize);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());         
+} 
 /*__________________________________________________________________________
 */  
 static char * show_rotate_modulo_help(char * pChar) {
@@ -1334,6 +1340,15 @@ int fuseloop(struct fuse_args *args, int fg) {
                 mountpoint, strerror(errno));
         return 1;
     }
+    
+    /* 
+    ** Now that we know the block size of the export, let's check that minimum read size is a
+    ** mutiple of the he block size 
+    */
+    uint32_t bkbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize)/1024;
+    if ((conf.min_read_size % bkbytes) != 0) {
+      conf.min_read_size = ((conf.min_read_size / bkbytes)+1) * bkbytes;
+    }        
 
     /*
     ** Send the file lock reset request to remove old locks
@@ -1486,6 +1501,8 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("start_config", show_start_config);
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
     uma_dbg_addTopic("flock", show_flock);
+    rozofs_layout_initialize();    
+    uma_dbg_addTopic("layout", show_layout);
     uma_dbg_addTopic("trc_fuse", show_trc_fuse);
     uma_dbg_addTopic("xattr_flt", show_xattr_flt);
     uma_dbg_addTopic("xattr_disable", rozofs_disable_xattr);
@@ -1747,8 +1764,8 @@ int main(int argc, char *argv[]) {
 
     conf.max_retry = 50;
     conf.buf_size = 0;
-    conf.min_read_size = 0;
-    conf.max_write_pending = 4; /*  */ 
+    conf.min_read_size = ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_MIN)/1024;
+    conf.max_write_pending = ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_MIN)/1024; /*  */ 
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
@@ -1795,14 +1812,6 @@ int main(int argc, char *argv[]) {
                 conf.buf_size);
         conf.buf_size = 256;
     }
-    /* Bufsize must be a multiple of the block size */
-    if ((conf.buf_size % (ROZOFS_BSIZE / 1024)) != 0) {
-        conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE / 1024)) + 1)
-                * (ROZOFS_BSIZE / 1024);
-        if (conf.buf_size > 256) {
-            conf.buf_size = conf.buf_size - (ROZOFS_BSIZE / 1024);
-        }
-    }
     
     if (conf.min_read_size == 0) {
         conf.min_read_size = 4;
@@ -1811,14 +1820,6 @@ int main(int argc, char *argv[]) {
         conf.min_read_size = conf.buf_size;
     }
 
-    /* min_read_size must be a multiple of the block size */
-    if ((conf.min_read_size % (ROZOFS_BSIZE / 1024)) != 0) {
-        conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE / 1024)) + 1)
-                * (ROZOFS_BSIZE / 1024);
-        if (conf.min_read_size > conf.buf_size) {
-            conf.min_read_size = conf.min_read_size - (ROZOFS_BSIZE / 1024);
-        }
-    }
 
     if (conf.nbstorcli != 0) {
       if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {

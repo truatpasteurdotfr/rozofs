@@ -62,14 +62,6 @@ void print_mattr(mattr_t *mattr) {
     printf("\tmtime: %"PRIu64"\n", mattr->mtime);
 }
 
-void print_estat(estat_t *estat) {
-    printf("\tbsize: %d\n", estat->bsize);
-    printf("\tblocks: %"PRIu64"\n", estat->blocks);
-    printf("\tbfree: %"PRIu64"\n", estat->bfree);
-    printf("\tfiles: %"PRIu64"\n", estat->files);
-    printf("\tffree: %"PRIu64"\n", estat->ffree);
-    printf("\tnamemax: %d\n", estat->namemax);
-}
 
 int main(int argc, char **argv) {
     export_t export;
@@ -105,7 +97,7 @@ int main(int argc, char **argv) {
     printf("initialized\n");
 
     printf("export:\t\t\t");
-    if (export_initialize(&export, &volume, &cache, 1, "./export_test_directory", "", 0, 0) != 0) {
+    if (export_initialize(&export, &volume, 0, &cache, 1, "./export_test_directory", "", 0, 0) != 0) {
         perror("can't initialize export");
         return errno;
     }

@@ -113,15 +113,15 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
 
 
 
-char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation, 
-                                   storage_t * st, 
-				   int * device_id, 
-				   fid_t fid, 
-				   uint8_t layout,
-                                   sid_t dist_set[ROZOFS_SAFE_MAX], 
-				   uint8_t spare, 
-				   char *path, 
-				   int version) {
+char *storage_dev_map_distribution_write(storage_t * st, 
+					 int * device_id,
+					 uint32_t bsize, 
+					 fid_t fid, 
+					 uint8_t layout,
+                                	 sid_t dist_set[ROZOFS_SAFE_MAX], 
+					 uint8_t spare, 
+					 char *path, 
+					 int version) {
     int                       dev;
     int                       hdrDevice;
     size_t                    nb_read;
@@ -194,21 +194,6 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
 
       
     /*
-    ** Do not allocate a device, this is just a search operation
-    */
-    if (operation == DEVICE_MAP_SEARCH_ONLY) {
-    
-       /* No device found */
-       if (*device_id == -1) {
-         /* The FID does not exit !!! */
-         return NULL;
-       }   
-              
-       /* The fid exist on *device_id */
-       goto success;
-    }
-      
-    /*
     **  Search the device of the fid and allocate one if none exist 
     */    
     
@@ -252,6 +237,7 @@ char *storage_dev_map_distribution(DEVICE_MAP_OPERATION_E operation,
       memcpy(file_hdr.dist_set_current, dist_set, ROZOFS_SAFE_MAX * sizeof (sid_t));
       memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
       file_hdr.layout = layout;
+      file_hdr.bsize  = bsize;
       file_hdr.version = version;
       file_hdr.device_id = *device_id;
       memcpy(file_hdr.fid, fid,sizeof(fid_t));  
@@ -272,7 +258,90 @@ success:
     storage_build_bins_path(path, st->root, *device_id, spare, storage_slice);
     return path;            
 }
+char *storage_dev_map_distribution_read(  storage_t * st, 
+					  int * device_id,
+					  fid_t fid, 
+					  uint8_t spare, 
+					  char *path) {
+    int                       dev;
+    int                       hdrDevice;
+    size_t                    nb_read;
+    int                       fd;
+    rozofs_stor_bins_file_hdr_t file_hdr;
+    int                       device_result[STORAGE_MAX_DEVICE_NB];
+    int                       storage_slice;
 
+    DEBUG_FUNCTION;
+    
+    /*
+    ** Compute storage slice from FID
+    */
+    storage_slice = rozofs_storage_fid_slice(fid);
+     
+    memset(device_result,0,sizeof(device_result));    
+
+    /*
+    ** When no device id is given as input, let's search for the 
+    ** device that store the data of this fid
+    */
+    while (*device_id == -1) {
+    
+      /*
+      ** Look for the mapping information in one of the redundant mapping devices
+      ** which numbers are derived from the fid
+      */
+      for (dev=0; dev < st->mapper_redundancy ; dev++) {
+
+        hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
+	storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
+	            
+	// Check that this directory already exists, otherwise it will be create
+        if (storage_create_dir(path) < 0) {
+	      device_result[dev] = errno;		    
+              storage_error_on_device(st,hdrDevice);
+              continue;
+	}   
+
+        /* 
+        ** Fullfill the path with the name of the mapping file
+        */
+        storage_complete_path_with_fid(fid,path);
+
+        // Open hdr file
+        fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+        if (fd < 0) {
+          device_result[dev] = errno;	
+          continue;
+        }
+        nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
+        if (nb_read != sizeof(file_hdr)) {
+          device_result[dev] = EINVAL;	
+          close(fd);
+          storage_error_on_device(st,hdrDevice);
+          continue;
+        }
+	
+        close(fd);
+	
+        /* Wonderfull. We have found the device number in a mapping file */
+        *device_id = file_hdr.device_id;
+        device_result[dev] = 0;		
+        break;	
+      }	         
+ 
+      break;
+    }        
+
+
+    /* No device found */
+    if (*device_id == -1) {
+      /* The FID does not exit !!! */
+      return NULL;
+    }   
+ 
+    storage_build_bins_path(path, st->root, *device_id, spare, storage_slice);
+    return path;            
+}
 /*
 ** 
   @param device_number: number of device handled by the sid
@@ -438,13 +507,14 @@ void storage_release(storage_t * st) {
 static inline void storage_get_projection_size(uint8_t spare, 
                                                sid_t sid, 
 					       uint8_t layout, 
+					       uint32_t bsize,
 					       sid_t * dist_set,
 					       uint16_t * msg,
 				    	       uint16_t * disk) { 
   int prj_id;
   int forward;
 
-  *msg = rozofs_get_max_psize(layout) * sizeof (bin_t) 
+  *msg = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t) 
        + sizeof (rozofs_stor_bins_hdr_t) 
        + sizeof(rozofs_stor_bins_footer_t);
   
@@ -474,17 +544,18 @@ static inline void storage_get_projection_size(uint8_t spare,
     return;
   }
 
-  *disk = rozofs_get_psizes(layout,prj_id) * sizeof (bin_t) 
+  *disk = rozofs_get_psizes(layout,bsize,prj_id) * sizeof (bin_t) 
         + sizeof (rozofs_stor_bins_hdr_t) 
         + sizeof(rozofs_stor_bins_footer_t);	
 }  
 static inline void storage_get_projid_size(uint8_t spare, 
                                            uint8_t prj_id, 
-					   uint8_t layout, 
+					   uint8_t layout,
+					   uint32_t bsize,
 					   uint16_t * msg,
 				    	   uint16_t * disk) { 
 
-  *msg = rozofs_get_max_psize(layout) * sizeof (bin_t) 
+  *msg = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t) 
        + sizeof (rozofs_stor_bins_hdr_t) 
        + sizeof(rozofs_stor_bins_footer_t);
   
@@ -500,13 +571,13 @@ static inline void storage_get_projid_size(uint8_t spare,
   /*
   ** On a non spare storage, we store the projections on its exact size.
   */
-  *disk = rozofs_get_psizes(layout,prj_id) * sizeof (bin_t) 
+  *disk = rozofs_get_psizes(layout,bsize,prj_id) * sizeof (bin_t) 
         + sizeof (rozofs_stor_bins_hdr_t) 
         + sizeof(rozofs_stor_bins_footer_t);		
 } 
 uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
 
-int storage_write(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
+int storage_write(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
         uint64_t *file_size, const bin_t * bins, int * is_fid_faulty) {
     int status = -1;
@@ -538,14 +609,13 @@ open:
     }        
  
     // Build the full path of directory that contains the bins file
-    if (storage_dev_map_distribution(DEVICE_MAP_SEARCH_CREATE, st, device_id,
-                                     fid, layout, dist_set, spare,
-                                     path, version) == NULL) {
+    if (storage_dev_map_distribution_write(st, device_id, bsize, 
+                                          fid, layout, dist_set, 
+					  spare, path, 0) == NULL) {
       severe("storage_write storage_dev_map_distribution");
       goto out;      
     }  
     
-
     // Check that this directory already exists, otherwise it must be created
     if (storage_create_dir(path) < 0) {
       storage_error_on_device(st,*device_id);
@@ -584,7 +654,7 @@ open:
     ** Retrieve the projection size in the message
     ** and the projection size on disk 
     */
-    storage_get_projection_size(spare, st->sid, layout, dist_set,
+    storage_get_projection_size(spare, st->sid, layout, bsize, dist_set,
                                 &rozofs_msg_psize, &rozofs_disk_psize); 
 	       
     // Compute the offset and length to write
@@ -603,13 +673,13 @@ open:
     ** Writting the projections on a different size on disk
     */
     else {
-      struct iovec       vector[STORIO_CACHE_BCOUNT*2]; 
+      struct iovec       vector[ROZOFS_MAX_BLOCK_PER_MSG]; 
       int                i;
       char *             pMsg;
       
-      if (nb_proj > (STORIO_CACHE_BCOUNT*2)) {  
+      if (nb_proj > ROZOFS_MAX_BLOCK_PER_MSG) {  
         severe("storage_write more blocks than possible %d vs max %d",
-	        nb_proj,STORIO_CACHE_BCOUNT*2);
+	        nb_proj,ROZOFS_MAX_BLOCK_PER_MSG);
         errno = ESPIPE;	
         goto out;
       }
@@ -658,7 +728,7 @@ uint64_t buf_ts_storcli_read[STORIO_CACHE_BCOUNT];
 char storage_bufall[4096];
 uint8_t storage_read_optim[4096];
 
-int storage_read(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
+int storage_read(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
         bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty) {
 
@@ -685,9 +755,8 @@ open:
     // Build the full path of the directory that contains the bins file
     // If device id is not given, it will look into the header files
     // to find out the device on which the file should stand.
-    if (storage_dev_map_distribution(DEVICE_MAP_SEARCH_ONLY, st, device_id,
-                                     fid, layout, dist_set, spare,
-                                     path,0/*version unused on read*/) == NULL) {
+    if (storage_dev_map_distribution_read(st, device_id, 
+                                     fid, spare,path) == NULL) {
       // The file does not exist
       errno = ENOENT;
       goto out;      
@@ -725,7 +794,7 @@ open:
     ** Retrieve the projection size in the message 
     ** and the projection size on disk
     */
-    storage_get_projection_size(spare, st->sid, layout, dist_set,
+    storage_get_projection_size(spare, st->sid, layout, bsize, dist_set,
                                 &rozofs_msg_psize, &rozofs_disk_psize); 
 	       
     // Compute the offset and length to write
@@ -745,13 +814,13 @@ open:
     ** Projections are smaller on disk than in message
     */
     else {
-      struct iovec vector[STORIO_CACHE_BCOUNT*2]; 
+      struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG]; 
       int          i;
       char *       pMsg;
       
-      if (nb_proj > (STORIO_CACHE_BCOUNT*2)) {  
+      if (nb_proj > ROZOFS_MAX_BLOCK_PER_MSG) {  
         severe("storage_read more blocks than possible %d vs max %d",
-	        nb_proj,STORIO_CACHE_BCOUNT*2);
+	        nb_proj,ROZOFS_MAX_BLOCK_PER_MSG);
         errno = ESPIPE;			
         goto out;
       }
@@ -805,7 +874,7 @@ out:
     return status;
 }
 
-int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * dist_set,
+int storage_truncate(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,uint16_t last_seg,uint64_t last_timestamp,
 	u_int length_to_write, char * data, int * is_fid_faulty) {
     int status = -1;
@@ -829,9 +898,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
   
     
     // Build the full path of directory that contains the bins file
-    if (storage_dev_map_distribution(DEVICE_MAP_SEARCH_CREATE, st, device_id, fid, 
-                                     layout, dist_set, spare, 
-                                     path,version) == NULL) {
+    if (storage_dev_map_distribution_read(st, device_id, fid,spare, path) == NULL) {
       severe("storage_truncate storage_dev_map_distribution");
       goto out;      
     }   
@@ -859,7 +926,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
     ** Retrieve the projection size in the message 
     ** and the projection size on disk
     */
-    storage_get_projid_size(spare, proj_id, layout, 
+    storage_get_projid_size(spare, proj_id, layout, bsize,
                             &rozofs_msg_psize, &rozofs_disk_psize); 
 	       
      // Compute the offset from the truncate
@@ -919,7 +986,7 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, sid_t * di
         
         // Write the block footer
 	bins_file_offset += (sizeof(rozofs_stor_bins_hdr_t) 
-	        + rozofs_get_psizes(layout,proj_id) * sizeof (bin_t));
+	        + rozofs_get_psizes(layout,bsize,proj_id) * sizeof (bin_t));
 	nb_write = pwrite(fd, &last_timestamp, sizeof(last_timestamp), bins_file_offset);
 	if (nb_write != sizeof(last_timestamp)) {
             severe("pwrite failed on last segment footer : %s", strerror(errno));
@@ -937,8 +1004,7 @@ out:
     return status;
 }
 
-int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
-        fid_t fid) {
+int storage_rm_file(storage_t * st, fid_t fid) {
     int status = -1;
     uint8_t spare = 0;
     char path[FILENAME_MAX];
@@ -950,9 +1016,7 @@ int storage_rm_file(storage_t * st, uint8_t layout, sid_t * dist_set,
     for (spare = 0; spare < 2; spare++) {
 
         // Build the full path of directory that contains the bins file
-        if (storage_dev_map_distribution(DEVICE_MAP_SEARCH_ONLY, st, &device_id,
-	                                 fid, layout, dist_set, 
-				         spare, path,0/*version unused on remove*/) == NULL) {
+        if (storage_dev_map_distribution_read(st, &device_id, fid, spare, path) == NULL) {
 	  continue;
         }					 
 
@@ -1081,6 +1145,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
                     sizeof (sid_t) * ROZOFS_SAFE_MAX);
             // Copy layout
             (*iterator)->layout = file_hdr.layout;
+            (*iterator)->bsize = file_hdr.bsize;
 
             // Go to next entry
             iterator = &(*iterator)->next;

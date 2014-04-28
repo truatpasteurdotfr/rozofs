@@ -172,7 +172,6 @@ int storaged_rebuild_list(char * fid_list) {
   int        device_id;
   int        spare;
   char       path[FILENAME_MAX];
-  int        version=0;
       
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
@@ -257,6 +256,7 @@ int storaged_rebuild_list(char * fid_list) {
     
     memcpy(re.fid,file_entry.fid, sizeof(re.fid));
     memcpy(re.dist_set_current,file_entry.dist_set_current, sizeof(re.dist_set_current));
+    re.bsize = file_entry.bsize;
     re.layout = file_entry.layout;
     re.storages = NULL;
 
@@ -285,10 +285,12 @@ int storaged_rebuild_list(char * fid_list) {
 
     // Build the full path of directory that contains the bins file
     device_id = -1; // The device must be allocated
-    if (storage_dev_map_distribution(DEVICE_MAP_SEARCH_CREATE, &st2rebuild.storage, &device_id,
-                                     re.fid, re.layout, re.dist_set_current, spare,
-                                     path, version) == NULL) {
-      severe("rbs_restore_one_rb_entry storage_dev_map_distribution");
+    if (storage_dev_map_distribution_write(&st2rebuild.storage,  &device_id,  
+                                     re.bsize, re.fid, re.layout, re.dist_set_current, spare,
+                                     path, 0) == NULL) {
+      char fid_string[128];
+      uuid_unparse(re.fid,fid_string);
+      severe("rbs_restore_one_rb_entry spare %d FID %s",spare, fid_string);
       continue;      
     }  
 

@@ -65,6 +65,8 @@ int    fd[128] = {-1};
 
 int    nb_file = 0;
 int    block_number=-1;
+int    bsize=0;
+int    bbytes=-1;
 
 
 #define HEXDUMP_COLS 16
@@ -114,6 +116,7 @@ void hexdump(void *mem, unsigned int offset, unsigned int len)
 }
 
 
+char LINE[124];
 int read_data_file() {
     int status = -1;
     uint64_t size = 0;
@@ -124,8 +127,13 @@ int read_data_file() {
     rozofs_stor_bins_footer_t * rozofs_bins_foot_p;
     char * loc_read_bins_p = NULL;
     int      forward = rozofs_get_rozofs_forward(layout);
+    int      inverse = rozofs_get_rozofs_inverse(layout);
     uint16_t disk_block_size; 
-    uint16_t max_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+    uint16_t max_block_size = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t)) 
+                            + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+    char * p;
+    int empty,valid;
+        
 
     // Allocate memory for reading
     loc_read_bins_p = xmalloc(max_block_size);   
@@ -159,45 +167,50 @@ int read_data_file() {
     else                    block_idx = block_number;
     count = 1;
     
+    empty = 0;
     while ( count ) {
 
-      
+      valid = 0;
       count = 0;
-      printf("| %4d | %8d |",block_idx,block_idx*ROZOFS_BSIZE);
+      
+      p = &LINE[0];
+      p += sprintf(p,"| %4d | %8d |",block_idx,block_idx*bbytes);
 
       for (idx=0; idx < nb_file; idx++) {
       
        if (fd[idx] == -1) {
-         printf("%32s"," ");
+         p += sprintf(p,"%32s"," ");
 	 continue;
        }
-       if (idx < forward) {	 
-         disk_block_size = (rozofs_get_psizes(layout,idx)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
-       }	 
-       else {
-         disk_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
-       }
+       
+       if (idx >= inverse)
+          disk_block_size = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t));
+       else
+          disk_block_size = (rozofs_get_psizes(layout,bsize,idx)*sizeof (bin_t));          
+       disk_block_size += sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+       
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_idx*disk_block_size);
        
        if (size !=  disk_block_size) {
-           printf ("|__________________|______|____|");
+           p += sprintf(p,"|__________________|______|____|");
 	   close(fd[idx]);
 	   fd[idx] = -1;        
        }
        else {
            count++;
 	   rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;
-	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) 
-	              ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,rozofs_bins_hdr_p->s.projection_id));
+	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) ((char*) rozofs_bins_hdr_p + disk_block_size - sizeof(rozofs_stor_bins_footer_t));
 	   
 	   if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) {
-	     printf("| xxxxxxxxxxxxxxxx | xxxx | xx |");	     
+	     valid = 1;
+	     p += sprintf(p,"| xxxxxxxxxxxxxxxx | xxxx | xx |");	     
 	   }
 	   else if (rozofs_bins_hdr_p->s.timestamp == 0) {
-	     printf("| %16d | %4d | .. |",0,0);
+	     p += sprintf(p,"| %16d | %4d | .. |",0,0);
 	   }
 	   else {
-	     printf("| %16llu | %4d | %2d |",
+	     valid = 1;
+	     p += sprintf(p,"| %16llu | %4d | %2d |",
         	    (unsigned long long)rozofs_bins_hdr_p->s.timestamp,    
         	    rozofs_bins_hdr_p->s.effective_length,    
         	    rozofs_bins_hdr_p->s.projection_id);   
@@ -205,8 +218,17 @@ int read_data_file() {
        }
 
      }
-     printf ("\n"); 
      
+     if (valid) {
+       if (empty) {
+         printf("... %d blocks...\n",empty);
+	 empty = 0;
+       }
+       printf("%s\n",LINE); 
+     }
+     else {
+       empty++;
+     }
      block_idx++;
      if (block_number!=-1) break;
    }  	
@@ -216,10 +238,10 @@ int read_data_file() {
       for (idx=0; idx < nb_file; idx++) {
 
        if (idx < forward) {	 
-         disk_block_size = (rozofs_get_psizes(layout,idx)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+         disk_block_size = (rozofs_get_psizes(layout,bsize,idx)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
        }	 
        else {
-         disk_block_size = (rozofs_get_max_psize(layout)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+         disk_block_size = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
        }  
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_number*disk_block_size);
        if (size !=  disk_block_size) {
@@ -247,8 +269,8 @@ out:
     for (idx=0; idx < nb_file; idx++) {
       if (fd[idx] != -1) close(fd[idx]);
     }  	
-    if (loc_read_bins_p) {
-      free(loc_read_bins_p);
+    if (loc_read_bins_p != NULL) {
+      //free(loc_read_bins_p);
       loc_read_bins_p = NULL;
     }
     return status;
@@ -266,7 +288,8 @@ void usage() {
     printf("      The list of files on the distribution.\n"); 
     printf("      NULL to tell the file is not present\n");
     printf("   -l, --layout=<layout> \tThe data file layout.\n"); 
-    printf("   -b, --block=<block#>  \tThe block number to dump.\n");   
+    printf("   -b, --bsize=<block size>\tThe data block size (default %d)\n",bsize); 
+    printf("   -n, --blockNumber=<block#>  \tThe block number to dump.\n");   
 }
 
 int main(int argc, char *argv[]) {
@@ -276,7 +299,8 @@ int main(int argc, char *argv[]) {
         { "help", no_argument, 0, 'h'},
         { "file", required_argument, 0, 'f'},	
         { "layout", required_argument, 0, 'l'},	
-        { "block", required_argument, 0, 'b'},	
+        { "bsize", required_argument, 0, 'b'},	
+        { "blockNumber", required_argument, 0, 'n'},	
         { 0, 0, 0, 0}
     };
 
@@ -314,7 +338,7 @@ int main(int argc, char *argv[]) {
                   }
 		}
 		break;
-            case 'b':
+            case 'n':
 	        {
 		  int ret;
                   ret = sscanf(optarg,"%d", &block_number);
@@ -324,7 +348,18 @@ int main(int argc, char *argv[]) {
                       exit(EXIT_FAILURE);
                   }
 		}	
-		break;		
+		break;	
+            case 'b':
+	        {
+		  int ret;
+                  ret = sscanf(optarg,"%d", &bsize);
+                  if (ret < 0) { 
+                      fprintf(stderr, "dataReader failed. Bad block size: %s %s\n", optarg,
+                              strerror(errno));
+                      exit(EXIT_FAILURE);
+                  }
+		}	
+		break;				
 	    case '?':
                 usage();
                 exit(EXIT_SUCCESS);
@@ -346,6 +381,11 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }  
  
+    bbytes = ROZOFS_BSIZE_BYTES(bsize);
+    if (bbytes < 0) {
+        fprintf(stderr, "bad block size: %d\n", bsize);
+        exit(EXIT_FAILURE);
+    }
 
     // Start rebuild storage   
     if (read_data_file() != 0) goto error;

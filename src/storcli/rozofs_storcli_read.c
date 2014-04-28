@@ -385,7 +385,7 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
    /*
    ** clear the table that keep tracks of the blocks that have been transformed
    */
-   for (i = 0; i < ROZOFS_DISTRIBUTION_MAX_SIZE; i++)
+   for (i = 0; i < ROZOFS_MAX_BLOCK_PER_MSG; i++)
    {
      working_ctx_p->block_ctx_table[i].state = ROZOFS_BLK_TRANSFORM_REQ;
    }
@@ -675,6 +675,7 @@ retry:
      request->cid = storcli_read_rq_p->cid;
      request->sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);;
      request->layout        = storcli_read_rq_p->layout;
+     request->bsize         = storcli_read_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
 //     if (projection_id >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
@@ -917,6 +918,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
      request->cid = storcli_read_rq_p->cid;
      request->sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);;
      request->layout        = storcli_read_rq_p->layout;
+     request->bsize         = storcli_read_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
      memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
@@ -1090,9 +1092,10 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
    
    uint8_t layout         = storcli_read_rq_p->layout;
+   uint32_t bsize         = storcli_read_rq_p->bsize;   
    uint8_t rozofs_safe    = rozofs_get_rozofs_safe(layout);
    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
-   rozofs_max_psize       = rozofs_get_max_psize(layout);
+   rozofs_max_psize       = rozofs_get_max_psize(layout,bsize);
     /*
     ** get the sequence number and the reference of the projection id form the opaque user array
     ** of the transaction context
@@ -1323,7 +1326,8 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     /*
     ** Go through the bins and copy the each block header in the projection context
     */
-    rozofs_storcli_transform_update_headers(read_prj_work_p,layout,nb_projection_blocks_returned,working_ctx_p->nb_projections2read,raw_file_size);
+    rozofs_storcli_transform_update_headers(read_prj_work_p,layout,bsize,
+                    nb_projection_blocks_returned,working_ctx_p->nb_projections2read,raw_file_size);
     /*
     ** OK now check if we have enough projection to rebuild the initial message
     */
@@ -1422,7 +1426,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       **  check if Mojette threads are enable , if the length is greater than the threshold
       **  and there is no read request pending then use them
       */
-      int blocklen = working_ctx_p->effective_number_of_blocks*ROZOFS_BSIZE;
+      int blocklen = working_ctx_p->effective_number_of_blocks*ROZOFS_BSIZE_BYTES(bsize);
       if ((rozofs_stcmoj_thread_read_enable) && (blocklen >rozofs_stcmoj_thread_len_threshold)&&
           (rozofs_storcli_check_read_in_progress_projections(layout,working_ctx_p->prj_ctx) == 0)) 
       {
@@ -1440,7 +1444,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       }
       STORCLI_START_KPI(storcli_kpi_transform_inverse);
       rozofs_storcli_transform_inverse(working_ctx_p->prj_ctx,
-                                       layout,
+                                       layout, bsize,
                                        working_ctx_p->cur_nmbs2read,
                                        working_ctx_p->effective_number_of_blocks,
                                        working_ctx_p->block_ctx_table,

@@ -84,10 +84,16 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    storcli_read_arg_t  args;
    int ret;
    int storcli_idx;
+   int bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
+   int max_prj = (256*1024)/bbytes;
 
    // Nb. of the first block to read
-   bid = off / ROZOFS_BSIZE;
-   nb_prj = len / ROZOFS_BSIZE;
+   bid = off / bbytes;
+   nb_prj = len / bbytes;
+   if (nb_prj > max_prj)
+   {
+     severe("bad nb_prj %d max %d bid %llu off %llu len %u",nb_prj,max_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
+   }
    
     if (rozofs_rotation_read_modulo == 0) {
       f->rotation_idx = 0;
@@ -103,6 +109,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     // Fill request
     args.cid = f->attrs.cid;
     args.layout = f->export->layout;
+    args.bsize = exportclt.bsize;    
     memcpy(args.dist_set, f->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.proj_id = 0; // N.S
@@ -665,6 +672,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    int position ;
    int trc_idx;
    errno =0;
+   int bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -794,7 +802,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
     /*
     ** Get off requested to storcli (equal off after alignment)
     */
-    next_read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+    next_read_from = (off/bbytes)*bbytes;
     /*
     ** Truncate the received length to the known EOF as stored in
     ** the file context
@@ -1255,7 +1263,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         */
 
         file->buf_read_wait = 0;
-        file->read_from = (off/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+        file->read_from = (off/bbytes)*bbytes;
         file->read_pos  = file->read_from+(uint64_t)received_len;
         buff =(char*)( src_p + (off - file->read_from));
             
@@ -1305,7 +1313,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
         ** alignment
         */
         off_t new_offset = off + length;
-        uint64_t new_read_from = (new_offset/ROZOFS_BSIZE)*ROZOFS_BSIZE;
+        uint64_t new_read_from = (new_offset/bbytes)*bbytes;
         src_p += new_read_from - file->read_from;
         length = file->read_pos - new_read_from;
         memcpy(dst_p,src_p,length);

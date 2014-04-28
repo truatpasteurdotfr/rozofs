@@ -60,6 +60,7 @@ com_cache_main_t  *storio_device_mapping_p = NULL; /**< pointer to the fid cache
 typedef struct _storio_disk_thread_file_desc_t {
   fid_t        fid;
   uint8_t      layout;
+  uint8_t      bsize;
   uint8_t      cid;
   uint8_t      sid;
   uint8_t      dist[ROZOFS_SAFE_MAX];
@@ -79,13 +80,14 @@ storio_disk_thread_faulty_fid_t storio_faulty_fid[ROZOFS_MAX_DISK_THREADS] = {  
 * Register the FID that has encountered an error
   
    @param threadNb the thread number
-   @parma layout   the file layout
+   @param layout   the file layout
+   @param bsize    the block size as defined in enum ROZOFS_BSIZE_E
    @param cid      the faulty cid 
    @param sid      the faulty sid
    @param dist     the distribution      
    @param fid      the FID in fault   
 */
-void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t cid, uint8_t sid, uint32_t * dist, fid_t fid) {
+void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t bsize, uint8_t cid, uint8_t sid, uint32_t * dist, fid_t fid) {
   storio_disk_thread_faulty_fid_t * p;
   int                               idx;
   storio_disk_thread_file_desc_t  * pf;
@@ -105,6 +107,7 @@ void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t cid, uint8
   // Register this FID
   pf = &p->file[p->nb_faulty_fid_in_table];
   pf->layout = layout;
+  pf->bsize  = bsize;
   pf->cid    = cid;  
   pf->sid    = sid;
   memcpy(pf->dist,dist,ROZOFS_SAFE_MAX);

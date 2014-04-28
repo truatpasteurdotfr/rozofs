@@ -59,6 +59,10 @@ xdr_storcli_write_arg_t (XDR *xdrs, storcli_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->padding))
+		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
@@ -85,6 +89,10 @@ xdr_storcli_write_arg_no_data_t (XDR *xdrs, storcli_write_arg_no_data_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->padding))
+		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
 		 return FALSE;
@@ -110,6 +118,8 @@ xdr_storcli_read_arg_t (XDR *xdrs, storcli_read_arg_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
@@ -138,6 +148,8 @@ xdr_storcli_truncate_arg_t (XDR *xdrs, storcli_truncate_arg_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
 		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))

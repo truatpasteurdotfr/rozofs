@@ -177,6 +177,7 @@ static inline int rozofs_storcli_all_prj_write_check(uint8_t layout,rozofs_storc
  * @return: none
  */
 void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p, 
+                                  uint32_t bsize,
                                   uint64_t off, 
                                   uint32_t len,
                                   uint64_t *bid_p,
@@ -189,7 +190,8 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
     uint16_t loffset = 0;
     int i;
     void * buffer;
-    uint8_t * payload;   
+    uint8_t * payload; 
+    uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize); 
     
    *nb_blocks_p = 0;
     
@@ -200,13 +202,13 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
       wr_proj_buf_p[i].len = 0;
       wr_proj_buf_p[i].read_buf = NULL;
       wr_proj_buf_p[i].data     = NULL;
-      wr_proj_buf_p[i].last_block_size = ROZOFS_BSIZE;
+      wr_proj_buf_p[i].last_block_size = bbytes;
     }    
     length = len;
     /*
     **  Nb. of the first block to write
     */
-    first = off / ROZOFS_BSIZE;
+    first = off / bbytes;
     /*
     ** store the index of the fisrt block to write
     */
@@ -214,15 +216,15 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
     /*
     ** Offset (in bytes) for the first block
     */
-    foffset = off % ROZOFS_BSIZE;    
+    foffset = off % bbytes;    
     /* 
     ** Nb. of the last block to write
     */
-    last = (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE == 0 ? -1 : 0);
+    last = (off + length) / bbytes + ((off + length) % bbytes == 0 ? -1 : 0);
     /*
     **  Offset (in bytes) for the last block
     */
-    loffset = (off + length) - last * ROZOFS_BSIZE;
+    loffset = (off + length) - last * bbytes;
     /*
     ** Is it neccesary to read the first block ?
     */
@@ -234,7 +236,7 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
     */
     if (fread == 1) {
         wr_proj_buf_p[ROZOFS_WR_FIRST].state = ROZOFS_WR_ST_TRANSFORM_REQ;
-        wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * ROZOFS_BSIZE;            
+        wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * bbytes;            
 	wr_proj_buf_p[ROZOFS_WR_FIRST].first_block_idx    = 0;            
 	wr_proj_buf_p[ROZOFS_WR_FIRST].number_of_blocks   = 1;  
 	*nb_blocks_p += 1;    
@@ -252,10 +254,10 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
         /* Fill with 0 the beginning of the block and then put valid data */
         memset(payload,0,foffset);
         payload += foffset;
-        if ((len + foffset) > ROZOFS_BSIZE) {
+        if ((len + foffset) > bbytes) {
 	  /* Fill up to the end of the block */
-          memcpy(payload,working_ctx_p->data_write_p,ROZOFS_BSIZE - foffset);
-          wr_proj_buf_p[ROZOFS_WR_FIRST].len = ROZOFS_BSIZE;
+          memcpy(payload,working_ctx_p->data_write_p,bbytes - foffset);
+          wr_proj_buf_p[ROZOFS_WR_FIRST].len = bbytes;
         }
         else {	 
 	  /* copy the few given data */
@@ -275,11 +277,11 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
 	*/	
 		                        
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].state = ROZOFS_WR_ST_TRANSFORM_REQ;
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].off   = (first+1) * ROZOFS_BSIZE;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].len   = len-(ROZOFS_BSIZE-foffset);            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].data   = working_ctx_p->data_write_p + (ROZOFS_BSIZE-foffset) ;
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].off   = (first+1) * bbytes;            
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].len   = len-(bbytes-foffset);            
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].data   = working_ctx_p->data_write_p + (bbytes-foffset) ;
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].first_block_idx    = 1;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks   = (wr_proj_buf_p[ROZOFS_WR_MIDDLE].len+ROZOFS_BSIZE-1)/ROZOFS_BSIZE;  
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks   = (wr_proj_buf_p[ROZOFS_WR_MIDDLE].len+bbytes-1)/bbytes;  
 	wr_proj_buf_p[ROZOFS_WR_MIDDLE].last_block_size    = loffset;
         *nb_blocks_p += wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks;   
 	return;       		 				 
@@ -289,8 +291,8 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
     ** The 1rst need no padding
     */
     wr_proj_buf_p[ROZOFS_WR_FIRST].state = ROZOFS_WR_ST_TRANSFORM_REQ;
-    wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * ROZOFS_BSIZE;            
-    wr_proj_buf_p[ROZOFS_WR_FIRST].len   = ((last - first) + 1)*ROZOFS_BSIZE;                  
+    wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * bbytes;            
+    wr_proj_buf_p[ROZOFS_WR_FIRST].len   = ((last - first) + 1)*bbytes;                  
     wr_proj_buf_p[ROZOFS_WR_FIRST].data  = working_ctx_p->data_write_p;
     wr_proj_buf_p[ROZOFS_WR_FIRST].first_block_idx    = 0;            
     wr_proj_buf_p[ROZOFS_WR_FIRST].number_of_blocks   = ((last - first) + 1); 
@@ -317,6 +319,7 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
  * @return: none
  */
 void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p, 
+                                  uint32_t bsize,
                                   uint64_t off, 
                                   uint32_t len,
                                   uint64_t *bid_p,
@@ -329,6 +332,7 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
     uint16_t foffset = 0;
     uint16_t loffset = 0;
     int i;
+    uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize); 
     
    *nb_blocks_p = 0;
    //working_ctx_p->last_block_size = 0;       
@@ -340,13 +344,13 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
       wr_proj_buf_p[i].len = 0;
       wr_proj_buf_p[i].read_buf = NULL;
       wr_proj_buf_p[i].data     = NULL;
-      wr_proj_buf_p[i].last_block_size = ROZOFS_BSIZE;
+      wr_proj_buf_p[i].last_block_size = bbytes;
     }    
     length = len;
     /*
     **  Nb. of the first block to write
     */
-    first = off / ROZOFS_BSIZE;
+    first = off / bbytes;
     /*
     ** store the index of the fisrt block to write
     */
@@ -354,33 +358,33 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
     /*
     ** Offset (in bytes) for the first block
     */
-    foffset = off % ROZOFS_BSIZE;    
+    foffset = off % bbytes;    
     /* 
     ** Nb. of the last block to write
     */
-    last = (off + length) / ROZOFS_BSIZE + ((off + length) % ROZOFS_BSIZE == 0 ? -1 : 0);
+    last = (off + length) / bbytes + ((off + length) % bbytes == 0 ? -1 : 0);
     /*
     **  Offset (in bytes) for the last block
     */
-    loffset = (off + length) - last * ROZOFS_BSIZE;
+    loffset = (off + length) - last * bbytes;
     /*
     ** Is it neccesary to read the first block ?
     */
-//    if (first <= (file_size / ROZOFS_BSIZE) && foffset != 0)
+//    if (first <= (file_size / bbytes) && foffset != 0)
     if (foffset != 0)
         fread = 1;
     /*
     ** Is it necesary to read the last block ?
     */
-    if (loffset != ROZOFS_BSIZE)
-//    if (last < (file_size / ROZOFS_BSIZE) && loffset != ROZOFS_BSIZE)
+    if (loffset != bbytes)
+//    if (last < (file_size / bbytes) && loffset != bbytes)
         lread = 1;
 
     /*
     **  it is not possible to know the last_block_size. So by default we set ROZOFS_BSIZE
     ** because the transform will be done on a MIDDLE buffer that has full projection size.
     */
-//    working_ctx_p->last_block_size = ROZOFS_BSIZE;
+//    working_ctx_p->last_block_size = bbytes;
     /*
     **  If we must write only one block
     */
@@ -392,12 +396,12 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
         if (fread == 1 || lread == 1) 
         {
             wr_proj_buf_p[ROZOFS_WR_FIRST].state = ROZOFS_WR_ST_RD_REQ;
-            wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * ROZOFS_BSIZE;            
-            wr_proj_buf_p[ROZOFS_WR_FIRST].len   = ROZOFS_BSIZE;
+            wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * bbytes;            
+            wr_proj_buf_p[ROZOFS_WR_FIRST].len   = bbytes;
             wr_proj_buf_p[ROZOFS_WR_FIRST].first_block_idx    = 0;            
             wr_proj_buf_p[ROZOFS_WR_FIRST].number_of_blocks   = 1;  
             *nb_blocks_p += 1;          
-            wr_proj_buf_p[ROZOFS_WR_FIRST].last_block_size = ROZOFS_BSIZE; 
+            wr_proj_buf_p[ROZOFS_WR_FIRST].last_block_size = bbytes; 
             return;            
         } 
         /**
@@ -421,35 +425,35 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
       if (fread == 1)
       {
         wr_proj_buf_p[ROZOFS_WR_FIRST].state = ROZOFS_WR_ST_RD_REQ;
-        wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * ROZOFS_BSIZE;            
-        wr_proj_buf_p[ROZOFS_WR_FIRST].len   = ROZOFS_BSIZE;
+        wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * bbytes;            
+        wr_proj_buf_p[ROZOFS_WR_FIRST].len   = bbytes;
         wr_proj_buf_p[ROZOFS_WR_FIRST].first_block_idx    = 0;            
         wr_proj_buf_p[ROZOFS_WR_FIRST].number_of_blocks   = 1;  
         *nb_blocks_p += 1;          
                         
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].state = ROZOFS_WR_ST_TRANSFORM_REQ;
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].off   = (first+1) * ROZOFS_BSIZE;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].len   = ((len-(ROZOFS_BSIZE-foffset))/ROZOFS_BSIZE)*ROZOFS_BSIZE;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].data   = working_ctx_p->data_write_p + (ROZOFS_BSIZE-foffset) ;
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].off   = (first+1) * bbytes;            
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].len   = ((len-(bbytes-foffset))/bbytes)*bbytes;            
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].data   = working_ctx_p->data_write_p + (bbytes-foffset) ;
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].first_block_idx    = 1;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks   = wr_proj_buf_p[ROZOFS_WR_MIDDLE].len/ROZOFS_BSIZE;  
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks   = wr_proj_buf_p[ROZOFS_WR_MIDDLE].len/bbytes;  
         *nb_blocks_p += wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks;          
       }
       else
       {
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].state = ROZOFS_WR_ST_TRANSFORM_REQ;
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].off   = first * ROZOFS_BSIZE;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].len   = (len/ROZOFS_BSIZE)*ROZOFS_BSIZE;                  
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].off   = first * bbytes;            
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].len   = (len/bbytes)*bbytes;                  
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].data   = working_ctx_p->data_write_p;
         wr_proj_buf_p[ROZOFS_WR_MIDDLE].first_block_idx    = 0;            
-        wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks   = wr_proj_buf_p[ROZOFS_WR_MIDDLE].len/ROZOFS_BSIZE;  
+        wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks   = wr_proj_buf_p[ROZOFS_WR_MIDDLE].len/bbytes;  
         *nb_blocks_p += wr_proj_buf_p[ROZOFS_WR_MIDDLE].number_of_blocks;          
       }
       if (lread == 1)
       {
         wr_proj_buf_p[ROZOFS_WR_LAST].state = ROZOFS_WR_ST_RD_REQ;
-        wr_proj_buf_p[ROZOFS_WR_LAST].off   = last * ROZOFS_BSIZE;            
-        wr_proj_buf_p[ROZOFS_WR_LAST].len   = ROZOFS_BSIZE;
+        wr_proj_buf_p[ROZOFS_WR_LAST].off   = last * bbytes;            
+        wr_proj_buf_p[ROZOFS_WR_LAST].len   = bbytes;
         wr_proj_buf_p[ROZOFS_WR_LAST].first_block_idx    = (last-first);            
         wr_proj_buf_p[ROZOFS_WR_LAST].number_of_blocks   = 1;  
         *nb_blocks_p += wr_proj_buf_p[ROZOFS_WR_LAST].number_of_blocks;
@@ -461,8 +465,8 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
     ** all is aligned on ROZOFS_BSIZE
     */
     wr_proj_buf_p[ROZOFS_WR_FIRST].state = ROZOFS_WR_ST_TRANSFORM_REQ;
-    wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * ROZOFS_BSIZE;            
-    wr_proj_buf_p[ROZOFS_WR_FIRST].len   = ((last - first) + 1)*ROZOFS_BSIZE;                  
+    wr_proj_buf_p[ROZOFS_WR_FIRST].off   = first * bbytes;            
+    wr_proj_buf_p[ROZOFS_WR_FIRST].len   = ((last - first) + 1)*bbytes;                  
     wr_proj_buf_p[ROZOFS_WR_FIRST].data  = working_ctx_p->data_write_p;
     wr_proj_buf_p[ROZOFS_WR_FIRST].first_block_idx    = 0;            
     wr_proj_buf_p[ROZOFS_WR_FIRST].number_of_blocks   = ((last - first) + 1);            
@@ -498,6 +502,7 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
     rozofs_storcli_ingress_write_buf_t  *wr_proj_buf_p = working_ctx_p->wr_proj_buf;
     storcli_write_arg_no_data_t *storcli_write_rq_p = &working_ctx_p->storcli_write_arg;
     uint8_t layout = storcli_write_rq_p->layout;
+    uint32_t bsize = storcli_write_rq_p->bsize;
     int i;
     int errcode=0;
     int ret;
@@ -561,7 +566,7 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
          STORCLI_START_KPI(storcli_kpi_transform_forward);
 
          ret = rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
-                                                 layout,
+                                                 layout, bsize,
                                                  wr_proj_buf_p[i].first_block_idx, 
                                                  wr_proj_buf_p[i].number_of_blocks, 
                                                  working_ctx_p->timestamp,
@@ -839,6 +844,7 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    ** does not end of a ROZOFS_BSIZE boundary (last)
    */
    rozofs_storcli_prepare2write(working_ctx_p, 
+                              storcli_write_rq_p->bsize,
                               storcli_write_rq_p->off , 
                               storcli_write_rq_p->len,
                               &working_ctx_p->wr_bid,
@@ -930,6 +936,7 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
 
   storcli_write_arg_no_data_t *storcli_write_rq_p = (storcli_write_arg_no_data_t*)&working_ctx_p->storcli_write_arg;
   uint8_t layout = storcli_write_rq_p->layout;
+  uint8_t bsize = storcli_write_rq_p->bsize;
   uint8_t   rozofs_forward;
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
@@ -1015,6 +1022,7 @@ retry:
      request->cid = storcli_write_rq_p->cid;
      request->sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      request->layout        = storcli_write_rq_p->layout;
+     request->bsize         = storcli_write_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
 //     if (projection_id >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
@@ -1026,7 +1034,7 @@ retry:
      /*
      ** set the length of the bins part.
      */
-     int bins_len = ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
+     int bins_len = ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
      request->len = bins_len; /**< bins length MUST be in bytes !!! */
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),write_prj,bins_len);
@@ -1209,6 +1217,7 @@ retry:
      request->cid = storcli_write_rq_p->cid;
      request->sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      request->layout        = storcli_write_rq_p->layout;
+     request->bsize         = storcli_write_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
      memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
@@ -1219,7 +1228,7 @@ retry:
      /*
      ** set the length of the bins part.
      */
-     int bins_len = ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
+     int bins_len = ((rozofs_get_max_psize(layout,storcli_write_rq_p->bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* request->nb_proj)*sizeof(bin_t);
      request->len = bins_len; /**< bins length MUST be in bytes !!! */
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      /*
@@ -1624,6 +1633,8 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
    
    storcli_write_rq_p = (storcli_write_arg_no_data_t*)&working_ctx_p->storcli_write_arg;
    uint8_t  layout   = storcli_write_rq_p->layout;
+   uint32_t bsize   = storcli_write_rq_p->bsize;
+   uint32_t bbytes   = ROZOFS_BSIZE_BYTES(bsize);
 
    XDR       xdrs;       
    uint8_t  *payload;
@@ -1765,11 +1776,11 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
          memset(wr_proj_buf_p[match_idx].data,0,relative_offset);
 
          /* Complement the buffer with the data to write... */
-         if (relative_offset+storcli_write_rq_p->len >= ROZOFS_BSIZE ) 
+         if (relative_offset+storcli_write_rq_p->len >= bbytes ) 
          {
 	   /*... on the whole block when enough data to write ... */
-           len = ROZOFS_BSIZE - relative_offset;
-           wr_proj_buf_p[match_idx].last_block_size = ROZOFS_BSIZE;
+           len = bbytes - relative_offset;
+           wr_proj_buf_p[match_idx].last_block_size = bbytes;
          }
          else
          {
@@ -1823,10 +1834,10 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
           memset(wr_proj_buf_p[match_idx].data,0,relative_offset);
        
        }
-       if (relative_offset+storcli_write_rq_p->len >= ROZOFS_BSIZE ) 
+       if (relative_offset+storcli_write_rq_p->len >= bbytes ) 
        {
-         len = ROZOFS_BSIZE - relative_offset;
-         wr_proj_buf_p[match_idx].last_block_size = ROZOFS_BSIZE;
+         len = bbytes - relative_offset;
+         wr_proj_buf_p[match_idx].last_block_size = bbytes;
        }
        else
        {
@@ -1859,7 +1870,7 @@ transform:
    */
    {
       rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
-                                              layout,
+                                              layout,bsize,
                                               wr_proj_buf_p[match_idx].first_block_idx, 
                                               wr_proj_buf_p[match_idx].number_of_blocks, 
                                               working_ctx_p->timestamp,
@@ -1964,7 +1975,8 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
    memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
    memcpy(request->fid, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
    request->proj_id = 0;  /* not significant */
-   request->bid     = wr_proj_buf_p->off/ROZOFS_BSIZE;  
+   request->bsize   = storcli_write_rq_p->bsize;
+   request->bid     = wr_proj_buf_p->off/ROZOFS_BSIZE_BYTES(storcli_write_rq_p->bsize);  
    request->nb_proj = wr_proj_buf_p->number_of_blocks;  
    /*
    ** save the tranaction sequence number, it will be needed to correlate with the context upon

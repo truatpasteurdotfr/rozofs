@@ -30,7 +30,11 @@
 #include "rbs_transform.h"
 #include "rbs.h"
 
-#define ROZOFS_BLOCKS_MAX 16 
+#define ROZOFS_READ_BUFFER_SIZE (128*1024) 
+#define ROZOFS_BLOCKS_IN_BUFFER(bsize) (ROZOFS_READ_BUFFER_SIZE/ROZOFS_BSIZE_BYTES(bsize))
+#define ROZOFS_BLOCKS_MAX (ROZOFS_BLOCKS_IN_BUFFER(ROZOFS_BSIZE_MIN))
+
+
 
 typedef struct rbs_storcli_ctx {
     rbs_projection_ctx_t prj_ctx[ROZOFS_SAFE_MAX];
@@ -72,8 +76,6 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rbs_restore_one_rb_entry,
  * @param rebuild_sid: the unique storage ID of storage to rebuild
  * @param device: index indication
  * @param spare: index indication
- * @param layout: index indication
- * @param dist_set: index indication
  * @param cookie: index indication
  * @param **children: pointer to the list of rebuild entries
  * @param eof: end of list indication
@@ -85,11 +87,11 @@ int rbs_get_rb_entry_list(mclient_t * mclt, cid_t cid, sid_t sid,
         uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof);
 
-int rbs_read_blocks(sclient_t **storages, uint8_t layout, cid_t cid,
+int rbs_read_blocks(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
         rbs_storcli_ctx_t * working_ctx_p);
-int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, cid_t cid,
+int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
         rbs_storcli_ctx_t * working_ctx_p);

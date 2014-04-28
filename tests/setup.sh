@@ -328,9 +328,9 @@ gen_export_conf ()
     for k in $(seq ${NB_EXPORTS}); do
         if [[ ${k} == ${NB_EXPORTS} ]]
         then
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}" >> $FILE
+            echo "   {eid = $k; bsize = ${EXPORT_BSIZE[k-1]}; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${EXPORT_VID[k-1]};}" >> $FILE
         else
-            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}," >> $FILE
+            echo "   {eid = $k; bsize = ${EXPORT_BSIZE[k-1]};root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${EXPORT_VID[k-1]};}," >> $FILE
         fi
     done;
     echo ');' >> $FILE
@@ -596,6 +596,7 @@ go_layout ()
 
 deploy_clients_local ()
 {
+    mount_instance=0
     echo "------------------------------------------------------"
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
     then
@@ -629,8 +630,9 @@ deploy_clients_local ()
                     option="$option -o rozofsshaper=$SHAPER"
                     option="$option -o posixlock"
                     option="$option -o bsdlock"
-                    let "INSTANCE=${idx_client}-1"
-                    option="$option -o instance=$INSTANCE"
+                    option="$option -o instance=$mount_instance"
+		    
+                    mount_instance=$((mount_instance+1))
 
                     echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} \
                             ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
@@ -931,9 +933,11 @@ do_one_cou ()
   cat $COUFILE
   
   mode=`awk '{if ($1=="MODE") printf $3; }' $COUFILE`
+ #  BSIZE=`awk '{if ($1=="BSIZE") printf $3; }' $COUFILE`
+  
   fid=`awk '{if ($1=="FID") printf $3; }' $COUFILE`
   slice=`awk '{if ($1=="SLICE") printf $3; }' $COUFILE`
-  lay=`awk '{if ($1=="LAYOUT") printf $3; }' $COUFILE`
+#  lay=`awk '{if ($1=="LAYOUT") printf $3; }' $COUFILE`
   dist=`awk '{if ($1=="STORAGE") printf $3; }' $COUFILE`
   cluster=`awk '{if ($1=="CLUSTER") printf $3; }' $COUFILE`
   SID_LIST=`echo $dist | awk -F'-' '{ for (i=1;i<=NF;i++) print " "$i; }'`
@@ -945,11 +949,6 @@ do_one_cou ()
     "DIRECTORY") return;;
   esac
 
-  
-  # Attribute file
-  file=${LOCAL_EXPORTS_ROOT}_$eid/$slice/$fid
-  size=`ls -l $file  | awk '{ printf $5 }'`
-  printf "%10s %s\n" $size $file
   
   # Header and bins files
   for sid in $SID_LIST
@@ -967,6 +966,45 @@ do_one_cou ()
     done
   done     
 }
+do_monitor_cfg () 
+{
+  # Create monitor configuration file
+  sid=0  
+  for v in $(seq ${NB_VOLUMES}); 
+  do
+    echo "VOLUME localhost $v"
+    for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); 
+    do
+      for j in $(seq ${STORAGES_BY_CLUSTER}); 
+      do
+        sid=$((sid+1))
+        echo "STORAGE localhost$sid"
+      done
+    done
+  done
+
+  mount_instance=0
+  NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+
+  for j in $(seq ${NB_EXPORTS}); 
+  do
+    for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); 
+    do
+      echo "FSMOUNT localhost $mount_instance"
+      mount_instance=$((mount_instance+1))
+    done
+  done       
+}
+do_monitor () 
+{
+  case "$1" in
+    "") delay="-t 10s";;
+    *)  delay="-t $2";;
+  esac  
+  do_monitor_cfg > ${WORKING_DIR}/monitor.cfg
+  ${WORKING_DIR}/monitor.py $delay -c ${WORKING_DIR}/monitor.cfg
+  exit 0
+}  
 check_build ()
 {
 
@@ -1060,6 +1098,7 @@ usage ()
     echo >&2 "$0 cou <fileName>"    
     echo >&2 "$0 core [remove] <coredir>/<corefile>"
     echo >&2 "$0 process"
+    echo >&2 "$0 monitor"
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
     echo >&2 "$0 rebuild"
@@ -1068,7 +1107,7 @@ usage ()
     echo >&2 "$0 fileop_test"
     echo >&2 "$0 mount"
     echo >&2 "$0 umount"
-    exit 0;
+    exit 0
 }
 
 # $1 -> Layout to use
@@ -1165,8 +1204,15 @@ show_process () {
     if [ -f $file ];
     then
       proc=`cat $file`
-      name=`echo $file | awk -F'.' '{print $1}'`
-      printf "  %-23s %5d\n" $name $proc
+      first=`echo $file | awk -F'.' '{print $1}'`
+      last=`echo $file | awk -F'.' '{print $NF}'`
+      if [ $first == $last ];
+      then
+        name=$first
+      else
+        name="$first $last"
+      fi		
+      printf "  %-23s %5d\n" "$name" $proc
     fi    
   done  
   printf "\n"
@@ -1204,7 +1250,15 @@ main ()
     fi
     
 
-    NB_EXPORTS=1
+
+    NB_EXPORTS=4
+    # BSIZE 0=4K 1=8K 2=16K 3=32K 
+    BS4K=0
+    BS8K=1
+    BS16K=2
+    BS32K=3
+    declare -a EXPORT_BSIZE=($BS4K $BS8K $BS16K $BS32K)
+    declare -a EXPORT_VID=(1 1 1 1)
     NB_VOLUMES=1
     NB_CLUSTERS_BY_VOLUME=2
     NB_PORTS_PER_STORAGE_HOST=2
@@ -1213,7 +1267,7 @@ main ()
     WRITE_FILE_BUFFERING_SIZE=256
     NB_STORCLI=1
     SHAPER=0
-    ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
+    ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=1
     SQUOTA=""
     HQUOTA=""
     
@@ -1240,7 +1294,6 @@ main ()
         do_stop
 
         gen_storage_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST}
-        #gen_export_gw_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER} 192.168.2.1
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
@@ -1341,13 +1394,17 @@ main ()
     elif [ "$1" == "process" ]
     then 
        show_process 
+    elif [ "$1" == "monitor" ]
+    then 
+       set_layout
+       do_monitor $2       
     elif [ "$1" == "clean" ]
     then
         clean_all
     else
         usage
     fi
-    exit 0;
+    exit 0
 }
 
 main $@

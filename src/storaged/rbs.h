@@ -51,6 +51,7 @@ typedef struct _rebuild_fid_input_t {
 typedef struct rb_entry {
     fid_t fid; ///< unique file identifier associated with the file
     uint8_t layout; ///< layout used for this file.
+    uint32_t bsize; //< Block size as defined in ROZOFS_BSIZE_E
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes
     // target for this file.
     sclient_t **storages;
@@ -88,6 +89,7 @@ typedef struct rb_cluster {
  * @param config_file: configuration file name
  *---case of one FID to rebuild
  * @param layout: layout of the file
+ * @param bsize: block size as defined in ROZOFS_BSIZE_E
  * @param dist: distribution of the file
  * @param fid2rebuild: FID of the file
  *
@@ -97,7 +99,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
 	uint8_t stor_idx, int device,
 	int parallel, char * config_file, 
-	uint8_t layout, uint8_t * dist, fid_t fid2rebuild);
+	uint8_t layout, uint8_t bsize, uint8_t * dist, fid_t fid2rebuild);
 
 /** Check if possible to rebuild the storage with CID=cid, SID=sid,
  *  root_path=root and managed by the export server with hostname=export_host.

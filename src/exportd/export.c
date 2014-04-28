@@ -711,7 +711,7 @@ static void *load_trash_dir_thread(void *v) {
     return 0;
 }
 
-int export_initialize(export_t * e, volume_t *volume,
+int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
         lv2_cache_t *lv2_cache, uint32_t eid, const char *root, const char *md5,
         uint64_t squota, uint64_t hquota) {
 
@@ -727,6 +727,7 @@ int export_initialize(export_t * e, volume_t *volume,
 
     e->eid = eid;
     e->volume = volume;
+    e->bsize = bsize;
     e->lv2_cache = lv2_cache;
     e->layout = volume->layout; // Layout used for this volume
 
@@ -798,13 +799,13 @@ void export_release(export_t * e) {
     // TODO set members to clean values
 }
 
-int export_stat(export_t * e, estat_t * st) {
+int export_stat(export_t * e, ep_statfs_t * st) {
     int status = -1;
     struct statfs stfs;
     volume_stat_t vstat;
     START_PROFILING(export_stat);
 
-    st->bsize = ROZOFS_BSIZE;
+    st->bsize = ROZOFS_BSIZE_BYTES(e->bsize);
     if (statfs(e->root, &stfs) != 0)
         goto out;
 
@@ -814,6 +815,8 @@ int export_stat(export_t * e, estat_t * st) {
     st->ffree = stfs.f_ffree;
     st->blocks = e->fstat.blocks;
     volume_stat(e->volume, &vstat);
+    // volume_stat assumes a block size of 1024
+    vstat.bfree = vstat.bfree * 1024 / ROZOFS_BSIZE_BYTES(e->bsize); 
 
     if (e->hquota > 0) {
         if (e->hquota < vstat.bfree) {
@@ -943,9 +946,9 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
             goto out;
         }
 
-        uint64_t nrb_new = ((attrs->size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE);
-        uint64_t nrb_old = ((lv2->attributes.size + ROZOFS_BSIZE - 1) /
-                ROZOFS_BSIZE);
+        uint64_t nrb_new = ((attrs->size + ROZOFS_BSIZE_BYTES(e->bsize) - 1) / ROZOFS_BSIZE_BYTES(e->bsize));
+        uint64_t nrb_old = ((lv2->attributes.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1) /
+                ROZOFS_BSIZE_BYTES(e->bsize));
 
         if (lv2->attributes.size > attrs->size) {
             if (ftruncate(lv2->container.mreg.fdattrs, sizeof (mattr_t) + nrb_new * sizeof (dist_t)) != 0)
@@ -1459,8 +1462,8 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
 
             // Update the nb. of blocks
             if (export_update_blocks(e,
-                    -(((int64_t) lv2->attributes.size + ROZOFS_BSIZE - 1)
-                    / ROZOFS_BSIZE)) != 0) {
+                    -(((int64_t) lv2->attributes.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1)
+                    / ROZOFS_BSIZE_BYTES(e->bsize))) != 0) {
                 severe("export_update_blocks failed: %s", strerror(errno));
                 // Best effort
             }
@@ -2262,7 +2265,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
                         // Update the nb. of blocks
                         if (export_update_blocks(e,
                                 -(((int64_t) lv2_to_replace->attributes.size
-                                + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE)) != 0) {
+                                + ROZOFS_BSIZE_BYTES(e->bsize) - 1) / ROZOFS_BSIZE_BYTES(e->bsize))) != 0) {
                             severe("export_update_blocks failed: %s",
                                     strerror(errno));
                             // Best effort
@@ -2392,9 +2395,9 @@ int64_t export_read(export_t * e, fid_t fid, uint64_t offset, uint32_t len,
     // Length to read
     length = (offset + len < lv2->attributes.size ? len : lv2->attributes.size - offset);
     // Nb. of the first block to read
-    i_first_blk = offset / ROZOFS_BSIZE;
+    i_first_blk = offset / ROZOFS_BSIZE_BYTES(e->bsize);
     // Nb. of the last block to read
-    i_last_blk = (offset + length) / ROZOFS_BSIZE + ((offset + length) % ROZOFS_BSIZE == 0 ? -1 : 0);
+    i_last_blk = (offset + length) / ROZOFS_BSIZE_BYTES(e->bsize) + ((offset + length) % ROZOFS_BSIZE_BYTES(e->bsize) == 0 ? -1 : 0);
     // Nb. of blocks to read
     i_nb_blks = (i_last_blk - i_first_blk) + 1;
 
@@ -2498,8 +2501,8 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     // Update size of file
     if (off + len > lv2->attributes.size) {
         // Don't skip intermediate computation to keep ceil rounded
-        uint64_t nbold = (lv2->attributes.size + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE;
-        uint64_t nbnew = (off + len + ROZOFS_BSIZE - 1) / ROZOFS_BSIZE;
+        uint64_t nbold = (lv2->attributes.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1) / ROZOFS_BSIZE_BYTES(e->bsize);
+        uint64_t nbnew = (off + len + ROZOFS_BSIZE_BYTES(e->bsize) - 1) / ROZOFS_BSIZE_BYTES(e->bsize);
 
         if (export_update_blocks(e, nbnew - nbold) != 0)
             goto out;
@@ -2604,6 +2607,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   pFid = (uint8_t *) lv2->attributes.fid;  
   DISPLAY_ATTR_INT("EID", e->eid);
   DISPLAY_ATTR_INT("LAYOUT", e->layout);  
+  DISPLAY_ATTR_INT("BSIZE", ROZOFS_BSIZE_BYTES(e->bsize));  
 
   
   DISPLAY_ATTR_TITLE( "FID"); 
@@ -2853,7 +2857,7 @@ reloop:
       
         lock_elt = list_entry(p, rozofs_file_lock_t, next_fid_lock);	
 	
-	if (must_file_lock_be_removed(lock_requested, &lock_elt->lock, &new_lock)) {
+	if (must_file_lock_be_removed(e->bsize,lock_requested, &lock_elt->lock, &new_lock)) {
 	  lv2_cache_free_file_lock(lock_elt);
 	  lv2->nb_locks--;
 	  if (list_empty(&lv2->file_lock)) {
@@ -2932,7 +2936,7 @@ concatenate:
 
 	if (lock_elt->lock.mode != lock_requested->mode) continue;
 
-	if (try_file_locks_concatenate(lock_requested,&lock_elt->lock)) {
+	if (try_file_locks_concatenate(e->bsize,lock_requested,&lock_elt->lock)) {
           overlap--;
 	  lv2_cache_free_file_lock(lock_elt);
 	  lv2->nb_locks--;

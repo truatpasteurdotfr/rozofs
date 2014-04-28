@@ -88,8 +88,7 @@ void mp_remove_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
         goto out;
     }
 
-    if (storage_rm_file(st, args->layout, (sid_t *) args->dist_set,
-            (unsigned char *) args->fid) != 0) {
+    if (storage_rm_file(st, (char *) args->fid) != 0) {
         ret->mp_status_ret_t_u.error = errno;
         goto out;
     }

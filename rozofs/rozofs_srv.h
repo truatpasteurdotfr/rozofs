@@ -21,6 +21,7 @@
 #define ROZOFS_SRV_H
 
 #include <errno.h>
+#include <stdio.h>
 
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
@@ -29,6 +30,11 @@
 
 #define LAYOUT_MAX 3
 
+typedef struct _rozofs_conf_psizes_t {
+    float    redundancyCoeff;   /**< Redundacny coefficient for the given layout and block size (>1)*/
+    uint16_t rozofs_psizes_max; /**< size of the larger projection           */
+    uint16_t *rozofs_psizes; /**< size in bins of each projection         */
+} rozofs_conf_psizes_t;  
 /**
  * structure used to store the parameters relative to a given layout
  */
@@ -36,9 +42,8 @@ typedef struct _rozofs_conf_layout_t {
     uint8_t rozofs_safe; /**< max number of selectable storages       */
     uint8_t rozofs_forward; /**< number of projection to forward         */
     uint8_t rozofs_inverse; /**< number of projections needed to rebuild */
-    uint16_t rozofs_psizes_max; /**< size of the larger projection           */
     angle_t *rozofs_angles; /**< p and q angle for each projection       */
-    uint16_t *rozofs_psizes; /**< size in bins of each projection         */
+    rozofs_conf_psizes_t sizes[ROZOFS_BSIZE_NB] ; /* Projection sizes */
 } rozofs_conf_layout_t;
 
 extern rozofs_conf_layout_t rozofs_conf_layout_table[];
@@ -133,9 +138,10 @@ static inline int rozofs_get_angles_q(uint8_t layout, uint8_t projection_id) {
   
   @retval projection size
  */
-static inline int rozofs_get_psizes(uint8_t layout, uint8_t projection_id) {
+static inline int rozofs_get_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
-    return rozofs_conf_layout_table[layout].rozofs_psizes[projection_id];
+    if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes[projection_id];
 }
 
 /**
@@ -145,10 +151,73 @@ static inline int rozofs_get_psizes(uint8_t layout, uint8_t projection_id) {
   
   @retval projection size
  */
-static inline int rozofs_get_max_psize(uint8_t layout) {
+static inline int rozofs_get_max_psize(uint8_t layout, uint32_t bsize) {
     if (layout >= LAYOUT_MAX) return 0;
-    return rozofs_conf_layout_table[layout].rozofs_psizes_max;
+    if (bsize > ROZOFS_BSIZE_MAX) return 0;    
+    return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes_max;
 }
 
+/**
+  Get the redundancy coefficient for a given  layout and block size 
+  
+  @param layout : layout association with the file
+  
+  @retval projection size
+ */
+static inline float rozofs_get_redundancy_coeff(uint8_t layout, uint32_t bsize) {
+    if (layout >= LAYOUT_MAX) return 1;
+    if (bsize > ROZOFS_BSIZE_MAX) return 1;    
+    return rozofs_conf_layout_table[layout].sizes[bsize].redundancyCoeff;
+}
+/**
+  Get the redundancy coefficinet for a given  layout and block size 
+  
+  @param layout : layout association with the file
+  
+  @retval projection size
+ */
+static inline char * rozofs_display_size(char * p, uint8_t layout, uint32_t bsize) {
+  rozofs_conf_layout_t * pLayout;
+  int                    prj_id;
 
+  if (bsize > ROZOFS_BSIZE_MAX) { 
+    p += sprintf(p,"Unknown block size value %d !!!\n",bsize);
+    return p;
+  }      
+
+
+  switch (layout) {
+    case LAYOUT_2_3_4:
+	p += sprintf(p,"LAYOUT_2_3_4 ");
+        break;
+    case LAYOUT_4_6_8:
+	p += sprintf(p,"LAYOUT_4_6_8 ");
+        break;
+    case LAYOUT_8_12_16:
+	p += sprintf(p,"LAYOUT_8_12_16 ");
+        break;
+    default:
+        p += sprintf(p,"Unknown layout value %d !!!\n",layout);
+	return p;
+  }
+  
+  p += sprintf(p,"/ block size %d ", ROZOFS_BSIZE_BYTES(bsize));
+  
+  
+  pLayout = &rozofs_conf_layout_table[layout];
+  p += sprintf(p,"/ redundancy factor %1.2f\n",  pLayout->sizes[bsize].redundancyCoeff);
+  
+
+  p += sprintf(p,"  prj |   p |   q | size in bytes\n");
+  p += sprintf(p,"------+-----+-----+--------------\n");
+  
+  for (prj_id=0; prj_id < pLayout->rozofs_forward; prj_id++) {
+    p += sprintf(p,"   %2d | %3d | %3d | %5d\n", 
+                prj_id,
+		pLayout->rozofs_angles[prj_id].p,
+		pLayout->rozofs_angles[prj_id].q,
+		pLayout->sizes[bsize].rozofs_psizes[prj_id]*8);
+  }
+  return p;
+}
 #endif

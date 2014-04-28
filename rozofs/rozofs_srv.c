@@ -30,6 +30,8 @@ void rozofs_layout_initialize() {
     int i;
     uint8_t layout;
     rozofs_conf_layout_t *p;
+    uint32_t bsize;
+    float sum;
 
     p = rozofs_conf_layout_table;
     memset(p, 0, sizeof (rozofs_conf_layout_t) * LAYOUT_MAX);
@@ -57,15 +59,32 @@ void rozofs_layout_initialize() {
         DEBUG("initialize rozofs with inverse: %u, forward: %u, safe: %u",
                 p->rozofs_inverse, p->rozofs_forward, p->rozofs_safe);
 
+        /* Compute angles */
         p->rozofs_angles = xmalloc(sizeof (angle_t) * p->rozofs_forward);
-        p->rozofs_psizes = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
-
         for (i = 0; i < p->rozofs_forward; i++) {
             p->rozofs_angles[i].p = i - p->rozofs_forward / 2;
-            p->rozofs_angles[i].q = 1;
-            p->rozofs_psizes[i] = abs(i - p->rozofs_forward / 2) * (p->rozofs_inverse - 1)
-                    + (ROZOFS_BSIZE / sizeof (pxl_t) / p->rozofs_inverse - 1) + 1;
-            if (p->rozofs_psizes[i] > p->rozofs_psizes_max) p->rozofs_psizes_max = p->rozofs_psizes[i];
+            p->rozofs_angles[i].q = 1; 
+	}
+
+        /* Compute block sizes */
+	for (bsize=ROZOFS_BSIZE_MIN; bsize<=ROZOFS_BSIZE_MAX; bsize++) {
+	
+            p->sizes[bsize].rozofs_psizes = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
+	    
+	    sum = 0;
+            for (i = 0; i < p->rozofs_forward; i++) {	    
+        	p->sizes[bsize].rozofs_psizes[i] = abs(i - p->rozofs_forward / 2) * (p->rozofs_inverse - 1)
+                	+ (ROZOFS_BSIZE_BYTES(bsize) / sizeof (pxl_t) / p->rozofs_inverse - 1) + 1;
+        	if (p->sizes[bsize].rozofs_psizes[i] > p->sizes[bsize].rozofs_psizes_max) {
+		    p->sizes[bsize].rozofs_psizes_max = p->sizes[bsize].rozofs_psizes[i];
+		} 
+		sum += (p->sizes[bsize].rozofs_psizes[i] * 8
+		       +sizeof(rozofs_stor_bins_footer_t)
+		       +sizeof(rozofs_stor_bins_hdr_t));
+	    }
+	    
+	    p->sizes[bsize].redundancyCoeff = sum ;
+	    p->sizes[bsize].redundancyCoeff /= ROZOFS_BSIZE_BYTES(bsize);
         }
     }
 }
@@ -73,6 +92,7 @@ void rozofs_layout_initialize() {
 void rozofs_layout_release() {
     uint8_t layout;
     rozofs_conf_layout_t *p;
+    uint32_t bsize;
 
     p = rozofs_conf_layout_table;
 
@@ -80,7 +100,10 @@ void rozofs_layout_release() {
 
         if (p->rozofs_angles)
             free(p->rozofs_angles);
-        if (p->rozofs_psizes)
-            free(p->rozofs_psizes);
+	for (bsize=ROZOFS_BSIZE_MIN; bsize<=ROZOFS_BSIZE_MAX; bsize++) {
+            if (p->sizes[bsize].rozofs_psizes) {
+	        free(p->sizes[bsize].rozofs_psizes);
+	    }    
+	}
     }
 }

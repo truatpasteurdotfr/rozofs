@@ -269,7 +269,7 @@ void rozofs_ll_link_cbk(void *this,void *param)
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = ie->inode;
-    mattr_to_stat(&attrs, &stbuf);
+    mattr_to_stat(&attrs, &stbuf, exportclt.bsize);
     stbuf.st_ino = ie->inode;
     /*
     ** update the attributes in the ientry
@@ -727,7 +727,7 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
-    mattr_to_stat(&attrs, &stbuf);
+    mattr_to_stat(&attrs, &stbuf, exportclt.bsize);
     stbuf.st_ino = nie->inode;
     /*
     ** update the attributes in the ientry

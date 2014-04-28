@@ -143,7 +143,7 @@ int monitor_export(export_t *export) {
     int status = -1;
     int fd = -1;
     char path[FILENAME_MAX];
-    estat_t estat;
+    ep_statfs_t estat;
     uint64_t exceed = 0;
     DEBUG_FUNCTION;
 

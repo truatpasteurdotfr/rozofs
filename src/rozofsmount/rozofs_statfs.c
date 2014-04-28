@@ -89,7 +89,7 @@ error:
 {
    fuse_req_t req; 
    struct statvfs st;
-   estat_t estat;
+   ep_statfs_t estat;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   

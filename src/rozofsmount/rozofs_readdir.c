@@ -56,7 +56,7 @@ static void dirbuf_add(fuse_req_t req, dirbuf_t *b, const char *name,
     size_t oldsize = b->size;
     // Set the inode number in stbuf
     struct stat stbuf;
-    mattr_to_stat(attrs, &stbuf);
+    mattr_to_stat(attrs, &stbuf, exportclt.bsize);
     stbuf.st_ino = ino;
     // Get the size for this entry
     b->size += fuse_add_direntry(req, NULL, 0, name, &stbuf, 0);

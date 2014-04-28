@@ -275,6 +275,8 @@ xdr_ep_export_t (XDR *xdrs, ep_export_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->rl))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->bs))
+		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->storage_nodes_nb))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->storage_nodes, STORAGE_NODES_MAX,
@@ -718,7 +720,7 @@ xdr_ep_statfs_t (XDR *xdrs, ep_statfs_t *objp)
 {
 	//register int32_t *buf;
 
-	 if (!xdr_uint16_t (xdrs, &objp->bsize))
+	 if (!xdr_uint32_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->blocks))
 		 return FALSE;

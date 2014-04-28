@@ -112,6 +112,7 @@ struct ep_export_t {
 	ep_md5_t md5;
 	ep_uuid_t rfid;
 	uint8_t rl;
+	uint32_t bs;
 	uint8_t storage_nodes_nb;
 	ep_storage_node_t storage_nodes[STORAGE_NODES_MAX];
 };
@@ -329,7 +330,7 @@ struct epgw_rmdir_arg_t {
 typedef struct epgw_rmdir_arg_t epgw_rmdir_arg_t;
 
 struct ep_statfs_t {
-	uint16_t bsize;
+	uint32_t bsize;
 	uint64_t blocks;
 	uint64_t bfree;
 	uint64_t files;

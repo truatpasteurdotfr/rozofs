@@ -103,7 +103,9 @@ char * display_lock_stat(char * p) {
 * Recompute the effective range of the lock from the user range
 *___________________________________________________________________
 */
-void compute_effective_lock_range(struct ep_lock_t * lock) {  
+void compute_effective_lock_range(int bsize_e, struct ep_lock_t * lock) {  
+  int bbytes = ROZOFS_BSIZE_BYTES(bsize_e);
+  
 
   
   if (lock->user_range.size == EP_LOCK_TOTAL) {
@@ -112,7 +114,7 @@ void compute_effective_lock_range(struct ep_lock_t * lock) {
    lock->effective_range.size = EP_LOCK_TOTAL;   
   }
     
-  lock->effective_range.offset_start = lock->user_range.offset_start / ROZOFS_BSIZE;
+  lock->effective_range.offset_start = lock->user_range.offset_start / bbytes;
   
   if (lock->user_range.size == EP_LOCK_TO_END) {
     lock->effective_range.offset_stop = 0;
@@ -122,11 +124,11 @@ void compute_effective_lock_range(struct ep_lock_t * lock) {
   }
   
 
-  if (lock->effective_range.offset_stop % ROZOFS_BSIZE == 0) {
-    lock->effective_range.offset_stop = lock->user_range.offset_stop / ROZOFS_BSIZE;
+  if (lock->effective_range.offset_stop % bbytes == 0) {
+    lock->effective_range.offset_stop = lock->user_range.offset_stop / bbytes;
   }
   else {
-    lock->effective_range.offset_stop = lock->user_range.offset_stop / ROZOFS_BSIZE + 1;  
+    lock->effective_range.offset_stop = lock->user_range.offset_stop / bbytes + 1;  
   }   
 
   if (lock->effective_range.offset_start == 0) {
@@ -438,7 +440,7 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
     }	
     arg.arg_gw.lock.user_range.offset_start = start;
     arg.arg_gw.lock.user_range.offset_stop  = stop;      
-    compute_effective_lock_range(&arg.arg_gw.lock);    			
+    compute_effective_lock_range(exportclt.bsize,&arg.arg_gw.lock);    			
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -1091,7 +1093,7 @@ int rozofs_ll_setlk_internal(file_t * file) {
     arg.arg_gw.lock.user_range.size         = file->lock_size;
     arg.arg_gw.lock.user_range.offset_start = file->lock_start;
     arg.arg_gw.lock.user_range.offset_stop  = file->lock_stop;   
-    compute_effective_lock_range(&arg.arg_gw.lock);    			
+    compute_effective_lock_range(exportclt.bsize,&arg.arg_gw.lock);    			
 		
     /*
     ** now initiates the transaction towards the remote end
@@ -1117,6 +1119,7 @@ void rozofs_flock_invalidate_cache(file_t * file) {
  
   ientry_t *ie = 0;
   struct ep_lock_t flock;
+  uint32_t bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
   /*
   ** Lock has been aquired. It case it not a fre
   ** empty the kernel cache
@@ -1148,10 +1151,10 @@ void rozofs_flock_invalidate_cache(file_t * file) {
       flock.user_range.size = EP_LOCK_PARTIAL;
     }  
   }    
-  compute_effective_lock_range(&flock);   
+  compute_effective_lock_range(exportclt.bsize,&flock);   
   rozofs_fuse_invalidate_inode_cache(ie->inode, 
-                                     flock.effective_range.offset_start*ROZOFS_BSIZE,
-				     (flock.effective_range.offset_stop-flock.effective_range.offset_start)*ROZOFS_BSIZE);				            
+                                     flock.effective_range.offset_start*bbytes,
+				     (flock.effective_range.offset_stop-flock.effective_range.offset_start)*bbytes);				            
 }
 /**
 *  Call back function call upon a success rpc, timeout or any other rpc failure
@@ -1336,7 +1339,7 @@ void rozofs_clear_file_lock_owner(file_t * f) {
     arg.arg_gw.lock.user_range.size         = EP_LOCK_TOTAL;    
     arg.arg_gw.lock.user_range.offset_start = 0;
     arg.arg_gw.lock.user_range.offset_stop  = 0;      			
-    compute_effective_lock_range(&arg.arg_gw.lock);    			
+    compute_effective_lock_range(exportclt.bsize,&arg.arg_gw.lock);    			
 
     /*
     ** now initiates the transaction towards the remote end

@@ -57,6 +57,7 @@ void sclient_release(sclient_t * clt) {
         rpcclt_release(&clt->rpcclt);
 }
 
+#if 0
 int sclient_write(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
         uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, const bin_t * bins) {
@@ -100,6 +101,7 @@ out:
     return status;
 }
 
+#endif
 int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, bin_t * bins) {
@@ -145,7 +147,7 @@ out:
     return status;
 }
 
-int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
+int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint32_t bsize,
         uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, uint32_t * nb_proj_recv, bin_t * bins) {
     int status = -1;
@@ -158,6 +160,7 @@ int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
     args.cid = cid;
     args.sid = sid;
     args.layout = layout;
+    args.bsize = bsize;
     args.spare = spare;
     memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (fid_t));
@@ -193,7 +196,7 @@ int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
             ret->sp_read_ret_t_u.rsp.bins.bins_len);
 
     *nb_proj_recv = ret->sp_read_ret_t_u.rsp.bins.bins_len /
-            ((rozofs_get_max_psize(layout) * sizeof (bin_t))
+            ((rozofs_get_max_psize(layout,bsize) * sizeof (bin_t))
             + sizeof (rozofs_stor_bins_hdr_t));
 
     status = 0;

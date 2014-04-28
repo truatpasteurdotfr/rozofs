@@ -30,6 +30,7 @@
 #include "econfig.h"
 
 #define ELAYOUT	    "layout"
+#define EBSIZE	    "bsize"
 #define EVIP	    "exportd_vip"
 #define EVOLUMES    "volumes"
 #define EVID        "vid"
@@ -174,12 +175,13 @@ void expgw_config_release(expgw_config_t *c) {
 
 
 
-int export_config_initialize(export_config_t *e, eid_t eid, vid_t vid,
+int export_config_initialize(export_config_t *e, eid_t eid, vid_t vid, uint32_t bsize,
         const char *root, const char *md5, uint64_t squota, uint64_t hquota) {
     DEBUG_FUNCTION;
 
     e->eid = eid;
     e->vid = vid;
+    e->bsize = bsize;
     strncpy(e->root, root, FILENAME_MAX);
     strncpy(e->md5, md5, MD5_LEN);
     e->squota = squota;
@@ -519,7 +521,7 @@ out:
 
 
 
-static int strquota_to_nbblocks(const char *str, uint64_t *blocks) {
+static int strquota_to_nbblocks(const char *str, uint64_t *blocks, ROZOFS_BSIZE_E bsize) {
     int status = -1;
     char *unit;
     uint64_t value;
@@ -540,17 +542,13 @@ static int strquota_to_nbblocks(const char *str, uint64_t *blocks) {
 
     switch (*unit) {
         case 'K':
-            *blocks = 1024 * value / ROZOFS_BSIZE;
+            *blocks = 1024 * value / ROZOFS_BSIZE_BYTES(bsize);
             break;
         case 'M':
-            *blocks = 1024 * 1024 * value / ROZOFS_BSIZE;
+            *blocks = 1024 * 1024 * value / ROZOFS_BSIZE_BYTES(bsize);
             break;
         case 'G':
-            *blocks = 1024 * 1024 * 1024 * value / ROZOFS_BSIZE;
-            break;
-        case 'T':
-            // 0x10000000000 = 1024*1024*1024*1024
-            *blocks = 0x10000000000 * value / ROZOFS_BSIZE;
+            *blocks = 1024 * 1024 * 1024 * value / ROZOFS_BSIZE_BYTES(bsize);
             break;
         default: // no unit -> nb blocks
             *blocks = value;
@@ -586,9 +584,11 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
                || (LIBCONFIG_VER_MAJOR > 1))
         int eid; // Export identifier
         int vid; // Volume identifier
+	int bsize; // Block size
 #else
         long int eid; // Export identifier
         long int vid; // Volume identifier
+        long int bsize; // Block size
 #endif
         const char *str;
         uint64_t squota;
@@ -607,6 +607,16 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
+        if (config_setting_lookup_int(mfs_setting, EBSIZE, &bsize) == CONFIG_FALSE) {
+           // Default block size is 8K
+	   bsize = ROZOFS_BSIZE_8K;
+        }
+	if ((bsize < ROZOFS_BSIZE_MIN) || (bsize > ROZOFS_BSIZE_MAX)) {
+            errno = EINVAL;
+            severe("Block size must be within [%d:%d]", ROZOFS_BSIZE_MIN,ROZOFS_BSIZE_MAX);
+            goto out;
+        }
+	
         if (config_setting_lookup_string(mfs_setting, EROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;
             severe("can't look up root path for export idx: %d", i);
@@ -641,7 +651,7 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
-        if (strquota_to_nbblocks(str, &squota) != 0) {
+        if (strquota_to_nbblocks(str, &squota, bsize) != 0) {
             severe("%s: can't convert to quota)", str);
             goto out;
         }
@@ -652,7 +662,7 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
-        if (strquota_to_nbblocks(str, &hquota) != 0) {
+        if (strquota_to_nbblocks(str, &hquota, bsize) != 0) {
             severe("%s: can't convert to quota)", str);
             goto out;
         }
@@ -665,7 +675,7 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
         }
 
         econfig = xmalloc(sizeof (export_config_t));
-        if (export_config_initialize(econfig, (eid_t) eid, (vid_t) vid, root,
+        if (export_config_initialize(econfig, (eid_t) eid, (vid_t) vid, bsize, root,
                 md5, squota, hquota) != 0) {
             severe("can't initialize export config.");
         }

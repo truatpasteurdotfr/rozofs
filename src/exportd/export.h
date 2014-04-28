@@ -130,6 +130,7 @@ typedef struct expgw_entry {
 typedef struct export {
     eid_t eid; ///< export identifier
     volume_t *volume; ///< the volume export relies on
+    uint32_t bsize; ///< the block size from enum ROZOFS_BSIZE_E
     char root[PATH_MAX]; ///< absolute path of the storage root
     char md5[ROZOFS_MD5_SIZE]; ///< passwd
     uint8_t layout; ///< layout
@@ -199,6 +200,7 @@ int export_create(const char *root,export_t * e);
  *
  * @param export: pointer to the export
  * @param volume: pointer to the volume the export relies on
+ * @param bsize: Block size as defined in enum ROZOFS_BSIZE_E
  * @param lv2_cache: pointer to the cache to use
  * @param eid: id of this export
  * @param root: path to root directory
@@ -208,7 +210,7 @@ int export_create(const char *root,export_t * e);
  *
  * @return 0 on success -1 otherwise (errno is set)
  */
-int export_initialize(export_t * e, volume_t *volume, 
+int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
         lv2_cache_t *lv2_cache, eid_t eid, const char *root, const char *md5,
         uint64_t squota, uint64_t hquota);
 
@@ -228,7 +230,7 @@ void export_release(export_t * e);
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_stat(export_t * e, estat_t * st);
+int export_stat(export_t * e, ep_statfs_t * st);
 
 /** lookup file in an export.
  *

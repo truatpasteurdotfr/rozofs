@@ -218,7 +218,7 @@ typedef struct _rozofs_storcli_ctx_t
   uint32_t   read_seqnum;         /**< read sequence number that must be found in the reply to correlate with ctx */
   rozofs_storcli_projection_ctx_t  prj_ctx[ROZOFS_SAFE_MAX];
   rozofs_storcli_lbg_prj_assoc_t lbg_assoc_tb[ROZOFS_SAFE_MAX]; /**< association table between lbg and projection */
-  rozofs_storcli_inverse_block_t block_ctx_table[ROZOFS_DISTRIBUTION_MAX_SIZE];  
+  rozofs_storcli_inverse_block_t block_ctx_table[ROZOFS_MAX_BLOCK_PER_MSG];  
 
   /*
   ** working variables for read
@@ -252,7 +252,7 @@ typedef struct _rozofs_storcli_ctx_t
   dist_t                            wr_distribution;  /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
   ruc_obj_desc_t                      timer_list;    /**< timer linked list used as a guard timer upon received first projection */
-  uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*ROZOFS_DISTRIBUTION_MAX_SIZE];  /**< table of the projection used by the inverse process */
+  uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*ROZOFS_MAX_BLOCK_PER_MSG];  /**< table of the projection used by the inverse process */
 
   /*
   ** working variables for truncate

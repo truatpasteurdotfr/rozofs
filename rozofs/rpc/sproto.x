@@ -40,7 +40,7 @@ struct sp_write_arg_t {
     uint8_t     proj_id;     
     uint64_t    bid;
     uint32_t    nb_proj;
-    uint32_t    alignment;
+    uint32_t    bsize;
     opaque      bins<>;
 };
 
@@ -58,7 +58,7 @@ struct sp_write_arg_no_bins_t {
     uint8_t     proj_id;     
     uint64_t    bid;
     uint32_t    nb_proj;
-    uint32_t    alignment;
+    uint32_t    bsize;
     uint32_t    len;
 };
 
@@ -66,6 +66,7 @@ struct sp_read_arg_t {
     uint16_t    cid;
     uint8_t     sid;
     uint8_t     layout;
+    uint8_t     bsize;    
     uint8_t     spare;
     uint32_t     dist_set[ROZOFS_SAFE_MAX_RPC];
     sp_uuid_t   fid; 
@@ -77,7 +78,9 @@ struct sp_truncate_arg_no_bins_t {
     uint16_t    cid;
     uint8_t     sid;
     uint8_t     layout;
+    uint8_t     bsize;    
     uint8_t     spare;
+    uint8_t     padding;
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
     sp_uuid_t   fid; 
     uint8_t     proj_id;
@@ -91,11 +94,13 @@ struct sp_truncate_arg_t {
     uint16_t    cid;
     uint8_t     sid;
     uint8_t     layout;
+    uint8_t     bsize;
     uint8_t     spare;
+    uint8_t     padding;
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
     sp_uuid_t   fid; 
     uint8_t     proj_id;
-    uint16_t    last_seg;
+    uint32_t    last_seg;
     uint64_t    last_timestamp; 
     uint64_t    bid;    
     opaque      bins<>;    

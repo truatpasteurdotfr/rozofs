@@ -79,6 +79,7 @@ int mclient_stat(mclient_t * clt, sstat_t * st) {
     }
     if (ret->status != 0) {
         errno = ret->mp_stat_ret_t_u.error;
+	memset(st,0, sizeof(sstat_t));
         goto out;
     }
     memcpy(st, &ret->mp_stat_ret_t_u.sstat, sizeof (sstat_t));
@@ -90,8 +91,7 @@ out:
     return status;
 }
 
-int mclient_remove(mclient_t * clt, uint8_t layout,
-        sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid) {
+int mclient_remove(mclient_t * clt, fid_t fid) {
     int status = -1;
     mp_status_ret_t *ret = 0;
     mp_remove_arg_t args;
@@ -99,8 +99,6 @@ int mclient_remove(mclient_t * clt, uint8_t layout,
 
     args.cid = clt->cid;
     args.sid = clt->sid;
-    args.layout = layout;
-    memcpy(args.dist_set, dist_set, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, fid, sizeof (fid_t));
 
     if (!(clt->rpcclt.client) || !(ret = mp_remove_1(&args, clt->rpcclt.client))) {

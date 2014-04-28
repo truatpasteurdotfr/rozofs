@@ -41,8 +41,24 @@
 #define ROZOFS_UUID_SIZE_RPC (ROZOFS_UUID_SIZE/sizeof(uint32_t))
 #define ROZOFS_UUID_SIZE_NET ROZOFS_UUID_SIZE_RPC
 #define ROZOFS_HOSTNAME_MAX 128
-//#define ROZOFS_BSIZE 8192       // could it be export specific ?
-#define ROZOFS_BSIZE 4096
+/*
+** The block size is dependant on the eid
+**
+** NOTE: THE EFFECTIVE LENGTH IN THE BLOCK HEADER ON DISK IS 16 BITS
+**       LONG. THE MAXIMUM BLOCK SIZE IS SO (64K-1)
+*/
+typedef enum _ROZOFS_BSIZE_E {
+  ROZOFS_BSIZE_4K,
+  ROZOFS_BSIZE_8K,
+  ROZOFS_BSIZE_16K,
+  ROZOFS_BSIZE_32K,
+} ROZOFS_BSIZE_E ;
+#define ROZOFS_BSIZE_MIN        ROZOFS_BSIZE_4K
+#define ROZOFS_BSIZE_MAX        ROZOFS_BSIZE_32K
+#define ROZOFS_BSIZE_NB         (ROZOFS_BSIZE_MAX+1)
+#define ROZOFS_BSIZE_BYTES(val) ((4*1024)<<val)
+// Maximum number of block per message
+#define ROZOFS_MAX_BLOCK_PER_MSG (256/4)
 #define ROZOFS_SAFE_MAX 36
 #define ROZOFS_SAFE_MAX_RPC  (ROZOFS_SAFE_MAX/sizeof(uint32_t))
 /* Instead of using an array of sid_t for store the dist_set, we use an
@@ -143,14 +159,6 @@ typedef struct sstat {
     uint64_t free;
 } sstat_t;
 
-typedef struct estat {
-    uint16_t bsize;
-    uint64_t blocks;
-    uint64_t bfree;
-    uint64_t files;
-    uint64_t ffree;
-    uint16_t namemax;
-} estat_t;
 
 /**
  *  Header structure for one projection
