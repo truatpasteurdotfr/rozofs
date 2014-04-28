@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozo.1
 .\"
-.TH ROZO 1 "March 2014" RozoFS "User Manuals"
+.TH ROZO 1 "April 2014" RozoFS "User Manuals"
 .SH NAME
 rozo \- RozoFS management tool
 .SH SYNOPSIS
@@ -208,15 +208,18 @@ A running exportd hostname.
 
 .\" rozo volume expand
 .SS expand
-.B rozo volume expand [\fB\-v | \-\-vid\fP \fIvid\fP...] \fInode\fP...  \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo volume expand [\fB\-v | \-\-vid\fP \fIvid\fP] [\fB\-l | \-\-layout\fP \fIlayout\fP] \fInode\fP...  \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
-Expand a volume relying on the given list of storage \fInode\fP hostnames. 
+Expand a volume relying on the given list of storage \fInode\fP hostnames.
 .TP
 \fB\-E\fP, \fB\-\-exportd \fP\fIhost
 A running exportd hostname.
 .TP
-\fB\-v\fP, \fB\-\-vid\fP \fIvid\fP...
-List of the \fBvid\fP of the volumes to expand. If not set a new volume will be created.
+\fB\-v\fP, \fB\-\-vid\fP \fIvid\fP
+\fBvid\fP of the volume to expand. If not set a new volume will be created.
+.TP
+\fB\-l\fP, \fB\-\-layout\fP \fIlayout\fP
+Specific \fBlayout\fP to use. If not set the default \fBlayout\fP or the \fBlayout\fP of the already defined volume will be used.
 
 .\" rozo volume remove
 .SS remove
