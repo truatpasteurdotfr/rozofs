@@ -515,6 +515,7 @@ int exp_attr_create(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t
    fake_inode->fid[1] = 0;
    fake_inode->s.key = type;
    fake_inode->s.usr_id = slice; /** always the parent slice for storage */
+   fake_inode->s.eid = trk_tb_p->eid;   
    
    if (fake_inode->s.key >= ROZOFS_MAXATTR)
    {
@@ -563,6 +564,8 @@ int exp_attr_create(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t
   fake_inode_link.fid[1] = 0;
   fake_inode_link.s.key = ROZOFS_SLNK;
   fake_inode_link.s.usr_id = link_slice; 
+  fake_inode_link.s.eid = trk_tb_p->eid;   
+
   p_link = trk_tb_p->tracking_table[ROZOFS_SLNK];
   if (p_link == NULL)
   {
@@ -645,6 +648,7 @@ int exp_xattr_block_create(export_tracking_table_t *trk_tb_p,lv2_entry_t *entry,
    fake_inode.fid[1] = 0;
    fake_inode.s.key = ROZOFS_EXTATTR;
    fake_inode.s.usr_id = slice; /** always the inode slice for storage */
+   fake_inode.s.eid = trk_tb_p->eid;   
    
    p = trk_tb_p->tracking_table[fake_inode.s.key];
    if (p == NULL)
@@ -745,6 +749,7 @@ int exp_trash_entry_create(export_tracking_table_t *trk_tb_p,uint32_t slice,void
    
    fake_inode.s.key = ROZOFS_TRASH;
    fake_inode.s.usr_id = slice; 
+   fake_inode.s.eid = trk_tb_p->eid;   
    
    p = trk_tb_p->tracking_table[fake_inode.s.key];
    if (p == NULL)
@@ -833,13 +838,14 @@ error:
    That service is called at export creation time. Its purpose is to allocate
    data structure for export attributes management.
    
+   @param eid : export identifier
    @param root_path : root path of the export
    @param create_flag : assert to 1 if tracking files MUST be created
    
    @retval <> NULL: pointer to the attributes tracking table
    @retval == NULL : error (see errno for details)
 */
-export_tracking_table_t *exp_create_attributes_tracking_context(char *root_path, int create)
+export_tracking_table_t *exp_create_attributes_tracking_context(uint16_t eid, char *root_path, int create)
 {
    export_tracking_table_t *tab_p = NULL; 
    int ret; 

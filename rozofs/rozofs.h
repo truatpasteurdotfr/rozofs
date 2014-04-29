@@ -144,7 +144,8 @@ typedef union
 {
    uint64_t fid[2];   /**<   */
    struct {
-     uint64_t  fid_high:64;   /**< higher part of the fid */
+     uint64_t  fid_high:54;   /**< higher part of the fid */
+     uint64_t  eid:10;        /**< export identifier */     
      uint64_t  usr_id:8;     /**< usr defined value-> for exportd;it is the slice   */
      uint64_t  file_id:40;    /**< bitmap file index within the slice                */
      uint64_t  idx:11;     /**< inode relative to the bitmap file index           */

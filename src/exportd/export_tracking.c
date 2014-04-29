@@ -698,7 +698,7 @@ int export_create(const char *root,export_t * e) {
       /*
       ** create the tracking context of the export
       */
-      e->trk_tb_p = exp_create_attributes_tracking_context((char*)root,1);
+      e->trk_tb_p = exp_create_attributes_tracking_context(e->eid,(char*)root,1);
       if (e->trk_tb_p == NULL)
       {
 	 severe("error on tracking context allocation: %s\n",strerror(errno));
@@ -873,7 +873,7 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     */
      if (e->trk_tb_p == NULL)
      {
-       e->trk_tb_p = exp_create_attributes_tracking_context((char*)root,1);
+       e->trk_tb_p = exp_create_attributes_tracking_context(e->eid,(char*)root,1);
        if (e->trk_tb_p == NULL)
        {
 	  severe("error on tracking context allocation: %s\n",strerror(errno));

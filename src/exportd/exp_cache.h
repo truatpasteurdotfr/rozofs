@@ -90,6 +90,7 @@ typedef struct lv2_cache {
 */
 typedef struct _export_tracking_table_t
 {
+  uint16_t               eid; ///< Export identifier
   exp_trck_top_header_t *tracking_table[ROZOFS_MAXATTR];
 } export_tracking_table_t;
 
@@ -275,13 +276,14 @@ int exp_attr_delete(export_tracking_table_t *trk_tb_p,fid_t fid);
    That service is called at export creation time. Its purpose is to allocate
    data structure for export attributes management.
    
+   @param eid : export identifier
    @param root_path : root path of the export
    @param create_flag : assert to 1 if tracking files MUST be created
    
    @retval <> NULL: pointer to the attributes tracking table
    @retval == NULL : error (see errno for details)
 */
-export_tracking_table_t *exp_create_attributes_tracking_context(char *root_path, int create);
+export_tracking_table_t *exp_create_attributes_tracking_context(uint16_t eid, char *root_path, int create);
 /*
 **__________________________________________________________________
 */
