@@ -515,7 +515,9 @@ int exp_attr_create(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t
    fake_inode->fid[1] = 0;
    fake_inode->s.key = type;
    fake_inode->s.usr_id = slice; /** always the parent slice for storage */
-   fake_inode->s.eid = trk_tb_p->eid;   
+   fake_inode->s.eid = trk_tb_p->eid; 
+   
+   info("eid is %d",  trk_tb_p->eid);
    
    if (fake_inode->s.key >= ROZOFS_MAXATTR)
    {
@@ -860,6 +862,7 @@ export_tracking_table_t *exp_create_attributes_tracking_context(uint16_t eid, ch
      return NULL;
    }
    memset(tab_p,0,sizeof(export_tracking_table_t));
+   tab_p->eid = eid;
    /*
    ** regular file
    */
