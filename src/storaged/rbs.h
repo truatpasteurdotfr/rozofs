@@ -87,11 +87,7 @@ typedef struct rb_cluster {
  * @param stor_idx: storage index used for display statistics.
  * @param device: device to rebuild or -1 when all devices.
  * @param config_file: configuration file name
- *---case of one FID to rebuild
- * @param layout: layout of the file
- * @param bsize: block size as defined in ROZOFS_BSIZE_E
- * @param dist: distribution of the file
- * @param fid2rebuild: FID of the file
+ * @param fid2rebuild: FID of the only file
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
@@ -99,7 +95,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
 	uint8_t stor_idx, int device,
 	int parallel, char * config_file, 
-	uint8_t layout, uint8_t bsize, uint8_t * dist, fid_t fid2rebuild);
+	fid_t fid2rebuild);
 
 /** Check if possible to rebuild the storage with CID=cid, SID=sid,
  *  root_path=root and managed by the export server with hostname=export_host.

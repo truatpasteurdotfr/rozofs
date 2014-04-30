@@ -516,9 +516,7 @@ int exp_attr_create(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t
    fake_inode->s.key = type;
    fake_inode->s.usr_id = slice; /** always the parent slice for storage */
    fake_inode->s.eid = trk_tb_p->eid; 
-   
-   info("eid is %d",  trk_tb_p->eid);
-   
+      
    if (fake_inode->s.key >= ROZOFS_MAXATTR)
    {
      errno = EINVAL;

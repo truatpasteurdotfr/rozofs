@@ -764,7 +764,7 @@ epgw_mattr_ret_t * ep_getattr_1_svc(epgw_mfile_arg_t * arg, struct svc_req * req
     START_PROFILING(ep_getattr);
 
     ret.parent_attr.status = EP_EMPTY;
-
+    
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
     if (export_getattr
@@ -774,6 +774,8 @@ epgw_mattr_ret_t * ep_getattr_1_svc(epgw_mfile_arg_t * arg, struct svc_req * req
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status = EP_SUCCESS;
     ret.free_quota = exportd_get_free_quota(exp);
+    ret.bsize = exp->bsize;
+    ret.layout = exp->layout;	
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  

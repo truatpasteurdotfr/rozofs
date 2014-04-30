@@ -627,29 +627,11 @@ def rebuild_fid() :
     # the storages for a rebuild of the file
     bins_list = []
     for line in cmd.stdout:
-    
-      if "STORAGE" in line:
-        words=line.split();
-	if len(words) >= 2:
-          dist=words[2]
-	  continue
 	  
       if "FID" in line:
         words=line.split();
 	if len(words) >= 2:
           fid=words[2]
-	  continue
-	  
-      if "LAYOUT" in line:
-        words=line.split();
-	if len(words) >= 2:
-          layout=words[2]
-	  continue
-	  	
-      if "BSIZE" in line:
-        words=line.split();
-	if len(words) >= 2:
-          bsize=words[2]
 	  continue
 	  	    
       if "/bins_" in line:
@@ -669,7 +651,7 @@ def rebuild_fid() :
           else:
 	    cidsid=name[len(name)-5].split("storage_")[1].split('-')	  
 	  
-          string="./setup.sh storage %s fid-rebuild -s %s/%s -f %s/%s/%s/%s "%(cidsid[1],cidsid[0],cidsid[1],layout,bsize,dist,fid)
+          string="./setup.sh storage %s fid-rebuild -s %s/%s -f %s "%(cidsid[1],cidsid[0],cidsid[1],fid)
           parsed = shlex.split(string)
           cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
           cmd.wait()
@@ -856,6 +838,7 @@ def usage():
   print "\n./IT.py [options] [extra] <test name/group> [<test name/group>...]"      
   print "  Runs a test list."
   print "    options:"
+  print "      [--speed]          The run 4 times faster tests."
   print "      [--fast]           The run 2 times faster tests."
   print "      [--long]           The run 2 times longer tests."
   print "      [--stop]           To stop the tests on the 1rst failure." 
@@ -890,6 +873,7 @@ parser.add_option("-k","--snipper",action="store",type="string",dest="snipper", 
 parser.add_option("-s","--stop", action="store_true",dest="stop", default=False, help="To stop on 1rst failure.")
 parser.add_option("-t","--fusetrace", action="store_true",dest="fusetrace", default=False, help="To stop on 1rst failure.")
 parser.add_option("-F","--fast", action="store_true",dest="fast", default=False, help="To run 2 times faster tests.")
+parser.add_option("-S","--speed", action="store_true",dest="speed", default=False, help="To run 4 times faster tests.")
 parser.add_option("-L","--long", action="store_true",dest="long", default=False, help="To run 2 times longer tests.")
 parser.add_option("-m","--mount", action="store", type="string", dest="mount", help="The mount point to test on.")
 
@@ -938,11 +922,15 @@ if options.fusetrace == True:
   stopOnFailure=True 
   fuseTrace=True
   
-if options.fast == True:  
+if options.speed == True:  
+  loop=loop/4
+  nbGruyere=nbGruyere/4
+     
+elif options.fast == True:  
   loop=loop/2
   nbGruyere=nbGruyere/2
    
-if options.long == True:  
+elif options.long == True:  
   loop=loop*2 
   nbGruyere=nbGruyere*2
          

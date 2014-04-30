@@ -256,14 +256,11 @@ uint32_t storio_device_mapping_init();
 * Register the FID that has encountered an error
   
    @param threadNb the thread number
-   @param layout   the file layout
-   @param bsize    the block size as defined in enum ROZOFS_BSIZE_E
    @param cid      the faulty cid 
-   @param sid      the faulty sid
-   @param sid      the distribution      
+   @param sid      the faulty sid      
    @param fid      the FID in fault   
 */
-void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t bsize, uint8_t cid, uint8_t sid, uint32_t * dist, fid_t fid) ;
+void storio_register_faulty_fid(int threadNb, uint8_t cid, uint8_t sid, fid_t fid) ;
 #ifdef __cplusplus
 }
 #endif /*__cplusplus */

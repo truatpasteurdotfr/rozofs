@@ -460,6 +460,10 @@ xdr_epgw_mattr_ret_t (XDR *xdrs, epgw_mattr_ret_t *objp)
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->free_quota))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->bsize))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
 	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->status_gw))
 		 return FALSE;
 	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->parent_attr))

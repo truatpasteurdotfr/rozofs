@@ -1535,7 +1535,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
 	uint8_t stor_idx, int device,
 	int parallel, char * config_file, 
-	uint8_t layout, uint8_t bsize, uint8_t * distribution, fid_t fid2rebuild) {
+	fid_t fid2rebuild) {
     int status = -1;
     int ret;
 
@@ -1573,8 +1573,18 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
 
     // One FID to rebuild
     if (device == -2) {
-      // Build the list for this FID only
-      if (rbs_build_one_fid_list(cid, sid, layout, bsize, distribution, fid2rebuild) != 0)
+      uint32_t   bsize;
+      uint8_t    layout; 
+      ep_mattr_t attr;
+      
+      // Resolve this FID thanks to the exportd
+      if (rbs_get_fid_attr(&rpcclt_export, export_host, fid2rebuild, &attr, &bsize, &layout) != 0)
+      {
+        severe("Can not get attributes from export");
+	goto out;
+      }
+      
+      if (rbs_build_one_fid_list(cid, sid, layout, bsize, attr.sids, fid2rebuild) != 0)
         goto out;
       rb_fid_table_count = 1;	
       parallel           = 1; 

@@ -1091,7 +1091,7 @@ usage ()
     echo >&2 "$0 resume"
     echo >&2 "$0 storage <sid>|all stop|start|reset"
     echo >&2 "$0 storage <sid>|all device-delete|device-rebuild <device>|all"
-    echo >&2 "$0 storage <sid> fid-rebuild -s <cid>/<sid> -f <layout>/<dist>/<fid>"
+    echo >&2 "$0 storage <sid> fid-rebuild -s <cid>/<sid> -f <fid>"
     echo >&2 "$0 expgw <nb>|all stop|start|reset"
     echo >&2 "$0 export stop|start|reset"
     echo >&2 "$0 fsmount stop|start|reset"

@@ -73,9 +73,6 @@ static uint16_t storaged_nrstorages = 0;
 static fid_t    fid2rebuild={0};
 static char    *fid2rebuild_string=NULL;
 
-int       layout=-1;
-int       bsize=-1;
-uint8_t   distribution[ROZOFS_SAFE_MAX]={0};
 int   cid=-1;
 int   sid=-1;
 
@@ -230,7 +227,7 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 		rbs_device_number,
 		parallel,
 		storaged_config_file,
-		layout,bsize,distribution,fid2rebuild) != 0) {
+		fid2rebuild) != 0) {
 
             // Probably a problem when connecting with other members
             // of this cluster
@@ -369,8 +366,6 @@ storage_t *storaged_next(storage_t * st) {
 static void on_stop() {
     DEBUG_FUNCTION;   
 
-    rozofs_layout_release();
-
     storaged_release();
 
     closelog();
@@ -390,7 +385,7 @@ void usage() {
     printf("                             \tAll devices are rebuilt when omitted.\n");
     printf("   -s, --sid=<cid/sid>       \tCluster and storage identifier to rebuild.\n");
     printf("                             \tAll <cid/sid> are rebuilt when omitted.\n");
-    printf("   -f, --fid=<layout>/<bsize>/<dist>/<FID>\tSpecify one FID to rebuild. -s must also be set.\n");
+    printf("   -f, --fid=<FID>           \tSpecify one FID to rebuild. -s must also be set.\n");
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
     printf("                              \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
 }
@@ -415,8 +410,6 @@ int main(int argc, char *argv[]) {
     rozofs_tmr_init_configuration();
     storaged_hostname = NULL;
 
-    /* Initialize rozofs constants (redundancy) */
-    rozofs_layout_initialize();
     while (1) {
 
         int option_index = 0;
@@ -462,77 +455,15 @@ int main(int argc, char *argv[]) {
             case 'f':
                 {
 		  int ret;
-		  int j;
-		  int val;
-		  char * pt = optarg;
-		  ret = sscanf(optarg,"%d/",&layout);
-		  if (ret != 1) {
-		    fprintf(stderr, "storage_rebuild failed: bad layout %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  while ((*pt != 0) && (*pt!='/')) pt++;
-		  if (*pt != '/') {
-		    fprintf(stderr, "storage_rebuild failed: after layout %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  pt++;
-		  if (*pt == 0) {
-		    fprintf(stderr, "storage_rebuild failed: after layout %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  
-		  ret = sscanf(pt,"%d/",&bsize);
-		  if (ret != 1) {
-		    fprintf(stderr, "storage_rebuild failed: bad bsize %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }	
-		  while ((*pt != 0) && (*pt!='/')) pt++;
-		  if (*pt != '/') {
-		    fprintf(stderr, "storage_rebuild failed: after bsize %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  pt++;
-		  if (*pt == 0) {
-		    fprintf(stderr, "storage_rebuild failed: after bsize %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  		  	  
-		  ret = sscanf(pt,"%d",&val);
-		  if (ret != 1) {
-		    fprintf(stderr, "storage_rebuild failed: 1rst sid %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  	
-		  distribution[0] = val; 
-		  j=1;
-		  pt += 3;		
-		  while ((sscanf(pt,"-%d",&val)==1)&&(j<=ROZOFS_SAFE_MAX)) {
-		    distribution[j] = val;
-		    j++;
-		    pt += 4;
-		  }	  
-		  if (j != rozofs_get_rozofs_safe(layout)) {
-		    fprintf(stderr, "storage_rebuild failed: bad layout/distribution\n");
-                    exit(EXIT_FAILURE);		    
-		  }
-                  if (*pt != '/') {
-		    fprintf(stderr, "storage_rebuild failed: after distribution %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-		  pt++;
-		  if (*pt==0) {
-		    fprintf(stderr, "storage_rebuild failed: after distribution %s\n", optarg);
-                    exit(EXIT_FAILURE);
-                  }
-				  
-		  fid2rebuild_string = pt;
+
+		  fid2rebuild_string = optarg;
 		  ret = uuid_parse(fid2rebuild_string,fid2rebuild);
 		  if (ret != 0) {
 		    fprintf(stderr, "storage_rebuild failed: bad FID %s %s\n", optarg,
                             strerror(errno));
                     exit(EXIT_FAILURE);
                   }
-		          rbs_device_number = -2; // To tell one FID to rebuild 
+		  rbs_device_number = -2; // To tell one FID to rebuild 
                 }
                 break;							
             case 'd':

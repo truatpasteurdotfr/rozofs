@@ -698,6 +698,8 @@ void ep_getattr_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status = EP_SUCCESS;
     ret.free_quota = exportd_get_free_quota(exp);
+    ret.bsize = exp->bsize;
+    ret.layout = exp->layout;
     goto out;
 error:
     ret.hdr.eid = arg->arg_gw.eid ;  

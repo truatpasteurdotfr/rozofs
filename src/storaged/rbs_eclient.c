@@ -111,3 +111,67 @@ out:
         xdr_free((xdrproc_t) xdr_ep_cluster_ret_t, (char *) ret);
     return status;
 }
+
+/** Send a request to export server for get the list of member storages
+ *  of cluster with a given cid and add this storage list to the list
+ *  of clusters
+ *
+ * @param clt: RPC connection to export server
+ * @param export_host: IP or hostname of export server
+ * @param cid: the unique ID of cluster
+ * @param cluster_entries: list of cluster(s)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int rbs_get_fid_attr(rpcclt_t * clt, const char *export_host, fid_t fid, ep_mattr_t * attr, uint32_t * bsize, uint8_t * layout) {
+    int status = -1;
+    epgw_mattr_ret_t *ret = 0;
+    int i = 0;
+    epgw_mfile_arg_t arg;
+    rozofs_inode_t  * inode = (rozofs_inode_t *) fid;
+
+    DEBUG_FUNCTION;
+
+    struct timeval timeo;
+    timeo.tv_sec = RBS_TIMEOUT_EPROTO_REQUESTS;
+    timeo.tv_usec = 0;
+
+    clt->sock = -1;
+
+    // Initialize connection with exportd server
+    if (rpcclt_initialize
+            (clt, export_host, EXPORT_PROGRAM, EXPORT_VERSION,
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0, timeo) != 0)
+        goto out;
+
+    // Send request
+    arg.arg_gw.eid = inode->s.eid;
+    memcpy(&arg.arg_gw.fid,fid, sizeof(fid_t));
+    ret = ep_getattr_1(&arg, clt->client);
+    if (ret == 0) {
+        errno = EPROTO;
+        // Release connection
+        rpcclt_release(clt);
+        goto out;
+    }
+
+    if (ret->status_gw.status == EP_FAILURE) {
+        errno = ret->status_gw.ep_mattr_ret_t_u.error;
+        // Release connection
+        rpcclt_release(clt);
+        goto out;
+    }    
+    
+    *bsize  = ret->bsize;
+    *layout = ret->layout;
+    memcpy(attr, &ret->status_gw.ep_mattr_ret_t_u.attrs, sizeof(ep_mattr_t));
+
+    // Release connection
+    rpcclt_release(clt);
+
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_epgw_mattr_ret_t, (char *) ret);
+    return status;
+}

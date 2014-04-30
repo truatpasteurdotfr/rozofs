@@ -253,11 +253,8 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
     else                    thread_ctx_p->stat.diskRead_error_spare++;
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
-                                 args->layout,
-				 args->bsize,
 				 args->cid,
 				 args->sid,
-				 args->dist_set,
 				 (uint8_t*)args->fid);
     }     
     storio_encode_rpc_response(rpcCtx,(char*)&ret);
@@ -381,11 +378,8 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
     thread_ctx_p->stat.diskWrite_error++; 
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
-                                 args->layout,
-				 args->bsize,
 				 args->cid,
 				 args->sid,
-				 args->dist_set,
 				 (uint8_t*)args->fid);
     }       
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
@@ -474,11 +468,8 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
     thread_ctx_p->stat.diskTruncate_error++; 
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
-                                 args->layout,
-				 args->bsize,
 				 args->cid,
 				 args->sid,
-				 (uint32_t*) args->dist_set,
 				 (uint8_t*)args->fid);
     }           
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  

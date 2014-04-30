@@ -197,6 +197,8 @@ typedef struct ep_mattr_ret_t ep_mattr_ret_t;
 struct epgw_mattr_ret_t {
 	struct ep_gateway_t hdr;
 	uint64_t free_quota;
+	uint32_t bsize;
+	uint8_t layout;
 	ep_mattr_ret_t status_gw;
 	ep_mattr_ret_t parent_attr;
 };

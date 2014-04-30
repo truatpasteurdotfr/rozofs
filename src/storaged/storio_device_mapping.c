@@ -59,11 +59,8 @@ com_cache_main_t  *storio_device_mapping_p = NULL; /**< pointer to the fid cache
 
 typedef struct _storio_disk_thread_file_desc_t {
   fid_t        fid;
-  uint8_t      layout;
-  uint8_t      bsize;
   uint8_t      cid;
   uint8_t      sid;
-  uint8_t      dist[ROZOFS_SAFE_MAX];
 } storio_disk_thread_file_desc_t;
 
 typedef struct _storio_disk_thread_faulty_fid_t {
@@ -80,14 +77,11 @@ storio_disk_thread_faulty_fid_t storio_faulty_fid[ROZOFS_MAX_DISK_THREADS] = {  
 * Register the FID that has encountered an error
   
    @param threadNb the thread number
-   @param layout   the file layout
-   @param bsize    the block size as defined in enum ROZOFS_BSIZE_E
    @param cid      the faulty cid 
    @param sid      the faulty sid
-   @param dist     the distribution      
    @param fid      the FID in fault   
 */
-void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t bsize, uint8_t cid, uint8_t sid, uint32_t * dist, fid_t fid) {
+void storio_register_faulty_fid(int threadNb, uint8_t cid, uint8_t sid, fid_t fid) {
   storio_disk_thread_faulty_fid_t * p;
   int                               idx;
   storio_disk_thread_file_desc_t  * pf;
@@ -106,11 +100,8 @@ void storio_register_faulty_fid(int threadNb, uint8_t layout, uint8_t bsize, uin
   
   // Register this FID
   pf = &p->file[p->nb_faulty_fid_in_table];
-  pf->layout = layout;
-  pf->bsize  = bsize;
   pf->cid    = cid;  
   pf->sid    = sid;
-  memcpy(pf->dist,dist,ROZOFS_SAFE_MAX);
   memcpy(pf->fid, fid, sizeof(fid_t));
   p->nb_faulty_fid_in_table++;
   return;
@@ -245,16 +236,9 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
 	  char display[128];
 	  int  i;
 	  char * pt=display;
-          int8_t rozofs_safe = rozofs_get_rozofs_safe(pf->layout);
 
-          pt += sprintf(pt,"-s %d/%d -f %d/",pf->cid, pf->sid, pf->layout);
-	  pt += sprintf(pt,"%3.3d",pf->dist[0]);
-	  for (i=1; i< rozofs_safe; i++) {
-	    pt += sprintf(pt,"-%3.3d",pf->dist[i]);
-	  }
-	  pt += sprintf(pt,"/");
-	  uuid_unparse((const unsigned char *)pf->fid, pt);
-	  
+          pt += sprintf(pt,"-s %d/%d -f ",pf->cid, pf->sid);
+	  uuid_unparse((const unsigned char *)pf->fid, pt);	  
           pChar += sprintf(pChar,"    %s\n", display);
         }
       } 
