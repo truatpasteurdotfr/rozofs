@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
 set(MINOR "4")
-set(REVISION "alpha4")
+set(REVISION "alpha5")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
