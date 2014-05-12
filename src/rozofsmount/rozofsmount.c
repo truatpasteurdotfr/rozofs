@@ -1325,6 +1325,11 @@ int fuseloop(struct fuse_args *args, int fg) {
         sleep(2);
     }
 
+    // Check the mountpoint after success connection with the export
+    if (rozofs_mountpoint_check(mountpoint) != 0) {
+        return 1;
+    }
+
     if (retry_count == 0) {
 
         fprintf(stderr,
@@ -1720,6 +1725,7 @@ int rozofs_mountpoint_check(const char * mntpoint) {
                     "according to '"MOUNTED_FS_FILE_CHECK"', %s is already a"
                     " active mountpoint for a Rozo file system\n",
                     mountpoint_path);
+            endmntent(mnt_file_stream);
             return -1;
         }
     }
