@@ -290,7 +290,8 @@ int storio_north_interface_init(char * host, int instance_id) {
     */
     for (i=first; i< last; i++) {     
       ipAddr = storaged_config.io_addr[i].ipv4;
-      if (is_this_ipV4_configured(ipAddr)) count++;
+      if ((ipAddr == INADDR_ANY) ||
+         (is_this_ipV4_configured(ipAddr))) count++;
     }  
 
     /* No IP address configured Raise a warning once */  
@@ -312,7 +313,7 @@ int storio_north_interface_init(char * host, int instance_id) {
   for (i=first; i< last; i++) {
     
     ipAddr = storaged_config.io_addr[i].ipv4;
-    if (!is_this_ipV4_configured(ipAddr)) {
+    if ((ipAddr != INADDR_ANY) && !(is_this_ipV4_configured(ipAddr))) {
       severe("Listening IO IP address %u.%u.%u.%u not configured", 
                (ipAddr>>24)&0xFF, (ipAddr>>16)&0xFF, (ipAddr>>8)&0xFF, (ipAddr>>0)&0xFF); 
       continue;	            
