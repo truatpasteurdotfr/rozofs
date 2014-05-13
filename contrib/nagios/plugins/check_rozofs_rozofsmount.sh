@@ -170,7 +170,7 @@ test_storcli()
    };;  
   esac
 
-  sed '1,5d'  $TMPFILE > $TMPFILE2
+  sed '1,2d'  $TMPFILE > $TMPFILE2
   res=`awk 'BEGIN {up=0;down=0;} {if (($9=="UP") && ($11=="UP")) up++; else down++;} END {printf("%d %d\n",up, down);}' $TMPFILE2`
   up=`echo $res | awk '{print $1}'`
   down=`echo $res | awk '{print $2}'`
