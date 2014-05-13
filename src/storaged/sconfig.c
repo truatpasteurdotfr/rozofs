@@ -45,6 +45,7 @@
 #define SIOADDR     "addr"
 #define SIOPORT     "port"
 #define SCORES      "nbcores"
+#define SSTORIO     "storio"
 
 #define SDEV_TOTAL      "device-total"
 #define SDEV_MAPPER     "device-mapper"
@@ -93,6 +94,7 @@ int sconfig_read(sconfig_t *config, const char *fname) {
     struct config_setting_t *stor_settings = 0;
     struct config_setting_t *ioaddr_settings = 0;
     int i = 0;
+    const char              *char_value = NULL;    
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
     int threads, port, nb_cores;
@@ -123,6 +125,19 @@ int sconfig_read(sconfig_t *config, const char *fname) {
         config->nb_cores = 2;
     } else {
         config->nb_cores = nb_cores;
+    }
+    
+    /*
+    ** Default is single storio 
+    */
+    config->multiio = 0;
+    if (config_lookup_string(&cfg, SSTORIO, &char_value)) {
+        if (strcasecmp(char_value, "multiple") == 0) {
+            config->multiio = 1;
+        } else if (strcasecmp(char_value, "single") != 0) {
+            severe("%s has unexpected value \"%s\". Assume single storio.",
+                    SSTORIO, char_value);
+        }
     }
 
     if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
