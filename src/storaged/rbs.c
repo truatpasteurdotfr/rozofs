@@ -547,9 +547,21 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
         // Stat file
         if (stat(path, &loc_file_stat) != 0)
             goto out;
-        // Compute the nb. of blocks
-        loc_file_init_blocks_nb = (loc_file_stat.st_size) /
-                ((rozofs_disk_psize * sizeof (bin_t)) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+	if (!S_ISREG(loc_file_stat.st_mode)) {
+	    severe("%s is %x", path, loc_file_stat.st_mode);
+	    goto out;  	   	
+	}
+	if (loc_file_stat.st_size < ROZOFS_ST_BINS_FILE_HDR_SIZE) {
+	    severe("%s has size %d", path, loc_file_stat.st_size);
+	    loc_file_exist = 0;  	   
+	}
+	else {
+            // Compute the nb. of blocks
+            loc_file_init_blocks_nb = (loc_file_stat.st_size -
+                    ROZOFS_ST_BINS_FILE_HDR_SIZE) /
+                    ((rozofs_max_psize * sizeof (bin_t))
+                    + sizeof (rozofs_stor_bins_hdr_t));
+	}  
     }
 
     // While we can read in the bins file
