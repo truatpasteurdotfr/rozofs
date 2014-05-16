@@ -13,7 +13,7 @@
 #  along with this program.  If not, see
 #  <http://www.gnu.org/licenses/>.
 
-VFSTAT=/tmp/vfstat_rozodebug.$$
+VFSTAT=/tmp/vfstat_rozodiag.$$
 VERSION="Version 1.0"
 PROGNAME=`basename $0`
 
@@ -23,8 +23,8 @@ STATE_WARNING=1
 STATE_CRITICAL=2
 STATE_UNKNOWN=3
 
-ROZODEBUG_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/debug" 
-resolve_rozodebug() {
+Rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/debug" 
+resolve_rozodiag() {
 
   option="-i $host -p $port"
 
@@ -33,15 +33,15 @@ resolve_rozodebug() {
     option=`echo "$option -t $time"`
   fi
 
-  for path in $ROZODEBUG_PATHS
+  for path in $Rozodiag_PATHS
   do
-    if [ -f $path/rozodebug ];
+    if [ -f $path/rozodiag ];
     then
-      ROZDBG="$path/rozodebug $option"
+      ROZDBG="$path/rozodiag $option"
       return
     fi  
   done
-  echo "Can not find rozodebug"
+  echo "Can not find rozodiag"
   exit $STATE_UNKNOWN 
 }
 
@@ -245,9 +245,9 @@ then
 fi
 
 
-# Find rozodebug utility and prepare command line parameters
+# Find rozodiag utility and prepare command line parameters
 
-resolve_rozodebug
+resolve_rozodiag
 
 
 # Run vfstat_vol debug command on export to get volume statistics
@@ -256,7 +256,7 @@ $ROZDBG -c vfstat_vol >  $VFSTAT
 res=`grep "Volume:" $VFSTAT`
 case $res in
   "") {
-    display_output $STATE_CRITICAL "$host:$port do not respond to rozodebug vfstat_vol"
+    display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol"
   };;  
 esac
 
@@ -277,7 +277,7 @@ $ROZDBG -c vfstat_stor >  $VFSTAT
 res=`grep "Vid" $VFSTAT`
 case $res in
   "") {
-    display_output $STATE_CRITICAL "$host do not respond to rozodebug vfstat_stor"
+    display_output $STATE_CRITICAL "$host do not respond to rozodiag vfstat_stor"
   };;  
 esac
 

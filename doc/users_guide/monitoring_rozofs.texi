@@ -6,23 +6,23 @@
 @end ifnotdocbook
 
 @menu
-* Rozodebug tools::
+* Rozodiag tools::
 @end menu
 
-RozoFS comes with a command line tool called @command{rozodebug} that lets the
+RozoFS comes with a command line tool called @command{rozodiag} that lets the
 RozoFS administrator access a huge amount of @strong{statistics}. Even though these
 statistics are very helpful for troubleshooting and for diagnostic (see section
 below) they might be far too detailed for an everyday usage. For that purpose
 Fizians provides a simplified approach: @emph{nagios modules}. The
-@command{rozodebug} application is used by Nagios scripts to provide high level
+@command{rozodiag} application is used by Nagios scripts to provide high level
 informations related to the system health. The communication with
-@command{rozodebug} is achieved thanks to @acronym{TCP}.
+@command{rozodiag} is achieved thanks to @acronym{TCP}.
 
-@c *** Section [Rozodebug tools]
-@node       Rozodebug tools, , Monitoring, Monitoring
-@section    Rozodebug tools
+@c *** Section [Rozodiag tools]
+@node       Rozodiag tools, , Monitoring, Monitoring
+@section    Rozodiag tools
 @ifnotdocbook
-@cindex Rozodebug
+@cindex Rozodiag
 @cindex Debug
 @cindex Statistic
 @cindex Performance
@@ -30,22 +30,22 @@ informations related to the system health. The communication with
 
 @menu
 * Introduction::
-* List of the rozodebug agent ports::
-* rozodebug usage::
-* Common rozodebug commands::
-* rozodebug commands for exportd::
-* rozodebug commands for rozofsmount::
-* rozodebug commands for storcli::
-* rozodebug commands for storaged/storio::
+* List of the rozodiag agent ports::
+* rozodiag usage::
+* Common rozodiag commands::
+* rozodiag commands for exportd::
+* rozodiag commands for rozofsmount::
+* rozodiag commands for storcli::
+* rozodiag commands for storaged/storio::
 @end menu
 
 
 @c *** Subsection [Introduction]
-@node       Introduction, List of the rozodebug agent ports, , Rozodebug tools
+@node       Introduction, List of the rozodiag agent ports, , Rozodiag tools
 @subsection Introduction
 
-@command{rozodebug} is an utilitary whose role is to provide statistics about various resources of the RozoFS solution. Its goal is to provide information that permits to observe the internals of each process and to help in troubeshooting the RozoFS solution.
-The main information provided by @command{rozodebug} are:
+@command{rozodiag} is an utilitary whose role is to provide statistics about various resources of the RozoFS solution. Its goal is to provide information that permits to observe the internals of each process and to help in troubeshooting the RozoFS solution.
+The main information provided by @command{rozodiag} are:
 @itemize
 @item pseudo tasks statistics (activation times and average CPU time)
 @item various statistics about disk read/write and truncate requests
@@ -56,17 +56,17 @@ The main information provided by @command{rozodebug} are:
 @item etc..
 @end itemize
 
-There is one @emph{rozodebug} agent on each process of the RozoFS solution.
+There is one @emph{rozodiag} agent on each process of the RozoFS solution.
 
 @sp 1
-@center @image{pics/rozodebug-overview, , 3in, , png}
+@center @image{pics/rozodiag-overview, , 3in, , png}
 @sp 1
 
-The communication between @emph{rozodebug} client and @emph{rozodebug} agent is based on TCP. There is a predefined set of TCP ports that are reserved for the communication with the @emph{rozodebug} agent. To address one @emph{rozodebug} agent the client should provide the IP address of the @emph{rozodebug} agent and the TCP port number of the target process (@emph{rozofsmount}, @emph{storcli}, @emph{exportd}, etc...).
+The communication between @emph{rozodiag} client and @emph{rozodiag} agent is based on TCP. There is a predefined set of TCP ports that are reserved for the communication with the @emph{rozodiag} agent. To address one @emph{rozodiag} agent the client should provide the IP address of the @emph{rozodiag} agent and the TCP port number of the target process (@emph{rozofsmount}, @emph{storcli}, @emph{exportd}, etc...).
 
-@c *** Subsection [List of the rozodebug agent ports]
-@node          List of the rozodebug agent ports, rozodebug usage, Introduction, Rozodebug tools
-@subsection    List of the rozodebug agent ports
+@c *** Subsection [List of the rozodiag agent ports]
+@node          List of the rozodiag agent ports, rozodiag usage, Introduction, Rozodiag tools
+@subsection    List of the rozodiag agent ports
 
 @menu
 * exportd node::
@@ -74,10 +74,10 @@ The communication between @emph{rozodebug} client and @emph{rozodebug} agent is 
 * storaged node::
 @end menu
 
-The based TCP port for the @emph{rozodebug} service is @strong{50000}.
+The based TCP port for the @emph{rozodiag} service is @strong{50000}.
 
 @c *** Subsubsection [exportd node]
-@node       exportd node, RozoFS client node, , List of the rozodebug agent ports
+@node       exportd node, RozoFS client node, , List of the rozodiag agent ports
 @subsubsection exportd node
 
 It is assumed that there is one @emph{exportd} process per @emph{exportd} node, one @emph{exportd} process supporting more than one exported file system.
@@ -87,7 +87,7 @@ The port value is the following:
 @end itemize
 
 @c *** Subsubsection [RozoFS client node]
-@node           RozoFS client node, storaged node, exportd node, List of the rozodebug agent ports
+@node           RozoFS client node, storaged node, exportd node, List of the rozodiag agent ports
 @subsubsection  RozoFS client node
 
 There are 3 processes for one RozoFS client: @emph{rozofsmount} and two @emph{storcli} processes.
@@ -103,7 +103,7 @@ The following port numbers are given for the instance 0:
 @end itemize
 
 @c *** Subsubsection [storaged node]
-@node           storaged node, , RozoFS client node, List of the rozodebug agent ports
+@node           storaged node, , RozoFS client node, List of the rozodiag agent ports
 @subsubsection  storaged node
 
 There is one @emph{storaged} process (its role is to provided volume occupancy, file deletion,..) and several @emph{storio} processes that are responsible of the low level disk operations (read, write and truncated). For the case of the @emph{storio}, the port value depends on the @emph{storio} instance identifier.
@@ -114,15 +114,15 @@ The port values are the following:
 @item @emph{storio-1}: @strong{50029} (50028 + storio_instance_id)
 @end itemize
 
-@c *** Subsection [rozodebug usage]
-@node          rozodebug usage, Common rozodebug commands, List of the rozodebug agent ports, Rozodebug tools
-@subsection    rozodebug usage
+@c *** Subsection [rozodiag usage]
+@node          rozodiag usage, Common rozodiag commands, List of the rozodiag agent ports, Rozodiag tools
+@subsection    rozodiag usage
 
-The following section provides the help of the @command{rozodebug} utilitary.
+The following section provides the help of the @command{rozodiag} utilitary.
 
-Here is the menu of @command{rozodebug}. An external application can communicate with any component of RozoFS by providing the IP address and the RozoFS well-known @emph{rozodebug} port associated with the component.
+Here is the menu of @command{rozodiag}. An external application can communicate with any component of RozoFS by providing the IP address and the RozoFS well-known @emph{rozodiag} port associated with the component.
 @smallexample
-rozodebug [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <s>] [-t <s>]
+rozodiag [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <s>] [-t <s>]
 -i <hostname>           destination IP address or hostname of the debug server
                         default is 127.0.0.1
 -p <port>               destination port number of the debug server
@@ -135,18 +135,18 @@ rozodebug [-i <hostname>] -p <port> [-c <cmd>] [-f <cmd file>] [-period <s>] [-t
 -t <seconds>            timeout value to wait for a response (default 4 seconds)
 @end smallexample
 
-@command{rozodebug} can operates in @strong{interactive mode} or @strong{one shot mode}:
+@command{rozodiag} can operates in @strong{interactive mode} or @strong{one shot mode}:
 @itemize
 @item @strong{Interactive mode}:
 
-In that case we just need to provide the IP address and the TCP of @emph{rozodebug} agent Once the TCP connection is established, the @emph{rozodebug} agent displays the process's dedicated prompt and then waits for a command to be entered.
+In that case we just need to provide the IP address and the TCP of @emph{rozodiag} agent Once the TCP connection is established, the @emph{rozodiag} agent displays the process's dedicated prompt and then waits for a command to be entered.
 @example
-# rozodebug -p 50004
+# rozodiag -p 50004
 system : storcli 1 of rozofsmount 0
 _________________________________________________________
 storcli 1 of rozofsmount 0>
 @end example
-Pressing the enter key provides the list of supported commands of the current @emph{rozodebug} agent:
+Pressing the enter key provides the list of supported commands of the current @emph{rozodiag} agent:
 @example
 List of available topics :
   af_unix
@@ -173,16 +173,16 @@ List of available topics :
   who
   exit / quit / q
 @end example
-Enter the @command{exit}, @command{quit} or @command{q} command (topic) to exit from the @emph{rozodebug} agent.
+Enter the @command{exit}, @command{quit} or @command{q} command (topic) to exit from the @emph{rozodiag} agent.
 
 @item @strong{One shot mode}:
 
-The one shot mode is used when @command{rozodebug} is invoked with the -c option. In that case the client opens the TCP connection, sends the commands to the @emph{rozodebug} agent and finally closes the TCP connection.
+The one shot mode is used when @command{rozodiag} is invoked with the -c option. In that case the client opens the TCP connection, sends the commands to the @emph{rozodiag} agent and finally closes the TCP connection.
 
 Here is an example where the @command{cpu} and @command{buffer} commands are combined:
 
 @smallexample
-# rozodebug -p 50004 -c cpu -c buffer
+# rozodiag -p 50004 -c cpu -c buffer
 
 select max cpu time : 1000 us
 application                      sock  last  cumulated activation  average
@@ -211,9 +211,9 @@ TxRcvLarge - user data addr/len   0x2aaab3b48010 /125829120 - nb buff 768/768 si
 @end smallexample
 @end itemize
 
-@c *** Subsection [Common rozodebug commands]
-@node          Common rozodebug commands, rozodebug commands for exportd, rozodebug usage, Rozodebug tools
-@subsection    Common rozodebug commands
+@c *** Subsection [Common rozodiag commands]
+@node          Common rozodiag commands, rozodiag commands for exportd, rozodiag usage, Rozodiag tools
+@subsection    Common rozodiag commands
 
 @menu
 * RPC buffer pools statistics::
@@ -228,7 +228,7 @@ TxRcvLarge - user data addr/len   0x2aaab3b48010 /125829120 - nb buff 768/768 si
 @end menu
 
 @c *** Subsubsection [RPC buffer pools statistics]
-@node           RPC buffer pools statistics, Configuration status of the process, , Common rozodebug commands
+@node           RPC buffer pools statistics, Configuration status of the process, , Common rozodiag commands
 @subsubsection  RPC buffer pools statistics
 
 @subsubheading buffer command
@@ -251,7 +251,7 @@ storcli 1 of rozofsmount 0> buffer
 @end example
 
 @c *** Subsubsection [Configuration status of the process]
-@node           Configuration status of the process, Storcli pseudo tasks statistics, RPC buffer pools statistics, Common rozodebug commands
+@node           Configuration status of the process, Storcli pseudo tasks statistics, RPC buffer pools statistics, Common rozodiag commands
 @subsubsection  Configuration status of the process
 
 @subsubheading config_status command
@@ -282,14 +282,14 @@ current hash value of the configuration file. When the process detects that its 
 when the current configuration is synced with the one of the exportd, the state is SYNCED, otherwise the state is NOT SYNCED.
 
 @item @strong{poll}:
-in order to detect a change of configuration, the process polls the exportd. Rozodebug provides statistics about the number of poll attempts. When the "nok" counter is incremented, it is an indication of communication failure with the export: either the exportd is down or is unreachable.
+in order to detect a change of configuration, the process polls the exportd. Rozodiag provides statistics about the number of poll attempts. When the "nok" counter is incremented, it is an indication of communication failure with the export: either the exportd is down or is unreachable.
 
 @item @strong{conf send}:
 that counter is an indication of the number of times the configuration has changed since the start-up of the process.
 @end itemize
 
 @c *** Subsubsection [Storcli pseudo tasks statistics]
-@node           Storcli pseudo tasks statistics, Detailed statistics of load balancing group, Configuration status of the process, Common rozodebug commands
+@node           Storcli pseudo tasks statistics, Detailed statistics of load balancing group, Configuration status of the process, Common rozodiag commands
 @subsubsection  Storcli pseudo tasks statistics
 
 @subsubheading cpu command
@@ -339,7 +339,7 @@ internal priority of the pseudo task.
 @end itemize
 
 @c *** Subsubsection [Detailed statistics of load balancing group]
-@node           Detailed statistics of load balancing group, Short statistics of load balancing group, Storcli pseudo tasks statistics, Common rozodebug commands
+@node           Detailed statistics of load balancing group, Short statistics of load balancing group, Storcli pseudo tasks statistics, Common rozodiag commands
 @subsubsection  Detailed statistics of load balancing group
 
 @subsubheading lbg command
@@ -373,7 +373,7 @@ NAME: localhost1                                 UP
 @end example
 
 @c *** Subsubsection [Short statistics of load balancing group]
-@node           Short statistics of load balancing group, Process information, Detailed statistics of load balancing group, Common rozodebug commands
+@node           Short statistics of load balancing group, Process information, Detailed statistics of load balancing group, Common rozodiag commands
 @subsubsection  Short statistics of load balancing group
 
 @subsubheading lbg_entries command
@@ -393,7 +393,7 @@ storcli 1 of rozofsmount 0> lbg_entries
 @end example
 
 @c *** Subsubsection [Process information]
-@node           Process information, TCP connections statistics, Short statistics of load balancing group, Common rozodebug commands
+@node           Process information, TCP connections statistics, Short statistics of load balancing group, Common rozodiag commands
 @subsubsection  Process information
 
 @subsubheading ps command
@@ -411,7 +411,7 @@ storcli 1 of rozofsmount 0> ps
 @end example
 
 @c *** Subsubsection [TCP connections statistics]
-@node           TCP connections statistics, RPC transactions statistics, Process information, Common rozodebug commands
+@node           TCP connections statistics, RPC transactions statistics, Process information, Common rozodiag commands
 @subsubsection  TCP connections statistics
 
 That command provides a subset of the statistics of TCP connection as returned by @command{getsockopt()} with the option TCP_INFO.
@@ -440,7 +440,7 @@ The status reflects the availability as seen by a RozoFS process.
 In fact, in order react quickly to a change of state, RozoFS processes implement a polling mechanism at RPC level to detect the availability of the remote end. As a consequence, even if the TCP layer reports an ESTABLISHED state, a RozoFS process might decide to not use the TCP connection because of a lack of polling response.
 
 @c *** Subsubsection [RPC transactions statistics]
-@node           RPC transactions statistics, Process Uptime, TCP connections statistics, Common rozodebug commands
+@node           RPC transactions statistics, Process Uptime, TCP connections statistics, Common rozodiag commands
 @subsubsection  RPC transactions statistics
 
 @subsubheading trx command
@@ -490,7 +490,7 @@ Recv Buffer
 @end itemize
 
 @c *** Subsubsection [Process Uptime]
-@node           Process Uptime, , RPC transactions statistics, Common rozodebug commands
+@node           Process Uptime, , RPC transactions statistics, Common rozodiag commands
 @subsubsection  Process Uptime
 
 @subsubheading uptime command
@@ -503,9 +503,9 @@ storcli 1 of rozofsmount 0> uptime
 uptime = 0 days, 0:58:55
 @end example
 
-@c *** Subsection [rozodebug commands for exportd]
-@node          rozodebug commands for exportd, rozodebug commands for rozofsmount, Common rozodebug commands, Rozodebug tools
-@subsection    rozodebug commands for exportd
+@c *** Subsection [rozodiag commands for exportd]
+@node          rozodiag commands for exportd, rozodiag commands for rozofsmount, Common rozodiag commands, Rozodiag tools
+@subsection    rozodiag commands for exportd
 
 @menu
 * File locking statistics::
@@ -514,14 +514,14 @@ uptime = 0 days, 0:58:55
 * Volume management statistics::
 @end menu
 
-This section describes various @command{rozodebug} commands concerning the @emph{exportd} process.
+This section describes various @command{rozodiag} commands concerning the @emph{exportd} process.
 
 @sp 1
-@center @image{pics/rozodebug-exportd, , 3in, , png}
+@center @image{pics/rozodiag-exportd, , 3in, , png}
 @sp 1
 
 @c *** Subsubsection [File locking statistics]
-@node           File locking statistics, Cache attributes statistics, , rozodebug commands for exportd
+@node           File locking statistics, Cache attributes statistics, , rozodiag commands for exportd
 @subsubsection  File locking statistics
 
 @subsubheading flock command
@@ -542,7 +542,7 @@ File lock statistics:
 @end example
 
 @c *** Subsubsection [Cache attributes statistics]
-@node           Cache attributes statistics, Metadata operations statistics, File locking statistics, rozodebug commands for exportd
+@node           Cache attributes statistics, Metadata operations statistics, File locking statistics, rozodiag commands for exportd
 @subsubsection  Cache attributes statistics
 
 @subsubheading lv2_cache command
@@ -559,7 +559,7 @@ entry size 160 - current size 480 - maximum size 40960
 @end example
 
 @c *** Subsubsection [Metadata operations statistics]
-@node           Metadata operations statistics, Volume management statistics, Cache attributes statistics, rozodebug commands for exportd
+@node           Metadata operations statistics, Volume management statistics, Cache attributes statistics, rozodiag commands for exportd
 @subsubsection  Metadata operations statistics
 
 @subsubheading profiler_short command: display of the metadata operations statistics
@@ -632,7 +632,7 @@ Reset Done
 @end example
 
 @c *** Subsubsection [Volume management statistics]
-@node           Volume management statistics, , Metadata operations statistics, rozodebug commands for exportd
+@node           Volume management statistics, , Metadata operations statistics, rozodiag commands for exportd
 @subsubsection  Volume management statistics
 
 @subsubheading vfstat command
@@ -668,9 +668,9 @@ Eid    | Vid    | Bsize  | Blocks               | Bfree                | Files  
      1 |      1 |   4096 |               678076 |               676514 |            2 |      3282090 |
 @end example
 
-@c *** Subsection [rozodebug commands for rozofsmount]
-@node          rozodebug commands for rozofsmount, rozodebug commands for storcli, rozodebug commands for exportd, Rozodebug tools
-@subsection    rozodebug commands for rozofsmount
+@c *** Subsection [rozodiag commands for rozofsmount]
+@node          rozodiag commands for rozofsmount, rozodiag commands for storcli, rozodiag commands for exportd, Rozodiag tools
+@subsection    rozodiag commands for rozofsmount
 
 @menu
 * File caching mode::
@@ -680,14 +680,14 @@ Eid    | Vid    | Bsize  | Blocks               | Bfree                | Files  
 * Statistics at the FUSE interface::
 @end menu
 
-This section describes various @command{rozodebug} commands concerning the @emph{rozofsmount} process.
+This section describes various @command{rozodiag} commands concerning the @emph{rozofsmount} process.
 
 @sp 1
-@center @image{pics/rozodebug-rozofsmount, , 3in, , png}
+@center @image{pics/rozodiag-rozofsmount, , 3in, , png}
 @sp 1
 
 @c *** Subsubsection [File caching mode]
-@node           File caching mode, File lock statistics, , rozodebug commands for rozofsmount
+@node           File caching mode, File lock statistics, , rozodiag commands for rozofsmount
 @subsubsection  File caching mode
 
 @subsubheading Caching Mode overview
@@ -709,7 +709,7 @@ The cache mode applies at file opening time only. Changing the cache mode on the
 
 @subsubheading Caching mode display
 
-The current cache mode is displayed thanks the @command{fuse} @emph{rozodebug} command:
+The current cache mode is displayed thanks the @command{fuse} @emph{rozodiag} command:
 
 @example
 rozofsmount 0> fuse
@@ -753,7 +753,7 @@ cache_set @{0|1|2@}
 @end example
 
 @c *** Subsubsection [File lock statistics]
-@node           File lock statistics, Statistics related to storcli interface, File caching mode, rozodebug commands for rozofsmount
+@node           File lock statistics, Statistics related to storcli interface, File caching mode, rozodiag commands for rozofsmount
 @subsubsection  File lock statistics
 
 RozoFS supports BSD and POSIX file locking services. The following command displays statistics related to the file locking.
@@ -779,7 +779,7 @@ send_common              = 0
 @end example
 
 @c *** Subsubsection [Statistics related to storcli interface]
-@node           Statistics related to storcli interface, Read/Write statistics at the FUSE interface, File lock statistics, rozodebug commands for rozofsmount
+@node           Statistics related to storcli interface, Read/Write statistics at the FUSE interface, File lock statistics, rozodiag commands for rozofsmount
 @subsubsection  Statistics related to storcli interface
 
 @subsubheading Storcli load balancing statistics
@@ -850,7 +850,7 @@ number of times the shared memory has been used for reading.
 @end itemize
 
 @c *** Subsubsection [Read/Write statistics at the FUSE interface]
-@node           Read/Write statistics at the FUSE interface, Statistics at the FUSE interface, Statistics related to storcli interface, rozodebug commands for rozofsmount
+@node           Read/Write statistics at the FUSE interface, Statistics at the FUSE interface, Statistics related to storcli interface, rozodiag commands for rozofsmount
 @subsubsection  Read/Write statistics at the FUSE interface
 
 @subsubheading fuse command
@@ -912,7 +912,7 @@ Number of times a internal write buffer has been flushed towards a storage node.
 @end itemize
 
 @c *** Subsubsection [Statistics at the FUSE interface]
-@node           Statistics at the FUSE interface, , Read/Write statistics at the FUSE interface, rozodebug commands for rozofsmount
+@node           Statistics at the FUSE interface, , Read/Write statistics at the FUSE interface, rozodiag commands for rozofsmount
 @subsubsection  Statistics at the FUSE interface
 
 @subsubheading profiler command: statistics display
@@ -976,9 +976,9 @@ rozofsmount 0> profiler reset
 Reset Done
 @end example
 
-@c *** Subsection [rozodebug commands for storcli]
-@node          rozodebug commands for storcli, rozodebug commands for storaged/storio, rozodebug commands for rozofsmount, Rozodebug tools
-@subsection    rozodebug commands for storcli
+@c *** Subsection [rozodiag commands for storcli]
+@node          rozodiag commands for storcli, rozodiag commands for storaged/storio, rozodiag commands for rozofsmount, Rozodiag tools
+@subsection    rozodiag commands for storcli
 
 @menu
 * Pseudo tasks statistics::
@@ -987,14 +987,14 @@ Reset Done
 * North read/write buffer statistics::
 @end menu
 
-This section describes various @command{rozodebug} commands concerning the @emph{storcli} process.
+This section describes various @command{rozodiag} commands concerning the @emph{storcli} process.
 
 @sp 1
-@center @image{pics/rozodebug-storcli, , 3in, , png}
+@center @image{pics/rozodiag-storcli, , 3in, , png}
 @sp 1
 
 @c *** Subsubsection [Pseudo tasks statistics]
-@node           Pseudo tasks statistics, Read/Write statistics, ,rozodebug commands for storcli
+@node           Pseudo tasks statistics, Read/Write statistics, ,rozodiag commands for storcli
 @subsubsection  Pseudo tasks statistics
 
 @subsubheading List of the storcli pseudo tasks
@@ -1002,7 +1002,7 @@ This section describes various @command{rozodebug} commands concerning the @emph
 The list of these tasks can be retrieved by using the @command{cpu} command:
 
 @example
-rozodebug -p 50004 -c cpu
+rozodiag -p 50004 -c cpu
 @end example
 
 The port number depends of the instance of the storcli and on the instance of the @emph{rozofsmount} client that owns the @emph{storcli}. For the @emph{rozofsmount} instance 0 the storcli's port numbers are:
@@ -1053,7 +1053,7 @@ The lack of "A:STORCLI_NORTH" in the display indicates that the connection is br
 @end itemize
 
 @c *** Subsubsection [Read/Write statistics]
-@node           Read/Write statistics, Storage Node connection status, Pseudo tasks statistics, rozodebug commands for storcli
+@node           Read/Write statistics, Storage Node connection status, Pseudo tasks statistics, rozodiag commands for storcli
 @subsubsection  Read/Write statistics
 
 @subsubheading Profiler statistics display
@@ -1061,7 +1061,7 @@ The lack of "A:STORCLI_NORTH" in the display indicates that the connection is br
 That command provides statistics related to the read/write and truncate services. For the case of the read and write it provides the FEC encoding/decoding time.
 
 @example
-rozodebug -p 50004 -c profiler
+rozodiag -p 50004 -c profiler
 @end example
 
 Output example:
@@ -1141,11 +1141,11 @@ It is a counter that is incremented each time the storage node does not respond 
 The profiler statistics can be cleared by using the following command:
 
 @example
-rozodebug -p 50004 -c profiler reset
+rozodiag -p 50004 -c profiler reset
 @end example
 
 @c *** Subsubsection [Storage Node connection status]
-@node           Storage Node connection status, North read/write buffer statistics, Read/Write statistics,rozodebug commands for storcli
+@node           Storage Node connection status, North read/write buffer statistics, Read/Write statistics,rozodiag commands for storcli
 @subsubsection  Storage Node connection status
 
 @subsubheading storaged_status command: Storcli North Contexts/Buffers statistics
@@ -1181,7 +1181,7 @@ storcli 1 of rozofsmount 0> storaged_status
 @end itemize
 
 @c *** Subsubsection [North read/write buffer statistics]
-@node           North read/write buffer statistics, , Storage Node connection status,rozodebug commands for storcli
+@node           North read/write buffer statistics, , Storage Node connection status,rozodiag commands for storcli
 @subsubsection  North read/write buffer statistics
 
 @subsubheading storcli_buf command: Storcli North Contexts/Buffers statistics
@@ -1231,9 +1231,9 @@ That counter is incremented each time @emph{storcli} detects a read buffer which
 That counter is incremented each time @emph{storcli} detects a write buffer which is filled with 0 only.
 @end itemize
 
-@c *** Subsection [rozodebug commands for storaged/storio]
-@node          rozodebug commands for storaged/storio, , rozodebug commands for storcli, Rozodebug tools
-@subsection    rozodebug commands for storaged/storio
+@c *** Subsection [rozodiag commands for storaged/storio]
+@node          rozodiag commands for storaged/storio, , rozodiag commands for storcli, Rozodiag tools
+@subsection    rozodiag commands for storaged/storio
 
 @menu
 * Disk threads statistics::
@@ -1241,14 +1241,14 @@ That counter is incremented each time @emph{storcli} detects a write buffer whic
 * RPC statistics::
 @end menu
 
-This section describes various @command{rozodebug} commands concerning the @emph{storaged}/@emph{storio} processes.
+This section describes various @command{rozodiag} commands concerning the @emph{storaged}/@emph{storio} processes.
 
 @sp 1
-@center @image{pics/rozodebug-storage, , 3in, , png}
+@center @image{pics/rozodiag-storage, , 3in, , png}
 @sp 1
 
 @c *** Subsubsection [Disk threads statistics]
-@node           Disk threads statistics, Global read/write disk statistics, ,rozodebug commands for storaged/storio
+@node           Disk threads statistics, Global read/write disk statistics, ,rozodiag commands for storaged/storio
 @subsubsection  Disk threads statistics
 
 That command provides statistics relative to the disk read/write at thread level.
@@ -1287,7 +1287,7 @@ Truncate Requests        |__________________|__________________|________________
 @end example
 
 @c *** Subsubsection [Global read/write disk statistics]
-@node           Global read/write disk statistics, RPC statistics, Disk threads statistics,rozodebug commands for storaged/storio
+@node           Global read/write disk statistics, RPC statistics, Disk threads statistics,rozodiag commands for storaged/storio
 @subsubsection  Global read/write disk statistics
 
 @subsubheading profiler command
@@ -1316,7 +1316,7 @@ storio localhost1> profiler reset
 
 
 @c *** Subsubsection [RPC statistics]
-@node           RPC statistics, , Global read/write disk statistics,rozodebug commands for storaged/storio
+@node           RPC statistics, , Global read/write disk statistics,rozodiag commands for storaged/storio
 @subsubsection  RPC statistics
 
 @subsubheading rpc_resources command

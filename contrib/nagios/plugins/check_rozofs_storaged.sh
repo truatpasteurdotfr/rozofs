@@ -13,7 +13,7 @@
 #  along with this program.  If not, see
 #  <http://www.gnu.org/licenses/>.
 
-TMPFILE=/tmp/storaged_rozodebug.$$
+TMPFILE=/tmp/storaged_rozodiag.$$
 VERSION="Version 1.0"
 PROGNAME=`basename $0`
 
@@ -23,8 +23,8 @@ STATE_WARNING=1
 STATE_CRITICAL=2
 STATE_UNKNOWN=3
 
-ROZODEBUG_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/debug" 
-resolve_rozodebug() {
+Rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/debug" 
+resolve_rozodiag() {
 
   option="-i $host -p $port"
 
@@ -33,15 +33,15 @@ resolve_rozodebug() {
     option=`echo "$option -t $time"`
   fi
 
-  for path in $ROZODEBUG_PATHS
+  for path in $Rozodiag_PATHS
   do
-    if [ -f $path/rozodebug ];
+    if [ -f $path/rozodiag ];
     then
-      ROZDBG="$path/rozodebug $option"
+      ROZDBG="$path/rozodiag $option"
       return
     fi  
   done
-  echo "Can not find rozodebug"
+  echo "Can not find rozodiag"
   exit $STATE_UNKNOWN 
 }
 
@@ -156,7 +156,7 @@ test_storage_io()
 {
   # 1st storage_io
   port=`expr $port + 1 `
-  resolve_rozodebug
+  resolve_rozodiag
   $ROZDBG -c profiler >  $TMPFILE
  
   res=`grep GPROFILER $TMPFILE`
@@ -175,8 +175,8 @@ test_storage_io()
 }
 test_storage_io_devices()
 {
-  # rozodebug has lready been resolved in test_storage_io
-  # resolve_rozodebug
+  # rozodiag has lready been resolved in test_storage_io
+  # resolve_rozodiag
  
   # Check device status
   $ROZDBG -c device device >  $TMPFILE
@@ -255,9 +255,9 @@ then
 fi
 
 
-# Find rozodebug utility and prepare command line parameters
+# Find rozodiag utility and prepare command line parameters
 
-resolve_rozodebug
+resolve_rozodiag
 
 
 # Run vfstat_stor debug command on export to check storage status
@@ -266,7 +266,7 @@ $ROZDBG -c profiler >  $TMPFILE
 res=`grep "storaged:" $TMPFILE`
 case $res in
   "") {
-    display_output $STATE_CRITICAL "$host do not respond to rozodebug"
+    display_output $STATE_CRITICAL "$host do not respond to rozodiag"
   };;  
 esac
 
@@ -275,7 +275,7 @@ $ROZDBG -c storio_nb >  $TMPFILE
 res=`grep "storio_nb" $TMPFILE`
 case $res in
   "") {
-    display_output $STATE_CRITICAL "$host do not respond to rozodebug storio_nb"
+    display_output $STATE_CRITICAL "$host do not respond to rozodiag storio_nb"
   };;  
 esac
 
@@ -286,7 +286,7 @@ do
   test_storage_io
   if [ $? -eq 0 ]
   then
-    display_output $STATE_CRITICAL "I/O process $i do not respond to rozodebug"
+    display_output $STATE_CRITICAL "I/O process $i do not respond to rozodiag"
   fi
 
   # Test whether devices are OK

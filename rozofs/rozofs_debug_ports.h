@@ -30,7 +30,7 @@ extern uint16_t rzdbg_default_base_port;
 #define RZDBG_ROZOFSMOUNT_MAX_INSTANCES 8
 
 /**
- relative index of rozodebug ports 
+ relative index of rozodiag ports 
  */
 #define RZDBG_EXPORTD_PORT 0        /**< Exportd port*/
 #define RZDBG_EXPGW_PORT  (RZDBG_EXPORTD_PORT+1)          /**< Export Gateway port*/
@@ -40,11 +40,11 @@ extern uint16_t rzdbg_default_base_port;
 #define RZDBG_LAST_PORT         RZDBG_STORAGED_PORT+(STORAGE_NODE_PORTS_MAX)
 
 /**
- * Get the rozofsmount rozodebug port based on the rozofmount instance 
+ * Get the rozofsmount rozodiag port based on the rozofmount instance 
 
   @param instance :rozofsmount instance
   
-  @retval rozodebug port value
+  @retval rozodiag port value
   
  */
 static inline uint16_t rzdbg_get_rozofsmount_port(uint8_t instance) {
@@ -54,12 +54,12 @@ static inline uint16_t rzdbg_get_rozofsmount_port(uint8_t instance) {
 }
 
 /**
- * Get the storcli rozodebug port based on the rozofmount instance and storcli instance
+ * Get the storcli rozodiag port based on the rozofmount instance and storcli instance
 
   @param rozofs_instance: rozofsmount instance
   @param storcli_instance: storcli instance
   
-  @retval rozodebug port value
+  @retval rozodiag port value
   
  */
 static inline uint16_t rzdbg_get_storcli_port(uint8_t rozofs_instance, uint8_t storcli_instance) {

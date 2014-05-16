@@ -19,16 +19,16 @@ include_directories(${CMAKE_SOURCE_DIR}) # for librozofs headers
 include_directories(${READLINE_INCLUDE_DIR})
 link_directories(${CMAKE_BINARY_DIR}/rozofs)
 
-add_executable(rozodebug
-    rozodebug.c
+add_executable(rozodiag
+    rozodiag.c
 )
-target_link_libraries(rozodebug ${READLINE_LIBRARY})
+target_link_libraries(rozodiag ${READLINE_LIBRARY})
 
 # Install
 
-install(TARGETS rozodebug
+install(TARGETS rozodiag
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
-    COMPONENT rozodebug
+    COMPONENT rozodiag
 )
