@@ -40,9 +40,9 @@ do_ask () {
    for p in $P
    do
      printf  "\n__[%8s]___[%10s:%-5s]" "$WHAT" $h $p   
-     name=`${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 10 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
+     name=`${LOCAL_BINARY_DIR}/rozodiag/rozodiag -t 10 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
      printf "__[%s]\n" "$name"
-     ${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 10 -i $h -p $p $cmd
+     ${LOCAL_BINARY_DIR}/rozodiag/rozodiag -t 10 -i $h -p $p $cmd
    done
  done
 } 

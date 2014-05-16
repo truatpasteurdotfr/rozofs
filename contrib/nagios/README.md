@@ -41,7 +41,7 @@ Plugins Description
 check_rozofs_volume.sh
 ----------------------
 
-This plugin is used to monitor the state of a volume id using the `rozodebug`
+This plugin is used to monitor the state of a volume id using the `rozodiag`
 interface. It gets as mandatory parameters the host where the `exportd` handling
 this volume runs (VIP) and the acceptable critical/warning thresholds for the 
 free volume space.
@@ -78,10 +78,10 @@ AND/OR
 check_rozofs_storaged.sh
 ------------------------
 
-This plugin is used to monitor the state of a storage node using the `rozodebug`
+This plugin is used to monitor the state of a storage node using the `rozodiag`
 interface. It gets as mandatory parameter the host of the storage node.
 
-The plugin pings the storage node and then checks access to the `rozodebug`
+The plugin pings the storage node and then checks access to the `rozodiag`
 interface of the `storaged` and each `storio` of the storage node.
 
 The result is **OK** when:
@@ -101,7 +101,7 @@ check_rozofs_rozofsmount.sh
 ---------------------------
 
 This plugin is used to monitor the state of a RozoFS client using the 
-`rozodebug` interface. It gets as mandatory parameters the host of the
+`rozodiag` interface. It gets as mandatory parameters the host of the
 RozoFS client.
 
 The plugin pings the host of the RozoFS client.

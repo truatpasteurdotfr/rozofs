@@ -72,11 +72,11 @@ char prompt[64];
 */
 void syntax() {
   printf("\n%s ([-i <hostname>] -p <port>)... [-c <cmd|all>]... [-f <cmd file>]... [-period <seconds>] [-t <seconds>]\n\n",prgName);
-  printf("Several debug targets can be specified ([-i <hostname>] -p <port>)...\n");
-  printf("  -i <hostname>  IP address or hostname of the debug target.\n");
+  printf("Several diagnostic targets can be specified ([-i <hostname>] -p <port>)...\n");
+  printf("  -i <hostname>  IP address or hostname of the diagnostic target.\n");
   printf("                 When omitted previous -i value in the command line is taken as default\n");
   printf("                 or 127.0.0.1 when no previous -i option is set.\n");
-  printf("  -p <port>      Port number of the debug target.\n");
+  printf("  -p <port>      Port number of the diagnostic target.\n");
   printf("                 At least one port value must be given.\n");
   printf("\nOptionnaly a list of command to run can be specified:\n");
   printf("  [-c <cmd|all>]...\n"); 
@@ -231,7 +231,7 @@ int debug_run_this_cmd(int socketId, const char * cmd, int silent) {
   }
     
   if (!debug_receive(socketId,silent)) {
-    printf("Debug session abort\n");
+    printf("Diagnostic session abort\n");
     return -1;
   }  
   return 0;
@@ -311,15 +311,15 @@ void debug_interactive_loop(int socketId) {
     mycmd = readline (prompt);
     if (mycmd == NULL) break;
     if (strcasecmp(mycmd,"exit") == 0) {
-      printf("Debug session end\n");
+      printf("Diagnostic session end\n");
       break;
     }
     if (strcasecmp(mycmd,"q") == 0) {
-      printf("Debug session end\n");
+      printf("Diagnostic session end\n");
       break;
     }
     if (strcasecmp(mycmd,"quit") == 0) {
-      printf("Debug session end\n");
+      printf("Diagnostic session end\n");
       break;
     }
     if ((mycmd[0] != 0) && (strcasecmp(mycmd,"!!") != 0)) {

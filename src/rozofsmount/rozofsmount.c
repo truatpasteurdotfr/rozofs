@@ -1548,7 +1548,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     */
     rozofs_timer_conf_dbg_init();
     /*
-    ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
+    ** Check if the base port of rozodiag has been provided, if there is no value, set it to default
     */
     if (conf.dbg_port == 0) 
     {
