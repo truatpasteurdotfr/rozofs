@@ -818,6 +818,9 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     // volume_stat assumes a block size of 1024
     vstat.bfree = vstat.bfree * 1024 / ROZOFS_BSIZE_BYTES(e->bsize); 
 
+    /* Volume statistics are given on 1024 block units */
+    vstat.bfree /= (4<<e->bsize);
+
     if (e->hquota > 0) {
         if (e->hquota < vstat.bfree) {
             st->bfree = e->hquota - st->blocks;
