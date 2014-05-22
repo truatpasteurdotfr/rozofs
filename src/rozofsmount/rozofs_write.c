@@ -2225,6 +2225,14 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
 
 
     /*
+    ** Invalidate cache entry
+    */ 
+    ientry_t * ie = file_p->ie;
+    if (ie) {
+      ie->timestamp = 0;
+    }  
+
+    /*
     ** adjust the size of the attributes of the local file
     */
     if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
