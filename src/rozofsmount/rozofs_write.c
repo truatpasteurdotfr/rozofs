@@ -2228,6 +2228,13 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
 
+    /*
+    ** Invalidate cache entry
+    */ 
+    ientry_t * ie = file_p->ie;
+    if (ie) {
+      ie->timestamp = 0;
+    }  
 
     /*
     ** adjust the size of the attributes of the local file
