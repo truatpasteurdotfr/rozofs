@@ -2365,6 +2365,7 @@ void export_write_block_cbk(void *this,void *param)
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
    errno = 0;
    int trc_idx;
+   ientry_t *ie = 0;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    RESTORE_FUSE_PARAM(param,trc_idx);
@@ -2474,6 +2475,16 @@ void export_write_block_cbk(void *this,void *param)
     ** Update eid free quota
     */
     eid_set_free_quota(ret.free_quota);
+    
+        
+    /*
+    ** Update cache entry
+    */
+    ie = get_ientry_by_inode(fuse_ctx_p->ino);
+    if (ie) {
+      ie->timestamp = rozofs_get_ticker_us(); 
+      memcpy(&ie->attrs,&ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+    }     
         
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
 //out:
