@@ -75,6 +75,9 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
+
+int rozofs_mountpoint_check(const char * mntpoint);
+
 /*
 ** Exportd id free byte count for quota management
 */
