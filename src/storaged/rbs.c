@@ -552,7 +552,7 @@ int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int d
 	    goto out;  	   	
 	}
 	if (loc_file_stat.st_size < ROZOFS_ST_BINS_FILE_HDR_SIZE) {
-	    severe("%s has size %d", path, loc_file_stat.st_size);
+	    severe("%s has size %d", path, (int)loc_file_stat.st_size);
 	    loc_file_exist = 0;  	   
 	}
 	else {
