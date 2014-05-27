@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# test doc documentation build configuration file, created by
+# RozoFS documentation build configuration file, created by
 # sphinx-quickstart on Fri May 23 17:24:08 2014.
 #
 # This file is execfile()d with the current directory set to its containing dir.
