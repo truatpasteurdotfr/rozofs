@@ -200,6 +200,26 @@ xdr_sp_truncate_arg_t (XDR *xdrs, sp_truncate_arg_t *objp)
 }
 
 bool_t
+xdr_sp_remove_arg_t (XDR *xdrs, sp_remove_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
+		 return FALSE;
+	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_sp_read_t (XDR *xdrs, sp_read_t *objp)
 {
 	//register int32_t *buf;

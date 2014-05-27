@@ -71,6 +71,7 @@
 #define ROZOFS_MD5_SIZE 22
 #define ROZOFS_MD5_NONE "0000000000000000000000"
 
+#define ROZOFS_GEOREP_MAX_SITE 2 /**< max sites supported for geo-replication   */
 
 #define EXPGW_EID_MAX_IDX 1024 /**< max number of eid  */
 #define EXPGW_EXPGW_MAX_IDX 32 /**< max number of export gateway per exportd */
@@ -88,9 +89,23 @@
 /* Value min for a Exportd Gateway */
 #define GWID_MIN 1
 
-
+#define SHAREMEM_PER_FSMOUNT_POWER2 1
+#define SHAREMEM_PER_FSMOUNT (1<<SHAREMEM_PER_FSMOUNT_POWER2)
+#define SHAREMEM_IDX_READ 0
+#define SHAREMEM_IDX_WRITE 1
 /* Timeout in seconds for storaged requests by mproto */
 #define ROZOFS_MPROTO_TIMEOUT_SEC 4
+
+/**
+* cluster state
+*/
+typedef enum {
+  CID_DEPENDENCY_ST = 0,
+  CID_UP_ST,
+  CID_DOWNGRADED_ST,
+  CID_DOWN_ST,
+  CID_MAX_ST
+} cid_state_e;
 
 typedef enum {
     LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16

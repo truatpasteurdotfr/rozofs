@@ -36,6 +36,7 @@
 #include <rozofs/rpc/mclient.h>
 
 #include "volume.h"
+#include "export.h"
 
 static int volume_storage_compare(list_t * l1, list_t *l2) {
     volume_storage_t *e1 = list_entry(l1, volume_storage_t, list);
@@ -74,10 +75,11 @@ void volume_storage_release(volume_storage_t *vs) {
 void cluster_initialize(cluster_t *cluster, cid_t cid, uint64_t size,
         uint64_t free) {
     DEBUG_FUNCTION;
+    int i;
     cluster->cid = cid;
     cluster->size = size;
     cluster->free = free;
-    list_init(&cluster->storages);
+    for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) list_init(&cluster->storages[i]);
 }
 
 // assume volume_storage had been properly allocated
@@ -85,19 +87,22 @@ void cluster_initialize(cluster_t *cluster, cid_t cid, uint64_t size,
 void cluster_release(cluster_t *cluster) {
     DEBUG_FUNCTION;
     list_t *p, *q;
-
-    list_for_each_forward_safe(p, q, &cluster->storages) {
-        volume_storage_t *entry = list_entry(p, volume_storage_t, list);
-        list_remove(p);
-        volume_storage_release(entry);
-        free(entry);
+    int i;
+    for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) {
+      list_for_each_forward_safe(p, q, (&cluster->storages[i])) {
+          volume_storage_t *entry = list_entry(p, volume_storage_t, list);
+          list_remove(p);
+          volume_storage_release(entry);
+          free(entry);
+      }
     }
 }
 
-int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout) {
+int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout,uint8_t georep) {
     int status = -1;
     DEBUG_FUNCTION;
     volume->vid = vid;
+    volume->georep = georep;
     volume->layout = layout;
     list_init(&volume->clusters);
     if (pthread_rwlock_init(&volume->lock, NULL) != 0) {
@@ -145,21 +150,24 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
 
     to->vid = from->vid;
     to->layout = from->layout;
+    to->georep = from->georep;
 
     list_for_each_forward(p, &from->clusters) {
         cluster_t *to_cluster = xmalloc(sizeof (cluster_t));
         cluster_t *from_cluster = list_entry(p, cluster_t, list);
         cluster_initialize(to_cluster, from_cluster->cid, from_cluster->size,
                 from_cluster->free);
-
-        list_for_each_forward(q, &from_cluster->storages) {
-            volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
-            volume_storage_t *to_storage = xmalloc(sizeof (volume_storage_t));
-            volume_storage_initialize(to_storage, from_storage->sid, from_storage->host);
-            to_storage->stat = from_storage->stat;
-            to_storage->status = from_storage->status;
-            list_push_back(&to_cluster->storages, &to_storage->list);
-        }
+	int i;
+	for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) {
+          list_for_each_forward(q, (&from_cluster->storages[i])) {
+              volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
+              volume_storage_t *to_storage = xmalloc(sizeof (volume_storage_t));
+              volume_storage_initialize(to_storage, from_storage->sid, from_storage->host);
+              to_storage->stat = from_storage->stat;
+              to_storage->status = from_storage->status;
+              list_push_back(&to_cluster->storages[i], &to_storage->list);
+          }
+	}
         list_push_back(&to->clusters, &to_cluster->list);
     }
 
@@ -189,9 +197,12 @@ void volume_balance(volume_t *volume) {
     volume_t clone;
     DEBUG_FUNCTION;
     START_PROFILING(volume_balance);
+    
+    int local_site = export_get_local_site_number();
+
 
     // create a working copy
-    if (volume_initialize(&clone, 0, 0) != 0) {
+    if (volume_initialize(&clone, 0, 0,0) != 0) {
         severe("can't initialize clone volume: %u", volume->vid);
         goto out;
     }
@@ -210,7 +221,7 @@ void volume_balance(volume_t *volume) {
         cluster->free = 0;
         cluster->size = 0;
 
-        list_for_each_forward(q, &cluster->storages) {
+        list_for_each_forward(q, (&cluster->storages[local_site])) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
             mclient_t mclt;
             strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
@@ -254,17 +265,78 @@ void volume_balance(volume_t *volume) {
 
             mclient_release(&mclt);
         }
-    }
 
+    }
+    /*
+    ** case of the geo-replication
+    */
+    if (volume->georep)
+    {
+      list_for_each_forward(p, &clone.clusters) {
+          cluster_t *cluster = list_entry(p, cluster_t, list);
+
+          list_for_each_forward(q, (&cluster->storages[1-local_site])) {
+              volume_storage_t *vs = list_entry(q, volume_storage_t, list);
+              mclient_t mclt;
+              strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
+              mclt.sid = vs->sid;
+              mclt.cid = cluster->cid;
+              init_rpcctl_ctx(&mclt.rpcclt);
+
+              struct timeval timeo;
+              timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+              timeo.tv_usec = 0;
+
+              if (mclient_initialize(&mclt, timeo) != 0) {
+
+                  // Log if only the storage host was reachable before
+                  if (1 == vs->status)
+                      warning("storage host '%s' unreachable: %s", vs->host,
+                              strerror(errno));
+
+                  // Change status
+                  vs->status = 0;
+
+              } else {
+
+                  // Log if only the storage host was not reachable before
+                  if (0 == vs->status)
+                      info("remote site storage host '%s' is now reachable", vs->host);
+
+                  if (mclient_stat(&mclt, &vs->stat) != 0) {
+                      warning("failed to stat remote site storage (cid: %u, sid: %u)"
+                              " for host: %s", cluster->cid, vs->sid, vs->host);
+                      vs->status = 0;
+                  } else {
+                      // Change status
+                      vs->status = 1;
+                  }
+              }
+              mclient_release(&mclt);
+          }
+
+      }
+    }    
     // sort the clone
     // no need to lock the volume since it's a local only volume
 
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        list_sort(&cluster->storages, volume_storage_compare);
+        list_sort((&cluster->storages[local_site]), volume_storage_compare);
     }
     list_sort(&clone.clusters, cluster_compare_capacity);
-
+    
+    if (volume->georep)
+    {
+      /*
+      ** do it also for the remote site
+      */
+      list_for_each_forward(p, &clone.clusters) {
+          cluster_t *cluster = list_entry(p, cluster_t, list);
+          list_sort((&cluster->storages[local_site]), volume_storage_compare);
+      }
+      list_sort(&clone.clusters, cluster_compare_capacity);
+    }
     // Copy the result back to our volume
     if (volume_safe_copy(volume, &clone) != 0) {
         severe("can't clone volume: %u", volume->vid);
@@ -289,7 +361,7 @@ out:
 
 // what if a cluster is < rozofs safe
 
-static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
+static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, sid_t *sids) {
     list_t *p;
     int status = -1;
     uint8_t ms_found = 0;
@@ -299,13 +371,14 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
     DEBUG_FUNCTION;
 
 
+    
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
 
     int modulo = export_rotate_sid % rozofs_safe;
     export_rotate_sid++;
 
-    list_for_each_forward(p, &cluster->storages) {
+    list_for_each_forward(p, (&cluster->storages[site_idx])) {
         volume_storage_t *vs = list_entry(p, volume_storage_t, list);
         if (vs->status != 0 || vs->stat.free != 0)
             ms_ok++;
@@ -325,21 +398,29 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
     return status;
 }
 
-int volume_distribute(volume_t *volume, cid_t *cid, sid_t *sids) {
+int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids) {
     list_t *p;
     int xerrno = ENOSPC;
+    int site_idx;
+    
 
     DEBUG_FUNCTION;
     START_PROFILING(volume_distribute);
+    
+    site_idx = export_get_local_site_number();
 
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         warning("can't lock volume %u.", volume->vid);
         goto out;
     }
+    if (volume->georep)
+    {
+      site_idx = site_number;
+    }
 
     list_for_each_forward(p, &volume->clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        if (cluster_distribute(volume->layout, cluster, sids) == 0) {
+        if (cluster_distribute(volume->layout,site_idx, cluster, sids) == 0) {
             *cid = cluster->cid;
             xerrno = 0;
             break;
@@ -393,6 +474,8 @@ int volume_distribution_check(volume_t *volume, int rozofs_safe, int cid, int *s
     int nbMatch = 0;
     int idx;
 
+    int local_site = export_get_local_site_number();
+
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         warning("can't lock volume %u.", volume->vid);
         goto out;
@@ -403,7 +486,7 @@ int volume_distribution_check(volume_t *volume, int rozofs_safe, int cid, int *s
 
         if (cluster->cid == cid) {
 
-            list_for_each_forward(p, &cluster->storages) {
+            list_for_each_forward(p, (&cluster->storages[local_site])) {
                 volume_storage_t *vs = list_entry(p, volume_storage_t, list);
 
                 for (idx = 0; idx < rozofs_safe; idx++) {

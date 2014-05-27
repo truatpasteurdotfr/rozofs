@@ -78,6 +78,15 @@ struct storcli_truncate_arg_t {
     uint64_t    bid; 
 };
 
+struct storcli_delete_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    uint8_t     layout;
+    uint8_t    dist_set[ROZOFS_SAFE_MAX];
+    storcli_uuid_t   fid;
+};
+
+
 struct storcli_read_no_data_ret_t
 {
    uint32_t alignment;
@@ -115,6 +124,9 @@ program STORCLI_PROGRAM {
 
         storcli_status_ret_t
         STORCLI_TRUNCATE(storcli_truncate_arg_t)  = 3;
+
+        storcli_status_ret_t
+        STORCLI_DELETE(storcli_delete_arg_t)  = 4;
 
     }=1;
 } = 0x20000007;

@@ -238,20 +238,20 @@ typedef struct _rozofs_storcli_ctx_t
   /*
   ** working variables for write
   */
-  uint32_t                          empty_wr_block_bitmap; /**< bitmap of the empty blocks                          */
+  uint32_t                          empty_wr_block_bitmap; /**< bitmap of the empty blocks */
   uint64_t                          timestamp2;
   uint64_t                          timestamp;
-//  void                              *write_rq_p;          /**< pointer to the payload of the write request       */
-  storcli_write_arg_no_data_t               storcli_write_arg;         /**< pointer to the write request arguments   */
-  char                              *data_write_p;        /**< pointer to the payload of the write data buffer->input buffer   */
-  uint32_t                           write_ctx_lock;      /**< lock to prevent a release of the write context while sending internal read */
+//  void                              *write_rq_p;          /**< pointer to the payload of the write request                       */
+  storcli_write_arg_no_data_t       storcli_write_arg;      /**< pointer to the write request arguments                            */
+  char                              *data_write_p;          /**< pointer to the payload of the write data buffer->input buffer     */
+  uint32_t                           write_ctx_lock;        /**< lock to prevent a release of the write context while sending internal read */
   rozofs_storcli_ingress_write_buf_t wr_proj_buf[ROZOFS_WR_MAX];
 //  sproto_write_rsp_t                *write_rsp_p;     /**< pointer to the write response header           */
-  uint64_t                          wr_bid;           /**< index of the first block to write              */
-  uint32_t                          wr_nb_blocks;     /**< number of blocks to write                      */
-  dist_t                            wr_distribution;  /**< distribution for the write                     */
+  uint64_t                          wr_bid;             /**< index of the first block to write              */
+  uint32_t                          wr_nb_blocks;       /**< number of blocks to write                      */
+  dist_t                            wr_distribution;    /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
-  ruc_obj_desc_t                      timer_list;    /**< timer linked list used as a guard timer upon received first projection */
+  ruc_obj_desc_t                      timer_list;       /**< timer linked list used as a guard timer upon received first projection             */
   uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*ROZOFS_DISTRIBUTION_MAX_SIZE];  /**< table of the projection used by the inverse process */
 
   /*
@@ -259,6 +259,11 @@ typedef struct _rozofs_storcli_ctx_t
   */
   storcli_truncate_arg_t storcli_truncate_arg;  /**< truncate parameter of the request */
   int                    truncate_bins_len;
+  /*
+  ** working variables for delete
+  */
+  storcli_delete_arg_t storcli_delete_arg;  /**< delete parameter of the request */
+
 } rozofs_storcli_ctx_t;
 
 /*
@@ -290,7 +295,7 @@ typedef struct _storcli_shared_t
 /*
 ** reference of the shared memory opened by rozofsmount
 */
-extern storcli_shared_t storcli_rozofsmount_shared_mem;
+extern storcli_shared_t storcli_rozofsmount_shared_mem[];
 /**
 * Macro associated with KPI
 *  @param buffer : kpi buffer
@@ -757,7 +762,7 @@ void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p);
 **__________________________________________________________________________
 */
 /**
-* send a success read reply
+* send a successfull write reply
   That API fill up the common header with the SP_READ_RSP opcode
   insert the transaction_id associated with the inittial request transaction id
   insert a status OK
@@ -772,6 +777,24 @@ void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p);
 */
 void rozofs_storcli_write_reply_success(rozofs_storcli_ctx_t *p);
 
+/*
+**__________________________________________________________________________
+*/
+/**
+* send a successfull delete reply
+  That API fill up the common header with the SP_READ_RSP opcode
+  insert the transaction_id associated with the inittial request transaction id
+  insert a status OK
+  insert the length of the data payload
+  
+  In case of a success it is up to the called function to release the xmit buffer
+  
+  @param p : pointer to the root transaction context used for the read
+  
+  @retval none
+
+*/
+void rozofs_storcli_delete_reply_success(rozofs_storcli_ctx_t *p);
 /*
 **__________________________________________________________________________
 */
@@ -902,6 +925,30 @@ void rozofs_storcli_truncate_req_init(uint32_t  socket_ctx_idx, void *recv_buf,r
 
 */
 void rozofs_storcli_truncate_req_processing(rozofs_storcli_ctx_t *working_ctx_p);
+/*
+**__________________________________________________________________________
+*/
+/**
+  Initial delete request
+    
+  @param socket_ctx_p: pointer to the af unix socket
+  @param socketId: reference of the socket (not used)
+  @param rozofs_storcli_remote_rsp_cbk: callback for sending out the response
+ 
+   @retval : TRUE-> xmit ready event expected
+  @retval : FALSE-> xmit  ready event not expected
+*/
+void rozofs_storcli_delete_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozofs_storcli_resp_pf_t rozofs_storcli_remote_rsp_cbk);
+/*
+**__________________________________________________________________________
+*/
+/*
+** That function is called when all the projection are ready to be sent
+
+ @param working_ctx_p: pointer to the root context associated with the top level write request
+
+*/
+void rozofs_storcli_delete_req_processing(rozofs_storcli_ctx_t *working_ctx_p);
 /*
 **__________________________________________________________________________
 */

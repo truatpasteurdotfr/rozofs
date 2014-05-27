@@ -33,7 +33,7 @@
 
 /** Default open flags to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_FLAG O_RDWR | O_CREAT | O_NOATIME
-#define ROZOFS_ST_BINS_FILE_FLAG_NO_CREATE O_RDWR | O_NOATIME
+#define ROZOFS_ST_BINS_FILE_FLAG_NO_CR8 O_RDWR | O_NOATIME
 
 /** Default mode to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_MODE S_IFREG | S_IRUSR | S_IWUSR

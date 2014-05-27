@@ -455,30 +455,20 @@ static int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re) {
 
     // Check that this file already exists
     // on the storage to rebuild
-    if (access(path, F_OK) == -1) 
+    if (access(path, F_OK) == -1)
         loc_file_exist = 0;
-     
+
     // If the local file exist
     // we must to check the nb. of blocks for this file
     if (loc_file_exist) {
         // Stat file
         if (stat(path, &loc_file_stat) != 0)
             goto out;
-	if (!S_ISREG(loc_file_stat.st_mode)) {
-	    severe("%s is %x", path, loc_file_stat.st_mode);
-	    goto out;  	   	
-	}
-	if (loc_file_stat.st_size < ROZOFS_ST_BINS_FILE_HDR_SIZE) {
-	    severe("%s has size %d", path, (int)loc_file_stat.st_size);
-	    loc_file_exist = 0;  	   
-	}
-	else {
-            // Compute the nb. of blocks
-            loc_file_init_blocks_nb = (loc_file_stat.st_size -
-                    ROZOFS_ST_BINS_FILE_HDR_SIZE) /
-                    ((rozofs_max_psize * sizeof (bin_t))
-                    + sizeof (rozofs_stor_bins_hdr_t));
-	}  
+        // Compute the nb. of blocks
+        loc_file_init_blocks_nb = (loc_file_stat.st_size -
+                ROZOFS_ST_BINS_FILE_HDR_SIZE) /
+                ((rozofs_max_psize * sizeof (bin_t))
+                + sizeof (rozofs_stor_bins_hdr_t));
     }
 
     // While we can read in the bins file

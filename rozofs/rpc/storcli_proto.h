@@ -83,6 +83,15 @@ struct storcli_truncate_arg_t {
 };
 typedef struct storcli_truncate_arg_t storcli_truncate_arg_t;
 
+struct storcli_delete_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t layout;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	storcli_uuid_t fid;
+};
+typedef struct storcli_delete_arg_t storcli_delete_arg_t;
+
 struct storcli_read_no_data_ret_t {
 	uint32_t alignment;
 	uint32_t len;
@@ -132,6 +141,9 @@ extern  storcli_read_ret_t * storcli_read_1_svc(storcli_read_arg_t *, struct svc
 #define STORCLI_TRUNCATE 3
 extern  storcli_status_ret_t * storcli_truncate_1(storcli_truncate_arg_t *, CLIENT *);
 extern  storcli_status_ret_t * storcli_truncate_1_svc(storcli_truncate_arg_t *, struct svc_req *);
+#define STORCLI_DELETE 4
+extern  storcli_status_ret_t * storcli_delete_1(storcli_delete_arg_t *, CLIENT *);
+extern  storcli_status_ret_t * storcli_delete_1_svc(storcli_delete_arg_t *, struct svc_req *);
 extern int storcli_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -147,6 +159,9 @@ extern  storcli_read_ret_t * storcli_read_1_svc();
 #define STORCLI_TRUNCATE 3
 extern  storcli_status_ret_t * storcli_truncate_1();
 extern  storcli_status_ret_t * storcli_truncate_1_svc();
+#define STORCLI_DELETE 4
+extern  storcli_status_ret_t * storcli_delete_1();
+extern  storcli_status_ret_t * storcli_delete_1_svc();
 extern int storcli_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -160,6 +175,7 @@ extern  bool_t xdr_storcli_write_arg_t (XDR *, storcli_write_arg_t*);
 extern  bool_t xdr_storcli_write_arg_no_data_t (XDR *, storcli_write_arg_no_data_t*);
 extern  bool_t xdr_storcli_read_arg_t (XDR *, storcli_read_arg_t*);
 extern  bool_t xdr_storcli_truncate_arg_t (XDR *, storcli_truncate_arg_t*);
+extern  bool_t xdr_storcli_delete_arg_t (XDR *, storcli_delete_arg_t*);
 extern  bool_t xdr_storcli_read_no_data_ret_t (XDR *, storcli_read_no_data_ret_t*);
 extern  bool_t xdr_storcli_read_ret_no_data_t (XDR *, storcli_read_ret_no_data_t*);
 extern  bool_t xdr_storcli_read_data_ret_t (XDR *, storcli_read_data_ret_t*);
@@ -173,6 +189,7 @@ extern bool_t xdr_storcli_write_arg_t ();
 extern bool_t xdr_storcli_write_arg_no_data_t ();
 extern bool_t xdr_storcli_read_arg_t ();
 extern bool_t xdr_storcli_truncate_arg_t ();
+extern bool_t xdr_storcli_delete_arg_t ();
 extern bool_t xdr_storcli_read_no_data_ret_t ();
 extern bool_t xdr_storcli_read_ret_no_data_t ();
 extern bool_t xdr_storcli_read_data_ret_t ();

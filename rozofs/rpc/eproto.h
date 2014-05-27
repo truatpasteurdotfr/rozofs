@@ -538,6 +538,8 @@ struct ep_write_block_arg_t {
 	uint16_t dist;
 	uint64_t offset;
 	uint32_t length;
+	uint64_t geo_wr_start;
+	uint64_t geo_wr_end;
 };
 typedef struct ep_write_block_arg_t ep_write_block_arg_t;
 
@@ -731,6 +733,18 @@ struct ep_gw_gateway_configuration_ret_t {
 };
 typedef struct ep_gw_gateway_configuration_ret_t ep_gw_gateway_configuration_ret_t;
 
+struct epgw_mount_arg_t {
+	struct ep_gateway_t hdr;
+	ep_path_t path;
+};
+typedef struct epgw_mount_arg_t epgw_mount_arg_t;
+
+struct epgw_conf_stor_arg_t {
+	struct ep_gateway_t hdr;
+	ep_path_t path;
+};
+typedef struct epgw_conf_stor_arg_t epgw_conf_stor_arg_t;
+
 #define EXPORT_PROGRAM 0x20000001
 #define EXPORT_VERSION 1
 
@@ -739,8 +753,8 @@ typedef struct ep_gw_gateway_configuration_ret_t ep_gw_gateway_configuration_ret
 extern  void * ep_null_1(void *, CLIENT *);
 extern  void * ep_null_1_svc(void *, struct svc_req *);
 #define EP_MOUNT 1
-extern  epgw_mount_ret_t * ep_mount_1(ep_path_t *, CLIENT *);
-extern  epgw_mount_ret_t * ep_mount_1_svc(ep_path_t *, struct svc_req *);
+extern  epgw_mount_ret_t * ep_mount_1(epgw_mount_arg_t *, CLIENT *);
+extern  epgw_mount_ret_t * ep_mount_1_svc(epgw_mount_arg_t *, struct svc_req *);
 #define EP_UMOUNT 2
 extern  epgw_status_ret_t * ep_umount_1(uint32_t *, CLIENT *);
 extern  epgw_status_ret_t * ep_umount_1_svc(uint32_t *, struct svc_req *);
@@ -805,8 +819,8 @@ extern  epgw_listxattr_ret_t * ep_listxattr_1_svc(epgw_listxattr_arg_t *, struct
 extern  epgw_cluster_ret_t * ep_list_cluster_1(uint16_t *, CLIENT *);
 extern  epgw_cluster_ret_t * ep_list_cluster_1_svc(uint16_t *, struct svc_req *);
 #define EP_CONF_STORAGE 24
-extern  epgw_conf_ret_t * ep_conf_storage_1(ep_path_t *, CLIENT *);
-extern  epgw_conf_ret_t * ep_conf_storage_1_svc(ep_path_t *, struct svc_req *);
+extern  epgw_conf_ret_t * ep_conf_storage_1(epgw_conf_stor_arg_t *, CLIENT *);
+extern  epgw_conf_ret_t * ep_conf_storage_1_svc(epgw_conf_stor_arg_t *, struct svc_req *);
 #define EP_POLL_CONF 25
 extern  epgw_status_ret_t * ep_poll_conf_1(ep_gateway_t *, CLIENT *);
 extern  epgw_status_ret_t * ep_poll_conf_1_svc(ep_gateway_t *, struct svc_req *);
@@ -828,6 +842,9 @@ extern  epgw_status_ret_t * ep_clear_client_file_lock_1_svc(epgw_lock_arg_t *, s
 #define EP_POLL_FILE_LOCK 31
 extern  epgw_status_ret_t * ep_poll_file_lock_1(epgw_lock_arg_t *, CLIENT *);
 extern  epgw_status_ret_t * ep_poll_file_lock_1_svc(epgw_lock_arg_t *, struct svc_req *);
+#define EP_GEO_POLL 32
+extern  void * ep_geo_poll_1(void *, CLIENT *);
+extern  void * ep_geo_poll_1_svc(void *, struct svc_req *);
 extern int export_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -924,6 +941,9 @@ extern  epgw_status_ret_t * ep_clear_client_file_lock_1_svc();
 #define EP_POLL_FILE_LOCK 31
 extern  epgw_status_ret_t * ep_poll_file_lock_1();
 extern  epgw_status_ret_t * ep_poll_file_lock_1_svc();
+#define EP_GEO_POLL 32
+extern  void * ep_geo_poll_1();
+extern  void * ep_geo_poll_1_svc();
 extern int export_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -1031,6 +1051,8 @@ extern  bool_t xdr_ep_gw_header_t (XDR *, ep_gw_header_t*);
 extern  bool_t xdr_ep_gateway_configuration_t (XDR *, ep_gateway_configuration_t*);
 extern  bool_t xdr_ep_gateway_configuration_ret_t (XDR *, ep_gateway_configuration_ret_t*);
 extern  bool_t xdr_ep_gw_gateway_configuration_ret_t (XDR *, ep_gw_gateway_configuration_ret_t*);
+extern  bool_t xdr_epgw_mount_arg_t (XDR *, epgw_mount_arg_t*);
+extern  bool_t xdr_epgw_conf_stor_arg_t (XDR *, epgw_conf_stor_arg_t*);
 
 #else /* K&R C */
 extern bool_t xdr_ep_uuid_t ();
@@ -1134,6 +1156,8 @@ extern bool_t xdr_ep_gw_header_t ();
 extern bool_t xdr_ep_gateway_configuration_t ();
 extern bool_t xdr_ep_gateway_configuration_ret_t ();
 extern bool_t xdr_ep_gw_gateway_configuration_ret_t ();
+extern bool_t xdr_epgw_mount_arg_t ();
+extern bool_t xdr_epgw_conf_stor_arg_t ();
 
 #endif /* K&R C */
 

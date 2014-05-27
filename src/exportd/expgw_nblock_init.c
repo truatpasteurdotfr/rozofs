@@ -235,6 +235,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint32_t local_ip_addr)
      **--------------------------------------
      */
 
+     printf(" rozodebug -p %d\n",dbg_port);
      uma_dbg_init(10,local_ip_addr,dbg_port);
 
 

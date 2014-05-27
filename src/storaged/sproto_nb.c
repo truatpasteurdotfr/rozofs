@@ -683,3 +683,32 @@ void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     STOP_PROFILING(truncate);
     return ;
 }
+
+
+/*
+**___________________________________________________________
+*/
+
+void sp_remove_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    static sp_status_ret_t ret;
+
+    START_PROFILING(remove);
+
+     
+    if (storio_disk_thread_intf_send(STORIO_DISK_THREAD_REMOVE, req_ctx_p,tic) == 0) {
+      return;
+    }
+    
+    severe("sp_remove_1_svc_disk_thread storio_disk_thread_intf_send %s", strerror(errno));
+    
+    ret.status                  = SP_FAILURE;            
+    ret.sp_status_ret_t_u.error = errno;
+    
+    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
+    /*
+    ** release the context
+    */
+    rozorpc_srv_release_context(req_ctx_p);
+    STOP_PROFILING(remove);
+    return ;
+}

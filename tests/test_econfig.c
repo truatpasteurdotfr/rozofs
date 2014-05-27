@@ -6,6 +6,7 @@
 
 #include "econfig.h"
 
+int rozofs_no_site_file = 0;
 
 int main(int argc, char **argv) {
     econfig_t config;

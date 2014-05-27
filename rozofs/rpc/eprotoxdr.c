@@ -1158,6 +1158,10 @@ xdr_ep_write_block_arg_t (XDR *xdrs, ep_write_block_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->length))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->geo_wr_start))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->geo_wr_end))
+		 return FALSE;
 	return TRUE;
 }
 
@@ -1524,6 +1528,30 @@ xdr_ep_gw_gateway_configuration_ret_t (XDR *xdrs, ep_gw_gateway_configuration_re
 	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
 		 return FALSE;
 	 if (!xdr_ep_gateway_configuration_ret_t (xdrs, &objp->status_gw))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_mount_arg_t (XDR *xdrs, epgw_mount_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_path_t (xdrs, &objp->path))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_conf_stor_arg_t (XDR *xdrs, epgw_conf_stor_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_path_t (xdrs, &objp->path))
 		 return FALSE;
 	return TRUE;
 }

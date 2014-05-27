@@ -71,6 +71,9 @@ typedef struct rozofsmnt_conf {
     unsigned max_write_pending ; /**< Maximum number pending write */
     unsigned quota; /* ignored */
     unsigned noXattr;
+    int site;
+    int conf_site_file;
+    unsigned running_site;
 } rozofsmnt_conf_t;
 
 typedef struct dirbuf {
@@ -116,6 +119,18 @@ extern int rozofs_xattr_disable; /**< assert to one to disable xattr for the exp
 */
 extern uint64_t    rozofs_aligned_write_start[2];
 extern uint64_t    rozofs_aligned_write_end[2];
+
+extern int rozofs_site_number;
+/**______________________________________________________________________________
+*/
+/**
+*  get the current site number of the rozofsmount client
+
+*/
+static inline int rozofs_get_site_number()
+{
+  return rozofs_site_number;
+}
 
 /**______________________________________________________________________________
 */

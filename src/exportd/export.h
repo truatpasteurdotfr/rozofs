@@ -45,6 +45,7 @@
 #include "volume.h"
 #include "cache.h"
 #include "export_expgw_conf.h"
+#include "geo_replication.h"
 
 #define TRASH_DNAME "trash"
 #define FSTAT_FNAME "fstat"
@@ -99,6 +100,10 @@ typedef struct expgw_entry {
     list_t list;
 } expgw_entry_t;
 
+/** must be a power of 2
+*/
+#define EXPORT_GEO_MAX_BIT 1
+#define EXPORT_GEO_MAX_CTX (1<<EXPORT_GEO_MAX_BIT)
 /** export stucture
  *
  */
@@ -114,6 +119,7 @@ typedef struct export {
     int fdstat; ///< open file descriptor on stat file
     fid_t rfid; ///< root fid
     lv2_cache_t *lv2_cache; ///< cache of lv2 entries
+    geo_rep_srv_ctx_t  *geo_replication_tb[EXPORT_GEO_MAX_CTX];        
     trash_bucket_t trash_buckets[RM_MAX_BUCKETS]; ///< table for store the list
     // of files to delete for each bucket trash
     pthread_t load_trash_thread; ///< pthread for load the list of trash files
@@ -121,8 +127,20 @@ typedef struct export {
 } export_t;
 
 extern uint32_t export_configuration_file_hash;  /**< hash value of the configuration file */
+extern int export_local_site_number; 
+extern int rozofs_no_site_file; 
+/**
+*  return the current sitde number of the exportd
 
+  @param none
+  
+  @retval local_site_unumber (default 0)
+*/
 
+static inline int export_get_local_site_number()
+{
+  return export_local_site_number;
+}
 /** Remove bins files from trash 
  *
  * @param export: pointer to the export
@@ -240,6 +258,7 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname,
 /** create a new file
  *
  * @param e: the export managing the file
+ * @param site_number: needed for geo-replication
  * @param pfid: the id of the parent
  * @param name: the name of this file.
  * @param uid: the user id
@@ -250,8 +269,9 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname,
   
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
-        uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs);
+int export_mknod(export_t *e,uint32_t site_number,
+                 fid_t pfid, char *name, uint32_t uid,
+                 uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs);
 
 /** create a new directory
  *
@@ -365,7 +385,7 @@ int64_t export_read(export_t * e, fid_t fid, uint64_t offset, uint32_t len, uint
  */
 int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d);
 
-/** update the file size, mtime and ctime
+/**  update the file size, mtime and ctime
  *
  * dist is the same for all blocks
  *
@@ -376,11 +396,17 @@ int export_read_block(export_t *e, fid_t fid, bid_t bid, uint32_t n, dist_t * d)
  * @param d: distribution to set
  * @param off: offset to write from
  * @param len: length written
+ * @param site_number: siet number for geo-replication
+ * @param geo_wr_start: write start offset
+ * @param geo_wr_end: write end offset
  * @param[out] attrs: updated attributes of the file
  *
  * @return: the written length on success or -1 otherwise (errno is set)
  */
-int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n, dist_t d, uint64_t off, uint32_t len,mattr_t *attrs);
+int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
+                           dist_t d, uint64_t off, uint32_t len,
+			   uint32_t site_number,uint64_t geo_wr_start,uint64_t geo_wr_end,
+			   mattr_t *attrs);
 
 /** read a directory
  *

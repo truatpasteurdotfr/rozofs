@@ -302,7 +302,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
     storage_map_projection(fid, path);
 
     // Open bins file
-    fd = open(path, ROZOFS_ST_BINS_FILE_FLAG_NO_CREATE, ROZOFS_ST_BINS_FILE_MODE);
+    fd = open(path, ROZOFS_ST_BINS_FILE_FLAG_NO_CR8, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
         DEBUG("open failed (%s) : %s", path, strerror(errno));
         goto out;

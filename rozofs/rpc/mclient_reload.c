@@ -60,11 +60,13 @@ int mclient_stat(mclient_t * clt, sstat_t * st) {
     DEBUG_FUNCTION;
 
     if (!(clt->rpcclt.client) || !(ret = mp_stat_1(&clt->sid, clt->rpcclt.client))) {
+        info("FDL error on mp_stat_1");
         errno = EPROTO;
         goto out;
     }
     if (ret->status != 0) {
         errno = ret->mp_stat_ret_t_u.error;
+        info("FDL error on mp_stat_1 errno %s",strerror(errno));
         goto out;
     }
     memcpy(st, &ret->mp_stat_ret_t_u.sstat, sizeof (sstat_t));

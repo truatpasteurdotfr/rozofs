@@ -64,7 +64,7 @@ void storage_config_release(storage_config_t *s) {
 
 int sconfig_initialize(sconfig_t *sc) {
     DEBUG_FUNCTION;
-    memset(sc, 0, sizeof (sconfig_t));
+    memset(sc, 0, sizeof (storage_config_t));
     list_init(&sc->storages);
     return 0;
 }

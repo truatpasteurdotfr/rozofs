@@ -659,6 +659,9 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
            case STORCLI_TRUNCATE:
                rozofs_storcli_truncate_req_processing(next_p);
                return;
+           case STORCLI_DELETE:
+               rozofs_storcli_delete_req_processing(next_p);
+               return;
            default:
                return;
            }

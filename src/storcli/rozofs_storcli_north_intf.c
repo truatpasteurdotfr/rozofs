@@ -209,7 +209,11 @@ void rozofs_storcli_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *re
        case STORCLI_TRUNCATE:
         rozofs_storcli_truncate_req_init(socket_ctx_idx,recv_buf,rozofs_storcli_remote_rsp_cbk);
         return;       
-       
+
+       case STORCLI_DELETE:
+        rozofs_storcli_delete_req_init(socket_ctx_idx,recv_buf,rozofs_storcli_remote_rsp_cbk);
+        return; 
+	       
        default:
         /*
         ** Put code here to format a reply with an error message

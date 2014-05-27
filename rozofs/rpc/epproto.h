@@ -51,6 +51,7 @@ typedef struct epp_sstat_t epp_sstat_t;
 
 struct epp_vstat_t {
 	uint16_t vid;
+	uint16_t georep;
 	uint16_t bsize;
 	uint64_t bfree;
 	uint64_t blocks;

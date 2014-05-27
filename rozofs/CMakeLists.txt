@@ -20,6 +20,8 @@ set (librozofs_sources
     common/transform.c
     common/xmalloc.h
     common/xmalloc.c
+    common/rozofs_site.c
+    common/rozofs_site.h
     rpc/eproto.h
     rpc/eprotoxdr.c
     rpc/eprotosvc.c
@@ -71,6 +73,8 @@ set (librozofs_sources
     rpc/stcpproto.h
     rpc/stcpprotosvc.c
     rpc/stcpprotoxdr.c
+    rpc/geo_replica_protoxdr.c
+    rpc/geo_replica_proto.h
     core/af_inet_stream_api.h
     core/af_inet_tcp.c
     core/af_unix_ctx_mgt.c

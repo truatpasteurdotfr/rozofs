@@ -82,6 +82,8 @@ xdr_epp_vstat_t (XDR *xdrs, epp_vstat_t *objp)
 	//int i;
 	 if (!xdr_uint16_t (xdrs, &objp->vid))
 		 return FALSE;
+	 if (!xdr_uint16_t (xdrs, &objp->georep))
+		 return FALSE;
 	 if (!xdr_uint16_t (xdrs, &objp->bsize))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bfree))

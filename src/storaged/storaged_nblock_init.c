@@ -60,8 +60,6 @@
 #include "storaged_nblock_init.h"
 #include "storaged_north_intf.h"
 
-uint32_t storio_nb = 0;
-
 DECLARE_PROFILING(spp_profiler_t);
 
 extern uint8_t rbs_start_process;
@@ -246,12 +244,7 @@ static void show_rebuild_storage_display(char * argv[], uint32_t tcpRef,
 
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
-static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = uma_dbg_get_buffer();
-    
-    sprintf(pChar,"storio_nb : %d\n", storio_nb);
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-}
+
 
 
 // For trace purpose
@@ -518,9 +511,6 @@ int storaged_start_nb_th(void *args) {
      ** add profiler subject 
      */
     uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
-    
-    storio_nb = args_p->io_port;
-    uma_dbg_addTopic("storio_nb", show_storio_nb);
 
 
     /*

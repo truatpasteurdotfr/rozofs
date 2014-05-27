@@ -152,7 +152,13 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_line_val_and_sum("   error",diskTruncate_error);  
   display_line_val_and_sum("   Cumulative Time (us)",diskTruncate_time);
   display_line_div_and_sum("   Average Time (us)",diskTruncate_time,diskTruncate_count);
-  
+
+  display_line_topic("Remove Requests");  
+  display_line_val_and_sum("   number", diskRemove_count);
+  display_line_val_and_sum("   Unknown cid/sid",diskRemove_badCidSid);  
+  display_line_val_and_sum("   error",diskRemove_error);  
+  display_line_val_and_sum("   Cumulative Time (us)",diskRemove_time);
+  display_line_div_and_sum("   Average Time (us)",diskRemove_time,diskRemove_count);  
   display_line_topic("");  
   pChar += sprintf(pChar,"\n");
 
@@ -305,6 +311,9 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
       break;     
     case STORIO_DISK_THREAD_TRUNCATE:
       STOP_PROFILING(truncate);
+      break;   
+    case STORIO_DISK_THREAD_REMOVE:
+      STOP_PROFILING(remove);
       break;   
     default:
       severe("Unexpected opcode %d", opcode);

@@ -23,10 +23,10 @@
 #include <libconfig.h>
 #include <unistd.h>
 #include <inttypes.h>
-
+#include <config.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
-
+#include "export.h"
 #include "econfig.h"
 
 #define ELAYOUT     "layout"
@@ -46,6 +46,9 @@
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
 #define ECORES      "nbcores"
+#define EGEOREP     "georep"
+#define ESITE0     "site0"
+#define ESITE1     "site1"
 /*
 ** constant for exportd gateways
 */
@@ -80,9 +83,10 @@ void storage_node_config_release(storage_node_config_t *s) {
 
 int cluster_config_initialize(cluster_config_t *c, cid_t cid) {
     DEBUG_FUNCTION;
+    int i;
 
     c->cid = cid;
-    list_init(&c->storages);
+    for (i = 0; i <ROZOFS_GEOREP_MAX_SITE; i++) list_init(&c->storages[i]);
     list_init(&c->list);
     return 0;
 }
@@ -90,21 +94,26 @@ int cluster_config_initialize(cluster_config_t *c, cid_t cid) {
 void cluster_config_release(cluster_config_t *c) {
     list_t *p, *q;
     DEBUG_FUNCTION;
+    int i;
 
-    list_for_each_forward_safe(p, q, &c->storages) {
-        storage_node_config_t *entry = list_entry(p, storage_node_config_t,
-                list);
-        storage_node_config_release(entry);
-        list_remove(p);
-        free(entry);
+    for (i = 0; i <ROZOFS_GEOREP_MAX_SITE; i++) 
+    {
+      list_for_each_forward_safe(p, q, (&c->storages[i])) {
+          storage_node_config_t *entry = list_entry(p, storage_node_config_t,
+                  list);
+          storage_node_config_release(entry);
+          list_remove(p);
+          free(entry);
+      }
     }
 }
 
-int volume_config_initialize(volume_config_t *v, vid_t vid, uint8_t layout) {
+int volume_config_initialize(volume_config_t *v, vid_t vid, uint8_t layout,uint8_t georep) {
     DEBUG_FUNCTION;
 
     v->vid = vid;
     v->layout = layout;
+    v->georep = georep;
     list_init(&v->clusters);
     list_init(&v->list);
     return 0;
@@ -246,8 +255,10 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config, int elayout
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
         int vid,vlayout; // Volume identifier
+	int vgeorep;
 #else
         long int vid,vlayout; // Volume identifier
+	int vgeorep;
 #endif
         struct config_setting_t *vol_set = NULL; // Settings for one volume
         /* Settings of list of clusters for one volume */
@@ -277,9 +288,28 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config, int elayout
             vlayout = elayout;
         }
 
+        // Check whether geo-replication is specified for this volume in the
+        // configuration file, default value is none
+        if (config_setting_lookup_int(vol_set, EGEOREP,
+                &vgeorep) == CONFIG_FALSE) {
+            // No specific layout given for this volume.
+            // Get the export default geo-replication.
+            vgeorep = 0;
+        }
+	if (vgeorep!= 0)
+	{
+	  /*
+	  ** the site file MUST exist
+	  */
+	  if (rozofs_no_site_file)
+	  {
+	    severe("RozoFS site file is missing (%s/rozofs_site)",ROZOFS_CONFIG_DIR);
+	    goto out;
+	  }
+	}
         // Allocate new volume_config
         vconfig = (volume_config_t *) xmalloc(sizeof (volume_config_t));
-        if (volume_config_initialize(vconfig, (vid_t) vid, (uint8_t) vlayout) != 0) {
+        if (volume_config_initialize(vconfig, (vid_t) vid, (uint8_t) vlayout,(uint8_t)vgeorep) != 0) {
             severe("can't initialize volume.");
             goto out;
         }
@@ -360,32 +390,89 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config, int elayout
                              , cluster idx: %d,  storage idx: %d.", v, c, s);
                     goto out;
                 }
+                if (vgeorep == 0)
+		{
+                  // Lookup hostname for this storage
+                  if (config_setting_lookup_string(mstor_set, EHOST, &host) == CONFIG_FALSE) {
+                      errno = ENOKEY;
+                      severe("can't get host for volume idx: %d\
+                               , cluster idx: %d,  storage idx: %d.", v, c, s);
+                      goto out;
+                  }
+                  // Check length of storage hostname
+                  if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+                      errno = ENAMETOOLONG;
+                      severe("Storage hostname length (volume idx: %d\
+                               , cluster idx: %d, storage idx: %d) must be lower\
+                           than %d.", v, c, s, ROZOFS_HOSTNAME_MAX);
+                      goto out;
+                  }
 
-                // Lookup hostname for this storage
-                if (config_setting_lookup_string(mstor_set, EHOST, &host) == CONFIG_FALSE) {
-                    errno = ENOKEY;
-                    severe("can't get host for volume idx: %d\
-                             , cluster idx: %d,  storage idx: %d.", v, c, s);
-                    goto out;
-                }
+                  // Allocate a new storage_config
+                  snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
+                  if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
+                      severe("can't initialize storage node config.");
 
-                // Check length of storage hostname
-                if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
-                    errno = ENAMETOOLONG;
-                    severe("Storage hostname length (volume idx: %d\
-                             , cluster idx: %d, storage idx: %d) must be lower\
-                         than %d.", v, c, s, ROZOFS_HOSTNAME_MAX);
-                    goto out;
-                }
+                  }
 
-                // Allocate a new storage_config
-                snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
-                if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
-                    severe("can't initialize storage node config.");
-                }
+                  // Add it to the cluster.
+                  list_push_back((&cconfig->storages[0]), &snconfig->list);
+		}
+		else
+		{
 
-                // Add it to the cluster.
-                list_push_back(&cconfig->storages, &snconfig->list);
+                  // Lookup hostname for this storage
+                  if (config_setting_lookup_string(mstor_set, ESITE0, &host) == CONFIG_FALSE) {
+                      errno = ENOKEY;
+                      severe("can't get host for volume idx: %d\
+                               , cluster idx: %d,  storage idx: %d.", v, c, s);
+                      goto out;
+                  }
+                  // Check length of storage hostname
+                  if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+                      errno = ENAMETOOLONG;
+                      severe("Storage hostname length (volume idx: %d\
+                               , cluster idx: %d, storage idx: %d) must be lower\
+                           than %d.", v, c, s, ROZOFS_HOSTNAME_MAX);
+                      goto out;
+                  }
+
+                  // Allocate a new storage_config
+                  snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
+                  if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
+                      severe("can't initialize storage node config.");
+
+                  }
+
+                  // Add it to the cluster.
+                  list_push_back((&cconfig->storages[0]), &snconfig->list);
+                  // Lookup hostname for this storage
+                  if (config_setting_lookup_string(mstor_set, ESITE1, &host) == CONFIG_FALSE) {
+                      errno = ENOKEY;
+                      severe("can't get host for volume idx: %d\
+                               , cluster idx: %d,  storage idx: %d.", v, c, s);
+                      goto out;
+                  }
+                  // Check length of storage hostname
+                  if (strlen(host) > ROZOFS_HOSTNAME_MAX) {
+                      errno = ENAMETOOLONG;
+                      severe("Storage hostname length (volume idx: %d\
+                               , cluster idx: %d, storage idx: %d) must be lower\
+                           than %d.", v, c, s, ROZOFS_HOSTNAME_MAX);
+                      goto out;
+                  }
+
+                  // Allocate a new storage_config
+                  snconfig = (storage_node_config_t *) xmalloc(sizeof (storage_node_config_t));
+                  if (storage_node_config_initialize(snconfig, (uint8_t) sid, host) != 0) {
+                      severe("can't initialize storage node config.");
+
+                  }
+
+                  // Add it to the cluster.
+                  list_push_back((&cconfig->storages[1]), &snconfig->list);
+		}
+				
 
             }
 
@@ -759,20 +846,22 @@ static int econfig_validate_storages(cluster_config_t *config) {
     int status = -1;
     list_t *p, *q;
     DEBUG_FUNCTION;
+    int i;
+    for (i = 0; i <ROZOFS_GEOREP_MAX_SITE; i++) {
+      list_for_each_forward(p, (&config->storages[i])) {
+          storage_node_config_t *e1 = list_entry(p, storage_node_config_t, list);
 
-    list_for_each_forward(p, &config->storages) {
-        storage_node_config_t *e1 = list_entry(p, storage_node_config_t, list);
-
-        list_for_each_forward(q, &config->storages) {
-            storage_node_config_t *e2 = list_entry(q, storage_node_config_t, list);
-            if (e1 == e2)
-                continue;
-            if (e1->sid == e2->sid) {
-                severe("duplicated sid: %d", e1->sid);
-                errno = EINVAL;
-                goto out;
-            }
-        }
+          list_for_each_forward(q, (&config->storages[i])) {
+              storage_node_config_t *e2 = list_entry(q, storage_node_config_t, list);
+              if (e1 == e2)
+                  continue;
+              if (e1->sid == e2->sid) {
+                  severe("duplicated sid: %d", e1->sid);
+                  errno = EINVAL;
+                  goto out;
+              }
+          }
+      }
     }
 
     status = 0;
@@ -844,6 +933,7 @@ static int econfig_validate_storage_nb(volume_config_t *config) {
     int status = -1;
     list_t *q, *r;
     int curr_stor_idx = 0;
+    int j = 0;
     int i = 0;
     int exist = 0;
 
@@ -857,59 +947,64 @@ static int econfig_validate_storage_nb(volume_config_t *config) {
     } stor_node_check_t;
 
     stor_node_check_t stor_nodes[STORAGE_NODES_MAX];
+
     memset(stor_nodes, 0, STORAGE_NODES_MAX * sizeof (stor_node_check_t));
 
-    // For each cluster
+    for (j = 0; j <ROZOFS_GEOREP_MAX_SITE; j++) 
+    {
 
-    list_for_each_forward(q, &config->clusters) {
-        cluster_config_t *c = list_entry(q, cluster_config_t, list);
+     // For each cluster
 
-        // For each storage
+     list_for_each_forward(q, &config->clusters) {
+         cluster_config_t *c = list_entry(q, cluster_config_t, list);
 
-        list_for_each_forward(r, &c->storages) {
-            storage_node_config_t *s = list_entry(r, storage_node_config_t,
-                    list);
+         // For each storage
 
-            exist = 0;
+         list_for_each_forward(r, (&c->storages[j])) {
+             storage_node_config_t *s = list_entry(r, storage_node_config_t,
+                     list);
 
-            // Check if the storage hostname already exists
-            for (i = 0; i < curr_stor_idx; i++) {
+             exist = 0;
 
-                if (strcmp(s->host, stor_nodes[i].host) == 0) {
-                    // This physical storage node exist
-                    stor_nodes[i].sids_nb++;
-                    // Check nb. of storages with this hostname
-                    if (stor_nodes[i].sids_nb > STORAGES_MAX_BY_STORAGE_NODE) {
-                        severe("Too many storages with the hostname=%s"
-                                " in volume with vid=%u (number max is %d)",
-                                s->host, config->vid,
-                                STORAGES_MAX_BY_STORAGE_NODE);
-                        errno = EINVAL;
-                        goto out;
-                    }
-                    exist = 1;
-                    break;
-                }
-            }
+             // Check if the storage hostname already exists
+             for (i = 0; i < curr_stor_idx; i++) {
 
-            // This physical storage node doesn't exist
-            if (exist == 0) {
+                 if (strcmp(s->host, stor_nodes[i].host) == 0) {
+                     // This physical storage node exist
+                     stor_nodes[i].sids_nb++;
+                     // Check nb. of storages with this hostname
+                     if (stor_nodes[i].sids_nb > STORAGES_MAX_BY_STORAGE_NODE) {
+                         severe("Too many storages with the hostname=%s"
+                                 " in volume with vid=%u (number max is %d)",
+                                 s->host, config->vid,
+                                 STORAGES_MAX_BY_STORAGE_NODE);
+                         errno = EINVAL;
+                         goto out;
+                     }
+                     exist = 1;
+                     break;
+                 }
+             }
 
-                if ((curr_stor_idx + 1) > STORAGE_NODES_MAX) {
-                    severe("Too many storages in volume with vid=%u"
-                            " (number max is %d)",
-                            config->vid, STORAGE_NODES_MAX);
-                    errno = EINVAL;
-                    goto out;
-                }
-                // Add this storage node
-                strncpy(stor_nodes[curr_stor_idx].host, s->host,
-                        ROZOFS_HOSTNAME_MAX);
-                stor_nodes[curr_stor_idx].sids_nb++;
-                // Increments the nb. of physical storage nodes
-                curr_stor_idx++;
-            }
-        }
+             // This physical storage node doesn't exist
+             if (exist == 0) {
+
+                 if ((curr_stor_idx + 1) > STORAGE_NODES_MAX) {
+                     severe("Too many storages in volume with vid=%u"
+                             " (number max is %d)",
+                             config->vid, STORAGE_NODES_MAX);
+                     errno = EINVAL;
+                     goto out;
+                 }
+                 // Add this storage node
+                 strncpy(stor_nodes[curr_stor_idx].host, s->host,
+                         ROZOFS_HOSTNAME_MAX);
+                 stor_nodes[curr_stor_idx].sids_nb++;
+                 // Increments the nb. of physical storage nodes
+                 curr_stor_idx++;
+             }
+         }
+     }
     }
     status = 0;
 out:
@@ -1081,6 +1176,7 @@ int econfig_check_consistency(econfig_t *from, econfig_t *to) {
 
 int econfig_print(econfig_t *config) {
     list_t *p;
+    int i;
     printf("layout: %d\n", config->layout);
     printf("volume: \n");
 
@@ -1094,12 +1190,13 @@ int econfig_print(econfig_t *config) {
             list_t *r;
             cluster_config_t *cconfig = list_entry(q, cluster_config_t, list);
             printf("cid: %d\n", cconfig->cid);
-
-            list_for_each_forward(r, &cconfig->storages) {
-                storage_node_config_t *sconfig = list_entry(r, storage_node_config_t, list);
-                printf("sid: %d\n", sconfig->sid);
-                printf("host: %s\n", sconfig->host);
-            }
+            for (i = 0; i <ROZOFS_GEOREP_MAX_SITE; i++) {
+              list_for_each_forward(r, (&cconfig->storages[i])) {
+                  storage_node_config_t *sconfig = list_entry(r, storage_node_config_t, list);
+                  printf("sid: %d\n", sconfig->sid);
+                  printf("host: %s\n", sconfig->host);
+              }
+	    }
         }
     }
 

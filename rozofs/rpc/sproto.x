@@ -101,6 +101,14 @@ struct sp_truncate_arg_t {
     opaque      bins<>;    
 };
 
+struct sp_remove_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    uint8_t     layout;
+    uint32_t    dist_set[ROZOFS_SAFE_MAX];
+    sp_uuid_t   fid;
+};
+
 struct sp_read_t {
     uint32_t    filler;
     opaque      bins<>;
@@ -132,6 +140,9 @@ program STORAGE_PROGRAM {
 
         sp_status_ret_t
         SP_TRUNCATE(sp_truncate_arg_t)  = 3;
+
+        sp_status_ret_t
+        SP_REMOVE(sp_remove_arg_t)  = 4;
 
     }=1;
 } = 0x20000002;

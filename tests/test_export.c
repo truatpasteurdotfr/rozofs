@@ -27,10 +27,28 @@
 #include <rozofs/rozofs_srv.h>
 
 #include "export.h"
+int export_local_site_number = 0;
 
 export_one_profiler_t  * export_profiler[EXPGW_EXPORTD_MAX_IDX] = { 0 };
 uint32_t		 export_profiler_eid = 0;
 
+
+void *geo_rep_init(int eid,int site_id,char *root_path)
+{
+   return NULL;
+}
+
+int  geo_rep_dbg_add(geo_rep_srv_ctx_t *p)
+{
+  return 0;
+}
+
+int geo_rep_insert_fid(geo_rep_srv_ctx_t *ctx_p,
+                       fid_t fid,uint64_t off_start,uint64_t off_end,
+		       uint8_t layout,cid_t cid,sid_t *sids_p)
+{
+  return 0;
+}
 DEFINE_PROFILING(epp_profiler_t);
 
 void print_cache(lv2_cache_t *cache) {
@@ -94,7 +112,7 @@ int main(int argc, char **argv) {
     printf("created\n");
 
     printf("volume:\t\t\t");
-    if (volume_initialize(&volume, 1, 0) != 0) {
+    if (volume_initialize(&volume, 1, 0,0) != 0) {
         perror("can't initialize volume.");
         return errno;
     }
@@ -124,7 +142,7 @@ int main(int argc, char **argv) {
         print_mattr(&mattrs);
      */
     printf("export_mknod (/node1):\n");
-    if (export_mknod(&export, export.rfid, "node1", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
+    if (export_mknod(&export,0, export.rfid, "node1", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -135,7 +153,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node2):\n");
-    if (export_mknod(&export, export.rfid, "node2", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
+    if (export_mknod(&export,0, export.rfid, "node2", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -146,7 +164,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node3):\n");
-    if (export_mknod(&export, export.rfid, "node3", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
+    if (export_mknod(&export,0, export.rfid, "node3", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -157,7 +175,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node4):\n");
-    if (export_mknod(&export, export.rfid, "node4", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
+    if (export_mknod(&export,0, export.rfid, "node4", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -168,7 +186,7 @@ int main(int argc, char **argv) {
     print_cache(&cache);
 
     printf("export_mknod (/node5):\n");
-    if (export_mknod(&export, export.rfid, "node5", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
+    if (export_mknod(&export,0, export.rfid, "node5", getuid(), getgid(), S_IFREG | S_IRWXU, &mattrs,&pmattrs) != 0) {
         perror("can't make node /node1");
         return errno;
     }
@@ -241,7 +259,7 @@ int main(int argc, char **argv) {
         print_mattr(&mattrs);
 
         printf("export_mknod (/node2/node3/node4):\n");
-        if (export_mknod(&export, mattrs.fid, "node4", getuid(), getgid(), S_IFREG|S_IRWXU, &mattrs) != 0) {
+        if (export_mknod(&export,0, mattrs.fid, "node4", getuid(), getgid(), S_IFREG|S_IRWXU, &mattrs) != 0) {
             perror("can't make node /node2/node3/node4");
             return errno;
         }

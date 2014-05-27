@@ -24,10 +24,15 @@ kill_everybody ()
 kill_host ()
 {
   pid_list=""
-  for pid in `ps -ef | grep -v grep | grep "storio -i" | grep "H $h" | awk '{print $2}'`
+  for line in `ps -ef | grep -v grep | grep "storio -i" | grep "H $h" | awk '{ print $2":"$NF }'`
   do
-    kill $pid
-    pid_list=`echo "$pid_list $pid"`
+    pid=`echo $line | awk -F':' '{ print $1 }'`
+    host=`echo $line | awk -F':' '{ print $2 }'`
+    if [ "$host" == "$h" ];
+    then
+      kill $pid
+      pid_list=`echo "$pid_list $pid"`
+    fi  
   done
   
   case "$pid_list" in
@@ -44,10 +49,15 @@ kill_host ()
 kill_instance ()
 {
   pid_list=""
-  for pid in `ps -ef | grep -v grep | grep "storio -i $i" | grep "H $h" | awk '{print $2}'`
+  for line in `ps -ef | grep -v grep | grep "storio -i $i" | grep "H $h" | awk '{ print $2":"$NF }'`
   do
-    kill $pid
-    pid_list=`echo "$pid_list $pid"`
+    pid=`echo $line | awk -F':' '{ print $1 }'`
+    host=`echo $line | awk -F':' '{ print $2 }'`
+    if [ "$host" == "$h" ];
+    then
+      kill $pid
+      pid_list=`echo "$pid_list $pid"`
+    fi  
   done
   
   case "$pid_list" in

@@ -47,6 +47,8 @@
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/rpc/export_profiler.h>
 #include <rozofs/common/profile.h>
+#include <rozofs/common/rozofs_site.h>
+#include <rozofs/rpc/rpcclt.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -56,6 +58,7 @@
 #include "volume.h"
 #include "export_expgw_conf.h"
 #include "export_internal_channel.h"
+#include "geo_profiler.h"
 
 export_one_profiler_t  * export_profiler[EXPGW_EID_MAX_IDX+1] = { 0 };
 uint32_t		 export_profiler_eid = 0;
@@ -70,6 +73,8 @@ econfig_t exportd_config;
 pthread_rwlock_t config_lock;
 
 lv2_cache_t cache;
+int export_local_site_number = 0;
+int rozofs_no_site_file;
 
 typedef struct export_entry {
     export_t export;
@@ -90,6 +95,7 @@ static pthread_rwlock_t volumes_lock;
 static pthread_t bal_vol_thread;
 static pthread_t rm_bins_thread;
 static pthread_t monitor_thread;
+static pthread_t geo_poll_thread;
 
 static char exportd_config_file[PATH_MAX] = EXPORTD_DEFAULT_CONFIG;
 
@@ -128,7 +134,7 @@ int hash_file_compute(char *path,uint32_t *hash_p)
   uint8_t c;
 
   FILE *fp = fopen( path,"r");
-  if (fp < 0)
+  if (fp == NULL)
   {
     return -1;
   }
@@ -141,8 +147,6 @@ int hash_file_compute(char *path,uint32_t *hash_p)
   fclose(fp);
   return 0;
 }
-
-
 /*
  *_______________________________________________________________________
  */
@@ -383,6 +387,107 @@ static void *monitoring_thread(void *v) {
     return 0;
 }
 
+
+/*
+**____________________________________________________________________________
+*/
+/**
+*  Geo-replication polling 
+
+   that function is the ticker of the geo-replication. its role
+   is to check the buffer that must be flushed on disk and
+   take care of the progression of the geo-replication indexes file
+*/
+void geo_replication_poll()
+{
+    list_t *iterator;
+    export_t *e;
+    int k;
+    geo_rep_srv_ctx_t *ctx_p;
+    
+    if ((errno = pthread_rwlock_rdlock(&exports_lock)) != 0) {
+        severe("can lock exports.");
+        return ;
+    }
+
+    list_for_each_forward(iterator, &exports) 
+    {
+      export_entry_t *entry = list_entry(iterator, export_entry_t, list);
+      e = &entry->export;
+      /*
+      ** check if the geo-replication is actve for that exportd: 
+      ** it is indicated thanks a a flag in the attached volume
+      */
+      if (e->volume->georep != 0) 
+      {
+	for (k = 0; k < EXPORT_GEO_MAX_CTX; k++)
+	{
+	  ctx_p = e->geo_replication_tb[k];
+	  if (ctx_p == NULL)
+	  {
+	     continue;
+	  }
+	  geo_replication_poll_one_exportd(ctx_p);
+	}
+      }
+    }
+    if ((errno = pthread_rwlock_unlock(&exports_lock)) != 0) {
+        severe("can unlock exports, potential dead lock.");
+        return ;
+    }
+}
+/**
+*  Polling thread that control the geo-replication disk flush
+ */
+static void *georep_poll_thread(void *v) {
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    rpcclt_t export_cnx;
+    struct timeval timeout_mproto;
+    void *ret;
+
+    // Set the frequency of calls
+    struct timespec ts = {5, 0};
+    /*
+    ** initiate a local connection towards the exportd: use localhost as
+    ** destination host
+    */
+    timeout_mproto.tv_sec = 10;
+    timeout_mproto.tv_usec = 0;
+    /*
+    ** init of the rpc context before attempting to connect with the 
+    ** exportd
+    */
+    init_rpcctl_ctx(&export_cnx);
+
+    while(1)
+    {
+    /*
+    ** OK now initiate the connection with the exportd
+    */
+    if (rpcclt_initialize
+            (&export_cnx, "127.0.0.1", EXPORT_PROGRAM, EXPORT_VERSION,
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0,
+            timeout_mproto) == 0) break;
+     /*
+     ** wait for a while and then re-attempt to re-connect
+     */
+     nanosleep(&ts, NULL);
+
+    }
+    for (;;) {
+    
+      ret = ep_geo_poll_1(NULL, export_cnx.client);
+      if (ret == NULL) {
+          errno = EPROTO;
+	  severe("geo-replication polling error");
+      }
+
+    nanosleep(&ts, NULL);
+    }
+    return 0;
+}
+
+
 eid_t *exports_lookup_id(ep_path_t path) {
     list_t *iterator;
     char export_path[PATH_MAX];
@@ -495,6 +600,7 @@ void exports_release() {
     list_for_each_forward_safe(p, q, &exports) {
         export_entry_t *entry = list_entry(p, export_entry_t, list);
 	export_profiler_free(entry->export.eid);
+	geo_profiler_free(entry->export.eid);
         export_release(&entry->export);
         list_remove(p);
         free(entry);
@@ -521,8 +627,9 @@ void volumes_release() {
 
 static int load_volumes_conf() {
     list_t *p, *q, *r;
+    int i;
     DEBUG_FUNCTION;
-
+    
     // For each volume
 
     list_for_each_forward(p, &exportd_config.volumes) {
@@ -533,7 +640,7 @@ static int load_volumes_conf() {
         ventry = (volume_entry_t *) xmalloc(sizeof (volume_entry_t));
 
         // Initialize the volume
-        volume_initialize(&ventry->volume, vconfig->vid, vconfig->layout);
+        volume_initialize(&ventry->volume, vconfig->vid, vconfig->layout,vconfig->georep);
 
         // For each cluster of this volume
 
@@ -543,13 +650,14 @@ static int load_volumes_conf() {
             // Memory allocation for this cluster
             cluster_t *cluster = (cluster_t *) xmalloc(sizeof (cluster_t));
             cluster_initialize(cluster, cconfig->cid, 0, 0);
-
-            list_for_each_forward(r, &cconfig->storages) {
-                storage_node_config_t *sconfig = list_entry(r, storage_node_config_t, list);
-                volume_storage_t *vs = (volume_storage_t *) xmalloc(sizeof (volume_storage_t));
-                volume_storage_initialize(vs, sconfig->sid, sconfig->host);
-                list_push_back(&cluster->storages, &vs->list);
-            }
+            for (i = 0; i <ROZOFS_GEOREP_MAX_SITE; i++) {
+              list_for_each_forward(r, (&cconfig->storages[i])) {
+                  storage_node_config_t *sconfig = list_entry(r, storage_node_config_t, list);
+                  volume_storage_t *vs = (volume_storage_t *) xmalloc(sizeof (volume_storage_t));
+                  volume_storage_initialize(vs, sconfig->sid, sconfig->host);
+                  list_push_back((&cluster->storages[i]), &vs->list);
+              }
+	    }
             // Add this cluster to the list of this volume
             list_push_back(&ventry->volume.clusters, &cluster->list);
         }
@@ -599,6 +707,7 @@ static int load_exports_conf() {
 	
 	// Allocate default profiler structure
         export_profiler_allocate(econfig->eid);
+        geo_profiler_allocate(econfig->eid);
 
 
         // Add this export to the list of exports
@@ -618,6 +727,7 @@ static int exportd_initialize() {
 
     // Initialize lv2 cache
     lv2_cache_initialize(&cache);
+    
 
     // Initialize list of volume(s)
     if (volumes_initialize() != 0)
@@ -659,6 +769,10 @@ static int exportd_initialize() {
     if (pthread_create(&monitor_thread, NULL, monitoring_thread, NULL) != 0)
         fatal("can't create monitoring thread %s", strerror(errno));
 
+    if (pthread_create(&geo_poll_thread, NULL, georep_poll_thread, NULL) != 0)
+        fatal("can't create geo-replication polling thread %s", strerror(errno));
+
+
     return 0;
 }
 
@@ -667,6 +781,8 @@ static void exportd_release() {
     pthread_cancel(bal_vol_thread);
     pthread_cancel(rm_bins_thread);
     pthread_cancel(monitor_thread);
+    pthread_cancel(geo_poll_thread);
+
 
     if ((errno = pthread_rwlock_destroy(&config_lock)) != 0) {
         severe("can't release config lock: %s", strerror(errno));
@@ -690,6 +806,7 @@ static void on_start() {
 
     // Allocate default profiler structure
     export_profiler_allocate(0);
+    geo_profiler_allocate(0);
     
     /**
     * start the non blocking thread
@@ -1059,6 +1176,21 @@ int main(int argc, char *argv[]) {
         {"config", required_argument, 0, 'c'},
         {0, 0, 0, 0}
     };
+    openlog("exportd", LOG_PID, LOG_DAEMON);
+    
+    /*
+    ** open the rozofs_site file
+    */
+    int ret = rozofs_get_local_site();
+    if (ret < 0)
+    {
+     rozofs_no_site_file = 1;
+    }
+    else
+    {
+      rozofs_no_site_file = 0;
+    }
+
 
     /* Try to get debug port from /etc/services */
     expgwc_non_blocking_conf.debug_port = get_service_port("rozo_exportd_dbg",NULL,rzdbg_default_base_port);
@@ -1142,7 +1274,6 @@ int main(int argc, char *argv[]) {
         goto error;
     }
 
-    openlog("exportd", LOG_PID, LOG_DAEMON);
     daemon_start("exportd",exportd_config.nb_cores,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
 
 

@@ -21,13 +21,21 @@
 . env.sh 2> /dev/null
 
 COREDIR="/var/run/rozofs_core"
+# $1 is the site number
+create_site() {
+ROZOFS_SITE_PATH=/usr/local/etc/rozofs/
 
-process_killer () {
+   mkdir -p $ROZOFS_SITE_PATH
+   echo $1 > $ROZOFS_SITE_PATH/rozofs_site
+}
+process_killer () { 
 
+  echo "$1"
   if ls /var/run/$1* > /dev/null 2>&1
   then
     for pid in `cat /var/run/$1* `
     do
+      echo "`cat /var/run/$1* `"
       kill $pid  > /dev/null 2>&1    
     done
   else
@@ -137,6 +145,63 @@ gen_storage_conf ()
     done;
 }
 
+gen_storage_georep_conf ()
+{
+    STORAGES_BY_CLUSTER=$1
+    PORT_PER_STORAGE_HOST=$2
+
+    let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+
+    sid=0    
+    host=$3
+
+    for i in $(seq ${nb_clusters}); do
+
+        for j in $(seq ${STORAGES_BY_CLUSTER}); do
+
+           sid=$((sid+1))
+           host=$((host+1))
+
+           FILE=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${i}'_'${host}'.conf'
+
+           echo "$FILE"
+
+            if [ ! -e "$LOCAL_CONF" ]
+            then
+                mkdir -p $LOCAL_CONF
+            fi
+
+            if [ -e "$FILE" ]
+            then
+                rm -rf $FILE
+            fi
+
+            touch $FILE
+
+            echo "#${NAME_LABEL}" >> $FILE
+            echo "#${DATE_LABEL}" >> $FILE
+
+            printf "threads = $NB_DISK_THREADS;\n" >> $FILE
+            printf "nbCores = $NB_CORES;\n" >> $FILE
+            printf "storio  = \"$STORIO_MODE\";" >> $FILE
+
+            printf "listen = ( \n" >> $FILE
+            printf "  {addr = \"192.168.2.$host\"; port = 41000;}" >> $FILE
+
+            # Test for special character "*"
+            #printf "  {addr = \"*\"; port = 4100$sid;}" >> $FILE
+
+            for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
+                printf " ,\n  {addr = \"192.168.$((idx+1)).$host\"; port = 41000;}"
+            done >>  $FILE
+
+            printf "\n);\n" >>  $FILE
+            echo 'storages = (' >> $FILE
+            echo "  {cid = $i; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$i-$host\";}" >> $FILE
+            echo ');' >> $FILE
+        done; 
+    done;
+}
 # $1 -> LAYOUT
 # $2 -> storages by node
 # $2 -> Nb. of exports
@@ -337,14 +402,107 @@ gen_export_conf ()
     echo ');' >> $FILE
 }
 
+# $1 -> LAYOUT
+gen_export_georep_conf ()
+{
+
+    ROZOFS_LAYOUT=$1
+
+    FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
+
+    if [ ! -e "$LOCAL_CONF" ]
+    then
+        mkdir -p $LOCAL_CONF
+    fi
+
+    if [ -e "$FILE" ]
+    then
+        rm -rf $FILE
+    fi
+
+    sid=0
+
+    touch $FILE
+    echo "#${NAME_LABEL}" >> $FILE
+    echo "#${DATE_LABEL}" >> $FILE
+#    echo "layout = ${ROZOFS_LAYOUT} ;" >> $FILE
+    echo "layout = 2 ;" >> $FILE
+    echo 'volumes =' >> $FILE
+    echo '      (' >> $FILE
+
+        for v in $(seq ${NB_VOLUMES}); do
+
+            echo '        {' >> $FILE
+            echo "            vid = $v;" >> $FILE
+	    echo "            layout = $ROZOFS_LAYOUT;" >> $FILE
+	    echo "            georep = 1;" >> $FILE
+            echo '            cids= ' >> $FILE
+            echo '            (' >> $FILE
+
+            for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+
+                let idx_cluster=(${v}-1)*${NB_CLUSTERS_BY_VOLUME}+${c}
+
+                echo '                   {' >> $FILE
+                echo "                       cid = $idx_cluster;" >> $FILE
+                echo '                       sids =' >> $FILE
+                echo '                       (' >> $FILE
+
+                for k in $(seq ${STORAGES_BY_CLUSTER}); do
+                    sid=$((sid+1))                    
+		    sid_geo=$((sid+8))
+                    if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
+                    then
+                        echo "                           {sid = ${sid}; site0 = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";site1 = \"${LOCAL_STORAGE_NAME_BASE}${sid_geo}\";}" >> $FILE
+                    else
+                        echo "                           {sid = ${sid}; site0 = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";site1 = \"${LOCAL_STORAGE_NAME_BASE}${sid_geo}\";}," >> $FILE
+                    fi
+                done;
+
+                echo '                       );' >> $FILE
+                if [[ ${c} == ${NB_CLUSTERS_BY_VOLUME} ]]
+                then
+                    echo '                   }' >> $FILE
+                else
+                    echo '                   },' >> $FILE
+                fi
+            done;
+        echo '            );' >> $FILE
+        if [[ ${v} == ${NB_VOLUMES} ]]
+        then
+            echo '        }' >> $FILE
+        else
+            echo '        },' >> $FILE
+        fi
+        done;
+    echo '    )' >> $FILE
+    echo ';' >> $FILE
+    
+    echo 'exports = (' >> $FILE
+    for k in $(seq ${NB_EXPORTS}); do
+        if [[ ${k} == ${NB_EXPORTS} ]]
+        then
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}" >> $FILE
+        else
+            echo "   {eid = $k; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${k};}," >> $FILE
+        fi
+    done;
+    echo ');' >> $FILE
+}
+
 start_one_storage() 
 {
 	case $1 in
-		"all") start_storaged ${STORAGES_BY_CLUSTER}; return;;
+		"all") start_storaged ${STORAGES_BY_CLUSTER} 0; return;;
 	esac
    
 	sid=$1
-	cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+	if [ $1 -gt 8 ];
+	then 
+	 cid=$(( ((sid-9) / STORAGES_BY_CLUSTER) + 1 ))
+	else
+	 cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
+	fi
 	#echo "Start storage cid: $cid sid: $sid"
 	${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid
 	#sleep 1
@@ -378,7 +536,7 @@ stop_one_storage () {
      "all") stop_storaged; return;;
    esac
    
-   process_killer storaged_${LOCAL_STORAGE_NAME_BASE}$1
+   process_killer "storaged_${LOCAL_STORAGE_NAME_BASE}$1."
 }   
 reset_one_storage () {
   stop_one_storage $1
@@ -386,6 +544,7 @@ reset_one_storage () {
   start_one_storage $1
 }
 # $1 = STORAGES_BY_CLUSTER
+# $2 = first sid
 start_storaged ()
 {
 
@@ -394,7 +553,7 @@ start_storaged ()
     echo "------------------------------------------------------"
     echo "Start ${LOCAL_STORAGE_DAEMON}"
 
-    sid=0
+    sid=$2
     
     for v in $(seq ${NB_VOLUMES}); do
         for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
@@ -413,12 +572,15 @@ stop_storaged()
    echo "------------------------------------------------------"
    echo "Stopping the storaged"
    sid=0
+   sid_geo=8
     
    for v in $(seq ${NB_VOLUMES}); do
      for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
        for j in $(seq ${STORAGES_BY_CLUSTER}); do
 	 sid=$((sid+1))
+	 sid_geo=$((sid_geo+1))
 	 stop_one_storage $sid
+	 stop_one_storage $sid_geo
        done
     done
   done   
@@ -430,13 +592,13 @@ reload_storaged ()
     kill -1 `ps ax | grep ${LOCAL_STORAGE_DAEMON} | grep -v grep | awk '{print $1}'`
 }
 
-# $1 -> storages by node
+# $1 -> starting sid
 create_storages ()
 {
 
     let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
 
-    sid=0
+    sid=$1
      
     for i in $(seq ${nb_clusters}); do
 
@@ -553,6 +715,43 @@ go_layout ()
 	done;
     fi
 }
+go_layout_georep ()
+{
+    ROZOFS_LAYOUT=$1
+    STORAGES_BY_CLUSTER=$2
+
+    if [ ! -e "${LOCAL_CONF}export_l${ROZOFS_LAYOUT}.conf" ] || [ ! -e "${LOCAL_CONF}export_l${ROZOFS_LAYOUT}.conf" ]
+    then
+        echo "Unable to change configuration files to layout ${ROZOFS_LAYOUT}"
+        exit 0
+    else
+        ln -s -f ${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf' ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
+
+
+        let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+        sid=0
+    
+	for i in $(seq ${nb_clusters}); do
+            for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	    
+        	sid=$((sid+1))
+                ln -s -f ${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${i}'_'${sid}'.conf' ${LOCAL_CONF}'_'${i}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE}
+            done;
+	done;
+
+
+        let nb_clusters=$((${NB_CLUSTERS_BY_VOLUME}*${NB_VOLUMES}))
+        sid=8
+    
+	for i in $(seq ${nb_clusters}); do
+            for j in $(seq ${STORAGES_BY_CLUSTER}); do
+	    
+        	sid=$((sid+1))
+                ln -s -f ${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${i}'_'${sid}'.conf' ${LOCAL_CONF}'_'${i}'_'${sid}"_"${LOCAL_STORAGE_CONF_FILE}
+            done;
+	done;
+    fi
+}
 
 deploy_clients_local ()
 {
@@ -596,11 +795,73 @@ deploy_clients_local ()
                             ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
 
                     ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
-                    #${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 1 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}_${idx_client}  -D 610${j1&
-                    #${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 2 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}_${idx_client} -D 610${j}2&
+
                     
                 else
                     echo "Unable to mount RozoFS (${LOCAL_MNT_PREFIX}_${j}_${idx_client} already mounted)"
+                fi
+
+            done;
+        done;
+    fi
+}
+
+
+deploy_clients_local_geo ()
+{
+    echo "------------------------------------------------------"
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+    then
+        echo "Unable to mount RozoFS (configuration file doesn't exist)"
+    else
+
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+
+        for j in $(seq ${NB_EXPORTS}); do
+            geo_site=0
+	    
+
+            for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
+                mount_point=${LOCAL_MNT_ROOT}${j}_${idx_client}_g${geo_site}
+                mountpoint -q ${mount_point}
+	
+
+                if [ "$?" -ne 0 ]
+                then
+
+                    echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${mount_point}"
+
+                    if [ ! -e "${mount_point}" ]
+                    then
+                        mkdir -p ${mount_point}
+                    fi
+
+                    option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+                    option="$option -o nbcores=$NB_CORES"
+                    option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
+                    option="$option -o rozofsnbstorcli=$NB_STORCLI"
+                    option="$option -o rozofsshaper=$SHAPER"
+                    option="$option -o posixlock"
+                    option="$option -o bsdlock"
+                    option="$option -o rozofsrotate=3"		
+		    option="$option -o site=${geo_site}"	    
+                    let "INSTANCE=${idx_client}-1"
+		    INSTANCE=$((2*INSTANCE))
+                    option="$option -o instance=$INSTANCE"
+
+                    echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} \
+                            ${mount_point} ${option}
+
+                    ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${mount_point} ${option}
+                    INSTANCE=$((INSTANCE+1))
+                     echo ${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${mount_point} -G $geo_site -i $INSTANCE
+
+                    ${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${mount_point} -G $geo_site -i $INSTANCE &        
+
+ 		    geo_site=$((1-geo_site))
+                   
+                else
+                    echo "Unable to mount RozoFS (${mount_point} already mounted)"
                 fi
 
             done;
@@ -614,7 +875,12 @@ rozofsmount_kill_best_effort()
     echo "Killing rozofsmount and storcli in best effort mode"
     process_killer rozofsmount
 }
-
+geocli_kill_best_effort()
+{
+    #echo "------------------------------------------------------"
+    echo "Killing geocli and storcli in best effort mode"
+    process_killer geocli
+}
 undeploy_clients_local ()
 {
     echo "------------------------------------------------------"
@@ -631,11 +897,11 @@ undeploy_clients_local ()
         #do
         #   kill -9 $pid
         #done
-
+       
         for j in $(seq ${NB_EXPORTS}); do
-
+            geo_site=0
             for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
-
+                mount_point=${LOCAL_MNT_ROOT}${j}_${idx_client}_g${geo_site}
                 echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}_${idx_client}"
 
                 umount ${LOCAL_MNT_ROOT}${j}_${idx_client}
@@ -646,7 +912,15 @@ undeploy_clients_local ()
 
                 rm -rf ${LOCAL_MNT_ROOT}${j}_${idx_client}
 
-                storcli_killer.sh ${LOCAL_MNT_ROOT}${j}_${idx_client} > /dev/null 2>&1
+                umount ${mount_point}
+		case $? in
+		  0) ;;
+		  *) umount -l $mount_point;;
+		esac  
+
+                rm -rf $mount_point
+                storcli_killer.sh $mount_point > /dev/null 2>&1
+		geo_site=$((1-geo_site))
 
             done
 
@@ -655,7 +929,7 @@ undeploy_clients_local ()
     sleep 0.4
 
     rozofsmount_kill_best_effort
-
+    geocli_kill_best_effort
     fi
 }
 
@@ -755,10 +1029,18 @@ remove_build ()
 }
 
 do_start_all_processes() {
-     start_storaged ${STORAGES_BY_CLUSTER}
+     start_storaged ${STORAGES_BY_CLUSTER} 0
      #start_expgw
      start_exportd 1
      deploy_clients_local
+}
+
+do_start_all_processes_geo() {
+     start_storaged ${STORAGES_BY_CLUSTER} 0
+     start_storaged ${STORAGES_BY_CLUSTER} 8
+     #start_expgw
+     start_exportd 1
+     deploy_clients_local_geo
 }
 
 do_pause() {
@@ -928,6 +1210,7 @@ fileop_test(){
 usage ()
 {
     echo >&2 "Usage:"
+    echo >&2 "$0 site <0|1>"
     echo >&2 "$0 start <layout>"
     echo >&2 "$0 stop"
     echo >&2 "$0 pause"
@@ -1062,6 +1345,8 @@ main ()
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storcli
     # to reach storcli_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
+    # to reach storcli_starter.sh  
+    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/geocli
     # to reach storio executable
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
     # to reach storio_starter.sh  
@@ -1081,6 +1366,7 @@ main ()
     ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=2
     SQUOTA=""
     HQUOTA=""
+    GEOREP=2
 
     STORIO_MODE="multiple"
     #STORIO_MODE="single"
@@ -1089,10 +1375,14 @@ main ()
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
 
     ulimit -c unlimited
-    nbaddr=$((STORAGES_BY_CLUSTER*NB_CLUSTERS_BY_VOLUME*NB_VOLUMES))
+    nbaddr=$((STORAGES_BY_CLUSTER*NB_CLUSTERS_BY_VOLUME*NB_VOLUMES*GEOREP))
     ${WORKING_DIR}/conf_local_addr.sh set $nbaddr eth0 > /dev/null 2>&1 
-    
-    if [ "$1" == "start" ]
+    if [ "$1" == "site" ]
+    then    
+        [ $# -lt 2 ] && usage
+        create_site $2   
+	
+    elif [ "$1" == "start" ]
     then
 
         [ $# -lt 2 ] && usage
@@ -1109,10 +1399,32 @@ main ()
 
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
-        create_storages
+        create_storages 0
         create_exports
 
         do_start_all_processes
+    elif [ "$1" == "startg" ]
+    then
+
+        [ $# -lt 2 ] && usage
+
+        # Set layout
+        set_layout $2
+
+        check_build
+        do_stop
+
+        gen_storage_georep_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST} 0
+        gen_storage_georep_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST} 8
+        gen_export_georep_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
+
+        go_layout_georep ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
+
+        create_storages 0
+        create_storages 8
+        create_exports
+
+        do_start_all_processes_geo
 
     elif [ "$1" == "stop" ]
     then

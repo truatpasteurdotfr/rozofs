@@ -94,7 +94,6 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
     arguments = ruc_buf_getPayload(rozorpc_srv_ctx_p->decoded_arg);
 
     void (*local)(void *, rozorpc_srv_ctx_t *);
-
     switch (hdr.proc) {
     
     case SP_NULL:
@@ -126,6 +125,15 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       local = sp_truncate_1_svc_disk_thread;
       size = sizeof (sp_truncate_arg_no_bins_t);
       break;
+
+    case SP_REMOVE:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_remove_arg_t;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_status_ret_t;
+//      local = sp_truncate_1_svc_nb;
+      local = sp_remove_1_svc_disk_thread;
+      size = sizeof (sp_truncate_arg_no_bins_t);
+      break;
+
 
     default:
       rozorpc_srv_ctx_p->xmitBuf = rozorpc_srv_ctx_p->recv_buf;
