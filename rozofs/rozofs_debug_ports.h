@@ -27,6 +27,8 @@
 extern uint16_t rzdbg_default_base_port;
 
 #define RZDBG_DEFAULT_BASE_PORT  50000   /**< default base port for debug service   */
+#define GEODBG_DEFAULT_BASE_PORT  50200   /**< default base port for geo-replication debug service   */
+
 #define RZDBG_ROZOFSMOUNT_MAX_INSTANCES 8
 
 /**
@@ -54,7 +56,21 @@ static inline uint16_t rzdbg_get_rozofsmount_port(uint8_t instance) {
 }
 
 /**
- * Get the storcli rozodiag port based on the rozofmount instance and storcli instance
+ * Get the rozofsmount rozodiag port based on the rozofmount instance 
+
+  @param instance :rozofsmount instance
+  
+  @retval rozodiag port value
+  
+ */
+static inline uint16_t rzdbg_get_geocli_port(uint8_t instance) {
+
+    return (GEODBG_DEFAULT_BASE_PORT + instance * 3);
+
+}
+
+/**
+ * Get the storcli rozodebug port based on the rozofmount instance and storcli instance
 
   @param rozofs_instance: rozofsmount instance
   @param storcli_instance: storcli instance

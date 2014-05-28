@@ -490,6 +490,81 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
 }    
 
 
+/**
+*  Remove a file
+
+  @param thread_ctx_p: pointer to the thread context
+  @param msg         : address of the message received
+  
+  @retval: none
+*/
+static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+  struct timeval     timeDay;
+  unsigned long long timeBefore, timeAfter;
+  storage_t *st = 0;
+  sp_remove_arg_t      * args;
+  rozorpc_srv_ctx_t      * rpcCtx;
+  sp_status_ret_t          ret;
+  int                      result;
+  
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeBefore = MICROLONG(timeDay);
+
+  ret.status = SP_FAILURE;          
+  
+  /*
+  ** update statistics
+  */
+  thread_ctx_p->stat.diskRemove_count++;
+  
+  rpcCtx = msg->rpcCtx;
+  args   = (sp_remove_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+
+  /*
+  ** set the pointer to the bins
+  */
+  char *pbuf = ruc_buf_getPayload(rpcCtx->recv_buf); 
+  pbuf += rpcCtx->position;
+    
+  /*
+  ** Use received buffer for the response
+  */
+  rpcCtx->xmitBuf  = rpcCtx->recv_buf;
+  rpcCtx->recv_buf = NULL;
+  
+
+  // Get the storage for the couple (cid;sid)
+  if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    ret.sp_status_ret_t_u.error = errno;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRemove_badCidSid++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }
+  
+
+  // remove bins file
+  result = storage_rm_file(st,(unsigned char *) args->fid);
+  if (result != 0) {
+    ret.sp_status_ret_t_u.error = errno;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRemove_error++; 
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }
+  
+  ret.status = SP_SUCCESS;          
+  storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+  storio_send_response(thread_ctx_p,msg,0);
+
+  /*
+  ** Update statistics
+  */
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
+  thread_ctx_p->stat.diskRemove_time +=(timeAfter-timeBefore);  
+}    
+
 /*
 **   D I S K   T H R E A D
 */
@@ -533,7 +608,11 @@ void *storio_disk_thread(void *arg) {
       case STORIO_DISK_THREAD_TRUNCATE:
         storio_disk_truncate(ctx_p,&msg);
         break;
-       	
+
+      case STORIO_DISK_THREAD_REMOVE:
+        storio_disk_remove(ctx_p,&msg);
+        break;
+	       	
       default:
         fatal(" unexpected opcode : %d\n",msg.opcode);
         exit(0);       

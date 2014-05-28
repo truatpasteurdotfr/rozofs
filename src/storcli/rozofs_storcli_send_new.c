@@ -648,6 +648,83 @@ error:
 }
 
 
+/*
+**__________________________________________________________________________
+*/
+/**
+* send a delete success reply
+  That API fill up the common header with the SP_READ_RSP opcode
+  insert the transaction_id associated with the inittial request transaction id
+  insert a status OK
+  insert the length of the data payload
+  
+  In case of a success it is up to the called function to release the xmit buffer
+  
+  @param p : pointer to the root transaction context used for the read
+  
+  @retval none
+
+*/
+void rozofs_storcli_delete_reply_success(rozofs_storcli_ctx_t *p)
+{
+   int ret;
+   uint8_t *pbuf;           /* pointer to the part that follows the header length */
+   uint32_t *header_len_p;  /* pointer to the array that contains the length of the rpc message*/
+   XDR xdrs;
+   int len;
+   storcli_status_ret_t status;
+
+   status.status = STORCLI_SUCCESS;
+   status.storcli_status_ret_t_u.error = 0;  /* NS */
+
+    STORCLI_STOP_NORTH_PROF(p,delete,0);   
+    /*
+    ** create xdr structure on top of the buffer that will be used for sending the response
+    */
+    header_len_p = (uint32_t*)ruc_buf_getPayload(p->xmitBuf); 
+    pbuf = (uint8_t*) (header_len_p+1);            
+    len = (int)ruc_buf_getMaxPayloadLen(p->xmitBuf);
+    len -= sizeof(uint32_t);
+    xdrmem_create(&xdrs,(char*)pbuf,len,XDR_ENCODE); 
+    if (rozofs_encode_rpc_reply(&xdrs,(xdrproc_t)xdr_sp_status_ret_t,(caddr_t)&status,p->src_transaction_id) != TRUE)
+    {
+      severe("rpc reply encoding error");
+      goto error;     
+    }       
+    /*
+    ** compute the total length of the message for the rpc header and add 4 bytes more bytes for
+    ** the ruc buffer to take care of the header length of the rpc message.
+    */
+    int total_len = xdr_getpos(&xdrs) ;
+    *header_len_p = htonl(0x80000000 | total_len);
+    total_len +=sizeof(uint32_t);
+    ruc_buf_setPayloadLen(p->xmitBuf,total_len);
+    /*
+    ** Clear the reference of the seqnum to prevent any late response to be processed
+    ** by setting seqnum to 0 any late response is ignored and the associated ressources
+    ** will released (buffer associated with the response). This typically permits to
+    ** avoid sending again the response while this has already been done
+    */
+    p->read_seqnum = 0;
+    /*
+    ** Get the callback for sending back the response:
+    ** A callback is needed since the request for read might be local or remote
+    */
+    ret = (*p->response_cbk)(p->xmitBuf,p->socketRef,p->user_param);
+    if (ret == 0)
+    {
+      /**
+      * success so remove the reference of the xmit buffer since it is up to the called
+      * function to release it
+      */
+      p->xmitBuf = NULL;
+    }
+    
+error:
+    return;
+} 
+
+
 
 /**
 *  Check if a load balancing group is selectable based on the tmo counter

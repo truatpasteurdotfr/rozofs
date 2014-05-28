@@ -719,7 +719,7 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    */
    if (storcli_write_rq_p->len & 0x80000000)
    {
-     if (storcli_rozofsmount_shared_mem.active == 0)
+     if (storcli_rozofsmount_shared_mem[SHAREMEM_IDX_WRITE].active == 0)
      {
        /*
        ** the shared memory is not active , so the write cannot take place
@@ -730,9 +730,9 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
        /*
        ** set data_write_p to point to the shared memory
        */
-       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem.data_p;
+       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem[SHAREMEM_IDX_WRITE].data_p;
        int shared_mem_idx = (storcli_write_rq_p->len & 0xff);
-       uint32_t buf_offset = shared_mem_idx*storcli_rozofsmount_shared_mem.buf_sz;
+       uint32_t buf_offset = shared_mem_idx*storcli_rozofsmount_shared_mem[SHAREMEM_IDX_WRITE].buf_sz;
        uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
        /*
        ** restore the length of the data to write in the write interface

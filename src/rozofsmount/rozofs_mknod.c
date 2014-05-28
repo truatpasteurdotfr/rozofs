@@ -93,6 +93,8 @@ void rozofs_ll_mknod_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     arg.arg_gw.uid  = ctx->uid;
     arg.arg_gw.gid  = ctx->gid;
     arg.arg_gw.mode = mode;
+    arg.hdr.gateway_rank = rozofs_get_site_number();     
+
     /*
     ** now initiates the transaction towards the remote end
     */

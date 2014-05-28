@@ -67,8 +67,9 @@ int monitor_volume(volume_t *volume) {
     list_t *p, *q;
     volume_t clone;
     uint32_t nb_storages = 0;
+    int local_site = export_get_local_site_number();
 
-    volume_initialize(&clone, 0, 0);
+    volume_initialize(&clone, 0, 0,0);
     if (volume_safe_copy(&clone, volume) != 0) {
         severe("can't clone volume: %d", volume->vid);
         goto out;
@@ -81,9 +82,11 @@ int monitor_volume(volume_t *volume) {
     }
 
     gprofiler.vstats[gprofiler.nb_volumes].vid = clone.vid;
+    gprofiler.vstats[gprofiler.nb_volumes].georep = clone.georep;
 
     dprintf(fd, HEADER, VERSION);
     dprintf(fd, "volume: %u\n", clone.vid);
+    dprintf(fd, "georep: %s\n", clone.georep?"YES":"NO");
 
     //XXX TO CHANGE
     volume_stat(&clone,&vstat);
@@ -99,11 +102,11 @@ int monitor_volume(volume_t *volume) {
     list_for_each_forward(p, &clone.clusters) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
         dprintf(fd, "cluster: %u\n", cluster->cid);
-        dprintf(fd, "nb_storages: %d\n", list_size(&cluster->storages));
+        dprintf(fd, "nb_storages: %d\n", list_size((&cluster->storages[local_site])));
         dprintf(fd, "size: %"PRIu64"\n", cluster->size);
         dprintf(fd, "free: %"PRIu64"\n", cluster->free);
 
-        list_for_each_forward(q, &cluster->storages) {
+        list_for_each_forward(q, (&cluster->storages[local_site])) {
             volume_storage_t *storage = list_entry(q, volume_storage_t, list);
 
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].cid = cluster->cid;
@@ -119,8 +122,32 @@ int monitor_volume(volume_t *volume) {
             dprintf(fd, "size: %"PRIu64"\n", storage->stat.size);
             dprintf(fd, "free: %"PRIu64"\n", storage->stat.free);
         }
+
     }
     gprofiler.vstats[gprofiler.nb_volumes].nb_storages = nb_storages;
+    /*
+    ** case of the geo-replication
+    */
+    if (clone.georep)
+    {
+      list_for_each_forward(p, &clone.clusters) {
+          cluster_t *cluster = list_entry(p, cluster_t, list);
+
+          list_for_each_forward(q, (&cluster->storages[1-local_site])) {
+              volume_storage_t *storage = list_entry(q, volume_storage_t, list);
+
+              gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].cid = cluster->cid;
+              gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].sid = storage->sid;
+              gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].status = storage->status;
+              gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].size = storage->stat.size;
+              gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].free = storage->stat.free;
+              nb_storages++;
+
+          }
+      }        
+    }
+ 
+    
 
     // Free the clone volume
     p = NULL;

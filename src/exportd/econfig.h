@@ -35,13 +35,14 @@ typedef struct storage_node_config {
 
 typedef struct cluster_config {
     cid_t cid;
-    list_t storages;
+    list_t storages[ROZOFS_GEOREP_MAX_SITE];
     list_t list;
 } cluster_config_t;
 
 typedef struct volume_config {
     vid_t vid;
     uint8_t layout;    
+    uint8_t georep;    
     list_t clusters;
     list_t list;
 } volume_config_t;

@@ -24,6 +24,7 @@ storcli_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		storcli_write_arg_t storcli_write_1_arg;
 		storcli_read_arg_t storcli_read_1_arg;
 		storcli_truncate_arg_t storcli_truncate_1_arg;
+		storcli_delete_arg_t storcli_delete_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -52,6 +53,12 @@ storcli_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_storcli_truncate_arg_t;
 		_xdr_result = (xdrproc_t) xdr_storcli_status_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) storcli_truncate_1_svc;
+		break;
+
+	case STORCLI_DELETE:
+		_xdr_argument = (xdrproc_t) xdr_storcli_delete_arg_t;
+		_xdr_result = (xdrproc_t) xdr_storcli_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) storcli_delete_1_svc;
 		break;
 
 	default:

@@ -249,7 +249,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t rozofsmount_instance)
      **--------------------------------------
      */
 
-     printf(" ./lnkdebug -p %d\n",dbg_port);
+     
      uma_dbg_init(10,INADDR_ANY,dbg_port);
 
 

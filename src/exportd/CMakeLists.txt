@@ -85,6 +85,22 @@ add_executable(exportd
    export_tracking_poll.c
    dirent_writeback_cache.c
    export_trash_reload.c
+    geo_replication.c
+    geo_replication_dbg.c    
+    geo_replication.h
+    
+    geo_replica_proto_nb.c    
+    geo_replica_proto_nb.h
+    geo_replica_protosvc_nb.h   
+    geo_replica_protosvc_nb.c   
+    geo_replica_srv.c
+    geo_replica_srv.h
+    geo_replica_north_intf.c
+    geo_replica_north_intf.h
+    geo_replica_ctx.c
+    geo_replica_ctx.h
+    geo_replica_tmr.c
+    geo_replica_tmr.h
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 

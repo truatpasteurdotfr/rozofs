@@ -78,7 +78,7 @@ void *rozofs_exportd_config_supervision_thread(void *exportd_context_p) {
     arg_poll.eid = 0;  /* NS*/
     arg_poll.hash_config  = exportd_configuration_file_hash;
     arg_poll.nb_gateways  = 0; /* NS */
-    arg_poll.gateway_rank = 0; /* NS */
+    arg_poll.gateway_rank = 0; 
 
     status = -1;
     retry = 0;   

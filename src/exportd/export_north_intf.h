@@ -50,7 +50,7 @@ extern void *expnb_xmit_buffer_pool_p ;  /**< reference of the read/write buffer
 #define EXPNB_BUF_RECV_CNT 8
 #define EXPNB_BUF_RECV_SZ  (1024*32) 
 
-#define EXPNB_SLAVE_PORT 53000
+//#define EXPNB_SLAVE_PORT 53000
 
 /*
 **____________________________________________________

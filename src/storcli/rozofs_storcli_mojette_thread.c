@@ -367,7 +367,7 @@ int rozofs_stcmoj_thread_create(char * hostname,int eid,int storcli_idx, int nb_
    /*
    ** create the common socket to receive requests on
    */
-   sprintf(socketName,"%s_%d_%d",ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH,eid,storcli_idx);
+   sprintf(socketName,"%s_%s_%d_%d",ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH,storcli_get_owner(),eid,storcli_idx);
    af_unix_disk_socket_ref = af_unix_mojette_sock_create_internal(socketName,1024*32);
    if (af_unix_disk_socket_ref < 0) {
       fatal("af_unix_disk_thread_create af_unix_mojette_sock_create_internal(%s) %s",socketName,strerror(errno));
@@ -386,7 +386,7 @@ int rozofs_stcmoj_thread_create(char * hostname,int eid,int storcli_idx, int nb_
      /*
      ** create the thread specific socket to send the response from 
      */
-     sprintf(socketName,"%s_%d_%d_%d",ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH,eid,storcli_idx,i);
+     sprintf(socketName,"%s_%s_%d_%d_%d",ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH,storcli_get_owner(),eid,storcli_idx,i);
      thread_ctx_p->sendSocket = af_unix_mojette_sock_create_internal(socketName,1024*32);
      if (thread_ctx_p->sendSocket < 0) {
 	fatal("af_unix_disk_thread_create af_unix_mojette_sock_create_internal(%s) %s",socketName, strerror(errno));

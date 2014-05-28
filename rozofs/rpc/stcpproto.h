@@ -46,6 +46,10 @@ struct stcpp_profiler_t {
 	uint64_t truncate_prj[3];
 	uint64_t truncate_prj_tmo[2];
 	uint64_t truncate_prj_err[2];
+	uint64_t delete[3];
+	uint64_t delete_prj[3];
+	uint64_t delete_prj_tmo[2];
+	uint64_t delete_prj_err[2];
 	uint64_t read_prj[3];
 	uint64_t write_prj[3];
 	uint64_t read_prj_tmo[2];

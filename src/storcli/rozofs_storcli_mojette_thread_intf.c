@@ -38,7 +38,7 @@ DECLARE_PROFILING(spp_profiler_t);
  
 static int transactionId = 1; 
 int        af_unix_mojette_south_socket_ref = -1;
-char       destination_socketName[128];
+//char       destination_socketName[128];
 int        af_unix_mojette_thread_count=0;
 int        af_unix_mojette_pending_req_count = 0;
 int        af_unix_mojette_pending_req_max_count = 0;
@@ -561,7 +561,7 @@ uint32_t af_unix_disk_rcvMsgsock(void * unused,int socketId)
 void storcli_set_socket_name_with_eid_stc_id(struct sockaddr_un *socketname,char *name,char *hostname,int eid,int storcli_idx)
 {
   socketname->sun_family = AF_UNIX;  
-  sprintf(socketname->sun_path,"%s_%d_%d",name,eid,storcli_idx);
+  sprintf(socketname->sun_path,"%s_%s_%d_%d",name,storcli_get_owner(),eid,storcli_idx);
 }
 
 /*
@@ -748,9 +748,9 @@ int rozofs_stcmoj_thread_intf_create(char * hostname,int eid,int storcli_idx, in
   ** hostname is required for the case when several storaged run on the same server
   ** as is the case of test on one server only
   */ 
-  sprintf(destination_socketName,"%s_%s", ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH, hostname);
+//  sprintf(destination_socketName,"%s_%s", ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH, hostname);
   
-  sprintf(socketName,"%s_%d_%d", ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_SOUTH_SUNPATH, eid,storcli_idx);
+  sprintf(socketName,"%s_%s_%d_%d", ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_SOUTH_SUNPATH,storcli_get_owner(), eid,storcli_idx);
   af_unix_mojette_south_socket_ref = af_unix_mojette_thread_response_socket_create(socketName);
   if (af_unix_mojette_south_socket_ref < 0) {
     fatal("storio_create_disk_thread_intf af_unix_sock_create(%s) %s",socketName, strerror(errno));

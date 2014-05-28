@@ -26,13 +26,13 @@ ep_null_1(void *argp, CLIENT *clnt)
 }
 
 epgw_mount_ret_t *
-ep_mount_1(ep_path_t *argp, CLIENT *clnt)
+ep_mount_1(epgw_mount_arg_t *argp, CLIENT *clnt)
 {
 	static epgw_mount_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_MOUNT,
-		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_mount_arg_t, (caddr_t) argp,
 		(xdrproc_t) xdr_epgw_mount_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
@@ -356,13 +356,13 @@ ep_list_cluster_1(uint16_t *argp, CLIENT *clnt)
 }
 
 epgw_conf_ret_t *
-ep_conf_storage_1(ep_path_t *argp, CLIENT *clnt)
+ep_conf_storage_1(epgw_conf_stor_arg_t *argp, CLIENT *clnt)
 {
 	static epgw_conf_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_CONF_STORAGE,
-		(xdrproc_t) xdr_ep_path_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_conf_stor_arg_t, (caddr_t) argp,
 		(xdrproc_t) xdr_epgw_conf_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
@@ -473,4 +473,19 @@ ep_poll_file_lock_1(epgw_lock_arg_t *argp, CLIENT *clnt)
 		return (NULL);
 	}
 	return (&clnt_res);
+}
+
+void *
+ep_geo_poll_1(void *argp, CLIENT *clnt)
+{
+	static char clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, EP_GEO_POLL,
+		(xdrproc_t) xdr_void, (caddr_t) argp,
+		(xdrproc_t) xdr_void, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return ((void *)&clnt_res);
 }

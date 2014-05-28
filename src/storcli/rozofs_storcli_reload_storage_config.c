@@ -214,6 +214,7 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
 
  exportclt_t * clt = (exportclt_t*) exportd_context_p;
  ep_gateway_t  arg_poll;
+ epgw_conf_stor_arg_t arg_conf;
  epgw_status_ret_t  *ret_poll_p;
  epgw_conf_ret_t   *ret_conf_p;
  storcli_conf_ctx_t *storcli_conf_ctx_p = &storcli_conf_ctx;
@@ -241,7 +242,7 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
     arg_poll.eid = 0;  /* NS*/
     arg_poll.hash_config  = exportd_configuration_file_hash;
     arg_poll.nb_gateways  = 0; /* NS */
-    arg_poll.gateway_rank = 0; /* NS */
+    arg_poll.gateway_rank = storcli_get_site_number(); 
 
     status = -1;
     retry = 0;   
@@ -301,9 +302,11 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
     retry = 0; 
     ret_conf_p = NULL;   
     STORCLI_CONF_STATS_INC(storcli_conf_ctx_p,conf_counter);
+    arg_conf.hdr.gateway_rank = storcli_get_site_number();
+    arg_conf.path = clt->root; 
     while ((retry++ < clt->retries) &&
             (!(clt->rpcclt.client) ||
-            !(ret_conf_p = ep_conf_storage_1(&clt->root, clt->rpcclt.client)))) {
+            !(ret_conf_p = ep_conf_storage_1(&arg_conf, clt->rpcclt.client)))) {
 
         /*
         ** release the sock if already configured to avoid losing fd descriptors

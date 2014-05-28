@@ -103,7 +103,7 @@ void expnb_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
 	     break;
 
      case EP_MOUNT:
-	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_ep_path_t;
+	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_epgw_mount_arg_t;
 	     rozorpc_srv_ctx_p->xdr_result = (xdrproc_t) xdr_epgw_mount_ret_t;
 	     local =  ep_mount_1_svc_nb;
 	     size = sizeof(ep_path_t);
@@ -256,7 +256,7 @@ void expnb_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
 	     break;
 
      case EP_CONF_STORAGE:
-	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_ep_path_t;
+	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_epgw_conf_stor_arg_t;
 	     rozorpc_srv_ctx_p->xdr_result = (xdrproc_t) xdr_epgw_conf_ret_t;
 	     local =  ep_conf_storage_1_svc_nb;
 	     size = sizeof(ep_path_t);

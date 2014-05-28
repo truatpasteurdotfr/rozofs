@@ -66,6 +66,9 @@
 #include "export_north_intf.h"
 #include "export_share.h"
 #include "mdirent.h"
+#include "geo_replication.h"
+#include "geo_replica_srv.h"
+#include "geo_replica_ctx.h"
 
 DECLARE_PROFILING(epp_profiler_t);
 
@@ -296,8 +299,10 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
     int i, j;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
-        pbuf+=sprintf(pbuf, "Volume: %d  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
-                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
+        pbuf+=sprintf(pbuf, "Volume: %d georep: %s  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
+                gprofiler.vstats[i].vid,
+                gprofiler.vstats[i].georep?"YES":"NO",
+		 gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
                 (int)((gprofiler.vstats[i].blocks==0)? 0:gprofiler.vstats[i].bfree*100/gprofiler.vstats[i].blocks));
         pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s |\n", "Sid", "Status", "Capacity(B)","Free(B)");
         pbuf+=sprintf(pbuf, "-------+--------+----------------------+----------------------+\n");
@@ -306,6 +311,17 @@ void show_vfstat(char * argv[], uint32_t tcpRef, void *bufRef) {
                     (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", gprofiler.vstats[i].sstats[j].size,
                     gprofiler.vstats[i].sstats[j].free);
         }
+	if (gprofiler.vstats[i].georep)
+	{
+          pbuf+=sprintf(pbuf, "-------+--------+----------------------+----------------------+\n");
+	  int k = gprofiler.vstats[i].nb_storages;
+          for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+              pbuf+=sprintf(pbuf, "%6d | %-6s | %20"PRIu64" | %20"PRIu64" |\n", gprofiler.vstats[i].sstats[j+k].sid,
+                      (gprofiler.vstats[i].sstats[j+k].status==1)?"UP":"DOWN", gprofiler.vstats[i].sstats[j+k].size,
+                      gprofiler.vstats[i].sstats[j+k].free);
+          }
+	}
+
         pbuf += sprintf(pbuf, "\n%-6s | %-6s | %-20s | %-20s | %-12s | %-12s |\n", "Eid", "Bsize", "Blocks", "Bfree", "Files", "Ffree");
         pbuf += sprintf(pbuf, "-------+--------+----------------------+----------------------+--------------+--------------+\n");
 
@@ -339,8 +355,10 @@ void show_vfstat_vol(char * argv[], uint32_t tcpRef, void *bufRef) {
     int i;
 
     for (i = 0; i < gprofiler.nb_volumes; i++) {
-        pbuf+=sprintf(pbuf, "Volume: %d  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
-                gprofiler.vstats[i].vid, gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
+        pbuf+=sprintf(pbuf, "Volume: %d georep: %s  Bsize: %d Blocks: %"PRIu64" Bfree: %"PRIu64" PercentFree: %d\n",
+                gprofiler.vstats[i].vid, 
+		gprofiler.vstats[i].georep?"YES":"NO",
+		gprofiler.vstats[i].bsize,gprofiler.vstats[i].blocks, gprofiler.vstats[i].bfree,
                (int)((gprofiler.vstats[i].blocks==0)? 0:gprofiler.vstats[i].bfree*100/gprofiler.vstats[i].blocks));
 
         pbuf+=sprintf(pbuf, "\n");
@@ -376,6 +394,56 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
                    gprofiler.vstats[i].sstats[j].size,
                    gprofiler.vstats[i].sstats[j].free,
                    (int)((gprofiler.vstats[i].sstats[j].size==0)? 0:gprofiler.vstats[i].sstats[j].free*100/gprofiler.vstats[i].sstats[j].size));
+        }
+	if (gprofiler.vstats[i].georep)
+	{
+        pbuf+=sprintf(pbuf, "-------+--------+--------+--------+----------------------+----------------------+----------+\n");
+	  int k = gprofiler.vstats[i].nb_storages;
+          for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, "%6d | %6d | %6d | %-6s | %20"PRIu64" | %20"PRIu64" | %8d |\n",
+                   gprofiler.vstats[i].vid,gprofiler.vstats[i].sstats[j+k].cid,
+                   gprofiler.vstats[i].sstats[j+k].sid,
+                   (gprofiler.vstats[i].sstats[j+k].status==1)?"UP":"DOWN", 
+                   gprofiler.vstats[i].sstats[j+k].size,
+                   gprofiler.vstats[i].sstats[j+k].free,
+                   (int)((gprofiler.vstats[i].sstats[j+k].size==0)? 0:gprofiler.vstats[i].sstats[j+k].free*100/gprofiler.vstats[i].sstats[j+k].size));
+          }
+	}
+        pbuf+=sprintf(pbuf, "\n");
+    }
+
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Storage statistics for geo-replication
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_geo_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = uma_dbg_get_buffer();
+    int i,j;
+    
+    sprintf(pbuf, "Empty\n");
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+       if (gprofiler.vstats[i].georep == 0) continue;
+       int k = gprofiler.vstats[i].nb_storages;
+ 
+        pbuf+=sprintf(pbuf, "\n%-6s | %-6s | %-6s | %-6s | %-6s |\n","Vid", "Cid", "Sid", "Local", "Remote");
+        pbuf+=sprintf(pbuf, "-------+--------+--------+--------+--------+\n");
+        for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, "%6d | %6d | %6d | %-6s | %-6s |\n",
+                   gprofiler.vstats[i].vid,gprofiler.vstats[i].sstats[j].cid,
+                   gprofiler.vstats[i].sstats[j].sid,
+                   (gprofiler.vstats[i].sstats[j].status==1)?"UP":"DOWN", 
+                   (gprofiler.vstats[i].sstats[j+k].status==1)?"UP":"DOWN");
         }
         pbuf+=sprintf(pbuf, "\n");
     }
@@ -783,6 +851,26 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("flock",    show_flock);    
     uma_dbg_addTopic("trk_thread", show_tracking_thread);
     
+    if (args_p->slave == 0)
+    {
+      /*
+      ** init of the server part of the geo-replication service
+      */
+      ret = geo_replicat_rpc_srv_init(args);
+      if (ret < 0)
+      {
+	severe("geo replication service is unavailable: %s",strerror(errno));
+      }
+      uma_dbg_addTopic("geo_profiler", show_geo_profiler);
+    }
+    
+    ret = geo_proc_module_init(GEO_REP_SRV_CLI_CTX_MAX);
+    if (ret < 0)
+    {
+      severe("geo replication service is unavailable: %s",strerror(errno));
+    }
+    uma_dbg_addTopic("geo_replica", show_geo_replication);
+
     expgwc_non_blocking_thread_started = 1;
     
     info("exportd non-blocking thread started (instance: %d, port: %d).",

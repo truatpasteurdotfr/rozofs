@@ -538,7 +538,15 @@ static inline void storage_get_projection_size(uint8_t spare,
   }
   
   if (prj_id == forward) {
-    severe("storage_write spare %d sid %d",spare, sid);
+    char mylog[128];
+    char * p = mylog;
+    int safe = rozofs_get_rozofs_safe(layout);
+    p += sprintf(p," safe %d ", safe);
+    for (prj_id=0; prj_id < safe; prj_id++) {
+      p += sprintf(p,"/%d", dist_set[prj_id]);
+    }    
+    p += sprintf(p," storage_get_projection_size spare %d sid %d",spare, sid);
+    severe("%s",mylog);
     /* Isn't that storage a spare storage !? */
     *disk = *msg;
     return;

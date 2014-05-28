@@ -27,6 +27,7 @@
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/common/rozofs_site.h>
 
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
@@ -95,6 +96,7 @@ int rozofs_trc_enabled = 0;  /**< assert to 1 when the trace is enable */
 int rozofs_trc_index = 0;
 rozofs_trace_t *rozofs_trc_buffer = NULL;  /**< pointer to the trace buffer */
 int rozofs_xattr_disable = 0; /**< assert to one to disable xattr for the exported file system */
+int rozofs_site_number;  /**< site number for geo-replication */
 
 /**______________________________________________________________________________
 */
@@ -171,6 +173,8 @@ static void usage() {
     fprintf(stderr, "    -o posixlock\t\tactive support for POSIX file lock\n");
     fprintf(stderr, "    -o bsdlock\t\t\tactive support for BSD file lock\n");
     fprintf(stderr, "    -o noXattr\t\t\tdisable support of extended attributes\n");
+    fprintf(stderr, "    -o site=N\t\t\tsite number for geo-replication purpose (default:0)\n");
+
 
 }
 
@@ -218,6 +222,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("quota", quota, 3),
     MYFS_OPT("usrquota", quota, 1),
     MYFS_OPT("noXattr", noXattr, 1),
+    MYFS_OPT("site=%u", site, 0),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -399,6 +404,7 @@ void rozofmount_profiling_thread_run(void *args) {
     /* NOT REACHED */
 }
 #define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_INT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %d\n",#field, conf.field); 
 #define DISPLAY_STRING_CONFIG(field) \
   if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
   else                    pChar += sprintf(pChar,"%-25s = %s\n",#field,conf.field); 
@@ -429,6 +435,9 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
   DISPLAY_UINT32_CONFIG(noXattr);  
+  DISPLAY_INT32_CONFIG(site); 
+  DISPLAY_INT32_CONFIG(conf_site_file); 
+  DISPLAY_UINT32_CONFIG(running_site);  
 
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 } 
@@ -1244,6 +1253,7 @@ void rozofs_start_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
     cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
     cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
+    cmd_p += sprintf(cmd_p, "-g %d ", rozofs_site_number);
     
     /* Try to get debug port from /etc/services */
     debug_port_value = conf.dbg_port + instance;
@@ -1260,9 +1270,9 @@ void rozofs_start_one_storcli(int instance) {
     */
     if (rozofs_storcli_shared_mem[instance-1].key != 0)
     {
-      cmd_p += sprintf(cmd_p, "-k %d ",rozofs_storcli_shared_mem[instance-1].key);       
-      cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[instance-1].buf_sz);       
-      cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[instance-1].buf_count);       
+      cmd_p += sprintf(cmd_p, "-k %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].key);       
+      cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_sz);       
+      cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_count);       
     }
     cmd_p += sprintf(cmd_p, "&");
 
@@ -1316,6 +1326,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     timeout_mproto.tv_sec = rozofs_tmr_get(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
 
+
     for (retry_count = 5; retry_count > 0; retry_count--) {
         /* Initiate the connection to the export and get information
          * about exported filesystem */
@@ -1323,6 +1334,7 @@ int fuseloop(struct fuse_args *args, int fg) {
                 &exportclt,
                 conf.host,
                 conf.export,
+		rozofs_site_number,
                 conf.passwd,
                 conf.buf_size * 1024,
                 conf.min_read_size * 1024,
@@ -1659,13 +1671,13 @@ int fuseloop(struct fuse_args *args, int fg) {
     /*
     ** create the shared memory used by the storcli's
     */
-    for (i = 0; i < STORCLI_PER_FSMOUNT; i++) {
+    for (i = 0; i < SHAREMEM_PER_FSMOUNT; i++) {
        /*
        ** the size of the buffer is retrieved from the configuration. 1K is added for the management part of
        ** the RPC protocol. The key_instance of the shared memory is the concatenantion of the rozofsmount instance and
        ** storcli instance: (rozofsmount<<1 | storcli_instance) (assuming of max of 2 storclis per rozofsmount)
        */
-       int key_instance = conf.instance<<STORCLI_PER_FSMOUNT_POWER2 | i;
+       int key_instance = conf.instance<<SHAREMEM_PER_FSMOUNT_POWER2 | i;
        ret = rozofs_create_shared_memory(key_instance,i,rozofs_fuse_conf.max_transactions,(conf.buf_size*1024)+1024);
        if (ret < 0)
        {
@@ -1780,10 +1792,34 @@ int main(int argc, char *argv[]) {
     conf.posix_file_lock = 0; // No posix file lock until explicitly activated  man 2 fcntl)
     conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
     conf.noXattr = 0;   // By default extended attributes are supported
+    conf.site = -1;
+    conf.conf_site_file = -1; /* no site file  */
+    
 
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
     }
+    /*
+    ** init of the site number for that rozofs client
+    */
+    conf.conf_site_file = rozofs_get_local_site();
+    while (1)
+    {
+      if ((conf.site == 0) || (conf.site == 1))
+      {
+	rozofs_site_number = conf.site;
+	break;
+      }
+      if (conf.conf_site_file < 0)
+      {
+	rozofs_site_number = 0;
+	break;
+      }
+      rozofs_site_number = conf.conf_site_file;
+      break;
+    }
+    conf.running_site = rozofs_site_number;
+    
 
     if (conf.host == NULL) {
         conf.host = strdup("rozofsexport");

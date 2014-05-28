@@ -46,6 +46,7 @@
 #include "export.h"
 #include "cache.h"
 #include "mdirent.h"
+#include "geo_replication.h"
 
 /** Max entries of lv1 directory structure (nb. of buckets) */
 #define MAX_LV1_BUCKETS 1024
@@ -730,6 +731,21 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     e->bsize = bsize;
     e->lv2_cache = lv2_cache;
     e->layout = volume->layout; // Layout used for this volume
+    /*
+    ** init of the replication context
+    */
+    {
+      int k;
+      for (k = 0; k < EXPORT_GEO_MAX_CTX; k++)
+      {
+        e->geo_replication_tb[k] = geo_rep_init(eid,k,(char*)root);
+	if (e->geo_replication_tb[k] == NULL)
+	{
+	   return -1;
+	}
+	geo_rep_dbg_add(e->geo_replication_tb[k]);      
+      }    
+    }
 
     // Initialize the dirent level 0 cache
     dirent_cache_level0_initialize();
@@ -1064,6 +1080,7 @@ out:
 /** create a new file
  *
  * @param e: the export managing the file
+ * @param site_number: site number for geo-replication
  * @param pfid: the id of the parent
  * @param name: the name of this file.
  * @param uid: the user id
@@ -1074,7 +1091,7 @@ out:
   
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
+int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32_t uid,
         uint32_t gid, mode_t mode, mattr_t *attrs,mattr_t *pattrs) {
     int status = -1;
     lv2_entry_t *plv2;
@@ -1131,7 +1148,7 @@ int export_mknod(export_t *e, fid_t pfid, char *name, uint32_t uid,
 
     // generate attributes
     uuid_copy(attrs->fid, node_fid);
-    if (volume_distribute(e->volume, &attrs->cid, attrs->sids) != 0)
+    if (volume_distribute(e->volume,site_number, &attrs->cid, attrs->sids) != 0)
         goto error;
     attrs->mode = mode;
     attrs->uid = uid;
@@ -1430,7 +1447,30 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
                         child_path, trash_file_path, strerror(errno));
                 // Best effort
             }
-
+	    /*
+	    * In case of geo replication, insert a delete request from the 2 sites 
+	    */
+	    if (e->volume->georep) 
+	    {
+	      /*
+	      ** update the geo replication: set start=end=0 to indicate a deletion 
+	      */
+	      geo_rep_insert_fid(e->geo_replication_tb[0],
+                		 lv2->attributes.fid,
+				 0/*start*/,0/*end*/,
+				 e->layout,
+				 lv2->attributes.cid,
+				 lv2->attributes.sids);
+	      /*
+	      ** update the geo replication: set start=end=0 to indicate a deletion 
+	      */
+	      geo_rep_insert_fid(e->geo_replication_tb[1],
+                		 lv2->attributes.fid,
+				 0/*start*/,0/*end*/,
+				 e->layout,
+				 lv2->attributes.cid,
+				 lv2->attributes.sids);
+	    }		 
             // Preparation of the rmfentry
             rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
             memcpy(rmfe->fid, lv2->attributes.fid, sizeof (fid_t));
@@ -1517,7 +1557,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
     list_t *p, *q;
     int status = -1;
     DEBUG_FUNCTION;
-
+    int i;
+    
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         severe("pthread_rwlock_rdlock failed (vid: %d): %s", volume->vid,
                 strerror(errno));
@@ -1527,35 +1568,34 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
     list_for_each_forward(p, &volume->clusters) {
 
         cluster_t *cluster = list_entry(p, cluster_t, list);
+        for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) {
+          list_for_each_forward(q, (&cluster->storages[i])) {
 
-        list_for_each_forward(q, &cluster->storages) {
+              volume_storage_t *vs = list_entry(q, volume_storage_t, list);
 
-            volume_storage_t *vs = list_entry(q, volume_storage_t, list);
+              mclient_t * mclt = (mclient_t *) xmalloc(sizeof (mclient_t));
 
-            mclient_t * mclt = (mclient_t *) xmalloc(sizeof (mclient_t));
+              strncpy(mclt->host, vs->host, ROZOFS_HOSTNAME_MAX);
+              mclt->cid = cluster->cid;
+              mclt->sid = vs->sid;
+              struct timeval timeo;
+              timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+              timeo.tv_usec = 0;
 
-            strncpy(mclt->host, vs->host, ROZOFS_HOSTNAME_MAX);
-            mclt->cid = cluster->cid;
-            mclt->sid = vs->sid;
-            struct timeval timeo;
-            timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
-            timeo.tv_usec = 0;
-	    
-	    init_rpcctl_ctx(&mclt->rpcclt);
+	      init_rpcctl_ctx(&mclt->rpcclt);
 
-	    init_rpcctl_ctx(&mclt->rpcclt);
+              if (mclient_initialize(mclt, timeo) != 0) {
+                  warning("failed to join: %s,  %s", vs->host, strerror(errno));
+              }
 
-            if (mclient_initialize(mclt, timeo) != 0) {
-                warning("failed to join: %s,  %s", vs->host, strerror(errno));
-            }
+              cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
+              cnx_entry->cnx = mclt;
 
-            cnxentry_t *cnx_entry = (cnxentry_t *) xmalloc(sizeof (cnxentry_t));
-            cnx_entry->cnx = mclt;
+              // Add to the list
+              list_push_back(list, &cnx_entry->list);
 
-            // Add to the list
-            list_push_back(list, &cnx_entry->list);
-
-        }
+          }
+	}
     }
 
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
@@ -2485,12 +2525,17 @@ int64_t export_write(export_t *e, fid_t fid, uint64_t off, uint32_t len) {
  * @param d: distribution to set
  * @param off: offset to write from
  * @param len: length written
+ * @param site_number: siet number for geo-replication
+ * @param geo_wr_start: write start offset
+ * @param geo_wr_end: write end offset
  * @param[out] attrs: updated attributes of the file
  *
  * @return: the written length on success or -1 otherwise (errno is set)
  */
 int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
-        dist_t d, uint64_t off, uint32_t len,mattr_t *attrs) {
+                           dist_t d, uint64_t off, uint32_t len,
+			   uint32_t site_number,uint64_t geo_wr_start,uint64_t geo_wr_end,
+			   mattr_t *attrs) {
     int64_t length = -1;
     lv2_entry_t *lv2 = NULL;
 
@@ -2522,6 +2567,17 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     */
     memcpy(attrs, &lv2->attributes, sizeof (mattr_t));
     length = len;
+    if (e->volume->georep) 
+    {
+      /*
+      ** update the geo replication
+      */
+      geo_rep_insert_fid(e->geo_replication_tb[site_number],
+                	 fid,geo_wr_start,geo_wr_end,
+			 e->layout,
+			 lv2->attributes.cid,
+			 lv2->attributes.sids);
+    }
 
 out:
     STOP_PROFILING(export_write_block);

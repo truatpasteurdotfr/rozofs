@@ -164,6 +164,26 @@ xdr_storcli_truncate_arg_t (XDR *xdrs, storcli_truncate_arg_t *objp)
 }
 
 bool_t
+xdr_storcli_delete_arg_t (XDR *xdrs, storcli_delete_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_storcli_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_storcli_read_no_data_ret_t (XDR *xdrs, storcli_read_no_data_ret_t *objp)
 {
 	//register int32_t *buf;

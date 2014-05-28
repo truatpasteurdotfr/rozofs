@@ -337,13 +337,13 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
      /*
      ** check the presence of the shared memory on storcli
      */
-     if (storcli_rozofsmount_shared_mem.active == 1)
+     if (storcli_rozofsmount_shared_mem[SHAREMEM_IDX_READ].active == 1)
      {
        /*
        ** set data_read_p to point to the array where data will be returned
        */
-       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem.data_p;
-       uint32_t buf_offset = storcli_read_rq_p->proj_id*storcli_rozofsmount_shared_mem.buf_sz;
+       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem[SHAREMEM_IDX_READ].data_p;
+       uint32_t buf_offset = storcli_read_rq_p->proj_id*storcli_rozofsmount_shared_mem[SHAREMEM_IDX_READ].buf_sz;
        uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
        pbuffer[1] = 0; /** bin_len */
        working_ctx_p->data_read_p  = (char*)&pbuffer[2];

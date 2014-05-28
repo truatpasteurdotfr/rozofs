@@ -484,6 +484,8 @@ struct ep_write_block_arg_t {
     uint16_t    dist;
     uint64_t    offset;
     uint32_t    length;
+    uint64_t    geo_wr_start;
+    uint64_t    geo_wr_end;
 };
 
 struct  epgw_write_block_arg_t 
@@ -637,6 +639,21 @@ struct ep_gw_gateway_configuration_ret_t
         ep_gateway_configuration_ret_t status_gw;
 };
 
+
+struct  epgw_mount_arg_t 
+{
+  struct ep_gateway_t hdr;
+  ep_path_t          path;
+};
+
+struct  epgw_conf_stor_arg_t 
+{
+  struct ep_gateway_t hdr;
+  ep_path_t          path;
+};
+
+
+
 program EXPORT_PROGRAM {
     version EXPORT_VERSION {
 
@@ -644,7 +661,7 @@ program EXPORT_PROGRAM {
         EP_NULL(void)                           = 0;
 
         epgw_mount_ret_t
-        EP_MOUNT(ep_path_t)                     = 1;
+        EP_MOUNT(epgw_mount_arg_t)               = 1;
 
         epgw_status_ret_t
         EP_UMOUNT(uint32_t)                     = 2;
@@ -710,7 +727,7 @@ program EXPORT_PROGRAM {
         EP_LIST_CLUSTER(uint16_t)                 = 23;
 
         epgw_conf_ret_t
-        EP_CONF_STORAGE(ep_path_t)                        = 24;
+        EP_CONF_STORAGE(epgw_conf_stor_arg_t)      = 24;
                
         epgw_status_ret_t
         EP_POLL_CONF(ep_gateway_t)                        = 25;
@@ -732,5 +749,8 @@ program EXPORT_PROGRAM {
 	 
         epgw_status_ret_t
         EP_POLL_FILE_LOCK(epgw_lock_arg_t)                 = 31; 	    		    	  
+
+        void
+        EP_GEO_POLL(void)                           = 32;
     } = 1;
 } = 0x20000001;

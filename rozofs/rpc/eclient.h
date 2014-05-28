@@ -61,7 +61,7 @@ typedef struct exportclt {
 extern uint32_t exportd_configuration_file_hash; /**< hash value of the configuration file */
 
 
-int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
+int exportclt_initialize(exportclt_t * clt, const char *host, char *root,int site_number,
         const char *passwd, uint32_t bufsize, uint32_t min_read_size, uint32_t retries,
         struct timeval timeout);
 

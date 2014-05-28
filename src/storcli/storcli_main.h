@@ -130,4 +130,16 @@ void *connect_storage(void *v);
 * Init of the load balancing group from mstorage configuration
 */
 int storaged_lbg_initialize(mstorage_t *s);
+/**______________________________________________________________________________
+*/
+/**
+*  get the current site number of the rozofsmount client
+
+*/
+extern int storcli_site_number;
+static inline int storcli_get_site_number()
+{
+  return storcli_site_number;
+}
+
 #endif

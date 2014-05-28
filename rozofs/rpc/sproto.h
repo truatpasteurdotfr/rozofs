@@ -114,6 +114,15 @@ struct sp_truncate_arg_t {
 };
 typedef struct sp_truncate_arg_t sp_truncate_arg_t;
 
+struct sp_remove_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t layout;
+	uint32_t dist_set[ROZOFS_SAFE_MAX];
+	sp_uuid_t fid;
+};
+typedef struct sp_remove_arg_t sp_remove_arg_t;
+
 struct sp_read_t {
 	uint32_t filler;
 	struct {
@@ -158,6 +167,9 @@ extern  sp_read_ret_t * sp_read_1_svc(sp_read_arg_t *, struct svc_req *);
 #define SP_TRUNCATE 3
 extern  sp_status_ret_t * sp_truncate_1(sp_truncate_arg_t *, CLIENT *);
 extern  sp_status_ret_t * sp_truncate_1_svc(sp_truncate_arg_t *, struct svc_req *);
+#define SP_REMOVE 4
+extern  sp_status_ret_t * sp_remove_1(sp_remove_arg_t *, CLIENT *);
+extern  sp_status_ret_t * sp_remove_1_svc(sp_remove_arg_t *, struct svc_req *);
 extern int storage_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -173,6 +185,9 @@ extern  sp_read_ret_t * sp_read_1_svc();
 #define SP_TRUNCATE 3
 extern  sp_status_ret_t * sp_truncate_1();
 extern  sp_status_ret_t * sp_truncate_1_svc();
+#define SP_REMOVE 4
+extern  sp_status_ret_t * sp_remove_1();
+extern  sp_status_ret_t * sp_remove_1_svc();
 extern int storage_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -187,6 +202,7 @@ extern  bool_t xdr_sp_write_arg_no_bins_t (XDR *, sp_write_arg_no_bins_t*);
 extern  bool_t xdr_sp_read_arg_t (XDR *, sp_read_arg_t*);
 extern  bool_t xdr_sp_truncate_arg_no_bins_t (XDR *, sp_truncate_arg_no_bins_t*);
 extern  bool_t xdr_sp_truncate_arg_t (XDR *, sp_truncate_arg_t*);
+extern  bool_t xdr_sp_remove_arg_t (XDR *, sp_remove_arg_t*);
 extern  bool_t xdr_sp_read_t (XDR *, sp_read_t*);
 extern  bool_t xdr_sp_read_ret_t (XDR *, sp_read_ret_t*);
 extern  bool_t xdr_sp_write_ret_t (XDR *, sp_write_ret_t*);
@@ -200,6 +216,7 @@ extern bool_t xdr_sp_write_arg_no_bins_t ();
 extern bool_t xdr_sp_read_arg_t ();
 extern bool_t xdr_sp_truncate_arg_no_bins_t ();
 extern bool_t xdr_sp_truncate_arg_t ();
+extern bool_t xdr_sp_remove_arg_t ();
 extern bool_t xdr_sp_read_t ();
 extern bool_t xdr_sp_read_ret_t ();
 extern bool_t xdr_sp_write_ret_t ();

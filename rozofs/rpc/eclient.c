@@ -35,13 +35,14 @@
 
  uint32_t exportd_configuration_file_hash = 0; /**< hash value of the configuration file */
 
-int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
+int exportclt_initialize(exportclt_t * clt, const char *host, char *root,int site_number,
         const char *passwd, uint32_t bufsize, uint32_t min_read_size,
         uint32_t retries, struct timeval timeout) {
     int status = -1;
     epgw_mount_ret_t *ret = 0;
     char *md5pass = 0;
     int i = 0;
+    epgw_mount_arg_t args;
     DEBUG_FUNCTION;
 
 
@@ -54,6 +55,9 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
     clt->min_read_size  = min_read_size;
     clt->timeout = timeout;
 
+    args.hdr.gateway_rank = site_number;
+    args.path = clt->root ;
+
     init_rpcctl_ctx(&clt->rpcclt);    
 	
     /* Initialize connection with export server */
@@ -64,7 +68,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,
         goto out;
 
     /* Send mount request */
-    ret = ep_mount_1(&root, clt->rpcclt.client);
+    ret = ep_mount_1(&args, clt->rpcclt.client);
     if (ret == 0) {
         errno = EPROTO;
         goto out;

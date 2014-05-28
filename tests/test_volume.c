@@ -16,6 +16,7 @@ export_one_profiler_t  * export_profiler[EXPGW_EXPORTD_MAX_IDX] = { 0 };
 uint32_t		 export_profiler_eid = 0;
 
 #include "volume.h"
+int export_local_site_number= 0;
 
 int main(int argc, char **argv) {
 

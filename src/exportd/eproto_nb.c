@@ -121,7 +121,7 @@ void ep_poll_conf_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
 */
 void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     static epgw_conf_ret_t ret;
-    ep_path_t * arg = (ep_path_t *)pt; 
+    epgw_conf_stor_arg_t * arg = (epgw_conf_stor_arg_t *)pt; 
     
     epgw_conf_ret_t *ret_cnf_p = &export_storage_conf;
     epgw_conf_ret_t *ret_out = NULL;
@@ -135,8 +135,18 @@ void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     
 
     DEBUG_FUNCTION;
+    /*
+    ** extract the site id from the request (gateway rank)
+    */
+    int requested_site = arg->hdr.gateway_rank;
+    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
+    {
+      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
+      errno = EINVAL;
+      goto error;
+    }
     // XXX exportd_lookup_id could return export_t *
-    eid = exports_lookup_id(*arg);	
+    eid = exports_lookup_id(arg->path);	
 
     // XXX exportd_lookup_id could return export_t *
     if (eid) export_profiler_eid = *eid;
@@ -155,7 +165,7 @@ void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     xdrmem_create(&xdrs,(char*)pchar,size,XDR_ENCODE);    
 #endif
     // XXX exportd_lookup_id could return export_t *
-    if (!(eid = exports_lookup_id(*arg)))
+    if (!(eid = exports_lookup_id(arg->path)))
         goto error;
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
@@ -172,7 +182,11 @@ void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
         /* Get volume with this vid */
         if (vc->vid == exp->volume->vid) {
-
+            /*
+	    ** check if the geo-replication is supported fro the volume. If it is not
+	    ** the case the requested_site is set to 0
+	    */
+	    if (vc->georep == 0) requested_site = 0;
             stor_idx = 0;
             ret_cnf_p->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len = 0;
             storage_cnf_p = &exportd_storage_host_table[stor_idx];
@@ -184,7 +198,7 @@ void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
                 cluster_config_t *cc = list_entry(q, cluster_config_t, list);
 
                 /* For each sid */
-                list_for_each_forward(r, &cc->storages) {
+                list_for_each_forward(r, (&cc->storages[requested_site])) {
 
                     storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
 
@@ -387,19 +401,27 @@ out:
 */
 void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     static epgw_mount_ret_t ret;
-    ep_path_t * arg= (ep_path_t *)pt; 
+    epgw_mount_arg_t * arg= (epgw_mount_arg_t *)pt; 
     list_t *p, *q, *r;
     eid_t *eid = NULL;
     export_t *exp;
     int i = 0;
     int stor_idx = 0;
     int exist = 0;
-    
+    int requested_site =0;        
 
     DEBUG_FUNCTION;
 
+    requested_site = arg->hdr.gateway_rank;
+    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
+    {
+      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
+      errno = EINVAL;
+      goto error;
+    }
+    
     // XXX exportd_lookup_id could return export_t *
-    eid = exports_lookup_id(*arg);    
+    eid = exports_lookup_id(arg->path);    
     if (eid) export_profiler_eid = *eid;	
     else     export_profiler_eid = 0; 
         
@@ -407,7 +429,7 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     if (!eid) goto error;
 
     // XXX exportd_lookup_id could return export_t *
-    if (!(eid = exports_lookup_id(*arg)))
+    if (!(eid = exports_lookup_id(arg->path)))
         goto error;
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
@@ -424,7 +446,11 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
         /* Get volume with this vid */
         if (vc->vid == exp->volume->vid) {
-
+            /*
+	    ** check if the geo-replication is supported fro the volume. If it is not
+	    ** the case the requested_site is set to 0
+	    */
+	    if (vc->georep == 0) requested_site = 0;
             stor_idx = 0;
             ret.status_gw.ep_mount_ret_t_u.export.storage_nodes_nb = 0;
             memset(ret.status_gw.ep_mount_ret_t_u.export.storage_nodes, 0, sizeof (ep_cnf_storage_node_t) * STORAGE_NODES_MAX);
@@ -435,7 +461,7 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
                 cluster_config_t *cc = list_entry(q, cluster_config_t, list);
 
                 /* For each sid */
-                list_for_each_forward(r, &cc->storages) {
+                list_for_each_forward(r, (&cc->storages[requested_site])) {
 
                     storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
 
@@ -478,6 +504,7 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ret.status_gw.ep_mount_ret_t_u.export.storage_nodes_nb = stor_idx;
     ret.status_gw.ep_mount_ret_t_u.export.eid = *eid;
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
+    ret.status_gw.ep_mount_ret_t_u.export.bs = exp->bsize;
 
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
     ret.status_gw.ep_mount_ret_t_u.export.rl = exp->layout;
@@ -510,6 +537,9 @@ void ep_list_cluster_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     list_t *p, *q, *r;
     uint8_t stor_idx = 0;
 
+    int requested_site = 0;
+    #warning requested_site set to 0
+    
     DEBUG_FUNCTION;
 
     ret.status_gw.status = EP_FAILURE;
@@ -543,7 +573,7 @@ void ep_list_cluster_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
                 // For each storage 
 
-                list_for_each_forward(r, &cc->storages) {
+                list_for_each_forward(r, (&cc->storages[requested_site])) {
 
                     storage_node_config_t *s = list_entry(r, storage_node_config_t, list);
 
@@ -872,8 +902,9 @@ void ep_mknod_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
-    if (export_mknod
-            (exp, (unsigned char *) arg->arg_gw.parent, arg->arg_gw.name, arg->arg_gw.uid, arg->arg_gw.gid,
+    if (export_mknod(
+            exp,arg->hdr.gateway_rank, 
+            (unsigned char *) arg->arg_gw.parent, arg->arg_gw.name, arg->arg_gw.uid, arg->arg_gw.gid,
             arg->arg_gw.mode, (mattr_t *) & ret.status_gw.ep_mattr_ret_t_u.attrs,
             (mattr_t *) & ret.parent_attr.ep_mattr_ret_t_u.attrs) != 0)
         goto error;
@@ -1265,9 +1296,15 @@ void ep_write_block_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
-    if (export_write_block(exp,(unsigned char *) arg->arg_gw.fid, arg->arg_gw.bid, arg->arg_gw.nrb, arg->arg_gw.dist,
-            arg->arg_gw.offset, arg->arg_gw.length,
-            (mattr_t *) & ret.status_gw.ep_mattr_ret_t_u.attrs) < 0)
+    if (export_write_block(exp,(unsigned char *) arg->arg_gw.fid, 
+                           arg->arg_gw.bid, arg->arg_gw.nrb, 
+			   arg->arg_gw.dist,
+                           arg->arg_gw.offset, 
+			   arg->arg_gw.length,
+			   arg->hdr.gateway_rank,
+			   arg->arg_gw.geo_wr_start,
+			   arg->arg_gw.geo_wr_end,
+                           (mattr_t *) & ret.status_gw.ep_mattr_ret_t_u.attrs) < 0)
         goto error;
     ret.hdr.eid = arg->arg_gw.eid ;  
     ret.status_gw.status   = EP_SUCCESS;

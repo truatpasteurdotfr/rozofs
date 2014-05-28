@@ -67,7 +67,7 @@ typedef struct cluster {
     cid_t cid; ///< cluster identifier
     uint64_t size; ///< cluster size
     uint64_t free; ///< free space on cluster
-    list_t storages; ///< list of storages managed in the cluster
+    list_t storages[ROZOFS_GEOREP_MAX_SITE]; ///< list of storages managed in the cluster
     list_t list; ///< used to chain cluster in a volume
 } cluster_t;
 
@@ -98,6 +98,7 @@ void cluster_release(cluster_t *cluster);
 typedef struct volume {
     vid_t vid; ///< volume identifier
     uint8_t layout;
+    uint8_t georep; /**< asserted to 1 when geo-replication is enabled */
     list_t clusters; ///< cluster(s) list
     pthread_rwlock_t lock; ///< lock to be used by export
 } volume_t;
@@ -107,10 +108,11 @@ typedef struct volume {
  * @param volume: pointer to the volume
  * @param vid: it' id
  * @param layout: layout defined for this volume
+ * @param georep: asserted to 1 if geo-replication is supported for the volume
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout);
+int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout,uint8_t georep);
 
 /** release a volume
  *
@@ -156,12 +158,13 @@ void volume_balance(volume_t *volume);
  * for a new file.
  *
  * @param volume: the volume to scan
+   @param site_number: needed for geo-replication
  * @param cid: destination cid_t where cid is copied
  * @param host: destination sid_t pointer where sids are copied
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int volume_distribute(volume_t *volume, cid_t *cid, sid_t *sids);
+int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids);
 
 /** get status of a volume
  *

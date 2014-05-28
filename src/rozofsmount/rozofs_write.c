@@ -885,7 +885,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     uint32_t *p32;
     int shared_buf_idx = -1;
     uint32_t length;
-    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(storcli_idx);
+    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(SHAREMEM_IDX_WRITE);
     if (shared_buf_ref != NULL)
     {
       /*
@@ -901,7 +901,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
        /*
        ** get the index of the shared payload in buffer
        */
-       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,storcli_idx,&length);
+       shared_buf_idx = rozofs_get_shared_storcli_payload_idx(shared_buf_ref,SHAREMEM_IDX_WRITE,&length);
        if (shared_buf_idx != -1)
        {
 	 /*
@@ -1056,6 +1056,11 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
       errno = EBADF;
       goto error;        
     }
+    /*
+    ** update off start and end to address the case of the geo-replication
+    */
+    rozofs_geo_write_update(file,off,size);
+    
     buf_file_write_nb(ie,buffer_p,&status,file,off,buf,size);
     /*
     ** check the returned status
@@ -2246,6 +2251,19 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_ioctl,(fuse_ino_t)file_p,file_p->fid, file_p->attrs.size,0);
     SAVE_FUSE_PARAM(fuse_ctx_p,trc_idx);
     /*
+    ** invalidate the ientry since the mtime is not up to date
+    */
+    if (file_p->ie) 
+    {
+       ientry_t *ie = file_p->ie;
+       ie->timestamp = 0;
+    }
+    /*
+    ** insert the site number in the argument
+    */
+    arg.hdr.gateway_rank = rozofs_get_site_number(); 
+//    severe("FDL site_number %d",arg.hdr.gateway_rank);
+    /*
     ** fill up the structure that will be used for creating the xdr message
     */    
     arg.arg_gw.eid = exportclt.eid;
@@ -2254,7 +2272,8 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     arg.arg_gw.nrb = 1;
     arg.arg_gw.length = 0; //buf_flush_len;
     arg.arg_gw.offset = file_p->attrs.size; //buf_flush_offset;
-    arg.arg_gw.dist = 0;
+    arg.arg_gw.geo_wr_start = file_p->off_wr_start;
+    arg.arg_gw.geo_wr_end = file_p->off_wr_end;
     /*
     ** now initiates the transaction towards the remote end
     */
