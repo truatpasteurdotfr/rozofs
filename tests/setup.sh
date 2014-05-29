@@ -850,8 +850,125 @@ deploy_clients_local ()
         done;
     fi
 }
+deploy_clients_local_geo_bis ()
+{
+
+    echo "------------------------------------------------------"
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+    then
+        echo "Unable to mount RozoFS (configuration file doesn't exist)"
+    else
+
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+
+        let "mount_instance=${NB_EXPORTS}*${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}*${1}"
+	echo "starting mount instance $mount_instance"
+        for j in $(seq ${NB_EXPORTS}); do	    
+
+            for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
+                mount_point=${LOCAL_MNT_ROOT}${j}_${idx_client}_g${1}
+                mountpoint -q ${mount_point}
+	
+
+                if [ "$?" -ne 0 ]
+                then
+
+                    echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${mount_point}"
+
+                    if [ ! -e "${mount_point}" ]
+                    then
+                        mkdir -p ${mount_point}
+                    fi
+
+                    option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+                    option="$option -o nbcores=$NB_CORES"
+                    option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
+                    option="$option -o rozofsnbstorcli=$NB_STORCLI"
+                    option="$option -o rozofsshaper=$SHAPER"
+                    option="$option -o posixlock"
+                    option="$option -o bsdlock"
+                    option="$option -o rozofsrotate=3"		
+		    option="$option -o site=${1}"	    
+                    option="$option -o instance=$mount_instance"
 
 
+                    echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} \
+                            ${mount_point} ${option}
+
+                    ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${mount_point} ${option}
+                     echo ${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${mount_point} -G $1 -i $mount_instance
+
+                    ${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${mount_point} -G $1 -i $mount_instance &        
+                    mount_instance=$((mount_instance+1))
+                else
+                    echo "Unable to mount RozoFS (${mount_point} already mounted)"
+                fi
+
+            done;
+        done;
+    fi
+}
+
+deploy_clients_local_geo_ter ()
+{
+
+    nb_site=2
+    mount_instance=0
+    
+    echo "------------------------------------------------------"
+    if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
+    then
+        echo "Unable to mount RozoFS (configuration file doesn't exist)"
+    else
+
+        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+
+        for j in $(seq ${NB_EXPORTS}); do	    
+
+            for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
+	        for idx_site in  $(seq 0 1); do
+                  mount_point=${LOCAL_MNT_ROOT}${j}_${idx_client}_g${idx_site}
+                  mountpoint -q ${mount_point}
+
+
+                  if [ "$?" -ne 0 ]
+                  then
+
+                      echo "Mount RozoFS (export: ${LOCAL_EXPORTS_NAME_PREFIX}_${j}) on ${mount_point}"
+
+                      if [ ! -e "${mount_point}" ]
+                      then
+                          mkdir -p ${mount_point}
+                      fi
+
+                      option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
+                      option="$option -o nbcores=$NB_CORES"
+                      option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
+                      option="$option -o rozofsnbstorcli=$NB_STORCLI"
+                      option="$option -o rozofsshaper=$SHAPER"
+                      option="$option -o posixlock"
+                      option="$option -o bsdlock"
+                      option="$option -o rozofsrotate=3"		
+		      option="$option -o site=${idx_site}"	    
+                      option="$option -o instance=$mount_instance"
+
+
+                      echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} \
+                              ${mount_point} ${option}
+
+                      ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${mount_point} ${option}
+                       echo ${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${mount_point} -G $idx_site -i $mount_instance
+
+                      ${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${mount_point} -G $idx_site -i $mount_instance &        
+                      mount_instance=$((mount_instance+1))
+                  else
+                      echo "Unable to mount RozoFS (${mount_point} already mounted)"
+                  fi
+              done;
+            done;
+        done;
+    fi
+}
 deploy_clients_local_geo ()
 {
     echo "------------------------------------------------------"
@@ -945,6 +1062,7 @@ undeploy_clients_local ()
         for j in $(seq ${NB_EXPORTS}); do
             geo_site=0
             for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
+	        for geo_site in $(seq 0 1); do
                 mount_point=${LOCAL_MNT_ROOT}${j}_${idx_client}_g${geo_site}
                 echo "Umount RozoFS mnt: ${LOCAL_MNT_PREFIX}${j}_${idx_client}"
 
@@ -964,9 +1082,9 @@ undeploy_clients_local ()
 
                 rm -rf $mount_point
                 storcli_killer.sh $mount_point > /dev/null 2>&1
-		geo_site=$((1-geo_site))
 
-            done
+               done
+	    done
 
         done
 
@@ -1085,7 +1203,7 @@ do_start_all_processes_geo() {
      start_storaged ${STORAGES_BY_CLUSTER} 8
      #start_expgw
      start_exportd 1
-     deploy_clients_local_geo
+     deploy_clients_local_geo_ter
 }
 
 do_pause() {
@@ -1538,7 +1656,7 @@ main ()
     
 
 
-    NB_EXPORTS=4
+    NB_EXPORTS=2
     # BSIZE 0=4K 1=8K 2=16K 3=32K 
     BS4K=0
     BS8K=1

@@ -220,7 +220,7 @@ int rozofs_stat_start(void *args) {
         severe("Cannot setup the load balancing group towards geo replication module");
     }
     //#warning storcli instances are hardcoded
-    if (storcli_lbg_initialize((exportclt_t*) args_p->exportclt, args_p->instance, 1, 2) != 0) {
+    if (storcli_lbg_initialize((exportclt_t*) args_p->exportclt,"geocli", args_p->instance, 1, 2) != 0) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
     

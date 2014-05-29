@@ -748,7 +748,7 @@ static void *georep_poll_thread(void *v) {
     */
     if (rpcclt_initialize
             (&export_cnx, "127.0.0.1", EXPORT_PROGRAM, EXPORT_VERSION,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0,
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, EXPNB_SLAVE_PORT+export_instance_id,
             timeout_mproto) == 0) break;
      /*
      ** wait for a while and then re-attempt to re-connect
@@ -1075,8 +1075,14 @@ static int exportd_initialize() {
       if (pthread_create(&monitor_thread, NULL, monitoring_thread, NULL) != 0)
           fatal("can't create monitoring thread %s", strerror(errno));
     }
-    if (pthread_create(&geo_poll_thread, NULL, georep_poll_thread, NULL) != 0)
-        fatal("can't create geo-replication polling thread %s", strerror(errno));
+    if ( expgwc_non_blocking_conf.slave == 1)
+    {
+      /*
+      ** just needed by slave exportd
+      */
+      if (pthread_create(&geo_poll_thread, NULL, georep_poll_thread, NULL) != 0)
+	  fatal("can't create geo-replication polling thread %s", strerror(errno));
+    }
 
 
     return 0;
@@ -1088,7 +1094,7 @@ static void exportd_release() {
     pthread_cancel(rm_bins_thread);
     pthread_cancel(exp_tracking_thread);
     if ( expgwc_non_blocking_conf.slave == 0) pthread_cancel(monitor_thread);
-    pthread_cancel(geo_poll_thread);
+    if ( expgwc_non_blocking_conf.slave == 1) pthread_cancel(geo_poll_thread);
 
 
     if ((errno = pthread_rwlock_destroy(&config_lock)) != 0) {

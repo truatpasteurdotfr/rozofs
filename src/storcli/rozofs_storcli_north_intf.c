@@ -296,7 +296,8 @@ int rozofs_storcli_north_interface_init(uint32_t eid,uint16_t rozofsmount_instan
     ** create the listening af unix socket on the north interface
     */
     af_unix_test_family.rpc_recv_max_sz = rozofs_storcli_read_write_buf_sz;
-    sprintf(sunpath,"%s%d.%d_lbg%d_inst_1",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,eid,rozofsmount_instance,instance);
+    sprintf(sunpath,"%s%s_%d.%d_lbg%d_inst_1",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,storcli_get_owner(),
+                     eid,rozofsmount_instance,instance);
 //    sprintf(sunpath,"%s%d.%d_inst_%d",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,eid,rozofsmount_instance,instance);
     ret =  af_unix_sock_listening_create("STORCLI_NORTH",
                                           sunpath, 

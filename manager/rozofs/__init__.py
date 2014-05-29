@@ -1,2 +1,2 @@
-__version__ = "1.4.alpha2"
+__version__ = "2.0.0"
 __sysconfdir__ = "/usr/local/etc"

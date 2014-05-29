@@ -80,6 +80,9 @@ char * show_geo_rep_one(char * pChar, uint32_t eid) {
     char bufall0[64];   
 
     if (eid>=GEO_REPLICATION_MAX_EID) return pChar;
+    if (exportd_is_master()== 1) return pChar;   
+    if (exportd_is_eid_match_with_instance(eid) ==0) return pChar;
+       
     
     prof = geo_rep_srv_tb0[eid];
     prof1 = geo_rep_srv_tb1[eid];

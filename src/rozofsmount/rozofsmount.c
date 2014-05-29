@@ -1251,6 +1251,7 @@ void rozofs_start_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
     cmd_p += sprintf(cmd_p, "-i %d ", instance);
     cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
+    cmd_p += sprintf(cmd_p, "-o %s ", "rozofsmount");
     cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
     cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
     cmd_p += sprintf(cmd_p, "-g %d ", rozofs_site_number);

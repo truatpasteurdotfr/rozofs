@@ -101,7 +101,13 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
     export_one_profiler_t * prof;   
 
     if (eid>EXPGW_EID_MAX_IDX) return pChar;
-    
+    if (eid != 0)
+    {
+      if (exportd_is_master()==0)
+      {
+	if (exportd_is_eid_match_with_instance(eid) ==0) return pChar;
+      }  
+    }  
     prof = export_profiler[eid];
     if (prof == NULL) return pChar;
         
@@ -203,6 +209,7 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
     SHOW_PROFILER_PROBE(ep_set_file_lock);
     SHOW_PROFILER_PROBE(ep_get_file_lock);
     SHOW_PROFILER_PROBE(ep_poll_file_lock);
+    SHOW_PROFILER_PROBE(ep_geo_poll);
     return pChar;
 }
 
@@ -217,7 +224,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     uint32_t eid;
     int ret;
-
+    *pChar = 0;
     if (argv[1] == NULL) {
       for (eid=0; eid <= EXPGW_EID_MAX_IDX; eid++) 
         pChar = show_profiler_one(pChar,eid);

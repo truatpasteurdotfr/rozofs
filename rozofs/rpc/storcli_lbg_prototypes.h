@@ -43,7 +43,7 @@
 int storcli_get_storcli_idx_from_fid(fid_t fid);
        
 //int storaged_lbg_initialize(mstorage_t *s);
-int storcli_lbg_initialize(exportclt_t *exportclt ,uint16_t rozofsmount_instance,int first_instance,int nb_instances);
+int storcli_lbg_initialize(exportclt_t *exportclt ,char *owner,uint16_t rozofsmount_instance,int first_instance,int nb_instances);
 int storcli_lbg_get_lbg_from_fid(fid_t fid);
 int storcli_lbg_get_load_balancing_reference(int idx);
  #endif

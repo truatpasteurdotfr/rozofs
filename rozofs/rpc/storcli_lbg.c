@@ -95,7 +95,7 @@ static af_unix_socket_conf_t  af_unix_storcli_conf =
   NULL   //    *recvPool; /* user pool reference or -1 */
 };
 
-int storcli_lbg_initialize(exportclt_t *exportclt,uint16_t rozofsmount_instance ,int first_instance,int nb_instances) 
+int storcli_lbg_initialize(exportclt_t *exportclt,char *owner,uint16_t rozofsmount_instance ,int first_instance,int nb_instances) 
 {
     int status = 0;
     int lbg_size;
@@ -106,7 +106,8 @@ int storcli_lbg_initialize(exportclt_t *exportclt,uint16_t rozofsmount_instance 
     
     for (lbg_idx=0; lbg_idx < STORCLI_PER_FSMOUNT; lbg_idx++) {
     
-      sprintf(sunpath,"%s%d.%d_lbg%d",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,exportclt->eid,rozofsmount_instance,first_instance+lbg_idx);
+      sprintf(sunpath,"%s%s_%d.%d_lbg%d",ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH,owner,
+                       exportclt->eid,rozofsmount_instance,first_instance+lbg_idx);
 
 
        /*

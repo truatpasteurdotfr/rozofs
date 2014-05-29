@@ -31,6 +31,7 @@
 #include <rozofs/rpc/eproto.h>
 
 void ep_null_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
+void ep_geo_poll_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
 void ep_poll_conf_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
 void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
 void ep_conf_expgw_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p);

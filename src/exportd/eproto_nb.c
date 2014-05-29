@@ -88,6 +88,25 @@ void ep_null_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 **______________________________________________________________________________
 */
 /**
+*  pseudo periodic task for geo-replication polling
+*  the goal is to check the geo-replication entries that
+*  must be pushed on disk
+*/
+extern void geo_replication_poll();
+
+void ep_geo_poll_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    static void *ret = NULL;
+    export_profiler_eid = 0;
+    START_PROFILING(ep_geo_poll);
+    geo_replication_poll();
+    EXPORTS_SEND_REPLY(req_ctx_p);
+    STOP_PROFILING(ep_geo_poll);
+    return ;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
 *   exportd configuration polling : check if the configuration of
     the remote is inline with the current one of the exportd.
 */
