@@ -210,6 +210,7 @@ int storaged_rebuild_list(char * fid_list) {
   // Try to get the list of storages for this cluster ID
   if (rbs_get_cluster_list(&rpcclt_export, 
                            st2rebuild.export_hostname, 
+			   st2rebuild.site,
 			   st2rebuild.storage.cid, 
 			   &cluster_entries) != 0) {
     severe("Can't get list of others cluster members from export server (%s) for storage to rebuild (cid:%u; sid:%u): %s\n",

@@ -78,6 +78,7 @@ typedef struct rb_cluster {
  *  export server with hostname=export_host.
  *
  * @param export_host: export server hostname.
+ * @param site: site number to rebuild.
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
  * @param root: the absolute path where rebuild bins file(s) will be store.
@@ -91,7 +92,7 @@ typedef struct rb_cluster {
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
+int rbs_rebuild_storage(const char *export_host, int site, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
 	uint8_t stor_idx, int device,
 	int parallel, char * config_file, 
@@ -101,6 +102,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
  *  root_path=root and managed by the export server with hostname=export_host.
  *
  * @param export_host: export server hostname.
+ * @param site: the site identifier
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
  * @param root: the absolute path where rebuild bins file(s) will be store.
@@ -110,7 +112,7 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
+int rbs_sanity_check(const char *export_host, int site, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red);
 
 /** Get name of temporary rebuild directory

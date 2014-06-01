@@ -90,6 +90,11 @@ struct epgw_cluster_ret_t
   ep_cluster_ret_t    status_gw;
 };
 
+struct epgw_cluster_arg_t {
+  struct ep_gateway_t           hdr;
+  int16_t                       cid;  
+};
+
 struct ep_storage_node_t {
     ep_host_t       host;
     uint8_t         sids_nb;
@@ -724,7 +729,7 @@ program EXPORT_PROGRAM {
         EP_LISTXATTR(epgw_listxattr_arg_t)        = 22;
 
         epgw_cluster_ret_t
-        EP_LIST_CLUSTER(uint16_t)                 = 23;
+        EP_LIST_CLUSTER(epgw_cluster_arg_t)       = 23;
 
         epgw_conf_ret_t
         EP_CONF_STORAGE(epgw_conf_stor_arg_t)      = 24;

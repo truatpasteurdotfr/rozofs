@@ -15,10 +15,11 @@ fileSize=int(4)
 loop=int(32)
 process=int(8)
 NB_SID=int(8)
+STC_SID=int(8)
 nbGruyere=int(1000)
 stopOnFailure=False
 fuseTrace=False
-DEFAULT_MNT="mnt1_1"
+DEFAULT_MNT="mnt1_1_g0"
 mnt=DEFAULT_MNT
 DEFAULT_RETRIES=int(20)
 
@@ -74,7 +75,7 @@ def get_sid_nb():
 
   sid=int(0)
   
-  string='./dbg.sh exp vfstat_stor'
+  string="./build/src/rozodiag/rozodiag -p 50000 -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -83,7 +84,13 @@ def get_sid_nb():
     if "UP" in line or "DOWN" in line:
       sid=sid+1
       
-  return sid    
+  per_site=int(sid)      
+  p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  for proc in p.stdout:
+    if "-o geocli" in proc:
+      per_site=per_site/2
+      break
+  return sid,per_site    
 
 #___________________________________________________
 def export_count_sid_up ():
@@ -91,7 +98,7 @@ def export_count_sid_up ():
 # seen from the export. 
 #___________________________________________________
 
-  string="./dbg.sh exp vfstat_stor"
+  string="./build/src/rozodiag/rozodiag -p 50000 -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -101,14 +108,64 @@ def export_count_sid_up ():
       match=match+1
     
   return match
+#___________________________________________________
+def get_rozofmount_port ():
 
+  p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  for proc in p.stdout:
+    if not "rozofsmount/rozofsmount" in proc:
+      continue
+      
+    for words in proc.split():
+      if mnt in words.split("/"):        
+	for opt in proc.split(" "):
+	  if opt.startswith("instance="):
+            instance=opt.split("instance=")[1]
+	    port = (int(instance)*3+50003)
+	    return int(port)
+	    
+  return int(0)
+#___________________________________________________
+def get_site_number ():
+
+  port=get_rozofmount_port()
+
+  string="./build/src/rozodiag/rozodiag -p %d -c start_config"%(port)
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  
+  for line in cmd.stdout:
+    words=line.split('=')
+    if words[0].strip() == "running_site":    
+      return int(words[1])
+  return 0  
+#___________________________________________________
+def get_storcli_port ():
+  p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  for proc in p.stdout:
+    if not mnt in proc:
+      continue
+    if not "storcli -i 1 -H localhost -o rozofsmount" in proc:
+      continue
+    if "starter.sh" in proc:
+      continue
+      
+    next=0
+    for word in proc.split(" "):
+      if word == "-D":
+        next=1  
+      else:
+        if next == 1:
+	  return word
+  return 0	  
 #___________________________________________________
 def storcli_count_sid_available ():
 # Use debug interface to count the number of sid 
 # available seen from the storcli. 
 #___________________________________________________
 
-  string="./dbg.sh stc1 storaged_status"
+  storcli_port=get_storcli_port()  	      
+  string="./build/src/rozodiag/rozodiag -p %s -c storaged_status"%(storcli_port)       
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -143,6 +200,7 @@ def loop_wait_until (success,retries,function):
     up=getattr(sys.modules[__name__],function)()
     time.sleep(1)
     
+  time.sleep(1)    
   return True  
     
 #___________________________________________________
@@ -150,7 +208,7 @@ def wait_until_all_sid_up (retries=DEFAULT_RETRIES) :
 # Wait for all sid up seen by storcli as well as export
 #___________________________________________________
 
-  if loop_wait_until(NB_SID,retries,'storcli_count_sid_available') == False:
+  if loop_wait_until(STC_SID,retries,'storcli_count_sid_available') == False:
     return False
   if loop_wait_until(NB_SID,retries,'export_count_sid_up') == False:
     return False
@@ -162,18 +220,18 @@ def wait_until_one_sid_down (retries=DEFAULT_RETRIES) :
 # Wait until one sid down seen by storcli 
 #___________________________________________________
 
-  if loop_wait_until(NB_SID-1,retries,'storcli_count_sid_available') == False:
+  if loop_wait_until(STC_SID-1,retries,'storcli_count_sid_available') == False:
     return False
   return True   
 #___________________________________________________
-def storageStart (sid,count=int(1)) :
+def storageStart (hid,count=int(1)) :
 
   while count != 0:
   
-    sys.stdout.write("\rStorage %d restart"%(sid+1)) 
+    sys.stdout.write("\rStorage %d restart"%(hid+1)) 
     sys.stdout.flush()
         
-    os.system("./setup.sh storage %s start"%(sid+1))    
+    os.system("./setup.sh storage %s start"%(hid+1))    
 
     if wait_until_all_sid_up() == True:
       return 0
@@ -181,14 +239,14 @@ def storageStart (sid,count=int(1)) :
         
   return 1 
 #___________________________________________________
-def storageStop (sid) :
+def storageStop (hid) :
   
   sys.stdout.write("\r                                 ")
   sys.stdout.flush()  
-  sys.stdout.write("\rStorage %d stop"%(sid+1))
+  sys.stdout.write("\rStorage %d stop"%(hid+1))
   sys.stdout.flush()
 
-  os.system("./setup.sh storage %s stop"%(sid+1))
+  os.system("./setup.sh storage %s stop"%(hid+1))
   wait_until_one_sid_down()   
     
 #___________________________________________________
@@ -200,9 +258,11 @@ def storageFailed (test) :
   if wait_until_all_sid_up() == False:
     return 1
 
-  for sid in range(NB_SID):
+  for sid in range(STC_SID):
 
-    storageStop(sid)
+    hid=sid+(site*STC_SID)
+    
+    storageStop(hid)
     reset_counters()
     
     try:
@@ -214,7 +274,7 @@ def storageFailed (test) :
     if ret != 0:
       return 1
       
-    ret = storageStart(sid)  
+    ret = storageStart(hid)  
 
       
   return 0
@@ -249,7 +309,7 @@ def storcliReset (test):
   time.sleep(3)
  
   # Start process that reset the storages
-  string="./IT.py --snipper storcli"
+  string="./IT.py --snipper storcli --mount %s"%(mnt)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stderr=subprocess.PIPE)
 
@@ -277,17 +337,19 @@ def snipper_storio ():
 #___________________________________________________
 
   while True:
-    for sid in range(NB_SID):
+    for sid in range(STC_SID):      
 
       if wait_until_all_sid_up() == False:
         return 1
+ 
+      hid=sid+(site*STC_SID)
       
       sys.stdout.write("\r                                 ")
       sys.stdout.flush()
-      sys.stdout.write("\rStorage %d reset"%(sid+1))
+      sys.stdout.write("\rStorage %d reset"%(hid+1))
       sys.stdout.flush()
 
-      os.system("./setup.sh storage %d reset"%(sid+1))
+      os.system("./setup.sh storage %d reset"%(hid+1))
 
 
 #___________________________________________________
@@ -299,7 +361,7 @@ def storageReset (test):
   
  
   # Start process that reset the storages
-  string="./IT.py --snipper storio"
+  string="./IT.py --snipper storio --mount %s"%(mnt)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stderr=subprocess.PIPE)
 
@@ -583,10 +645,13 @@ def rebuild_one() :
 #___________________________________________________
 
   ret=1 
-  for sid in range(NB_SID):
+  for sid in range(STC_SID):
+
+    hid=sid+(site*STC_SID)
+    
     for dev in range(6):
-      os.system("./setup.sh storage %d device-delete %d 1> /dev/null"%(sid+1,dev))
-      ret = os.system("./setup.sh storage %d device-rebuild %d 1> /dev/null"%(sid+1,dev))
+      os.system("./setup.sh storage %d device-delete %d 1> /dev/null"%(hid+1,dev))
+      ret = os.system("./setup.sh storage %d device-rebuild %d -g %s 1> /dev/null"%(hid+1,dev, site))
       if ret != 0:
         return ret
       ret = gruyere_one_reread()  
@@ -600,9 +665,12 @@ def rebuild_all() :
 #___________________________________________________
 
   ret=1 
-  for sid in range(NB_SID):
-    os.system("./setup.sh storage %d device-delete all  1> /dev/null"%(sid+1))
-    ret = os.system("./setup.sh storage %d device-rebuild all 1> /dev/null"%(sid+1))
+  for sid in range(STC_SID):
+
+    hid=sid+(site*STC_SID)
+
+    os.system("./setup.sh storage %d device-delete all  1> /dev/null"%(hid+1))
+    ret = os.system("./setup.sh storage %d device-rebuild all -g %s 1> /dev/null"%(hid+1,site))
     if ret != 0:
       return ret
 
@@ -650,8 +718,10 @@ def rebuild_fid() :
 	    cidsid=name[len(name)-4].split("storage_")[1].split('-')	  
           else:
 	    cidsid=name[len(name)-5].split("storage_")[1].split('-')	  
+
+          hid=int(cidsid[1])+(int(site)*int(STC_SID))
 	  
-          string="./setup.sh storage %s fid-rebuild -s %s/%s -f %s "%(cidsid[1],cidsid[0],cidsid[1],fid)
+          string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s "%(hid,site,cidsid[0],cidsid[1],fid)
           parsed = shlex.split(string)
           cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
           cmd.wait()
@@ -887,12 +957,6 @@ TST_REBUILD=['gruyere','rebuild_fid','rebuild_one','rebuild_all']
 
 
 (options, args) = parser.parse_args()
-
-if options.mount != None:
-  mnt=options.mount  
-if not os.path.isdir(mnt):
-  print "%s is not a directory"%(mnt)
-  exit(-1) 
  
 if options.process != None:
   process=int(options.process)
@@ -909,11 +973,6 @@ if options.verbose == True:
 if options.list == True:
   do_list()
   exit(0)
-  
-if options.snipper != None:
-  NB_SID=get_sid_nb()
-  snipper(options.snipper)
-  exit(0)  
     
 if options.stop == True:  
   stopOnFailure=True 
@@ -933,7 +992,17 @@ elif options.fast == True:
 elif options.long == True:  
   loop=loop*2 
   nbGruyere=nbGruyere*2
-         
+
+if options.mount != None:
+  mnt=options.mount  
+
+site=get_site_number()
+
+if options.snipper != None:
+  NB_SID,STC_SID=get_sid_nb()
+  snipper(options.snipper)
+  exit(0)  
+  
 
 # Build list of test 
 list=[] 
@@ -963,6 +1032,11 @@ for arg in args:
 if len(list) == 0:
   usage()
   
+
+if not os.path.isdir(mnt):
+  print "%s is not a directory"%(mnt)
+  exit(-1)   
+  
 # Run the requested test list
-NB_SID=get_sid_nb()
+NB_SID,STC_SID=get_sid_nb()
 do_run_list(list)

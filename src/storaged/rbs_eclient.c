@@ -36,15 +36,17 @@
  *
  * @param clt: RPC connection to export server
  * @param export_host: IP or hostname of export server
+ * @param site: the site identifier
  * @param cid: the unique ID of cluster
  * @param cluster_entries: list of cluster(s)
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
+int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, int site, cid_t cid,
         list_t * cluster_entries) {
     int status = -1;
     epgw_cluster_ret_t *ret = 0;
+    epgw_cluster_arg_t arg;
     int i = 0;
 
     DEBUG_FUNCTION;
@@ -62,7 +64,10 @@ int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
         goto out;
 
     // Send request
-    ret = ep_list_cluster_1(&cid, clt->client);
+    arg.hdr.gateway_rank = site;
+    arg.cid              = cid;
+     
+    ret = ep_list_cluster_1(&arg, clt->client);
     if (ret == 0) {
         errno = EPROTO;
         // Release connection

@@ -552,12 +552,11 @@ out:
 */
 void ep_list_cluster_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     static epgw_cluster_ret_t ret;
-    uint16_t * cid = (uint16_t*)pt;
+    epgw_cluster_arg_t * arg = (epgw_cluster_arg_t*) pt;
     list_t *p, *q, *r;
     uint8_t stor_idx = 0;
 
-    int requested_site = 0;
-    #warning requested_site set to 0
+    int requested_site = arg->hdr.gateway_rank;
     
     DEBUG_FUNCTION;
 
@@ -585,7 +584,7 @@ void ep_list_cluster_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
             cluster_config_t *cc = list_entry(q, cluster_config_t, list);
 
             // Check if it's a the good cluster
-            if (cc->cid == *cid) {
+            if (cc->cid == arg->cid) {
 
                 // Copy cid
                 ret.status_gw.ep_cluster_ret_t_u.cluster.cid = cc->cid;

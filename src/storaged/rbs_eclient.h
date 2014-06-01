@@ -28,12 +28,13 @@
  *
  * @param clt: rpc client for the exportd server.
  * @param export_host: exportd server hostname.
+ * @param site: the site identifier
  * @param cid: the unique id for this cluster.
  * @param cluster_entries: the list of clusters.
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
+int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, int site, cid_t cid,
         list_t * cluster_entries);
 
 #endif

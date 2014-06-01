@@ -239,6 +239,18 @@ xdr_epgw_cluster_ret_t (XDR *xdrs, epgw_cluster_ret_t *objp)
 }
 
 bool_t
+xdr_epgw_cluster_arg_t (XDR *xdrs, epgw_cluster_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_int16_t (xdrs, &objp->cid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_storage_node_t (XDR *xdrs, ep_storage_node_t *objp)
 {
 	//register int32_t *buf;

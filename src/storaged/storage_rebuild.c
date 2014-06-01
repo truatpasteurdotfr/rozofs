@@ -44,6 +44,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
+#include <rozofs/common/rozofs_site.h>
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
@@ -68,6 +69,7 @@ sconfig_t   storaged_config;
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 
 static char *storaged_hostname = NULL;
+static int   storaged_geosite = 0xFFFFFFFF;
 
 static uint16_t storaged_nrstorages = 0;
 static fid_t    fid2rebuild={0};
@@ -139,8 +141,8 @@ static int rbs_check() {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
 
         // Sanity check for rebuild this storage
-        if (rbs_sanity_check(rbs_export_hostname, sc->cid, sc->sid,
-                sc->root,
+        if (rbs_sanity_check(rbs_export_hostname, storaged_geosite,
+	        sc->cid, sc->sid, sc->root,
 		sc->device.total,sc->device.mapper,sc->device.redundancy) != 0)
             goto out;
     }
@@ -219,6 +221,7 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 
         // Try to rebuild the storage until it's over
         while (rbs_rebuild_storage(stor_confs[i].export_hostname, 
+	        storaged_geosite,
                 stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
 		stor_confs[i].device.total,
 		stor_confs[i].device.mapper, 
@@ -387,7 +390,8 @@ void usage() {
     printf("                             \tAll <cid/sid> are rebuilt when omitted.\n");
     printf("   -f, --fid=<FID>           \tSpecify one FID to rebuild. -s must also be set.\n");
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
-    printf("                              \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
+    printf("                             \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
+    printf("   -g, --geosite             \tTo force site number in case o geo-replication\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -403,17 +407,24 @@ int main(int argc, char *argv[]) {
         { "sid", required_argument, 0, 's'},
         { "fid", required_argument, 0, 'f'},
         { "parallel", required_argument, 0, 'p'},	
+        { "geosite", required_argument, 0, 'g'},
         { 0, 0, 0, 0}
     };
 
     // Init of the timer configuration
     rozofs_tmr_init_configuration();
     storaged_hostname = NULL;
+    
+    storaged_geosite = rozofs_get_local_site();
+    if (storaged_geosite == -1) {
+      storaged_geosite = 0;
+    }
+
 
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:d:r:H:f:p:s:f:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:d:r:H:f:p:s:f:g:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -477,7 +488,22 @@ int main(int argc, char *argv[]) {
                   }
 		}
                 break;			
-            case 'p':
+            case 'g':
+	        {
+		  int ret;
+                  ret = sscanf(optarg,"%d", &storaged_geosite);
+                  if (ret <= 0) { 
+                      fprintf(stderr, "storage_rebuild failed. Bad site number: %s %s\n", optarg,
+                              strerror(errno));
+                      exit(EXIT_FAILURE);
+                  }
+		  if ((storaged_geosite!=0)&&(storaged_geosite!=1)) { 
+                      fprintf(stderr, "storage_rebuild failed. site number must be within [0:1]%s\n", optarg);
+                      exit(EXIT_FAILURE);
+                  }
+		}
+                break;
+	    case 'p':
 	        {
 		  int ret;
 

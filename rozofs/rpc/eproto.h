@@ -97,6 +97,12 @@ struct epgw_cluster_ret_t {
 };
 typedef struct epgw_cluster_ret_t epgw_cluster_ret_t;
 
+struct epgw_cluster_arg_t {
+	struct ep_gateway_t hdr;
+	int16_t cid;
+};
+typedef struct epgw_cluster_arg_t epgw_cluster_arg_t;
+
 struct ep_storage_node_t {
 	ep_host_t host;
 	uint8_t sids_nb;
@@ -820,8 +826,8 @@ extern  epgw_status_ret_t * ep_removexattr_1_svc(epgw_removexattr_arg_t *, struc
 extern  epgw_listxattr_ret_t * ep_listxattr_1(epgw_listxattr_arg_t *, CLIENT *);
 extern  epgw_listxattr_ret_t * ep_listxattr_1_svc(epgw_listxattr_arg_t *, struct svc_req *);
 #define EP_LIST_CLUSTER 23
-extern  epgw_cluster_ret_t * ep_list_cluster_1(uint16_t *, CLIENT *);
-extern  epgw_cluster_ret_t * ep_list_cluster_1_svc(uint16_t *, struct svc_req *);
+extern  epgw_cluster_ret_t * ep_list_cluster_1(epgw_cluster_arg_t *, CLIENT *);
+extern  epgw_cluster_ret_t * ep_list_cluster_1_svc(epgw_cluster_arg_t *, struct svc_req *);
 #define EP_CONF_STORAGE 24
 extern  epgw_conf_ret_t * ep_conf_storage_1(epgw_conf_stor_arg_t *, CLIENT *);
 extern  epgw_conf_ret_t * ep_conf_storage_1_svc(epgw_conf_stor_arg_t *, struct svc_req *);
@@ -973,6 +979,7 @@ extern  bool_t xdr_ep_storage_t (XDR *, ep_storage_t*);
 extern  bool_t xdr_ep_cluster_t (XDR *, ep_cluster_t*);
 extern  bool_t xdr_ep_cluster_ret_t (XDR *, ep_cluster_ret_t*);
 extern  bool_t xdr_epgw_cluster_ret_t (XDR *, epgw_cluster_ret_t*);
+extern  bool_t xdr_epgw_cluster_arg_t (XDR *, epgw_cluster_arg_t*);
 extern  bool_t xdr_ep_storage_node_t (XDR *, ep_storage_node_t*);
 extern  bool_t xdr_ep_export_t (XDR *, ep_export_t*);
 extern  bool_t xdr_ep_mount_ret_t (XDR *, ep_mount_ret_t*);
@@ -1078,6 +1085,7 @@ extern bool_t xdr_ep_storage_t ();
 extern bool_t xdr_ep_cluster_t ();
 extern bool_t xdr_ep_cluster_ret_t ();
 extern bool_t xdr_epgw_cluster_ret_t ();
+extern bool_t xdr_epgw_cluster_arg_t ();
 extern bool_t xdr_ep_storage_node_t ();
 extern bool_t xdr_ep_export_t ();
 extern bool_t xdr_ep_mount_ret_t ();

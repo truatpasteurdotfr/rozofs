@@ -130,6 +130,7 @@ typedef struct bins_file_rebuild {
 typedef struct _rozofs_rebuild_header_file_t {
   char          config_file[PATH_MAX];
   char          export_hostname[ROZOFS_HOSTNAME_MAX];
+  int           site;
   storage_t     storage;
 } rozofs_rebuild_header_file_t;
  

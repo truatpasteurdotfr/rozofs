@@ -52,7 +52,10 @@ process_killer () {
   then
     for pid in `cat /var/run/$1* `
     do
-      kill $pid  > /dev/null 2>&1    
+      case "$pid" in
+        0);;
+        *) kill $pid  > /dev/null 2>&1 ;;
+      esac	    
     done
   else
     return  
@@ -64,7 +67,10 @@ process_killer () {
   then   
     for pid in `cat /var/run/$1* `
     do
-      kill -9 $pid > /dev/null 2>&1
+      case "$pid" in
+        0);;
+	*) kill -9 $pid > /dev/null 2>&1 ;; 
+      esac	
     done
   fi  
 }   
@@ -272,6 +278,7 @@ rebuild_storage_fid()
     hid=$2
     # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
     resolve_host_storage $hid
+    shift 3
 
     cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r localhost $*"
     echo $cmd
@@ -289,11 +296,10 @@ rebuild_storage_device()
       *)    dev="-d $2";;
     esac
 
-    echo "rebuild $cid/$sid device $2" 
+    echo "rebuild $cid/$sid device $2"     
+    create_storage_device $hid $2
     
-    create_storage_device $1 $2
-    
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r localhost --sid $cid/$sid $dev
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r localhost $3 $4 --sid $cid/$sid $dev 
 }
 delete_storage_device() 
 {
@@ -309,10 +315,10 @@ delete_storage_device()
     for device in $(seq $begin $end)
     do
 
-      dir="${LOCAL_STORAGES_ROOT}_$cid-$sid/$device"
+      dir="${LOCAL_STORAGES_ROOT}_$cid-$hid/$device"
       if [ -d $dir ];
       then
-        echo "delete $cid/$sid device $device : $dir" 
+        echo "delete ${LOCAL_STORAGE_NAME_BASE}$hid device $device : $dir" 
         \rm -rf $dir
       else
         echo "$dir does not exist !!!"         	  
@@ -552,10 +558,10 @@ undeploy_clients_local ()
 
     done
 
-sleep 0.4
-
-rozofsmount_kill_best_effort
-geocli_kill_best_effort
+    sleep 0.4
+    rozofsmount_kill_best_effort
+    geocli_kill_best_effort
+    
 }
 
 start_exportd ()
@@ -974,9 +980,16 @@ usage ()
 set_layout () {
 
   # Get default layout from /tmp/rozo.layout if not given as parameter
-  ROZOFS_LAYOUT=$1
-  case "$ROZOFS_LAYOUT" in
-    "") ROZOFS_LAYOUT=`cat ${WORKING_DIR}/layout.saved`
+  
+  case "$1" in
+    "") {
+      ROZOFS_LAYOUT=0
+      if [ -f ${WORKING_DIR}/layout.saved ];
+      then
+        ROZOFS_LAYOUT=`cat ${WORKING_DIR}/layout.saved`    
+      fi
+    };;   
+    *) ROZOFS_LAYOUT=$1;;
   esac
 
   case "$ROZOFS_LAYOUT" in
@@ -1170,7 +1183,6 @@ main ()
 	
     elif [ "$1" == "start" ]
     then
-
         check_build
         do_stop
 
@@ -1258,7 +1270,7 @@ main ()
       case "$3" in 
         stop)            stop_one_storage $2;;
 	start)           start_one_storage $2;;
-	device-rebuild)  rebuild_storage_device $2 $4;;
+	device-rebuild)  rebuild_storage_device $2 $4 $5 $6;;
 	device-delete)   delete_storage_device $2 $4;; 
         fid-rebuild)     rebuild_storage_fid $*;;
 	reset)           reset_one_storage $2;;

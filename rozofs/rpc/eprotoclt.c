@@ -341,13 +341,13 @@ ep_listxattr_1(epgw_listxattr_arg_t *argp, CLIENT *clnt)
 }
 
 epgw_cluster_ret_t *
-ep_list_cluster_1(uint16_t *argp, CLIENT *clnt)
+ep_list_cluster_1(epgw_cluster_arg_t *argp, CLIENT *clnt)
 {
 	static epgw_cluster_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_LIST_CLUSTER,
-		(xdrproc_t) xdr_uint16_t, (caddr_t) argp,
+		(xdrproc_t) xdr_epgw_cluster_arg_t, (caddr_t) argp,
 		(xdrproc_t) xdr_epgw_cluster_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
