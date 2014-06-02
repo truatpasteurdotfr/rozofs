@@ -206,7 +206,6 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
   storcli_write_arg_no_data_t *storcli_write_rq_p;;
   uint8_t layout;;
   int i;
-  int ret;
   int block_count = 0;
     
   
@@ -231,7 +230,7 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
 //       STORCLI_START_KPI(storcli_kpi_transform_forward);
 
        block_count += wr_proj_buf_p[i].number_of_blocks;
-       ret =rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
+       rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,
                                                layout,
                                                wr_proj_buf_p[i].first_block_idx, 
                                                wr_proj_buf_p[i].number_of_blocks, 
