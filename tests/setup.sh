@@ -483,9 +483,9 @@ deploy_clients_local ()
                     option="$option -o bsdlock"
                     option="$option -o rozofsrotate=3"		
 		    option="$option -o site=$((geo_site-1))"	    
-                    fs_instance=$((fs_instance+1))
                     option="$option -o instance=$fs_instance"
-
+                    fs_instance=$((fs_instance+1))
+		    
                     cmd="${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E  ${LOCAL_EXPORTS_ROOT}_${eid} ${mount_point} ${option}"
                     echo $cmd
 		    $cmd
@@ -493,10 +493,10 @@ deploy_clients_local ()
                     
                     if [ $GEOREP -ne 1 ];
 		    then
-		       geo_instance=$((geo_instance+1))
                        cmd="${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${eid}  -M ${mount_point} -G $((geo_site-1)) -i $geo_instance"        
                        echo $cmd
 		       $cmd &
+		       geo_instance=$((geo_instance+1))
                     fi
         	else
                     echo "Unable to mount RozoFS (${mount_point} already mounted)"
