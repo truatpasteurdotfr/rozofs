@@ -302,7 +302,7 @@ static void on_stop() {
     
     ret = system(cmd);
     if (-1 == ret) {
-        severe("system command failed: %s", strerror(errno));
+        DEBUG("system command failed: %s", strerror(errno));
     }
 
     svc_exit();
@@ -378,7 +378,7 @@ static void on_start() {
     // Launch killer script
     ret = system(cmd);
     if (-1 == ret) {
-        severe("system command failed: %s", strerror(errno));
+        DEBUG("system command failed: %s", strerror(errno));
     }
 
     conf.io_port = 0;
@@ -395,7 +395,7 @@ static void on_start() {
       // Launch storio_starter script
       ret = system(cmd);
       if (-1 == ret) {
-          severe("system command failed: %s", strerror(errno));
+          DEBUG("system command failed: %s", strerror(errno));
       }
       conf.io_port++;
     }
@@ -410,7 +410,7 @@ static void on_start() {
         // Launch storio_starter script
         ret = system(cmd);
         if (-1 == ret) {
-            severe("system command failed: %s", strerror(errno));
+            DEBUG("system command failed: %s", strerror(errno));
         }
         conf.io_port++;
       }

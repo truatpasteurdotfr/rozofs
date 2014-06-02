@@ -1227,7 +1227,7 @@ void rozofs_kill_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
     ret = system(cmd);
     if (-1 == ret) {
-        severe("system command failed: %s", strerror(errno));
+        DEBUG("system command failed: %s", strerror(errno));
     }
 }
 
@@ -1274,7 +1274,7 @@ void rozofs_start_one_storcli(int instance) {
 
     ret = system(cmd);
     if (-1 == ret) {
-        severe("system command failed: %s", strerror(errno));
+        DEBUG("system command failed: %s", strerror(errno));
     }
 }
 void rozofs_kill_storcli() {
