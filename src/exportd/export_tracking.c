@@ -529,144 +529,7 @@ int export_is_valid(const char *root) {
 
     return 0;
 }
-#if 0
-static int export_load_rmfentry(export_t * e) {
-    int status = -1;
-    DIR *dd = NULL;
-    struct dirent *dirent_sub_trash = NULL;
-    rmfentry_t *rmfe = NULL;
-    char trash_path[PATH_MAX];
-    int i = 0;
 
-    // Build thrash path
-    sprintf(trash_path, "%s/%s_%d", e->root, TRASH_DNAME,(int)expgwc_non_blocking_conf.instance);
-
-    // Create trash directory if necessary
-    if (access(trash_path, F_OK) != 0) {
-        if (mkdir(trash_path, S_IRUSR | S_IWUSR | S_IXUSR) < 0) {
-            severe("mkdir failed (%s): %s", trash_path, strerror(errno));
-            goto out;
-        }
-    }
-
-    // Open trash directory
-    if ((dd = opendir(trash_path)) == NULL) {
-        severe("opendir failed (%s): %s", trash_path, strerror(errno));
-        goto out;
-    }
-
-    // For each subdirectory under trash
-    while ((dirent_sub_trash = readdir(dd)) != NULL) {
-
-        // Check . and ..
-        if ((strcmp(dirent_sub_trash->d_name, ".") == 0) ||
-                (strcmp(dirent_sub_trash->d_name, "..") == 0)) {
-            continue;
-        }
-
-        char bucket_path[PATH_MAX];
-        DIR *bucket_dir = NULL;
-        struct dirent *dirent_sub_bucket = NULL;
-        struct stat s;
-
-        // Build bucket directory path
-        sprintf(bucket_path, "%s/%s", trash_path, dirent_sub_trash->d_name);
-
-        // Check if is a directory
-        if (stat(bucket_path, &s) != 0)
-            continue;
-        if (S_ISDIR(s.st_mode) == 0)
-            continue;
-
-        // Check if is a valid number
-        i = atoi(dirent_sub_trash->d_name);
-        if (i > RM_MAX_BUCKETS)
-            continue;
-
-        // Open bucket directory
-        if ((bucket_dir = opendir(bucket_path)) == NULL) {
-            severe("opendir (%s) failed: %s", bucket_path, strerror(errno));
-            continue;
-        }
-
-        // Scan bucket directory
-        while ((dirent_sub_bucket = readdir(bucket_dir)) != NULL) {
-
-            char rm_file_path[PATH_MAX];
-            int fd = -1;
-            mattr_t attrs;
-
-            // Check . and ..
-            if ((strcmp(dirent_sub_bucket->d_name, ".") == 0) ||
-                    (strcmp(dirent_sub_bucket->d_name, "..") == 0)) {
-                continue;
-            }
-
-            // Build file to delete path
-            sprintf(rm_file_path, "%s/%s_%d/%s/%s", e->root, TRASH_DNAME,(int)expgwc_non_blocking_conf.instance,
-                    dirent_sub_trash->d_name, dirent_sub_bucket->d_name);
-
-            // Open file to delete
-            if ((fd = open(rm_file_path, O_RDWR, S_IRWXU)) == -1) {
-                severe("open (%s) failed: %s", rm_file_path, strerror(errno));
-                continue;
-            }
-
-            // Read file to delete
-            if ((pread(fd, &attrs, sizeof (mattr_t), 0))
-                    != (sizeof (mattr_t))) {
-                severe("pread (%s) failed: %s", rm_file_path, strerror(errno));
-                continue;
-            }
-
-            // Build the rmfentry_t
-            rmfe = xmalloc(sizeof (rmfentry_t));
-            memcpy(rmfe->fid, attrs.fid, sizeof (fid_t));
-            rmfe->cid = attrs.cid;
-            memcpy(rmfe->initial_dist_set, attrs.sids,
-                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            memcpy(rmfe->current_dist_set, attrs.sids,
-                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            list_init(&rmfe->list);
-
-            // Acquire lock on bucket trash list
-            if ((errno = pthread_rwlock_wrlock(&e->trash_buckets[i].rm_lock)) != 0) {
-                severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
-                goto out;
-            }
-
-            // Check size of file 
-            if (attrs.size >= RM_FILE_SIZE_TRESHOLD) {
-                // Add to front of list
-                list_push_front(&e->trash_buckets[i].rmfiles, &rmfe->list);
-            } else {
-                // Add to back of list
-                list_push_back(&e->trash_buckets[i].rmfiles, &rmfe->list);
-            }
-
-            if ((errno = pthread_rwlock_unlock(&e->trash_buckets[i].rm_lock)) != 0) {
-                severe("pthread_rwlock_unlock failed: %s", strerror(errno));
-                goto out;
-            }
-
-            // Close file
-            if (fd != -1)
-                close(fd);
-        }
-
-        // Close bucket directory
-        if (bucket_dir != NULL)
-            closedir(bucket_dir);
-    }
-    status = 0;
-out:
-    // Close trash directory
-    if (dd != NULL)
-        closedir(dd);
-
-    return status;
-}
-#endif
 
 int export_create(const char *root,export_t * e) {
     const char *version = VERSION;
@@ -857,6 +720,14 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     export_const_t ect;
     int fd = -1;
     int i = 0;
+    /*
+    ** do it for eid if the process is master. For the slaves do it for
+    ** the eid that are in their scope only
+    */
+    if (exportd_is_master()== 0) 
+    {   
+      if (exportd_is_eid_match_with_instance(eid) ==0) return 0;
+    }
 
     if (!realpath(root, e->root))
     {

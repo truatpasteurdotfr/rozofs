@@ -282,11 +282,13 @@ int rozofs_stat_start(void *args) {
       int policy=-1;
 
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
+#if 0
           severe("RozoFS thread Scheduling policy   = %s\n",
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :
                     "???");
+#endif
  #if 0
       int ret= 0;
       my_priority.sched_priority= 98;
@@ -297,12 +299,13 @@ int rozofs_stat_start(void *args) {
 	severe("error on sched_setscheduler: %s",strerror(errno));	
       }
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
+#if 0
           severe("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority,
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :
                     "???");
-
+#endif
  #endif        
      
     }

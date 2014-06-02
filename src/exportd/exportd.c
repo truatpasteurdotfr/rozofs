@@ -971,12 +971,21 @@ static int load_exports_conf() {
     int status = -1;
     list_t *p;
     DEBUG_FUNCTION;
+    export_entry_t *entry;
 
     // For each export
 
     list_for_each_forward(p, &exportd_config.exports) {
         export_config_t *econfig = list_entry(p, export_config_t, list);
-        export_entry_t *entry = xmalloc(sizeof (export_entry_t));
+	/*
+	** do it for eid if the process is master. For the slaves do it for
+	** the eid that are in their scope only
+	*/
+	if (exportd_is_master()== 0) 
+	{   
+	  if (exportd_is_eid_match_with_instance(econfig->eid) ==0) continue;
+	}
+        entry = xmalloc(sizeof (export_entry_t));
         volume_t *volume;
 
         list_init(&entry->list);
@@ -994,6 +1003,7 @@ static int load_exports_conf() {
                 goto out;
             }
         }
+	info("initializing export %d path %s",econfig->eid,econfig->root);
 
         // Initialize export
         if (export_initialize(&entry->export, volume,econfig->bsize,
@@ -1003,6 +1013,7 @@ static int load_exports_conf() {
                     econfig->root, strerror(errno));
             goto out;
         }
+	info("initializing export %d OK",econfig->eid);
      
        // Allocate default profiler structure
         export_profiler_allocate(econfig->eid);

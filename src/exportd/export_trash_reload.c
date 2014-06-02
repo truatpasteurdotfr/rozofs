@@ -103,6 +103,7 @@ int export_load_rmfentry(export_t * e)
             severe("error while main tracking file header of slice %d %s\n",user_id,strerror(errno));
 	    continue;
 	 }
+	 ret = 0;
 	 continue;
        }
        /*
@@ -185,6 +186,4 @@ int export_load_rmfentry(export_t * e)
      }   
    }
    return ret;
-
-
 }
