@@ -284,7 +284,7 @@ void *rozofs_stcmoj_thread(void *arg) {
       int ret= 0;
 
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
-          severe("Mojette thread Scheduling policy   = %s\n",
+          DEBUG("Mojette thread Scheduling policy   = %s\n",
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :
@@ -295,10 +295,10 @@ void *rozofs_stcmoj_thread(void *arg) {
       ret = pthread_setschedparam(pthread_self(),policy,&my_priority);
       if (ret < 0) 
       {
-	severe("error on sched_setscheduler: %s",strerror(errno));	
+          severe("error on sched_setscheduler: %s",strerror(errno));
       }
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
-          severe("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
+          DEBUG("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :
