@@ -40,9 +40,9 @@ do_ask () {
    for p in $P
    do
      printf  "\n__[%8s]___[%10s:%-5s]" "$WHAT" $h $p   
-     name=`${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 10 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
+     name=`${LOCAL_BINARY_DIR}/rozodiag/rozodiag -t 10 -i $h -p $p -c who | awk -F':' '{if ($1=="system ") print $2; else print " ??";}' | cut -b 2-`
      printf "__[%s]\n" "$name"
-     ${LOCAL_BINARY_DIR}/rozodebug/rozodebug -t 10 -i $h -p $p $cmd
+     ${LOCAL_BINARY_DIR}/rozodiag/rozodiag -t 10 -i $h -p $p $cmd
    done
  done
 } 
@@ -188,7 +188,7 @@ fi
 DBG_PORT_BASE="50000" 
 
 # Scan Export VIP in config file
-exp_host=`cat ${LOCAL_CONF}/export.conf | grep "exportd_vip = " | awk -F'\"' '{print $2}'`
+exp_host=localhost
 port=$DBG_PORT_BASE
 exp_port=$port
 

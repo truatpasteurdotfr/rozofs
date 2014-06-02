@@ -99,7 +99,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t rozofsmount_instance)
   uint32_t        mx_tcp_client = 2;
   uint32_t        mx_tcp_server = 2;
   uint32_t        mx_tcp_server_cnx = 10;
-  uint32_t        mx_af_unix_ctx = 512;
+  uint32_t        mx_af_unix_ctx = 1024;
   uint32_t        mx_lbg_north_ctx = 64;
 
 //#warning TCP configuration ressources is hardcoded!!
@@ -145,8 +145,8 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t rozofsmount_instance)
    **   4 connections per Relc and 32
    **   for: NPS, Timer, Debug, etc...
    */
-//#warning set the number of contexts for socketCtrl to 256
-   ret = ruc_sockctl_init(256);
+//#warning set the number of contexts for socketCtrl to 1024
+   ret = ruc_sockctl_init(1024);
    if (ret != RUC_OK)
    {
      fatal( " socket controller init failed" );

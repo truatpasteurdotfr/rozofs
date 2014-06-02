@@ -69,6 +69,8 @@ typedef struct rozofsmnt_conf {
     unsigned posix_file_lock;    
     unsigned bsd_file_lock;  
     unsigned max_write_pending ; /**< Maximum number pending write */
+    unsigned quota; /* ignored */
+    unsigned noXattr;
 } rozofsmnt_conf_t;
 
 typedef struct dirbuf {
@@ -82,7 +84,7 @@ typedef struct dirbuf {
 typedef struct ientry {
     fuse_ino_t inode; ///< value of the inode allocated by rozofs
     fid_t fid; ///< unique file identifier associated with the file or directory
-    uint64_t size;   /**< size of the file */
+//    uint64_t size;   /**< size of the file */
     dirbuf_t db; ///< buffer used for directory listing
     unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
     mattr_t attrs;   /**< attributes caching for fs_mode = block mode   */
@@ -99,7 +101,70 @@ typedef struct ientry {
      ** because some write has occured since the last read.
      */
     uint64_t    read_consistency;
+    uint64_t    timestamp;
 } ientry_t;
+
+
+
+/*
+** About exportd id quota
+*/
+extern uint64_t eid_free_quota;
+extern int rozofs_xattr_disable; /**< assert to one to disable xattr for the exported file system */
+/*
+** write alignment statistics
+*/
+extern uint64_t    rozofs_aligned_write_start[2];
+extern uint64_t    rozofs_aligned_write_end[2];
+
+/**______________________________________________________________________________
+*/
+/**
+*  Set export id free block count when a quota is set
+*  @param free_quota   Count of free blocks before reaching the hard quota
+*
+*/
+static inline void eid_set_free_quota(uint64_t free_quota) {
+  eid_free_quota = free_quota;
+}
+/**______________________________________________________________________________
+*/
+/**
+*  Check export id hard quota
+*
+*  @param oldSize   Old size of the file
+*  @param newSize   New size of the file
+*
+* @retval 0 not enough space left
+* @retval 1 there is the requested space
+*
+*/
+static inline int eid_check_free_quota(uint64_t oldSize, uint64_t newSize) {
+  uint64_t oldBlocks;
+  uint64_t newBlocks;
+
+  if (eid_free_quota == -1) return 1; // No quota so go on
+
+  // Compute current number of blocks of the file
+  oldBlocks = oldSize / ROZOFS_BSIZE;
+  if (oldSize % ROZOFS_BSIZE) oldBlocks++;
+
+  // Compute futur number of blocks of the file
+  newBlocks = newSize / ROZOFS_BSIZE;
+  if (newSize % ROZOFS_BSIZE) newBlocks++;  
+  
+  if ((newBlocks-oldBlocks) > eid_free_quota) {
+    errno = ENOSPC;
+    return 0;
+  }  
+  return 1;
+}
+
+
+
+
+
+
 
 static inline uint32_t fuse_ino_hash(void *n) {
     return hash_xor8(*(uint32_t *) n);
@@ -164,7 +229,6 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 	ie = xmalloc(sizeof(ientry_t));
 	memcpy(ie->fid, fid, sizeof(fid_t));
 	ie->inode = fid_hash(fid);
-	ie->size = 0;
 	list_init(&ie->list);
 	ie->db.size = 0;
 	ie->db.eof = 0;

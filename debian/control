@@ -27,7 +27,7 @@ Description: RozoFS filesystem (storage daemon)
 
 Package: rozofs-rozofsmount
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0), fuse | fuse-utils
+Depends: ${shlibs:Depends}, ${misc:Depends}, libfuse2 (>= 2.9.0), fuse
 Description: RozoFS filesystem (mount utility)
  rozofsmount mounts RozoFS filesystems using FUSE.
  .
@@ -41,7 +41,7 @@ Description: RozoFS filesystem (monitoring package)
  .
  RozoFS is a scale-out NAS using erasure coding.
 
-Package: rozofs-rozodebug
+Package: rozofs-rozodiag
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libreadline6
 Description: RozoFS filesystem (debugging tools)
@@ -88,7 +88,7 @@ Package: nagios-plugins-rozofs
 Section: net
 Priority: extra
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozofsmount (= ${binary:Version}) | rozofs-storaged (= ${binary:Version}) | rozofs-exportd (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozodiag (= ${binary:Version})
 Description: RozoFS filesystem (Nagios plugins)
  Provide monitoring information for the various rozofs packages.
  .

@@ -297,10 +297,20 @@ int rozos_cache_write(uint8_t *buf_cache256K_p,uint64_t off,uint8_t *src_p,int l
     hdr_p->owner_key = key;
     hdr_p->len = block_len;  
   }
+  /*
+  ** either adjust the length if we have the same key or set it if the key is different
+  */
   if (last_len != 0) 
   {
-    hdr_p->owner_key = key;
-    hdr_p->len = last_len;    
+    if (hdr_p->owner_key != key)
+    {
+      hdr_p->owner_key = key;
+      hdr_p->len = last_len;    
+    }
+    else
+    {
+      if (hdr_p->len <last_len)  hdr_p->len = last_len;         
+    }
   }
   /*
   ** copy the data in the payload
@@ -339,21 +349,26 @@ int rozos_cache_write_not_aligned(uint8_t *buf_cache256K_p,uint64_t off,uint8_t 
   int last_len;
   int block_len        = ROZOFS_CACHE_BSIZE;
   int first_block;
-  int i;
+  int i=0;
   int effective_length;
+  uint64_t aligned_offset;
   
+  
+  aligned_offset = off/ROZOFS_CACHE_BUFFER_BSIZE;
+  aligned_offset = aligned_offset*ROZOFS_CACHE_BSIZE;
   /*
   ** we need effective length because it might be possible to skip the first 8K buffer if
   ** the offset does not start on a 8K boundary and when the first 8K block does not belong
   ** to the file
   */
   effective_length = len;
+  
   /*
   ** now since the length has been adjusted compute the number of blocks and the remaining
   ** length for the last block
   */
-  block_count = (len-relative_8K_block_offset)/ROZOFS_CACHE_BSIZE;
-  last_len    = (len-relative_8K_block_offset)%ROZOFS_CACHE_BSIZE;
+  block_count = (off+len-aligned_offset)/ROZOFS_CACHE_BSIZE;
+  last_len    = (off+len-aligned_offset)%ROZOFS_CACHE_BSIZE;
   /*
   ** adjust the payload and the index of the first 8K block where data will be filled in
   */
@@ -379,7 +394,11 @@ int rozos_cache_write_not_aligned(uint8_t *buf_cache256K_p,uint64_t off,uint8_t 
       ** we need to adjust the length and the offset in the source and destination buffer
       */
       payload_p += relative_8K_block_offset;
+      /*
+      ** exit from there if the length to skip is greater than the effective length
+      */
       effective_length -= relative_8K_block_offset;
+      if (effective_length <= 0) return len;
       src_p += relative_8K_block_offset;
       i = first_block+1;
       hdr_p++;

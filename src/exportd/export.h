@@ -158,7 +158,6 @@ int export_create(const char *root);
  *
  * @param export: pointer to the export
  * @param volume: pointer to the volume the export relies on
- * @param layout: rozofs layout used for this export
  * @param lv2_cache: pointer to the cache to use
  * @param eid: id of this export
  * @param root: path to root directory
@@ -168,7 +167,7 @@ int export_create(const char *root);
  *
  * @return 0 on success -1 otherwise (errno is set)
  */
-int export_initialize(export_t * e, volume_t *volume, uint8_t layout,
+int export_initialize(export_t * e, volume_t *volume, 
         lv2_cache_t *lv2_cache, eid_t eid, const char *root, const char *md5,
         uint64_t squota, uint64_t hquota);
 
@@ -334,7 +333,8 @@ int export_readlink(export_t *e, fid_t fid, char link[PATH_MAX]);
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int export_rename(export_t * e, fid_t pfid, char *name, fid_t npfid,
-        char *newname, fid_t fid);
+        char *newname, fid_t fid,
+	mattr_t * attrs);
 
 /** Read to a regular file
  *

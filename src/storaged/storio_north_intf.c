@@ -259,15 +259,66 @@ int storio_north_interface_buffer_init(int read_write_buf_count,int read_write_b
 @retval          RUC_NOK : out of memory
 */
 
-int storio_north_interface_init(char * host) {
+int storio_north_interface_init(char * host, int instance_id) {
   int i;
   int ret;
+  uint32_t ipAddr;
+  int count;
+  int warning_raised = 0;
+  int first,last;
+  
+  /* Single storio mode. Listen on every configured port */
+  if (instance_id == 0) {
+    first = 0;
+    last  = storaged_config.io_addr_nb;
+  }
+  /* Multiple storio. Listen on one of the configured port */
+  else {
+    first = instance_id-1;
+    last  = instance_id;  
+  }
+
 
   /*
-  ** create the listening af unix sockets on the north interface
-  */  
-  for (i=0; i< storaged_config.io_addr_nb; i++) {     
-     
+  ** Wait until at least one of the IP address configured exists
+  */
+  count = 0;
+  while (count == 0) {
+  
+    /*
+    ** Count the number of available IP addresses
+    */
+    for (i=first; i< last; i++) {     
+      ipAddr = storaged_config.io_addr[i].ipv4;
+      if ((ipAddr == INADDR_ANY) ||
+         (is_this_ipV4_configured(ipAddr))) count++;
+    }  
+
+    /* No IP address configured Raise a warning once */  
+    if (count == 0) {
+      if (warning_raised==0) {	
+	warning_raised = 1;
+	warning("No listening I/O IP addresses configured");
+      }	
+      sleep(1);
+    }  
+    else {
+      if (warning_raised == 1) {
+	warning("%d listening I/O IP addresses configured now",count);
+      }	      
+    }
+  }
+  
+  /* At least one port to listen to. */
+  for (i=first; i< last; i++) {
+    
+    ipAddr = storaged_config.io_addr[i].ipv4;
+    if ((ipAddr != INADDR_ANY) && !(is_this_ipV4_configured(ipAddr))) {
+      severe("Listening IO IP address %u.%u.%u.%u not configured", 
+               (ipAddr>>24)&0xFF, (ipAddr>>16)&0xFF, (ipAddr>>8)&0xFF, (ipAddr>>0)&0xFF); 
+      continue;	            
+    }
+   
     /*
     ** Create the listening sockets
     */ 
@@ -280,8 +331,9 @@ int storio_north_interface_init(char * host) {
       fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
               ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.io_addr[i].port);
       return -1;
-    }  
+    } 
   }
+  
   return 0;
 }
 

@@ -76,6 +76,21 @@ struct sp_read_arg_t {
 };
 typedef struct sp_read_arg_t sp_read_arg_t;
 
+struct sp_truncate_arg_no_bins_t {
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t layout;
+	uint8_t spare;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	sp_uuid_t fid;
+	uint8_t proj_id;
+	uint16_t last_seg;
+	uint64_t last_timestamp;
+	uint64_t bid;
+	uint32_t len;
+};
+typedef struct sp_truncate_arg_no_bins_t sp_truncate_arg_no_bins_t;
+
 struct sp_truncate_arg_t {
 	uint16_t cid;
 	uint8_t sid;
@@ -87,6 +102,10 @@ struct sp_truncate_arg_t {
 	uint16_t last_seg;
 	uint64_t last_timestamp;
 	uint64_t bid;
+	struct {
+		u_int bins_len;
+		char *bins_val;
+	} bins;
 };
 typedef struct sp_truncate_arg_t sp_truncate_arg_t;
 
@@ -161,6 +180,7 @@ extern  bool_t xdr_sp_status_ret_t (XDR *, sp_status_ret_t*);
 extern  bool_t xdr_sp_write_arg_t (XDR *, sp_write_arg_t*);
 extern  bool_t xdr_sp_write_arg_no_bins_t (XDR *, sp_write_arg_no_bins_t*);
 extern  bool_t xdr_sp_read_arg_t (XDR *, sp_read_arg_t*);
+extern  bool_t xdr_sp_truncate_arg_no_bins_t (XDR *, sp_truncate_arg_no_bins_t*);
 extern  bool_t xdr_sp_truncate_arg_t (XDR *, sp_truncate_arg_t*);
 extern  bool_t xdr_sp_read_t (XDR *, sp_read_t*);
 extern  bool_t xdr_sp_read_ret_t (XDR *, sp_read_ret_t*);
@@ -173,6 +193,7 @@ extern bool_t xdr_sp_status_ret_t ();
 extern bool_t xdr_sp_write_arg_t ();
 extern bool_t xdr_sp_write_arg_no_bins_t ();
 extern bool_t xdr_sp_read_arg_t ();
+extern bool_t xdr_sp_truncate_arg_no_bins_t ();
 extern bool_t xdr_sp_truncate_arg_t ();
 extern bool_t xdr_sp_read_t ();
 extern bool_t xdr_sp_read_ret_t ();

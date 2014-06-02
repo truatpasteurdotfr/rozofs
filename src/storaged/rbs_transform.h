@@ -130,4 +130,21 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
         uint32_t first_block_idx, uint32_t number_of_blocks,
         rbs_inverse_block_t *block_ctx_p, char *data);
 
+/** 
+  Make the list of coherent projections for a given reveive block, and
+  give back the count as well as the list.
+
+ * 
+ * @param *prj_ctx_p: pointer to the working array of the projections set
+ * @param layout: rozofs layout used for store data
+ * @param block_idx: index of the block
+ * @param *block_ctx_p: pointer to the list of coherent projections
+ * @param *timestamp_p: the timestamp of these projections
+ * @param *effective_length_p: effective length of these projections
+ *
+ * @return: 0 on success -1 otherwise
+ */
+int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,
+        uint32_t block_idx, uint8_t *prj_idx_tb_p, uint64_t *timestamp_p,
+        uint16_t *effective_length_p);
 #endif

@@ -1,2 +1,3 @@
-contrib/nagios/cfg/generate_rozofs_dynamic.sh
-contrib/nagios/cfg/input_example
+contrib/nagios/examples/rozofs-example-hosts.cfg
+contrib/nagios/examples/rozofs-example-hostgroups.cfg
+contrib/nagios/examples/rozofs-example-services.cfg

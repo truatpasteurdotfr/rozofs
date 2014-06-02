@@ -39,6 +39,13 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId);
 rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[ROZOFS_FUSE_CTX_MAX];
 uint32_t rozofs_fuse_usr_ctx_idx = 0;
 
+uint64_t rozofs_fuse_req_count = 0;
+uint64_t rozofs_fuse_req_byte_in = 0;
+uint64_t rozofs_fuse_req_eagain_count = 0;
+uint64_t rozofs_fuse_req_enoent_count = 0;
+uint64_t rozofs_fuse_req_tic = 0;
+uint64_t rozofs_fuse_buffer_depletion_count = 0;
+int rozofs_fuse_loop_count = 2;
 
 
 /*
@@ -53,6 +60,13 @@ ruc_sockCallBack_t rozofs_fuse_callBack_sock=
   };
 
 
+void rozofs_fuse_get_ticker()
+{
+  struct timeval     timeDay;  
+
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  rozofs_fuse_req_tic = MICROLONG(timeDay); 
+}
 
 /**
 * rozofs fuse xmit and receive channel callbacks for non blocking case
@@ -132,28 +146,31 @@ int rozofs_fuse_kern_chan_receive(struct fuse_chan **chp, char *buf,
 
 restart:
 	res = read(fuse_chan_fd(ch), buf, size);
-	err = errno;
 
 	if (fuse_session_exited(se))
 		return 0;
-	if (res == -1) {
-		/* ENOENT means the operation was interrupted, it's safe
-		   to restart */
-		if (err == ENOENT)
-			goto restart;
-
-		if (err == ENODEV) {
-            severe("Exit from RozofsMount required!!!");
-			fuse_session_exit(se);
-            rozofs_exit();
-			return 0;
-		}
-		/* Errors occurring during normal operation: EINTR (read
-		   interrupted), EAGAIN (nonblocking I/O), ENODEV (filesystem
-		   umounted) */
-		if (err != EINTR && err != EAGAIN)
-			perror("fuse: reading device");
-		return -err;
+	if (res == -1) 
+	{
+	  /* ENOENT means the operation was interrupted, it's safe
+	  to restart */
+	  err = errno;
+	  if (err == ENOENT)
+	  {
+	    rozofs_fuse_req_enoent_count++;
+	    goto restart;
+	  }
+	  if (err == ENODEV) {
+	    severe("Exit from RozofsMount required!!!");
+	    fuse_session_exit(se);
+	    rozofs_exit();
+	    return 0;
+	  }
+	  /* Errors occurring during normal operation: EINTR (read
+	     interrupted), EAGAIN (nonblocking I/O), ENODEV (filesystem
+	     umounted) */
+	  if (err != EINTR && err != EAGAIN) severe("fuse: reading device");
+	  if ((err == EAGAIN)|| (err == EINTR)) rozofs_fuse_req_eagain_count++;
+	  return -err;
 	}
 #if 0
 	if ((size_t) res < sizeof(struct fuse_in_header)) {
@@ -161,6 +178,8 @@ restart:
 		return -EIO;
 	}
 #endif
+	rozofs_fuse_req_count++;
+	rozofs_fuse_req_byte_in+=res;
 	return res;
 }
 /*
@@ -301,7 +320,11 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     ** - 1 to process the incoming request
     ** - 1 to eventualy process an internal asynchronous flush
     */
-    if (buffer_count < 2) return FALSE;
+    if (buffer_count < 2) 
+    {
+      rozofs_fuse_buffer_depletion_count++;
+      return FALSE;
+    }
 
     return TRUE;
 }
@@ -327,10 +350,21 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
 uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
 {
     rozofs_fuse_ctx_t  *ctx_p;
+    int k;
+    uint32_t            buffer_count;
     
-    ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;    
-    
-    rozofs_fuse_session_loop(ctx_p);
+    ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;   
+     
+     for (k = 0; k < rozofs_fuse_loop_count; k++)
+     {
+       buffer_count = ruc_buf_getFreeBufferCount(ctx_p->fuseReqPoolRef);
+       if (buffer_count < 2) 
+       {
+	 rozofs_fuse_buffer_depletion_count++;
+	 return TRUE;
+       }    
+       rozofs_fuse_session_loop(ctx_p);
+     }
     
     return TRUE;
 }
@@ -490,8 +524,40 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
 void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t            buffer_count=0;
   char                status[16];
-  char *pChar = uma_dbg_get_buffer();
+  int   new_val;   
   
+  char *pChar = uma_dbg_get_buffer();
+
+  if (argv[1] != NULL)
+  {
+      if (strcmp(argv[1],"loop")==0) 
+      {
+	 errno = 0;
+	 if (argv[2] == NULL)
+	 {
+           pChar += sprintf(pChar, "argument is missing\n");
+	   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	   return;	  	  
+	 }
+	 new_val = (int) strtol(argv[2], (char **) NULL, 10);   
+	 if (errno != 0) {
+           pChar += sprintf(pChar, "bad value %s\n",argv[2]);
+	   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	   return;
+	 }
+	 /*
+	 ** 
+	 */
+	 if (new_val == 0) {
+           pChar += sprintf(pChar, "unsupported value %s\n",argv[2]);
+	   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	   return;
+	 }	 
+	 rozofs_fuse_loop_count = new_val;
+      }
+  }
+  uint64_t old_ticker = rozofs_fuse_req_tic;
+  rozofs_fuse_get_ticker();  
   buffer_count      = ruc_buf_getFreeBufferCount(rozofs_fuse_ctx_p->fuseReqPoolRef);
   /*
   ** check if the session has been exited
@@ -504,6 +570,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   /*
   ** display the cache mode
   */
+  pChar +=  sprintf(pChar,"poll count : %d\n",rozofs_fuse_loop_count); 
   pChar +=  sprintf(pChar,"FS Mode    : "); 
   if (rozofs_mode== 0)
   {
@@ -512,7 +579,8 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   else
   {
     pChar +=  sprintf(pChar,"Block\n");      
-  }     
+  }  
+  pChar +=  sprintf(pChar,"FS Xattr   : %s\n",(rozofs_xattr_disable==1)?"Disabled":"Enabled");   
   pChar +=  sprintf(pChar,"cache Mode : ");      
     switch (rozofs_cache_mode)
   {
@@ -535,16 +603,51 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   /**
   * clear the stats
   */
+  uint64_t  delay = rozofs_fuse_req_tic-old_ticker;
+
   memset(rozofs_write_merge_stats_tab,0,sizeof(uint64_t)*RZ_FUSE_WRITE_MAX);
+  pChar +=sprintf(pChar,"fuse req_in (count/bytes): %8llu/%llu\n",(long long unsigned int)rozofs_fuse_req_count,
+                                                    (long long unsigned int)rozofs_fuse_req_byte_in);  
+  if (delay)
+  {
+  pChar +=sprintf(pChar,"fuse req_in/s            : %8llu/%llu\n",(long long unsigned int)(rozofs_fuse_req_count*1000000/delay),
+                                                   (long long unsigned int)(rozofs_fuse_req_byte_in*1000000/delay));
+  }
+
+  pChar +=sprintf(pChar,"fuse req_in EAGAIN/ENOENT: %8llu/%llu\n",(long long unsigned int)rozofs_fuse_req_eagain_count,
+                                                     (long long unsigned int)rozofs_fuse_req_enoent_count);  
+
+  pChar +=sprintf(pChar,"fuse buffer depletion    : %8llu\n",(long long unsigned int)rozofs_fuse_buffer_depletion_count);
+  rozofs_fuse_buffer_depletion_count =0;
+  rozofs_fuse_req_count = 0;
+  rozofs_fuse_req_byte_in = 0;
+  rozofs_fuse_req_eagain_count = 0;
+  rozofs_fuse_req_enoent_count = 0;
   /**
   *  read/write statistics
   */
-  pChar +=sprintf(pChar,"flush buf. count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.flush_buf_cpt);  
-  pChar +=sprintf(pChar,"readahead  count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.readahead_cpt);  
-  pChar +=sprintf(pChar,"read req.  count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.read_req_cpt);  
-  pChar +=sprintf(pChar,"read fuse  count: %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.read_fuse_cpt);  
+  pChar +=sprintf(pChar,"flush buf. count          : %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.flush_buf_cpt);  
+  pChar +=sprintf(pChar,"  start aligned/unaligned : %8llu/%llu\n",
+                 (long long unsigned int)rozofs_aligned_write_start[0],
+                 (long long unsigned int)rozofs_aligned_write_start[1]
+		 );  
+  pChar +=sprintf(pChar,"  end aligned/unaligned   : %8llu/%llu\n",
+                (long long unsigned int)rozofs_aligned_write_end[0],
+                (long long unsigned int)rozofs_aligned_write_end[1]
+		);  
+  pChar +=sprintf(pChar,"readahead count           : %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.readahead_cpt);  
+  pChar +=sprintf(pChar,"read req. count           : %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.read_req_cpt);  
+  pChar +=sprintf(pChar,"read fuse count           : %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.read_fuse_cpt);  
   
   memset(&rozofs_fuse_read_write_stats_buf,0,sizeof(rozofs_fuse_read_write_stats));
+  {
+    int k;
+    for (k= 0;k< 2;k++)
+    {
+      rozofs_aligned_write_start[k] = 0;
+      rozofs_aligned_write_end[k] = 0;
+    }
+  }
   /*
   ** Per array statistics
   */
@@ -564,6 +667,22 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   memset (rozofs_read_buf_section_table,0,sizeof(uint64_t)*ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX);
   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
+
+/*__________________________________________________________________________
+*/
+/**
+*   entry point for fuse socket polling
+*
+
+   @param current_time : current time provided by the socket controller
+   
+   
+   @retval none
+*/
+void rozofs_fuse_scheduler_entry_point(uint64_t current_time)
+{
+  rozofs_fuse_rcvMsgsock((void*)rozofs_fuse_ctx_p,rozofs_fuse_ctx_p->fd);
 }
 
 /*
@@ -698,10 +817,15 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
        status = -1; 
        break;   
     } 
+    rozofs_fuse_get_ticker();
 
      status = 0;
      break;
   }
+  /*
+  ** attach the callback on socket controller
+  */
+  ruc_sockCtrl_attach_applicative_poller(rozofs_fuse_scheduler_entry_point); 
   
   uma_dbg_addTopic("fuse", rozofs_fuse_show);
   return status;

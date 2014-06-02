@@ -31,14 +31,12 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
+#include <rozofs/rpc/export_profiler.h>
 
 #include "mdir.h"
 #include "mdirent.h"
 #include "dirent_journal.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 /** @defgroup DIRENT_CACHE_LVL0 Level 0 cache
  *  This module provides services related to level 0 cache\n

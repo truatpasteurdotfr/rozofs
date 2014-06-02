@@ -203,7 +203,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
     uint32_t mx_tcp_server = 2;
     uint32_t mx_tcp_server_cnx = 10;
     uint32_t local_ip = INADDR_ANY;
-    uint32_t        mx_af_unix_ctx = 512;
+    uint32_t        mx_af_unix_ctx = 1024;
     
 
 
@@ -225,8 +225,8 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
      ** initialize the socket controller:
      **   for: NPS, Timer, Debug, etc...
      */
-    // warning set the number of contexts for socketCtrl to 256
-    ret = ruc_sockctl_init(256);
+    // warning set the number of contexts for socketCtrl to 1024
+    ret = ruc_sockctl_init(1024);
     if (ret != RUC_OK) {
         fdl_debug_loop(__LINE__);
         fatal( " socket controller init failed" );
@@ -287,7 +287,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
         {
             char name[256];
-	    sprintf(name, "storio %s", arg_p->hostname);
+	    sprintf(name, "storio%d %s", arg_p->instance_id, arg_p->hostname);
             uma_dbg_set_name(name);
         }
         /*
@@ -342,7 +342,7 @@ int storio_start_nb_th(void *args) {
   */
   size = sizeof(sp_write_arg_no_bins_t);
   if (size < sizeof(sp_read_arg_t)) size = sizeof(sp_read_arg_t);
-  if (size < sizeof(sp_truncate_arg_t)) size = sizeof(sp_truncate_arg_t);
+  if (size < sizeof(sp_truncate_arg_no_bins_t)) size = sizeof(sp_truncate_arg_no_bins_t);
   decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
   if (decoded_rpc_buffer_pool == NULL) {
     fatal("Can not allocate decoded_rpc_buffer_pool");
@@ -353,7 +353,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Initialize the disk thread interface and start the disk threads
   */	
-  ret = storio_disk_thread_intf_create(args_p->hostname,storaged_config.nb_disk_threads, ROZORPC_SRV_CTX_CNT) ;
+  ret = storio_disk_thread_intf_create(args_p->hostname,args_p->instance_id, storaged_config.nb_disk_threads, ROZORPC_SRV_CTX_CNT) ;
   if (ret < 0) {
     fatal("storio_disk_thread_intf_create");
     return -1;
@@ -367,7 +367,7 @@ int storio_start_nb_th(void *args) {
     fatal("Fatal error on storio_north_interface_buffer_init()\n");
     return -1;
   }
-  ret = storio_north_interface_init(args_p->hostname);
+  ret = storio_north_interface_init(args_p->hostname,args_p->instance_id);
   if (ret < 0) {
     fatal("Fatal error on storio_north_interface_init()\n");
     return -1;

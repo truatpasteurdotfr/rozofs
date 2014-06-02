@@ -25,12 +25,10 @@
 #include <fcntl.h>
 #include <string.h>
 
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 
 #include "mslnk.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 int mslnk_open(mslnk_t *mslnk, const char *path) {
     START_PROFILING(mslnk_open);

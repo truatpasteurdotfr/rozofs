@@ -33,6 +33,7 @@
 
 /** Default open flags to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_FLAG O_RDWR | O_CREAT | O_NOATIME
+#define ROZOFS_ST_BINS_FILE_FLAG_NO_CREATE O_RDWR | O_NOATIME
 
 /** Default mode to use for open bins files */
 #define ROZOFS_ST_BINS_FILE_MODE S_IFREG | S_IRUSR | S_IWUSR
@@ -160,7 +161,7 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
  */
 int storage_truncate(storage_t * st, uint8_t layout, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,
-         uint16_t last_seg,uint64_t last_timestamp);
+         uint16_t last_seg,uint64_t last_timestamp,u_int len, char * data);
 
 /** Remove a bins file
  *

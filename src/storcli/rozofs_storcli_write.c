@@ -45,7 +45,7 @@
 #include <rozofs/rpc/sproto.h>
 #include "storcli_main.h"
 #include <rozofs/rozofs_timer_conf.h>
-
+#include "rozofs_storcli_mojette_thread_intf.h"
 
 int rozofs_storcli_get_position_of_first_byte2write();
 
@@ -499,8 +499,9 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
     storcli_write_arg_no_data_t *storcli_write_rq_p = &working_ctx_p->storcli_write_arg;
     uint8_t layout = storcli_write_rq_p->layout;
     int i;
-    int errcode;
+    int errcode=0;
     int ret;
+    int read_req = 0;
 
     /*
     ** need to lock to avoid the sending a a direct reply error on internal reading
@@ -511,7 +512,8 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
     {
       if (wr_proj_buf_p[i].state == ROZOFS_WR_ST_RD_REQ)
       {
-         ret = rozofs_storcli_internal_read_req(working_ctx_p,&wr_proj_buf_p[i]);
+        read_req = 1;
+        ret = rozofs_storcli_internal_read_req(working_ctx_p,&wr_proj_buf_p[i]);
          if (ret < 0)
          {
            working_ctx_p->write_ctx_lock = 0;
@@ -534,7 +536,21 @@ void rozofs_storcli_write_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_
       errcode = EFAULT;
       goto failure;   
    }
-
+   /*
+   ** check if there some read request pending: if it is the case
+   ** do not use the thread
+   */
+   if ((rozofs_stcmoj_thread_write_enable) &&(read_req == 0)&& 
+        (storcli_write_rq_p->len >rozofs_stcmoj_thread_len_threshold))
+   {
+     ret = rozofs_stcmoj_thread_intf_send(STORCLI_MOJETTE_THREAD_FWD,working_ctx_p,0);
+     if (ret < 0) 
+     {
+        errno = EPROTO;
+	goto failure;
+     }
+     return;   
+   }
     /*
     ** Just to address the case of the buffer on which the fransform must apply
     */
@@ -691,8 +707,47 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    }   
    /*
    ** set the pointer to the first valid data
+   ** this depend on the presence of the shared memory or not.
+   ** when the write is perfomed by using the shared memory, the upper bit of
+   ** the length to write is asserted, the lower part of the length indicates the reference
+   ** of the buffer in the shared memory
    */
-   working_ctx_p->data_write_p = (char*)(pmsg+xdr_getpos(&xdrs));
+   if (storcli_write_rq_p->len & 0x80000000)
+   {
+     if (storcli_rozofsmount_shared_mem.active == 0)
+     {
+       /*
+       ** the shared memory is not active , so the write cannot take place
+       ** trigger a fatal to restart the storcli
+       */
+       fatal("Shared memory is not configured");
+     }
+       /*
+       ** set data_write_p to point to the shared memory
+       */
+       uint8_t *pbase = (uint8_t*)storcli_rozofsmount_shared_mem.data_p;
+       int shared_mem_idx = (storcli_write_rq_p->len & 0xff);
+       uint32_t buf_offset = shared_mem_idx*storcli_rozofsmount_shared_mem.buf_sz;
+       uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
+       /*
+       ** restore the length of the data to write in the write interface
+       */
+       storcli_write_rq_p->len = pbuffer[1];
+       working_ctx_p->data_write_p  = (char*)&pbuffer[2]; 
+       /*
+       ** store the pointer to the beginning of the shared memory
+       **  needed to control the timestamp just before sending the 
+       ** data after the Mojette transform took place
+       */
+       working_ctx_p->shared_mem_p = pbuffer;
+   }
+   else
+   {
+     /*
+     **  case of a write without using the shared memory
+     */
+     working_ctx_p->data_write_p = (char*)(pmsg+xdr_getpos(&xdrs));
+   }
    /*
    ** init of the load balancing group/ projection association table:
    ** That table is ordered: the first corresponds to the storage associated with projection 0, second with 1, etc..
@@ -795,18 +850,31 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
    memcpy(working_ctx_p->fid_key, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
    working_ctx_p->opcode_key = STORCLI_WRITE;
    {
-     rozofs_storcli_ctx_t *ctx_lkup_p = storcli_hash_table_search_ctx(working_ctx_p->fid_key);
-     /*
-     ** Insert the current request in the queue associated with the hash(fid)
-     */
-     storcli_hash_table_insert_ctx(working_ctx_p);
-     if (ctx_lkup_p != NULL)
-     {
-       /*
-       ** there is a current request that is processed with the same fid
-       */
-       return;    
-     }
+       int ret;
+       uint64_t wr_bid;
+       uint64_t wr_nb_blocks;
+       if (storcli_write_rq_p->empty_file == 0)
+       {
+	 wr_bid = working_ctx_p->wr_bid;
+	 wr_nb_blocks = working_ctx_p->wr_nb_blocks;
+       }
+       else
+       {
+	 wr_bid = 0;
+	 wr_nb_blocks= 0;
+	 wr_nb_blocks--;
+       }
+       ret = stc_rng_insert((void*)working_ctx_p,
+                             STORCLI_WRITE,working_ctx_p->fid_key,
+			     wr_bid,wr_nb_blocks,
+			     &working_ctx_p->sched_idx);
+       if (ret == 0)
+       {
+           /*
+            ** there is a current request that is processed with the same fid and there is a collision
+            */
+           return;
+       }
      /*
      ** no request pending with that fid, so we can process it right away
      */
@@ -864,13 +932,31 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
   int       storage_idx;
-  int       error;
+  int       error=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   
   rozofs_forward = rozofs_get_rozofs_forward(layout);
   rozofs_safe    = rozofs_get_rozofs_safe(layout);
   
+  /*
+  ** check if the buffer is still valid: we might face the situation where the rozofsmount
+  ** time-out and re-allocate the write buffer located in shared memory for another
+  ** transaction (either read or write:
+  ** the control must take place only where here is the presence of a shared memory for the write
+  */
+  if (working_ctx_p->shared_mem_p!= NULL)
+  {
+      uint32_t *xid_p = (uint32_t*)working_ctx_p->shared_mem_p;
+      if (*xid_p !=  working_ctx_p->src_transaction_id)
+      {
+        /*
+        ** the source has aborted the request
+        */
+        error = EPROTO;
+        goto fail;
+      }      
+  }   
   /*
   ** set the current state of each load balancing group belonging to the rozofs_safe group
   */
@@ -1049,7 +1135,7 @@ void rozofs_storcli_write_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,u
     uint8_t   rozofs_forward;
     uint8_t   layout;
     storcli_write_arg_no_data_t *storcli_write_rq_p = (storcli_write_arg_no_data_t*)&working_ctx_p->storcli_write_arg;
-    int error;
+    int error=0;
     int storage_idx;
 
     rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
@@ -1910,6 +1996,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
       /*
       ** THIS MUST NOT HAPPEN
       */
+     ruc_buf_freeBuffer(xmit_buf); 
      errno = EFAULT;
      severe(" rpc header encode error ");
      wr_proj_buf_p->state = ROZOFS_WR_ST_ERROR;
@@ -1930,6 +2017,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
    */
    if (xdr_storcli_read_arg_t(&xdrs,request) == FALSE)
    {
+     ruc_buf_freeBuffer(xmit_buf); 
      severe(" internal read request encoding error ");
      errno = EFAULT;
      wr_proj_buf_p->state = ROZOFS_WR_ST_ERROR;

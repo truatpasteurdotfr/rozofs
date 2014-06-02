@@ -37,6 +37,51 @@ static void usage() {
     printf("[ -loop <nb> ]        <nb> test operations will be done (default %d)\n",DEFAULT_LOOP);
     exit(-100);
 }
+#define HEXDUMP_COLS 16
+void hexdump(void *mem, unsigned int offset, unsigned int len)
+{
+        unsigned int i, j;
+        
+        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+        {
+                /* print offset */
+                if(i % HEXDUMP_COLS == 0)
+                {
+                        printf("0x%06x: ", i+offset);
+                }
+ 
+                /* print hex data */
+                if(i < len)
+                {
+                        printf("%02x ", 0xFF & ((char*)mem)[i+offset]);
+                }
+                else /* end of block, just aligning for ASCII dump */
+                {
+                        printf("   ");
+                }
+                
+                /* print ASCII dump */
+                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+                {
+                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+                        {
+                                if(j >= len) /* end of block, not really printing */
+                                {
+                                        putchar(' ');
+                                }
+                                else if(isprint(((char*)mem)[j+offset])) /* printable char */
+                                {
+                                        putchar(0xFF & ((char*)mem)[j+offset]);        
+                                }
+                                else /* other char */
+                                {
+                                        putchar('.');
+                                }
+                        }
+                        putchar('\n');
+                }
+        }
+}
 
 
 char cmd[1024];
@@ -121,51 +166,147 @@ char *argv[];
     }
 }
 
-int check_size(char * file, size_t size) {
+int check_size(char * file, size_t fsize, char * ref) {
   struct stat stats;
   int ret;
+  int i;
+  char * buf;
+  int f;
+  int size;
+  
     
   ret = lstat(file,&stats);
   if (ret < 0) {
+    printf ("check_size %s fsize = %d \n",file, fsize);  
     printf("lstat(%s) %s\n",file,strerror(errno));
     return -1;
   }
-  if (stats.st_size != size) {
+  if (stats.st_size != fsize) {
+    printf ("check_size %s fsize = %d \n",file, fsize);  
     printf("%s has size %d while expecting %d\n",file,stats.st_size,size);
     return -1;    
   }
+
+  
+  f = open(file, O_RDONLY);
+  if (f == -1) {
+    printf ("check_size %s fsize = %d \n",file, fsize);  
+      printf("proc %d - open(%s) %s\n",myProcId, file, strerror(errno));
+      return -1;
+  }  
+  
+  buf = malloc(fsize);
+  
+  size = pread(f, buf, fsize, 0);
+  if (size != fsize) {
+    printf ("check_size %s fsize = %d \n",file, fsize);  
+    printf("proc %d - pread %s\n",myProcId,strerror(errno));
+    close(f);
+    free(buf);
+    return -1;
+  } 
+   
+  for (i=0; i < fsize;i++) {
+    if (buf[i] != ref[i]) {
+    printf ("check_size %s fsize = %d \n",file, fsize);  
+      printf("proc %d - offset %d(0x%x) contains %x\n",myProcId, i, i, buf[i]);
+      hexdump(buf,i-64,128);
+      printf("______________\n");
+      hexdump(ref,i-64,128);      
+      close(f);
+      free(buf);
+      return -1;      
+    }
+  }
+  close(f);
+  free(buf);
   return 0;
 }
 
-int do_one_test(char * f) {
+int do_one_test(char * f, int * fsize, char * ref) {
   int ret = 0;
   size_t size;
   
-  size = random() % file_mb; 
-  ret = truncate(f, size);
+  
+  {
+    int new_size,i;
+    new_size = *fsize;
+    new_size -= (random() % (*fsize/2)); 
+    for (i=new_size; i < *fsize;i++) ref[i] = 0;
+    *fsize = new_size;
+  }  
+
+  ret = truncate(f, *fsize);
   if (ret < 0) {
-    printf("truncate(%s,%d) %s\n",f,size,strerror(errno));
+    printf("truncate(%s,%d) %s\n",f,*fsize,strerror(errno));
     return -1;
   }  
-  return check_size(f,size);
+  ret = check_size(f,*fsize, ref);
+  if (ret != 0) {
+    sleep(1);
+    check_size(f,*fsize, ref);    
+    return ret;
+  }
+  
+  ret = truncate(f, *fsize+3743);
+  if (ret < 0) {
+    printf("truncate(%s,%d) %s\n",f,*fsize+3743,strerror(errno));
+    return -1;
+  }  
+  ret = check_size(f,*fsize+3743, ref);
+  if (ret != 0) {
+    sleep(1);  
+    check_size(f,*fsize+3743, ref);  
+  }  
+  return ret; 
 }
+
 int loop_test_process() {
   char fileName[64];
   char path[64];
   pid_t pid = getpid();
   int ret;
+  int f;
   int count = 0;
-
+  int fsize=0;
+  char * buf;
+  int i;
+  
   getcwd(path,128);  
   sprintf(fileName, "%s/%s/f%u", path, mount,pid);
-  sprintf(cmd,"echo QxsxsxssS > %s", fileName);
-  system(cmd);
+  
+  f = open(fileName, O_RDWR | O_TRUNC | O_CREAT, 0640);
+  if (f == -1) {
+      printf("proc %d - open(%s) %s\n",myProcId, fileName, strerror(errno));
+      return -1;
+  }  
+
+  buf = malloc(file_mb+10000);
+  for (i=0; i < (file_mb+10000); i++) buf[i] = 0x41 + (i%26) ;
+  
+  fsize = pwrite(f, buf, file_mb, 0);
+  if (fsize != file_mb) {
+    printf("proc %d - pwrite %s\n",myProcId,strerror(errno));
+    close(f);
+    return -1;
+  }  
+  close(f);
+
+  
+  ret = check_size(fileName,fsize, buf); 
+  if (ret != 0) {
+    printf("Inital checksize\n");
+    sleep(1);    
+    check_size(fileName,fsize, buf);  
+    return ret; 
+  }
+  count = 0;
   
   while (1) {
   
     count ++;
        
-    ret = do_one_test(fileName);   
+    ret = do_one_test(fileName,&fsize, buf);   
     if (ret < 0) {
       printf("proc %3d - test failed in loop %d\n", myProcId, count);  
       return ret;
@@ -175,7 +316,8 @@ int loop_test_process() {
       unlink(fileName);    
       return 0;
     }
-  }    
+  } 
+  free(buf);     
 }  
 void free_result(void) {
   struct shmid_ds   ds;
@@ -256,6 +398,6 @@ int main(int argc, char **argv) {
     }
   }
   free_result();
-  printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
+  if (ret) printf("OK %d / FAILURE %d\n",nbProcess+ret, -ret);
   exit(ret);
 }

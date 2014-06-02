@@ -1176,6 +1176,12 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
    struct timeval tv;
 
     /*
+    ** get the pointer to the transaction context:
+    ** it is required to get the information related to the receive buffer
+    */
+    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+ 
+    /*
     ** Check that this entry is still valid
     */
     if ((file->chekWord != FILE_CHECK_WORD)
@@ -1187,12 +1193,7 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
            
     rpc_reply.acpted_rply.ar_results.proc = NULL;
 
-    /*
-    ** get the pointer to the transaction context:
-    ** it is required to get the information related to the receive buffer
-    */
-    rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
-    /*    
+   /*    
     ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
     */
     status = rozofs_tx_get_status(this);

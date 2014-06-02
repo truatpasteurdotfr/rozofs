@@ -14,20 +14,20 @@
 #  <http://www.gnu.org/licenses/>.
 
 . env.sh
-	
+
 usage() {
     echo "$0: <mount point>"
-    exit 0
+    exit 1
 }
 
 ### Main
 
 [[ $# -lt 1 ]] && usage
 
-[[ -z ${FSOP_BINARY} ]] && echo "Can't find fileop." && exit -1
+[[ -z ${FSOP_BINARY} ]] && echo "Can't find fileop." && exit 1
 
 flog=${WORKING_DIR}/fileop_`date "+%Y%m%d_%Hh%Mm%Ss"`_`basename $1`.log
 
 ${FSOP_BINARY} -l 1 -u 6 -i 1 -s 1M -d $1 2>&1 | tee $flog
 
-exit 0
+exit ${PIPESTATUS[0]}

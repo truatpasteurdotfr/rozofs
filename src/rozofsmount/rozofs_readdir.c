@@ -138,7 +138,7 @@ int rozofs_ll_readdir_send_to_export(fid_t fid, uint64_t cookie,void	 *buffer_p)
  * @param off  off to start to read from
  * @param fi   
  */
-int rozofs_ll_readdir_from_export(ientry_t * ie, fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, ROZOFS_READIR_START_MODE_E from) {
+int rozofs_ll_readdir_from_export(ientry_t * ie, fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, ROZOFS_READIR_START_MODE_E from,int trc_idx) {
     int               ret;        
     void             *buffer_p = NULL;
     dirbuf_t         *db=NULL;
@@ -158,6 +158,7 @@ int rozofs_ll_readdir_from_export(ientry_t * ie, fuse_req_t req, fuse_ino_t ino,
     SAVE_FUSE_PARAM(buffer_p,ino);
     SAVE_FUSE_PARAM(buffer_p,size);
     SAVE_FUSE_PARAM(buffer_p,off);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
 
     GET_FUSE_DB(buffer_p,db);
 
@@ -192,8 +193,10 @@ int rozofs_ll_readdir_from_export(ientry_t * ie, fuse_req_t req, fuse_ino_t ino,
 void rozofs_ll_readdir_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
                           struct fuse_file_info *fi) {
     ientry_t         *ie = 0;
-    int               ret;        
+    int               ret; 
+    errno = 0;       
 
+    int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_readdir,ino,NULL,size,off);
     DEBUG("readdir (%lu, size:%llu, off:%llu)\n", (unsigned long int) ino,
             (unsigned long long int) size, (unsigned long long int) off);
 
@@ -208,7 +211,7 @@ void rozofs_ll_readdir_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off
     // read from 0 again. it might be overkill but to be sure not using
     // buffer content force exportd readdir call.
     if (off == 0) {
-      ret = rozofs_ll_readdir_from_export(ie, req, ino, size, off, ROZOFS_READIR_FROM_SCRATCH);
+      ret = rozofs_ll_readdir_from_export(ie, req, ino, size, off, ROZOFS_READIR_FROM_SCRATCH,trc_idx);
       if (ret == 0) return;
       goto error;
     }
@@ -221,7 +224,7 @@ void rozofs_ll_readdir_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off
     }  
 
     // let's read from export  and start from the saved point in ie
-    ret = rozofs_ll_readdir_from_export(ie, req, ino, size, off, ROZOFS_READIR_FROM_IE);
+    ret = rozofs_ll_readdir_from_export(ie, req, ino, size, off, ROZOFS_READIR_FROM_IE,trc_idx);
     if (ret == 0) return;
 
 error:
@@ -229,6 +232,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+    rozofs_trc_rsp(srv_rozofs_ll_readdir,ino,NULL,1,trc_idx);
     return;
 }
 
@@ -261,11 +265,14 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
    ep_child_t  *iterator = NULL;
     mattr_t     attrs;
     dirbuf_t   *db=NULL;
+    int trc_idx;
+    errno = 0;
                 
     RESTORE_FUSE_PARAM(param,req);
     RESTORE_FUSE_PARAM(param,ino);
     RESTORE_FUSE_PARAM(param,size);
     RESTORE_FUSE_PARAM(param,off);    
+    RESTORE_FUSE_PARAM(param,trc_idx);    
 
     GET_FUSE_DB(param,db);
 
@@ -388,6 +395,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_readdir,ino,NULL,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_readdir);
     if (db != NULL) rozofs_free_db(db);  
     rozofs_fuse_release_saved_context(param);   

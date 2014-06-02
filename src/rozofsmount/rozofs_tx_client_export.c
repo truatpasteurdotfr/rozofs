@@ -771,16 +771,28 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
     ** at the top of the buffer
     */
 #if 1
-    if (opcode == STORCLI_READ)
+    if ((opcode == STORCLI_READ)||(opcode == STORCLI_WRITE))
     {
-       uint32_t *xid_p;
+       uint32_t *share_p;
        void *shared_buf_ref;
 
         RESTORE_FUSE_PARAM(fuse_ctx_p,shared_buf_ref);
         if (shared_buf_ref != NULL)
         {
-           xid_p = (uint32_t*)ruc_buf_getPayload(shared_buf_ref);
-          *xid_p = (uint32_t)call_msg.rm_xid;
+           share_p = (uint32_t*)ruc_buf_getPayload(shared_buf_ref);
+          *share_p = (uint32_t)call_msg.rm_xid;
+	  /**
+	  * copy the buffer for the case of the write
+	  */
+	  if (opcode == STORCLI_WRITE)
+	  {
+	     storcli_write_arg_t  *wr_args = (storcli_write_arg_t*)msg2encode_p;
+	     /*
+	     ** get the length to copy from the sshared memory
+	     */
+	     int len = share_p[1];
+	     memcpy(&share_p[2],wr_args->data.data_val,len);	  
+	  }
         }
     }
 #endif

@@ -5,17 +5,17 @@
 # Required-Stop:
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Mount all filesystems.
+# Short-Description: Mount all Rozo filesystems.
 # Description:
 ### END INIT INFO
 
 # Author: Fizians S.A.S. <devel@rozofs.com>
 
-PATH=/sbin:/bin
+PATH=/sbin:/bin:/usr/bin
 DESC=rozofsmount             # Introduce a short description here
 NAME=rozofsmount             # Introduce the short server's name here
-DAEMON=/bin/mount.rozofs  # Introduce the server's location here
-DAEMON_ARGS=""             # Arguments to run the daemon with
+DAEMON=/sbin/mount.rozofs    # Introduce the server's location here
+DAEMON_ARGS=""               # Arguments to run the daemon with
 SCRIPTNAME=/etc/init.d/$NAME
 
 . /lib/init/vars.sh
@@ -24,8 +24,10 @@ SCRIPTNAME=/etc/init.d/$NAME
 
 SCRIPTNAME=/etc/init.d/$NAME
 
-# Exit if the package is not installed
-#[ -x $DAEMON ] || exit 0
+# Exit if required binaries are missing
+[ -x $DAEMON ] || exit 0
+[ -x /usr/bin/rozofsmount ] || exit 0
+[ -x /usr/bin/storcli ] || exit 0
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
@@ -40,56 +42,208 @@ SCRIPTNAME=/etc/init.d/$NAME
 # Enable core files
 ulimit -c unlimited
 
+# Enable or not waiting mount (yes or no)
+WAITROZOFSMOUNT="no"
+
 #
-# Function that starts the daemon/service
+# Function that wait connectivity with exportd before mount
 #
-do_start()
+do_waiting_start()
 {
-        [ -f /etc/fstab ] || return
-        mount -a -t rozofs
-}
+    # Read fstab and build the list of Rozo FS entry
+    [ -f /etc/fstab ] || return
 
-do_stop()
-{
-        [ -f /etc/fstab ] || return
-        #
-        # Read through fstab line by line. If it is ROZOFS, mount it
-        #
+    exec 9<&0 </etc/fstab
 
-        exec 9<&0 </etc/fstab
+    ROZOFS_LIST=""
+    RETVAL=0
 
-        while read DEV MTPT FSTYPE OPTS REST
-        do
+    while read DEV MTPT FSTYPE OPTS REST
+    do
         case "$DEV" in
             ""|\#*)
                 continue;
                 ;;
             "rozofsmount")
-                umount $MTPT
+                EXPORT=$(echo "$OPTS" | sed -n 's/.*exporthost=\([^,]*\).*/\1/p');
+                ROZOFS_LIST="${ROZOFS_LIST} ${MTPT}","${EXPORT}"
                 ;;
         esac
+    done
+
+    exec 0<&9 9<&-
+
+    # No rozofs entry
+    case "$ROZOFS_LIST" in
+        "") exit ${RETVAL};;
+    esac
+
+    while [ 1 ]
+    do
+        NEW_ROZOFS_LIST=""
+        for entry in ${ROZOFS_LIST}
+        do
+            MOUNTPOINT=$(echo "$entry" | cut -d, -f1);
+            EXPORT_HOST=$(echo "$entry" | cut -d, -f2);
+
+            # Check if already mounted
+            if grep -q "rozofs ${MOUNTPOINT} " /etc/mtab; then
+                log_action_begin_msg "Mounting: " ${MOUNTPOINT}
+                log_action_end_msg 0 "already mounted"
+                continue
+            fi
+            
+            if [ -x /usr/sbin/rpcinfo ]; then
+                # Check connectivity with export
+                res=`/usr/sbin/rpcinfo -l ${EXPORT_HOST} 536870913 1 | grep 536870913`
+                case "$res" in
+                    "") {
+                        # No connectivity
+                        NEW_ROZOFS_LIST="$NEW_ROZOFS_LIST $MOUNTPOINT,$EXPORT_HOST"
+                        continue;
+                        };;
+                esac
+            else
+                log_warning_msg "/usr/sbin/rcpinfo not found"
+            fi
+            
+            # Mount Rozo FS
+            log_action_begin_msg "Mounting: " ${MOUNTPOINT}
+            mount ${MOUNTPOINT}
+            RET=$?
+            if [ ${RET} != 0 ]; then
+                RETVAL=1
+                log_action_end_msg 1
+            else
+                log_action_end_msg 0
+            fi
         done
 
-        exec 0<&9 9<&-
+        # No more entry
+        case "$NEW_ROZOFS_LIST" in
+            "") exit ${RETVAL};;
+        esac
+
+        # Update list
+        ROZOFS_LIST=$NEW_ROZOFS_LIST
+
+        # Timer
+        sleep 10
+    done
+}
+
+#
+# Function that mount all Rozo FS
+#
+do_start()
+{
+    [ -f /etc/fstab ] || return
+    #
+    # Read through fstab line by line. If it is Rozo FS, mount it
+    #
+
+    RETVAL=0
+
+    exec 9<&0 </etc/fstab
+
+    while read DEV MTPT FSTYPE OPTS REST
+    do
+    case "$DEV" in
+        ""|\#*)
+            continue;
+            ;;
+        "rozofsmount")
+
+            # Check if already mounted
+            if grep -q "rozofs ${MTPT} " /etc/mtab; then
+                log_action_begin_msg "Mounting: " ${MTPT}
+                log_action_end_msg 0 "already mounted"
+                continue
+            fi
+
+            log_action_begin_msg "Mounting: " ${MTPT}
+            mount $MTPT
+            RET=$?
+            if [ ${RET} != 0 ]; then
+                RETVAL=1
+                log_action_end_msg 1
+            else
+                log_action_end_msg 0
+            fi
+            ;;
+    esac
+    done
+
+    exec 0<&9 9<&-
+
+    exit ${RETVAL}
+}
+
+#
+# Function that unmount all Rozo FS
+#
+do_stop()
+{
+    [ -f /etc/fstab ] || return
+    #
+    # Read through fstab line by line. If it is a Rozo FS, mount it
+    #
+
+    RETVAL=0
+
+    exec 9<&0 </etc/fstab
+
+    while read DEV MTPT FSTYPE OPTS REST
+    do
+    case "$DEV" in
+        ""|\#*)
+            continue;
+            ;;
+        "rozofsmount")
+            log_action_begin_msg "Unmounting: " ${MTPT}
+
+            # Check if mounted
+            if grep -q "rozofs ${MTPT} " /etc/mtab ; then
+                umount $MTPT
+                RET=$?
+                if [ ${RET} != 0 ]; then
+                    RETVAL=1
+                    log_action_end_msg 1
+                else
+                    log_action_end_msg 0
+                fi
+            else
+                log_action_end_msg 0 "already unmounted"
+                continue
+            fi
+            ;;
+    esac
+    done
+
+    exec 0<&9 9<&-
+
+    exit ${RETVAL}
 }
 
 case "$1" in
-  start)
-    [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC " "$NAME"
-    do_start
-  ;;
-  stop)
-    do_stop
-  ;;
-  status|reload|restart|force-reload)
-       echo "Error: argument '$1' not supported" >&2
-       exit 3
-       ;;
-
-  *)
-        echo "Usage: $SCRIPTNAME {start|stop}" >&2
+    start)
+        if [ no != "$WAITROZOFSMOUNT" ] ; then
+            do_waiting_start
+        else
+            do_start
+        fi
+    ;;
+    stop)
+        do_stop
+    ;;
+    status|reload|restart|force-reload)
+        echo "Error: argument '$1' not supported" >&2
         exit 3
         ;;
+    *)
+        echo "Usage: $SCRIPTNAME {start|stop}" >&2
+        exit 3
+    ;;
 esac
 
-: exit 0
+:

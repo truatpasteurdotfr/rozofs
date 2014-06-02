@@ -454,6 +454,8 @@ xdr_epgw_mattr_ret_t (XDR *xdrs, epgw_mattr_ret_t *objp)
 
 	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
 		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->free_quota))
+		 return FALSE;
 	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->status_gw))
 		 return FALSE;
 	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->parent_attr))
@@ -1089,6 +1091,22 @@ xdr_epgw_rename_arg_t (XDR *xdrs, epgw_rename_arg_t *objp)
 	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
 		 return FALSE;
 	 if (!xdr_ep_rename_arg_t (xdrs, &objp->arg_gw))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_rename_ret_t (XDR *xdrs, epgw_rename_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_fid_ret_t (xdrs, &objp->status_gw))
+		 return FALSE;
+	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->child_attr))
+		 return FALSE;
+	 if (!xdr_ep_mattr_ret_t (xdrs, &objp->parent_attr))
 		 return FALSE;
 	return TRUE;
 }

@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>
+#include <sched.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -36,7 +37,6 @@ DECLARE_PROFILING(spp_profiler_t);
  
 static int transactionId = 1; 
 int        af_unix_disk_south_socket_ref = -1;
-char       destination_socketName[128];
 int        af_unix_disk_thread_count=0;
 int        af_unix_disk_pending_req_count = 0;
 
@@ -44,7 +44,7 @@ struct  sockaddr_un storio_south_socket_name;
 struct  sockaddr_un storio_north_socket_name;
 
  
-int storio_disk_thread_create(char * hostname, int nb_threads) ;
+int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) ;
  
 
 
@@ -429,10 +429,10 @@ uint32_t af_unix_disk_rcvMsgsock(void * unused,int socketId)
   
   @retval none
 */
-void storio_set_socket_name_with_hostname(struct sockaddr_un *socketname,char *name,char *hostname)
+void storio_set_socket_name_with_hostname(struct sockaddr_un *socketname,char *name,char *hostname,int instance_id)
 {
   socketname->sun_family = AF_UNIX;  
-  sprintf(socketname->sun_path,"%s_%s",name,hostname);
+  sprintf(socketname->sun_path,"%s_%d_%s",name,instance_id,hostname);
 }
 
 /*
@@ -500,6 +500,7 @@ int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode,
   }
   
   af_unix_disk_pending_req_count++;
+  sched_yield();
   return 0;
 }
 
@@ -548,7 +549,7 @@ int af_unix_disk_response_socket_create(char *socketname)
      */
      sockctrl_ref = ruc_sockctl_connect(fd,  // Reference of the socket
                                                 DISK_SOCKET_NICKNAME,   // name of the socket
-                                                3,                  // Priority within the socket controller
+                                                16,                  // Priority within the socket controller
                                                 (void*)NULL,      // user param for socketcontroller callback
                                                 &af_unix_disk_callBack_sock);  // Default callbacks
       if (sockctrl_ref == NULL)
@@ -592,8 +593,7 @@ void af_unix_disk_scheduler_entry_point(uint64_t current_time)
 *
 *  @retval 0 on success -1 in case of error
 */
-int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffer) {
-  char socketName[128];
+int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads, int nb_buffer) {
 
   af_unix_disk_thread_count = nb_threads;
 
@@ -610,27 +610,25 @@ int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffe
     return -1;
   }
   ruc_buffer_debug_register_pool("diskRecvPool",af_unix_disk_pool_recv);   
-   
-  /*
-  ** hostname is required for the case when several storaged run on the same server
-  ** as is the case of test on one server only
-  */ 
-  sprintf(destination_socketName,"%s_%s", ROZOFS_SOCK_FAMILY_DISK_NORTH, hostname);
-  
-  sprintf(socketName,"%s_%s", ROZOFS_SOCK_FAMILY_DISK_SOUTH, hostname);
-  af_unix_disk_south_socket_ref = af_unix_disk_response_socket_create(socketName);
-  if (af_unix_disk_south_socket_ref < 0) {
-    fatal("storio_create_disk_thread_intf af_unix_sock_create(%s) %s",socketName, strerror(errno));
-    return -1;
-  }
+
   /*
   ** init of the AF_UNIX sockaddr associated with the south socket (socket used for disk response receive)
   */
-  storio_set_socket_name_with_hostname(&storio_south_socket_name,ROZOFS_SOCK_FAMILY_DISK_SOUTH,hostname);
+  storio_set_socket_name_with_hostname(&storio_south_socket_name,ROZOFS_SOCK_FAMILY_DISK_SOUTH,hostname, instance_id);
+    
   /*
+  ** hostname is required for the case when several storaged run on the same server
+  ** as is the case of test on one server only
+  */   
+  af_unix_disk_south_socket_ref = af_unix_disk_response_socket_create(storio_south_socket_name.sun_path);
+  if (af_unix_disk_south_socket_ref < 0) {
+    fatal("storio_create_disk_thread_intf af_unix_sock_create(%s) %s",storio_south_socket_name.sun_path, strerror(errno));
+    return -1;
+  }
+ /*
   ** init of the AF_UNIX sockaddr associated with the north socket (socket used for disk request receive)
   */
-  storio_set_socket_name_with_hostname(&storio_north_socket_name,ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname);
+  storio_set_socket_name_with_hostname(&storio_north_socket_name,ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname,instance_id);
   
   uma_dbg_addTopic("diskThreads", disk_thread_debug); 
   /*
@@ -638,7 +636,7 @@ int storio_disk_thread_intf_create(char * hostname, int nb_threads, int nb_buffe
   */
   ruc_sockCtrl_attach_applicative_poller(af_unix_disk_scheduler_entry_point);  
    
-  return storio_disk_thread_create(hostname, nb_threads);
+  return storio_disk_thread_create(hostname, nb_threads, instance_id);
 }
 
 

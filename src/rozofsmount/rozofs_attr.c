@@ -50,8 +50,11 @@ DECLARE_PROFILING(mpp_profiler_t);
     epgw_mfile_arg_t arg;
     int ret;
     struct stat stbuf;
+    int trc_idx;
+    errno = 0;
 
 
+    trc_idx = rozofs_trc_req(srv_rozofs_ll_getattr,ino,NULL);
     DEBUG("getattr for inode: %lu\n", (unsigned long int) ino);
     void *buffer_p = NULL;
     /*
@@ -66,6 +69,7 @@ DECLARE_PROFILING(mpp_profiler_t);
     }
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));
     START_PROFILING_NB(buffer_p,rozofs_ll_getattr);
 
@@ -78,10 +82,15 @@ DECLARE_PROFILING(mpp_profiler_t);
     ** from the ie entry. For directories and links one ask to the exportd
     ** 
     */
-    if ((rozofs_mode == 1)&&(S_ISREG(ie->attrs.mode)))
+
+//    severe("FDL ie %llu cur_time %llu %s %u",ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000,rozofs_get_ticker_us(),
+//     ((ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000) > rozofs_get_ticker_us())?"Match":"no Match",
+//     rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000);
+    if (((rozofs_mode == 1) || ((ie->timestamp+rozofs_tmr_get(TMR_FUSE_ATTR_CACHE)*1000000) > rozofs_get_ticker_us()))
+         &&(S_ISREG(ie->attrs.mode))) 
     {
       mattr_to_stat(&ie->attrs, &stbuf);
-      stbuf.st_ino = ino;   
+      stbuf.st_ino = ino; 
       fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
       goto out;   
     }
@@ -115,6 +124,7 @@ error:
     ** release the buffer if has been allocated
     */
 out:
+    rozofs_trc_rsp(srv_rozofs_ll_getattr,0/*ino*/,(ie==NULL)?NULL:ie->attrs.fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_getattr);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
@@ -147,11 +157,14 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
    struct rpc_msg  rpc_reply;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   int trc_idx;
+   errno = 0;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,ino);
+   RESTORE_FUSE_PARAM(param,trc_idx);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -251,6 +264,12 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** Update eid free quota
+    */
+    eid_set_free_quota(ret.free_quota);
+        
     memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
 
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
@@ -271,24 +290,27 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         errno = ENOENT;
         goto error;
     }
+    /**
+    *  update the timestamp in the ientry context
+    */
+    ie->timestamp = rozofs_get_ticker_us();
     /*
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (ie->size < stbuf.st_size) ie->size = stbuf.st_size;
-    stbuf.st_size = ie->size;
+    if (ie->attrs.size < stbuf.st_size) ie->attrs.size = stbuf.st_size;
+    stbuf.st_size = ie->attrs.size;
     /*
     ** copy the attributes in the ientry for the case of the block mode
     */
     memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    ie->size = stbuf.st_size;
-    ie->attrs.size = stbuf.st_size;    
-        
+    ie->attrs.size = stbuf.st_size;     
     fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
     goto out;
 error:
     fuse_reply_err(req, errno);
 out:
+    rozofs_trc_rsp(srv_rozofs_ll_getattr,ino,(ie==NULL)?NULL:ie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_getattr);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
@@ -342,7 +364,20 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     epgw_setattr_arg_t arg;
     int     ret;
     void *buffer_p = NULL;
+    int trc_idx;
 
+    /*
+    ** set to attr the attributes that must be set: indicated by to_set
+    */
+    stat_to_mattr(stbuf, &attr, to_set);
+    if (to_set & FUSE_SET_ATTR_SIZE)
+    {
+      trc_idx = rozofs_trc_req_io(srv_rozofs_ll_setattr,ino,NULL,attr.size,0);    
+    }
+    else
+    {
+      trc_idx = rozofs_trc_req(srv_rozofs_ll_setattr,ino,NULL);
+    }
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -355,6 +390,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     }
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));
     START_PROFILING_NB(buffer_p,rozofs_ll_setattr);
     
@@ -365,10 +401,6 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
         errno = ENOENT;
         goto error;
     }
-    /*
-    ** set to attr the attributes that must be set: indicated by to_set
-    */
-    stat_to_mattr(stbuf, &attr, to_set);
     /*
     ** address the case of the file truncate: update the size of the ientry
     ** when the file is truncated
@@ -383,7 +415,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
 
       // Check file size 
       if (attr.size < ROZOFS_FILESIZE_MAX) {
-        ie->size = attr.size;
+        ie->attrs.size = attr.size;
       }else{
         errno = EFBIG;
         goto error;
@@ -471,6 +503,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+    rozofs_trc_rsp(srv_rozofs_ll_setattr,ino,NULL,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_setattr);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -503,6 +536,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
    struct rpc_msg  rpc_reply;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
+   errno = 0;
+   int trc_idx;
     
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
 
@@ -510,6 +545,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 
     RESTORE_FUSE_PARAM(param,req);
     RESTORE_FUSE_PARAM(param,ino);
+    RESTORE_FUSE_PARAM(param,trc_idx);
     
     RESTORE_FUSE_STRUCT_PTR(param,fi);
     /*
@@ -613,6 +649,12 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** Update eid free quota
+    */
+    eid_set_free_quota(ret.free_quota);
+    
     memcpy(&attr, &ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
     /*
@@ -629,6 +671,10 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
         errno = ENOENT;
         goto error;
     }
+    /**
+    *  update the timestamp in the ientry context
+    */
+    ie->timestamp = rozofs_get_ticker_us();
     /*
     ** update the attributes in the ientry
     */
@@ -644,8 +690,8 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     ** check the length of the file, and update the ientry if the file size returned
     ** by the export is greater than the one found in ientry
     */
-    if (ie->size < o_stbuf.st_size) ie->size = o_stbuf.st_size;
-    o_stbuf.st_size = ie->size;
+    if (ie->attrs.size < o_stbuf.st_size) ie->attrs.size = o_stbuf.st_size;
+    o_stbuf.st_size = ie->attrs.size;
 
     fuse_reply_attr(req, &o_stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
 
@@ -653,6 +699,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 error:
     fuse_reply_err(req, errno);
 out:
+    rozofs_trc_rsp(srv_rozofs_ll_setattr,ino,(ie==NULL)?NULL:ie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_setattr);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);  

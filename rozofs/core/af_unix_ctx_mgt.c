@@ -184,6 +184,38 @@ void af_inet_tcp_debug_show(uint32_t tcpRef, void *bufRef) {
   -
   RETURN: none
   ==========================================================================*/
+char * af_unix_debug_getsockopt(int fd,char *pChar)
+{
+   int sendsize = 0;
+   int rcvsize = 0;
+   int optionsize=sizeof(sendsize);
+  
+   if (fd < 0) return pChar;
+   getsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&sendsize,(socklen_t*)&optionsize);
+   getsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&rcvsize,(socklen_t*)&optionsize);
+   pChar += sprintf(pChar, "   rcv/snd size:%d/%d\n",rcvsize,sendsize);
+   return pChar;
+
+
+
+}
+
+void af_unix_info_getsockopt(int fd,char *file,int line)
+{
+   int sendsize = 0;
+   int rcvsize = 0;
+   int optionsize=sizeof(sendsize);
+  
+   if (fd < 0) return ;
+   getsockopt(fd,SOL_SOCKET,SO_SNDBUF,(char*)&sendsize,(socklen_t*)&optionsize);
+   getsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&rcvsize,(socklen_t*)&optionsize);
+   severe("%s:%d fd %d rcv/snd size:%d/%d\n",file,line,fd,rcvsize,sendsize);
+   return ;
+
+
+
+}
+
 void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     pChar += sprintf(pChar, "number of AF_UNIX contexts [size](initial/allocated) :[%u] %u/%u\n", (unsigned int) sizeof (af_unix_ctx_generic_t), (unsigned int) af_unix_context_count,
@@ -243,13 +275,19 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
                     //          sock_p->remote_port_host    = port;
                     pChar += sprintf(pChar, "   IP/port(src):%u.%u.%u.%u:%u\n", (ipAddr >> 24)&0xFF, (ipAddr >> 16)&0xFF, (ipAddr >> 8)&0xFF, (ipAddr)&0xFF, port);
                 }
+		pChar = af_unix_debug_getsockopt(sock_p->socketRef,pChar);
             }
             pChar += sprintf(pChar, "   transmitter state     : %d /%d\n", sock_p->xmit.state, sock_p->xmit.xmit_credit);
             pChar += sprintf(pChar, "   Up/Down Transitions   : %llu\n", (unsigned long long int) stats_p->totalUpDownTransition);
             pChar += sprintf(pChar, "   Xmit Queue            : %s\n", ruc_objIsEmptyList((ruc_obj_desc_t*) & sock_p->xmit.xmitList[0]) ? "EMPTY" : "NON EMPTY");
             pChar += sprintf(pChar, "   xmit/Recv Statistics:\n");
             pChar += sprintf(pChar, "    totalXmitBytes     : %16llu\n", (unsigned long long int) stats_p->totalXmitBytes);
-            pChar += sprintf(pChar, "    totalXmitAttempts  : %16llu\n", (unsigned long long int) stats_p->totalXmitAttempts);
+            pChar += sprintf(pChar, "    totalXmitAttempts  : %16llu (%llu cycles [%llu/%llu])\n", 
+	                    (unsigned long long int) stats_p->totalXmitAttempts,
+                            (stats_p->totalXmitAttemptsCycles==0)?0:(unsigned long long int)(stats_p->totalXmitCycles/stats_p->totalXmitAttemptsCycles),
+                             (unsigned long long int)stats_p->totalXmitCycles,(unsigned long long int)stats_p->totalXmitAttemptsCycles);
+			     stats_p->totalXmitCycles = 0;
+			     stats_p->totalXmitAttemptsCycles = 0;
             pChar += sprintf(pChar, "    totalXmitSuccess   : %16llu\n", (unsigned long long int) stats_p->totalXmitSuccess);
             pChar += sprintf(pChar, "    totalXmitCongested : %16llu\n", (unsigned long long int) stats_p->totalXmitCongested);
             pChar += sprintf(pChar, "    totalXmitError     : %16llu\n", (unsigned long long int) stats_p->totalXmitError);

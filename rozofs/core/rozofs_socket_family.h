@@ -38,6 +38,8 @@ typedef enum _rozofs_socket_family_e
 #define ROZOFS_SOCK_FAMILY_TEST_NORTH_SUNPATH  "/tmp/rozofs_test_north"
 #define ROZOFS_SOCK_FAMILY_TEST_SOUTH_SUNPATH "/tmp/rozofs_test_south" 
 #define ROZOFS_SOCK_FAMILY_STORCLI_NORTH_SUNPATH "/tmp/rozofs_storcli_north_eid_"
+#define ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH "/tmp/rozofs_stcmoj_north_eid_"
+#define ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_SOUTH_SUNPATH "/tmp/rozofs_stcmoj_south_eid_"
 #define ROZOFS_SOCK_FAMILY_EXPORT_NORTH_SUNPATH "/tmp/rozofs_export_north"
 #define ROZOFS_SOCK_FAMILY_EXPORT_SOUTH "/tmp/rozofs_export_south"
 #define ROZOFS_SOCK_FAMILY_DISK_SOUTH "/tmp/rozofs_disk_south"

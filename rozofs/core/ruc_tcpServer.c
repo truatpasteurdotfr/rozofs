@@ -130,45 +130,32 @@ ruc_tcp_server_t *ruc_tcp_server_getObjRef(uint32_t tcpRef)
 
 
 
-
-
-
-
-
-
-/* #STARTDOC
-**
-**  #TITLE
-uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32 ipAddr)
-
-**  #SYNOPSIS
-**
-**    Create the socket and associate it with
-**    the TCP port provided as input parameter
-**
-**   IN:
-**       tcpPort : tcp well-known port
-**       ipAddr  : source IP address (could be ANY)
-**
-**   OUT :
-**      -1 : error. The socket is not created
-**      !=-1: all is fine
-**
-** ##ENDDOC
+/*
+**__________________________________________________________________________
 */
+/**
+    Create the socket and associate it with
+    the TCP port provided as input parameter
 
-uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr)
+   @param tcpPort   tcp well-known port
+   @param ipAddr    source IP address (could be ANY)
+   @param retry     Number of bind attempt to process in case of bind error
+   
+   @retval  -1 in case of error. The socket reference in case of sucess
+*/
+uint32_t ruc_tcp_server_createSocket_retry(uint16_t tcpPort,uint32_t ipAddr, int retry)
 {
   int                 socketId;
   struct  sockaddr_in vSckAddr;
   int		      sock_opt;
+  int                 ret;
 
   if((socketId = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
     /*
     ** unable to create the socket
     */
-    severe( "ruc_tcp_server_createSocket socket error %u.%u.%u.%u:%u . Errno %d - %s",
+    severe( "ruc_tcp_server_createSocket_retry socket error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
@@ -180,7 +167,7 @@ uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr)
   sock_opt = 1;
   if (setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, (void *)&sock_opt,sizeof (sock_opt)) == -1)
   {
-     severe( "ruc_tcp_server_createSocket setsockopt error %u.%u.%u.%u:%u . Errno %d - %s",
+     severe( "ruc_tcp_server_createSocket_retry setsockopt error %u.%u.%u.%u:%u . Errno %d - %s",
       (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
       tcpPort,
       errno, strerror(errno)
@@ -195,39 +182,30 @@ uint32_t ruc_tcp_server_createSocket(uint16_t tcpPort,uint32_t ipAddr)
   vSckAddr.sin_family = AF_INET;
   vSckAddr.sin_port   = htons(tcpPort);
   vSckAddr.sin_addr.s_addr = htonl(ipAddr);
-  if((bind(socketId,
-          (struct sockaddr *)&vSckAddr,
-           sizeof(struct sockaddr_in)))< 0)
-  {
-    /*
-    **  error on socket binding
-    */
-    severe( "ruc_tcp_server_createSocket BIND error %u.%u.%u.%u:%u . Errno %d - %s",
-      (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
-      tcpPort,
-      errno, strerror(errno)
-    );
-    close(socketId);
-    return ((uint32_t)-1);
+  
+  ret = bind(socketId,(struct sockaddr *)&vSckAddr,sizeof(struct sockaddr_in));
+  
+  while (ret < 0) {
+    
+    if (retry <= 0) {
+      /*
+      **  error on socket binding
+      */
+      severe( "ruc_tcp_server_createSocket_retry BIND error %u.%u.%u.%u:%u . Errno %d - %s",
+	(ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
+	tcpPort,
+	errno, strerror(errno)
+      );
+      close(socketId);
+      return ((uint32_t)-1);
+    }
+    
+    retry--;
+    usleep(300000);
+    ret = bind(socketId,(struct sockaddr *)&vSckAddr,sizeof(struct sockaddr_in));
   }
-#if 0 /* FDL */
-  int                 vSckAddrLen=14;
 
-  if((getsockname(socketId,
-                 (struct sockaddr *)&vSckAddr,
-                 &vSckAddrLen)) == -1)
-  {
-    /*
-    **  error on getsockname
-    */
-    perror("error on getsockname");
-    RUC_WARNING(errno);
-    close(socketId);
-    return ((uint32_t)-1);
-  }
-#endif
   return ((uint32_t) socketId);
-
 }
 
 
@@ -507,7 +485,7 @@ uint32_t ruc_tcp_server_connect(ruc_tcp_server_connect_t *pconnect)
    /*
    ** create the TCP socket
    */
-   pObj->socketId =  ruc_tcp_server_createSocket(pObj->tcpPort,pObj->ipAddr);
+   pObj->socketId =  ruc_tcp_server_createSocket_retry(pObj->tcpPort,pObj->ipAddr,9);
    if (pObj->socketId == -1)
    {
      /*

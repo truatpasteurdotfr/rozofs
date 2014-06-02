@@ -233,6 +233,17 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
     RUC_WARNING(errno);
    return -1;
   }
+  /*
+  ** set a new size for emission and
+  ** reception socket's buffer
+  */
+  ret=setsockopt(fd,SOL_SOCKET,SO_RCVBUF,(char*)&fdsize,sizeof(int));
+  if(ret<0)
+  {
+    RUC_WARNING(errno);
+   return -1;
+  }
+
 #if 1
   int UMA_TCP_NODELAY = 1;
   if (setsockopt (fd,IPPROTO_TCP,
@@ -306,6 +317,17 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
 *
     Create the socket and associate it with
     the TCP port provided as input parameter
+    
+    
+    WARNING: This function re-attempts several time the bind() call in case 
+    it gets an error, and sleeps between each attempts. Such a behavior is 
+    obviously only acceptable during an application startup !
+    
+    This behavior tries to handle the case of a fast stop restart of a 
+    process, when the dying process is not actually dead while the new one
+    already starts up. In this case the bind will fail even with option REUSEADDR.
+    The starting process has to wait a little to let the previous process die
+    before re-attempting a bind. 
 
    @param tcpPort : tcp well-known port
    @param ipAddr :  source IP address (could be ANY)
@@ -320,6 +342,8 @@ int af_inet_sock_stream_listen_create_internal(uint32_t ipAddr,uint16_t tcpPort)
   int                 socketId;
   struct  sockaddr_in vSckAddr;
   int		      sock_opt;
+  int                 retry=9;
+  int                 ret;
 
   if((socketId = socket(AF_INET, SOCK_STREAM, 0)) < 0)
   {
@@ -353,21 +377,26 @@ int af_inet_sock_stream_listen_create_internal(uint32_t ipAddr,uint16_t tcpPort)
   vSckAddr.sin_family = AF_INET;
   vSckAddr.sin_port   = htons(tcpPort);
   vSckAddr.sin_addr.s_addr = htonl(ipAddr);
-  if((bind(socketId,
-          (struct sockaddr *)&vSckAddr,
-           sizeof(struct sockaddr_in)))< 0)
-  {
-    /*
-    **  error on socket binding
-    */
-    severe( "af_inet_sock_stream_listen_create BIND error %u.%u.%u.%u:%u . Errno %d - %s",
-      (ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
-      tcpPort,
-      errno, strerror(errno)
-    );;
-    close(socketId);
-    return -1;
-  }
+  ret = bind(socketId,(struct sockaddr *)&vSckAddr,sizeof(struct sockaddr_in));
+  while (ret<0) {
+  
+    if (retry <= 0) {
+      /*
+      **  error on socket binding
+      */
+      severe( "af_inet_sock_stream_listen_create BIND error %u.%u.%u.%u:%u . Errno %d - %s",
+	(ipAddr>>24)&0xFF,  (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF ,ipAddr&0xFF,
+	tcpPort,
+	errno, strerror(errno)
+      );;
+      close(socketId);
+      return -1;
+    }
+    
+    retry--;
+    usleep(300000);
+    ret = bind(socketId,(struct sockaddr *)&vSckAddr,sizeof(struct sockaddr_in));
+  }   
 
   return socketId;
 }
@@ -506,7 +535,7 @@ int af_inet_sock_listening_create(char *nickname,
    */
    sock_p->connectionId = ruc_sockctl_connect(sock_p->socketRef,  // Reference of the socket
                                               buf_nickname,   // name of the socket
-                                              3,                  // Priority within the socket controller
+                                              16,                  // Priority within the socket controller
                                               (void*)sock_p,      // user param for socketcontroller callback
                                               &af_unix_generic_listening_callBack_sock);  // Default callbacks
     if (sock_p->connectionId == NULL)

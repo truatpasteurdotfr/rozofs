@@ -637,7 +637,8 @@ void sp_truncate_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     // Truncate bins file
     if (storage_truncate(st, args->layout, (sid_t *) args->dist_set,
             args->spare, (unsigned char *) args->fid, args->proj_id,
-            args->bid,version,args->last_seg,args->last_timestamp) != 0) {
+            args->bid,version,args->last_seg,args->last_timestamp,
+	    args->bins.bins_len, args->bins.bins_val) != 0) {
         ret.sp_status_ret_t_u.error = errno;
         goto out;
     }

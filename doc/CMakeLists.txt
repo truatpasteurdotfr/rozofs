@@ -31,18 +31,16 @@ else(DOXYGEN)
     message(STATUS "doxygen not found.")
 endif(DOXYGEN)
 
+
 #
-# User guide
+# RozoFS User's Guide target using Sphinx
 #
-if(TEXI2PDF)
-    add_custom_target(pdf_guide "${TEXI2PDF}" --build=clean "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
-else(TEXI2PDF)
-    message(STATUS "texi2pdf not found.")
-endif(TEXI2PDF)
-if(MAKEINFO)
-    add_custom_target(html_guide "${MAKEINFO}" --html -o . --css-include=${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.css "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
-    add_custom_target(docbook_guide "${MAKEINFO}" --docbook "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
-    add_custom_target(info_guide "${MAKEINFO}" "${CMAKE_CURRENT_SOURCE_DIR}/users_guide/rozofs.texi")
-else(MAKEINFO)
-    message(STATUS "makeinfo not found.")
-endif(MAKEINFO)
+if(SPHINX)
+    add_custom_target(sphinx_guide_html "${SPHINX}" -b html "${CMAKE_CURRENT_SOURCE_DIR}/users_guide_sphinx/" "${CMAKE_CURRENT_BINARY_DIR}/users_guide_sphinx/html")
+    add_custom_target(sphinx_guide_latex "${SPHINX}" -b latex "${CMAKE_CURRENT_SOURCE_DIR}/users_guide_sphinx/" "${CMAKE_CURRENT_BINARY_DIR}/users_guide_sphinx/latex")
+    add_custom_target(sphinx_guide_pdf make -C "${CMAKE_CURRENT_BINARY_DIR}/users_guide_sphinx/latex" all-pdf)
+    add_dependencies(sphinx_guide_pdf sphinx_guide_latex)
+else(SPHINX)
+    message(STATUS "sphinx-build not found.")
+endif(SPHINX)
+

@@ -88,10 +88,6 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
    nb_prj = len / ROZOFS_BSIZE;
-   if (nb_prj > 32)
-   {
-     severe("bad nb_prj %d bid %llu off %llu len %u",nb_prj,(long long unsigned int)bid,(long long unsigned int)off,len);   
-   }
    
     if (rozofs_rotation_read_modulo == 0) {
       f->rotation_idx = 0;
@@ -386,6 +382,7 @@ void rozofs_ll_read_defer(void *param)
    char *buff;
    size_t length = 0;
    uint32_t readahead ;
+   int trc_idx;
 
    while(param)
    {   
@@ -393,6 +390,7 @@ void rozofs_ll_read_defer(void *param)
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,size);
    RESTORE_FUSE_PARAM(param,off);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
 
    file = (file_t *) (unsigned long) fi->fh;   
@@ -420,6 +418,7 @@ error:
     ** release the buffer if has been allocated
     */
 out:
+    rozofs_trc_rsp(srv_rozofs_ll_read,0/*ino*/,file->fid,(errno==0)?0:1,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_read);
 
     if (param != NULL) 
@@ -452,12 +451,15 @@ out:
           /*
           ** attempt to read
           */  
-          ret = read_buf_nb(param,file,off, file->buffer, size);      
+          trc_idx = rozofs_trc_req_io(srv_rozofs_ll_read,0/*ino*/,file->fid,size,off);          
+          SAVE_FUSE_PARAM(param,trc_idx); 
+	  ret = read_buf_nb(param,file,off, file->buffer, size);      
           if (ret < 0)
           {
              /*
              ** read error --> release the context
              */
+             rozofs_trc_rsp(srv_rozofs_ll_read,0/* ino */,file->fid,(errno==0)?0:1,trc_idx);
              rozofs_fuse_release_saved_context(param);
           }
         }   
@@ -495,6 +497,10 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     char *buff;
     size_t length = 0;
     uint32_t readahead =0;
+    errno = 0;
+
+    file_t *file = (file_t *) (unsigned long) fi->fh;
+    int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_read,(fuse_ino_t)file,file->fid,size,off);
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -508,6 +514,7 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,size);
     SAVE_FUSE_PARAM(buffer_p,off);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     SAVE_FUSE_PARAM(buffer_p,readahead);
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));    
 
@@ -527,14 +534,13 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
         errno = ENOENT;
         goto error;
     }
-    file_t *file = (file_t *) (unsigned long) fi->fh;
     /*
     ** update the size of the file thanks the content of the ientry. That content
     ** might change over the time since it is posssible to have some pending writes
     ** for which the attribute size has to be updated. However this takes place
     ** on the ientry only
     */
-    file->attrs.size = ie->size;
+    file->attrs.size = ie->attrs.size;
     /*
     ** check if the application is attempting to read atfer a close (_ll_release)
     */
@@ -567,6 +573,7 @@ error:
     ** release the buffer if has been allocated
     */
 out:
+    rozofs_trc_rsp(srv_rozofs_ll_read,(fuse_ino_t)file,file->fid,(errno==0)?0:1,trc_idx);
     if (buffer_p != NULL) 
     {
       /*
@@ -603,12 +610,15 @@ out:
           /**
           * attempt to read
           */
+          trc_idx = rozofs_trc_req_io(srv_rozofs_ll_read,ino,file->fid,size,off);
+	  SAVE_FUSE_PARAM(buffer_p,trc_idx);      
           ret = read_buf_nb(buffer_p,file,off, file->buffer, size);      
           if (ret < 0)
           {
              /*
              ** read error --> release the context
              */
+             rozofs_trc_rsp(srv_rozofs_ll_read,(fuse_ino_t)file,file->fid,(errno==0)?0:1,trc_idx);
              rozofs_fuse_release_saved_context(buffer_p);
           }
         }
@@ -653,6 +663,8 @@ void rozofs_ll_read_cbk(void *this,void *param)
    file_t *file;
    uint32_t readahead;
    int position ;
+   int trc_idx;
+   errno =0;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -660,6 +672,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    RESTORE_FUSE_PARAM(param,readahead);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
    RESTORE_FUSE_PARAM(param,off);
+   RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_PARAM(param,shared_buf_ref);
 
    file = (file_t *) (unsigned long)  fi->fh;   
@@ -797,14 +810,15 @@ void rozofs_ll_read_cbk(void *this,void *param)
             if ((ie2 == NULL)) {
                 file_size = 0;
             } else {
-                file_size = ie2->size;
+                file_size = ie2->attrs.size;
             }
+#if 0	    
             severe("BUGROZOFSWATCH(%p) , received_len=%d,"
                     " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
-                    " received_len_orig=%d,readahead=%d," " ie->size=%"PRIu64"",
+                    " received_len_orig=%d,readahead=%d," " ie->attrs.size=%"PRIu64"",
                     file, received_len, next_read_from, file->attrs.size,
                     received_len_orig, readahead, file_size);
-
+#endif
             received_len = received_len_orig;
             if ((next_read_from + received_len) > file_size) {
                 received_len = file_size - next_read_from;
@@ -1315,6 +1329,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_read,(fuse_ino_t)file/*ino*/,file->fid,(errno==0)?0:1,trc_idx);
     if (readahead == 0)
     {
        STOP_PROFILING_NB(param,rozofs_ll_read);

@@ -48,6 +48,8 @@
 #include <rpc/rpc.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/stcpproto.h>
+#include "storcli_ring.h"
+
 
  
 #ifndef TEST_STORCLI_TEST
@@ -57,9 +59,11 @@ int test_north_lbg_get_state(int lbg_idx);
 #define NORTH_LBG_GET_STATE test_north_lbg_get_state
 #endif
 
+extern uint64_t storcli_buf_depletion_count; /**< buffer depletion on storcli buffers */
+extern uint64_t storcli_rng_full_count; /**< ring request full counter */
 
 /**
-*  STORCLI Resource configurationj
+*  STORCLI Resource configuration
 */
 #define ROZOFS_MAX_LAYOUT 16
 #define STORCLI_CNF_NO_BUF_CNT          1
@@ -68,7 +72,7 @@ int test_north_lbg_get_state(int lbg_idx);
 /**
 *  North Interface
 */
-#define STORCLI_CTX_CNT   48  /**< context for processing either a read or write request from rozofsmount and internal read req */
+#define STORCLI_CTX_CNT 64 /**< context for processing either a read or write request from rozofsmount and internal read req */
 #define STORCLI_CTX_MIN_CNT 16 /**< minimum count to process a request from rozofsmount */
 /**
 * Buffer s associated with the reception of the load balancing group on north interface
@@ -204,6 +208,7 @@ typedef struct _rozofs_storcli_ctx_t
   uint32_t            integrity;     /**< the value of this field is incremented at  each MS ctx allocation  */
   fid_t               fid_key;       /**< fid value extracted from the read or write request used as a key for the hash table */
   uint32_t            opcode_key;   /**< opcode associated with the request, when the key is not used the value is STORCLI_NULL */
+  int       sched_idx;            /**< index within the scheduler table */
   void      *user_param;           /**< pointer to an opaque user param: used for internal read only        */  
   void      *recv_buf;        /**< pointer to the receive buffer that carries the request        */
   uint32_t   socketRef;       /**< reference of the socket on which the answser must be sent     */
@@ -247,12 +252,13 @@ typedef struct _rozofs_storcli_ctx_t
   dist_t                            wr_distribution;  /**< distribution for the write                     */
 //  uint32_t                          last_block_size;  /**< effective size of the last block: written in the header of the last projection     */
   ruc_obj_desc_t                      timer_list;    /**< timer linked list used as a guard timer upon received first projection */
+  uint8_t      rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*ROZOFS_DISTRIBUTION_MAX_SIZE];  /**< table of the projection used by the inverse process */
 
   /*
   ** working variables for truncate
   */
   storcli_truncate_arg_t storcli_truncate_arg;  /**< truncate parameter of the request */
-  
+  int                    truncate_bins_len;
 } rozofs_storcli_ctx_t;
 
 /*
@@ -1294,4 +1300,16 @@ static inline void rozofs_storcli_update_lbg_for_safe_range(rozofs_storcli_ctx_t
  */
   
 void storcli_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p);
+
+/*
+**__________________________________________________________________________
+*/
+/*
+** That function is called when all the projection are ready to be sent
+
+ @param working_ctx_p: pointer to the root context associated with the top level write request
+
+*/
+void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p);
+
 #endif

@@ -53,6 +53,7 @@ void rozofs_ll_rename_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     /*
     ** allocate a context for saving the fuse parameters
     */
+    int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_rename,parent,(char*)newname);
     buffer_p = rozofs_fuse_alloc_saved_context();
     if (buffer_p == NULL)
     {
@@ -62,6 +63,7 @@ void rozofs_ll_rename_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     }
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,parent);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
 
     START_PROFILING_NB(buffer_p,rozofs_ll_rename);
 
@@ -106,6 +108,7 @@ error:
     /*
     ** release the buffer if has been allocated
     */
+    rozofs_trc_rsp(srv_rozofs_ll_rename,parent,NULL,1,trc_idx);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_rename);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -122,19 +125,25 @@ error:
 void rozofs_ll_rename_cbk(void *this,void *param) 
 {    
    ientry_t *old_ie = 0;
+   ientry_t *nie = 0;
    fid_t fid;
    fuse_req_t req; 
-   epgw_fid_ret_t ret;
+   epgw_rename_ret_t ret;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_fid_ret_t;
-
+   xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_rename_ret_t;
+   fuse_ino_t parent;
+   int trc_idx;
+   errno = 0;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,parent);
+   RESTORE_FUSE_PARAM(param,trc_idx);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -204,6 +213,26 @@ void rozofs_ll_rename_cbk(void *this,void *param)
     if ((old_ie = get_ientry_by_fid(fid))) {
         old_ie->nlookup--;
     }
+
+
+    /*
+    ** Update renamed FID attributes
+    */
+    memcpy(fid, &ret.child_attr.ep_mattr_ret_t_u.attrs.fid, sizeof (fid_t));
+    if ((nie = get_ientry_by_fid(fid))) {
+      uint64_t cur_size;
+      /**
+      *  update the timestamp in the ientry context
+      */
+      nie->timestamp = rozofs_get_ticker_us();
+      /*
+      ** update the attributes in the ientry
+      */
+      cur_size = nie->attrs.size;
+      memcpy(&nie->attrs,&ret.child_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));  
+      if (cur_size > nie->attrs.size ) nie->attrs.size = cur_size; 
+    }
+    
     fuse_reply_err(req, 0);
     goto out;
 error:
@@ -212,6 +241,7 @@ out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_rename,parent,(old_ie==0)?NULL:old_ie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_rename);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    

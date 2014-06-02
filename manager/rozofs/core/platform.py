@@ -419,37 +419,70 @@ class Platform(object):
 #
 #        return configuration[Role.EXPORTD].volumes[vid]
 
-    def add_nodes(self, hosts, vid=None):
+    def add_nodes(self, hosts, vid=None, layout=None):
         """ Add storaged nodes to the platform
 
         Args:
-            vid: volume to use, if none a new one will be created
             hosts: hosts to be added
+            vid: volume to use, if none a new one will be created
+            layout: specific layout to use, if none the default layout or
+                    the layout of the already defined volume will be used
         """
         enode = self._get_exportd_node()
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
             raise Exception("exportd node is off line.")
+        
+        # Find the default layout
+        if layout is None:
+            if ((vid is not None) and
+                (vid in econfig[Role.EXPORTD].volumes) and
+                (econfig[Role.EXPORTD].volumes[vid].layout is not None)):
+                default_layout = econfig[Role.EXPORTD].volumes[vid].layout
+            else:
+                default_layout = econfig[Role.EXPORTD].layout
+        else:
+            default_layout = layout
+        
+        # Checks coherence between layout and size of cluster to add
+        if len(hosts) < LAYOUT_VALUES[default_layout][LAYOUT_SAFE]:
+            raise Exception('too few hosts: only %s hosts are specified '
+                            '(%s are needed for the layout %s)' % (len(hosts),
+                    LAYOUT_VALUES[default_layout][LAYOUT_SAFE], default_layout))
 
-        # should be allowed !!!
-        if len(hosts) < LAYOUT_VALUES[econfig[Role.EXPORTD].layout][LAYOUT_SAFE]:
-            raise Exception("too few hosts: %s over %s" % (len(hosts),
-                    LAYOUT_VALUES[econfig[Role.EXPORTD].layout][LAYOUT_SAFE]))
-
+        # Checks coherence between layout and vid
         if vid is not None:
-            # check if the given one is a new one else get the related VolumeConfig
+            # check if the given one is a new one 
+            # else get the related VolumeConfig
             if vid in econfig[Role.EXPORTD].volumes:
+                
+                authorized_layout = econfig[Role.EXPORTD].layout
+                if (econfig[Role.EXPORTD].volumes[vid].layout is not None):
+                    authorized_layout = \
+                        econfig[Role.EXPORTD].volumes[vid].layout
+
+                if(authorized_layout != default_layout):
+                    raise Exception('only the layout %s can be used for the '
+                                    'volume %s' % ( authorized_layout, vid))
                 vconfig = econfig[Role.EXPORTD].volumes[vid]
             else:
-                vconfig = VolumeConfig(vid)
+                if(layout == econfig[Role.EXPORTD].layout):
+                    # avoid to set a specific layout if it's not necessary
+                    vconfig = VolumeConfig(vid, None)
+                else:
+                    vconfig = VolumeConfig(vid, layout)
         else:
             vids = econfig[Role.EXPORTD].volumes.keys()
             if len(vids) != 0 :
                 vid = max(vids) + 1
             else:
                 vid = 1
-            vconfig = VolumeConfig(vid)
+            if(layout == econfig[Role.EXPORTD].layout):
+                # avoid to set a specific layout if it's not necessary
+                vconfig = VolumeConfig(vid, None)
+            else:
+                vconfig = VolumeConfig(vid, layout)
 
         # find a cluster id
         cids = [c.cid for v in econfig[Role.EXPORTD].volumes.values()
@@ -539,7 +572,7 @@ class Platform(object):
 
             for c in squota:
                 if not c.isdigit():
-                    if c not in ['K', 'M', 'G']:
+                    if c not in ['K', 'M', 'G', 'T']:
                         raise Exception("Invalid squota format: %s." % squota)
                     else:
                         break
@@ -551,7 +584,7 @@ class Platform(object):
 
             for c in hquota:
                 if not c.isdigit():
-                    if c not in ['K', 'M', 'G']:
+                    if c not in ['K', 'M', 'G', 'T']:
                         raise Exception("Invalid hquota format: %s." % squota)
                     else:
                         break
@@ -611,7 +644,7 @@ class Platform(object):
 
                 for c in squota:
                     if not c.isdigit():
-                        if c not in ['K', 'M', 'G']:
+                        if c not in ['K', 'M', 'G', 'T']:
                             raise Exception("Invalid squota format: %s." % squota)
                         else:
                             break
@@ -624,7 +657,7 @@ class Platform(object):
 
                 for c in hquota:
                     if not c.isdigit():
-                        if c not in ['K', 'M', 'G']:
+                        if c not in ['K', 'M', 'G', 'T']:
                             raise Exception("Invalid hquota format: %s." % squota)
                         else:
                             break

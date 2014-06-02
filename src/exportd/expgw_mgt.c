@@ -23,8 +23,6 @@
 #include "expgw_fid_cache.h"
 #include <rozofs/rpc/epproto.h>
 
-DECLARE_PROFILING(epp_profiler_t);
-
 
 expgw_ctx_t *expgw_ctx_freeListHead;  /**< head of list of the free context  */
 expgw_ctx_t expgw_ctx_activeListHead;  /**< list of the active context     */

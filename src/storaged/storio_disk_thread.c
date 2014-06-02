@@ -360,7 +360,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
   storage_t *st = 0;
-  sp_truncate_arg_t      * args;
+  sp_truncate_arg_no_bins_t      * args;
   rozorpc_srv_ctx_t      * rpcCtx;
   sp_status_ret_t          ret;
   uint8_t                  version = 0;
@@ -377,8 +377,14 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   thread_ctx_p->stat.diskTruncate_count++;
   
   rpcCtx = msg->rpcCtx;
-  args   = (sp_truncate_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
-  
+  args   = (sp_truncate_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+
+  /*
+  ** set the pointer to the bins
+  */
+  char *pbuf = ruc_buf_getPayload(rpcCtx->recv_buf); 
+  pbuf += rpcCtx->position;
+    
   /*
   ** Use received buffer for the response
   */
@@ -399,7 +405,8 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   // Truncate bins file
   result = storage_truncate(st, args->layout, (sid_t *) args->dist_set,
         		    args->spare, (unsigned char *) args->fid, args->proj_id,
-        		    args->bid,version,args->last_seg,args->last_timestamp);
+        		    args->bid,version,args->last_seg,args->last_timestamp,
+			    args->len, pbuf);
   if (result != 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
@@ -469,6 +476,7 @@ void *storio_disk_thread(void *arg) {
         fatal(" unexpected opcode : %d\n",msg.opcode);
         exit(0);       
     }
+    sched_yield();
   }
 }
 /*
@@ -479,7 +487,7 @@ void *storio_disk_thread(void *arg) {
 *  
 * @retval 0 on success -1 in case of error
 */
-int storio_disk_thread_create(char * hostname, int nb_threads) {
+int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) {
    int                        i;
    int                        err;
    pthread_attr_t             attr;
@@ -493,7 +501,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads) {
    /*
    ** create the common socket to receive requests on
    */
-   sprintf(socketName,"%s_%s",ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname);
+   sprintf(socketName,"%s_%d_%s",ROZOFS_SOCK_FAMILY_DISK_NORTH,instance_id, hostname);
    af_unix_disk_socket_ref = af_unix_disk_sock_create_internal(socketName,1024*32);
    if (af_unix_disk_socket_ref < 0) {
       fatal("af_unix_disk_thread_create af_unix_disk_sock_create_internal(%s) %s",socketName,strerror(errno));
@@ -509,7 +517,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads) {
      /*
      ** create the thread specific socket to send the response from 
      */
-     sprintf(socketName,"%s_%s_%d",ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname,i);
+     sprintf(socketName,"%s_%d_%s_%d",ROZOFS_SOCK_FAMILY_DISK_NORTH,instance_id,hostname,i);
      thread_ctx_p->sendSocket = af_unix_disk_sock_create_internal(socketName,1024*32);
      if (thread_ctx_p->sendSocket < 0) {
 	fatal("af_unix_disk_thread_create af_unix_disk_sock_create_internal(%s) %s",socketName, strerror(errno));

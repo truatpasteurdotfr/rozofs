@@ -60,14 +60,14 @@ Group: System Environment/File
 %description rprof
 Rozofs is a scale-out NAS using erasure coding.
 
-%package rozodebug
+%package rozodiag
 Summary: Rozofs filesystem (debugging package).
 License: GPLv2
 Group: System Environment/File
 #BuildRequires:
 #Requires:
 
-%description rozodebug
+%description rozodiag
 Rozofs is a scale-out NAS using erasure coding.
 
 %package manager-lib
@@ -161,9 +161,9 @@ mkdir -p %{buildroot}/etc/default
 %defattr(-,root,root)
 %{_bindir}/rprof
 
-%files rozodebug
+%files rozodiag
 %defattr(-,root,root)
-%{_bindir}/rozodebug
+%{_bindir}/rozodiag
 
 %files manager-lib
 %defattr(-,root,root)

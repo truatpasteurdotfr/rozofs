@@ -26,12 +26,10 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 
 #include "mdir.h"
-
-DECLARE_PROFILING(epp_profiler_t);
 
 int mdir_open(mdir_t *mdir, const char *path) {
     int status = -1;

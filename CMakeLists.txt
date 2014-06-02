@@ -20,8 +20,8 @@
 cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "1")
-set(MINOR "3")
-set(REVISION "5")
+set(MINOR "4")
+set(REVISION "0")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -43,6 +43,7 @@ find_program(DEBUILD NAMES debuild)
 find_program(MAKEINFO NAMES makeinfo)
 find_program(TEXI2DVI NAMES texi2dvi)
 find_program(TEXI2PDF NAMES texi2pdf)
+find_program(SPHINX NAMES sphinx-build)
 
 IF(CMAKE_COMPILER_IS_GNUCC)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fmessage-length=0")
@@ -119,7 +120,7 @@ configure_file("${PROJECT_SOURCE_DIR}/cmake/setup.py.in" "${PROJECT_BINARY_DIR}/
 #
 if(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release CACHE STRING
-  "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+  "Choose the type of build, options are: None Debug Debug++ Release RelWithDebInfo MinSizeRel."
   FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
@@ -139,7 +140,12 @@ else()
     FORCE)
 endif()
 
-set(CMAKE_C_FLAGS_DEBUG "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE " CACHE STRING
+set(CMAKE_C_FLAGS_DEBUG "-g -O -Wall -D_FORTIFY_SOURCE=2 -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
+    "Flags used by the C compiler during maintainer builds."
+    FORCE)
+
+### Without Optimization flag
+set(CMAKE_C_FLAGS_DEBUG++ "-g -Wall -DNDEBUGFUNCTION -D_GNU_SOURCE" CACHE STRING
     "Flags used by the C compiler during maintainer builds."
     FORCE)
 
@@ -159,20 +165,20 @@ include(InstallRequiredSystemLibraries)
 set(CPACK_GENERATOR "")
 set(CPACK_STGZ_COMPONENT_INSTALL ON)
 set(CPACK_TGZ_COMPONENT_INSTALL ON)
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Rozofs filesystem")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Rozo File System")
 set(CPACK_PACKAGE_VENDOR "Fizians SAS")
 set(CPACK_PACKAGE_CONTACT "Fizians SAS")
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/README.md")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/COPYING")
 set(CPACK_PACKAGE_VERSION "${VERSION}")
-set(CPACK_PACKAGE_FILE_NAME ""${ROZOFS_PACKAGE_FILE_NAME}"")
+set(CPACK_PACKAGE_FILE_NAME "${ROZOFS_PACKAGE_FILE_NAME}")
 set(CPACK_COMPONENTS_ALL client export storage)
 set(CPACK_COMPONENT_CLIENT_DISPLAY_NAME "rozofsmount")
 set(CPACK_COMPONENT_EXPORT_DISPLAY_NAME "exportd")
 set(CPACK_COMPONENT_STORAGE_DISPLAY_NAME "storaged")
 set(CPACK_COMPONENT_CLIENT_DESCRIPTION "rozofsmount")
 set(CPACK_COMPONENT_EXPORT_DESCRIPTION "exportd")
-set(CPACK_COMPONENT_HEADERS_DESCRIPTION "storaged")
+set(CPACK_COMPONENT_STORAGE_DESCRIPTION "storaged")
 
 # Sources
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${ROZOFS_SOURCE_PACKAGE_FILE_NAME}")

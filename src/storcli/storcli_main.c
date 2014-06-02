@@ -57,6 +57,7 @@
 #include "rozofs_storcli.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_reload_storage_config.h"
+#include "rozofs_storcli_mojette_thread_intf.h"
 
 #define STORCLI_PID_FILE "storcli.pid"
 
@@ -1075,11 +1076,13 @@ int main(int argc, char *argv[]) {
     sprintf(storcli_process_filename, "%s%s_%d_storcli_%d", DAEMON_PID_DIRECTORY, "rozofsmount",conf.rozofsmount_instance, conf.module_index);
 
     if ((ppfd = open(storcli_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
-        severe("can't open process file");
+        severe("can't open process file %s",strerror(errno));
     } else {
         char str[10];
         sprintf(str, "%d\n", getpid());
-        write(ppfd, str, strlen(str));
+        if (write(ppfd, str, strlen(str))<0) {
+          severe("can't write process file %s",strerror(errno));
+	}
         close(ppfd);
     }    
     
@@ -1096,7 +1099,23 @@ int main(int argc, char *argv[]) {
         sprintf(name, "storcli %d of rozofsmount %d", conf.module_index, conf.rozofsmount_instance);
         uma_dbg_set_name(name);
     }
-
+    /**
+    * init of the scheduler ring
+    */
+    ret  = stc_rng_init();
+    if (ret < 0) {
+        fprintf(stderr, "Fatal error while initializing scheduler ring\n");
+        goto error;
+    }
+    /*
+    ** Initialize the disk thread interface and start the disk threads
+    */	
+    ret = rozofs_stcmoj_thread_intf_create(conf.host, conf.rozofsmount_instance,conf.module_index,
+                                           ROZOFS_MAX_DISK_THREADS,ROZOFS_MAX_DISK_THREADS ) ;
+    if (ret < 0) {
+      fatal("Mojette_disk_thread_intf_create");
+      return -1;
+    }
     /*
      ** Get the configuration from the export
      */

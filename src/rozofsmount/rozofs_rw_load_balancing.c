@@ -203,7 +203,7 @@ static unsigned int fid_hash(void *key) {
   @retval <>NULL pointer to searched context
   @retval NULL context is not found
 */
-rozofs_tx_rw_lbg_t *stclbg_hash_table_search_ctx(fid_t fid)
+rozofs_tx_rw_lbg_t *stclbg_hash_table_search_ctx(fid_t fid, int *storcli_idx)
 {
    unsigned int       hashIdx;
    ruc_obj_desc_t   * phead;
@@ -221,6 +221,7 @@ rozofs_tx_rw_lbg_t *stclbg_hash_table_search_ctx(fid_t fid)
    */
 
    hashIdx = fid_hash((void*)fid);
+   *storcli_idx = hashIdx%stclbg_storcli_count;
    hashIdx = hashIdx%STCLBG_HASH_SIZE;   
    /*
    ** Get the head of list
@@ -310,12 +311,18 @@ void stclbg_hash_table_insert_ctx(rozofs_tx_rw_lbg_t *p, fid_t fid, int storcli_
 */
 int stclbg_storcli_idx_from_fid(fid_t fid)
 {
-  rozofs_tx_rw_lbg_t *p = stclbg_hash_table_search_ctx(fid);
+  int storcli_idx = 0;
+  rozofs_tx_rw_lbg_t *p = stclbg_hash_table_search_ctx(fid,&storcli_idx);
   if ( p == NULL)
   {
+#if 0
     stclbg_next_idx +=1;
     stclbg_storcli_stats[stclbg_next_idx%stclbg_storcli_count]++;
     return (stclbg_next_idx%stclbg_storcli_count);
+#else
+    stclbg_storcli_stats[storcli_idx]++;
+    return storcli_idx;
+#endif
   }
   stclbg_storcli_stats[p->storcli_idx]++;
   return p->storcli_idx;

@@ -47,7 +47,7 @@
 #include <rozofs/rozofs_timer_conf.h>
 
 
-int rozofs_storcli_get_position_of_first_byte2write();
+int rozofs_storcli_get_position_of_first_byte2write_in_truncate();
 
 DECLARE_PROFILING(stcpp_profiler_t);
 
@@ -74,7 +74,7 @@ void rozofs_storcli_truncate_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
 
 //int rozofs_storcli_remote_rsp_cbk(void *buffer,uint32_t socket_ref,void *user_param);
 
-
+void rozofs_storcli_truncate_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_p, char * data);
 /*
 **_________________________________________________________________________
 *      LOCAL FUNCTIONS
@@ -294,32 +294,41 @@ void rozofs_storcli_truncate_req_init(uint32_t  socket_ctx_idx, void *recv_buf,r
      working_ctx_p->prj_ctx[i].inuse_valid = 1;
      ruc_buf_inuse_increment(working_ctx_p->prj_ctx[i].prj_buf);
      /*
-     ** set the pointer to the bins to NULL since it is not used
+     ** set the pointer to the bins
      */
-     working_ctx_p->prj_ctx[i].bins       = NULL;   
-   }		
+     int position = rozofs_storcli_get_position_of_first_byte2write_in_truncate();
+     uint8_t *pbuf = (uint8_t*)ruc_buf_getPayload(working_ctx_p->prj_ctx[i].prj_buf); 
+
+     working_ctx_p->prj_ctx[i].bins       = (bin_t*)(pbuf+position); 
+   }
+   		
    /*
    ** Prepare for request serialization
    */
    memcpy(working_ctx_p->fid_key, storcli_truncate_rq_p->fid, sizeof (sp_uuid_t));
    working_ctx_p->opcode_key = STORCLI_TRUNCATE;
    {
-     rozofs_storcli_ctx_t *ctx_lkup_p = storcli_hash_table_search_ctx(working_ctx_p->fid_key);
-     /*
-     ** Insert the current request in the queue associated with the hash(fid)
-     */
-     storcli_hash_table_insert_ctx(working_ctx_p);
-     if (ctx_lkup_p != NULL)
-     {
+       /**
+        * lock all the file for a truncate
+        */
+       uint64_t nb_blocks = 0;
+       nb_blocks--;
+       int ret;
+       ret = stc_rng_insert((void*)working_ctx_p,
+               STORCLI_READ,working_ctx_p->fid_key,
+               0,nb_blocks,
+               &working_ctx_p->sched_idx);
+       if (ret == 0)
+       {
+           /*
+            ** there is a current request that is processed with the same fid and there is a collision
+            */
+           return;
+       }
        /*
-       ** there is a current request that is processed with the same fid
-       */
-       return;    
-     }
-     /*
-     ** no request pending with that fid, so we can process it right away
-     */
-     return rozofs_storcli_truncate_req_processing(working_ctx_p);
+        ** no request pending with that fid, so we can process it right away
+        */
+       return rozofs_storcli_truncate_req_processing(working_ctx_p);
    }
 
     /*
@@ -358,13 +367,296 @@ failure:
 /*
 **__________________________________________________________________________
 */
+
+/**
+* callback for the internal read request triggered by a truncate
+
+ potential failure case:
+  - socket_ref is out of range
+  - connection is down
+  
+ @param buffer : pointer to the ruc_buffer that cointains the response
+ @param socket_ref : non significant
+ @param user_param_p : pointer to the root context
+ 
+ 
+ @retval 0 : successfully submitted to the transport layer
+ @retval < 0 error, the caller is intended to release the buffer
+ */
+int rozofs_storcli_internal_read_before_truncate_rsp_cbk(void *buffer,uint32_t socket_ref,void *user_param)
+{
+
+   int errcode = 0; 
+   rozofs_storcli_ctx_t                *working_ctx_p = (rozofs_storcli_ctx_t*)user_param;
+   storcli_truncate_arg_t * storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
+
+   XDR       xdrs;       
+   uint8_t  *payload;
+   char     *data;
+   int       position;
+   int      bufsize;   
+   struct rpc_msg  rpc_reply;
+   storcli_status_ret_t rozofs_status;
+   int  data_len; 
+   int error;  
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+
+   /*
+   ** decode the read internal read reply
+   */
+   payload  = (uint8_t*) ruc_buf_getPayload(buffer);
+   payload += sizeof(uint32_t); /* skip length*/  
+   
+   /*
+   ** OK now decode the received message
+   */
+   bufsize = ruc_buf_getPayloadLen(buffer);
+   bufsize -= sizeof(uint32_t); /* skip length*/
+   xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);   
+   error = 0;
+   while (1)
+   {
+     /*
+     ** decode the rpc part
+     */
+     if (rozofs_xdr_replymsg(&xdrs,&rpc_reply) != TRUE)
+     {
+       errno = EPROTO;
+       error = 1;
+       break;
+     }
+     /*
+     ** decode the status of the operation
+     */
+     if (xdr_storcli_status_ret_t(&xdrs,&rozofs_status)!= TRUE)
+     {
+       errno = EPROTO;
+       error = 1;
+       break;    
+     }
+     /*
+     ** check th estatus of the operation
+     */
+     if ( rozofs_status.status != STORCLI_SUCCESS )
+     {
+       error = 0;
+       break;    
+     }
+     {
+       int alignment;
+       /*
+       ** skip the alignment
+       */
+       if (xdr_int(&xdrs, &alignment) != TRUE)
+       {
+         errno = EPROTO;
+         STORCLI_ERR_PROF(read_prj_err);       
+         error = 1;
+         break;          
+       }
+      }
+     /*
+     ** Now get the length of the part that has been read
+     */
+     if (xdr_int(&xdrs, &data_len) != TRUE)
+     {
+       errno = EPROTO;
+       error = 1;
+       break;          
+     }
+     break;
+   }
+   if (error)
+   {
+     severe("error while decoding rpc reply");  
+     goto failure;  
+   }   
+
+   position = XDR_GETPOS(&xdrs);
+   data     = (char*)(payload+position);
+
+   /*
+   ** check the status of the read operation
+   */
+   if (rozofs_status.status != STORCLI_SUCCESS)
+   {
+     data = NULL;
+   }
+   else {
+     /*, 
+     ** No data returned
+     */
+     if (data_len == 0) {
+       data = NULL;
+     }
+     else if (storcli_truncate_rq_p->last_seg <= data_len) {
+       memset(data+storcli_truncate_rq_p->last_seg, 0, ROZOFS_BSIZE-storcli_truncate_rq_p->last_seg);       
+     }
+     else {
+       memset(data+data_len, 0, ROZOFS_BSIZE-data_len);     
+     }
+   }
+   rozofs_storcli_truncate_req_processing_exec(working_ctx_p, data);
+   ruc_buf_freeBuffer(buffer);
+   return 0 ;   
+
+
+failure:
+   ruc_buf_freeBuffer(buffer);
+   /*
+   ** check if the lock is asserted to prevent direct call to callback
+   */
+   if (working_ctx_p->write_ctx_lock == 1) return 0;
+   /*
+   ** write failure
+   */
+   rozofs_storcli_write_reply_error(working_ctx_p,errcode);
+
+   /*
+   ** release the transaction root context
+   */
+   working_ctx_p->xmitBuf = NULL;
+   STORCLI_STOP_NORTH_PROF(working_ctx_p,truncate,0);  
+   rozofs_storcli_release_context(working_ctx_p);
+   return 0 ;
+
+}
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Internal Read procedure
+   That procedure is used when it is required to read the last block before
+   performing the truncate
+   
+   @param working_ctx_p: pointer to the root transaction
+   
+   @retval 0 on success
+   retval < 0 on error (see errno for error details)
+   
+*/
+int rozofs_storcli_internal_read_before_truncate_req(rozofs_storcli_ctx_t *working_ctx_p)
+{
+   storcli_truncate_arg_t *storcli_truncate_rq_p;
+   void *xmit_buf = NULL;
+   storcli_read_arg_t storcli_read_args;
+   storcli_read_arg_t *request   = &storcli_read_args;
+   struct rpc_msg   call_msg;
+   int               bufsize;
+   uint32_t          *header_size_p;
+   XDR               xdrs;    
+   uint8_t           *arg_p;
+      
+   storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
+   
+   /*
+   ** allocated a buffer from sending the request
+   */   
+   xmit_buf = ruc_buf_getBuffer(ROZOFS_STORCLI_NORTH_SMALL_POOL);
+   if (xmit_buf == NULL)
+   {
+     severe(" out of small buffer on north interface ");
+     errno = ENOMEM;
+     goto failure;
+   }
+   /*
+   ** build the RPC message
+   */
+   request->sid = 0;  /* not significant */
+   request->layout = storcli_truncate_rq_p->layout;
+   request->cid    = storcli_truncate_rq_p->cid;
+   request->spare = 0;  /* not significant */
+   memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+   memcpy(request->fid, storcli_truncate_rq_p->fid, sizeof (sp_uuid_t));
+   request->proj_id = 0;  /* not significant */
+   request->bid     = storcli_truncate_rq_p->bid;  
+   request->nb_proj = 1;  
+   
+   /*
+   ** get the pointer to the payload of the buffer
+   */
+   header_size_p  = (uint32_t*) ruc_buf_getPayload(xmit_buf);
+   arg_p = (uint8_t*)(header_size_p+1);  
+   /*
+   ** create the xdr_mem structure for encoding the message
+   */
+   bufsize = (int)ruc_buf_getMaxPayloadLen(xmit_buf);
+   xdrmem_create(&xdrs,(char*)arg_p,bufsize,XDR_ENCODE);
+   /*
+   ** fill in the rpc header
+   */
+   call_msg.rm_direction = CALL;
+   /*
+   ** allocate a xid for the transaction 
+   */
+   call_msg.rm_xid             = rozofs_tx_get_transaction_id(); 
+   call_msg.rm_call.cb_rpcvers = RPC_MSG_VERSION;
+   /* XXX: prog and vers have been long historically :-( */
+   call_msg.rm_call.cb_prog = (uint32_t)STORCLI_PROGRAM;
+   call_msg.rm_call.cb_vers = (uint32_t)STORCLI_VERSION;
+   if (! xdr_callhdr(&xdrs, &call_msg))
+   {
+      /*
+      ** THIS MUST NOT HAPPEN
+      */
+     errno = EFAULT;
+     severe(" rpc header encode error ");
+     goto failure;
+   }
+   /*
+   ** insert the procedure number, NULL credential and verifier
+   */
+   uint32_t opcode = STORCLI_READ;
+   uint32_t null_val = 0;
+   XDR_PUTINT32(&xdrs, (int32_t *)&opcode);
+   XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+   XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+   XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+   XDR_PUTINT32(&xdrs, (int32_t *)&null_val);        
+   /*
+   ** ok now call the procedure to encode the message
+   */
+   if (xdr_storcli_read_arg_t(&xdrs,request) == FALSE)
+   {
+     severe(" internal read request encoding error ");
+     errno = EFAULT;
+     goto failure;
+   }
+   /*
+   ** Now get the current length and fill the header of the message
+   */
+   int position = XDR_GETPOS(&xdrs);
+   /*
+   ** update the length of the message : must be in network order
+   */
+   *header_size_p = htonl(0x80000000 | position);
+   /*
+   ** set the payload length in the xmit buffer
+   */
+   int total_len = sizeof(*header_size_p)+ position;
+   ruc_buf_setPayloadLen(xmit_buf,total_len);
+   /*
+   ** Submit the pseudo request
+   */
+   rozofs_storcli_read_req_init(0,xmit_buf,rozofs_storcli_internal_read_before_truncate_rsp_cbk,(void*)working_ctx_p,STORCLI_DO_NOT_QUEUE);
+   return 0;
+   
+failure:
+  if (xmit_buf != NULL) ruc_buf_freeBuffer(xmit_buf); 
+  return -1; 
+   
+}
+/*
+**__________________________________________________________________________
+*/
 /*
 ** That function is called when all the projection are ready to be sent
 
  @param working_ctx_p: pointer to the root context associated with the top level write request
+ @param data         : pointer to the data of the last block to truncate
 
 */
-void rozofs_storcli_truncate_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
+void rozofs_storcli_truncate_req_processing_exec(rozofs_storcli_ctx_t *working_ctx_p, char * data)
 {
 
   storcli_truncate_arg_t *storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
@@ -373,13 +665,14 @@ void rozofs_storcli_truncate_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   uint8_t   rozofs_safe;
   uint8_t   projection_id;
   int       storage_idx;
-  int       error;
+  int       error=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   
   rozofs_forward = rozofs_get_rozofs_forward(layout);
   rozofs_safe    = rozofs_get_rozofs_safe(layout);
   
+
   /*
   ** set the current state of each load balancing group belonging to the rozofs_safe group
   */
@@ -406,14 +699,34 @@ void rozofs_storcli_truncate_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
        goto fail;
     }
   }  
+  
+  
+  /*
+  ** Let's transform the data to write
+  */
+  working_ctx_p->truncate_bins_len = 0;
+  if (data != NULL) {
+    STORCLI_START_KPI(storcli_kpi_transform_forward);
+
+    rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
+                                     layout,
+                                     0, 
+                                     1, 
+                                     working_ctx_p->timestamp,
+                                     storcli_truncate_rq_p->last_seg,
+                                     data);  
+    STORCLI_STOP_KPI(storcli_kpi_transform_forward,0);
+    working_ctx_p->truncate_bins_len = rozofs_get_max_psize(layout)*sizeof(bin_t) + sizeof(rozofs_stor_bins_hdr_t);
+  } 
+  
   /*
   ** We have enough storage, so initiate the transaction towards the storage for each
   ** projection
   */
   for (projection_id = 0; projection_id < rozofs_forward; projection_id++)
   {
-     sp_truncate_arg_t *request; 
-     sp_truncate_arg_t  truncate_prj_args;
+     sp_truncate_arg_no_bins_t *request; 
+     sp_truncate_arg_no_bins_t  truncate_prj_args;
      void  *xmit_buf;  
      int ret;  
       
@@ -433,7 +746,7 @@ retry:
      request   = &truncate_prj_args;
      request->cid = storcli_truncate_rq_p->cid;
      request->sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
-     request->layout        = storcli_truncate_rq_p->layout;
+     request->layout        = layout;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
      memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
@@ -442,6 +755,8 @@ retry:
      request->bid            = storcli_truncate_rq_p->bid;
      request->last_seg       = storcli_truncate_rq_p->last_seg;
      request->last_timestamp = working_ctx_p->timestamp;
+
+     request->len = working_ctx_p->truncate_bins_len;
 
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),truncate_prj,0);
@@ -458,14 +773,13 @@ retry:
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_WR_IN_PRG;
      
      ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_TRUNCATE,
-                                         (xdrproc_t) xdr_sp_truncate_arg_t, (caddr_t) request,
+                                         (xdrproc_t) xdr_sp_truncate_arg_no_bins_t, (caddr_t) request,
                                           xmit_buf,
                                           working_ctx_p->read_seqnum,
                                           (uint32_t) projection_id,
-                                          0,
+                                          working_ctx_p->truncate_bins_len,
                                           rozofs_storcli_truncate_req_processing_cbk,
                                          (void*)working_ctx_p);
-
      working_ctx_p->write_ctx_lock = 0;
      if (ret < 0)
      {
@@ -529,6 +843,60 @@ fatal:
   return;
 
 }
+/*
+**__________________________________________________________________________
+*/
+/*
+** That function is called when all the projection are ready to be sent
+
+ @param working_ctx_p: pointer to the root context associated with the top level write request
+
+*/
+void rozofs_storcli_truncate_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
+{
+
+  storcli_truncate_arg_t *storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
+  int                     ret;
+  int                     errcode;
+    
+  /*
+  ** Check whether the truncate operates on a ROZOFS block size bondary. If it is not
+  ** the case, we must read the block from the disk to then remove the extra data at
+  ** the end of the block.
+  */
+  if (storcli_truncate_rq_p->last_seg != 0) {
+
+    working_ctx_p->write_ctx_lock = 1;  /* Avoid direct response on internal read error */
+    ret = rozofs_storcli_internal_read_before_truncate_req(working_ctx_p);
+    working_ctx_p->write_ctx_lock = 0;
+
+    if (ret < 0)
+    {
+      errcode = errno;
+      severe("fatal error on internal read");
+      goto fail;        
+    } 
+    
+    /* Wait for the internal response */
+    return;   
+  } 
+
+  rozofs_storcli_truncate_req_processing_exec(working_ctx_p,NULL);
+  return;
+  
+fail:
+  /*
+  ** we fall in that case when we run out of  resource-> that case is a BUG !!
+  */
+  rozofs_storcli_write_reply_error(working_ctx_p,errcode);
+  /*
+  ** release the root transaction context
+  */
+  STORCLI_STOP_NORTH_PROF(working_ctx_p,truncate,0);
+  rozofs_storcli_release_context(working_ctx_p); 
+  errno =  errcode;
+  return;
+}
 
 
 /*
@@ -554,7 +922,7 @@ void rozofs_storcli_truncate_projection_retry(rozofs_storcli_ctx_t *working_ctx_
     uint8_t   rozofs_forward;
     uint8_t   layout;
     storcli_truncate_arg_t *storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
-    int error;
+    int error=0;
     int storage_idx;
 
     rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
@@ -602,8 +970,8 @@ void rozofs_storcli_truncate_projection_retry(rozofs_storcli_ctx_t *working_ctx_
     /*
     ** we are lucky since either a get a new storage or the retry counter is not exhausted
     */
-     sp_truncate_arg_t *request; 
-     sp_truncate_arg_t  truncate_prj_args;
+     sp_truncate_arg_no_bins_t *request; 
+     sp_truncate_arg_no_bins_t  truncate_prj_args;
      void  *xmit_buf;  
      int ret;  
       
@@ -624,7 +992,7 @@ retry:
      request   = &truncate_prj_args;
      request->cid = storcli_truncate_rq_p->cid;
      request->sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
-     request->layout        = storcli_truncate_rq_p->layout;
+     request->layout        = layout;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
      memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
@@ -633,6 +1001,13 @@ retry:
      request->bid            = storcli_truncate_rq_p->bid;
      request->last_seg       = storcli_truncate_rq_p->last_seg;
      request->last_timestamp = working_ctx_p->timestamp;
+
+
+     /*
+     ** Bins len has been saved in the working context
+     */
+     request->len = working_ctx_p->truncate_bins_len;
+
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      /*
      **  increment the lock since it might be possible that this procedure is called after a synchronous transaction failu failure
@@ -647,11 +1022,11 @@ retry:
      
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),truncate_prj,0);
      ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_TRUNCATE,
-                                         (xdrproc_t) xdr_sp_truncate_arg_t, (caddr_t) request,
+                                         (xdrproc_t) xdr_sp_truncate_arg_no_bins_t, (caddr_t) request,
                                           xmit_buf,
                                           working_ctx_p->read_seqnum,
                                           (uint32_t) projection_id,
-                                          0,
+                                          working_ctx_p->truncate_bins_len,
                                           rozofs_storcli_truncate_req_processing_cbk,
                                          (void*)working_ctx_p);
      working_ctx_p->write_ctx_lock--;
@@ -756,6 +1131,7 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
    int error = 0;
    int      same_storage_retry_acceptable = 0;
 
+
     storcli_truncate_rq_p = (storcli_truncate_arg_t*)&working_ctx_p->storcli_truncate_arg;
     /*
     ** get the sequence number and the reference of the projection id form the opaque user array
@@ -764,6 +1140,8 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
     rozofs_tx_read_opaque_data(this,0,&seqnum);
     rozofs_tx_read_opaque_data(this,1,&projection_id);
     rozofs_tx_read_opaque_data(this,2,(uint32_t*)&lbg_id);
+
+
     /*
     ** check if the sequence number of the transaction matches with the one saved in the tranaaction
     ** that control is required because we can receive a response from a late transaction that
@@ -775,7 +1153,7 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
     {
       /*
       ** not the right sequence number, so drop the received message
-      */
+      */      
       goto drop_msg;    
     }
     /*
@@ -787,7 +1165,7 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
       /*
       ** The reponse has already been received for that projection so we don't care about that
       ** extra reponse
-      */
+      */      
       goto drop_msg;       
     }
     /*    
@@ -795,7 +1173,7 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
     */
     status = rozofs_tx_get_status(this);
     if (status < 0)
-    {
+    {   
 
        /*
        ** something wrong happened: assert the status in the associated projection id sub-context
@@ -868,6 +1246,7 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
       */
       if ( rozofs_status.status != SP_SUCCESS )
       {
+      
          errno = rozofs_status.sp_status_ret_t_u.error;
          error = 1;
         break;    
@@ -895,7 +1274,6 @@ void rozofs_storcli_truncate_req_processing_cbk(void *this,void *param)
        goto retry_attempt;    
     }
     STORCLI_STOP_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),truncate_prj,0);
-
     /*
     ** set the pointer to the read context associated with the projection for which a response has
     ** been received

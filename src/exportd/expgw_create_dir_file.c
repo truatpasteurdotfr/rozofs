@@ -26,7 +26,7 @@
 
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
-#include <rozofs/common/profile.h>
+#include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/eproto.h>
 
@@ -37,8 +37,6 @@
 #include "volume.h"
 #include "exportd.h"
 #include <rozofs/core/expgw_common.h>
-
-DECLARE_PROFILING(epp_profiler_t);
 
 
 void expgw_mkdir_mknod_cbk(void *this,void *buffer) ;

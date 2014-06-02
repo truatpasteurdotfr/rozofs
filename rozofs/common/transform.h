@@ -43,9 +43,6 @@ void transform_inverse(pxl_t * support, int rows, int cols, int np,
 void transform_forward_one_proj(const bin_t * support, int rows, int cols,
         uint8_t proj_id, projection_t * projections);
 
-extern int transform_buf_k_offsets[];
-extern int transform_buf_offset[];
-
 static inline int compare_slope_inline(const void *e1, const void *e2) {
     projection_t *p1 = (projection_t *) e1;
     projection_t *p2 = (projection_t *) e2;
@@ -62,7 +59,8 @@ static inline void transform_inverse_inline(pxl_t * support, int rows, int cols,
     int s_minus, s_plus, s, i, rdv, k, l;
     //double tmp;
     int *k_offsets, *offsets;
-
+    int transform_buf_offset[1024];
+    int transform_buf_k_offsets[1024];    
 //    k_offsets = xcalloc(np, sizeof (int));
 //    offsets = xcalloc(np, sizeof (int));
     k_offsets = transform_buf_k_offsets;

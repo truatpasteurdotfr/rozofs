@@ -26,14 +26,17 @@
 #include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "rozofs_fuse.h"
+#include "rozofs_fuse_api.h"
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
 #include "rozofs_modeblock_cache.h"
 #include "rozofs_cache.h"
 #include "rozofs_rw_load_balancing.h"
 #include "rozofs_reload_export_gateway_conf.h"
+#include "rozofs_xattr_flt.h"
 
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define INODE_HSIZE 8192
@@ -72,7 +75,29 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
 
+
+int rozofs_mountpoint_check(const char * mntpoint);
+
+/*
+** Exportd id free byte count for quota management
+*/
+uint64_t eid_free_quota = -1; // -1 means no quota 
+
+
+
 uint64_t   rozofs_client_hash=0;
+/**
+* fuse request/reponse trace parameters
+*/
+
+int rozofs_trc_wr_idx; /**< current trace index */
+int rozofs_trc_buf_full; /**< trace buffer is full */
+int rozofs_trc_last_idx; /**< last entry in the trace buffer */
+int rozofs_trc_enabled = 0;  /**< assert to 1 when the trace is enable */
+int rozofs_trc_index = 0;
+rozofs_trace_t *rozofs_trc_buffer = NULL;  /**< pointer to the trace buffer */
+int rozofs_xattr_disable = 0; /**< assert to one to disable xattr for the exported file system */
+
 /**______________________________________________________________________________
 */
 /**
@@ -129,16 +154,17 @@ static void usage() {
     fprintf(stderr, "    -E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "    -P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "    -o rozofsbufsize=N\t\tdefine size of I/O buffer in KiB (default: 256)\n");
-    fprintf(stderr, "    -o rozofsminreadsize=N\tdefine minimum read size on disk in KiB (default value is same as the option rozofsbufsize)\n");
-    fprintf(stderr, "    -o rozofsmaxwritepending=N\tdefine the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: %u)\n", ROZOFSMOUNT_MAX_TX);
+    fprintf(stderr, "    -o rozofsminreadsize=N\tdefine minimum read size on disk in KiB (default: %u)\n", ROZOFS_BSIZE/1024);
+    fprintf(stderr, "    -o rozofsmaxwritepending=N\tdefine the number of write request(s) that can be sent for an open file from the rozofsmount toward the storcli asynchronously (default: 4)\n");
     fprintf(stderr, "    -o rozofsmaxretry=N\t\tdefine number of retries before I/O error is returned (default: 50)\n");
     fprintf(stderr, "    -o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
-    fprintf(stderr, "    -o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 3)\n");
-    fprintf(stderr, "    -o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 10)\n");
+    fprintf(stderr, "    -o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 4)\n");
+    fprintf(stderr, "    -o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 15)\n");
     fprintf(stderr, "    -o rozofsattrtimeout=N\tdefine timeout (s) for which file/directory attributes are cached (default: 10)\n");
     fprintf(stderr, "    -o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
     fprintf(stderr, "    -o debug_port=N\t\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "    -o instance=N\t\tdefine instance number (default: 0)\n");
+    fprintf(stderr, "    -o nbcores=N\t\tdefine the maximum number of core files to keep (default: 2)\n");
     fprintf(stderr, "    -o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "    -o rozofsmode=N\t\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
     fprintf(stderr, "    -o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
@@ -146,6 +172,8 @@ static void usage() {
     fprintf(stderr, "    -o rozofsrotate=N\t\tdefine the modulo on read distribution rotation (default: 0)\n");
     fprintf(stderr, "    -o posixlock\t\tactive support for POSIX file lock\n");
     fprintf(stderr, "    -o bsdlock\t\t\tactive support for BSD file lock\n");
+    fprintf(stderr, "    -o noXattr\t\t\tdisable support of extended attributes\n");
+
 }
 
 static rozofsmnt_conf_t conf;
@@ -187,6 +215,11 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsrotate=%u", rotate, 0),
     MYFS_OPT("posixlock", posix_file_lock, 1),
     MYFS_OPT("bsdlock", bsd_file_lock, 1),
+    MYFS_OPT("grpquota", quota, 2),
+    MYFS_OPT("noquota", quota, 0),
+    MYFS_OPT("quota", quota, 3),
+    MYFS_OPT("usrquota", quota, 1),
+    MYFS_OPT("noXattr", noXattr, 1),
 
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -397,6 +430,8 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
+  DISPLAY_UINT32_CONFIG(noXattr);  
+
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }  
 /*__________________________________________________________________________
@@ -641,6 +676,16 @@ void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef)
 
 /*__________________________________________________________________________
 */
+
+void rozofs_disable_xattr(char * argv[], uint32_t tcpRef, void *bufRef) 
+{
+
+   rozofs_xattr_disable = 1;
+   uma_dbg_send(tcpRef, bufRef, TRUE, "Extended Attributes are now disabled\n");
+}
+
+/*__________________________________________________________________________
+*/
 static char * rozofs_set_fsmode_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
   pChar += sprintf(pChar,"fs_mode set {fs|block}   : set FS mode\n");
@@ -754,7 +799,352 @@ void show_blockmode_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
+/*
+**__________________________________________________________________________
 
+    F U S E   T R A C E   S E R V I C E S
+**__________________________________________________________________________
+*/    
+
+/*__________________________________________________________________________
+*/
+/**
+*   enable the trace of the fuse service
+
+    that trace can be enabled only if there is a valid allocated trace buffer
+    
+    @param none
+    @retval none
+*/
+void rozofs_trace_enable()
+{
+   if (rozofs_trc_buffer!= NULL) rozofs_trc_enabled = 1;
+}
+
+/*__________________________________________________________________________
+*/
+/**
+*   Reset the fuse trace buffer
+   
+    THat service consist in turning off the enable flag of the trace buffer
+    
+    @param none
+    @retval none
+*/
+void rozofs_trace_reset()
+{
+   rozofs_trc_index = 0;
+   rozofs_trc_wr_idx = 0;
+   rozofs_trc_buf_full = 0;
+}
+/*__________________________________________________________________________
+*/
+/**
+*   disable the trace of the fuse service
+    
+    @param none
+    @retval none
+*/
+void rozofs_trace_disable()
+{
+   rozofs_trc_enabled = 0;
+
+}
+/*__________________________________________________________________________
+*/
+/**
+*   init of the fuse trace service
+
+    THe service allocates a default trace buffer and turn off the trace.
+    @param none
+    @retval 0 on success
+    @retval -1 on error
+*/
+int rozofs_trace_init(int size)
+{
+   rozofs_trace_reset();  
+   rozofs_trc_last_idx = size;
+   rozofs_trc_buffer = malloc(sizeof(rozofs_trace_t)*size);
+   if (rozofs_trc_buffer != NULL) 
+   {  
+     memset(rozofs_trc_buffer,0,sizeof(rozofs_trace_t)*size);
+     return 0;
+   }
+   return -1;
+}
+/*__________________________________________________________________________
+*/
+/**
+*   Show the status od the fuse trace service
+
+    @param pChar : pointer to the result buffer
+    @retval none
+*/
+void rozofs_trace_status(char *pChar)
+{
+   pChar+=sprintf(pChar,"trace status      :%s \n",(rozofs_trc_enabled==0)?"Disabled":"Enabled");
+   pChar+=sprintf(pChar,"trace buffer size :%d entries \n",(rozofs_trc_buffer==NULL)?0:rozofs_trc_last_idx);
+   if (rozofs_trc_enabled == 0) return;
+   if ((rozofs_trc_wr_idx == 0) && (rozofs_trc_buf_full== 0)) 
+   {
+      pChar+=sprintf(pChar,"Buffer empty\n");
+      return ;
+   }
+   if (rozofs_trc_buf_full!= 0) 
+   {
+      pChar+=sprintf(pChar,"Buffer full\n");
+      return ;   
+   }
+   pChar+=sprintf(pChar,"Buffer contains %d entries\n",rozofs_trc_wr_idx);
+}
+/*__________________________________________________________________________
+*/
+/**
+*   return the ascii pattern associated with the fuse service number
+
+    @param srv : fuse service number
+    @retval pChar : pointer to the result buffer
+*/
+char *trc_fuse_display_srv(int srv)
+{
+  switch (srv) {
+	case srv_rozofs_ll_lookup:return "lookup";
+	case srv_rozofs_ll_forget:return "forget";
+
+	case srv_rozofs_ll_getattr:return "getattr";
+
+	case srv_rozofs_ll_setattr:return "setattr";
+
+	case srv_rozofs_ll_readlink:return "readlink";
+
+	case srv_rozofs_ll_mknod:return "mknod";
+
+	case srv_rozofs_ll_mkdir:return "mkdir";
+
+	case srv_rozofs_ll_unlink:return "unlink";
+
+	case srv_rozofs_ll_rmdir:return "rmdir";
+
+	case srv_rozofs_ll_symlink:return "symlink";
+
+	case srv_rozofs_ll_rename:return "rename";
+
+	case srv_rozofs_ll_open:return "open";
+
+	case srv_rozofs_ll_link:return "link";
+
+	case srv_rozofs_ll_read:return "read";
+
+	case srv_rozofs_ll_write:return "write";
+
+	case srv_rozofs_ll_flush:return "flush";
+
+	case srv_rozofs_ll_release:return "release";
+
+	case srv_rozofs_ll_opendir:return "opendir";
+
+	case srv_rozofs_ll_readdir:return "readdir";
+
+	case srv_rozofs_ll_releasedir:return "releasedir";
+
+	case srv_rozofs_ll_fsyncdir:return "fsyncdir";
+
+	case srv_rozofs_ll_statfs:return "statfs";
+
+	case srv_rozofs_ll_setxattr:return "setxattr";
+
+	case srv_rozofs_ll_getxattr:return "getxattr";
+
+	case srv_rozofs_ll_listxattr:return "listxattr";
+
+	case srv_rozofs_ll_removexattr:return "removexattr";
+
+	case srv_rozofs_ll_access:return "access";
+
+	case srv_rozofs_ll_create:return "create";
+
+	case srv_rozofs_ll_getlk:return "getlk";
+
+	case srv_rozofs_ll_setlk:return "setlk";
+
+	case srv_rozofs_ll_setlk_int:return "setlk_int";
+
+	case srv_rozofs_ll_ioctl:return "wr_block";
+
+	case srv_rozofs_ll_clearlkowner:return "clearlkowner";
+	default: return "??unknown??";
+    }
+}
+
+/*__________________________________________________________________________
+*/
+/**
+*   Display of the content of the fuse trace buffer
+
+    @param pChar : pointer to the result buffer
+    @retval none
+*/
+void show_trc_fuse_buffer(char * pChar)
+{
+   char str[37];
+   fid_t fake_fid;
+   int start, count;
+   uint64_t cur_ts;
+   
+   memset(fake_fid,0,sizeof(fid_t));
+   rozofs_trace_t *p ;
+   int i;
+   if (rozofs_trc_buf_full) 
+   {
+     start = rozofs_trc_wr_idx;
+     count = rozofs_trc_last_idx;
+   }
+   else  
+   {
+     start = 0;
+     count = rozofs_trc_wr_idx;
+   }
+   p = &rozofs_trc_buffer[start];
+   cur_ts = p->ts;
+   
+   for (i = 0; i < count; i++,start++)
+   {
+      if (start >= rozofs_trc_last_idx) start = 0;
+      p = &rozofs_trc_buffer[start];
+      if (p->hdr.s.fid == 1)
+      {
+	uuid_unparse(p->par.def.fid, str);
+      } 
+      else
+	uuid_unparse(fake_fid, str); 
+      if (p->hdr.s.req)
+      {
+        pChar+=sprintf(pChar,"[%8llu ]--> %-8s %4d %12.12llx ",
+	         (unsigned long long int)(p->ts - cur_ts),trc_fuse_display_srv(p->hdr.s.service_id),p->hdr.s.index,
+		 (unsigned long long int)p->ino);
+        switch (p->hdr.s.trc_type)
+	{
+	  default:
+	  case rozofs_trc_type_attr:
+	  case rozofs_trc_type_def:
+            pChar+=sprintf(pChar,"%s\n",str);
+	    break;
+	  case rozofs_trc_type_io:
+            pChar+=sprintf(pChar,"%s %8llu/%d\n",str,(unsigned long long int)p->par.io.off,(int)p->par.io.size);
+	    break;	
+	  case rozofs_trc_type_name:
+            pChar+=sprintf(pChar,"%s\n",p->par.name.name);
+	    break;	
+	}
+
+      }
+      else
+      {
+     
+        pChar+=sprintf(pChar,"[%8llu ]<-- %-8s %4d %12.12llx %s %d:%s\n",
+	               (unsigned long long int)(p->ts - cur_ts),
+		       trc_fuse_display_srv(p->hdr.s.service_id),
+		       p->hdr.s.index,
+		       (unsigned long long int)p->ino,
+		       str,
+		       p->errno_val,strerror(p->errno_val));      
+      }
+      cur_ts = p->ts;   
+   }
+   return;
+}
+
+
+static char * show_trc_fuse_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"trc_fuse reset         : reset trace buffer\n");
+  pChar += sprintf(pChar,"trc_fuse enable        : enable trace mode\n");  
+  pChar += sprintf(pChar,"trc_fuse disable       : disable trace mode\n");  
+  pChar += sprintf(pChar,"trc_fuse status        : current status of the trace buffer\n");  
+  pChar += sprintf(pChar,"trc_fuse count <count> : allocate a trace buffer with <count> entries\n");  
+  pChar += sprintf(pChar,"trc_fuse               : display trace buffer\n");  
+  return pChar; 
+}  
+
+
+void show_trc_fuse(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = uma_dbg_get_buffer();
+    int   new_val;   
+     
+    if (argv[1] != NULL)
+    {
+        if (strcmp(argv[1],"reset")==0) {
+	  rozofs_trace_reset();
+	  uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
+	  return;
+	}
+        if (strcmp(argv[1],"enable")==0) {
+	  if (rozofs_trc_enabled != 1)
+	  {
+            rozofs_trace_enable();
+            rozofs_trace_reset();
+            uma_dbg_send(tcpRef, bufRef, TRUE, "fuse trace is now enabled\n");    
+	  }
+	  else
+	  {
+            uma_dbg_send(tcpRef, bufRef, TRUE, "fuse trace is already enabled\n");    
+	  }
+	  return;
+	}  
+        if (strcmp(argv[1],"status")==0) {
+	  rozofs_trace_status(pChar);
+	  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	  return;
+	}  
+        if (strcmp(argv[1],"count")==0) {
+	  errno = 0;
+	  if (argv[2] == NULL)
+	  {
+            pChar += sprintf(pChar, "argument is missing\n");
+	    pChar = show_trc_fuse_help(pChar);
+	    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	    return;	  	  
+	  }
+	  new_val = (int) strtol(argv[2], (char **) NULL, 10);   
+	  if (errno != 0) {
+            pChar += sprintf(pChar, "bad value %s\n",argv[2]);
+	    pChar = show_trc_fuse_help(pChar);
+	    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	    return;
+	  }
+	  if (rozofs_trc_buffer != NULL) free(rozofs_trc_buffer);
+	  if (rozofs_trace_init(new_val) < 0)
+	  {
+            uma_dbg_send(tcpRef, bufRef, TRUE, "cannot allocate a trace buffer with requested entries\n");
+	    return;	       
+	  }
+          uma_dbg_send(tcpRef, bufRef, TRUE, "Done!!\n");
+	  return;
+	}  
+
+        if (strcmp(argv[1],"disable")==0) {
+	  if (rozofs_trc_enabled != ROZOFS_MBCACHE_DISABLE)
+	  {
+            rozofs_trace_disable();
+            uma_dbg_send(tcpRef, bufRef, TRUE, "fuse trace is now disabled\n");    
+	  }
+	  else
+	  {
+            uma_dbg_send(tcpRef, bufRef, TRUE, "fuse trace is already disabled\n");    
+	  }
+	  return;
+        }
+	pChar = show_trc_fuse_help(pChar);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	return;   	
+    }
+    pChar+=sprintf(pChar,"trace entry size : %lu Bytes\n",(long unsigned int)sizeof(rozofs_trace_t));
+    pChar+=sprintf(pChar,"ino size         : %lu Bytes\n",(long unsigned int)sizeof(fuse_ino_t));
+    show_trc_fuse_buffer(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+ }
+/*__________________________________________________________________________
+*/
 typedef struct _xmalloc_stats_t {
     uint64_t count;
     int size;
@@ -831,16 +1221,22 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
 };
 
 void rozofs_kill_one_storcli(int instance) {
-
+    int ret = - 1;
     char cmd[1024];
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 
 void rozofs_start_one_storcli(int instance) {
     char cmd[1024];
-    
+    uint16_t debug_port_value;
+    char     debug_port_name[32];
+    int ret = -1;
+
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
@@ -848,7 +1244,13 @@ void rozofs_start_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
     cmd_p += sprintf(cmd_p, "-E %s ", conf.export);
     cmd_p += sprintf(cmd_p, "-M %s ", mountpoint);
-    cmd_p += sprintf(cmd_p, "-D %d ", conf.dbg_port + instance);
+    
+    /* Try to get debug port from /etc/services */
+    debug_port_value = conf.dbg_port + instance;
+    sprintf(debug_port_name,"rozo_storcli%d_%d_dbg",conf.instance,instance);
+    debug_port_value = get_service_port(debug_port_name,NULL,debug_port_value);
+          
+    cmd_p += sprintf(cmd_p, "-D %d ", debug_port_value);
     cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
     cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
     cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
@@ -867,10 +1269,13 @@ void rozofs_start_one_storcli(int instance) {
     info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
             " profile port: %d, rozofs instance: %d, storage timeout: %d).",
             instance, conf.host, conf.export, mountpoint,
-            conf.dbg_port + instance, conf.instance,
+            debug_port_value, conf.instance,
             ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 void rozofs_kill_storcli() {
     int i;
@@ -894,7 +1299,7 @@ void rozofs_start_storcli() {
 int fuseloop(struct fuse_args *args, int fg) {
     int i = 0;
     int ret;
-    int err;
+    int err=0;
     char *c;
     int piped[2];
     piped[0] = piped[1] = -1;
@@ -928,6 +1333,11 @@ int fuseloop(struct fuse_args *args, int fg) {
                 timeout_mproto) == 0) break;
 
         sleep(2);
+    }
+
+    // Check the mountpoint after success connection with the export
+    if (rozofs_mountpoint_check(mountpoint) != 0) {
+        return 1;
     }
 
     if (retry_count == 0) {
@@ -1091,7 +1501,36 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("start_config", show_start_config);
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
     uma_dbg_addTopic("flock", show_flock);
-
+    uma_dbg_addTopic("trc_fuse", show_trc_fuse);
+    uma_dbg_addTopic("xattr_flt", show_xattr_flt);
+    uma_dbg_addTopic("xattr_disable", rozofs_disable_xattr);
+    
+    /*
+    ** Disable extended attributes if required
+    */
+    if (conf.noXattr) {
+      rozofs_xattr_disable = 1;
+    }  
+      
+    /*
+    ** clear write flush alignement stats
+    */
+    {
+      int k;
+      for (k= 0;k < 2;k++)
+      {
+        rozofs_aligned_write_start[k] = 0;
+        rozofs_aligned_write_end[k] = 0;
+      }
+    }
+    /*
+    ** init of the trace buffer
+    */
+    rozofs_trace_init(ROZOFS_TRACE_BUF_SZ);
+    /*
+    ** init of the xattribute filter
+    */
+    rozofs_xattr_flt_filter_init();
     /*
     ** Initialize the number of write pending per fd
     ** and reset statistics
@@ -1119,7 +1558,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     */
     rozofs_timer_conf_dbg_init();
     /*
-    ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
+    ** Check if the base port of rozodiag has been provided, if there is no value, set it to default
     */
     if (conf.dbg_port == 0) 
     {
@@ -1136,6 +1575,12 @@ int fuseloop(struct fuse_args *args, int fg) {
     }     
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_rozofsmount_port((uint16_t) conf.instance);
+    /* Try to get debug port from /etc/services */
+    {
+      char debug_port_name[32];
+      sprintf(debug_port_name,"rozo_mount%d_dbg",conf.instance);
+      rozofs_fuse_conf.debug_port = get_service_port(debug_port_name,NULL,rozofs_fuse_conf.debug_port);
+    }
     rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     conf.dbg_port = rozofs_fuse_conf.debug_port;
     rozofs_fuse_conf.se = se;
@@ -1290,6 +1735,7 @@ int rozofs_mountpoint_check(const char * mntpoint) {
                     "according to '"MOUNTED_FS_FILE_CHECK"', %s is already a"
                     " active mountpoint for a Rozo file system\n",
                     mountpoint_path);
+            endmntent(mnt_file_stream);
             return -1;
         }
     }
@@ -1318,7 +1764,7 @@ int main(int argc, char *argv[]) {
     conf.max_retry = 50;
     conf.buf_size = 0;
     conf.min_read_size = 0;
-    conf.max_write_pending = ROZOFSMOUNT_MAX_TX; /* No limit */ 
+    conf.max_write_pending = 4; /*  */ 
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
@@ -1326,6 +1772,8 @@ int main(int argc, char *argv[]) {
     conf.rotate = 0;
     conf.posix_file_lock = 0; // No posix file lock until explicitly activated  man 2 fcntl)
     conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
+    conf.noXattr = 0;   // By default extended attributes are supported
+
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
     }
@@ -1351,34 +1799,47 @@ int main(int argc, char *argv[]) {
     if (conf.buf_size == 0) {
         conf.buf_size = 256;
     }
+
     if (conf.buf_size < 128) {
         fprintf(stderr,
                 "write cache size too low (%u KiB) - increased to 128 KiB\n",
                 conf.buf_size);
         conf.buf_size = 128;
     }
+
     if (conf.buf_size > 256) {
         fprintf(stderr,
                 "write cache size too big (%u KiB) - decreased to 256 KiB\n",
                 conf.buf_size);
         conf.buf_size = 256;
     }
+
     /* Bufsize must be a multiple of the block size */
-    if ((conf.buf_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
+    if ((conf.buf_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.buf_size = ((conf.buf_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.buf_size > 256) {
+            conf.buf_size = conf.buf_size - (ROZOFS_BSIZE / 1024);
+        }
     }
     
     if (conf.min_read_size == 0) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = 4;
     }
+
     if (conf.min_read_size > conf.buf_size) {
-      conf.min_read_size = conf.buf_size;
+        conf.min_read_size = conf.buf_size;
     }
-    /* Bufsize must be a multiple of the block size */
-    if ((conf.min_read_size % (ROZOFS_BSIZE/1024)) != 0) {
-      conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE/1024))+1) * (ROZOFS_BSIZE/1024);
-    }    
-    
+
+    /* min_read_size must be a multiple of the block size */
+    if ((conf.min_read_size % (ROZOFS_BSIZE / 1024)) != 0) {
+        conf.min_read_size = ((conf.min_read_size / (ROZOFS_BSIZE / 1024)) + 1)
+                * (ROZOFS_BSIZE / 1024);
+        if (conf.min_read_size > conf.buf_size) {
+            conf.min_read_size = conf.min_read_size - (ROZOFS_BSIZE / 1024);
+        }
+    }
+
     if (conf.nbstorcli != 0) {
       if (stclbg_set_storcli_number(conf.nbstorcli) < 0) {
           fprintf(stderr,
@@ -1513,6 +1974,9 @@ int main(int argc, char *argv[]) {
         warning("Failed to change maximum size of core file: %s",
                 strerror(errno));
     }
+
+    // Change AF_UNIX datagram socket length
+    af_unix_socket_set_datagram_socket_len(128);
 
     res = fuseloop(&args, fg);
 
