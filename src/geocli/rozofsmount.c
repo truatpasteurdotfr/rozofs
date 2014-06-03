@@ -208,7 +208,6 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(attr_timeout);
   DISPLAY_UINT32_CONFIG(entry_timeout);
   DISPLAY_UINT32_CONFIG(nb_cores);
-  DISPLAY_UINT32_CONFIG(shaper);  
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
@@ -320,7 +319,7 @@ void rozofs_start_one_storcli(int instance) {
     cmd_p += sprintf(cmd_p, "-D %d ", debug_port_value);
     cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
     cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
-    cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
+    cmd_p += sprintf(cmd_p, "--shaper 0 ");
     cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 #if 1
     if (instance == 1) 
@@ -554,7 +553,6 @@ int main(int argc, char *argv[]) {
         { "pwd", required_argument, 0, 'P'},
         { "dbg", required_argument, 0, 'D'},
         { "nbcores", required_argument, 0, 'C'},
-        { "shaper", required_argument, 0, 'S'},
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
@@ -584,7 +582,7 @@ int main(int argc, char *argv[]) {
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
-    conf.shaper = 1; // Default traffic shaper value
+    conf.shaper = 0; // Default traffic shaper value
     conf.rotate = 0;
     conf.site = -1;
     conf.conf_site_file = -1; /* no site file  */ 
@@ -677,17 +675,7 @@ int main(int argc, char *argv[]) {
                 }
                 conf.rozofsmount_instance = val;
                 break;
-*/
-            case 'S':
-                errno = 0;
-                val = (int) strtol(optarg, (char **) NULL, 10);
-                if (errno != 0) {
-                    strerror(errno);
-                    usage();
-                    exit(EXIT_FAILURE);
-                }
-                conf.shaper = val;
-                break;            
+*/     
 	   case 's':
                 errno = 0;
                 val = (int) strtol(optarg, (char **) NULL, 10);
