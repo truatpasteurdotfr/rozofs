@@ -2277,7 +2277,7 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     /*
     ** now initiates the transaction towards the remote end
     */
-    
+        
 #if 1
     ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,file_p->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
@@ -2287,6 +2287,9 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
                               recv_cbk,fuse_ctx_p); 
 #endif
+    if (ret == 0) {
+      rozofs_geo_write_reset(file_p);
+    }    
     return ret;  
 }
 

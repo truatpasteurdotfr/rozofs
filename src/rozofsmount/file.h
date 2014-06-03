@@ -126,6 +126,19 @@ typedef struct file {
 } file_t;
 
 /**
+*  Reset the start and end offset to address the
+   case of the gep-replication
+   
+   @param file : pointer to the file context
+   
+   @retval none
+*/
+static inline void rozofs_geo_write_reset(file_t *file)
+{
+    file->off_wr_start = 0xFFFFFFFFFFFFFFFF;
+    file->off_wr_end = 0;
+}
+/**
 *  Init of the file structure 
 
  @param file : pointer to the structure
@@ -163,8 +176,7 @@ static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
     file->write_block_req = 0;
     file->write_block_pending = 0;
     file->file2create = 0;
-    file->off_wr_start = 0;
-    file->off_wr_end = 0;
+    rozofs_geo_write_reset(file);
 }
 
 /**
@@ -177,9 +189,9 @@ static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
    
    @retval none
 */
-static inline void rozofs_geo_write_update(file_t *file,size_t size, off_t off)
+static inline void rozofs_geo_write_update(file_t *file,off_t off, size_t size)
 {
-
+	
    if (file->off_wr_start > off)
    {
       file->off_wr_start = off;
