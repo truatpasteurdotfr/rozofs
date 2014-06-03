@@ -119,6 +119,7 @@ rzcp_copy_ctx_t *rzcp_copy_init(fid_t fid_s,cid_t cid_s,sid_t *sids_s,uint8_t la
    memcpy(rw_ctx_p->sids,sids_s,ROZOFS_SAFE_MAX*sizeof(sid_t));
    rw_ctx_p->layout = layout_s;
    rw_ctx_p->off_start = off_start;
+   rw_ctx_p->off_cur =  rw_ctx_p->off_start;
    rw_ctx_p->initial_len = (int64_t)len;
    /*
    ** destination information
