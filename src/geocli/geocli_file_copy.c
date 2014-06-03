@@ -59,6 +59,7 @@ void geo_cli_geo_file_sync_processing(geocli_ctx_t *p)
     {
       if (p->last ) p->state_sync = GEOSYNC_ST_GETDEL;    
       else p->state_sync = GEOSYNC_ST_GETNEXT;
+      p->state = GEOCLI_ST_IDLE;      
       return;
     }
     /*
@@ -242,8 +243,8 @@ void geo_cli_geo_file_sync_read_end_cbk(void *param,int status)
     ** we need to copy read buffer towards write buffer
     */
     {
-       uint8_t *from = (uint8_t*)ruc_buf_getPayload(cpy_p->shared_buf_ref[SHAREMEM_IDX_READ]);
-       uint8_t *to = (uint8_t*)ruc_buf_getPayload(cpy_p->shared_buf_ref[SHAREMEM_IDX_WRITE]);
+       uint8_t *from = (uint8_t*)ruc_buf_getPayload(cpy_p->shared_buf_ref[SHAREMEM_IDX_READ]) + 8;
+       uint8_t *to = (uint8_t*)ruc_buf_getPayload(cpy_p->shared_buf_ref[SHAREMEM_IDX_WRITE]) + 8;
        memcpy(to,from,cpy_p->received_len);    
     }
     RZCPY_PROFILING_BYTES(copy_file,cpy_p->received_len);
@@ -332,6 +333,7 @@ void geo_cli_geo_file_sync_write_end_cbk(void *param,int status)
     ** it is not the end, so read more
     */
     cpy_p->rzcp_caller_cbk = geo_cli_geo_file_sync_read_end_cbk;
+    cpy_p->storcli_idx = 0;
     ret = rzcp_read_req(cpy_p);
     if (ret < 0)
     {

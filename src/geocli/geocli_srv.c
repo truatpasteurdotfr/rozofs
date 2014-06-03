@@ -1002,6 +1002,7 @@ void geo_cli_state_idle_processing(geocli_ctx_t *p)
       geo_cli_geo_sync_req_processing(p);
       break;
      case GEOSYNC_ST_SYNC_FILE:
+      p->state = GEOCLI_ST_INPRG;           
       geo_cli_geo_file_sync_processing(p);
       break;
      case GEOSYNC_ST_GETNEXT:
