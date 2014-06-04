@@ -178,6 +178,7 @@ storage_t *storaged_next(storage_t * st) {
 static void on_stop() {
     DEBUG_FUNCTION;
     char cmd[128];
+    int ret = -1;
    
     /*
     ** Kill every instance of storio of this host
@@ -186,8 +187,11 @@ static void on_stop() {
       sprintf(cmd,"storio_killer.sh -H %s", storaged_hostname);
     else 
       sprintf(cmd,"storio_killer.sh"); 
-    system(cmd);
     
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
     svc_exit();
 
     if (storaged_monitoring_svc) {
@@ -217,7 +221,8 @@ char storage_process_filename[NAME_MAX];
 static void on_start() {
     char cmd[128];
     char * p;
-    storaged_start_conf_param_t conf;     
+    storaged_start_conf_param_t conf;
+    int ret = -1;
         
     DEBUG_FUNCTION;
 
@@ -251,7 +256,10 @@ static void on_start() {
       sprintf(cmd,"storio_killer.sh"); 
 
     // Launch killer script
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 
     conf.io_port = 0;
     /*
@@ -264,7 +272,10 @@ static void on_start() {
       p += sprintf(p, "&");
 
       // Launch storio_starter script
-      system(cmd);
+      ret = system(cmd);
+      if (-1 == ret) {
+          DEBUG("system command failed: %s", strerror(errno));
+      }
       conf.io_port++;
     }
     else {
@@ -275,9 +286,12 @@ static void on_start() {
 	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
 	p += sprintf(p, "&");
 
-	// Launch storio_starter script
-	system(cmd);  
-        conf.io_port++;      
+        // Launch storio_starter script
+        ret = system(cmd);
+        if (-1 == ret) {
+            DEBUG("system command failed: %s", strerror(errno));
+        }
+        conf.io_port++;
       }
     }
 

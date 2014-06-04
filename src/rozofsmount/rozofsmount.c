@@ -1235,17 +1235,21 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
 
 void rozofs_kill_one_storcli(int instance) {
 
+    int ret = - 1;
     char cmd[1024];
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 
 void rozofs_start_one_storcli(int instance) {
     char cmd[1024];
     uint16_t debug_port_value;
     char     debug_port_name[32];
-        
+    int ret = -1;
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
     cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
@@ -1283,7 +1287,10 @@ void rozofs_start_one_storcli(int instance) {
             debug_port_value, conf.instance,
             ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 void rozofs_kill_storcli() {
     int i;

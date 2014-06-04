@@ -152,6 +152,7 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
   pid_t  pid;
   char   fileName[32];
   int    fd;
+  int ret = -1;
   
   pid = getpid();
   sprintf(fileName,"/tmp/rozo.%d",pid);
@@ -159,7 +160,10 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
   strcat(cmd," > ");
   strcat(cmd,fileName);
   
-  system(cmd);
+  ret = system(cmd);
+  if (-1 == ret) {
+      return 0;
+  }
   
   fd = open(fileName, O_RDONLY);
   if (fd < 0) {

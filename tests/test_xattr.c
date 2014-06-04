@@ -272,15 +272,17 @@ int loop_test_process() {
   char cmd[128];
   pid_t pid = getpid();
        
-  getcwd(cmd,125);
+  if (getcwd(cmd,125) == NULL) {
+      return -1;
+  }
   
   pid = getpid();
   sprintf(filename, "%s/%s/test_xattr.%u", cmd, mount, pid);
   
   sprintf(cmd, "echo HJKNKJNKNKhuezfqr > %s", filename);
-  system(cmd);  
-  
-          
+  if (system(cmd) == -1) {
+      return -1;
+  }
   while (1) {
     count++;    
     if  (do_one_test(filename,count) != 0) {

@@ -206,7 +206,6 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
   storcli_write_arg_no_data_t *storcli_write_rq_p;;
   uint8_t layout;;
   int i;
-  int ret;
   int block_count = 0;
     
   
@@ -233,7 +232,7 @@ static inline void storcli_mojette_forward(rozofs_mojette_thread_ctx_t *thread_c
 //       STORCLI_START_KPI(storcli_kpi_transform_forward);
 
        block_count += wr_proj_buf_p[i].number_of_blocks;
-       ret =rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
+       rozofs_storcli_transform_forward(working_ctx_p->prj_ctx,  
                                                layout,storcli_write_rq_p->bsize,
                                                wr_proj_buf_p[i].first_block_idx, 
                                                wr_proj_buf_p[i].number_of_blocks, 
@@ -287,13 +286,11 @@ void *rozofs_stcmoj_thread(void *arg) {
       int ret= 0;
 
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
-#if 0
-          severe("Mojette thread Scheduling policy   = %s\n",
+          DEBUG("Mojette thread Scheduling policy   = %s\n",
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :
                     "???");
-#endif
  #if 1
       my_priority.sched_priority= 98;
       policy = SCHED_FIFO;
@@ -303,13 +300,11 @@ void *rozofs_stcmoj_thread(void *arg) {
 	severe("error on sched_setscheduler: %s",strerror(errno));	
       }
       pthread_getschedparam(pthread_self(),&policy,&my_priority);
-#if 0
-          severe("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
+          DEBUG("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
                     (policy == SCHED_OTHER) ? "SCHED_OTHER" :
                     (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
                     (policy == SCHED_RR)    ? "SCHED_RR" :
                     "???");
-#endif
  #endif        
      
     }
