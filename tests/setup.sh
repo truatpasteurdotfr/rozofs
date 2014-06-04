@@ -693,7 +693,7 @@ clean_all ()
 get_bin_complete_name () {
   case "$1" in
   storaged|storio) bin=${LOCAL_BINARY_DIR}/$storaged_dir/$1;;
-  expgw)           bin=${LOCAL_BINARY_DIR}/exportd/$1;;
+  exportd_slave)   bin=${LOCAL_BINARY_DIR}/exportd/exportd;;
   *)               bin=${LOCAL_BINARY_DIR}/$1/$1;;
   esac
 }
