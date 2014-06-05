@@ -130,10 +130,9 @@ def expand(platform, args):
             raise Exception("storage agent on the node \"%s\" is not reachable" % (host))
     
     if not args.vid:
-        platform.add_nodes(args.hosts, None)
+        platform.add_nodes(args.hosts, None, args.layout)
     else:
-        for vid in args.vid:
-            platform.add_nodes(args.hosts, vid)
+        platform.add_nodes(args.hosts, args.vid, args.layout)
 
 def remove(platform, args):
     for vid in args.vid:

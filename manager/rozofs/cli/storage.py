@@ -114,11 +114,19 @@ def remove(platform, args):
         configurations = platform._get_nodes(args.exportd)[host].get_configurations(Role.STORAGED)
         configuration = configurations[Role.STORAGED]
         check = True
+        
         for listener in configuration.listens:
             if args.interface == listener.addr:
                 if args.port == listener.port:
-                    configuration.listens.remove(listener)
+                    # listen entry is found
                     check = False
+                    # Check if it's the last listen entry
+                    # Replaced by default address
+                    if len(configuration.listens) == 1:
+                        listener.addr = "*"
+                        listener.port = 41001
+                    else:
+                        configuration.listens.remove(listener)
         if check:
             raise Exception('entry %s:%s does not exist.' % (args.interface,
             args.port))

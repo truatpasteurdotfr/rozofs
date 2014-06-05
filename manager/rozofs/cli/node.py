@@ -68,7 +68,8 @@ def status(platform, args):
                     role_l.append({ROLES_STR[role]: 'running'})
                 else:
                     role_l.append({ROLES_STR[role]: 'not running'})
-            status_l.update({h:role_l})
+            if role_l:
+                status_l.update({h:role_l})
         ordered_puts(status_l)
 
 def start(platform, args):
@@ -83,8 +84,10 @@ def config(platform, args):
     configurations = platform.get_configurations(args.nodes, __args_to_roles(args))
     host_l = {}
     for h, c in configurations.items():
-        if c is not None and not c:
-            return
+        
+        # Why?
+        #if c is not None and not c:
+        #    return
 
         if c is None:
             raise Exception ('%s is down.' % h)

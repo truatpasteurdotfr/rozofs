@@ -14,6 +14,7 @@
 #  <http://www.gnu.org/licenses/>.
 
 TMPFILE=/tmp/storaged_rozodiag.$$
+TMPFILE2=/tmp/storaged_rozodiag2.$$
 VERSION="Version 1.0"
 PROGNAME=`basename $0`
 
@@ -23,7 +24,7 @@ STATE_WARNING=1
 STATE_CRITICAL=2
 STATE_UNKNOWN=3
 
-Rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/debug" 
+rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/rozodiag" 
 resolve_rozodiag() {
 
   option="-i $host -p $port"
@@ -33,7 +34,7 @@ resolve_rozodiag() {
     option=`echo "$option -t $time"`
   fi
 
-  for path in $Rozodiag_PATHS
+  for path in $rozodiag_PATHS
   do
     if [ -f $path/rozodiag ];
     then
@@ -91,6 +92,7 @@ display_output() {
   msg=`echo "$msg | read=$all_read""B;;;; write=$all_write""B;;;;"`
   echo $msg
   rm -f $TMPFILE
+  rm -f $TMPFILE2
   exit $1
 }
 set_default() {
@@ -170,7 +172,7 @@ test_storage_io()
   write=`awk '{if ($1=="write") print $9; }' $TMPFILE`
   all_read=$((all_read+read))
   all_write=$((all_write+write))
-     
+  
   return 1
 }
 test_storage_io_devices()

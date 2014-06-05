@@ -25,7 +25,7 @@ STATE_WARNING=1
 STATE_CRITICAL=2
 STATE_UNKNOWN=3
 
-Rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/debug" 
+rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/rozodiag" 
 resolve_rozodiag() {
 
   option="-i $host -p $port"
@@ -35,7 +35,7 @@ resolve_rozodiag() {
     option=`echo "$option -t $time"`
   fi
 
-  for path in $Rozodiag_PATHS
+  for path in $rozodiag_PATHS
   do
     if [ -f $path/rozodiag ];
     then
