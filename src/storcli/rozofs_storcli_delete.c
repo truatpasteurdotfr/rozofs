@@ -429,7 +429,6 @@ void rozofs_storcli_delete_req_processing_exec(rozofs_storcli_ctx_t *working_ctx
      request->cid = storcli_delete_rq_p->cid;
      request->sid = (uint8_t) working_ctx_p->lbg_assoc_tb[storage_idx].sid;
      request->layout        = layout;
-     memcpy(request->dist_set, storcli_delete_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
      memcpy(request->fid, storcli_delete_rq_p->fid, sizeof (sp_uuid_t));
 
      uint32_t  lbg_id = working_ctx_p->lbg_assoc_tb[storage_idx].lbg_id;

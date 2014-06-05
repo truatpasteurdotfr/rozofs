@@ -118,7 +118,6 @@ struct sp_remove_arg_t {
 	uint16_t cid;
 	uint8_t sid;
 	uint8_t layout;
-	uint32_t dist_set[ROZOFS_SAFE_MAX];
 	sp_uuid_t fid;
 };
 typedef struct sp_remove_arg_t sp_remove_arg_t;

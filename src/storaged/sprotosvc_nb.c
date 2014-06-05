@@ -128,7 +128,7 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_remove_arg_t;
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_status_ret_t;
       local = sp_remove_1_svc_disk_thread;
-      size = sizeof (sp_truncate_arg_no_bins_t);
+      size = sizeof (sp_remove_arg_t);
       break;
 
 
@@ -141,6 +141,11 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       rozorpc_srv_forward_reply(rozorpc_srv_ctx_p,(char*)&arg_err);
       rozorpc_srv_release_context(rozorpc_srv_ctx_p);    
       return;
+    }
+    
+    if (size > ruc_buf_getMaxPayloadLen(rozorpc_srv_ctx_p->decoded_arg)) {
+      fatal("size of request %d is %d although max payload len is %d",
+            hdr.proc, size, ruc_buf_getMaxPayloadLen(rozorpc_srv_ctx_p->decoded_arg));
     }
     
     memset(arguments,0, size);

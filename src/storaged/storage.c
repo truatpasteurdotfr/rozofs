@@ -512,8 +512,13 @@ static inline void storage_get_projection_size(uint8_t spare,
 					       uint16_t * msg,
 				    	       uint16_t * disk) { 
   int prj_id;
+  int idx;
+  int safe;
   int forward;
-
+  char mylog[128];
+  char * p = mylog;
+    
+  /* Size of a block in a message received from the client */  
   *msg = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t) 
        + sizeof (rozofs_stor_bins_hdr_t) 
        + sizeof(rozofs_stor_bins_footer_t);
@@ -531,30 +536,39 @@ static inline void storage_get_projection_size(uint8_t spare,
   ** On a non spare storage, we store the projections on its exact size.
   */
   
-  /* Retrieve the block size of this projection */
   forward = rozofs_get_rozofs_forward(layout);
-  for (prj_id=0; prj_id < forward; prj_id++) {
+  safe    = rozofs_get_rozofs_safe(layout);
+
+  /* Retrieve the current sid in the given distribution */
+  for (prj_id=0; prj_id < safe; prj_id++) {
     if (sid == dist_set[prj_id]) break;
   }
   
-  if (prj_id == forward) {
-    char mylog[128];
-    char * p = mylog;
-    int safe = rozofs_get_rozofs_safe(layout);
-    p += sprintf(p," safe %d ", safe);
-    for (prj_id=0; prj_id < safe; prj_id++) {
-      p += sprintf(p,"/%d", dist_set[prj_id]);
-    }    
-    p += sprintf(p," storage_get_projection_size spare %d sid %d",spare, sid);
+  /* The sid is within the forward 1rst sids : this is what we expected */
+  if (prj_id < forward) {
+    *disk = rozofs_get_psizes(layout,bsize,prj_id) * sizeof (bin_t) 
+          + sizeof (rozofs_stor_bins_hdr_t) 
+          + sizeof(rozofs_stor_bins_footer_t);
+    return;
+  }	  
+
+  /* This is abnormal. The sid is not supposed to be spare */
+  
+  p += sprintf(p," safe %d ", safe);
+  for (idx=0; idx < safe; idx++) {
+    p += sprintf(p,"/%d", dist_set[idx]);
+  }    
+  p += sprintf(p," storage_get_projection_size spare %d sid %d",spare, sid);
+
+  if (prj_id < safe) {
+    /* spare should have been set to 1 !? */
     severe("%s",mylog);
-    /* Isn't that storage a spare storage !? */
     *disk = *msg;
     return;
   }
-
-  *disk = rozofs_get_psizes(layout,bsize,prj_id) * sizeof (bin_t) 
-        + sizeof (rozofs_stor_bins_hdr_t) 
-        + sizeof(rozofs_stor_bins_footer_t);	
+  
+  /* !!! sid not in the distribution !!!! */
+  fatal("%s",mylog);	
 }  
 static inline void storage_get_projid_size(uint8_t spare, 
                                            uint8_t prj_id, 
