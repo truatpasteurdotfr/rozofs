@@ -135,7 +135,7 @@ gen_storage_conf ()
 	echo "#${NAME_LABEL}" >> $STORAGE_CONF
 	echo "#${DATE_LABEL}" >> $STORAGE_CONF
 
-	printf "threads = $NB_DISK_THREADS;\n" >> r
+	printf "threads = $NB_DISK_THREADS;\n" >> $STORAGE_CONF
 	printf "nbCores = $NB_CORES;\n" >> $STORAGE_CONF
 	printf "storio  = \"$STORIO_MODE\";" >> $STORAGE_CONF
 
