@@ -205,7 +205,7 @@ gen_export_conf ()
 	
 	if [ "$GEOREP" -ne 1 ];
 	then
-	  echo "            georep = 1;" >> $FILE	  
+	  echo "            georep = True;" >> $FILE	  
 	fi
         echo '            cids= ' >> $FILE
         echo '            (' >> $FILE

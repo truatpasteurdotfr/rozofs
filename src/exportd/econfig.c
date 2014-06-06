@@ -292,7 +292,7 @@ static int load_volumes_conf(econfig_t *ec, struct config_t *config, int elayout
 
         // Check whether geo-replication is specified for this volume in the
         // configuration file, default value is none
-        if (config_setting_lookup_int(vol_set, EGEOREP,
+        if (config_setting_lookup_bool(vol_set, EGEOREP,
                 &vgeorep) == CONFIG_FALSE) {
             // No specific layout given for this volume.
             // Get the export default geo-replication.
