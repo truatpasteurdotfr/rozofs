@@ -51,9 +51,22 @@ Maximum number of core files to keep. (default: 2)
        sid: (storage identifier)
                - must be an integer (between 1 and 255).
                - must be unique within a cluster.
-
+	       
+       georep: (whether geo-replication must occur on this volume / optional)
+               - must be a boolean.
+               - Optional field (default value is False).
+	       
        host: (IP or hostname of the physical node that contains the storage)
                - must be a valid IPv4 address or a valid hostname.
+               - must only be set in case of a volume without geo-replication. 
+	       
+       site0: (IP or hostname of the physical node that contains the storage on the main site)
+               - must be a valid IPv4 address or a valid hostname.
+               - must only be set in case of a volume with geo-replication. 	       
+	       
+       site1: (IP or hostname of the physical node that contains the storage on the secondary site)
+               - must be a valid IPv4 address or a valid hostname.
+               - must only be set in case of a volume with geo-replication. 	       
 
 .B  WARNING:
    - Use a new cluster when scaling with storage of different capacity.
@@ -68,12 +81,16 @@ Maximum number of core files to keep. (default: 2)
    squota is the number of data blocks that can be stored on a file system
    before being notified. hquota is the number maximum of data blocks that can
    be stored on a file system. vid is the volume where the file data for this
-   exported filesystem will be stored.
+   exported filesystem will be stored. bsize defines the block size to be used 
+   on this export.
 
        eid: (export identifier)
                - must be an integer.
                - must be unique for each exported filesystem managed by this
                  exportd.
+
+       bsize: (defines the block size used on this export)
+               - Valid bsize are 0 (4 Kibytes), 1 (8 Kibytes), 2 (16 Kibytes) or 3 (32 Kibytes).
 
        root: (directory path where metadata for this filesystem will be stored)
                - must be an existing directory.
@@ -159,6 +176,7 @@ volumes =  # List of volumes
     {
         # Second volume
         vid = 2; # Volume identifier = 2
+        georep = True; # Volume is georeplicated 
         layout = 1; # Specific layout for this volume
         cids =   # List of clusters for the volume 2
         (
@@ -167,14 +185,14 @@ volumes =  # List of volumes
                 cid = 3; # Cluster identifier = 3
                 sids =   # List of storages for the cluster 3
                 (
-                    {sid = 01; host = "storage-node-3-1";},
-                    {sid = 02; host = "storage-node-3-2";},
-                    {sid = 03; host = "storage-node-3-3";},
-                    {sid = 04; host = "storage-node-3-4";},
-                    {sid = 05; host = "storage-node-3-5";},
-                    {sid = 06; host = "storage-node-3-6";},
-                    {sid = 07; host = "storage-node-3-7";},
-                    {sid = 08; host = "storage-node-3-8";}
+                    {sid = 01; site0 = "storage-node-3-1-0"; site1 = "storage-node-3-1-1";},
+                    {sid = 02; site0 = "storage-node-3-2-0"; site1 = "storage-node-3-2-1";},
+                    {sid = 03; site0 = "storage-node-3-3-0"; site1 = "storage-node-3-3-1";},
+                    {sid = 04; site0 = "storage-node-3-4-0"; site1 = "storage-node-3-4-1";},
+                    {sid = 05; site0 = "storage-node-3-5-0"; site1 = "storage-node-3-5-1";},
+                    {sid = 06; site0 = "storage-node-3-6-0"; site1 = "storage-node-3-6-1";},
+                    {sid = 07; site0 = "storage-node-3-7-0"; site1 = "storage-node-3-7-1";},
+                    {sid = 08; site0 = "storage-node-3-8-0"; site1 = "storage-node-3-8-1";}
                 );
             }
         );
@@ -185,11 +203,11 @@ volumes =  # List of volumes
 exports = ( # List of exported filesystem
 
     # First filesystem exported
-    {eid = 1; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0";
+    {eid = 1; bsize=0; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0";
                                     squota="128G"; hquota="256G"; vid=1;},
 
     # Second filesystem exported
-    {eid = 2; root = "/path/to/bar"; md5="";
+    {eid = 2; bsize=1; root = "/path/to/bar"; md5="";
                             squota=""; hquota = ""; vid=2;}
     # ...
 );

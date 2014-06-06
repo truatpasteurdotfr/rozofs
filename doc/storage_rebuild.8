@@ -1,11 +1,11 @@
 .\" Process this file with
-.\" groff -man -Tascii storaged.8
+.\" groff -man -Tascii storage_rebuild.8
 .\"
-.TH storaged 8 "JUNE 2014" RozoFS "User Manuals"
+.TH storaged_rebuild 8 "JUNE 2014" RozoFS "User Manuals"
 .SH NAME
-storaged \- RozoFS storage daemon
+storaged_rebuild \- RozoFS storage rebuild process
 .SH SYNOPSIS
-.B storaged 
+.B storaged_rebuild 
 [
 .I options
 ] [
@@ -13,10 +13,8 @@ storaged \- RozoFS storage daemon
 ]
 .B
 .SH DESCRIPTION
-.B storaged
-RozoFS storaged daemon. Store encoded data for the
-.BR rozofs (7)
-filesystem.
+.B storaged_rebuild
+RozoFS storage rebuild process. Rebuild either a file, or a device, or all devices of a storage node.
 .SH OPTIONS
 .IP "-h, --help"
 .RS
@@ -26,15 +24,49 @@ Print help.
 .RS
 Use 
 .I file
-as configuration file default is
+as configuration file. default is
 .I /etc/rozofs/storage.conf
 (or
 .I /usr/local/etc/rozofs/storage.conf
 according to install options)
-.IP "-m, --multiio"
+IP "-r, --rebuild export_host"
 .RS
-With this option the storaged daemon starts as many storio process(es) as listening port(s) exist in the configuration file.
-
+This option specifies the exportd host.
+.RE
+.RS
+Use
+.I export_host
+as address (or dns name) where exportd daemon is running.
+.RE
+IP "-s, --sid cid/sid"
+.RE
+.RS
+Rebuilds only the storage identifier 
+.I sid
+of cluster
+.I cid.
+Default behaviour is to rebuild every sid configured in the configuration file.
+.RE
+IP "-d, --device device-number"
+.RE
+.RS
+Rebuilds only 
+.I device-number.
+Default is to rebuild every device.
+.RE
+IP "-f, --fid FID"
+.RE
+.RS
+Rebuilds only the file identified by
+.I FID.
+In this case --sid option is mandatory and -d option is ignored.
+.RE
+IP "-p, --parallel para"
+.RE
+.RS
+Use 
+.I para
+processes in parallel for rebuilding. Default value is 4.
 .RE
 .SH FILES
 .I /etc/rozofs/storage.conf (/usr/local/etc/rozofs/storage.conf)
@@ -50,12 +82,6 @@ The log file. See
 and
 .BR syslog.conf (5)
 for further details.
-.RE
-.I /var/run/storaged.pid
-.RS
-Pid file for the
-.B storaged
-daemon.
 .\".SH ENVIRONMENT
 .\".SH DIAGNOSTICS
 .SH "REPORTING BUGS"
