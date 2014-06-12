@@ -2052,7 +2052,6 @@ void geo_rep_sync_rate_tmr_cbk(void *ns)
 int geo_replicat_rpc_srv_init(void *args)
 {
     int ret;
-    int size;
     exportd_start_conf_param_t *args_p = (exportd_start_conf_param_t*)args;
     
     
@@ -2068,7 +2067,7 @@ int geo_replicat_rpc_srv_init(void *args)
 	    geo_sync_delete_req_arg_t geo_sync_delete_req_1_arg;
     } argument;
     
-    size = sizeof(argument);
+    int size = sizeof(argument);
     decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
     if (decoded_rpc_buffer_pool == NULL) {
       fatal("Can not allocate decoded_rpc_buffer_pool");

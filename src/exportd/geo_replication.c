@@ -757,7 +757,7 @@ int geo_rep_disk_flush(geo_rep_srv_ctx_t *ctx_p,int forced)
 {
    char path[ROZOFS_PATH_MAX];
    int fd = -1;
-   size_t size;
+   size_t size=0;
    struct stat buf;
       
    if (ctx_p->geo_replication_enable == 0)

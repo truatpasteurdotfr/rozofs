@@ -154,16 +154,7 @@ void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     
 
     DEBUG_FUNCTION;
-    /*
-    ** extract the site id from the request (gateway rank)
-    */
-    int requested_site = arg->hdr.gateway_rank;
-    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
-    {
-      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
-      errno = EINVAL;
-      goto error;
-    }
+
     // XXX exportd_lookup_id could return export_t *
     eid = exports_lookup_id(arg->path);	
 
@@ -174,6 +165,17 @@ void ep_conf_storage_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     START_PROFILING(ep_configuration);
     if (!eid) goto error;
         
+    /*
+    ** extract the site id from the request (gateway rank)
+    */
+    int requested_site = arg->hdr.gateway_rank;
+    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
+    {
+      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
+      errno = EINVAL;
+      goto error;
+    }
+    	
     exportd_reinit_storage_configuration_message();
 #if 0
 #warning fake xdrmem_create
@@ -431,14 +433,6 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
     DEBUG_FUNCTION;
 
-    requested_site = arg->hdr.gateway_rank;
-    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
-    {
-      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
-      errno = EINVAL;
-      goto error;
-    }
-    
     // XXX exportd_lookup_id could return export_t *
     eid = exports_lookup_id(arg->path);    
     if (eid) export_profiler_eid = *eid;	
@@ -447,6 +441,14 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     START_PROFILING(ep_mount);
     if (!eid) goto error;
 
+    requested_site = arg->hdr.gateway_rank;
+    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
+    {
+      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
+      errno = EINVAL;
+      goto error;
+    }
+    
     // XXX exportd_lookup_id could return export_t *
     if (!(eid = exports_lookup_id(arg->path)))
         goto error;

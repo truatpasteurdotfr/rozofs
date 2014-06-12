@@ -139,6 +139,7 @@ void rzcp_read_cbk(void *this,void *param)
    storcli_read_ret_no_data_t ret;
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_read_ret_no_data_t;
    errno =0;
+   int received_len = 0;
 
    rzcp_copy_ctx_t *cpy_p = (rzcp_copy_ctx_t*)param;
    
@@ -211,7 +212,7 @@ void rzcp_read_cbk(void *this,void *param)
     ** is not in the rpc buffer. It is detected by th epresence of the 0x53535353
     ** pattern in the alignment field of the rpc buffer
     */
-    int received_len = ret.storcli_read_ret_no_data_t_u.len.len;
+    received_len = ret.storcli_read_ret_no_data_t_u.len.len;
     uint32_t alignment = (uint32_t) ret.storcli_read_ret_no_data_t_u.len.alignment;
     xdr_free((xdrproc_t) decode_proc, (char *) &ret); 
     if (alignment == 0x53535353)

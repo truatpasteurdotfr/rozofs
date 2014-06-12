@@ -589,7 +589,7 @@ void *storio_disk_thread(void *arg) {
       exit(0);
     }
     if (bytesRcvd != sizeof(msg)) {
-      fatal("Disk Thread %d socket is dead (%d/%d) %s !!\n",ctx_p->thread_idx,bytesRcvd,sizeof(msg),strerror(errno));
+      fatal("Disk Thread %d socket is dead (%d/%d) %s !!\n",ctx_p->thread_idx,bytesRcvd,(int)sizeof(msg),strerror(errno));
       exit(0);    
     }
     

@@ -131,7 +131,6 @@ out:
 int rbs_get_fid_attr(rpcclt_t * clt, const char *export_host, fid_t fid, ep_mattr_t * attr, uint32_t * bsize, uint8_t * layout) {
     int status = -1;
     epgw_mattr_ret_t *ret = 0;
-    int i = 0;
     epgw_mfile_arg_t arg;
     rozofs_inode_t  * inode = (rozofs_inode_t *) fid;
 

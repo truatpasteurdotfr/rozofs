@@ -234,7 +234,6 @@ void storage_device_mapping_debug(char * argv[], uint32_t tcpRef, void *bufRef) 
 	  }
 	  
 	  char display[128];
-	  int  i;
 	  char * pt=display;
 
           pt += sprintf(pt,"-s %d/%d -f ",pf->cid, pf->sid);

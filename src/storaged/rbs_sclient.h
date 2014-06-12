@@ -26,6 +26,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/rpc/eproto.h>
 
 #include "rbs_transform.h"
 #include "rbs.h"
@@ -95,4 +96,16 @@ int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t lay
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
         rbs_storcli_ctx_t * working_ctx_p);
+/** Send a request to export server for get the list of member storages
+ *  of cluster with a given cid and add this storage list to the list
+ *  of clusters
+ *
+ * @param clt: RPC connection to export server
+ * @param export_host: IP or hostname of export server
+ * @param cid: the unique ID of cluster
+ * @param cluster_entries: list of cluster(s)
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int rbs_get_fid_attr(rpcclt_t * clt, const char *export_host, fid_t fid, ep_mattr_t * attr, uint32_t * bsize, uint8_t * layout);	
 #endif

@@ -206,6 +206,17 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(epgw_conf_stor_arg_t * arg, struct svc_re
     ep_cnf_storage_node_t *storage_cnf_p;
 
     DEBUG_FUNCTION;
+
+    // XXX exportd_lookup_id could return export_t *
+    eid = exports_lookup_id(arg->path);	
+
+    // XXX exportd_lookup_id could return export_t *
+    if (eid) export_profiler_eid = *eid;
+    else     export_profiler_eid = 0;
+	
+    START_PROFILING(ep_configuration);
+    if (!eid) goto error;
+
     /*
     ** extract the site id from the request (gateway rank)
     */
@@ -216,16 +227,7 @@ epgw_conf_ret_t *ep_conf_storage_1_svc(epgw_conf_stor_arg_t * arg, struct svc_re
       errno = EINVAL;
       goto error;
     }
-    // XXX exportd_lookup_id could return export_t *
-    eid = exports_lookup_id(arg->path);	
-
-    // XXX exportd_lookup_id could return export_t *
-    if (eid) export_profiler_eid = *eid;
-    else     export_profiler_eid = 0;
-	
-    START_PROFILING(ep_configuration);
-    if (!eid) goto error;
-        
+            
     exportd_reinit_storage_configuration_message();
 #if 0
 #warning fake xdrmem_create
@@ -511,14 +513,6 @@ epgw_mount_ret_t *ep_mount_1_svc(epgw_mount_arg_t * arg, struct svc_req * req) {
     int requested_site =0;    
 
     DEBUG_FUNCTION;
-    
-    requested_site = arg->hdr.gateway_rank;
-    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
-    {
-      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
-      errno = EINVAL;
-      goto error;
-    }
 
     // XXX exportd_lookup_id could return export_t *
     eid = exports_lookup_id(arg->path);    
@@ -528,6 +522,16 @@ epgw_mount_ret_t *ep_mount_1_svc(epgw_mount_arg_t * arg, struct svc_req * req) {
     START_PROFILING(ep_mount);
     if (!eid) goto error;
 
+    
+    requested_site = arg->hdr.gateway_rank;
+    if (requested_site  >= ROZOFS_GEOREP_MAX_SITE)
+    {
+      severe("site number is out of range (%d) max %d",requested_site,ROZOFS_GEOREP_MAX_SITE-1);
+      errno = EINVAL;
+      goto error;
+    }
+    
+    
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 

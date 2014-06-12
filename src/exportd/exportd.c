@@ -135,10 +135,14 @@ uint32_t export_profiler_eid;
    @retval none
 */
 void export_kill_one_export_slave(int instance) {
+    int ret = -1;
     char cmd[1024];
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s %s %d", "exports_killer.sh", exportd_config_file, instance);
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 
 /*
@@ -155,6 +159,7 @@ void export_start_one_export_slave(int instance) {
     char cmd[1024];
     uint16_t debug_port_value;
     char     debug_port_name[32];
+    int ret = -1;
 
 #warning debug port value for slave 52000
     debug_port_value = 52000+instance;
@@ -179,7 +184,10 @@ void export_start_one_export_slave(int instance) {
             instance,  exportd_config_file,
             debug_port_value);
     severe("FDL debug starting slave %d",instance);
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 
 /*
@@ -225,8 +233,13 @@ void export_start_export_slave() {
 void export_reload_one_export_slave(int instance) {
     char cmd[1024];
     char *cmd_p = &cmd[0];
+    int ret = -1;
+    
     cmd_p += sprintf(cmd_p, "%s %s %d", "exports_reload.sh", exportd_config_file, instance);
-    system(cmd);
+    ret = system(cmd);
+    if (-1 == ret) {
+        DEBUG("system command failed: %s", strerror(errno));
+    }
 }
 
 void export_reload_all_export_slave() {
