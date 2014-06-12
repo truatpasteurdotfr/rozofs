@@ -33,6 +33,14 @@ Description: RozoFS filesystem (mount utility)
  .
  RozoFS is a scale-out NAS using erasure coding.
 
+Package: rozofs-geomgr
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libconfig8 | libconfig9
+Description: RozoFS filesystem (geo-replication software)
+ This package contains the software related to geo-replication.
+ .
+ RozoFS is a scale-out NAS using erasure coding.
+
 Package: rozofs-rprof
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -44,8 +52,8 @@ Description: RozoFS filesystem (monitoring package)
 Package: rozofs-rozodiag
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libreadline6
-Description: RozoFS filesystem (debugging tools)
- rozofsdebug allows deep audit of RozoFS filesystems.
+Description: RozoFS filesystem (diagnostic tools)
+ rozodiag allows deep audit of RozoFS filesystems.
  .
  RozoFS is a scale-out NAS using erasure coding.
 

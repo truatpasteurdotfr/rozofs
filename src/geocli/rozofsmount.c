@@ -374,7 +374,6 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     int i = 0;
     int ret;
     int err=0;
-    char *c;
     int retry_count;
     char ppfile[NAME_MAX];
     int ppfd = -1;
@@ -475,11 +474,7 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     }
 
     /* try to create a flag file with port number */
-    sprintf(ppfile, "%s%s_%d%s", DAEMON_PID_DIRECTORY, "geocli",conf.instance, mountpoint);
-    c = ppfile + strlen(DAEMON_PID_DIRECTORY);
-    while (*c++) {
-        if (*c == '/') *c = '.';
-    }
+    sprintf(ppfile, "%s/%s_%d.pid", DAEMON_PID_DIRECTORY, "geocli",conf.instance);
     if ((ppfd = open(ppfile, O_RDWR | O_CREAT, 0640)) < 0) {
         severe("can't open profiling port file");
     } else {

@@ -42,14 +42,29 @@ add_executable(geocli
     rzcp_remove.c
     geocli_file_copy.c
 )
+add_executable(geomgr
+    geomgr.c
+    geomgr.h
+    geomgr_config.c
+    geomgr_config.h    
+)
+
 #pthread need by fuse
 target_link_libraries(geocli rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${UUID_LIBRARY} ${CRYPT_LIBRARY})
+target_link_libraries(geomgr rozofs ${PTHREAD_LIBRARY} ${CONFIG_LIBRARY} )
 
 # Install
 install(TARGETS geocli
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
-    COMPONENT mount
+    COMPONENT geomgr
 )
+install(TARGETS geomgr
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT geomgr
+)
+install(PROGRAMS geocli_killer.sh geomgr_starter.sh DESTINATION bin)
 

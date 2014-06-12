@@ -272,7 +272,64 @@ gen_export_conf ()
     done;
     echo ');' >> $FILE
 }
+gen_geomgr_conf ()
+{
 
+    FILE=${LOCAL_CONF}'geomgr.conf'
+
+    if [ ! -e "$LOCAL_CONF" ]
+    then
+        mkdir -p $LOCAL_CONF
+    fi
+
+    if [ -e "$FILE" ]
+    then
+        rm -rf $FILE
+    fi
+
+    touch $FILE
+    echo "#${NAME_LABEL}" >> $FILE
+    echo "#${DATE_LABEL}" >> $FILE
+    if [ "$GEOREP" -ne 1 ];
+    then
+      echo "active = True ;" >> $FILE
+    else
+      echo "active = False ;" >> $FILE
+    fi 
+    echo "export-daemons = (" >> $FILE
+    echo "   {" >> $FILE
+    echo "	active = True;" >> $FILE
+    echo "	host   = \"localhost\";" >> $FILE
+    echo "	exports="   >> $FILE
+    echo "	("   >> $FILE
+    for k in $(seq ${NB_EXPORTS}); do
+      echo "          {" >> $FILE
+      echo "               active = True;"  >> $FILE
+      echo "               path   = \"${LOCAL_EXPORTS_ROOT}_$k\";" >> $FILE
+      echo "               site   = 0;" >> $FILE
+      echo "               nb     = 1;" >> $FILE
+      echo "          }," >> $FILE
+      echo "          {" >> $FILE
+      echo "               active = True;"  >> $FILE
+      echo "               path   = \"${LOCAL_EXPORTS_ROOT}_$k\";" >> $FILE
+      echo "               site   = 1;" >> $FILE
+      echo "               nb     = 1;" >> $FILE
+      echo "               calendar =" >> $FILE
+      echo "		   (" >> $FILE
+      echo "		     { start=\"8:00\"; stop=\"12:15\";  },">> $FILE
+      echo "		     { start=\"14:15\"; stop=\"17:30\"; }">> $FILE
+      echo "		   );" >> $FILE
+      if [[ ${k} == ${NB_EXPORTS} ]]
+      then
+        echo "          }" >> $FILE            
+      else
+        echo "          }," >> $FILE            
+      fi
+    done;
+    echo "	);"   >> $FILE
+    echo "   }" >> $FILE
+    echo ');' >> $FILE
+}
 rebuild_storage_fid() 
 {
     hid=$2
@@ -490,20 +547,17 @@ deploy_clients_local ()
                     echo $cmd
 		    $cmd
 
-                    
-                    if [ $GEOREP -ne 1 ];
-		    then
-                       cmd="${LOCAL_BINARY_DIR}/geocli/geocli -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${eid}  -M ${mount_point} -G $((geo_site-1)) -i $geo_instance"        
-                       echo $cmd
-		       $cmd &
-		       geo_instance=$((geo_instance+1))
-                    fi
         	else
                     echo "Unable to mount RozoFS (${mount_point} already mounted)"
         	fi
             done;
         done;
     done;
+    
+    # Start geocli manager
+    cmd="geomgr_starter.sh -c ${LOCAL_CONF}geomgr.conf -t 5"
+    echo "$cmd"
+    $cmd        
 
 }
 rozofsmount_kill_best_effort()
@@ -516,7 +570,8 @@ geocli_kill_best_effort()
 {
     #echo "------------------------------------------------------"
     echo "Killing geocli and storcli in best effort mode"
-    process_killer geocli
+    killall geomgr_starter.sh
+    killall geomgr
 }
 undeploy_clients_local ()
 {
@@ -694,6 +749,7 @@ get_bin_complete_name () {
   case "$1" in
   storaged|storio) bin=${LOCAL_BINARY_DIR}/$storaged_dir/$1;;
   exportd_slave)   bin=${LOCAL_BINARY_DIR}/exportd/exportd;;
+  geomgr)     bin=${LOCAL_BINARY_DIR}/geocli/geomgr;;
   *)               bin=${LOCAL_BINARY_DIR}/$1/$1;;
   esac
 }
@@ -1116,6 +1172,8 @@ main ()
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
     # to reach storcli_starter.sh  
     export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/geocli
+    # to reach geocli executable      
+    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/geocli
     # to reach storio executable
     export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
     # to reach storio_starter.sh  
@@ -1136,8 +1194,6 @@ main ()
         set_layout
     fi
     
-
-
     NB_EXPORTS=4
     # BSIZE 0=4K 1=8K 2=16K 3=32K 
     BS4K=0
@@ -1188,7 +1244,8 @@ main ()
 
         gen_storage_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST}
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
-
+        gen_geomgr_conf
+	
         go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
 
         create_storages

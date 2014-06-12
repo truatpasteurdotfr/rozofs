@@ -21,6 +21,8 @@ install(FILES storage.conf.5 DESTINATION share/man/man5 COMPONENT storage)
 install(FILES exportd.8 DESTINATION share/man/man8 COMPONENT export)
 install(FILES export.conf.5 DESTINATION share/man/man5 COMPONENT export)
 install(FILES rozo.1 DESTINATION share/man/man1 COMPONENT manager)
+install(FILES geomgr.8 DESTINATION share/man/man8 COMPONENT geomgr)
+install(FILES geomgr.conf.5 DESTINATION share/man/man5 COMPONENT geomgr)
 
 #
 # add doxygen target

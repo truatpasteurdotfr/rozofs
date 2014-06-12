@@ -1,0 +1,77 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          rozofs-geo-replication
+# Required-Start:    $network $local_fs
+# Required-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Geo-replication manager.
+# Description:
+### END INIT INFO
+
+# Author: Fizians S.A.S. <devel@rozofs.com>
+
+PATH=/sbin:/bin:/usr/bin
+DESC=geomgr             # Introduce a short description here
+NAME=geomgr             # Introduce the short server's name here
+SCRIPTNAME=/etc/init.d/$NAME
+
+. /lib/init/vars.sh
+
+. /lib/lsb/init-functions
+
+SCRIPTNAME=/etc/init.d/$NAME
+
+# Exit if required binaries are missing
+[ -x /usr/bin/geomgr_starter.sh ] || exit 0
+[ -x /usr/bin/geomgr ] || exit 0
+[ -x /usr/bin/geocli ] || exit 0
+[ -x /usr/bin/storcli ] || exit 0
+
+# Read configuration variable file if it is present
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Define LSB log_* functions.
+# Depend on lsb-base (>= 3.0-6) to ensure that this file is present.
+. /lib/lsb/init-functions
+
+# Enable core files
+ulimit -c unlimited
+
+#
+# Function that unmount all Rozo FS
+#
+do_stop()
+{
+  killall geomgr_starter.sh
+  killall geomgr
+}
+
+#
+# Start function
+#
+do_start()
+{
+  do_stop
+  sleep 0.1
+  geomgr_starter.sh
+}
+
+
+case "$1" in
+    start) do_start;;
+    stop)  do_stop;;
+    status|reload|restart|force-reload)
+        echo "Error: argument '$1' not supported" >&2
+        exit 3
+        ;;
+    *)
+        echo "Usage: $SCRIPTNAME {start|stop}" >&2
+        exit 3
+    ;;
+esac
+
+:

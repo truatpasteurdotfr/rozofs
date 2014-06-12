@@ -50,6 +50,15 @@ Requires: libfuse2
 %description rozofsmount
 Rozofs is a scale-out NAS using erasure coding.
 
+%package geomgr
+Summary: Rozofs filesystem (geo-replication package).
+License: GPLv2
+Group: System Environment/File
+Requires: libconfig9, rozofs-rozofsmount
+
+%description rozofsmount
+Rozofs is a scale-out NAS using erasure coding.
+
 %package rprof
 Summary: Rozofs filesystem (profiling package).
 License: GPLv2
@@ -123,6 +132,7 @@ mkdir -p %{buildroot}/etc/default
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-exportd %{buildroot}%{_initrddir}/rozofs-exportd
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-storaged %{buildroot}%{_initrddir}/rozofs-storaged
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-rozofsmount %{buildroot}%{_initrddir}/rozofs-rozofsmount
+%{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-geomgr %{buildroot}%{_initrddir}/rozofs-geomgr
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-manager-agent %{buildroot}%{_initrddir}/rozofs-manager-agent
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-manager-agent.default %{buildroot}%{_sysconfdir}/default/rozofs-manager-agent
 
@@ -156,6 +166,16 @@ mkdir -p %{buildroot}/etc/default
 %{_bindir}/storcli_killer.sh
 %{_initrddir}/rozofs-rozofsmount
 %{_mandir}/man8/rozofsmount.8.gz
+
+%files geomgr
+%defattr(-,root,root)
+%{_bindir}/geomgr
+%{_bindir}/geocli
+%{_bindir}/geocli_killer.sh
+%{_bindir}/geomgr_starter.sh
+%{_initrddir}/rozofs-geomgr
+%{_mandir}/man8/geomgr.8.gz
+%{_mandir}/man5/geomgr.conf.5.gz
 
 %files rprof
 %defattr(-,root,root)
@@ -239,6 +259,13 @@ elif [ -x /sbin/chkconfig ]; then
   /sbin/chkconfig --add rozofs-rozofsmount
 fi
 
+%post geomgr
+if [ -x /usr/lib/lsb/install_initd ]; then
+  /usr/lib/lsb/install_initd /etc/init.d/rozofs-geomgr
+elif [ -x /sbin/chkconfig ]; then
+  /sbin/chkconfig --add rozofs-geomgr
+fi
+
 %post manager-agent
 if [ -x /usr/lib/lsb/install_initd ]; then
   /usr/lib/lsb/install_initd /etc/init.d/rozofs-manager-agent
@@ -248,5 +275,5 @@ fi
 
 %changelog
 
-* Tue Feb 05 2013 RozoFS <devel@rozofs.org> - @VERSION@
+* Wed June 11 2014 RozoFS <devel@rozofs.org> - @VERSION@
 - Initial spec file

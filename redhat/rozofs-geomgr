@@ -1,0 +1,105 @@
+#!/bin/sh
+#
+# rozofs-geomgr      This shell script takes care of starting and stopping
+#                      the geo-replication services.
+#
+#chkconfig: 35 20 80
+#description: rozofs geo-replication
+#processname: geomgr
+
+### BEGIN INIT INFO
+# Provides:          rozofs-geomgr
+# Required-Start:    $network $local_fs $remote_fs $portmap
+# Required-Stop:     
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: RozoFS geo-replication
+# Description:       RozoFS is a scale-out NAS file system. This service
+#                    provides the geo-replication functionality.
+### END INIT INFO
+
+
+DAEMON=/usr/bin/geomgr
+NAME=geomgr
+PIDFILE=/var/run/$NAME.pid
+
+# Source function library.
+if [ -f /lib/lsb/init-functions ]; then
+    . /lib/lsb/init-functions
+    alias START_DAEMON=start_daemon
+    alias STATUS=geomgr_status
+    alias LOG_SUCCESS=log_success_msg
+    alias LOG_FAILURE=log_failure_msg
+    alias LOG_WARNING=log_warning_msg
+elif [ -f /etc/init.d/functions ]; then
+    . /etc/init.d/functions
+    alias START_DAEMON=daemon
+    alias STATUS=status
+    alias LOG_SUCCESS=success
+    alias LOG_FAILURE=failure
+    alias LOG_WARNING=passed
+else
+    echo "Error: your platform is not supported by $0" > /dev/stderr
+    exit 1
+fi
+
+geomgr_status () {
+    local status 
+
+    status="0"
+    pidofproc -p $PIDFILE $DAEMON >/dev/null || status="$?"
+    if [ "$status" = 0 ]; then
+        log_success_msg "$NAME is running"
+        return 0
+    elif [ "$status" = 4 ]; then
+        log_failure_msg "could not access PID file for $NAME"
+        return $status
+    else
+        log_success_msg "$NAME is not running"
+        return $status
+    fi
+}
+
+# stop the daemon/service
+do_stop()
+{
+  killall geomgr_starter.sh
+  killall geomgr
+}
+
+do_start()
+{
+  do_stop
+  sleep 0.1
+  geomgr_starter.sh
+}
+
+
+case "$1" in
+    start|restart|force-reload)
+        echo -n "$1 $NAME"
+        do_start
+        LOG_SUCCESS
+        ;;
+    status)
+    	STATUS;;
+    stop)
+        echo -n "Stopping $NAME"
+        do_stop
+        LOG_SUCCESS
+        ;;
+            *)
+                # Failed to stop
+                LOG_FAILURE
+            ;;
+        esac
+        ;;
+    *)
+
+    LOG_WARNING "Usage: $0 {start|stop|restart|force-reload}" >&2
+    exit 3
+    ;;
+esac
+
+:
+
