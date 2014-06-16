@@ -375,7 +375,21 @@ static int export_update_files(export_t *e, int32_t n) {
     int status = -1;
     START_PROFILING(export_update_files);
 
-    e->fstat.files += n;
+    if (n<0) {
+      n = -n;
+      /*
+      ** Releasing more files than existing !!!
+      */
+      if (n > e->fstat.files) {
+        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %d files",
+	       e->root, e->fstat.blocks, e->fstat.files, n); 
+        n = e->fstat.files;
+      }
+      e->fstat.files -= n;
+    }
+    else {
+      e->fstat.files += n;
+    }
     if (pwrite(e->fdstat, &e->fstat, sizeof (export_fstat_t), 0)
             != sizeof (export_fstat_t))
         goto out;
@@ -395,16 +409,40 @@ out:
  */
 static int export_update_blocks(export_t * e, int32_t n) {
     int status = -1;
+    
+    if (n == 0) return 0;
+    
     START_PROFILING(export_update_blocks);
+    
+    /*
+    ** Releasing some blocks 
+    */
+    if (n<0) {
+    
+      n = -n;
 
-    if (e->hquota > 0 && e->fstat.blocks + n > e->hquota) {
-        warning("quota exceed: %"PRIu64" over %"PRIu64"", e->fstat.blocks + n,
-                e->hquota);
-        errno = EDQUOT;
-        goto out;
+      /*
+      ** Releasing more blocks than allocated !!!
+      */
+      if (n > e->fstat.blocks) {
+        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %d blocks",
+	       e->root, e->fstat.blocks, e->fstat.files, n); 
+        n = e->fstat.blocks;
+      }
+
+      e->fstat.blocks -= n;
     }
+    else {
 
-    e->fstat.blocks += n;
+      if (e->hquota > 0 && e->fstat.blocks + n > e->hquota) {
+          warning("quota exceed: %"PRIu64" over %"PRIu64"", e->fstat.blocks + n,
+                  e->hquota);
+          errno = EDQUOT;
+          goto out;
+      }
+
+      e->fstat.blocks += n;      
+    }
     if (pwrite(e->fdstat, &e->fstat, sizeof (export_fstat_t), 0)
             != sizeof (export_fstat_t))
         goto out;

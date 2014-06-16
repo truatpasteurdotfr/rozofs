@@ -1647,6 +1647,14 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
     if (ret != sizeof(mdirents_file_t)) 
     {
        
+        /*
+	** File is empty. Let's remove it to avoid log overflow.
+	*/
+        if (ret == 0) {
+	  close(fd);
+	  fd = -1;
+	  unlinkat(dirfd, path_p,0);
+	}
 	/*
 	** we consider that error as the case of the file that does not exist. By ignoring that file
 	** we just lose potentially one file at amx
