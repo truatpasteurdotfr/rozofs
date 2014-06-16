@@ -272,6 +272,39 @@ gen_export_conf ()
     done;
     echo ');' >> $FILE
 }
+geomgr_modify ()
+{
+    FILE=${LOCAL_CONF}'geomgr.conf'
+
+
+    # No personalized geomgr configuration file up to now
+    if [ ! -f ${WORKING_DIR}/geomgr.conf ];
+    then
+    
+      if [ ! -f $FILE ];
+      then
+        echo "$FILE does not exist  ! You should re-start rozo"
+	exit
+      fi	
+      cp $FILE ${WORKING_DIR}/geomgr.conf
+    fi  
+    
+    nedit ${WORKING_DIR}/geomgr.conf
+    cp ${WORKING_DIR}/geomgr.conf $FILE
+}
+geomgr_delete ()
+{   
+    FILE=${LOCAL_CONF}'geomgr.conf'
+
+
+    # No personalized geomgr configuration file up to now
+    if [ -f ${WORKING_DIR}/geomgr.conf ];
+    then
+      rm ${WORKING_DIR}/geomgr.conf
+    fi  
+    
+    gen_geomgr_conf
+}
 gen_geomgr_conf ()
 {
 
@@ -286,7 +319,18 @@ gen_geomgr_conf ()
     then
         rm -rf $FILE
     fi
+    
+    # When there is a saved geomgr configuration
+    # use it
+    if [ -f ${WORKING_DIR}/geomgr.conf ];
+    then
+      echo "Use for geo-replication ${WORKING_DIR}/geomgr.conf"
+      cp ${WORKING_DIR}/geomgr.conf $FILE
+      return
+    fi  
 
+    echo "Generate $FILE"
+    
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
@@ -1017,6 +1061,7 @@ usage ()
     echo >&2 "$0 storage <hid> fid-rebuild -s <cid>/<sid> -f <fid>"
     echo >&2 "$0 export stop|start|reset"
     echo >&2 "$0 fsmount stop|start|reset"
+    echo >&2 "$0 geomgr modify|delete"    
     echo >&2 "$0 cou <fileName>"    
     echo >&2 "$0 core [remove] <coredir>/<corefile>"
     echo >&2 "$0 process"
@@ -1320,6 +1365,13 @@ main ()
         stop)       undeploy_clients_local;;
 	start)      deploy_clients_local;;
 	reset)      undeploy_clients_local;deploy_clients_local;;	
+        *)          usage;;
+      esac      
+    elif [ "$1" == "geomgr" ]
+    then
+      case "$2" in 
+        modify)     geomgr_modify ;;
+	delete)     geomgr_delete;;	
         *)          usage;;
       esac      
     elif [ "$1" == "storage" ]

@@ -145,6 +145,42 @@ static void usage() {
 }
 /*__________________________________________________________________________
 */
+char geomgr_calString[64];
+char * geomgr_calendar2string(geomgr_config_calendar_t * calendar) {
+  int i;
+  char * pt = geomgr_calString;
+  int    val;
+
+  /*
+  ** No calendar condition. Start it !
+  */
+  if (calendar == NULL) {
+    pt += sprintf(pt,"--");
+    return geomgr_calString;
+  }
+  
+  /*
+  ** Some calendar condition. Check whether it should run.
+  */
+  for (i=0; i<calendar->nb_entries; i++) {
+  
+    val = calendar->entries[i].start;
+    if (val>=(60*24)) val -= (60*24);
+    pt += sprintf(pt,"%2.2dH%2.2d/",val/60,val%60);
+    
+    val = calendar->entries[i].stop;
+    if (val>=(60*24)) val -= (60*24);
+    pt += sprintf(pt,"%2.2dH%2.2d ",val/60,val%60);
+  }
+  
+  /*
+  ** Some calendar condition. Check whether it should run.
+  */
+  return geomgr_calString;
+
+}
+/*__________________________________________________________________________
+*/
 int geomgr_when_should_client_run(geomgr_config_calendar_t * calendar, int now) {
   int i;
   int start;
@@ -185,6 +221,33 @@ int geomgr_when_should_client_run(geomgr_config_calendar_t * calendar, int now) 
 }
 /*__________________________________________________________________________
 */
+char GEOMGR_SEPARATOR[256];
+char GEOMGR_FORMAT[256];
+char GEOMGR_HEADER[256];
+void geomgr_format_prepare(int host_len, int path_len) { 
+  int i;
+  char * pSep = GEOMGR_SEPARATOR;
+  char * pForm = GEOMGR_FORMAT;
+  char * pHead = GEOMGR_HEADER;
+
+  pForm += sprintf(pForm,"| #| %%-5s | %%-7s |site| %%-%ds | %%-%ds | %%s\n", 
+                   host_len,path_len);  
+
+  pHead += sprintf(pHead,GEOMGR_FORMAT, "pid","status","export","path","calendar");
+  
+  pForm = GEOMGR_FORMAT;
+  pForm += sprintf(pForm,"|%%2d| %%5d | %%-7s | %%2d | %%-%ds | %%-%ds | %%s\n",
+                   host_len,path_len);  
+
+  pSep += sprintf(pSep,"+--+-------+---------+----+");
+  host_len += 2;
+  for(i=0; i< host_len; i++) *pSep++ = '-';    
+  *pSep++ = '+';
+  path_len += 2;
+  for(i=0; i< path_len; i++) *pSep++ = '-';    
+  sprintf(pSep,"+--- - -  -   -\n");
+  
+} 
 void show_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
   char *pChar = uma_dbg_get_buffer();
   geomgr_export_t  * pe = exports;
@@ -197,13 +260,27 @@ void show_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
   struct tm tm,*ptm;
   ptm = localtime_r(&t,&tm);  
   int now = ptm->tm_hour*60+ ptm->tm_min;
+  int host_len=0;
+  int path_len=0;
+  int len;
 
+  for (idx=0; idx<GEOMGR_MAX_EXPORTS; idx++,pe++) {
+  
+    if (pe->status == geomgr_export_status_free) continue;
+  
+    len = strlen(pe->host);
+    if (len > host_len) host_len = len;
+    len = strlen(pe->path);
+    if (len > path_len) path_len = len;
+  }
+  
+  geomgr_format_prepare(host_len,path_len);
 
-  pChar += sprintf(pChar,"+-------+--------+-----------+------+------------+--------------------------------------------------------------+\n");
-  pChar += sprintf(pChar,"| %-5s | %-6s | %-9s | site | %-10s | %-60s |\n",  
-                   "index","pid","status","export","path");
-  pChar += sprintf(pChar,"+-------+--------+-----------+------+------------+--------------------------------------------------------------+\n");
-
+  pChar += sprintf(pChar,GEOMGR_SEPARATOR);
+  pChar += sprintf(pChar,GEOMGR_HEADER);
+  pChar += sprintf(pChar,GEOMGR_SEPARATOR);
+  
+  pe = exports;
   for (idx=0; idx<GEOMGR_MAX_EXPORTS; idx++,pe++) {
   
     if (pe->status == geomgr_export_status_free) continue;
@@ -221,10 +298,10 @@ void show_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
       } 
     }
     
-    pChar += sprintf(pChar,"| %5d | %6d | %-9s | %4d | %-10s | %-60s |\n", 
-                     idx,pe->pid, pStatus, pe->site, pe->host, pe->path);
+    pChar += sprintf(pChar,GEOMGR_FORMAT, 
+                     idx,pe->pid, pStatus, pe->site, pe->host, pe->path, geomgr_calendar2string(pe->calendar));
   }
-  pChar += sprintf(pChar,"+-------+--------+-----------+------+------------+--------------------------------------------------------------+\n");
+  pChar += sprintf(pChar,GEOMGR_SEPARATOR);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
