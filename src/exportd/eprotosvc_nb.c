@@ -112,7 +112,7 @@ void expnb_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
 	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_epgw_mount_arg_t;
 	     rozorpc_srv_ctx_p->xdr_result = (xdrproc_t) xdr_epgw_mount_ret_t;
 	     local =  ep_mount_1_svc_nb;
-	     size = sizeof(ep_path_t);
+	     size = sizeof(epgw_mount_arg_t);
 	     break;
 
      case EP_UMOUNT:

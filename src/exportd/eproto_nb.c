@@ -449,9 +449,6 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
       goto error;
     }
     
-    // XXX exportd_lookup_id could return export_t *
-    if (!(eid = exports_lookup_id(arg->path)))
-        goto error;
     if (!(exp = exports_lookup_export(*eid)))
         goto error;
 
@@ -527,6 +524,9 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
     ret.status_gw.ep_mount_ret_t_u.export.bs = exp->bsize;
 
+    uint32_t port = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + EXPNB_SLAVE_PORT+1;
+    ret.status_gw.ep_mount_ret_t_u.export.listen_port = port;
+    
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
     ret.status_gw.ep_mount_ret_t_u.export.rl = exp->layout;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.rfid, exp->rfid, sizeof (fid_t));
