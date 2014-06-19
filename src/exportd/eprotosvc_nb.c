@@ -255,10 +255,10 @@ void expnb_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
 	     break;
 
      case EP_LIST_CLUSTER:
-	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_uint16_t;
+	     rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_epgw_cluster_arg_t;
 	     rozorpc_srv_ctx_p->xdr_result = (xdrproc_t) xdr_epgw_cluster_ret_t;
 	     local =  ep_list_cluster_1_svc_nb;
-	     size = sizeof(uint16_t);
+	     size = sizeof(epgw_cluster_arg_t);
 	     break;
 
      case EP_CONF_STORAGE:
