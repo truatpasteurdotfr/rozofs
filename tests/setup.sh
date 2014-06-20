@@ -668,8 +668,11 @@ start_exportd ()
     echo "------------------------------------------------------"
     echo "Start ${LOCAL_EXPORT_DAEMON}"
     ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
-    sleep 5
-
+    
+#    sleep 1
+#    cmd=`ps -ef | grep exportd | grep export.conf | awk '{print $8" -pid "$2 }'`
+#    ddd $cmd &
+#    sleep 2    
 }
 
 stop_exportd ()
