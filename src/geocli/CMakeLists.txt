@@ -50,7 +50,7 @@ add_executable(geomgr
 )
 
 #pthread need by fuse
-target_link_libraries(geocli rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${UUID_LIBRARY} ${CRYPT_LIBRARY})
+target_link_libraries(geocli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY})
 target_link_libraries(geomgr rozofs ${PTHREAD_LIBRARY} ${CONFIG_LIBRARY} )
 
 # Install

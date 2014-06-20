@@ -124,6 +124,18 @@ install(TARGETS storage_rebuild
     ARCHIVE DESTINATION lib
     COMPONENT storage_rebuild
 )
+install(TARGETS storage_list_rebuilder
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT storage_list_rebuilder
+)        
+install(TARGETS storio_reload
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT storio_reload
+)
 install(TARGETS storio
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
