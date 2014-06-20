@@ -172,7 +172,6 @@ mkdir -p %{buildroot}/etc/default
 %defattr(-,root,root)
 %{_bindir}/geomgr
 %{_bindir}/geocli
-%{_bindir}/geocli_killer.sh
 %{_bindir}/geomgr_starter.sh
 %{_initrddir}/rozofs-geomgr
 %{_mandir}/man8/geomgr.8.gz

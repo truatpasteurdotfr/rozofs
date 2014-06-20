@@ -373,7 +373,15 @@ void geomgr_start_client(int idx) {
     time_t last_start=0;
     time_t delay;    
     
-    while (1) {
+    /*
+    ** Create a new session, that every sub-process will belong to
+    */
+    if (setsid()== -1) {
+      severe("setsid() %s", strerror(errno));
+    }
+
+    while (1) {    
+    
     
       /*
       ** Do not restart more that once every N seconds
@@ -401,7 +409,6 @@ void geomgr_start_client(int idx) {
 /*__________________________________________________________________________
 */
 void geomgr_stop_client(int idx) {
-  char cmd[128];
   int ret;
   geomgr_export_t  * pe = &exports[idx];
   
@@ -409,17 +416,13 @@ void geomgr_stop_client(int idx) {
   ** Kill the starter
   */
   if (pe->pid != 0) {
-    sprintf(cmd,"kill %d",pe->pid);  
-    ret = system(cmd); 
-    pe->pid = 0;
+    ret = kill(-pe->pid, SIGTERM); 
+    if (ret < 0) {
+      severe("kill() %s", strerror(errno));    
+    } 
+
+    pe->pid = 0;  
   }  
-  
-  /*
-  ** Kill all the sub-processes
-  */  
-  sprintf(cmd,"geocli_killer.sh geocli_%d_",idx);  
-  ret = system(cmd);
-  if (ret==-1) severe("%s %s", cmd, strerror(errno));
   
   pe->status = geomgr_export_status_suspended;
 }
@@ -799,10 +802,15 @@ static void on_stop() {
 	geomgr_stop_client(i);
       }
     }
+    info("stopped.");    
+    closelog();    
   }
-  
-  info("stopped.");
-  closelog();
+  else {
+    /*
+    ** Kill all subpocesses of the session
+    */
+    kill(-getpid(),SIGTERM);
+  }
 }
 /*
  *_______________________________________________________________________

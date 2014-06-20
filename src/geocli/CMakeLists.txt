@@ -66,5 +66,5 @@ install(TARGETS geomgr
     ARCHIVE DESTINATION lib
     COMPONENT geomgr
 )
-install(PROGRAMS geocli_killer.sh geomgr_starter.sh DESTINATION bin)
+install(PROGRAMS geomgr_starter.sh DESTINATION bin)
 
