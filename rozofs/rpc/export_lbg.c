@@ -36,6 +36,7 @@
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/core/rozofs_tx_api.h>
 #include <rozofs/core/north_lbg_api.h>
+#include <rozofs/core/rozofs_host_list.h>
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/eproto.h>
 #include "rpcclt.h"
@@ -159,36 +160,45 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
     struct hostent *hp;
     int port = 0;
     int lbg_size;
+    int export_index=0;
+    char * pHost;
     
     DEBUG_FUNCTION;    
     rpcclt_t * client = &exportclt->rpcclt;
 
     server.sin_family = AF_INET;
 
+    lbg_size = 0;
+    for (export_index=0; export_index < ROZOFS_HOST_LIST_MAX_HOST; export_index++) { 
 
-    if ((hp = gethostbyname(exportclt->host)) == 0) {
-        severe("gethostbyname failed for host : %s, %s", exportclt->host,
-                strerror(errno));
-        goto out;
-    }
+        pHost = rozofs_host_list_get_host(export_index);
+	if (pHost == NULL) break;
+	
+        if ((hp = gethostbyname(pHost)) == 0) {
+            severe("gethostbyname failed for host : %s, %s", pHost,
+                    strerror(errno));
+            continue;
+	}
 
-    bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
-    if (port_num == 0) {
-        if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
-            warning("pmap_getport failed%s", clnt_spcreateerror(""));
-            errno = EPROTO;
-            goto out;
-        }
-        server.sin_port = htons(port);
-    } else {
-        server.sin_port = htons(port_num);
+	bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
+	if (port_num == 0) {
+            if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
+        	warning("pmap_getport failed%s", clnt_spcreateerror(""));
+        	errno = EPROTO;
+        	goto out;
+            }
+            server.sin_port = htons(port);
+	} else {
+            server.sin_port = htons(port_num);
+	}
+	/*
+	** store the IP address and port in the list of the endpoint
+	*/
+	my_list[lbg_size].remote_port_host = ntohs(server.sin_port);
+	my_list[lbg_size].remote_ipaddr_host = ntohl(server.sin_addr.s_addr);
+	lbg_size++;
     }
-    /*
-    ** store the IP address and port in the list of the endpoint
-    */
-    my_list[0].remote_port_host = ntohs(server.sin_port);
-    my_list[0].remote_ipaddr_host = ntohl(server.sin_addr.s_addr);
-    lbg_size = 1;
+    if (lbg_size == 0) goto out;
     
      af_inet_exportd_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_exportd_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;

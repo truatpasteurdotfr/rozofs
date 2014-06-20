@@ -343,7 +343,7 @@ gen_geomgr_conf ()
     echo "export-daemons = (" >> $FILE
     echo "   {" >> $FILE
     echo "	active = True;" >> $FILE
-    echo "	host   = \"localhost\";" >> $FILE
+    echo "	host   = \"${EXPORT_HOST}\";" >> $FILE
     echo "	exports="   >> $FILE
     echo "	("   >> $FILE
     for k in $(seq ${NB_EXPORTS}); do
@@ -381,7 +381,7 @@ rebuild_storage_fid()
     resolve_host_storage $hid
     shift 3
 
-    cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r localhost $*"
+    cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $*"
     echo $cmd
     $cmd
 }
@@ -400,7 +400,7 @@ rebuild_storage_device()
     echo "rebuild $cid/$sid device $2"     
     create_storage_device $hid $2
     
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r localhost $3 $4 --sid $cid/$sid $dev 
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $3 $4 --sid $cid/$sid $dev 
 }
 delete_storage_device() 
 {
@@ -587,7 +587,7 @@ deploy_clients_local ()
                     option="$option -o instance=$fs_instance"
                     fs_instance=$((fs_instance+1))
 		    
-                    cmd="${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E  ${LOCAL_EXPORTS_ROOT}_${eid} ${mount_point} ${option}"
+                    cmd="${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${EXPORT_HOST} -E ${LOCAL_EXPORTS_ROOT}_${eid} ${mount_point} ${option}"
                     echo $cmd
 		    $cmd
 
@@ -668,6 +668,7 @@ start_exportd ()
     echo "------------------------------------------------------"
     echo "Start ${LOCAL_EXPORT_DAEMON}"
     ${LOCAL_BINARY_DIR}/exportd/${LOCAL_EXPORT_DAEMON} -c ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
+    sleep 5
 
 }
 
@@ -938,7 +939,7 @@ do_monitor_cfg ()
   sid=0  
   for v in $(seq ${NB_VOLUMES}); 
   do
-    echo "VOLUME localhost $v"
+    echo "VOLUME ${EXPORT_HOST} $v"
     for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); 
     do
       for j in $(seq ${STORAGES_BY_CLUSTER}); 
@@ -956,7 +957,7 @@ do_monitor_cfg ()
   do
     for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); 
     do
-      echo "FSMOUNT localhost $mount_instance"
+      echo "FSMOUNT ${EXPORT_HOST} $mount_instance"
       mount_instance=$((mount_instance+1))
     done
   done       
@@ -1274,6 +1275,8 @@ main ()
     
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
+    
+    EXPORT_HOST="${LOCAL_EXPORT_NAME_BASE}/192.168.36.15"
 
     ulimit -c unlimited
     ${WORKING_DIR}/conf_local_addr.sh set $STORAGES_TOTAL eth0 > /dev/null 2>&1 

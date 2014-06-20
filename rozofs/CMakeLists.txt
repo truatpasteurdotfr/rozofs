@@ -156,7 +156,9 @@ set (librozofs_sources
     core/com_cache.c
     core/com_cache.h
     core/ruc_buffer_debug.c
-    core/ruc_buffer_debug.h    
+    core/ruc_buffer_debug.h  
+    core/rozofs_host_list.c
+    core/rozofs_host_list.h          
     rpc/gwprotoclt.c
     rpc/gwproto.h
     rpc/gwprotosvc.c

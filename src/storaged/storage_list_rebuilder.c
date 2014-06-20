@@ -172,6 +172,7 @@ int storaged_rebuild_list(char * fid_list) {
   int        device_id;
   int        spare;
   char       path[FILENAME_MAX];
+  char     * pExport_hostname = NULL;
       
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
@@ -208,12 +209,13 @@ int storaged_rebuild_list(char * fid_list) {
   list_init(&cluster_entries);
 
   // Try to get the list of storages for this cluster ID
-  if (rbs_get_cluster_list(&rpcclt_export, 
+  pExport_hostname = rbs_get_cluster_list(&rpcclt_export, 
                            st2rebuild.export_hostname, 
 			   st2rebuild.site,
 			   st2rebuild.storage.cid, 
-			   &cluster_entries) != 0) {
-    severe("Can't get list of others cluster members from export server (%s) for storage to rebuild (cid:%u; sid:%u): %s\n",
+			   &cluster_entries);			   
+  if (pExport_hostname == NULL) {			   
+      severe("Can't get list of others cluster members from export server (%s) for storage to rebuild (cid:%u; sid:%u): %s\n",
               st2rebuild.export_hostname, 
 	      st2rebuild.storage.cid, 
 	      st2rebuild.storage.sid, 
@@ -223,9 +225,9 @@ int storaged_rebuild_list(char * fid_list) {
     
   // Get connections for this given cluster
   if (rbs_init_cluster_cnts(&cluster_entries, st2rebuild.storage.cid, st2rebuild.storage.sid) != 0) {
-    severe("Can't get cnx server for storage to rebuild (cid:%u; sid:%u): %s\n",
+      severe("Can't get cnx server for storage to rebuild (cid:%u; sid:%u): %s\n",
               st2rebuild.storage.cid, st2rebuild.storage.sid, strerror(errno));
-    goto error;
+      goto error;
   }  
 
   info("%s rebuild start",fid_list);

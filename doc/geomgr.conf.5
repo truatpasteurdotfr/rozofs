@@ -19,9 +19,9 @@ Specifies whether geo-replication is active on the local host. (default: True)
 .SS export-daemons 
 
 is a list of export daemons handling some exports that must be replicated on the local host.
-The export daemon is defined by its dns name or IPv4 address in the 
+Each export daemon is defined by a list of dns names and/or IPv4 addresses separated by '/' in the 
 .B host 
-field. Each export daemon has an 
+field. When securing an export daemon thanks to a virtual IP address only the virtual IP address is declared (i.e "192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the export daemon must be given (i.e "192.168.10.1/192.168.20.1"). 
 .B active
 field to enable/disable the geo-replication of this export daemon on this host. 
 Within each export daemon is described the list of exports to be replicated in the list named 
@@ -31,8 +31,8 @@ Within each export daemon is described the list of exports to be replicated in t
             - must be a boolean.
             - default value is True.
 
-    host: (IP or hostname of the export daemon)
-            - must be a valid IPv4 address or a valid hostname.
+    host: ('/' separated list of IP addresses or hostnames of the export daemon)
+            - must be a list of valid IPv4 addresses or hostnames.
     
     exports: (list of exports to replicate)
     
@@ -90,7 +90,7 @@ export-daemons =
 (
    {
         active = True;
-        host   = "192.168.2.1";
+        host   = "192.168.2.1/192.168.3.1";
         exports=
         (
           {
@@ -121,7 +121,7 @@ export-daemons =
    },   
    {
         active = False;
-        host   = "192.168.2.8";
+        host   = "192.168.3.8/192.168.4.8";
         exports=
         (
           {

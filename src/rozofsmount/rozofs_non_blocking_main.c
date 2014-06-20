@@ -77,7 +77,6 @@ int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port)
                                0   // gateway rank: not significant for an rozofsmount
                                );
     if (ret < 0) {
-        fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
         fatal("Fatal error on expgw_export_add_eid()");
         goto error;
     }
@@ -88,7 +87,6 @@ int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port)
     
       ret =  expgw_add_export_gateway(eid, host, 53000+i+1,(uint16_t) i);
       if (ret < 0) {
-          fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
           fatal("Fatal error on expgw_export_add_eid()");
           goto error;
       }    

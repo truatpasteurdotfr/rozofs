@@ -145,7 +145,9 @@ def get_storcli_port ():
   for proc in p.stdout:
     if not mnt in proc:
       continue
-    if not "storcli -i 1 -H localhost -o rozofsmount" in proc:
+    if not " -o rozofsmount" in proc:
+      continue      
+    if not "storcli -i 1 -H " in proc:
       continue
     if "starter.sh" in proc:
       continue
@@ -684,7 +686,7 @@ def rebuild_fid() :
 # test rebuilding per FID
 #___________________________________________________
 
-  for f in range(int(nbGruyere)/5):
+  for f in range(int(nbGruyere)/10):
 
     # Get the split of file on storages      
     string="./setup.sh cou %s/rebuild/%d"%(mnt,f+1)
@@ -748,7 +750,7 @@ def do_compile_program(program):
 #___________________________________________________
 
   if not os.path.exists(program) or os.stat(program).st_mtime < os.stat("%s.c"%(program)).st_mtime:
-    os.system("gcc %s.c -lpthread -o %s -g"%(program,program))
+    os.system("gcc -g %s.c -lpthread -o %s"%(program,program))
      
 #___________________________________________________
 def do_run_list(list):

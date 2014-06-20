@@ -33,6 +33,7 @@
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/common/rozofs_site.h>
+#include <rozofs/core/rozofs_host_list.h>
 
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
@@ -384,28 +385,47 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     int retry_count;
     char ppfile[NAME_MAX];
     int ppfd = -1;
+    int export_index=0;
+    char * pHost;
 
     openlog("geocli", LOG_PID, LOG_LOCAL0);
 
     struct timeval timeout_mproto;
-    timeout_mproto.tv_sec = rozofs_tmr_get(TMR_EXPORT_PROGRAM);
+    timeout_mproto.tv_sec = 1;//rozofs_tmr_get(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
 
-    for (retry_count = 5; retry_count > 0; retry_count--) {
-        /* Initiate the connection to the export and get information
-         * about exported filesystem */
-        if (exportclt_initialize(
-                &exportclt,
-                conf.host,
-                conf.export,
-		rozofs_site_number,
-                conf.passwd,
-                conf.buf_size * 1024,
-                conf.min_read_size * 1024,
-                conf.max_retry,
-                timeout_mproto) == 0) break;
+    if (rozofs_host_list_parse(conf.host,'/') == 0) {
+      severe("rozofs_host_list_parse(%s)",conf.host);
+    }
+    
+    for (retry_count = 15; retry_count > 0; retry_count--) {
 
+
+        for (export_index=0; export_index < ROZOFS_HOST_LIST_MAX_HOST; export_index++) { 
+	
+	    pHost = rozofs_host_list_get_host(export_index);
+	    if (pHost == NULL) break;
+	    
+            /* Initiate the connection to the export and get information
+             * about exported filesystem */
+            if (exportclt_initialize(
+                    &exportclt,
+                    pHost,
+                    conf.export,
+		    rozofs_site_number,
+                    conf.passwd,
+                    conf.buf_size * 1024,
+                    conf.min_read_size * 1024,
+                    conf.max_retry,
+                    timeout_mproto) == 0) break;
+        }
+	
+	/* Connected to one of the given addresses */
+	if (pHost != NULL) break;
+	
         sleep(2);
+	timeout_mproto.tv_sec++;
+	
     }
 
     if (retry_count == 0) {

@@ -24,17 +24,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/** Send a request to get the list of storages for this cluster 
+/** Send a request to export server for get the list of member storages
+ *  of cluster with a given cid and add this storage list to the list
+ *  of clusters
  *
- * @param clt: rpc client for the exportd server.
- * @param export_host: exportd server hostname.
+ * @param clt: RPC connection to export server
+ * @param export_host: IP or hostname of export server
  * @param site: the site identifier
- * @param cid: the unique id for this cluster.
- * @param cluster_entries: the list of clusters.
+ * @param cid: the unique ID of cluster
+ * @param cluster_entries: list of cluster(s)
  *
- * @return: 0 on success -1 otherwise (errno is set)
+ * @return: NULL on error, valid export host name on success
  */
-int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, int site, cid_t cid,
-        list_t * cluster_entries);
+char * rbs_get_cluster_list(rpcclt_t * clt, const char *export_host_list, int site, cid_t cid,
+        list_t * cluster_entries) ;
 
 #endif

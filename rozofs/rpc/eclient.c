@@ -63,7 +63,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,int sit
     /* Initialize connection with export server */
     if (rpcclt_initialize
             (&clt->rpcclt, host, EXPORT_PROGRAM, EXPORT_VERSION,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 0,
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, EXPNB_SLAVE_PORT,
             clt->timeout) != 0)
         goto out;
 

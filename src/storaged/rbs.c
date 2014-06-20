@@ -1503,10 +1503,11 @@ static int rbs_do_list_rebuild() {
   return 0;
 }
 
-int rbs_sanity_check(const char *export_host, int site, cid_t cid, sid_t sid,
+int rbs_sanity_check(const char *export_host_list, int site, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red) {
 
     int status = -1;
+    char * pExport_host = 0;
 
     DEBUG_FUNCTION;
 
@@ -1519,11 +1520,12 @@ int rbs_sanity_check(const char *export_host, int site, cid_t cid, sid_t sid,
     }
     
     // Try to get the list of storages for this cluster ID
-    if (rbs_get_cluster_list(&rpcclt_export, export_host, site, cid,
-            &cluster_entries) != 0) {
+    pExport_host = rbs_get_cluster_list(&rpcclt_export, export_host_list, 
+                                        site, cid, &cluster_entries);
+    if (pExport_host == NULL) {	    
         fprintf(stderr, "Can't get list of others cluster members from export"
                 " server (%s) for storage to rebuild (cid:%u; sid:%u): %s\n",
-                export_host, cid, sid, strerror(errno));
+                export_host_list, cid, sid, strerror(errno));
         goto out;
     }
 
@@ -1543,13 +1545,14 @@ out:
     return status;
 }
 
-int rbs_rebuild_storage(const char *export_host, int site, cid_t cid, sid_t sid,
+int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t sid,
         const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
 	uint8_t stor_idx, int device,
 	int parallel, char * config_file, 
 	fid_t fid2rebuild) {
     int status = -1;
     int ret;
+    char * pExport_host = 0;
 
     DEBUG_FUNCTION;
 
@@ -1561,14 +1564,15 @@ int rbs_rebuild_storage(const char *export_host, int site, cid_t cid, sid_t sid,
                 cid, sid, root);
         goto out;
     }
-    strcpy(st2rebuild.export_hostname,export_host);
+    strcpy(st2rebuild.export_hostname,export_host_list);
     strcpy(st2rebuild.config_file,config_file);
     st2rebuild.site = site;
 
 
     // Get the list of storages for this cluster ID
-    if (rbs_get_cluster_list(&rpcclt_export, export_host, 
-            site, cid, &cluster_entries) != 0) {
+    pExport_host = rbs_get_cluster_list(&rpcclt_export, export_host_list, 
+                                        site, cid, &cluster_entries);
+    if (pExport_host == NULL) {					
         severe("rbs_get_cluster_list failed (cid: %u) : %s", cid, strerror(errno));
         goto out;
     }
@@ -1591,7 +1595,7 @@ int rbs_rebuild_storage(const char *export_host, int site, cid_t cid, sid_t sid,
       ep_mattr_t attr;
       
       // Resolve this FID thanks to the exportd
-      if (rbs_get_fid_attr(&rpcclt_export, export_host, fid2rebuild, &attr, &bsize, &layout) != 0)
+      if (rbs_get_fid_attr(&rpcclt_export, pExport_host, fid2rebuild, &attr, &bsize, &layout) != 0)
       {
         severe("Can not get attributes from export");
 	goto out;

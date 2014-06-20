@@ -383,7 +383,7 @@ void usage() {
     printf("   -H, --host=storaged-host  \tSpecify the hostname to rebuild (optional)\n");
     printf("   -c, --config=config-file  \tSpecify config file to use\n");
     printf("                             \t(default: %s).\n",STORAGED_DEFAULT_CONFIG);
-    printf("   -r, --rebuild=exportd-host\tHost where the export stands.\n");
+    printf("   -r, --rebuild=exportd-host\tlist of \'/\' separated host where exportd is running\n");
     printf("   -d, --device=device-number\tDevice number to rebuild.\n");
     printf("                             \tAll devices are rebuilt when omitted.\n");
     printf("   -s, --sid=<cid/sid>       \tCluster and storage identifier to rebuild.\n");
