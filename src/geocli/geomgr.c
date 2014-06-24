@@ -276,9 +276,9 @@ void show_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   geomgr_format_prepare(host_len,path_len);
 
-  pChar += sprintf(pChar,"%",GEOMGR_SEPARATOR);
-  pChar += sprintf(pChar,"%",GEOMGR_HEADER);
-  pChar += sprintf(pChar,"%",GEOMGR_SEPARATOR);
+  pChar += sprintf(pChar,"%s",GEOMGR_SEPARATOR);
+  pChar += sprintf(pChar,"%s",GEOMGR_HEADER);
+  pChar += sprintf(pChar,"%s",GEOMGR_SEPARATOR);
   
   pe = exports;
   for (idx=0; idx<GEOMGR_MAX_EXPORTS; idx++,pe++) {
@@ -301,7 +301,7 @@ void show_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += sprintf(pChar,GEOMGR_FORMAT, 
                      idx,pe->pid, pStatus, pe->site, pe->host, pe->path, geomgr_calendar2string(pe->calendar));
   }
-  pChar += sprintf(pChar,"%",GEOMGR_SEPARATOR);
+  pChar += sprintf(pChar,"%s",GEOMGR_SEPARATOR);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
