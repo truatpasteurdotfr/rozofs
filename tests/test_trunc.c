@@ -254,8 +254,8 @@ int do_one_test(char * f, int * fsize) {
 }
 
 int loop_test_process() {
-  char fileName[64];
-  char path[64];
+  char fileName[256];
+  char path[256];
   pid_t pid = getpid();
   int ret;
   int f;
@@ -264,8 +264,11 @@ int loop_test_process() {
   char * buf;
   int i;
   
-  getcwd(path,128);  
+  getcwd(path,256);  
   sprintf(fileName, "%s/%s/f%u", path, mount,pid);
+  
+  unlink(fileName);
+  sleep(1);
   
   f = open(fileName, O_RDWR | O_CREAT, 0640);
   if (f == -1) {
