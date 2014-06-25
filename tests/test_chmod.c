@@ -157,9 +157,9 @@ int do_one_test(char * d, char * f) {
   return 0;
 }
 int loop_test_process() {
-  char directoryName1[64];
-  char fileName[64];
-  char path[64];
+  char directoryName1[512];
+  char fileName[512];
+  char path[512];
   pid_t pid = getpid();
   int ret;
   int count = 0;
@@ -182,7 +182,7 @@ int loop_test_process() {
        
     ret = do_one_test(directoryName1,fileName);   
     if (ret < 0) {
-      printf("proc %3d - test failed in loop %d(%s) %s\n", myProcId, count);  
+      printf("proc %3d - test failed in loop %d\n", myProcId, count);  
       return ret;
     }
 
