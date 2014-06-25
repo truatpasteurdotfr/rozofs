@@ -918,10 +918,12 @@ int storage_truncate(storage_t * st, int * device_id, uint8_t layout, uint32_t b
     if (*device_id == -1) open_flags = ROZOFS_ST_BINS_FILE_FLAG;
     else                  open_flags = ROZOFS_ST_NO_CREATE_FILE_FLAG;
   
-    
-    // Build the full path of directory that contains the bins file
-    if (storage_dev_map_distribution_read(st, device_id, fid,spare, path) == NULL) {
-      severe("storage_truncate storage_dev_map_distribution");
+    if (storage_dev_map_distribution_write(st, device_id, bsize, 
+                                          fid, layout, dist_set, 
+					  spare, path, 0) == NULL) {
+      char fid_str[37];
+      uuid_unparse(fid, fid_str);    
+      severe("storage_truncate storage_dev_map_distribution spare:%d FID:%s",spare,fid_str);
       goto out;      
     }   
 
