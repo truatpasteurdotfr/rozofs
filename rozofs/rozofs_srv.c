@@ -24,7 +24,7 @@
 #include "rozofs.h"
 #include "rozofs_srv.h"
 
-rozofs_conf_layout_t rozofs_conf_layout_table[LAYOUT_MAX];
+rozofs_conf_layout_t rozofs_conf_layout_table[LAYOUT_MAX]={{0}};
 
 void rozofs_layout_initialize() {
     int i;
@@ -98,11 +98,14 @@ void rozofs_layout_release() {
 
     for (layout = 0; layout < LAYOUT_MAX; layout++, p++) {
 
-        if (p->rozofs_angles)
+        if (p->rozofs_angles) {
             free(p->rozofs_angles);
+	    p->rozofs_angles = NULL;
+	}    
 	for (bsize=ROZOFS_BSIZE_MIN; bsize<=ROZOFS_BSIZE_MAX; bsize++) {
             if (p->sizes[bsize].rozofs_psizes) {
 	        free(p->sizes[bsize].rozofs_psizes);
+		p->sizes[bsize].rozofs_psizes = NULL;
 	    }    
 	}
     }

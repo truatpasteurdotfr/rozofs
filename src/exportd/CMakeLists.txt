@@ -143,4 +143,3 @@ install(TARGETS exportd
 
 install(FILES export.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
 install(FILES export.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT export)
-install(FILES exports_starter.sh exports_killer.sh exports_reload.sh DESTINATION bin)

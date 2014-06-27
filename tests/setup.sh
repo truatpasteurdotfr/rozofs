@@ -167,7 +167,23 @@ start_one_storage()
     resolve_host_storage $hid
 
     #echo "Start storage cid: $cid sid: $sid"
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid
+    rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$hid.pid  ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid &
+    #sleep 1
+}
+reset_one_storio() 
+{
+    case "$1" in
+      "") usage;;
+    esac
+
+
+    hid=$1	       
+    # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
+    resolve_host_storage $hid
+
+    #echo "Start storage cid: $cid sid: $sid"
+    pid=`ps -ef | grep "storio -i" | grep -v rozolauncher | grep " -c $STORAGE_CONF" | awk '{ print $2 }'`
+    kill -9 $pid
     #sleep 1
 }
 gen_export_conf ()
@@ -350,13 +366,13 @@ gen_geomgr_conf ()
       echo "          {" >> $FILE
       echo "               active = True;"  >> $FILE
       echo "               path   = \"${LOCAL_EXPORTS_ROOT}_$k\";" >> $FILE
-      echo "               site   = 0;" >> $FILE
+      echo "               site   = 1;" >> $FILE
       echo "               nb     = 1;" >> $FILE
       echo "          }," >> $FILE
       echo "          {" >> $FILE
       echo "               active = True;"  >> $FILE
       echo "               path   = \"${LOCAL_EXPORTS_ROOT}_$k\";" >> $FILE
-      echo "               site   = 1;" >> $FILE
+      echo "               site   = 0;" >> $FILE
       echo "               nb     = 1;" >> $FILE
       echo "               calendar =" >> $FILE
       echo "		   (" >> $FILE
@@ -447,8 +463,7 @@ stop_one_storage () {
    case $1 in
      "all") stop_storaged; return;;
    esac
-   
-   process_killer "storaged_${LOCAL_STORAGE_NAME_BASE}$1."
+   rozolauncher stop /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$1.pid   
 }   
 reset_one_storage () {
   stop_one_storage $1
@@ -469,9 +484,9 @@ start_storaged ()
         # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
         resolve_host_storage $hid
     
-        cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}${hid}"
+        cmd="rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}${hid}.pid ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}${hid}"
 	echo $cmd
-	$cmd	    		  
+	$cmd &	    		  
     done	
 }
 
@@ -590,7 +605,6 @@ deploy_clients_local ()
                     cmd="${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${EXPORT_HOST} -E ${LOCAL_EXPORTS_ROOT}_${eid} ${mount_point} ${option}"
                     echo $cmd
 		    $cmd
-
         	else
                     echo "Unable to mount RozoFS (${mount_point} already mounted)"
         	fi
@@ -599,9 +613,9 @@ deploy_clients_local ()
     done;
     
     # Start geocli manager
-    cmd="geomgr_starter.sh -c ${LOCAL_CONF}geomgr.conf -t 5"
-    echo "$cmd"
-    $cmd        
+    cmd="rozolauncher start /var/run/launcher_geomgr.pid geomgr -c ${LOCAL_CONF}geomgr.conf -t 5"
+    echo "__$cmd"
+    $cmd &      
 
 }
 rozofsmount_kill_best_effort()
@@ -612,18 +626,18 @@ rozofsmount_kill_best_effort()
 }
 geocli_kill_best_effort()
 {
-    #echo "------------------------------------------------------"
-    echo "Killing geocli and storcli in best effort mode"
-    killall geomgr_starter.sh
-    killall geomgr
+    echo "------------------------------------------------------"
+    echo "Killing geomgr"
+    rozolauncher stop /var/run/launcher_geomgr.pid
 }
 undeploy_clients_local ()
 {
+    geocli_kill_best_effort
+    
     echo "------------------------------------------------------"
     if [ ! -e "${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}" ]
         then
         echo "Unable to umount RozoFS (configuration file doesn't exist)"
-        storcli_killer.sh 
 	return
     fi	
 
@@ -643,7 +657,6 @@ undeploy_clients_local ()
 	      *) umount -l $mount_point0;;
 	    esac  
             rm -rf $mount_point0
-            storcli_killer.sh $mount_point0 > /dev/null 2>&1
 
             umount $mount_point1
 	    case $? in
@@ -651,7 +664,6 @@ undeploy_clients_local ()
 	      *) umount -l $mount_point1;;
 	    esac  
             rm -rf $mount_point1		
-            storcli_killer.sh $mount_point1 > /dev/null 2>&1
 
         done
 
@@ -659,7 +671,6 @@ undeploy_clients_local ()
 
     sleep 0.4
     rozofsmount_kill_best_effort
-    geocli_kill_best_effort
     
 }
 
@@ -672,7 +683,6 @@ start_exportd ()
 #    sleep 1
 #    cmd=`ps -ef | grep exportd | grep export.conf | awk '{print $8" -pid "$2 }'`
 #    ddd $cmd &
-#    sleep 2    
 }
 
 stop_exportd ()
@@ -768,7 +778,6 @@ do_start_all_processes() {
      start_storaged ${STORAGES_BY_CLUSTER}
      #start_expgw
      start_exportd 1
-     sleep 2
      deploy_clients_local
 }
 
@@ -1118,95 +1127,47 @@ set_layout () {
   # Save layout
   echo $ROZOFS_LAYOUT > ${WORKING_DIR}/layout.saved
 }
-	
-show_process () {
-  cd /var/run
-  LIST=""
+
+display_process() {
+  local header=$2
+  local proc=$1
+  local next=$3
+  local last=0
+  local idx=0
+  local LIST=""
   
-  file=exportd.pid
-  if [ -f $file ];
-  then
-    proc=`cat $file`
-    printf "\n[export:%d]\n" $proc
-  else
-    printf "\n[export:--]\n" 
-  fi
+  LIST=`ps -ef | awk '{ if ($3==proc) print $2 ; }' proc=$proc`
+  last=0
+  for pid in $LIST
+  do 
+    last=$((last+1))
+  done   
+  Details=`ps -ef | awk '{ if ($2==proc) print $8" "$9" "$10" "$11" "$12" "$13" "$14" "$15" "$16" "$17; }' proc=$proc`  
+
+  printf "%5d %s|__%s\n" $proc "$header" "$Details"
   
-  for file in expgw_*.pid
-  do
-    if [ -f $file ];
+  idx=0
+  for pid in `ps -ef | awk '{ if ($3==proc) print $2 ; }' proc=$proc`
+  do 
+    idx=$((idx+1))
+    if [ $idx -eq $last ];
     then
-      proc=`cat $file`
-      name=`echo $file | awk -F':' '{print $1}'`
-      nb=`echo ${name: -1}`
-      printf "[expgw %d:%d] " $nb $proc
-    fi    
-  done  
-  printf "\n"
-  printf " hid cid sid storaged     storio(s)\n"
-  for hid in $(seq $STORAGES_TOTAL)
-  do
-
-    resolve_host_storage $hid
-    std=storaged_${LOCAL_STORAGE_NAME_BASE}$hid
-
-    printf " %3d %3d %3d " $hid $cid $sid
-
-    file=storaged_${LOCAL_STORAGE_NAME_BASE}$hid.pid
-    if [ -f $file ];
-    then
-      proc=`cat $file`
-      printf " %6d     " $proc 
+      display_process $pid "${header}$next" "   "
     else
-      printf "     --      "         
-    fi 
-    
-    if ls storio_${LOCAL_STORAGE_NAME_BASE}$hid.*.pid > /dev/null 2>&1
-    then
+      display_process $pid "${header}$next" "|  "
+    fi
+  done  
+}	
+show_process () {
 
-      for file in storio_${LOCAL_STORAGE_NAME_BASE}$hid.*.pid
-      do
-        nb=`echo $file | awk -F'.' '{print $2}'`
-	    proc=`cat $file`
-	    printf " %d:%-6d " $nb $proc 
-      done
-    fi  
-    printf "\n"          
+  tst_dir=`pwd | awk -F'/' '{ print $NF }'`
+  LIST=`ps -ef | grep "/$tst_dir" | awk '{ if ($3==1) print $2;}'`
+
+  for proc in $LIST
+  do
+    echo "_______________________________________________________________________________________"
+    display_process $proc "" "   "
   done
-  
-  # Clients 
-  echo ""
-  printf "\nClients:\n"
-  for file in rozofsmount_*
-  do
-    if [ -f $file ];
-    then
-      proc=`cat $file`
-      first=`echo $file | awk -F'.' '{print $1}'`
-      last=`echo $file | awk -F'.' '{print $NF}'`
-      if [ $first == $last ];
-      then
-        name=$first
-      else
-        name="$first $last"
-      fi		
-      printf "  %-23s %5d\n" "$name" $proc
-    fi    
-  done  
-  printf "\n"
-  echo ""
-  printf "\nReplication clients:\n"
-  for file in geocli_*
-  do
-    if [ -f $file ];
-    then
-      proc=`cat $file`
-      last=`echo $file | awk -F'.' '{print $NF}'`
-      printf "  %-23s %5d\n" $last $proc
-    fi    
-  done  
-  printf "\n"  
-  cd - 
 }
 main ()
 {
@@ -1215,23 +1176,15 @@ main ()
         
     [ $# -lt 1 ] && usage
 
-    # to reach storcli executable
-    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/storcli
-    # to reach storcli_starter.sh  
-    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/rozofsmount
-    # to reach storcli_starter.sh  
-    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/geocli
-    # to reach geocli executable      
-    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/geocli
-    # to reach storio executable
-    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/$storaged_dir
-    # to reach storio_starter.sh  
-    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/$storaged_dir
-    # to reach exports_starter.sh  
-    export PATH=$PATH:${LOCAL_SOURCE_DIR}/src/exportd
-    # to reach exportd slave  
-    export PATH=$PATH:${LOCAL_BUILD_DIR}/src/exportd    
-    
+    # to reach executables
+    for dir in ${LOCAL_BUILD_DIR}/src/*
+    do
+      if [ -d $dir ];
+      then
+        export PATH=$PATH:$dir
+      fi
+    done  
+ 
     # Set new layout when given on start command
     # or read saved layout 
     if [ "$1" == "start" -a $# -ge 2 ];
@@ -1391,6 +1344,12 @@ main ()
 	reset)           reset_one_storage $2;;
         *)               usage;;
       esac
+    elif [ "$1" == "storio" ]
+    then  	
+      case "$3" in 
+        reset)           reset_one_storio $2;;
+        *)               usage;;
+      esac      
     elif [ "$1" == "process" ]
     then 
        show_process 

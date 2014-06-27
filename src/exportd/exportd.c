@@ -52,6 +52,7 @@
 #include <rozofs/common/rozofs_site.h>
 #include <rozofs/rpc/rpcclt.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/rozo_launcher.h>
 
 #include "config.h"
 #include "exportd.h"
@@ -136,12 +137,14 @@ uint32_t export_profiler_eid;
 */
 void export_kill_one_export_slave(int instance) {
     int ret = -1;
-    char cmd[1024];
-    char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s %s %d", "exports_killer.sh", exportd_config_file, instance);
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
+    char pidfile[128];
+    
+    sprintf(pidfile,"/var/run/launcher_exportd_slave_%d.pid",instance);
+    	  
+    // Launch exportd slave
+    ret = rozo_launcher_stop(pidfile);
+    if (ret !=0) {
+      severe("rozo_launcher_stop(%s) %s",pidfile, strerror(errno));
     }
 }
 
@@ -159,13 +162,13 @@ void export_start_one_export_slave(int instance) {
     char cmd[1024];
     uint16_t debug_port_value;
     char     debug_port_name[32];
+    char   pidfile[128];
     int ret = -1;
 
 #warning debug port value for slave 52000
     debug_port_value = 52000+instance;
             
     char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s ", "exports_starter.sh");
     cmd_p += sprintf(cmd_p, "%s ", "exportd");
     cmd_p += sprintf(cmd_p, "-i %d ", instance);
     cmd_p += sprintf(cmd_p, "-s ");
@@ -177,17 +180,19 @@ void export_start_one_export_slave(int instance) {
 
     cmd_p += sprintf(cmd_p, "-d %d ",debug_port_value );
           
-    cmd_p += sprintf(cmd_p, "&");
+    sprintf(pidfile,"/var/run/launcher_exportd_slave_%d.pid",instance);
 
+    // Launch exportd slave
+    ret = rozo_launcher_start(pidfile, cmd);
+    if (ret !=0) {
+      severe("rozo_launcher_start(%s,%s) %s",pidfile, cmd, strerror(errno));
+      return;
+    }
+    
     info("start exportd slave (instance: %d, config: %s,"
             " profile port: %d).",
             instance,  exportd_config_file,
             debug_port_value);
-    severe("FDL debug starting slave %d",instance);
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
 }
 
 /*
@@ -217,7 +222,6 @@ void export_kill_all_export_slave() {
 void export_start_export_slave() {
 	int i;
 
-	export_kill_all_export_slave();
 #warning need to confirm about the index number to start for exportd slave
     for (i = 1; i <= EXPORT_SLICE_PROCESS_NB; i++) {
       export_start_one_export_slave(i);
@@ -230,16 +234,12 @@ void export_start_export_slave() {
 /**
 *  slave exportd reload: that happens upon a change in the configuration
 */
-void export_reload_one_export_slave(int instance) {
-    char cmd[1024];
-    char *cmd_p = &cmd[0];
-    int ret = -1;
-    
-    cmd_p += sprintf(cmd_p, "%s %s %d", "exports_reload.sh", exportd_config_file, instance);
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
+static inline void export_reload_one_export_slave(int instance) {
+  /*
+  ** starting an instance of exportd stops its previous launcher and process
+  ** before launcher a new launcher
+  */
+  export_start_one_export_slave(instance);
 }
 
 void export_reload_all_export_slave() {
@@ -1142,11 +1142,10 @@ static void on_start() {
     pthread_t thread;
     DEBUG_FUNCTION;
     int loop_count = 0;
-    
+        
     // Allocate default profiler structure
     export_profiler_allocate(0);
     geo_profiler_allocate(0);
-  if ( expgwc_non_blocking_conf.slave == 0) export_kill_all_export_slave();
 
     /**
     * start the non blocking thread
@@ -1681,7 +1680,6 @@ int main(int argc, char *argv[]) {
     */
     exportd_set_export_instance_and_role(expgwc_non_blocking_conf.instance,(expgwc_non_blocking_conf.slave==0)?1:0);
     
-    printf("FDL exportd%d starting\n",expgwc_non_blocking_conf.instance);
     if (econfig_initialize(&exportd_config) != 0) {
         fprintf(stderr, "can't initialize exportd config: %s.\n",
                 strerror(errno));
@@ -1708,7 +1706,6 @@ int main(int argc, char *argv[]) {
     }
     if ( expgwc_non_blocking_conf.slave == 0)
     {
-    printf("FDL Master exportd\n");
     openlog("exportd", LOG_PID, LOG_DAEMON);
     daemon_start("exportd",exportd_config.nb_cores,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
     }

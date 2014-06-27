@@ -66,5 +66,3 @@ install(TARGETS geomgr
     ARCHIVE DESTINATION lib
     COMPONENT geomgr
 )
-install(PROGRAMS geomgr_starter.sh DESTINATION bin)
-

@@ -21,7 +21,8 @@
 
 DAEMON=/usr/bin/storaged
 NAME=storaged
-PIDFILE=/var/run/$NAME.pid
+PIDFILE=/var/run/launcher_${NAME}.pid
+LAUNCHER=/usr/bin/rozolauncher
 
 # Source function library.
 if [ -f /lib/lsb/init-functions ]; then
@@ -43,59 +44,33 @@ else
     exit 1
 fi
 
-storaged_status () {
-    local status 
+do_status () {
 
-    status="0"
-    pidofproc -p $PIDFILE $DAEMON >/dev/null || status="$?"
-    if [ "$status" = 0 ]; then
-        log_success_msg "$NAME is running"
-        return 0
-    elif [ "$status" = 4 ]; then
-        log_failure_msg "could not access PID file for $NAME"
-        return $status
+    if [ -f $PIDFILE ];
+    then 
+      return 0 
     else
-        log_success_msg "$NAME is not running"
-        return $status
+      return 3
     fi
 }
 
 do_start()
 {
-    # Return
-    #   0 if daemon has been started
-    #   1 if daemon was already running
-    #   2 if daemon could not be started
-
-    START_DAEMON -p $PIDFILE $DAEMON
-
-    return "$?"
+    $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
+    return 0
 }
 
 # stop the daemon/service
 
 do_stop()
 {
-    # Return
-    #   0 if daemon has been stopped
-    #   1 if daemon was already stopped
-    #   2 if daemon could not be stopped
-    #   other if a failure occurred
-
-    killproc -p $PIDFILE $DAEMON
-
-    RETVAL="$?"
-    [ "$RETVAL" = 2 ] && return 2
-
-    # remove pidfile if daemon could not delete on exit.
-    rm -f $PIDFILE
-
-    return "$RETVAL"
+    $LAUNCHER stop $PIDFILE
+    return 0
 }
 
 case "$1" in
-    start)
-        echo -n "Starting $NAME"
+    start|restart|force-reload)
+        echo -n "$1 $NAME"
         
         do_start
 
@@ -104,8 +79,8 @@ case "$1" in
             *)   LOG_FAILURE ;;
         esac
         ;;
-    status)
-    	STATUS;;
+    status) do_status;;
+    
     stop)
         echo -n "Stopping $NAME"
         
@@ -114,27 +89,6 @@ case "$1" in
         case "$?" in
             0|1) LOG_SUCCESS ;;
             2)   LOG_FAILURE ;;
-        esac
-        ;;
-    restart|force-reload)
-        echo -n "Restarting $NAME"
-
-        do_stop
-        case "$?" in
-            0|1)
-                sleep 1
-                do_start
-
-                case "$?" in
-                    0) LOG_SUCESS ;;
-                    1) LOG_FAILURE ;; # Old process is still running
-                    *) LOG_FAILURE ;; # Failed to start
-                esac
-                ;;
-            *)
-                # Failed to stop
-                LOG_FAILURE
-            ;;
         esac
         ;;
     *)

@@ -18,11 +18,13 @@ DESC=storaged            # Introduce a short description here
 NAME=storaged            # Introduce the short server's name here
 DAEMON=/usr/bin/storaged # Introduce the server's location here
 DAEMON_ARGS=""           # Arguments to run the daemon with
-PIDFILE=/var/run/$NAME.pid
+PIDFILE=/var/run/launcher_${NAME}.pid
 SCRIPTNAME=/etc/init.d/$NAME
+LAUNCHER=/usr/bin/rozolauncher
 
 # Exit if the package is not installed
 [ -x $DAEMON ] || exit 0
+[ -x $LAUNCHER ] || exit 0
 
 # Read configuration variable file if it is present
 [ -r /etc/default/$NAME ] && . /etc/default/$NAME
@@ -37,15 +39,22 @@ SCRIPTNAME=/etc/init.d/$NAME
 # Enable core files
 ulimit -c unlimited
 
+status () {
+
+    if [ -f $PIDFILE ];
+    then 
+      return 0 
+    else
+      return 3
+    fi
+}
 #
 # Function that starts the daemon/service
 #
 do_start()
 {
-    # Return
-    #   0 if daemon has been started or was already running
-    #   1 if daemon could not be started
-    start-stop-daemon -S -q -o -p $PIDFILE -n $NAME -a $DAEMON -- $DAEMON_ARGS
+    $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
+    return 0
 }
 
 #
@@ -53,27 +62,14 @@ do_start()
 #
 do_stop()
 {
-    # Return
-    #   0 if daemon has been stopped
-    #   1 if daemon could not be stopped
-    start-stop-daemon -K -q -o -n $NAME -R TERM/30/KILL/5 -a $DAEMON
-    RETVAL="$?"
-    # Many daemons don't delete their pidfiles when they exit.
-    rm -f $PIDFILE
-    return "$RETVAL"
-}
-
-#
-# Function that sends a SIGHUP to the daemon/service
-#
-do_reload() {
-    start-stop-daemon -K -q -o -s HUP -p $PIDFILE -n $NAME
+    $LAUNCHER stop $PIDFILE
     return 0
 }
 
+
 case "$1" in
-  start)
-    [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC " "$NAME"
+  start|reload|restart|force-reload)
+    [ "$VERBOSE" != no ] && log_daemon_msg "$1 $DESC " "$NAME"
     do_start
     case "$?" in
         0) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
@@ -88,39 +84,8 @@ case "$1" in
         1) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
     esac
     ;;
-  status)
-       status_of_proc "$DAEMON" "$NAME" && exit 0 || exit $?
-       ;;
-  #reload)
-    #
-    # If do_reload() is not implemented then leave this commented out
-    # and leave 'force-reload' as an alias for 'restart'.
-    #
-    #log_daemon_msg "Reloading $DESC" "$NAME"
-    #do_reload
-    #log_end_msg $?
-  #  ;;
-  restart|force-reload)
-    #
-    # If the "reload" option is implemented then remove the
-    # 'force-reload' alias
-    #
-    log_daemon_msg "Restarting $DESC" "$NAME"
-    do_stop
-    case "$?" in
-      0)
-        do_start
-        case "$?" in
-            0) log_end_msg 0 ;;
-            *) log_end_msg 1 ;; # Failed to start
-        esac
-        ;;
-      *)
-        # Failed to stop
-        log_end_msg 1
-        ;;
-    esac
-    ;;
+  status) status;;
+
   *)
     echo "Usage: $SCRIPTNAME {start|stop|status|restart}" >&2
     exit 3

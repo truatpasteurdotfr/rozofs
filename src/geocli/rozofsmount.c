@@ -34,6 +34,8 @@
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/common/rozofs_site.h>
 #include <rozofs/core/rozofs_host_list.h>
+#include <rozofs/core/rozo_launcher.h>
+#include <rozofs/core/rozofs_core_files.h>
 
 #include "rozofsmount.h"
 #include "rozofs_sharedmem.h"
@@ -50,9 +52,6 @@
 
 #define CONNECTION_THREAD_TIMESPEC  2
 
-#define STORCLI_STARTER  "storcli_starter.sh"
-#define STORCLI_KILLER  "storcli_killer.sh"
-#define STORCLI_EXEC "storcli"
 
 //static SVCXPRT *rozofsmount_profile_svc = 0;
 int rozofs_rotation_read_modulo = 0;
@@ -291,25 +290,21 @@ void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
 }
 
 void rozofs_kill_one_storcli(int instance) {
-    int ret = - 1;
-    char cmd[1024];
-    char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
+    char pid_file[64];
+
+    sprintf(pid_file,"/var/run/launcher_geocli_%d_storcli_%d.pid", conf.instance, instance);
+    rozo_launcher_stop(pid_file);
 }
+
 
 void rozofs_start_one_storcli(int instance) {
     char cmd[1024];
     uint16_t debug_port_value;
     int site;
-    int ret = -1;
-        
+     char pid_file[128];
+     
     char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
-    cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
+    cmd_p += sprintf(cmd_p, "%s ", "storcli");
     cmd_p += sprintf(cmd_p, "-i %d ", instance);
     cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
     cmd_p += sprintf(cmd_p, "-o %s ", "geocli");
@@ -346,18 +341,16 @@ void rozofs_start_one_storcli(int instance) {
       cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_sz);       
       cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_count);       
     }
-    cmd_p += sprintf(cmd_p, "&");
-
+    
+    sprintf(pid_file,"/var/run/launcher_geocli_%d_storcli_%d.pid", conf.instance, instance);
+    rozo_launcher_start(pid_file,cmd);
+  
     info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
             " profile port: %d, rozofs instance: %d, storage timeout: %d).",
             instance, conf.host, conf.export, mountpoint,
             debug_port_value, conf.instance,
             ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
 }
 void rozofs_kill_storcli() {
     int i;
@@ -369,13 +362,22 @@ void rozofs_kill_storcli() {
 void rozofs_start_storcli() {
 	int i;
 
-	rozofs_kill_storcli();
-
 	i = stclbg_get_storcli_number();
 	while (i) {
 		rozofs_start_one_storcli(i);
 		i--;
 	}
+}
+/*
+ *_______________________________________________________________________
+ */
+
+/**
+ *  Crash call back
+
+ */
+static void rozofs_crash_cbk(int signal) {
+  rozofs_kill_storcli();
 }
 
 int fuseloop(/*struct fuse_args *args,*/ int fg) {
@@ -383,8 +385,6 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     int ret;
     int err=0;
     int retry_count;
-    char ppfile[NAME_MAX];
-    int ppfd = -1;
     int export_index=0;
     char * pHost;
 
@@ -500,18 +500,6 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
         return err;
     }
 
-    /* try to create a flag file with port number */
-    sprintf(ppfile, "%s/%s_%d.pid", DAEMON_PID_DIRECTORY, "geocli",conf.instance);
-    if ((ppfd = open(ppfile, O_RDWR | O_CREAT, 0640)) < 0) {
-        severe("can't open profiling port file");
-    } else {
-        char str[10];
-        sprintf(str, "%d\n", getpid());
-		if ((write(ppfd, str, strlen(str))) != strlen(str)) {
-			severe("can't write pid on flag file");
-		}
-        close(ppfd);
-    }
     /*
     ** create the shared memory used by the storcli's
     */
@@ -528,11 +516,18 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
          severe("Cannot create the shared memory for storcli %d\n",i);
        }
     }   
+    
+    /*
+    ** Declare a signal handler and attach a crash callback
+    */
+    rozofs_signals_declare("geocli", 2);
+    rozofs_attach_crash_cbk(rozofs_crash_cbk);
+    
     /*
     ** start the storcli processes
     */ 
     rozofs_start_storcli();
-
+    
     for (;;) {
         int ret;
         ret = sem_wait(semForEver);
@@ -554,8 +549,6 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
         free(conf.host);
     if (conf.passwd != NULL)
         free(conf.passwd);
-    unlink(ppfile); // best effort
-
     return err ? 1 : 0;
 }
 

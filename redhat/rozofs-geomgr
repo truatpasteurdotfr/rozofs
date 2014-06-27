@@ -21,7 +21,8 @@
 
 DAEMON=/usr/bin/geomgr
 NAME=geomgr
-PIDFILE=/var/run/$NAME.pid
+PIDFILE=/var/run/launcher_${NAME}.pid
+LAUNCHER=/usr/bin/rozolauncher
 
 # Source function library.
 if [ -f /lib/lsb/init-functions ]; then
@@ -43,55 +44,51 @@ else
     exit 1
 fi
 
-geomgr_status () {
-    local status 
+do_status () {
 
-    status="0"
-    pidofproc -p $PIDFILE $DAEMON >/dev/null || status="$?"
-    if [ "$status" = 0 ]; then
-        log_success_msg "$NAME is running"
-        return 0
-    elif [ "$status" = 4 ]; then
-        log_failure_msg "could not access PID file for $NAME"
-        return $status
+    if [ -f $PIDFILE ];
+    then 
+      return 0 
     else
-        log_success_msg "$NAME is not running"
-        return $status
+      return 3
     fi
 }
 
 # stop the daemon/service
 do_stop()
 {
-  killall geomgr_starter.sh
-  killall geomgr
+    $LAUNCHER stop $PIDFILE
+    return 0
 }
 
 do_start()
 {
-  do_stop
-  sleep 0.1
-  geomgr_starter.sh
+    $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
+    return 0
 }
 
 
 case "$1" in
     start|restart|force-reload)
         echo -n "$1 $NAME"
+        
         do_start
-        LOG_SUCCESS
+
+        case "$?" in
+            0|1) LOG_SUCCESS ;;
+            *)   LOG_FAILURE ;;
+        esac
         ;;
-    status)
-    	STATUS;;
+    status) do_status;;
+    
     stop)
         echo -n "Stopping $NAME"
+        
         do_stop
-        LOG_SUCCESS
-        ;;
-            *)
-                # Failed to stop
-                LOG_FAILURE
-            ;;
+
+        case "$?" in
+            0|1) LOG_SUCCESS ;;
+            2)   LOG_FAILURE ;;
         esac
         ;;
     *)

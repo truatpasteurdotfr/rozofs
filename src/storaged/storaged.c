@@ -52,6 +52,7 @@
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/af_unix_socket_generic.h>
+#include <rozofs/core/rozo_launcher.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
@@ -131,7 +132,7 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   severe("storaged should not call storio_device_mapping_allocate_device");
   return -1;
 }
-
+#if 0
 static void storaged_release() {
     DEBUG_FUNCTION;
     int i;
@@ -150,7 +151,7 @@ static void storaged_release() {
         free(s);
     }
 }
-
+#endif
 storage_t *storaged_lookup(cid_t cid, sid_t sid) {
     storage_t *st = 0;
     DEBUG_FUNCTION;
@@ -175,23 +176,45 @@ storage_t *storaged_next(storage_t * st) {
     if (st < storaged_storages + storaged_nrstorages) return st;
     return NULL;
 }
+
+
+pid_t session_id=0;
+
 static void on_stop() {
     DEBUG_FUNCTION;
+
+#if 0
     char cmd[128];
     int ret = -1;
-   
+    char pidfile[128];   
     /*
     ** Kill every instance of storio of this host
     */
-    if (storaged_hostname) 
-      sprintf(cmd,"storio_killer.sh -H %s", storaged_hostname);
-    else 
-      sprintf(cmd,"storio_killer.sh"); 
-    
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
+    if (storaged_config.multiio==0) {
+      if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_0.pid",storaged_hostname);
+      else                   sprintf(pidfile,"/var/run/launcher_storio_0.pid");
+      
+      // Stop storio
+      ret = rozo_launcher_stop(pidfile);
+      if (ret !=0) {
+        severe("rozo_launcher_stop(%s) %s",pidfile, strerror(errno));
+      }
     }
+    else {
+      int idx;
+      for (idx = 0; idx < storaged_nb_ports; idx++) {
+        if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,idx+1);
+        else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",idx+1);
+ 
+        // Stop storio
+	ret = rozo_launcher_stop(pidfile);
+	if (ret !=0) {
+          severe("rozo_launcher_stop(%s) %s",pidfile, strerror(errno));
+	}
+      }
+    }    
+#endif 
+
     svc_exit();
 
     if (storaged_monitoring_svc) {
@@ -208,23 +231,33 @@ static void on_stop() {
         storaged_profile_svc = NULL;
     }
 
-    rozofs_layout_release();
+    /*
+    ** Killing every storio and launcher within the session
+    */
+    if (session_id!= 0) {
+      kill(-session_id,SIGTERM);
+    }
+    
+    //rozofs_layout_release();
 
-    storaged_release();
+    //storaged_release();
 
-    info("stopped.");
+    //info("stopped.");
     closelog();
 }
 
 char storage_process_filename[NAME_MAX];
 
 static void on_start() {
-    char cmd[128];
+    char cmd[256];
+    char pidfile[128];
     char * p;
     storaged_start_conf_param_t conf;
     int ret = -1;
         
     DEBUG_FUNCTION;
+
+    session_id = setsid();
 
     af_unix_socket_set_datagram_socket_len(128);
     storage_process_filename[0] = 0;
@@ -246,51 +279,43 @@ static void on_start() {
     // Set monitoring values just for the master process
     //SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
     
-    /*
-    ** 1rst kill storio in case it is already running
-    */
-    p = cmd;
-    if (storaged_hostname) 
-      sprintf(cmd,"storio_killer.sh -H %s", storaged_hostname);
-    else 
-      sprintf(cmd,"storio_killer.sh"); 
-
-    // Launch killer script
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
-
+    
     conf.io_port = 0;
     /*
     ** Then start storio
     */
     if (storaged_config.multiio==0) {
       p = cmd;
-      p += sprintf(p, "storio_starter.sh storio -i 0 -c %s ", storaged_config_file);
+      p += sprintf(p, "storio -i 0 -c %s ", storaged_config_file);
       if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
-      p += sprintf(p, "&");
-
-      // Launch storio_starter script
-      ret = system(cmd);
-      if (-1 == ret) {
-          DEBUG("system command failed: %s", strerror(errno));
+      
+      if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_0.pid",storaged_hostname);
+      else                   sprintf(pidfile,"/var/run/launcher_storio_0.pid");
+      
+      // Launch storio
+      ret = rozo_launcher_start(pidfile, cmd);
+      if (ret !=0) {
+        severe("rozo_launcher_start(%s,%s) %s",pidfile, cmd, strerror(errno));
       }
+
       conf.io_port++;
     }
     else {
       int idx;
       for (idx = 0; idx < storaged_nb_ports; idx++) {
 	p = cmd;
-	p += sprintf(p, "storio_starter.sh storio -i %d -c %s ", idx+1, storaged_config_file);
+	p += sprintf(p, "storio -i %d -c %s ", idx+1, storaged_config_file);
 	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
-	p += sprintf(p, "&");
 
-        // Launch storio_starter script
-        ret = system(cmd);
-        if (-1 == ret) {
-            DEBUG("system command failed: %s", strerror(errno));
-        }
+      
+        if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,idx+1);
+        else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",idx+1);
+ 
+        // Launch storio
+	ret = rozo_launcher_start(pidfile, cmd);
+	if (ret !=0) {
+          severe("rozo_launcher_start(%s,%s) %s",pidfile, cmd, strerror(errno));
+	}
         conf.io_port++;
       }
     }
@@ -407,7 +432,7 @@ int main(int argc, char *argv[]) {
       storaged_config.multiio = 1; 
     }
 
-    daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
+    no_daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
             on_stop, NULL);
 
     exit(0);

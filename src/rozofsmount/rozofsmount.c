@@ -28,6 +28,7 @@
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/rozofs_host_list.h>
+#include <rozofs/core/rozo_launcher.h>
 #include <rozofs/common/rozofs_site.h>
 
 #include "rozofs_fuse.h"
@@ -64,9 +65,6 @@
 
 #define CONNECTION_THREAD_TIMESPEC  2
 
-#define STORCLI_STARTER  "storcli_starter.sh"
-#define STORCLI_KILLER  "storcli_killer.sh"
-#define STORCLI_EXEC "storcli"
 
 static SVCXPRT *rozofsmount_profile_svc = 0;
 int rozofs_rotation_read_modulo = 0;
@@ -1236,24 +1234,19 @@ static struct fuse_lowlevel_ops rozofs_ll_operations = {
 
 void rozofs_kill_one_storcli(int instance) {
 
-    int ret = - 1;
-    char cmd[1024];
-    char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s %s %d", STORCLI_KILLER, mountpoint, instance);
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
+    char pid_file[64];
+    sprintf(pid_file,"/var/run/launcher_rozofsmount_%d_storcli_%d.pid", conf.instance, instance);
+    rozo_launcher_stop(pid_file);
 }
 
 void rozofs_start_one_storcli(int instance) {
+    char pid_file[128];
     char cmd[1024];
     uint16_t debug_port_value;
     char     debug_port_name[32];
-    int ret = -1;
+
     char *cmd_p = &cmd[0];
-    cmd_p += sprintf(cmd_p, "%s ", STORCLI_STARTER);
-    cmd_p += sprintf(cmd_p, "%s ", STORCLI_EXEC);
+    cmd_p += sprintf(cmd_p, "%s ", "storcli");
     cmd_p += sprintf(cmd_p, "-i %d ", instance);
     cmd_p += sprintf(cmd_p, "-H %s ", conf.host);
     cmd_p += sprintf(cmd_p, "-o %s ", "rozofsmount");
@@ -1280,18 +1273,16 @@ void rozofs_start_one_storcli(int instance) {
       cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_sz);       
       cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_count);       
     }
-    cmd_p += sprintf(cmd_p, "&");
 
+    sprintf(pid_file,"/var/run/launcher_rozofsmount_%d_storcli_%d.pid", conf.instance, instance);
+    rozo_launcher_start(pid_file,cmd);
+    
     info("start storcli (instance: %d, export host: %s, export path: %s, mountpoint: %s,"
             " profile port: %d, rozofs instance: %d, storage timeout: %d).",
             instance, conf.host, conf.export, mountpoint,
             debug_port_value, conf.instance,
             ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 
-    ret = system(cmd);
-    if (-1 == ret) {
-        DEBUG("system command failed: %s", strerror(errno));
-    }
 }
 void rozofs_kill_storcli() {
     int i;
@@ -1303,7 +1294,7 @@ void rozofs_kill_storcli() {
 void rozofs_start_storcli() {
 	int i;
 
-	rozofs_kill_storcli();
+	//rozofs_kill_storcli();
 
 	i = stclbg_get_storcli_number();
 	while (i) {

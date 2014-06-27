@@ -152,6 +152,7 @@ mkdir -p %{buildroot}/etc/default
 %files storaged
 %defattr(-,root,root)
 %{_bindir}/storaged
+%{_bindir}/storio
 %{_sysconfdir}/rozofs/storage.conf
 %{_sysconfdir}/rozofs/storage.conf.sample
 %{_initrddir}/rozofs-storaged
@@ -163,8 +164,6 @@ mkdir -p %{buildroot}/etc/default
 %defattr(-,root,root)
 %{_bindir}/rozofsmount
 %{_bindir}/storcli
-%{_bindir}/storcli_starter.sh
-%{_bindir}/storcli_killer.sh
 %{_initrddir}/rozofs-rozofsmount
 %{_mandir}/man8/rozofsmount.8.gz
 
@@ -172,7 +171,6 @@ mkdir -p %{buildroot}/etc/default
 %defattr(-,root,root)
 %{_bindir}/geomgr
 %{_bindir}/geocli
-%{_bindir}/geomgr_starter.sh
 %{_initrddir}/rozofs-geomgr
 %{_mandir}/man8/geomgr.8.gz
 %{_mandir}/man5/geomgr.conf.5.gz
@@ -184,6 +182,7 @@ mkdir -p %{buildroot}/etc/default
 %files rozodiag
 %defattr(-,root,root)
 %{_bindir}/rozodiag
+%{_bindir}/rozolauncher
 
 %files manager-lib
 %defattr(-,root,root)

@@ -100,7 +100,6 @@ typedef struct storcli_conf {
  storcli_kpi_t storcli_kpi_transform_inverse;
 
 int storcli_site_number = 0;
-char storcli_process_filename[NAME_MAX];
 
 
 /*__________________________________________________________________________
@@ -1040,8 +1039,7 @@ void usage() {
 
 static void storlci_handle_signal(int sig)
 {
-  if (storcli_process_filename[0] == 0) return;
-  unlink(storcli_process_filename); 
+
 }
 
 
@@ -1087,7 +1085,6 @@ int main(int argc, char *argv[]) {
 	storcli_rozofsmount_shared_mem[k].data_p = NULL;
       } 
     }   
-    storcli_process_filename[0] = 0;
     
     conf.host = NULL;
     conf.passwd = NULL;
@@ -1332,23 +1329,7 @@ int main(int argc, char *argv[]) {
     */
     memset(&storcli_kpi_transform_forward,0,sizeof(  storcli_kpi_transform_forward));
     memset(&storcli_kpi_transform_inverse,0,sizeof(  storcli_kpi_transform_inverse));
-
-    /*
-    ** create the process filename
-    */
-    int ppfd;
-    sprintf(storcli_process_filename, "%s%s_%d_storcli_%d", DAEMON_PID_DIRECTORY, "rozofsmount",conf.rozofsmount_instance, conf.module_index);
-
-    if ((ppfd = open(storcli_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
-        severe("can't open process file %s",strerror(errno));
-    } else {
-        char str[10];
-        sprintf(str, "%d\n", getpid());
-        if (write(ppfd, str, strlen(str))<0) {
-          severe("can't write process file %s",strerror(errno));
-	}
-        close(ppfd);
-    }    
+ 
     
     /*
      ** init of the non blocking part

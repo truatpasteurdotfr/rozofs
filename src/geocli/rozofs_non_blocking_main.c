@@ -224,7 +224,6 @@ int rozofs_stat_start(void *args) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
     
-    rozofs_signals_declare("geocli",  args_p->nb_cores);
     
     /*
     ** start the geo-replication service

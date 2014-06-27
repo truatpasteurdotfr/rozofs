@@ -14,6 +14,7 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
+add_subdirectory(launcher)
 add_subdirectory(exportd)
 add_subdirectory(storaged)
 add_subdirectory(rozofsmount)

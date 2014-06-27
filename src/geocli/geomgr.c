@@ -33,6 +33,7 @@
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
+#include <rozofs/core/rozo_launcher.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/xmalloc.h>
@@ -61,7 +62,6 @@ typedef struct _geomgr_export_t {
   char                            host[GEO_STRING_MAX];
   int                             site;
   int                             instance;
-  pid_t                           pid;
   int                             valid;  
   geomgr_config_calendar_t * calendar;                          
 } geomgr_export_t;
@@ -230,16 +230,16 @@ void geomgr_format_prepare(int host_len, int path_len) {
   char * pForm = GEOMGR_FORMAT;
   char * pHead = GEOMGR_HEADER;
 
-  pForm += sprintf(pForm,"| #| %%-5s | %%-7s |site| %%-%ds | %%-%ds | %%s\n", 
+  pForm += sprintf(pForm,"| #| %%-7s |site| %%-%ds | %%-%ds | %%s\n", 
                    host_len,path_len);  
 
-  pHead += sprintf(pHead,GEOMGR_FORMAT, "pid","status","export","path","calendar");
+  pHead += sprintf(pHead,GEOMGR_FORMAT, "status","export","path","calendar");
   
   pForm = GEOMGR_FORMAT;
-  pForm += sprintf(pForm,"|%%2d| %%5d | %%-7s | %%2d | %%-%ds | %%-%ds | %%s\n",
+  pForm += sprintf(pForm,"|%%2d| %%-7s | %%2d | %%-%ds | %%-%ds | %%s\n",
                    host_len,path_len);  
 
-  pSep += sprintf(pSep,"+--+-------+---------+----+");
+  pSep += sprintf(pSep,"+--+---------+----+");
   host_len += 2;
   for(i=0; i< host_len; i++) *pSep++ = '-';    
   *pSep++ = '+';
@@ -299,7 +299,7 @@ void show_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
     }
     
     pChar += sprintf(pChar,GEOMGR_FORMAT, 
-                     idx,pe->pid, pStatus, pe->site, pe->host, pe->path, geomgr_calendar2string(pe->calendar));
+                     idx,pStatus, pe->site, pe->host, pe->path, geomgr_calendar2string(pe->calendar));
   }
   pChar += sprintf(pChar,"%s",GEOMGR_SEPARATOR);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
@@ -357,73 +357,40 @@ void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }
-
 /*__________________________________________________________________________
 */
-#define GEOMGR_RESTART_DELAY 20
 void geomgr_start_client(int idx) {
   geomgr_export_t  * pe = &exports[idx];
-  pid_t                   pid;
+  char cmd[256];
+  char pid_file[64];
   int ret;
-   
-  pid = fork();
   
-  if (pid == 0) {  
-    char cmd[128];
-    time_t last_start=0;
-    time_t delay;    
-    
-    /*
-    ** Create a new session, that every sub-process will belong to
-    */
-    if (setsid()== -1) {
-      severe("setsid() %s", strerror(errno));
-    }
-
-    while (1) {    
-    
-    
-      /*
-      ** Do not restart more that once every N seconds
-      */
-      delay = time(NULL) - last_start;
-      if (delay < GEOMGR_RESTART_DELAY) {
-	sleep(GEOMGR_RESTART_DELAY-delay);
-      }
-      last_start = time(NULL);	
-      
-      /*
-      ** Start the geocli
-      */
-      sprintf(cmd,"geocli -M geocli_%d_ -H %s -E %s -G %d -i %d",
-            idx, pe->host, pe->path, pe->site, idx);
-      ret = system(cmd);
-      if (ret == -1) severe("%s %s",cmd,strerror(errno));
-    }
-    exit(0);
-  }    
+  /*
+  ** prepare command line
+  */
+  sprintf(cmd,"geocli -M geocli_%d_ -H %s -E %s -G %d -i %d",
+         idx, pe->host, pe->path, pe->site, idx);
+  sprintf(pid_file,"/var/run/launcher_geocli_%d.pid",idx);
   
-  pe->pid = pid;
+  ret = rozo_launcher_start(pid_file,cmd);
+  if (ret < 0) {
+    severe("rozo_launcher_start(%s,%s) %s",pid_file, cmd, strerror(errno));
+    return;
+  }
   pe->status = geomgr_export_status_running;
 }
 /*__________________________________________________________________________
 */
 void geomgr_stop_client(int idx) {
-  int ret;
   geomgr_export_t  * pe = &exports[idx];
+  char pid_file[64];
+  int ret;
   
-  /*
-  ** Kill the starter
-  */
-  if (pe->pid != 0) {
-    ret = kill(-pe->pid, SIGTERM); 
-    if (ret < 0) {
-      severe("kill() %s", strerror(errno));    
-    } 
-
-    pe->pid = 0;  
-  }  
-  
+  sprintf(pid_file,"/var/run/launcher_geocli_%d.pid",idx);  
+  ret = rozo_launcher_stop(pid_file); 
+  if (ret <0) {
+    severe("rozo_launcher_stop(%s) %s",pid_file, strerror(errno));
+  }
   pe->status = geomgr_export_status_suspended;
 }
 /*__________________________________________________________________________

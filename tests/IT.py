@@ -292,10 +292,21 @@ def snipper_storcli ():
       sys.stdout.flush()  
       sys.stdout.write("\rStorcli reset")
       sys.stdout.flush()
-      
-      os.system("for process in `ps -ef  | grep \"storcli -i 1\" | grep -v storcli_starter.sh | grep -v grep | awk '{print $2}'`;do kill -9 $process;done")
 
-      for i in range(7):
+      p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      for proc in p.stdout:
+        if not "storcli -i" in proc:
+          continue
+        if "rozolauncher" in proc:
+          continue
+        if not "%s"%(mnt) in proc:
+          continue  
+	
+        pid=proc.split()[1]
+        os.system("kill -9 %s"%(pid))
+	    
+
+      for i in range(9):
         sys.stdout.write(".")
         sys.stdout.flush()
         time.sleep(1)
@@ -348,10 +359,10 @@ def snipper_storio ():
       
       sys.stdout.write("\r                                 ")
       sys.stdout.flush()
-      sys.stdout.write("\rStorage %d reset"%(hid+1))
+      sys.stdout.write("\rStorio %d reset"%(hid+1))
       sys.stdout.flush()
 
-      os.system("./setup.sh storage %d reset"%(hid+1))
+      os.system("./setup.sh storio %d reset"%(hid+1))
 
 
 #___________________________________________________
@@ -588,6 +599,15 @@ def lock_bsd_passing():
   except:
     pass  
   return os.system("./test_file_lock -process %d -loop %d -file %s -nonBlocking -bsd"%(process,loop,zefile))
+
+
+#___________________________________________________
+def quiet():
+#___________________________________________________
+
+  while True:
+    time.sleep(60)
+
 
 #___________________________________________________
 def lock_bsd_blocking():
@@ -913,6 +933,7 @@ def usage():
   print "      [--speed]          The run 4 times faster tests."
   print "      [--fast]           The run 2 times faster tests."
   print "      [--long]           The run 2 times longer tests."
+  print "      [--repeat <nb>]    The number of times the test list must be repeated."   
   print "      [--stop]           To stop the tests on the 1rst failure." 
   print "      [--fusetrace]      To enable fuse trace on test. When set, --stop is automaticaly set."
   print "    extra:"
@@ -943,10 +964,11 @@ parser.add_option("-f","--fileSize", action="store", type="string", dest="fileSi
 parser.add_option("-l","--list",action="store_true",dest="list", default=False, help="To display the list of test")
 parser.add_option("-k","--snipper",action="store",type="string",dest="snipper", help="To start a storio/storcli snipper.")
 parser.add_option("-s","--stop", action="store_true",dest="stop", default=False, help="To stop on 1rst failure.")
-parser.add_option("-t","--fusetrace", action="store_true",dest="fusetrace", default=False, help="To stop on 1rst failure.")
+parser.add_option("-t","--fusetrace", action="store_true",dest="fusetrace", default=False, help="To enable fuse trace on test.")
 parser.add_option("-F","--fast", action="store_true",dest="fast", default=False, help="To run 2 times faster tests.")
 parser.add_option("-S","--speed", action="store_true",dest="speed", default=False, help="To run 4 times faster tests.")
 parser.add_option("-L","--long", action="store_true",dest="long", default=False, help="To run 2 times longer tests.")
+parser.add_option("-r","--repeat", action="store", type="string", dest="repeat", help="Test repetition count.")
 parser.add_option("-m","--mount", action="store", type="string", dest="mount", help="The mount point to test on.")
 
 # Read/write test list
@@ -1034,6 +1056,14 @@ for arg in args:
 if len(list) == 0:
   usage()
   
+new_list=[]    
+if options.repeat != None:
+  repeat = int(options.repeat)
+  while repeat != int(0):
+    new_list.extend(list)
+    repeat=repeat-1
+else:
+  new_list.extend(list)  
 
 if not os.path.isdir(mnt):
   print "%s is not a directory"%(mnt)
@@ -1041,4 +1071,4 @@ if not os.path.isdir(mnt):
   
 # Run the requested test list
 NB_SID,STC_SID=get_sid_nb()
-do_run_list(list)
+do_run_list(new_list)

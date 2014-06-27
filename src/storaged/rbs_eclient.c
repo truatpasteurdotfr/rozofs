@@ -45,7 +45,6 @@
  */
 char * rbs_get_cluster_list(rpcclt_t * clt, const char *export_host_list, int site, cid_t cid,
         list_t * cluster_entries) {
-    int status = -1;
     epgw_cluster_ret_t *ret = 0;
     epgw_cluster_arg_t arg;
     int i = 0;

@@ -1,5 +1,3 @@
 /usr/bin/rozofsmount
 /usr/bin/storcli
-/usr/bin/storcli_starter.sh
-/usr/bin/storcli_killer.sh
 /usr/share/man/man8/rozofsmount.8

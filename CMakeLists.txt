@@ -75,8 +75,6 @@ set(STORAGED_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/storage.conf")
 #    set(ROZOFS_BIN_DIR "/usr/local/bin")
 #endif(NOT ROZOFS_BIN_DIR)
 #
-#set(STORCLI_STARTER "${ROZOFS_SHELL_DIR}/storcli_starter.sh")
-#set(STORCLI_KILLER "${ROZOFS_SHELL_DIR}/storcli_killer.sh")
 #set(STORCLI_EXEC "${ROZOFS_BIN_DIR}/storcli")
 
 if(NOT DAEMON_PID_DIRECTORY)
