@@ -1144,21 +1144,32 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
             strcat(path,ep->d_name);
 
 	    fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-	    if (fd < 0) continue;
-
+	    if (fd < 0) {
+	       severe("open(%s) %s", path, strerror(errno));
+               // Readdir for next entry
+               ep = readdir(dp);	       
+	       continue;
+            }
             nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
 	    close(fd);	    
 
             // What to do with such an error ?
-	    if (nb_read != sizeof(file_hdr)) continue;
-	    
+	    if (nb_read != sizeof(file_hdr)) {
+	       severe("nb_read %d vs %d %s", nb_read, sizeof(file_hdr), path);
+               // Readdir for next entry
+               ep = readdir(dp);     
+	       continue;
+            }
 	    // Check the requested sid is in the distribution
 	    safe = rozofs_get_rozofs_safe(file_hdr.layout);
 	    for (sid_idx=0; sid_idx<safe; sid_idx++) {
 	      if (file_hdr.dist_set_current[sid_idx] == sid) break;
 	    }
-	    if (sid_idx == safe) continue;
-	    
+	    if (sid_idx == safe) {
+               // Readdir for next entry
+               ep = readdir(dp);	       
+	       continue;
+            }	    
 
             // Alloc a new bins_file_rebuild_t
             *iterator = xmalloc(sizeof (bins_file_rebuild_t)); // XXX FREE ?
@@ -1177,6 +1188,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
             // Increment the current nb. of bins files in the list
             i++;
         }
+	
         // Readdir for next entry
         ep = readdir(dp);
     }
