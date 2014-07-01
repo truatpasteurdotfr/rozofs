@@ -196,6 +196,7 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
     int i = 0;
     char * dir;
     int    ret;
+    int    result;
 
     /*
     ** Create a temporary directory to receive the list files
@@ -220,36 +221,54 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 
 
         // Try to rebuild the storage until it's over
-        while (rbs_rebuild_storage(stor_confs[i].export_hostname, 
-	        storaged_geosite,
-                stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
-		stor_confs[i].device.total,
-		stor_confs[i].device.mapper, 
-		stor_confs[i].device.redundancy, 
-                stor_confs[i].stor_idx,
-		rbs_device_number,
-		parallel,
-		storaged_config_file,
-		fid2rebuild) != 0) {
+	result = -1;
+        while (result == -1) {
+	
+	    result = rbs_rebuild_storage(stor_confs[i].export_hostname, 
+	        		       storaged_geosite,
+                		       stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
+				       stor_confs[i].device.total,
+				       stor_confs[i].device.mapper, 
+				       stor_confs[i].device.redundancy, 
+                		       stor_confs[i].stor_idx,
+				       rbs_device_number,
+				       parallel,
+				       storaged_config_file,
+				       fid2rebuild);
 
-            // Probably a problem when connecting with other members
-            // of this cluster
-            severe("can't rebuild storage (cid:%u;sid:%u) with path %s,"
-                    " next attempt in %d seconds",
-                    stor_confs[i].cid, stor_confs[i].sid, stor_confs[i].root,
-                    TIME_BETWEEN_2_RB_ATTEMPS);
+            if (result == -1) {
+              // Probably a problem when connecting with other members
+              // of this cluster
+              REBUILD_MSG("can't rebuild storage (cid:%u;sid:%u) !"
+                      "Next attempt in %d seconds",
+                      stor_confs[i].cid, stor_confs[i].sid,
+                      TIME_BETWEEN_2_RB_ATTEMPS);
 
-            sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+              sleep(TIME_BETWEEN_2_RB_ATTEMPS);
+	      continue;
+	    }
+	    
+	    
+	    if (result == 0) {
+              // Here the rebuild process is finish, so exit
+              REBUILD_MSG("The rebuild process for storage (cid=%u;sid=%u)"
+                      " is completed successfully.",
+                      stor_confs[i].cid, stor_confs[i].sid);
+	    }
+	    else {
+              // ABort 
+              REBUILD_MSG("The rebuild process for storage (cid=%u;sid=%u)"
+                	" is aborted.",
+                	stor_confs[i].cid, stor_confs[i].sid);
+            }		      	    
+	    
+	      
         }
 	 
 	// Send a reload signal to the storio to invalidate its cache table
 	// and it error counters
 	send_reload_to_storio();
 
-        // Here the rebuild process is finish, so exit
-        info("The rebuild process for storage (cid=%u;sid=%u)"
-                " was completed successfully.",
-                stor_confs[i].cid, stor_confs[i].sid);
     }
 
     return 0;
@@ -305,6 +324,10 @@ static inline void rbs_process_initialize(int parallel) {
 	if ((cid!=-1)&&(sid!=-1)) {
 	  if ((cid != sc->cid) || (sid != sc->sid)) continue; 
 	}
+	
+	if ((rbs_device_number >= 0)&&(rbs_device_number >= sc->device.total)) {
+	  continue;
+	} 
 
         // Copy the configuration for the storage to rebuild
         strncpy(rbs_stor_configs[i].export_hostname, rbs_export_hostname,
@@ -320,6 +343,11 @@ static inline void rbs_process_initialize(int parallel) {
         i++;
     }
 
+    if (i==0) {
+      fprintf(stderr, "storaged_rebuild failed !\nNo such cid/sid or device number.\n");    
+      return;  
+    }
+    
     rebuild_storage_thread(i, rbs_stor_configs, parallel);
 }
 
@@ -391,7 +419,7 @@ void usage() {
     printf("   -f, --fid=<FID>           \tSpecify one FID to rebuild. -s must also be set.\n");
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
     printf("                             \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
-    printf("   -g, --geosite             \tTo force site number in case o geo-replication\n");
+    printf("   -g, --geosite             \tTo force site number in case of geo-replication\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -437,28 +465,24 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 if (!realpath(optarg, storaged_config_file)) {
-                    fprintf(stderr, "storaged failed: %s %s\n", optarg,
-                            strerror(errno));
+                    fprintf(stderr, "storaged_rebuild failed !\nNo such configuration file %s.\n",optarg);
                     exit(EXIT_FAILURE);
                 }
                 break;
             case 'r':
                 if (strncpy(rbs_export_hostname, optarg, ROZOFS_HOSTNAME_MAX)
                         == NULL) {
-                    fprintf(stderr, "storage_rebuild failed: %s %s\n", optarg,
-                            strerror(errno));
+                    fprintf(stderr, "storage_rebuild failed !\nBad host name %s\n", optarg);
                     exit(EXIT_FAILURE);
                 }
                 rbs_start_process = 1;
-                break;
                 break;
             case 's':
                 {
 		  int ret;
 		  ret = sscanf(optarg,"%d/%d",&cid,&sid);
 		  if (ret != 2) {
-		    fprintf(stderr, "storage_rebuild failed: %s %s\n", optarg,
-                            strerror(errno));
+		    fprintf(stderr, "storage_rebuild failed !\n-s option requires cid/sid.\n");
                     exit(EXIT_FAILURE);
                   }
                 }
@@ -470,8 +494,7 @@ int main(int argc, char *argv[]) {
 		  fid2rebuild_string = optarg;
 		  ret = uuid_parse(fid2rebuild_string,fid2rebuild);
 		  if (ret != 0) {
-		    fprintf(stderr, "storage_rebuild failed: bad FID %s %s\n", optarg,
-                            strerror(errno));
+		    fprintf(stderr, "storage_rebuild failed !\nBad FID format %s.\n", optarg);
                     exit(EXIT_FAILURE);
                   }
 		  rbs_device_number = -2; // To tell one FID to rebuild 
@@ -482,8 +505,7 @@ int main(int argc, char *argv[]) {
 		  int ret;
                   ret = sscanf(optarg,"%d", &rbs_device_number);
                   if (ret <= 0) { 
-                      fprintf(stderr, "storage_rebuild failed. Bad device number: %s %s\n", optarg,
-                              strerror(errno));
+                      fprintf(stderr, "storage_rebuild failed !\nBad device number %s.\n", optarg);
                       exit(EXIT_FAILURE);
                   }
 		}
@@ -493,12 +515,11 @@ int main(int argc, char *argv[]) {
 		  int ret;
                   ret = sscanf(optarg,"%d", &storaged_geosite);
                   if (ret <= 0) { 
-                      fprintf(stderr, "storage_rebuild failed. Bad site number: %s %s\n", optarg,
-                              strerror(errno));
+                      fprintf(stderr, "storage_rebuild failed !\nBad site number %s.\n", optarg);
                       exit(EXIT_FAILURE);
                   }
 		  if ((storaged_geosite!=0)&&(storaged_geosite!=1)) { 
-                      fprintf(stderr, "storage_rebuild failed. site number must be within [0:1]%s\n", optarg);
+                      fprintf(stderr, "storage_rebuild failed !\nSite number must be within [0:1] instead of %s.\n", optarg);
                       exit(EXIT_FAILURE);
                   }
 		}
@@ -509,8 +530,7 @@ int main(int argc, char *argv[]) {
 
 		  ret = sscanf(optarg,"%d", &parallel);
                   if (ret <= 0) { 
-                      fprintf(stderr, "storage_rebuild failed. Bad --parallel: %s %s\n", optarg,
-                              strerror(errno));
+                      fprintf(stderr, "storage_rebuild failed !\nBad --parallel value %s.\n", optarg);
                       exit(EXIT_FAILURE);
                   }
 		}
@@ -543,7 +563,7 @@ int main(int argc, char *argv[]) {
     ** Check parameter consistency
     */
     if (rbs_start_process == 0){
-        fprintf(stderr, "storage_rebuild failed. Missing --rebuild option.\n");
+        fprintf(stderr, "storage_rebuild failed !\nMissing --rebuild option.\n");
         exit(EXIT_FAILURE);
     } 
     /*
@@ -551,27 +571,24 @@ int main(int argc, char *argv[]) {
     */ 
     if (fid2rebuild_string) {
       if ((cid==-1)&&(sid==-1)) {
-        fprintf(stderr, "storage_rebuild failed. --fid option requires --sid option too.\n");
+        fprintf(stderr, "storage_rebuild failed !\n--fid option requires --sid option too.\n");
         exit(EXIT_FAILURE);      
       }
     }
 
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
-        fprintf(stderr, "Can't initialize storaged config: %s.\n",
-                strerror(errno));
+        fprintf(stderr, "storage_rebuild failed !\nCan't initialize storaged config %s.\n",storaged_config);
         goto error;
     }
     // Read the configuration file
     if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
-        fprintf(stderr, "Failed to parse storage configuration file: %s.\n",
-                strerror(errno));
+        fprintf(stderr, "storage_rebuild failed !\nFailed to parse storage configuration file %s.\n",storaged_config);
         goto error;
     }
     // Check the configuration
     if (sconfig_validate(&storaged_config) != 0) {
-        fprintf(stderr, "Inconsistent storage configuration file: %s.\n",
-                strerror(errno));
+        fprintf(stderr, "storage_rebuild failed !\nInconsistent storage configuration file %s.\n",storaged_config);
         goto error;
     }
     // Check rebuild storage configuration if necessary
@@ -580,7 +597,7 @@ int main(int argc, char *argv[]) {
 
     // Initialization of the storage configuration
     if (storaged_initialize() != 0) {
-        fprintf(stderr, "can't initialize storaged: %s.", strerror(errno));
+        fprintf(stderr, "storage_rebuild failed !\nCan't initialize storaged.\n");
         goto error;
     }
     

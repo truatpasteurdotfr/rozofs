@@ -1597,7 +1597,13 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
       // Resolve this FID thanks to the exportd
       if (rbs_get_fid_attr(&rpcclt_export, pExport_host, fid2rebuild, &attr, &bsize, &layout) != 0)
       {
-        severe("Can not get attributes from export");
+        if (errno == ENOENT) {
+	  status = -2;
+          fprintf(stderr, "Storage rebuild failed !\nUnknown FID\n");
+	}
+	else {
+          severe("Can not get attributes from export %s",strerror(errno));
+	}
 	goto out;
       }
       
@@ -1627,15 +1633,15 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
 
     // Actually process the rebuild
     if (rb_fid_table_count==0) {
-      info("No file to rebuild");
+      REBUILD_MSG("No file to rebuild");
       ret = rbs_do_remove_lists();
     }
     else {
-      info("%llu files to rebuild by %d processes",
+      REBUILD_MSG("%llu files to rebuild by %d processes",
            (unsigned long long int)rb_fid_table_count,parallel);
       ret = rbs_do_list_rebuild();
       while (ret != 0) {
-	info("Rebuild failed. Will retry within %d seconds", TIME_BETWEEN_2_RB_ATTEMPS);
+	REBUILD_MSG("Rebuild failed. Will retry within %d seconds", TIME_BETWEEN_2_RB_ATTEMPS);
 	sleep(TIME_BETWEEN_2_RB_ATTEMPS); 
 	ret = rbs_do_list_rebuild();
       }

@@ -31,6 +31,7 @@
 
 #include "storage.h"
 
+#define REBUILD_MSG(fmt, ...) { logmsg(EINFO, fmt, ##__VA_ARGS__); printf(fmt"\n", ##__VA_ARGS__); }
 
 #define RBS_MAX_PARALLEL 36
 

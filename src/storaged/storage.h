@@ -213,7 +213,7 @@ static inline unsigned int rozofs_storage_fid_slice(void * fid) {
   return 0;
 #else  
   rozofs_inode_t *pFid = (rozofs_inode_t*) fid;
-  return pFid->s.file_id % FID_STORAGE_SLICE_SIZE;
+  return pFid->s.idx % FID_STORAGE_SLICE_SIZE;
 } 
 #endif
 /*
