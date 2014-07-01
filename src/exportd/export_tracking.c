@@ -3338,13 +3338,27 @@ static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,i
   
     if ((p-value)>=length) {
       errno = EINVAL;
-      return -1;
+      break;
     }
 
     new_sids[idx] = strtol(p,&p,10);
     if (errno != 0) return -1;
     if (new_sids[idx]<0) new_sids[idx] *= -1;
   }
+  
+  /* Only cluster id is given */
+  if (idx == 0) {
+    for (idx=0; idx < rozofs_safe; idx++) {
+      new_sids[idx] = lv2->attributes.s.attrs.sids[idx];
+    }
+  }
+   
+  /* Not enough sid in the list */
+  else if (idx != rozofs_safe) {
+    return -1;
+  }
+  
+  
   /*
   ** Check the same sid is not set 2 times
   */
