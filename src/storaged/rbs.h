@@ -31,9 +31,13 @@
 
 #include "storage.h"
 
-#define REBUILD_MSG(fmt, ...) { logmsg(EINFO, fmt, ##__VA_ARGS__); printf(fmt"\n", ##__VA_ARGS__); }
 
-#define RBS_MAX_PARALLEL 36
+
+#define DEFAULT_PARALLEL_REBUILD_PER_SID 4
+#define MAXIMUM_PARALLEL_REBUILD_PER_SID 16
+
+
+#define REBUILD_MSG(fmt, ...) { logmsg(EINFO, fmt, ##__VA_ARGS__); printf(fmt"\n", ##__VA_ARGS__); }
 
 /* Timeout in seconds for exportd requests */
 #define RBS_TIMEOUT_EPROTO_REQUESTS 25

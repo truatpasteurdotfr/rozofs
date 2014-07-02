@@ -406,6 +406,8 @@ static void on_stop() {
 }
 
 #define DEFAULT_PARALLEL_REBUILD_PER_SID 4
+#define MAXIMUM_PARALLEL_REBUILD_PER_SID 16
+
 void usage() {
 
     printf("Storage node rebuild - RozoFS %s\n", VERSION);
@@ -421,7 +423,7 @@ void usage() {
     printf("                             \tAll <cid/sid> are rebuilt when omitted.\n");
     printf("   -f, --fid=<FID>           \tSpecify one FID to rebuild. -s must also be set.\n");
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
-    printf("                             \t(default is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID);   
+    printf("                             \t(default is %d, maximum is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID,MAXIMUM_PARALLEL_REBUILD_PER_SID);   
     printf("   -g, --geosite             \tTo force site number in case of geo-replication\n");
 }
 
@@ -535,6 +537,10 @@ int main(int argc, char *argv[]) {
                   if (ret <= 0) { 
                       fprintf(stderr, "storage_rebuild failed !\nBad --parallel value %s.\n", optarg);
                       exit(EXIT_FAILURE);
+                  }
+		  if (parallel > MAXIMUM_PARALLEL_REBUILD_PER_SID) {
+                      fprintf(stderr, "Assume maximum parallel value of %d\n", MAXIMUM_PARALLEL_REBUILD_PER_SID);
+		      parallel = MAXIMUM_PARALLEL_REBUILD_PER_SID;
                   }
 		}
                 break;

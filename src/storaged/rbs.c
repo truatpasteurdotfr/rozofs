@@ -1139,7 +1139,7 @@ static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
     char         * dir;
     char           filename[FILENAME_MAX];
     int            idx;
-    int            cfgfd[RBS_MAX_PARALLEL];
+    int            cfgfd[MAXIMUM_PARALLEL_REBUILD_PER_SID];
     int            ret;
         
     /*
@@ -1278,7 +1278,7 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
   int            idx;
   char         * dir;
   char           filename[FILENAME_MAX];
-  int            cfgfd[RBS_MAX_PARALLEL];
+  int            cfgfd[MAXIMUM_PARALLEL_REBUILD_PER_SID];
   int            ret;
   int            slice;
   
