@@ -405,8 +405,6 @@ static void on_stop() {
     closelog();
 }
 
-#define DEFAULT_PARALLEL_REBUILD_PER_SID 4
-#define MAXIMUM_PARALLEL_REBUILD_PER_SID 16
 
 void usage() {
 
