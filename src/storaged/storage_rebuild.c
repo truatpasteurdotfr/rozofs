@@ -223,6 +223,10 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
         // Try to rebuild the storage until it's over
 	result = -1;
         while (result == -1) {
+
+            // Start rebuilding a cid/sid
+            REBUILD_MSG("Start rebuild process for storage (cid=%u;sid=%u).",
+	                 stor_confs[i].cid, stor_confs[i].sid);
 	
 	    result = rbs_rebuild_storage(stor_confs[i].export_hostname, 
 	        		       storaged_geosite,
@@ -239,8 +243,8 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
             if (result == -1) {
               // Probably a problem when connecting with other members
               // of this cluster
-              REBUILD_MSG("can't rebuild storage (cid:%u;sid:%u) !"
-                      "Next attempt in %d seconds",
+              REBUILD_MSG("can't rebuild storage (cid:%u;sid:%u) !\n"
+                      "Next attempt in %d seconds.",
                       stor_confs[i].cid, stor_confs[i].sid,
                       TIME_BETWEEN_2_RB_ATTEMPS);
 
@@ -251,14 +255,12 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 	    
 	    if (result == 0) {
               // Here the rebuild process is finish, so exit
-              REBUILD_MSG("The rebuild process for storage (cid=%u;sid=%u)"
-                      " is completed successfully.",
+              REBUILD_MSG("The rebuild process for storage (cid=%u;sid=%u) is successful.",
                       stor_confs[i].cid, stor_confs[i].sid);
 	    }
 	    else {
               // ABort 
-              REBUILD_MSG("The rebuild process for storage (cid=%u;sid=%u)"
-                	" is aborted.",
+              REBUILD_MSG("The rebuild process for storage (cid=%u;sid=%u) is aborted.",
                 	stor_confs[i].cid, stor_confs[i].sid);
             }		      	    
 	    
@@ -270,7 +272,8 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
 	send_reload_to_storio();
 
     }
-
+    
+    rmdir(get_rebuild_directory_name());
     return 0;
 
 }

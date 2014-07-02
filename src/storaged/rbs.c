@@ -1647,7 +1647,6 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
       }
     }
     
-    rmdir(get_rebuild_directory_name());
     return status;
     
 out:

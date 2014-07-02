@@ -230,7 +230,7 @@ int storaged_rebuild_list(char * fid_list) {
       goto error;
   }  
 
-  REBUILD_MSG("%s rebuild start",fid_list);
+  REBUILD_MSG("  %s rebuild start",fid_list);
 
 
   nbJobs    = 0;
@@ -332,7 +332,7 @@ int storaged_rebuild_list(char * fid_list) {
    
     nbSuccess++;
     if ((nbSuccess % (16*1024)) == 0) {
-      REBUILD_MSG("%s %d/%d",fid_list,nbSuccess,nbJobs);
+      REBUILD_MSG("  ~ %s %d/%d",fid_list,nbSuccess,nbJobs);
     } 
     file_entry.todo = 0;
     
@@ -347,11 +347,11 @@ int storaged_rebuild_list(char * fid_list) {
 
   if (nbSuccess == nbJobs) {
     unlink(fid_list);
-    REBUILD_MSG("%s rebuild success of %d files",fid_list,nbSuccess);    
+    REBUILD_MSG(". %s rebuild success of %d files",fid_list,nbSuccess);    
     return 0;
   }
     
-  REBUILD_MSG("%s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
+  REBUILD_MSG("! %s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
 
   
 error:
