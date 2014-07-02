@@ -585,17 +585,17 @@ int main(int argc, char *argv[]) {
 
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
-        fprintf(stderr, "storage_rebuild failed !\nCan't initialize storaged config %s.\n",storaged_config);
+        fprintf(stderr, "storage_rebuild failed !\nCan't initialize storaged config.\n");
         goto error;
     }
     // Read the configuration file
     if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
-        fprintf(stderr, "storage_rebuild failed !\nFailed to parse storage configuration file %s.\n",storaged_config);
+        fprintf(stderr, "storage_rebuild failed !\nFailed to parse storage configuration file %s.\n",storaged_config_file);
         goto error;
     }
     // Check the configuration
     if (sconfig_validate(&storaged_config) != 0) {
-        fprintf(stderr, "storage_rebuild failed !\nInconsistent storage configuration file %s.\n",storaged_config);
+        fprintf(stderr, "storage_rebuild failed !\nInconsistent storage configuration file %s.\n",storaged_config_file);
         goto error;
     }
     // Check rebuild storage configuration if necessary

@@ -1155,7 +1155,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
 
             // What to do with such an error ?
 	    if (nb_read != sizeof(file_hdr)) {
-	       severe("nb_read %d vs %d %s", nb_read, sizeof(file_hdr), path);
+	       severe("nb_read %d vs %d %s", nb_read, (int) sizeof(file_hdr), path);
                // Readdir for next entry
                ep = readdir(dp);     
 	       continue;
