@@ -868,12 +868,8 @@ open:
     if ((nb_read % rozofs_disk_psize) != 0) {
         char fid_str[37];
         uuid_unparse(fid, fid_str);
-        severe("storage_read failed (FID: %s): read inconsistent length",
-                fid_str);
-        errno = EIO;
-	// A fault probably localized to this FID is detected   
-	*is_fid_faulty = 1;  
-        goto out;
+        severe("storage_read failed (FID: %s): read inconsistent length %d not modulo of %d",fid_str,(int)nb_read,rozofs_disk_psize);
+	nb_read = (nb_read / rozofs_disk_psize) * rozofs_disk_psize;
     }
 
     // Update the length read
