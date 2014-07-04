@@ -1,53 +1,31 @@
 .\" Process this file with
-.\" groff -man -Tascii geomgr.8
+.\" groff -man -Tascii rozolauncher.8
 .\"
-.TH GEOMGR 8 "JUNE 2014" Rozofs "User Manuals"
+.TH rozolauncher 8 "JUNE 2014" Rozofs "User Manuals"
 .SH NAME
-geomgr \- rozofs geo-replication manager
+rozolauncher \- rozofs process launcher tool
 .SH SYNOPSIS
-.B geomgr
-[
-.I options
-]
-[
-.I file
-]
+.B rozolauncher
+.I start pid_file cmd
+.RS
+.RE
+.B rozolauncher
+.I stop  pid_file
 .B
 .SH DESCRIPTION
-.B geomgr
-manages geo-replication for
-.BR rozofs (7)
-filesystem on a given host.
+.B rozolauncher
+is a utility to start or stop a RozoFS filesystem process. 
+When the process is started with rozolauncher, it is restarted in case it crashes.
 .SH OPTIONS
-.IP "-h, --help"
+.IP "pid_file"
 .RS
-Print help.
+is the absolute path name of a file that contains the pid of the launcher process. It has to be unique per launched process. 
 .RE
-.RE
-.IP "-c, --config file"
+.IP "cmd"
 .RS
-Use 
-.I file
-as configuration file. Default is
-.I /etc/rozofs/geomgr.conf
-(or
-.I /usr/local/etc/rozofs/geomgr.conf
-according to install options)
+.I cmd
+is the executable name followed by the arguments of the process to start.
 .RE
-.SH FILES
-.I /etc/rozofs/geomgr.conf (/usr/local/etc/rozofs/geomgr.conf)
-.RS
-The local host geo-replication configuration file. See
-.BR geomgr.conf (5)
-for further details.
-.RE
-.I /var/log/syslog
-.RS
-The log file. See
-.BR syslogd (8)
-and
-.BR syslog.conf (5)
-for further details.
 .\".SH ENVIRONMENT
 .\".SH DIAGNOSTICS
 .SH "REPORTING BUGS"
@@ -70,6 +48,3 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Fizians <http://www.fizians.org>
 .SH "SEE ALSO"
 .BR rozofs (7),
-.BR geomgr.conf (5),
-.BR export.conf (5),
-.BR exportd (8)

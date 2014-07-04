@@ -173,6 +173,7 @@ mkdir -p %{buildroot}/etc/default
 %{_bindir}/geocli
 %{_initrddir}/rozofs-geomgr
 %{_mandir}/man8/geomgr.8.gz
+%{_mandir}/man8/geocli.8.gz
 %{_mandir}/man5/geomgr.conf.5.gz
 
 %files rprof
@@ -182,7 +183,9 @@ mkdir -p %{buildroot}/etc/default
 %files rozodiag
 %defattr(-,root,root)
 %{_bindir}/rozodiag
+%{_mandir}/man8/rozodiag.8.gz
 %{_bindir}/rozolauncher
+%{_mandir}/man8/rozolauncher.8.gz
 
 %files manager-lib
 %defattr(-,root,root)

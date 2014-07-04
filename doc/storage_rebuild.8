@@ -8,13 +8,11 @@ storaged_rebuild \- RozoFS storage rebuild process
 .B storaged_rebuild 
 [
 .I options
-] [
-.I file
-]
+] 
 .B
 .SH DESCRIPTION
 .B storaged_rebuild
-RozoFS storage rebuild process. Rebuild either a file, or a device, or all devices of a storage node.
+rebuilds either a file, or a device, or all devices of a storage node.
 .SH OPTIONS
 .IP "-h, --help"
 .RS
@@ -29,17 +27,15 @@ as configuration file. default is
 (or
 .I /usr/local/etc/rozofs/storage.conf
 according to install options)
-IP "-r, --rebuild export_host"
-.RS
-This option specifies the exportd hosts.
 .RE
+.IP "-r, --rebuild export_host"
 .RS
 Use
 .I export_host
 as the list of addresses (or dns names) where exportd daemon is running. When securing the exportd thanks to virtual IP address only the virtual IP address is declared (i.e "192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the exportd must be given (i.e "192.168.10.1/192.168.20.1"). 
 .TP
 .RE
-IP "-s, --sid cid/sid"
+.IP "-s, --sid cid/sid"
 .RE
 .RS
 Rebuilds only the storage identifier 
@@ -48,21 +44,21 @@ of cluster
 .I cid.
 Default behaviour is to rebuild every sid configured in the configuration file.
 .RE
-IP "-d, --device device-number"
+.IP "-d, --device device-number"
 .RE
 .RS
 Rebuilds only 
 .I device-number.
 Default is to rebuild every device.
 .RE
-IP "-f, --fid FID"
+.IP "-f, --fid FID"
 .RE
 .RS
 Rebuilds only the file identified by
 .I FID.
 In this case --sid option is mandatory and -d option is ignored.
 .RE
-IP "-p, --parallel para"
+.IP "-p, --parallel para"
 .RE
 .RS
 Use 

@@ -1,0 +1,71 @@
+.\" Process this file with
+.\" groff -man -Tascii rozodiag.8
+.\"
+.TH ROZODIAG 8 "JUNE 2014" Rozofs "User Manuals"
+.SH NAME
+rozodiag \- rozofs diagnostic tool
+.SH SYNOPSIS
+.B rozodiag
+.I target
+[
+.I option
+]
+.B
+.SH DESCRIPTION
+.B rozodiag
+is the diagnostic interface to the RozoFS filesystem processes.
+.SH TARGET
+.IP "[ -i hostname ] -p port"
+.RS
+A target is defined by the port it listen to for diagnostic requests
+and optionally the hostname or IP address in case it is located on
+a remote host.
+.SH OPTIONS
+.IP "-h, --help"
+.RS
+Print help. 
+.RE
+.IP "-c cmdline"
+.RS
+.I cmdline
+is the optional diagnostic command line. Several -c options can be set
+in order to run several diagnostic commands in a run. 
+When neither -c nor -f is set in the command, 
+the rozodiag tools connects to the target in interactive mode.
+.RE
+.IP "-f cmdfile"
+.RS
+.I cmdfile 
+is a file containing a diagnostic command per file line that the
+rozodiag tool will run. 
+When neither -c nor -f is set in the command, 
+the rozodiag tools connects to the target in interactive mode.
+.RE
+.IP "-period seconds"
+.RS
+.I seconds
+gives the periodicity in seconds to run the diagnostic commands given either
+through the -c or the -f option. 
+.RE
+.\".SH ENVIRONMENT
+.\".SH DIAGNOSTICS
+.SH "REPORTING BUGS"
+Report bugs to <bugs@fizians.org>.
+.SH COPYRIGHT
+Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+
+Rozofs is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published
+by the Free Software Foundation, version 2.
+
+Rozofs is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+.SH AUTHOR
+Fizians <http://www.fizians.org>
+.SH "SEE ALSO"
+.BR rozofs (7),

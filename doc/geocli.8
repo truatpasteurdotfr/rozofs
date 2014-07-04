@@ -1,38 +1,23 @@
 .\" Process this file with
-.\" groff -man -Tascii geomgr.8
+.\" groff -man -Tascii geocli.8
 .\"
-.TH GEOMGR 8 "JUNE 2014" Rozofs "User Manuals"
+.TH geocli 8 "JUNE 2014" Rozofs "User Manuals"
 .SH NAME
-geomgr \- rozofs geo-replication manager
+geocli \- rozofs geo-replication client
 .SH SYNOPSIS
-.B geomgr
+.B geocli
 [
 .I options
 ]
-[
-.I file
-]
 .B
 .SH DESCRIPTION
-.B geomgr
-manages geo-replication for
+.B geocli
+Rozofs geo-replication client. Processes geo-replication for
 .BR rozofs (7)
-filesystem on a given host.
+filesystem on a given export. This process is intended to be started 
+and stopped by the RozoFS geo-replication manager geomgr.
 .SH OPTIONS
-.IP "-h, --help"
-.RS
-Print help.
-.RE
-.RE
-.IP "-c, --config file"
-.RS
-Use 
-.I file
-as configuration file. Default is
-.I /etc/rozofs/geomgr.conf
-(or
-.I /usr/local/etc/rozofs/geomgr.conf
-according to install options)
+Not relevant. See geomgr.conf (5).
 .RE
 .SH FILES
 .I /etc/rozofs/geomgr.conf (/usr/local/etc/rozofs/geomgr.conf)
@@ -71,5 +56,4 @@ Fizians <http://www.fizians.org>
 .SH "SEE ALSO"
 .BR rozofs (7),
 .BR geomgr.conf (5),
-.BR export.conf (5),
-.BR exportd (8)
+.BR geomgr (8)
