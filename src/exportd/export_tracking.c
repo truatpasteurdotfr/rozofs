@@ -3407,8 +3407,14 @@ static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,i
 ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, size_t size) {
     ssize_t status = -1;
     lv2_entry_t *lv2 = 0;
+    void * buffer;
 
     START_PROFILING(export_getxattr);
+    /*
+    ** check if the request is just for the xattr len: if it the case set the buffer to NULL
+    */
+    if (size == 0) buffer = 0;
+    else buffer = value;
 
     if (!(lv2 = export_lookup_fid(e->trk_tb_p,e->lv2_cache, fid))) {
         severe("export_getattr failed: %s", strerror(errno));
@@ -3424,7 +3430,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
       entry.d_inode = lv2;
       entry.trk_tb_p = e->trk_tb_p;
     
-      if ((status = rozofs_getxattr(&entry, name, value, size)) != 0) {
+      if ((status = rozofs_getxattr(&entry, name, buffer, size)) != 0) {
           goto out;
       }
     }
