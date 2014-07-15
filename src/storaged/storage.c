@@ -331,11 +331,13 @@ int storage_read(storage_t * st, uint8_t layout, sid_t * dist_set,
             sizeof (rozofs_stor_bins_hdr_t))) != 0) {
         char fid_str[37];
         uuid_unparse(fid, fid_str);
-        severe("storage_read failed (FID: %s): read inconsistent length",
-                fid_str);
-        errno = EIO;
-        goto out;
+        severe("storage_read failed (FID: %s): read inconsistent length %d",fid_str,(int)nb_read);
+	nb_read -= sizeof (rozofs_stor_bins_hdr_t);
+	nb_read /= (rozofs_max_psize * sizeof (bin_t));
+	nb_read *= (rozofs_max_psize * sizeof (bin_t));
+	nb_read += sizeof (rozofs_stor_bins_hdr_t);
     }
+
 
     // Update the length read
     *len_read = nb_read;
