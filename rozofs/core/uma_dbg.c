@@ -162,7 +162,7 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
   
   ret = system(cmd);
   if (-1 == ret) {
-      return 0;
+    DEBUG("%s returns -1",cmd);
   }
   
   fd = open(fileName, O_RDONLY);
