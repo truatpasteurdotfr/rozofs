@@ -3,6 +3,8 @@
 # Provides:          rozofs-rozofsmount
 # Required-Start:    $network $local_fs $remote_fs
 # Required-Stop:     $remote_fs
+# Should-Start:      rozofs-storaged corosync pacemaker rozofs-exportd
+# Should-Stop:       rozofs-storaged corosync pacemaker rozofs-exportd
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Mount all Rozo filesystems.
@@ -107,8 +109,8 @@ do_waiting_start()
             fi
             
             # Mount Rozo FS
-            log_action_begin_msg "Mounting: " ${MOUNTPOINT}
-            mount ${MOUNTPOINT}
+            log_action_begin_msg "Mounting: " "${MOUNTPOINT}"
+            mount "${MOUNTPOINT}"
             RET=$?
             if [ ${RET} != 0 ]; then
                 RETVAL=1
@@ -155,13 +157,13 @@ do_start()
 
             # Check if already mounted
             if grep -q "rozofs ${MTPT} " /etc/mtab; then
-                log_action_begin_msg "Mounting: " ${MTPT}
+                log_action_begin_msg "Mounting: " "${MTPT}"
                 log_action_end_msg 0 "already mounted"
                 continue
             fi
 
-            log_action_begin_msg "Mounting: " ${MTPT}
-            mount $MTPT
+            log_action_begin_msg "Mounting: " "${MTPT}"
+            mount "${MTPT}"
             RET=$?
             if [ ${RET} != 0 ]; then
                 RETVAL=1
