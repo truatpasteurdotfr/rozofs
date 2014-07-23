@@ -199,30 +199,48 @@ or different VLANs.</p>
 <h2>Preparing Nodes<a class="headerlink" href="#preparing-nodes" title="Permalink to this headline">¶</a></h2>
 <div class="section" id="exportd-nodes">
 <h3>Exportd Nodes<a class="headerlink" href="#exportd-nodes" title="Permalink to this headline">¶</a></h3>
+<p>RozoFS must be combined with high-availability (HA) software to enable a
+complete storage failover solution. This chapter explain how setting up a
+complete metadata failover solution with DRBD and Pacemaker.</p>
 <div class="section" id="metadata-replication-with-drbd">
 <h4>Metadata Replication with DRBD<a class="headerlink" href="#metadata-replication-with-drbd" title="Permalink to this headline">¶</a></h4>
-<p>DRBD replicates data from the primary device to the secondary device in
-a way which ensures that both copies of the data remain identical. Think
-of it as a networked RAID 1. It mirrors data in real-time, so its
-replication occurs continuously. Applications do not need to know that
-in fact their data is stored on different disks.</p>
-<p><strong>NOTE</strong>: You must set up the DRBD devices (for store RozoFS metadata)
-before creating file systems on them.</p>
-<p>To install the needed packages for DRBD see: DRBD website. The following
-procedure uses two servers named node1 and node2, and the cluster
-resource name r0. It sets up node1 as the primary node. Be sure to
-modify the instructions relative to your own nodes and filenames.</p>
-<p>To set up DRBD manually, proceed as follows: The DRBD configuration
-files are stored in the directory <tt class="docutils literal"><span class="pre">/etc/drbd.d/</span></tt>. There are two
-configuration files which are created:</p>
+<p><strong>About DRBD</strong></p>
+<p><a class="reference external" href="http://www.drbd.org/">DRBD</a> replicates data from the primary device to the
+secondary device in a way which ensures that both copies of the data remain
+identical. Think of it as a networked RAID 1. It mirrors data in real-time, so
+its replication occurs continuously. Applications do not need to know that in
+fact their data is stored on different disks.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">For more information, see the <a class="reference external" href="http://www.drbd.org">DRBD website</a>.</p>
+</div>
+<p>The following example uses two servers named <em>node1</em> and <em>node2</em>, and the
+DRBD resource named <em>r0</em>. It sets up <em>node1</em> as the primary node. Be sure to
+modify the instructions relative to your own configuration.</p>
+<p><strong>Installing DRBD</strong></p>
+<p>For install DRBD with <em>apt</em>:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>apt-get install drbd8-utils
+</pre></div>
+</div>
+<p>For install DRBD with <em>yum</em>:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>yum install drbd kmod-drbd
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">For more information about DRBD installation, see the
+<a class="reference external" href="http://www.drbd.org/docs/about/">DRBD documentation</a>.</p>
+</div>
+<p><strong>Configuring a DRBD resource</strong></p>
+<p>The DRBD configuration files are stored in the directory <tt class="docutils literal"><span class="pre">/etc/drbd.d/</span></tt>. There
+are two configuration files which are created:</p>
 <ul class="simple">
-<li><tt class="docutils literal"><span class="pre">/etc/drbd.d/r0.res</span></tt> corresponds to the configuration for resource
-r0;</li>
-<li><tt class="docutils literal"><span class="pre">/etc/drbd.d/global_common.conf</span></tt> corresponds to the global
-configuration of DRBD.</li>
+<li><tt class="docutils literal"><span class="pre">/etc/drbd.d/r0.res</span></tt> corresponds to the configuration for resource <em>r0</em>;</li>
+<li><tt class="docutils literal"><span class="pre">/etc/drbd.d/global_common.conf</span></tt> corresponds to the global configuration of
+DRBD.</li>
 </ul>
-<p>Create the file <tt class="docutils literal"><span class="pre">/etc/drbd.d/r0.res</span></tt> on node1, changes the lines
-according to your parameters, and save it:</p>
+<p>Create the file <tt class="docutils literal"><span class="pre">/etc/drbd.d/r0.res</span></tt> on <em>node1</em>, changes the lines according
+to your parameters, and save it:</p>
 <div class="highlight-python"><pre>resource r0 {
   protocol C;
 
@@ -241,43 +259,41 @@ according to your parameters, and save it:</p>
   }
 }</pre>
 </div>
-<p>Copy DRBD configuration files manually to the other node:</p>
+<p>This file configure a DRBD resource named <em>r0</em> which uses an underlying local
+disk named <tt class="docutils literal"><span class="pre">/dev/mapper/vg01-exports</span></tt> on both nodes <em>node1</em> and <em>node2</em>. In
+this example, we configure the resource to use internal metadata (means that
+DRBD stores its meta data on the same physical lower-level device as the actual
+production data) and it uses TCP port 7788 for its network connections, and
+binds to the IP addresses 192.168.1.1 and 192.168.1.2, respectively. This
+resource is configured to use fully synchronous replication (protocol C).</p>
+<p>Copy DRBD configuration files manually to the other node (<em>node2</em>):</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>scp /etc/drbd.d/* node2:/etc/drbd.d/
 </pre></div>
 </div>
-<p>Initialize the metadata on both systems by entering the following
-command on each node:</p>
+<p><strong>Enabling the DRBD resource</strong></p>
+<p>Each of the following steps must be completed on both nodes.</p>
+<p>Initializes the DRBD metadata :</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm -- --ignore-sanity-checks create-md r0
 </pre></div>
 </div>
-<p>Attach resource r0 to the backing device :</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm attach r0
+<p>Attach resource <em>r0</em> to the backing device, set the replication parameters and
+connect the resource to its peer :</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm up r0
 </pre></div>
 </div>
-<p>Set the synchronization parameters for the DRBD resource:</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm syncer r0
+<p>Start the resync process and put the device into the primary role (<em>node1</em> in
+this case) by entering the following command only on <em>node1</em>:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm --force primary r0
 </pre></div>
 </div>
-<p>Connect the DRBD resource with its counterpart on the peer node:</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm connect r0
-</pre></div>
-</div>
-<p>Start the resync process on your intended primary node (node1 in this
-case):</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm -- --overwrite-data-of-peer primary r0
-</pre></div>
-</div>
-<p>Set node1 as primary node:</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>drbdadm primary r0
-</pre></div>
-</div>
-<p>Create an ext4 file system on top of your DRBD device:</p>
+<p><strong>Creating a file system</strong></p>
+<p>Create desired file system on top of your DRBD device (for example <em>ext4</em>):</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>mkfs.ext4 /dev/drbd0
 </pre></div>
 </div>
 <p>If the install and configuration procedures worked as expected, you are
 ready to run a basic test of the DRBD functionality. Create a mount
-point on node1, such as <tt class="docutils literal"><span class="pre">/srv/rozofs/exports</span></tt>:</p>
+point on <em>node1</em>, such as <tt class="docutils literal"><span class="pre">/srv/rozofs/exports</span></tt>:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>mkdir -p /srv/rozofs/exports
 </pre></div>
 </div>
@@ -302,7 +318,7 @@ srcversion: 41C52C8CD882E47FB5AF767
     ap:0 ep:1 wo:f oos:0
 </pre></div>
 </div>
-<p>The two resources are now synchronized (UpToDate). The initial
+<p>The two resources are now synchronized (<em>UpToDate</em>). The initial
 synchronization is performed, it is necessary to stop the DRBD service
 and remove the link for the initialization script not to start the
 service automatically DRBD. The service is now controlled by the
@@ -345,8 +361,8 @@ operation. For this, we must generate an authentication key that is
 shared by all the machines in the cluster. The <tt class="docutils literal"><span class="pre">corosync-keygen</span></tt>
 utility can be use to generate this key and then copy it to the other
 nodes.</p>
-<p>Create key on node1:</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="c"># corosync-keygen</span>
+<p>Create key on <em>node1</em>:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>corosync-keygen
 </pre></div>
 </div>
 <p>Copy the key manually to the other node:</p>
@@ -387,8 +403,7 @@ systemd unit file. Either way, the service is usually named corosync:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>systemctl start corosync
 </pre></div>
 </div>
-<p>You can now check the Corosync connectivity by typing the following
-command:</p>
+<p>You can now check the Corosync connectivity by typing the following command:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ crm_mon</span>
 <span class="o">============</span>
 Last updated: Tue May 2 03:54:44 2013
