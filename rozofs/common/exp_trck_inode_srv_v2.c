@@ -434,6 +434,13 @@ int exp_trck_open_tracking_file(exp_trck_header_memory_t *main_trck_p, int *relo
   */
   int empty_found = 0;
   int found_idx = 0;
+  /*
+  ** do not search for the empty inode since we might have hole in the
+  ** inode file. Since we always increment the index of the entry 
+  ** without checking the availability we might face the situation
+  ** where 2 files share the same inode value
+  */
+#if 0 
   for (i = 0; i < nb_entries ; i++)
   {
      if (main_trck_p->tracking_file_hdr_p->inode_idx_table[i] == 0xffff)
@@ -447,6 +454,7 @@ int exp_trck_open_tracking_file(exp_trck_header_memory_t *main_trck_p, int *relo
      }
      empty_found = 0;
   }
+#endif
   if ((empty_found == 0) && ( EXP_TRCK_MAX_INODE_PER_FILE == nb_entries))
   {
 //     severe("full %d %d %s\n",i,__LINE__,pathname);
@@ -548,6 +556,11 @@ int exp_trck_get_relative_inode_idx(int fd,char *root_path ,rozofs_inode_t *inod
     severe("fail to write tracking file %s:bad size (%d) expect %d\n",root_path,(int)count,(int)sizeof(uint16_t));
     errno = EIO;
     return -1;
+  }
+  if (val16 == 0xffff)
+  {
+     errno = ENOENT;
+     return -1;
   }
   fake_idx.s.idx = val16;
   return fake_idx.s.idx;

@@ -750,7 +750,7 @@ int exp_trash_entry_create(export_tracking_table_t *trk_tb_p,uint32_t slice,void
    fake_inode.s.key = ROZOFS_TRASH;
    fake_inode.s.usr_id = slice; 
    fake_inode.s.eid = trk_tb_p->eid;   
-   
+      
    p = trk_tb_p->tracking_table[fake_inode.s.key];
    if (p == NULL)
    {

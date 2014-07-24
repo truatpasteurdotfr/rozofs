@@ -88,6 +88,8 @@ typedef struct ientry {
     fuse_ino_t inode; ///< value of the inode allocated by rozofs
     fid_t fid; ///< unique file identifier associated with the file or directory
 //    uint64_t size;   /**< size of the file */
+    int  file_extend_pending; /**< assert to one when file is extended by not yet confirm on exportd */
+    int  file_extend_running; /**< assert to one when file is extended by not yet confirm on exportd */
     dirbuf_t db; ///< buffer used for directory listing
     unsigned long nlookup; ///< number of lookup done on this entry (used for forget)
     mattr_t attrs;   /**< attributes caching for fs_mode = block mode   */
@@ -258,6 +260,8 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 	ie->nlookup = 1;
         ie->write_pending = NULL; 
         ie->read_consistency = 1;
+	ie->file_extend_pending = 0;
+	ie->file_extend_running = 0;
 	put_ientry(ie);
 
 	return ie;
@@ -448,5 +452,42 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p,
  @retval 0 if the read buffer is not empty
  */
 int clear_read_data(file_t *p);
+
+/*
+**__________________________________________________________________
+*/
+/**
+  the goal of that API is to update the metadata attributes in
+  the ientry.
+  
+  @param ientry_t *ie
+  @param mattr_t  attr
+
+*/
+static inline void rozofs_ientry_update(ientry_t *ie,mattr_t  *attr_p)
+{
+
+    /**
+    *  update the timestamp in the ientry context
+    */
+    ie->timestamp = rozofs_get_ticker_us();
+    /*
+    ** check if there is a pending extension of the size
+    */
+    if ((ie->file_extend_pending == 0)&&(ie->file_extend_running == 0))
+    {
+       /*
+       ** nothing pending so full copy
+       */
+       memcpy(&ie->attrs,attr_p, sizeof (mattr_t));   
+       return;
+   }
+   /*
+   ** preserve the size of the ientry
+   */
+   uint64_t file_size = ie->attrs.size;
+   memcpy(&ie->attrs,attr_p, sizeof (mattr_t));   
+   ie->attrs.size = file_size;
+}
 
 #endif

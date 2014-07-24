@@ -150,12 +150,15 @@ void compute_effective_lock_range(int bsize_e, struct ep_lock_t * lock) {
 ep_lock_size_t rozofs_flock_canonical(struct flock * lock, file_t * f, int64_t * start, int64_t * stop) {
 
   *stop = 0;
+  ientry_t *ie;
+  
+  ie=f->ie;
   
   if  (lock->l_whence == SEEK_CUR) {
     *start = f->current_pos;
   }
   else if (lock->l_whence == SEEK_END)  {
-    *start = f->attrs.size;
+    *start = ie->attrs.size;
   }  
   else  {
     *start = 0;

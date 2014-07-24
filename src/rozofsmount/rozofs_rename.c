@@ -219,17 +219,10 @@ void rozofs_ll_rename_cbk(void *this,void *param)
     */
     memcpy(fid, &ret.child_attr.ep_mattr_ret_t_u.attrs.fid, sizeof (fid_t));
     if ((nie = get_ientry_by_fid(fid))) {
-      uint64_t cur_size;
-      /**
-      *  update the timestamp in the ientry context
-      */
-      nie->timestamp = rozofs_get_ticker_us();
       /*
       ** update the attributes in the ientry
       */
-      cur_size = nie->attrs.size;
-      memcpy(&nie->attrs,&ret.child_attr.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));  
-      if (cur_size > nie->attrs.size ) nie->attrs.size = cur_size; 
+      rozofs_ientry_update(nie,(mattr_t*)&ret.child_attr.ep_mattr_ret_t_u.attrs);  
     }
     
     fuse_reply_err(req, 0);

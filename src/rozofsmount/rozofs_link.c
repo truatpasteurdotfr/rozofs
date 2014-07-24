@@ -274,8 +274,8 @@ void rozofs_ll_link_cbk(void *this,void *param)
     /*
     ** update the attributes in the ientry
     */
-    memcpy(&ie->attrs,&attrs, sizeof (mattr_t));
-    ie->timestamp = rozofs_get_ticker_us();
+    rozofs_ientry_update(ie,&attrs);  
+    stbuf.st_size = ie->attrs.size;
     /*
     ** get the parent attributes
     */
@@ -285,12 +285,6 @@ void rozofs_ll_link_cbk(void *this,void *param)
       memcpy(&pie->attrs,&pattrs, sizeof (mattr_t));
       pie->timestamp = rozofs_get_ticker_us();
     }   
-    /*
-    ** check the length of the file, and update the ientry if the file size returned
-    ** by the export is greater than the one found in ientry
-    */
-    if (ie->attrs.size < stbuf.st_size) ie->attrs.size = stbuf.st_size;
-    stbuf.st_size = ie->attrs.size;
     
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
     /*
@@ -732,8 +726,8 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     /*
     ** update the attributes in the ientry
     */
-    memcpy(&nie->attrs,&attrs, sizeof (mattr_t));
-    nie->timestamp = rozofs_get_ticker_us();
+    rozofs_ientry_update(nie,&attrs);  
+    stbuf.st_size = nie->attrs.size;
     /*
     ** get the parent attributes
     */
@@ -743,12 +737,6 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
       memcpy(&pie->attrs,&pattrs, sizeof (mattr_t));
       pie->timestamp = rozofs_get_ticker_us();
     }  
-    /*
-    ** check the length of the file, and update the ientry if the file size returned
-    ** by the export is greater than the one found in ientry
-    */
-    if (nie->attrs.size < stbuf.st_size) nie->attrs.size = stbuf.st_size;
-    stbuf.st_size = nie->attrs.size;
         
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
     fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);

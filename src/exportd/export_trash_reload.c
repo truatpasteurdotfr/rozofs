@@ -57,6 +57,7 @@
    @param e : pointer to the export structure
    
 */
+int loop_fdl = 0;
 
 int export_load_rmfentry(export_t * e) 
 {
@@ -109,6 +110,13 @@ int export_load_rmfentry(export_t * e)
        /*
        ** get the current count within the tracking file
        */
+       {
+          while(loop_fdl)
+	  {
+	     sleep(5);
+	     severe("FDL bug wait for gdb");
+	  }
+       }
        count +=exp_metadata_get_tracking_file_count(&tracking_buffer);
        inode.s.file_id = file_id;
 
@@ -139,6 +147,11 @@ int export_load_rmfentry(export_t * e)
 		 sleep(2);
 	      }
 	      break;
+	    }
+	    {
+	       char buf_fid[64];
+	       uuid_unparse(trash_entry.fid,buf_fid);
+	       severe("FDL slice %u file %llu index %d  trash fid %s ",user_id,file_id,i, buf_fid);
 	    }
             memcpy(rmfe->fid, trash_entry.fid, sizeof (fid_t));
             rmfe->cid = trash_entry.cid;

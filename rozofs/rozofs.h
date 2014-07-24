@@ -165,13 +165,22 @@ typedef union
 {
    uint64_t fid[2];   /**<   */
    struct {
-     uint64_t  fid_high:54;   /**< higher part of the fid */
+     uint64_t  fid_high:54;   /**< highest part of the fid */
      uint64_t  eid:10;        /**< export identifier */     
      uint64_t  usr_id:8;     /**< usr defined value-> for exportd;it is the slice   */
      uint64_t  file_id:40;    /**< bitmap file index within the slice                */
      uint64_t  idx:11;     /**< inode relative to the bitmap file index           */
      uint64_t  key:5;     /**< inode relative to the bitmap file index           */
    } s;
+   struct {
+     uint64_t  opcode:4;   /**< opcode used for metadata log */
+     uint64_t  fid_high:50;   /**< highest part of the fid */
+     uint64_t  eid:10;        /**< export identifier */     
+     uint64_t  usr_id:8;     /**< usr defined value-> for exportd;it is the slice   */
+     uint64_t  file_id:40;    /**< bitmap file index within the slice                */
+     uint64_t  idx:11;     /**< inode relative to the bitmap file index           */
+     uint64_t  key:5;     /**< inode relative to the bitmap file index           */
+   } meta;
 } rozofs_inode_t;
 
 // storage stat

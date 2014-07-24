@@ -261,11 +261,14 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
    size_t       size;
    off_t        off;
    ientry_t    *ie = 0;
-   ientry_t    *ie2 = 0;
+//   ientry_t    *ie2 = 0;
    ep_child_t  *iterator = NULL;
     mattr_t     attrs;
     dirbuf_t   *db=NULL;
     int trc_idx;
+    rozofs_inode_t *inode_p ;
+    fuse_ino_t inode;
+
     errno = 0;
                 
     RESTORE_FUSE_PARAM(param,req);
@@ -355,16 +358,19 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
 
       memset(&attrs, 0, sizeof (mattr_t));
 
+#if 0 // FDL useless might cause some error with lookup
       // May be already cached
       if (!(ie2 = get_ientry_by_fid((unsigned char *)iterator->fid))) {
         // If not, cache it
         ie2 =  alloc_ientry((unsigned char *)iterator->fid); 
       }
-      
+#endif      
       memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
+      inode_p = (rozofs_inode_t*) attrs.fid;
+      inode = inode_p->fid[1];
 
       // Add this directory entry to the buffer
-      dirbuf_add(req, db, iterator->name, ie2->inode, &attrs);
+      dirbuf_add(req, db, iterator->name, inode, &attrs);
      
       iterator = iterator->next;
     }

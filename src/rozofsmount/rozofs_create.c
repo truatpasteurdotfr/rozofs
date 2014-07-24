@@ -314,21 +314,9 @@ void rozofs_ll_create_cbk(void *this,void *param)
     */
     file = xmalloc(sizeof (file_t));
     memcpy(file->fid, nie->fid, sizeof (uuid_t));
-    /*
-    ** copy the attributes of the file
-    */
-    memcpy(&file->attrs,&attrs, sizeof (mattr_t));
-    file->mode     = S_IRWXU;  /**< FDL-> need a confirmation !!! */
     
-//    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
     file->export   =  &exportclt;   
-#if 0 // useless for non-blocking
-    // XXX use the mode because if we open the file in read-only,
-    // it is not always necessary to have as many connections
-    if (file_get_cnts(file, rozofs_forward, NULL) != 0)
-        goto error;
-#endif
     /*
     ** init of the variable used for buffer management
     */

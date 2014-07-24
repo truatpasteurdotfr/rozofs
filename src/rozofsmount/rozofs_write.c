@@ -842,12 +842,14 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
    int ret;
    fuse_end_tx_recv_pf_t  callback;
    int storcli_idx;
+   ientry_t *ie;
 
     // Fill request
-    args.cid = f->attrs.cid;
+    ie = f->ie;
+    args.cid = ie->attrs.cid;
     args.layout = f->export->layout;
     args.bsize = exportclt.bsize;
-    memcpy(args.dist_set, f->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+    memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.off = off;
     args.data.data_len = len;
@@ -857,15 +859,12 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     rozofs_aligned_write_start[(off%ROZOFS_BSIZE_BYTES(exportclt.bsize)==0)?0:1]++;
     rozofs_aligned_write_end[((off+len)%ROZOFS_BSIZE_BYTES(exportclt.bsize)==0)?0:1]++;
     
-    args.data.data_val = (char*)buf;  
-    
-    /* If file was empty at opening tell it to storcli at 1rts write */
-    if (f->attrs.size == 0)
-    {
-      f->attrs.size = -1;
-    }
+    args.data.data_val = (char*)buf;      
+    /* 
+    **If file was empty at opening tell it to storcli at 1rts write
+    */
     if (f->file2create == 1) {
-    
+
       args.empty_file = 1;
       f->file2create = 0;
     }
@@ -877,7 +876,6 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     */
     storcli_idx = stclbg_storcli_idx_from_fid(f->fid);
 //    lbg_id = storcli_lbg_get_lbg_from_fid(f->fid);
-
     /*
     ** allocate a shared buffer for writing
     */
@@ -1032,8 +1030,8 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
 	{
 	  file->file2create = 1;
 	}
+	ie->file_extend_pending = 1;
         ie->attrs.size = (off + size);
-        file->attrs.size = (off + size);
     }
 
     /*
@@ -2229,6 +2227,7 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     int    ret;        
     uint64_t buf_flush_offset ;
     uint32_t buf_flush_len ;
+    ientry_t *ie;
     
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
@@ -2236,7 +2235,7 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     /*
     ** Invalidate cache entry
     */ 
-    ientry_t * ie = file_p->ie;
+    ie = file_p->ie;
     if (ie) {
       ie->timestamp = 0;
     }  
@@ -2244,20 +2243,13 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     /*
     ** adjust the size of the attributes of the local file
     */
-    if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
+    if ((buf_flush_offset + buf_flush_len) > ie->attrs.size)
     {
-      file_p->attrs.size = buf_flush_offset + buf_flush_len;
+      ie->attrs.size = buf_flush_offset + buf_flush_len;
+      ie->file_extend_pending = 1;
     }
-    int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_ioctl,(fuse_ino_t)file_p,file_p->fid, file_p->attrs.size,0);
+    int trc_idx = rozofs_trc_req_io(srv_rozofs_ll_ioctl,(fuse_ino_t)file_p,file_p->fid, ie->attrs.size,0);
     SAVE_FUSE_PARAM(fuse_ctx_p,trc_idx);
-    /*
-    ** invalidate the ientry since the mtime is not up to date
-    */
-    if (file_p->ie) 
-    {
-       ientry_t *ie = file_p->ie;
-       ie->timestamp = 0;
-    }
     /*
     ** insert the site number in the argument
     */
@@ -2271,13 +2263,13 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
     arg.arg_gw.bid = 0;
     arg.arg_gw.nrb = 1;
     arg.arg_gw.length = 0; //buf_flush_len;
-    arg.arg_gw.offset = file_p->attrs.size; //buf_flush_offset;
+    arg.arg_gw.offset = ie->attrs.size; //buf_flush_offset;
     arg.arg_gw.geo_wr_start = file_p->off_wr_start;
     arg.arg_gw.geo_wr_end = file_p->off_wr_end;
     /*
     ** now initiates the transaction towards the remote end
     */
-        
+    
 #if 1
     ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,file_p->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_WRITE_BLOCK,(xdrproc_t) xdr_epgw_write_block_arg_t,(void *)&arg,
@@ -2289,6 +2281,14 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
 #endif
     if (ret == 0) {
       rozofs_geo_write_reset(file_p);
+      /*
+      ** indicates that the revelant file size will be found in the ientry
+      */
+      if (ie->file_extend_pending )       
+      {
+        ie->file_extend_pending = 0;
+        ie->file_extend_running = 1;
+     } 
     }    
     return ret;  
 }
@@ -2314,15 +2314,19 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
     int trc_idx;
     uint64_t buf_flush_offset ;
     uint32_t buf_flush_len ;
+    ientry_t *ie;
 
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_offset);
     RESTORE_FUSE_PARAM(fuse_ctx_p,buf_flush_len);
+    
+    ie = file_p->ie;
     /*
     ** adjust the size of the attributes of the local file
     */
-    if (((buf_flush_offset + buf_flush_len) > file_p->attrs.size) || (file_p->attrs.size == -1))
+    if ((buf_flush_offset + buf_flush_len) > ie->attrs.size)
     {
-      file_p->attrs.size = buf_flush_offset + buf_flush_len;
+      ie->attrs.size = buf_flush_offset + buf_flush_len;
+      ie->file_extend_pending = 1;
     }
     /*
     ** check if the update is requested
@@ -2508,8 +2512,11 @@ void export_write_block_cbk(void *this,void *param)
     */
     ie = get_ientry_by_inode(fuse_ctx_p->ino);
     if (ie) {
-      ie->timestamp = rozofs_get_ticker_us(); 
-      memcpy(&ie->attrs,&ret.status_gw.ep_mattr_ret_t_u.attrs, sizeof (mattr_t));
+      /*
+      ** update the attributes in the ientry
+      */
+      rozofs_ientry_update(ie,(mattr_t *)&ret.status_gw.ep_mattr_ret_t_u.attrs);  
+      ie->file_extend_running = 0;
     }     
         
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    

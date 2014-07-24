@@ -1041,6 +1041,7 @@ void show_trc_fuse_buffer(char * pChar)
 	  case rozofs_trc_type_def:
             pChar+=sprintf(pChar,"%s\n",str);
 	    break;
+
 	  case rozofs_trc_type_io:
             pChar+=sprintf(pChar,"%s %8llu/%d\n",str,(unsigned long long int)p->par.io.off,(int)p->par.io.size);
 	    break;	
@@ -1053,13 +1054,27 @@ void show_trc_fuse_buffer(char * pChar)
       else
       {
      
-        pChar+=sprintf(pChar,"[%8llu ]<-- %-8s %4d %12.12llx %s %d:%s\n",
+        pChar+=sprintf(pChar,"[%8llu ]<-- %-8s %4d %12.12llx %s %d:%s",
 	               (unsigned long long int)(p->ts - cur_ts),
 		       trc_fuse_display_srv(p->hdr.s.service_id),
 		       p->hdr.s.index,
 		       (unsigned long long int)p->ino,
 		       str,
 		       p->errno_val,strerror(p->errno_val));      
+        switch (p->hdr.s.trc_type)
+	{
+	  default:
+	  case rozofs_trc_type_io:
+	  case rozofs_trc_type_name:
+	  case rozofs_trc_type_def:
+            pChar+=sprintf(pChar,"\n");
+	    break;
+	  case rozofs_trc_type_attr:
+            pChar+=sprintf(pChar," %8llu\n",(unsigned long long int)p->par.attr.size);
+	    break;	
+	}
+
+
       }
       cur_ts = p->ts;   
    }
