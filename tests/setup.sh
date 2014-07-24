@@ -901,7 +901,7 @@ do_one_cou ()
     return 
   fi
 
-  attr -g rozofs $1 > $COUFILE
+  attr -R -g rozofs $1 > $COUFILE
   if [ ! -s $COUFILE ];
   then
     printf "%20s is not a RozoFS object !!!\n" $1
@@ -925,7 +925,7 @@ do_one_cou ()
   rm -f $COUFILE
 
   case $mode in
-    "DIRECTORY") return;;
+    DIRECTORY|SYMBOLIC) return;;
   esac
 
   
