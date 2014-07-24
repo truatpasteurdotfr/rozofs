@@ -512,7 +512,132 @@ void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
   }
   display_lock_stat(uma_dbg_get_buffer());
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());      
-}    
+}
+  
+/*__________________________________________________________________________
+*/  
+static char * show_ientry_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"ientry count         : display ientry count\n");
+  pChar += sprintf(pChar,"ientry fid <fid>     : display ientry by FID\n");  
+  pChar += sprintf(pChar,"ientry inode <inode> : display ientry by inode\n");  
+  return pChar; 
+}
+void show_ientry(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+  fid_t fid;
+  long long unsigned int   inode;
+  ientry_t * ie = NULL;
+  char fid_str[64];
+  rozofs_inode_t * pInode;
+  
+  if (argv[1] == NULL) {
+      pChar = show_ientry_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;
+  } 
+  
+  if (strcmp(argv[1],"count")==0) {
+      pChar += sprintf(pChar, "ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;
+  }
+  
+  if (argv[2] == NULL) {
+      pChar = show_ientry_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;
+  } 
+  
+  if (strcmp(argv[1],"fid")==0) {
+      if (uuid_parse(argv[2],fid)==-1) {
+          pChar += sprintf(pChar, "this is not a valid FID\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;	        
+      }
+      ie = get_ientry_by_fid(fid);
+      if (ie == NULL) {
+          pChar += sprintf(pChar, "No ientry for this FID\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;        
+      }
+  }        
+  else if (strcmp(argv[1],"inode")==0){
+      int ret = sscanf(argv[2],"%llu",&inode);
+      if (ret != 1) {
+          pChar += sprintf(pChar, "this is not a valid inode\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;	        
+      }
+      ie = get_ientry_by_inode(inode);
+      if (ie == NULL) {
+          pChar += sprintf(pChar, "No ientry for this inode\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;        
+      }      
+  } 
+  else {
+      pChar += sprintf(pChar, "ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;    
+  }
+  
+  uuid_unparse(ie->fid,fid_str);
+  pInode = (rozofs_inode_t *)ie->fid;
+  
+  pChar += sprintf(pChar, "%-15s : %llu\n", "inode", (long long unsigned int)ie->inode);
+  pChar += sprintf(pChar, "%-15s : %s\n", "fid", fid_str);
+  if (S_ISREG(ie->attrs.mode)) {
+    pChar += sprintf(pChar, "%-15s : eid %d ./reg_attr/%d/trk_%llu index %d\n", "regular", 
+                     pInode->s.eid,
+		     pInode->s.usr_id,
+		     (long long unsigned int)pInode->s.file_id,
+		     pInode->s.idx);
+    pChar += sprintf(pChar, "%-15s : %d\n", "attrs cid", ie->attrs.cid);
+    pChar += sprintf(pChar, "%-15s : ", "attrs sid");
+    {
+      int i;
+      pChar += sprintf(pChar, "%d", ie->attrs.sids[0]);
+      for (i=1;i<ROZOFS_SAFE_MAX;i++) {
+	 pChar += sprintf(pChar, "-%d", ie->attrs.sids[i]);
+      }
+      pChar += sprintf(pChar,"\n");
+    }		     
+  }
+  else if (S_ISDIR(ie->attrs.mode)) {
+    pChar += sprintf(pChar, "%-15s : eid %d ./dir_attr/%d/trk_%llu index %d\n", "directory", 
+                     pInode->s.eid,
+		     pInode->s.usr_id,
+		     (long long unsigned int)pInode->s.file_id,
+		     pInode->s.idx);    
+  }
+  else if (S_ISLNK(ie->attrs.mode)) {
+    pChar += sprintf(pChar, "%-15s : eid %d ./reg_attr/%d/trk_%llu index %d\n", "symlink", 
+                     pInode->s.eid,
+		     pInode->s.usr_id,
+		     (long long unsigned int)pInode->s.file_id,
+		     pInode->s.idx);   
+  }
+  pChar += sprintf(pChar, "%-15s : %d\n", "nlookup", (int) ie->nlookup);
+  pChar += sprintf(pChar, "%-15s : %llu\n", "consistency", (long long unsigned int) ie->read_consistency);
+  pChar += sprintf(pChar, "%-15s : %llu\n", "timestamp", (long long unsigned int)ie->timestamp);
+  pChar += sprintf(pChar, "%-15s : %s\n", "write_pending", ie->write_pending?"yes":"no"); 
+  pChar += sprintf(pChar, "%-15s : %s\n", "extend_pending", ie->file_extend_pending?"yes":"no"); 
+  pChar += sprintf(pChar, "%-15s : %s\n", "extend_running", ie->file_extend_running?"yes":"no"); 
+  pChar += sprintf(pChar, "%-15s : %llu\n", "attrs ctime", (long long unsigned int)ie->attrs.ctime);  
+  pChar += sprintf(pChar, "%-15s : %llu\n", "attrs atime", (long long unsigned int)ie->attrs.atime);  
+  pChar += sprintf(pChar, "%-15s : %llu\n", "attrs mtime", (long long unsigned int)ie->attrs.mtime);
+  pChar += sprintf(pChar, "%-15s : %d\n", "attrs nlink", ie->attrs.nlink);  
+  pChar += sprintf(pChar, "%-15s : %d\n", "attrs children", ie->attrs.children);  
+  pChar += sprintf(pChar, "%-15s : 0x%x\n", "attrs mode", ie->attrs.mode);  
+  pChar += sprintf(pChar, "%-15s : %d\n", "attrs gid", ie->attrs.gid);  
+  pChar += sprintf(pChar, "%-15s : %d\n", "attrs uid", ie->attrs.uid);  
+  pChar += sprintf(pChar, "%-15s : %llu\n", "attrs size", (long long unsigned int)ie->attrs.size);
+
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+  return;
+  
+}  
 /*__________________________________________________________________________
 */  
 #define SHOW_PROFILER_PROBE(probe) pChar += sprintf(pChar," %-12s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
@@ -1552,6 +1677,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("start_config", show_start_config);
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);
     uma_dbg_addTopic("flock", show_flock);
+    uma_dbg_addTopic("ientry", show_ientry);
     rozofs_layout_initialize();    
     uma_dbg_addTopic("layout", show_layout);
     uma_dbg_addTopic("trc_fuse", show_trc_fuse);
