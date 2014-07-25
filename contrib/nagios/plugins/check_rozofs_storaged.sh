@@ -12,7 +12,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see
 #  <http://www.gnu.org/licenses/>.
-
 TMPFILE=/tmp/storaged_rozodiag.$$
 TMPFILE2=/tmp/storaged_rozodiag2.$$
 VERSION="Version 1.0"
@@ -274,7 +273,7 @@ esac
 
 # get the number of I/O processes
 $ROZDBG -c storio_nb >  $TMPFILE
-res=`grep "storio_nb" $TMPFILE`
+res=`grep "storio_nb :" $TMPFILE`
 case $res in
   "") {
     display_output $STATE_CRITICAL "$host do not respond to rozodiag storio_nb"

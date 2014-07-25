@@ -28,7 +28,7 @@ STATE_UNKNOWN=3
 rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/rozodiag" 
 resolve_rozodiag() {
 
-  option="-i $host -p $port"
+  option="-i $1 -p $port"
 
   if [ ! -z "$time" ];
   then
@@ -160,7 +160,7 @@ test_storcli()
 {
   # 1st storcli
   port=`expr $port + 1 `
-  resolve_rozodiag
+  resolve_rozodiag $host
   $ROZDBG -c storaged_status >  $TMPFILE
 
   res=`grep cid $TMPFILE`
@@ -171,7 +171,7 @@ test_storcli()
   esac
 
   sed '1,2d'  $TMPFILE > $TMPFILE2
-  res=`awk 'BEGIN {up=0;down=0;} {if (($9=="UP") && ($11=="UP")) up++; else down++;} END {printf("%d %d\n",up, down);}' $TMPFILE2`
+  res=`awk 'BEGIN {up=0;down=0;} {if (($9=="UP") && ($11=="UP")) up++; if (($9=="DOWN") || ($11=="DOWN")) down++;} END {printf("%d %d\n",up, down);}' $TMPFILE2`
   up=`echo $res | awk '{print $1}'`
   down=`echo $res | awk '{print $2}'`
   if [ $down -eq 1 ]
@@ -236,41 +236,61 @@ if [ -z $host ];
 then
    display_output $STATE_UNKNOWN "-H option is mandatory"
 fi  
+host=`echo $host | sed 's/\// /' `
+declare -a hosts=($host)
 
 
 
 # ping the destination host
-
-ping $host -c 1 >> /dev/null
-if [ $? != 0 ]
-then
+ok=0
+for i in $(seq ${#hosts[@]} )
+do
+  ping ${hosts[$((i-1))]} -c 1 >> /dev/null
+  if [ $? == 0 ]
+  then
+    ok=1
+    break
+  fi  
+  
   # re attempt a ping
-  ping $host -c 2 >> /dev/null
+  ping ${hosts[$((i-1))]} -c 2 >> /dev/null
   if [ $? != 0 ]
   then  
-    display_output $STATE_CRITICAL "$host do not respond to ping"
+    ok=1
+    break
   fi 
-fi
+done  
+case $ok in
+  "0") display_output $STATE_CRITICAL "$host do not respond to ping"
+esac
+
 
 if [ ! -z "$instance" ];
 then
   port=$(( 50003 + 3 * $instance ))
 fi
 
-# Find rozodiag utility and prepare command line parameters
+ok=0
+for i in $(seq ${#hosts[@]} )
+do
 
-resolve_rozodiag
+  # Find rozodiag utility and prepare command line parameter
+  resolve_rozodiag ${hosts[$((i-1))]}
 
 
-# Run vfstat_stor debug command on export to check storage status
+  # Run vfstat_stor debug command on export to check storage status
 
-$ROZDBG -c lbg_entries >  $TMPFILE
-res=`grep "LBG Name" $TMPFILE`
-case $res in
-  "") {
-    display_output $STATE_CRITICAL "$host do not respond to rozodiag"
-  };;  
+  $ROZDBG -c lbg_entries >  $TMPFILE
+  res=`grep "LBG Name" $TMPFILE`
+  case $res in
+    "") ;;
+    *) ok=1;break;;
+  esac
+done
+case $ok in
+  "0") display_output $STATE_CRITICAL "$host do not respond to rozodiag";;  
 esac
+host=${hosts[$((i-1))]}
 
 exp_up=`awk 'BEGIN {nb=0;} {if (($1=="EXPORTD") && ($9=="UP")) nb++;} END {printf("%d\n",nb);}' $TMPFILE`
 if [ $exp_up -lt 1 ]

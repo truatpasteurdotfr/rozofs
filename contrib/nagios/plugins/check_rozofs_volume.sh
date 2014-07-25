@@ -12,7 +12,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see
 #  <http://www.gnu.org/licenses/>.
-
 VFSTAT=/tmp/vfstat_rozodiag.$$
 VERSION="Version 1.0"
 PROGNAME=`basename $0`
@@ -26,7 +25,7 @@ STATE_UNKNOWN=3
 rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/rozodiag" 
 resolve_rozodiag() {
 
-  option="-i $host -p $port"
+  option="-i $1 -p $port"
 
   if [ ! -z "$time" ];
   then
@@ -211,7 +210,9 @@ done
 if [ -z $host ];
 then
    display_output $STATE_UNKNOWN "-H option is mandatory"
-fi  
+fi   
+host=`echo $host | sed 's/\// /' `
+declare -a hosts=($host)
 
 if [ -z "$thresh_warn" ];
 then
@@ -232,34 +233,51 @@ fi
 
 
 # ping the destination host
-
-ping $host -c 1 >> /dev/null
-if [ $? != 0 ]
-then
+ok=0
+for i in $(seq ${#hosts[@]} )
+do
+  ping ${hosts[$((i-1))]} -c 1 >> /dev/null
+  if [ $? == 0 ]
+  then
+    ok=1
+    break
+  fi  
+  
   # re attempt a ping
-  ping $host -c 2 >> /dev/null
+  ping ${hosts[$((i-1))]} -c 2 >> /dev/null
   if [ $? != 0 ]
   then  
-    display_output $STATE_CRITICAL "$host do not respond to ping"
+    ok=1
+    break
   fi 
-fi
-
+done  
+case $ok in
+  "0") display_output $STATE_CRITICAL "$host do not respond to ping"
+esac
 
 # Find rozodiag utility and prepare command line parameters
 
-resolve_rozodiag
 
 
-# Run vfstat_vol debug command on export to get volume statistics
+ok=0
+for i in $(seq ${#hosts[@]} )
+do
 
-$ROZDBG -c vfstat_vol >  $VFSTAT
-res=`grep "Volume:" $VFSTAT`
-case $res in
-  "") {
-    display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol"
-  };;  
+  resolve_rozodiag ${hosts[$((i-1))]}
+
+  # Run vfstat_vol debug command on export to get volume statistics
+
+  $ROZDBG -c vfstat_vol >  $VFSTAT
+  res=`grep "Volume:" $VFSTAT`
+  case $res in
+    "");;
+    *) ok=1; break;;  
+  esac
+done
+
+case $ok in
+  "0") display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol"
 esac
-
 
 # Extract volume usage from the debug output
 
@@ -289,7 +307,7 @@ fi
 down=`awk 'BEGIN {nb=0;} {if (($1==volume) && ($7=="DOWN")) nb++;} END {printf("%d\n",nb);}' volume=$volume $VFSTAT`
 if  [ $down -gt 0 ] 
 then
-  display_output $STATE_WARNING "$down storages are down"
+  display_output $STATE_WARNING "$down storage(s) down"
 fi
 
 
