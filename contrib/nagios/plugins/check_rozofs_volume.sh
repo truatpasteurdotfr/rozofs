@@ -211,8 +211,6 @@ if [ -z $host ];
 then
    display_output $STATE_UNKNOWN "-H option is mandatory"
 fi   
-host=`echo $host | sed 's/\// /' `
-declare -a hosts=($host)
 
 if [ -z "$thresh_warn" ];
 then
@@ -232,28 +230,25 @@ then
 fi  
 
 
-# ping the destination host
+# ping every destination host
+# $host is a list '/' separated hosts
+host=`echo $host | sed 's/\// /' `
 ok=0
-for i in $(seq ${#hosts[@]} )
+hosts=""
+for h in $host
 do
-  ping ${hosts[$((i-1))]} -c 1 >> /dev/null
+  ping $h -c 1 -w 2 >> /dev/null
   if [ $? == 0 ]
   then
-    ok=1
-    break
+    hosts[$ok]=$h
+    ok=$((ok+1))
   fi  
-  
-  # re attempt a ping
-  ping ${hosts[$((i-1))]} -c 2 >> /dev/null
-  if [ $? != 0 ]
-  then  
-    ok=1
-    break
-  fi 
 done  
 case $ok in
   "0") display_output $STATE_CRITICAL "$host do not respond to ping"
 esac
+# hosts is now the array of host responding to ping
+
 
 # Find rozodiag utility and prepare command line parameters
 
@@ -274,10 +269,10 @@ do
     *) ok=1; break;;  
   esac
 done
-
 case $ok in
-  "0") display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol"
+  "0") display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol";;
 esac
+host=${hosts[$((i-1))]}
 
 # Extract volume usage from the debug output
 

@@ -236,33 +236,26 @@ if [ -z $host ];
 then
    display_output $STATE_UNKNOWN "-H option is mandatory"
 fi  
+
+
+# ping every destination host
+# $host is a list '/' separated hosts
 host=`echo $host | sed 's/\// /' `
-declare -a hosts=($host)
-
-
-
-# ping the destination host
 ok=0
-for i in $(seq ${#hosts[@]} )
+hosts=""
+for h in $host
 do
-  ping ${hosts[$((i-1))]} -c 1 >> /dev/null
+  ping $h -c 1 -w 2 >> /dev/null
   if [ $? == 0 ]
   then
-    ok=1
-    break
+    hosts[$ok]=$h
+    ok=$((ok+1))
   fi  
-  
-  # re attempt a ping
-  ping ${hosts[$((i-1))]} -c 2 >> /dev/null
-  if [ $? != 0 ]
-  then  
-    ok=1
-    break
-  fi 
 done  
 case $ok in
   "0") display_output $STATE_CRITICAL "$host do not respond to ping"
 esac
+# hosts is now the array of host responding to ping
 
 
 if [ ! -z "$instance" ];
