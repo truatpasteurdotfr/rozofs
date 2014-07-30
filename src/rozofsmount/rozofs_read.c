@@ -82,12 +82,14 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
    uint64_t bid = 0;
    uint32_t nb_prj = 0;
    storcli_read_arg_t  args;
+   ientry_t *ie;
    int ret;
    int storcli_idx;
 
    // Nb. of the first block to read
    bid = off / ROZOFS_BSIZE;
    nb_prj = len / ROZOFS_BSIZE;
+   ie = f->ie;
    
     if (rozofs_rotation_read_modulo == 0) {
       f->rotation_idx = 0;
@@ -101,9 +103,9 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
     args.sid = f->rotation_idx;
 
     // Fill request
-    args.cid = f->attrs.cid;
+    args.cid = ie->attrs.cid;
     args.layout = f->export->layout;
-    memcpy(args.dist_set, f->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+    memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
     memcpy(args.fid, f->fid, sizeof (fid_t));
     args.proj_id = 0; // N.S
     args.bid = bid;
@@ -217,7 +219,7 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
        ** Don't request the read to the storio, this would trigger an io error
        ** since the file do not yet exist on disk
        */
-       if (f->attrs.size == 0) {
+       if (ie->attrs.size == 0) {
          *length_p = 0;
          return 0;       
        }
@@ -273,7 +275,7 @@ int file_read_nb(void *buffer_p,file_t * f, uint64_t off, char **buf, uint32_t l
          ** if we hit the end of file (for this we check against the size the
          ** file
          */
-         if (((off_aligned + read_cache_len) == f->attrs.size) || (read_cache_len >= len))
+         if (((off_aligned + read_cache_len) == ie->attrs.size) || (read_cache_len >= len))
          {
            f->read_from = off_aligned;
            f->read_pos = off_aligned+read_cache_len;
@@ -535,13 +537,6 @@ void rozofs_ll_read_nb(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
         goto error;
     }
     /*
-    ** update the size of the file thanks the content of the ientry. That content
-    ** might change over the time since it is posssible to have some pending writes
-    ** for which the attribute size has to be updated. However this takes place
-    ** on the ientry only
-    */
-    file->attrs.size = ie->attrs.size;
-    /*
     ** check if the application is attempting to read atfer a close (_ll_release)
     */
     if (rozofs_is_file_closing(file))
@@ -665,6 +660,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
    int position ;
    int trc_idx;
    errno =0;
+   ientry_t *ie;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -675,7 +671,8 @@ void rozofs_ll_read_cbk(void *this,void *param)
    RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_PARAM(param,shared_buf_ref);
 
-   file = (file_t *) (unsigned long)  fi->fh;   
+   file = (file_t *) (unsigned long)  fi->fh;  
+   ie = file->ie; 
    file->buf_read_pending--;
    if (file->buf_read_pending < 0)
    {
@@ -774,7 +771,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
     ** be zero by it might be possible that the information 
     ** is in the pending write section of the buffer
     */
-    if ((received_len == 0) || (file->attrs.size == -1) || (file->attrs.size == 0))
+    if ((received_len == 0)  || (ie->attrs.size == 0))
     {
       /*
       ** end of filenext_read_pos
@@ -790,9 +787,9 @@ void rozofs_ll_read_cbk(void *this,void *param)
     ** Truncate the received length to the known EOF as stored in
     ** the file context
     */
-    if ((next_read_from + received_len) > file->attrs.size)
+    if ((next_read_from + received_len) > ie->attrs.size)
     {
-       received_len = file->attrs.size - next_read_from;    
+       received_len = ie->attrs.size - next_read_from;    
     }
     /*
     ** re-evaluate the EOF case
@@ -806,7 +803,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
             uint64_t file_size;
             uint32_t *p32 = (uint32_t*) ruc_buf_getPayload(shared_buf_ref);
             int received_len_orig = p32[1];
-            ie2 = get_ientry_by_fid(file->attrs.fid);
+            ie2 = get_ientry_by_fid(ie->attrs.fid);
             if ((ie2 == NULL)) {
                 file_size = 0;
             } else {
@@ -816,7 +813,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
             severe("BUGROZOFSWATCH(%p) , received_len=%d,"
                     " next_read_from=%"PRIu64", file->attrs.size=%"PRIu64","
                     " received_len_orig=%d,readahead=%d," " ie->attrs.size=%"PRIu64"",
-                    file, received_len, next_read_from, file->attrs.size,
+                    file, received_len, next_read_from, ie2->attrs.size,
                     received_len_orig, readahead, file_size);
 #endif
             received_len = received_len_orig;

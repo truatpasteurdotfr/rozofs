@@ -94,12 +94,6 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
       */
       file = xmalloc(sizeof (file_t));
       memcpy(file->fid, ie->fid, sizeof (uuid_t));
-      /*
-      ** copy the attributes of the file
-      */
-      memcpy(&file->attrs,&ie->attrs, sizeof (mattr_t));
-
-      file->mode     = S_IRWXU;
       file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
       file->export   =  &exportclt;   
       /*
@@ -307,30 +301,18 @@ void rozofs_ll_open_cbk(void *this,void *param)
     file = xmalloc(sizeof (file_t));
     memcpy(file->fid, ie->fid, sizeof (uuid_t));
     /*
-    ** copy the attributes of the file
+    ** update the attributes in the ientry
     */
-    memcpy(&file->attrs,&attr, sizeof (mattr_t));
-    /*
-    ** copy them also in the ientry
-    */
-    memcpy(&ie->attrs, &attr, sizeof(mattr_t));
+    rozofs_ientry_update(ie,&attr);  
     {
         char fid_str[37];
         uuid_unparse(file->fid, fid_str);
         if (rozofs_bugwatch)
             severe("BUGROZOFSWATCH (open:%p),FID(%s) size=%"PRIu64"", file,
-                    fid_str, file->attrs.size);
+                    fid_str, ie->attrs.size);
     }
-    file->mode     = S_IRWXU;
-//    file->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
     file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
     file->export   =  &exportclt;   
-#if 0 // useless for non-blocking
-    // XXX use the mode because if we open the file in read-only,
-    // it is not always necessary to have as many connections
-    if (file_get_cnts(file, rozofs_forward, NULL) != 0)
-        goto error;
-#endif
     /*
     ** init of the variable used for buffer management
     */
@@ -352,7 +334,6 @@ error:
        ** need to release the file structure and the buffer
        */
        int xerrno = errno;
-//       free(file->storages);
        free(file->buffer);
        file->chekWord = 0;
        free(file);
