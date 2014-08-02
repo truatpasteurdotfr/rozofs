@@ -21,6 +21,7 @@
 #include <rozofs/core/ruc_tcpServer_api.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "rozofs_export_gateway_conf_non_blocking.h"
 #include "rozofs_fuse.h"
@@ -48,7 +49,7 @@ void rozofs_flock_service_init(void) ;
   @retval RUC_OK on success
   @retval RUC_NOK on failure
 */
-int rozofs_expgateway_init(char *host,int eid)
+int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port, af_stream_poll_CBK_t supervision_callback)
 {
     int ret;
     
@@ -65,10 +66,10 @@ int rozofs_expgateway_init(char *host,int eid)
     ret = expgw_export_add_eid(eid,   // exportd id
                                eid,   // eid
                                host,  // hostname of the Master exportd
-                               0,  // port
+                               export_listening_port,  // port
                                0,  // nb Gateway
-                               0   // gateway rank: not significant for an rozofsmount
-                               );
+                               0,   // gateway rank: not significant for an rozofsmount
+                               supervision_callback); 
     if (ret < 0) {
         fprintf(stderr, "Fatal error on expgw_export_add_eid()\n");
         fatal("Fatal error on expgw_export_add_eid()");
@@ -211,7 +212,9 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
         if (ret != RUC_OK) break;
 #endif    
         exportclt_t *exportclt = args_p->exportclt;
-        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid);
+	uint16_t export_nb_port = ROZOFS_GET_EXPNB_PORT;
+        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid, export_nb_port,
+	                              (af_stream_poll_CBK_t) rozofs_export_lbg_cnx_polling);
         if (ret != RUC_OK) break;
 
         break;
@@ -293,7 +296,9 @@ int rozofs_stat_start(void *args) {
     /*
      ** Perform the init with exportd--> setup of the TCP connection associated with the load balancing group
      */
-    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, 0) != 0) {
+    uint16_t export_nb_port = ROZOFS_GET_EXPNB_PORT;     
+    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, export_nb_port,
+                               (af_stream_poll_CBK_t) rozofs_export_lbg_cnx_polling) != 0) {
         severe("Cannot setup the load balancing group towards Exportd");
     }
     //#warning storcli instances are hardcoded

@@ -786,6 +786,25 @@ static void on_start() {
     if (setrlimit(RLIMIT_NOFILE, &rls) < 0) {
         warning("Failed to change open files limit to %u", EXPORTD_MAX_OPEN_FILES);
     }
+    
+    {
+      pmap_unset(EXPORT_PROGRAM, EXPORT_VERSION); // in case !
+
+      struct sockaddr_in sin;
+      uint16_t tcp_port = ROZOFS_GET_EXPNB_PORT;
+
+            
+      sin.sin_addr.s_addr = INADDR_ANY;
+//      sin.sin_addr.s_addr = htonl(0x7F000001);
+      sin.sin_family      = AF_INET;
+      sin.sin_port        = htons(tcp_port); 
+      if (bind(sock, (struct sockaddr *) &sin, sizeof(struct sockaddr)) < 0) {
+        fatal("bind %s",strerror(errno));
+      }
+      
+      pmap_set(EXPORT_PROGRAM, EXPORT_VERSION, IPPROTO_TCP, tcp_port);
+      
+    }
 
     // XXX Buffers sizes hard coded
     exportd_svc = svctcp_create(sock, ROZOFS_RPC_BUFFER_SIZE,
@@ -793,8 +812,6 @@ static void on_start() {
     if (exportd_svc == NULL) {
         fatal("can't create service %s", strerror(errno));
     }
-
-    pmap_unset(EXPORT_PROGRAM, EXPORT_VERSION); // in case !
 
     if (!svc_register
             (exportd_svc, EXPORT_PROGRAM, EXPORT_VERSION, export_program_1,
@@ -809,7 +826,7 @@ static void on_start() {
     pmap_unset(EXPORTD_PROFILE_PROGRAM, EXPORTD_PROFILE_VERSION); // in case !
 
     if (!svc_register(exportd_profile_svc, EXPORTD_PROFILE_PROGRAM,
-            EXPORTD_PROFILE_VERSION, exportd_profile_program_1, IPPROTO_TCP)) {
+            EXPORTD_PROFILE_VERSION, exportd_profile_program_1, 0)) {
         severe("can't register service : %s", strerror(errno));
     }
 

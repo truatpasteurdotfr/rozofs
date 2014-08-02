@@ -468,5 +468,16 @@ static inline void rozofs_ientry_update(ientry_t *ie,mattr_t  *attr_p)
    memcpy(&ie->attrs,attr_p, sizeof (mattr_t));   
    ie->attrs.size = file_size;
 }
+/*
+**__________________________________________________________________
+*/
+/**
+  rozofsmount applicative supervision callback to check the connection 
+  toward the exportd thanks to an EP_NULL question/answer
+  
+  @param sock_p socket context
+
+*/
+void rozofs_export_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p);
 
 #endif

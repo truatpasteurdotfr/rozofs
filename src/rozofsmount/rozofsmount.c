@@ -27,6 +27,7 @@
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/core/rozofs_host_list.h>
 
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
@@ -150,7 +151,7 @@ extern void rozofsmount_profile_program_1(struct svc_req *rqstp, SVCXPRT *ctl_sv
 
 static void usage() {
     fprintf(stderr, "ROZOFS options:\n");
-    fprintf(stderr, "    -H EXPORT_HOST\t\tdefine address (or dns name) where exportd daemon is running (default: rozofsexport) equivalent to '-o exporthost=EXPORT_HOST'\n");
+    fprintf(stderr, "    -H EXPORT_HOST\t\tlist of \'/\' separated addresses (or dns names) where exportd daemon is running (default: rozofsexport) equivalent to '-o exporthost=EXPORT_HOST'\n");
     fprintf(stderr, "    -E EXPORT_PATH\t\tdefine path of an export see exportd (default: /srv/rozofs/exports/export) equivalent to '-o exportpath=EXPORT_PATH'\n");
     fprintf(stderr, "    -P EXPORT_PASSWD\t\tdefine passwd used for an export see exportd (default: none) equivalent to '-o exportpasswd=EXPORT_PASSWD'\n");
     fprintf(stderr, "    -o rozofsbufsize=N\t\tdefine size of I/O buffer in KiB (default: 256)\n");
@@ -1312,27 +1313,46 @@ int fuseloop(struct fuse_args *args, int fg) {
     int retry_count;
     char ppfile[NAME_MAX];
     int ppfd = -1;
+    int export_index=0;
+    char * pHost;
 
     openlog("rozofsmount", LOG_PID, LOG_LOCAL0);
 
     struct timeval timeout_mproto;
-    timeout_mproto.tv_sec = rozofs_tmr_get(TMR_EXPORT_PROGRAM);
+    timeout_mproto.tv_sec = 1;//rozofs_tmr_get(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
 
-    for (retry_count = 5; retry_count > 0; retry_count--) {
-        /* Initiate the connection to the export and get information
-         * about exported filesystem */
-        if (exportclt_initialize(
-                &exportclt,
-                conf.host,
-                conf.export,
-                conf.passwd,
-                conf.buf_size * 1024,
-                conf.min_read_size * 1024,
-                conf.max_retry,
-                timeout_mproto) == 0) break;
+  
+    if (rozofs_host_list_parse(conf.host,'/') == 0) {
+      severe("rozofs_host_list_parse(%s)",conf.host);
+    }
 
+    for (retry_count = 15; retry_count > 0; retry_count--) {
+    
+        for (export_index=0; export_index < ROZOFS_HOST_LIST_MAX_HOST; export_index++) { 
+	
+	    pHost = rozofs_host_list_get_host(export_index);
+	    if (pHost == NULL) break;
+	    
+            /* Initiate the connection to the export and get information
+             * about exported filesystem */
+            if (exportclt_initialize(
+                    &exportclt,
+                    pHost,
+                    conf.export,
+                    conf.passwd,
+                    conf.buf_size * 1024,
+                    conf.min_read_size * 1024,
+                    conf.max_retry,
+                    timeout_mproto) == 0) break;
+        }
+	
+	/* Connected to one of the given addresses */
+	if (pHost != NULL) break;
+	
         sleep(2);
+	timeout_mproto.tv_sec++;
+	
     }
 
     // Check the mountpoint after success connection with the export

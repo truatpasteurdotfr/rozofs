@@ -40,7 +40,7 @@ storage declared in the configuration file.
 .RS
 Use
 .I export_host
-as address (or dns name) where exportd daemon is running.
+as the list of addresses (or dns names) where exportd daemon is running. When securing the exportd thanks to virtual IP address only the virtual IP address is declared (i.e "192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the exportd must be given (i.e "192.168.10.1/192.168.20.1"). 
 .RE
 .IP "-m, --multiio"
 .RS

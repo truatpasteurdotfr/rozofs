@@ -437,6 +437,7 @@ void usage() {
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
     printf("   -r, --rebuild=exportd-host\trebuild data for this storaged and get information from exportd-host.\n");
+    printf("                             \texportd-host is a list of \'/\' separated host where exportd is running\n");
     printf("   -m, --multiio\t\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
 }
 

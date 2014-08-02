@@ -626,6 +626,7 @@ void north_lbg_entry_timeout_CBK (void *opaque)
 
    entry_p->stats.totalConnectAttempts++;
    ret = af_unix_sock_client_reconnect(entry_p->sock_ctx_ref);
+   entry_p->last_reconnect_time = time(NULL); // Save time when we reconnect 
    if (ret < 0)
    {
 //      printf("north_lbg_entry_timeout_CBK-->fatal error on reconnect\n");
@@ -665,6 +666,7 @@ void north_lbg_entry_stop_timer(north_lbg_entry_ctx_t *pObj)
 void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms) 
 {
  uint8_t slot;
+ time_t delay;
   /*
   **  remove the timer from its current list
   */
@@ -672,9 +674,19 @@ void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms
 
 //  entry_p->rpc_guard_timer_flg = FALSE;
   north_lbg_tmr_stop(&entry_p->rpc_guard_timer);
+  
+  // Take into account the last reconnect attemp time 
+  // to adjust timer duration in order to reconnect 
+  // every time_ms
+  delay = (time(NULL) - entry_p->last_reconnect_time)*1024;
+  time_ms *= 1024;
+  if (delay >= 0) {
+    if   (delay < time_ms) time_ms -= delay;
+    else                   time_ms = 100;
+  }
   north_lbg_tmr_start(slot,
                   &entry_p->rpc_guard_timer,
-		  time_ms*1000,
+		  time_ms,
                   north_lbg_entry_timeout_CBK,
 		  (void*) entry_p);
 
@@ -1306,7 +1318,6 @@ int  north_lbg_set_application_tmo4supervision(int lbg_idx,int tmo_sec)
   return 0;
 
 }
-
 /*__________________________________________________________________________
 */
 /**
@@ -1367,18 +1378,33 @@ reloop:
     lbg_p->stats.xmitQueuelen++;     
     return 0;  
   }
+  
+  
   /*
-  ** OK there is at least one entry that is free, so get the next valid entry
+  ** Check whether this LBG is in active/standby mode
+  ** in this case send the message on the active connection
   */
-  entry_idx = north_lbg_get_next_valid_entry(lbg_p);
-  if (entry_idx < 0)
-  {
-    /*
-    ** that situation must not occur since there is at leat one entry that is UP!!!!
-    */
-//    RUC_WARNING(-1);
-    return -1;    
+  if (lbg_p->active_lbg_entry >= 0) {
+    entry_idx = lbg_p->active_lbg_entry;
   }
+  
+  
+  else {
+
+     /*
+     ** OK there is at least one entry that is free, so get the next valid entry
+     */
+     entry_idx = north_lbg_get_next_valid_entry(lbg_p);
+     if (entry_idx < 0)
+     {
+       /*
+       ** that situation must not occur since there is at leat one entry that is UP!!!!
+       */
+   //    RUC_WARNING(-1);
+       return -1;    
+     }
+     
+  }   
   /*
   ** That's fine, get the pointer to the entry in order to get its socket context reference
   */
@@ -1561,6 +1587,54 @@ int north_lbg_is_local(int  lbg_idx)
     return 0;
   }
   return lbg_p->local;
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg entry to use when sending
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_set_active_entry(int  lbg_idx, int sock_idx_in_lbg)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_is_local: no such instance %d ",lbg_idx);
+    return 0;
+  }
+  //info("JPM lbg %d %s Set active %d",lbg_idx,lbg_p->name,sock_idx_in_lbg);
+  
+  lbg_p->active_lbg_entry = sock_idx_in_lbg;
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Get the lbg entry to use when sending
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_get_active_entry(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_is_local: no such instance %d ",lbg_idx);
+    return -1;
+  }
+  //info("JPM lbg %d %s Get active %d",lbg_idx,lbg_p->name,lbg_p->active_lbg_entry);
+
+  return lbg_p->active_lbg_entry;
 }
 
 

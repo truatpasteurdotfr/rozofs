@@ -26,7 +26,7 @@ STATE_UNKNOWN=3
 rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/rozodiag" 
 resolve_rozodiag() {
 
-  option="-i $host -p $port"
+  option="-i $1 -p $port"
 
   if [ ! -z "$time" ];
   then
@@ -231,18 +231,24 @@ then
 fi  
 
 
-# ping the destination host
-
-ping $host -c 1 >> /dev/null
-if [ $? != 0 ]
-then
-  # re attempt a ping
-  ping $host -c 2 >> /dev/null
-  if [ $? != 0 ]
-  then  
-    display_output $STATE_CRITICAL "$host do not respond to ping"
-  fi 
-fi
+# ping every destination host
+# $host is a list '/' separated hosts
+host=`echo $host | sed 's/\// /' `
+ok=0
+hosts=""
+for h in $host
+do
+  ping $h -c 1 -w 2 >> /dev/null
+  if [ $? == 0 ]
+  then
+    hosts[$ok]=$h
+    ok=$((ok+1))
+  fi  
+done  
+case $ok in
+  "0") display_output $STATE_CRITICAL "$host do not respond to ping"
+esac
+# hosts is now the array of host responding to ping
 
 
 # Find rozodiag utility and prepare command line parameters
@@ -250,16 +256,25 @@ fi
 resolve_rozodiag
 
 
-# Run vfstat_vol debug command on export to get volume statistics
+ok=0
+for i in $(seq ${#hosts[@]} )
+do
 
-$ROZDBG -c vfstat_vol >  $VFSTAT
-res=`grep "Volume:" $VFSTAT`
-case $res in
-  "") {
-    display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol"
-  };;  
+  resolve_rozodiag ${hosts[$((i-1))]}
+
+  # Run vfstat_vol debug command on export to get volume statistics
+
+  $ROZDBG -c vfstat_vol >  $VFSTAT
+  res=`grep "Volume:" $VFSTAT`
+  case $res in
+    "");;
+    *) ok=1; break;;  
+  esac
+done
+case $ok in
+  "0") display_output $STATE_CRITICAL "$host:$port do not respond to rozodiag vfstat_vol";;
 esac
-
+host=${hosts[$((i-1))]}
 
 # Extract volume usage from the debug output
 
@@ -289,7 +304,7 @@ fi
 down=`awk 'BEGIN {nb=0;} {if (($1==volume) && ($7=="DOWN")) nb++;} END {printf("%d\n",nb);}' volume=$volume $VFSTAT`
 if  [ $down -gt 0 ] 
 then
-  display_output $STATE_WARNING "$down storages are down"
+  display_output $STATE_WARNING "$down storage(s) down"
 fi
 
 

@@ -827,7 +827,7 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
 static inline void af_inet_cnx_ok (af_unix_ctx_generic_t *sock_p)
 {
    af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
-   p->s.check_cnx_rq = 0;
+   // p->s.check_cnx_rq = 0;
 
    if (sock_p->cnx_availability_state  != AF_UNIX_CNX_AVAILABLE)
    {
