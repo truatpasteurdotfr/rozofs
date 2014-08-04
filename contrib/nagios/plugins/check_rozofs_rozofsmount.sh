@@ -272,7 +272,7 @@ case $res in
   };;  
 esac
 
-exp_up=`awk 'BEGIN {nb=0;} {if (($1=="EXPORTD") && ($9=="UP")) nb++;} END {printf("%d\n",nb);}' $TMPFILE`
+exp_up=`awk 'BEGIN {nb=0;} {if (($1=="METADAGW") && ($9=="UP")) nb++;} END {printf("%d\n",nb);}' $TMPFILE`
 if [ $exp_up -lt 1 ]
 then
   display_output $STATE_CRITICAL "No exportd connectivity"
