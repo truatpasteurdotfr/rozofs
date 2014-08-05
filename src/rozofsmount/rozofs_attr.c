@@ -526,8 +526,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 {
     fuse_ino_t ino;
     ientry_t *ie = 0;
-    struct fuse_file_info *fi = NULL;
-    file_t *file = NULL;
+//    struct fuse_file_info *fi = NULL;
     struct stat o_stbuf;
     fuse_req_t req; 
     epgw_mattr_ret_t ret ;
@@ -552,7 +551,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     RESTORE_FUSE_PARAM(param,ino);
     RESTORE_FUSE_PARAM(param,trc_idx);
     
-    RESTORE_FUSE_STRUCT_PTR(param,fi);
+//    RESTORE_FUSE_STRUCT_PTR(param,fi);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer

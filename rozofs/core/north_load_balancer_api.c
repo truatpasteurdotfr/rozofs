@@ -23,6 +23,8 @@
 #include <fcntl.h> 
 #include <sys/un.h>             
 #include <errno.h>  
+#include <time.h>
+
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
 #include "ruc_common.h"
@@ -1245,7 +1247,7 @@ int north_lbg_attach_app_sup_cbk_on_entries(north_lbg_ctx_t  *lbg_p)
      severe("north_lbg_attach_app_sup_cbk_on_entries socket index %d does not exist",entry_p->sock_ctx_ref);
      return -1;
    }
-    af_inet_attach_application_supervision_callback(sock_p,lbg_p->userPollingCallBack);
+    af_inet_attach_application_supervision_callback(sock_p,lbg_p->userPollingCallBack, lbg_p->active_standby_mode);
     /*
     ** attach the callabck of the lbg for availability supervision
     */
@@ -1384,10 +1386,29 @@ reloop:
   ** Check whether this LBG is in active/standby mode
   ** in this case send the message on the active connection
   */
-  if (lbg_p->active_lbg_entry >= 0) {
-    entry_idx = lbg_p->active_lbg_entry;
-  }
+  if (lbg_p->active_standby_mode == 1) {
   
+    /*
+    ** No actibve entry elected. The LBG should nbe down !!!
+    */
+    if (lbg_p->active_lbg_entry < 0) {
+      /*
+      ** queue the message at the tail
+      */
+      ruc_objInsertTail((ruc_obj_desc_t*)&lbg_p->xmitList[0],(ruc_obj_desc_t*)buf_p);  
+      /*
+      ** update statistics
+      */
+      lbg_p->stats.xmitQueuelen++;     
+      return 0;  
+    }
+    
+    /*
+    ** Get the active socket to send on
+    */
+    entry_idx = lbg_p->active_lbg_entry;
+
+  }
   
   else {
 
@@ -1598,19 +1619,35 @@ int north_lbg_is_local(int  lbg_idx)
 
   @retval none
 */
-int north_lbg_set_active_entry(int  lbg_idx, int sock_idx_in_lbg)
+void north_lbg_set_active_entry(int  lbg_idx, int sock_idx_in_lbg)
 {
   north_lbg_ctx_t  *lbg_p;
   
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
   {
-    warning("north_lbg_is_local: no such instance %d ",lbg_idx);
-    return 0;
+    severe("north_lbg_set_active_entry: no such instance %d ",lbg_idx);
+    return;
   }
   //info("JPM lbg %d %s Set active %d",lbg_idx,lbg_p->name,sock_idx_in_lbg);
   
   lbg_p->active_lbg_entry = sock_idx_in_lbg;
+  
+  /*
+  ** When the socket becomes active, stop the polling
+  */ 
+  if (lbg_p->active_lbg_entry != -1) {
+    af_unix_ctx_generic_t *sock_p = af_unix_getObjCtx_p(lbg_p->entry_tb[sock_idx_in_lbg].sock_ctx_ref);
+    if (sock_p == NULL)
+    {
+      severe("north_lbg_set_active_entry: no such socket %d in lbg %d entry %d",
+              lbg_p->entry_tb[sock_idx_in_lbg].sock_ctx_ref,
+	      lbg_idx,sock_idx_in_lbg);
+      return;
+    }    
+    sock_p->cnx_supevision.s.check_cnx_rq = 0;
+  }
+  return;  
 }
 /*__________________________________________________________________________
 */
@@ -1629,13 +1666,57 @@ int north_lbg_get_active_entry(int  lbg_idx)
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
   {
-    warning("north_lbg_is_local: no such instance %d ",lbg_idx);
+    warning("north_lbg_get_active_entry: no such instance %d ",lbg_idx);
     return -1;
   }
   //info("JPM lbg %d %s Get active %d",lbg_idx,lbg_p->name,lbg_p->active_lbg_entry);
 
   return lbg_p->active_lbg_entry;
 }
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg mode in active/standby
 
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+void north_lbg_set_active_standby_mode(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_set_active_standby_mode: no such instance %d ",lbg_idx);
+    return;
+  }
+
+  lbg_p->active_standby_mode = 1;
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg mode in active/standby
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_get_active_standby_mode(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    return 0;
+  }
+
+  return lbg_p->active_standby_mode;
+}
 
 

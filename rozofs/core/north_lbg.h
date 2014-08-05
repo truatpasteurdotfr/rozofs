@@ -159,6 +159,7 @@ typedef struct _north_lbg_ctx_t
   af_stream_poll_CBK_t       userPollingCallBack;    /**< call that permits polling at application level */
   int                        tmo_supervision_in_sec;
   int                        available_state;      /**< 0: unavailable/ 1 available */
+  int                        active_standby_mode;   /**< Set when LBG is in active/standby mode */
   int                        active_lbg_entry;      /**< -1 no entry available/ >=0: index on the active tcp connection */
   int                        local; /**< 1 when the destination is local. 0 else */
 } north_lbg_ctx_t;

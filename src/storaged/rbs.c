@@ -1179,7 +1179,6 @@ int rbs_rebuild_storage(const char *export_host_list, cid_t cid, sid_t sid,
     list_t *p, *q;
     uint64_t current_nb_rb_files = 0;
     int status = -1;
-    int ret;
     char * pExport_host = 0;
 
     DEBUG_FUNCTION;

@@ -311,6 +311,10 @@ void rozofs_export_poll_cbk(void *this,void *param)
    XDR       xdrs;    
    struct rpc_msg  rpc_reply;
    void * ret = NULL;
+
+   rpc_reply.acpted_rply.ar_results.proc = NULL;
+
+
    /*
    ** Restore opaque data
    */ 
@@ -324,12 +328,7 @@ void rozofs_export_poll_cbk(void *this,void *param)
    ** Read active entry of this LBG
    */
    active_entry = north_lbg_get_active_entry(lbg_id);
-     
-   /*
-   ** get the pointer to the transaction context:
-   ** it is required to get the information related to the receive buffer
-   */
-   rozofs_tx_ctx_t      *rozofs_tx_ctx_p = (rozofs_tx_ctx_t*)this;     
+         
    /*    
    ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
    */

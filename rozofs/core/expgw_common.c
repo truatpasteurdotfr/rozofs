@@ -322,9 +322,10 @@ int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long pr
 	 severe("failure while configuring EXPORTD load balancing group");
 	 goto out;     
       }
+      north_lbg_set_active_standby_mode(exportclt->export_lbg_id);
     }
     
-    exportclt->export_lbg_id = north_lbg_configure_af_inet(exportclt->export_lbg_id,"METADAGW",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,
+    exportclt->export_lbg_id = north_lbg_configure_af_inet(exportclt->export_lbg_id,"EXPORTD",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,
                                                   lbg_size,&af_inet_exportd_conf,0);
     if (exportclt->export_lbg_id >= 0)
     {
