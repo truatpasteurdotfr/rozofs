@@ -1129,10 +1129,11 @@ static void rbs_release_rb_entry_list(list_t * rebuild_entries) {
     }
 }
 
-int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
+int rbs_sanity_check(const char *export_host_list, cid_t cid, sid_t sid,
         const char *root) {
 
     int status = -1;
+    char * pExport_host = 0;
 
     DEBUG_FUNCTION;
 
@@ -1145,11 +1146,12 @@ int rbs_sanity_check(const char *export_host, cid_t cid, sid_t sid,
     }
 
     // Try to get the list of storages for this cluster ID
-    if (rbs_get_cluster_list(&rpcclt_export, export_host, cid,
-            &cluster_entries) != 0) {
+    pExport_host = rbs_get_cluster_list(&rpcclt_export, export_host_list, cid,
+            &cluster_entries);
+    if (pExport_host == NULL) {
         fprintf(stderr, "Can't get list of others cluster members from export"
                 " server (%s) for storage to rebuild (cid:%u; sid:%u): %s\n",
-                export_host, cid, sid, strerror(errno));
+                export_host_list, cid, sid, strerror(errno));
         goto out;
     }
 
@@ -1172,11 +1174,12 @@ out:
     return status;
 }
 
-int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
+int rbs_rebuild_storage(const char *export_host_list, cid_t cid, sid_t sid,
         const char *root, uint8_t stor_idx) {
     list_t *p, *q;
     uint64_t current_nb_rb_files = 0;
     int status = -1;
+    char * pExport_host = 0;
 
     DEBUG_FUNCTION;
 
@@ -1191,8 +1194,9 @@ int rbs_rebuild_storage(const char *export_host, cid_t cid, sid_t sid,
     }
 
     // Get the list of storages for this cluster ID
-    if (rbs_get_cluster_list(&rpcclt_export, export_host, cid,
-            &cluster_entries) != 0) {
+    pExport_host = rbs_get_cluster_list(&rpcclt_export, export_host_list, cid,
+            &cluster_entries);
+    if (pExport_host == NULL) {	
         severe("rbs_get_cluster_list failed (cid: %u) : %s", cid, strerror(errno));
         goto out;
     }

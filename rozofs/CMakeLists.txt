@@ -147,6 +147,8 @@ set (librozofs_sources
     core/rozofs_timer_conf_dbg.h
     rozofs_debug_ports.h  
     rozofs_debug_ports.c
+    core/rozofs_host_list.c
+    core/rozofs_host_list.h    
     core/com_cache.c
     core/com_cache.h
     core/ruc_buffer_debug.c

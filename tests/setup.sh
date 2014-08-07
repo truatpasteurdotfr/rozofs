@@ -355,7 +355,7 @@ start_one_storage_rebuild()
     sid=$1
     cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
     echo "Start storage cid: $cid sid: $sid with rebuild"
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r localhost
+    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c ${LOCAL_CONF}'_'$cid'_'$sid"_"${LOCAL_STORAGE_CONF_FILE} -H ${LOCAL_STORAGE_NAME_BASE}$sid -r ${EXPORT_HOST}
     #sleep 1
 }
 storage_delete() 
@@ -592,10 +592,10 @@ deploy_clients_local ()
                     let "INSTANCE=${idx_client}-1"
                     option="$option -o instance=$INSTANCE"
 
-                    echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} \
+                    echo ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${EXPORT_HOST} -E ${LOCAL_EXPORTS_ROOT}_${j} \
                             ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
 
-                    ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
+                    ${LOCAL_BINARY_DIR}/rozofsmount/${LOCAL_ROZOFS_CLIENT} -H ${EXPORT_HOST} -E ${LOCAL_EXPORTS_ROOT}_${j} ${LOCAL_MNT_ROOT}${j}_${idx_client} ${option}
                     #${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 1 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}_${idx_client}  -D 610${j1&
                     #${LOCAL_BINARY_DIR}/storcli/${LOCAL_ROZOFS_STORCLI} -i 2 -H ${LOCAL_EXPORT_NAME_BASE} -E ${LOCAL_EXPORTS_ROOT}_${j}  -M ${LOCAL_MNT_ROOT}${j}_${idx_client} -D 610${j}2&
                     
@@ -1087,6 +1087,8 @@ main ()
 
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
+
+    EXPORT_HOST="192.168.36.15/localhost"
 
     ulimit -c unlimited
     nbaddr=$((STORAGES_BY_CLUSTER*NB_CLUSTERS_BY_VOLUME*NB_VOLUMES))

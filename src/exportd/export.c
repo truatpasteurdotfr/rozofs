@@ -2586,6 +2586,11 @@ out:
 #define ROZOFS_USER_XATTR "user.rozofs"
 #define ROZOFS_ROOT_XATTR "trusted.rozofs"
 
+#define ROZOFS_XATTR_ID "rozofs_id"
+#define ROZOFS_USER_XATTR_ID "user.rozofs_id"
+#define ROZOFS_ROOT_XATTR_ID "trusted.rozofs_id"
+
+
 #define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
 #define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
 #define DISPLAY_ATTR_LONG(name,val) p += sprintf(p,"%-7s : %llu\n",name,(unsigned long long int)val);
@@ -2759,6 +2764,28 @@ static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,i
 /*
 **______________________________________________________________________________
 */
+static inline int get_rozofs_xattr_internal_id(export_t *e, lv2_entry_t *lv2, char * value, int size) {
+  char    * p=value;
+  int       idx;
+  uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  
+  
+  p+=sprintf(p,"@rozofs@%d-%d-%d-",e->eid,lv2->attributes.cid,e->layout);
+  for (idx = 0; idx < rozofs_safe; idx++) {
+    p += sprintf(p,"%d-", lv2->attributes.sids[idx]);
+  }
+  uuid_unparse(lv2->attributes.fid,p); 
+  p+=36;
+  /*
+  ** put the length
+  */
+  p+=sprintf(p,"-%llu",(long long unsigned int)lv2->attributes.size);
+  
+  return (p-value);  
+} 
+/*
+**______________________________________________________________________________
+*/
 /** retrieve an extended attribute value.
  *
  * @param e: the export managing the file or directory.
@@ -2786,7 +2813,10 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
       status = get_rozofs_xattr(e,lv2,value,size);
       goto out;
     }  
-
+    if ((strcmp(name,ROZOFS_XATTR_ID)==0)||(strcmp(name,ROZOFS_USER_XATTR_ID)==0)||(strcmp(name,ROZOFS_ROOT_XATTR_ID)==0)) {
+      status = get_rozofs_xattr_internal_id(e,lv2,value,size);
+      goto out;
+    }  
     if ((status = export_lv2_get_xattr(lv2, name, value, size)) < 0) {
         goto out;
     }

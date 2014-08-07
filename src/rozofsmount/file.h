@@ -75,8 +75,8 @@ typedef struct file {
     ruc_obj_desc_t pending_wr_list;  /**< used to queue the FUSE context waiting for flush completed  */
     fid_t fid;
     int   chekWord;
-    mode_t mode;
-    mattr_t attrs;
+//    mode_t mode;
+//    mattr_t attrs;
     exportclt_t *export;
 //    sclient_t **storages;
     //char buffer[ROZOFS_BUF_SIZE];

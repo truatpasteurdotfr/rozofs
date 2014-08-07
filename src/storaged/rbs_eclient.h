@@ -31,9 +31,9 @@
  * @param cid: the unique id for this cluster.
  * @param cluster_entries: the list of clusters.
  *
- * @return: 0 on success -1 otherwise (errno is set)
+ * @return: NULL on error, valid export host name on success
  */
-int rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
+char * rbs_get_cluster_list(rpcclt_t * clt, const char *export_host, cid_t cid,
         list_t * cluster_entries);
 
 #endif

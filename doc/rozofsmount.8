@@ -45,7 +45,7 @@ Foreground operation.
 .PP
 .TP
 \fB\-H\fP \fIEXPORT_HOST\fP, \fB\-o exporthost=\fP\fIEXPORT_HOST\fP
-Address (or dns name) where exportd daemon is running (default is rozofsexport).
+List of '/' separated addresses (or dns names) where exportd daemon is running (default is rozofsexport). When securing the exportd thanks to a virtual IP address only the virtual IP address is declared (i.e "192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the exportd must be given (i.e "192.168.10.1/192.168.20.1"). 
 .TP
 \fB\-E\fP \fIEXPORT_PATH\fP, \fB-o exportpath=\fP\fIEXPORT_PATH\fP
 Root path of an export see

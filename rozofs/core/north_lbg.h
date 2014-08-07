@@ -115,6 +115,7 @@ typedef struct _north_lbg_entry_ctx_t
   */
   int               sock_ctx_ref;  /**< socket contex reference                        */
   int               state;         /**< see north_lbg_entry_state_e                    */
+  int               last_reconnect_time;/**< Last time a reconnect has beeen attempted */
   north_lbg_stats_t stats;         /**< entry statistics                               */
   void              *parent;       /**< pointer to the parent load balancer context    */
   north_lbg_tmr_cell_t  rpc_guard_timer;   /**< guard timer associated with a pending connect */
@@ -158,6 +159,8 @@ typedef struct _north_lbg_ctx_t
   af_stream_poll_CBK_t       userPollingCallBack;    /**< call that permits polling at application level */
   int                        tmo_supervision_in_sec;
   int                        available_state;      /**< 0: unavailable/ 1 available */
+  int                        active_standby_mode;   /**< Set when LBG is in active/standby mode */
+  int                        active_lbg_entry;      /**< -1 no entry available/ >=0: index on the active tcp connection */
   int                        local; /**< 1 when the destination is local. 0 else */
 } north_lbg_ctx_t;
 
@@ -304,6 +307,11 @@ static inline void north_lbg_entry_state_change(north_lbg_entry_ctx_t *entry_p,i
      ** the element is going down-> so need to re-evaluate the status of the load balancing group
      ** by check the state of each configured entry
      */
+     if (lbg_p->active_lbg_entry == entry_p->index)  {
+       /* This was the active entry of an active/stancby lbg. Invalidate it */
+       //info("JPM lbg %d %s Set active -1",lbg_p->index,lbg_p->name);       
+       lbg_p->active_lbg_entry = -1;
+     }
      north_lbg_clear_bit(entry_p->index,lbg_p->entry_bitmap_state);
      state = north_lbg_eval_global_state(lbg_p);
      if (lbg_p->state != state)

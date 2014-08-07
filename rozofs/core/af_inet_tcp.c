@@ -757,6 +757,18 @@ int af_inet_sock_client_create(char *nickname,
        release_req = 1;
        break;
     }
+    
+    
+    /*
+    ** Set a max SYN retry number to 2
+    */
+    int sync_max_retry = 2;
+    if (setsockopt (sock_p->socketRef,IPPROTO_TCP,
+                    TCP_SYNCNT,&sync_max_retry,sizeof(int)) == -1)
+    {
+       severe("setsockopt TCP_SYNCNT %d %s",sync_max_retry, strerror(errno));
+    }  
+    
     /*
     ** do the connect
     */

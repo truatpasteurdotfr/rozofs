@@ -290,21 +290,12 @@ void rozofs_ll_getattr_cbk(void *this,void *param)
         errno = ENOENT;
         goto error;
     }
-    /**
-    *  update the timestamp in the ientry context
-    */
-    ie->timestamp = rozofs_get_ticker_us();
     /*
-    ** check the length of the file, and update the ientry if the file size returned
-    ** by the export is greater than the one found in ientry
+    ** update the attributes in the ientry
     */
-    if (ie->attrs.size < stbuf.st_size) ie->attrs.size = stbuf.st_size;
+    rozofs_ientry_update(ie,&attr);  
     stbuf.st_size = ie->attrs.size;
-    /*
-    ** copy the attributes in the ientry for the case of the block mode
-    */
-    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    ie->attrs.size = stbuf.st_size;     
+
     fuse_reply_attr(req, &stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
     goto out;
 error:
@@ -420,6 +411,16 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
         errno = EFBIG;
         goto error;
       } 
+      /*
+      ** Flush on disk any pending data in any buffer open on this file 
+      ** before reading.
+      */
+      flush_write_ientry(ie); 
+      /*
+      ** increment the read_consistency counter to inform opened file descriptor that
+      ** their data must be read from disk
+      */
+      ie->read_consistency++;  
 
       storcli_truncate_arg_t  args;
       int ret;
@@ -465,6 +466,10 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
                                 STORCLI_TRUNCATE,(xdrproc_t) xdr_storcli_truncate_arg_t,(void *)&args,
                                 rozofs_ll_truncate_cbk,buffer_p,storcli_idx,ie->fid); 
       if (ret < 0) goto error;
+      /*
+      ** indicates that there is a pending file size update
+      */
+      ie->file_extend_pending = 1;
       /*
       ** all is fine, wait from the response of the storcli and then updates the exportd upon
       ** receiving the answer from storcli
@@ -521,8 +526,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
 {
     fuse_ino_t ino;
     ientry_t *ie = 0;
-    struct fuse_file_info *fi = NULL;
-    file_t *file = NULL;
+//    struct fuse_file_info *fi = NULL;
     struct stat o_stbuf;
     fuse_req_t req; 
     epgw_mattr_ret_t ret ;
@@ -547,7 +551,7 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     RESTORE_FUSE_PARAM(param,ino);
     RESTORE_FUSE_PARAM(param,trc_idx);
     
-    RESTORE_FUSE_STRUCT_PTR(param,fi);
+//    RESTORE_FUSE_STRUCT_PTR(param,fi);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -584,9 +588,6 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
     */
     bufsize = rozofs_tx_get_small_buffer_size();
     xdrmem_create(&xdrs,(char*)payload,bufsize,XDR_DECODE);
-    /*
-    ** decode the rpc part
-    */
     /*
     ** decode the rpc part
     */
@@ -671,26 +672,17 @@ void rozofs_ll_setattr_cbk(void *this,void *param)
         errno = ENOENT;
         goto error;
     }
-    /**
-    *  update the timestamp in the ientry context
-    */
-    ie->timestamp = rozofs_get_ticker_us();
     /*
     ** update the attributes in the ientry
     */
-    memcpy(&ie->attrs,&attr, sizeof (mattr_t));
-    // Update also the fuse_file_info with the new size
-    // It's just for truncate operation
-    if (fi != NULL) {
-        file = (file_t *) (unsigned long) fi->fh;
-        file->attrs.size = ie->attrs.size;
-    }
-    
+    rozofs_ientry_update(ie,&attr);    
     /*
-    ** check the length of the file, and update the ientry if the file size returned
-    ** by the export is greater than the one found in ientry
+    ** clear the running flag
     */
-    if (ie->attrs.size < o_stbuf.st_size) ie->attrs.size = o_stbuf.st_size;
+    ie->file_extend_running = 0;
+    /*
+    ** update the size in the buffer returned to fuse
+    */
     o_stbuf.st_size = ie->attrs.size;
 
     fuse_reply_attr(req, &o_stbuf, rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
@@ -746,8 +738,14 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
    RESTORE_FUSE_PARAM(param,ino);
    RESTORE_FUSE_PARAM(param,to_set);
    RESTORE_FUSE_STRUCT_PTR(param,stbuf);      
-
-
+    /*
+    ** Update the exportd with the filesize if that one has changed
+    */ 
+    ie = get_ientry_by_inode(ino);
+    if (ie != NULL)
+    {
+      ie->file_extend_pending = 0;
+    }
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -824,9 +822,9 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
     rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
     ruc_buf_freeBuffer(recv_buf);  
     /*
-    ** Update the exportd with the filesize if that one has changed
-    */ 
-    if (!(ie = get_ientry_by_inode(ino))) {
+    ** exit in error if the ientry context is not found
+    */
+    if (ie == NULL) {
         errno = ENOENT;
         goto error;
     }
@@ -856,6 +854,11 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
 #endif
 
     if (retcode < 0) goto error;
+    /*
+    ** indicates that an file size update is in progress: in that case the file size to consider
+    ** is the one found in the ientry context
+    */
+    ie->file_extend_running = 1;
    
     /*
     ** now wait for the response of the exportd

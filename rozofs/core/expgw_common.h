@@ -452,7 +452,7 @@ int expgw_clean_up_exportd_table_dirty(uint32_t exportd_id);
 */
 
 int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname, 
-                      uint16_t port,uint16_t nb_gateways,uint16_t gateway_rank);
+                      uint16_t port,uint16_t nb_gateways,uint16_t gateway_rank,af_stream_poll_CBK_t supervision_callback);
                       
 
 /*
@@ -522,7 +522,7 @@ int expgw_get_export_gateway_lbg(uint16_t eid,fid_t fid);
 
 */
 int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long prog,
-        unsigned long vers,uint32_t port_num);
+        unsigned long vers,uint32_t port_num,af_stream_poll_CBK_t rozofs_export_lbg_cnx_polling);
 
 
 /*

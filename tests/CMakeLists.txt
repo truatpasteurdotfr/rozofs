@@ -225,6 +225,8 @@ add_executable(test_rbs
     ${CMAKE_SOURCE_DIR}/rozofs/rpc/sprotoclt.c
     ${CMAKE_SOURCE_DIR}/rozofs/rpc/sclient.h
     ${CMAKE_SOURCE_DIR}/rozofs/rpc/sclient.c
+    ${CMAKE_SOURCE_DIR}/rozofs/core/rozofs_host_list.c
+    ${CMAKE_SOURCE_DIR}/rozofs/core/rozofs_host_list.h
     ${CMAKE_SOURCE_DIR}/src/storaged/storage.h
     ${CMAKE_SOURCE_DIR}/src/storaged/storage.c
     ${CMAKE_SOURCE_DIR}/src/storaged/rbs.h

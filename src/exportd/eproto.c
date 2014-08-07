@@ -36,8 +36,8 @@
 #include "exportd.h"
 
 void *ep_null_1_svc(void *noargs, struct svc_req *req) {
-    DEBUG_FUNCTION;
-    return 0;
+    static void *ret = NULL;
+    return &ret;
 }
 
 

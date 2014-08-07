@@ -52,6 +52,7 @@
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_host2ip.h>
 #include <rozofs/core/ruc_traffic_shaping.h>
+#include <rozofs/core/rozofs_host_list.h>
 
 #include "rozofs_storcli_lbg_cnf_supervision.h"
 #include "rozofs_storcli.h"
@@ -667,34 +668,64 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     int i = 0;
     int ret;
     list_t *iterator = NULL;
+    int export_index=0;
+    char * pHost;
 
     /* Initialize rozofs */
     rozofs_layout_initialize();
 
     struct timeval timeout_exportd;
-    timeout_exportd.tv_sec = ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
-    timeout_exportd.tv_usec = 0;
+    timeout_exportd.tv_sec  = 0; //ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);
+    timeout_exportd.tv_usec = 200000;
     
-    init_rpcctl_ctx(&exportclt.rpcclt);    
+    init_rpcctl_ctx(&exportclt.rpcclt);  
+    
+  
+    if (rozofs_host_list_parse(conf->host,'/') == 0) {
+      severe("rozofs_host_list_parse(%s)",conf->host);
+    }      
 
     /* Initiate the connection to the export and get information
      * about exported filesystem */
-    if (exportclt_initialize(
+    int retry=15;
+    while (retry>0) {
+    
+      for (export_index=0; export_index < ROZOFS_HOST_LIST_MAX_HOST; export_index++) { 
+      
+        pHost = rozofs_host_list_get_host(export_index);
+	    if (pHost == NULL) break;
+	
+	    if (exportclt_initialize(
             &exportclt,
-            conf->host,
+            pHost,
             conf->export,
             conf->passwd,
             conf->buf_size * 1024,
             conf->buf_size * 1024,
             conf->max_retry,
-            timeout_exportd) != 0) {
-        fprintf(stderr,
-                "storcli failed for:\n" "export directory: %s\n"
-                "export hostname: %s\n" "error: %s\n"
-                "See log for more information\n", conf->export, conf->host,
-                strerror(errno));
-        return -1;
+            timeout_exportd) == 0) {
+          break;
+        }
+      }
+      if (pHost != NULL) break;
+      
+      if (timeout_exportd.tv_usec == 200000) {
+        timeout_exportd.tv_usec = 500000;
+      }
+      else {
+        timeout_exportd.tv_usec = 0;
+        timeout_exportd.tv_sec++; 
+      }	     
+      retry--; 
     }
+    if (pHost == NULL) {
+          fprintf(stderr,
+                  "storcli failed for:\n" "export directory: %s\n"
+                  "export hostname: %s\n" "error: %s\n"
+                  "See log for more information\n", conf->export, conf->host,
+                  strerror(errno));
+          return -1;    
+    }	  
 
     /* Initiate the connection to each storage node (with mproto),
      *  get the list of ports and
