@@ -23,6 +23,179 @@
 DECLARE_PROFILING(mpp_profiler_t);
 
 /**
+*  decoding structure for object filename
+*/
+typedef struct mattr_obj {
+    fid_t fid;                      /**< unique file id */
+    cid_t cid;                      /**< cluster id 0 for non regular files */
+    sid_t sids[ROZOFS_SAFE_MAX];    /**< sid of storage nodes target (regular file only)*/
+    uint64_t size;                  /**< see stat(2) */
+} mattr_obj_t;
+
+int rozofs_get_safe(int layout)
+{
+  switch (layout)
+  {
+    case 0: return 4;
+    case 1: return 8;
+    case 2: return 16;
+  }
+  return -1;
+}
+
+/*
+**___________________________________________________________________________________ 
+*/ 
+/**
+* that service provides the parsing of a filename for object mode access
+   in order to bypass the metadata server (exportd)
+   the filename structure is the following:
+   
+   @rozofs@<eid>-<cid>-<layout>-<distribution><fid>-<size>
+   
+   the structure of the distribution is :(the number of values depends on the layout
+   <sid0>-<sid1>-...
+   the structure of the fid is (as example):
+     5102b7e5-8f44-4d0c-2500-000000000010
+     
+   @param name : filename to parse
+   @param attr_p : pointer to the structure used for storing the attributes
+   
+   @retval 0 on success
+   @retval -1 on error (see errno for details)
+
+*/
+
+int rozofs_parse_object_name(char *name,mattr_obj_t *attr_p)
+{
+  int ret;
+  int eid;
+  int layout;
+  int cid;
+  int sid;
+  int i;
+  int nb_sid;
+  uint64_t size;
+  char *pnext;
+  char *cur = name;
+  int len;
+  
+  memset(attr_p,0,sizeof(mattr_obj_t));
+  len = strlen(name);
+
+  while(1)
+  {
+    /*
+    ** get the eid
+    */
+    errno = 0;
+    eid = strtoul(name,&pnext,10);
+    if (errno != 0) break;
+    if (*pnext !='-') 
+    {
+      errno = EINVAL;
+      break;
+    }
+    /*
+    ** get the cid
+    */
+    errno = 0;
+    cur = pnext+1;
+    cid = strtoul(cur,&pnext,10);
+    if (errno != 0) 
+    {
+       break;
+    }
+    if (*pnext !='-') 
+    {
+      errno = EINVAL;
+      break;
+    }
+    attr_p->cid = cid;
+    /*
+    ** get the layout
+    */
+    errno = 0;
+    cur = pnext+1;
+    layout = strtoul(cur,&pnext,10);
+    if (errno != 0) 
+    {
+       break;
+    }
+    if (*pnext !='-') 
+    {
+      errno = EINVAL;
+      break;
+    }
+    /*
+    ** get the distribution: remenber that the number
+    ** of sid depends on the layout
+    */
+    nb_sid = rozofs_get_safe(layout);
+    if (nb_sid < 0)
+    {
+      errno = EINVAL;
+      break;
+    }
+    for (i = 0; i < nb_sid; i++)
+    {
+      errno = 0;
+      cur = pnext+1;
+      sid = strtoull(cur,&pnext,10);
+      if (errno != 0) 
+      {
+	 break;
+      }
+      if (*pnext !='-') 
+      {
+	errno = EINVAL;
+	break;
+      } 
+      attr_p->sids[i] = (uint8_t)sid;        
+    }
+    if (errno!= 0) break;
+    /*
+    ** get the fid
+    */
+    cur = pnext+1;
+    if (pnext[37] != '-')
+    {
+      errno = EINVAL;
+      break;    
+    }
+    pnext[37]=0;
+    ret = uuid_parse(cur,attr_p->fid);
+    if (ret < 0)
+    {
+      errno = EINVAL;
+    } 
+    pnext+=37;
+    /*
+    ** get the size
+    */
+    errno = 0;
+    cur = pnext+1;
+    size = strtoull(cur,&pnext,10);
+    if (errno != 0) 
+    {
+       break;
+    }
+    attr_p->size = size;
+    break;
+  }
+  if (errno!=0) 
+  {
+    return -1;
+  }
+  if ((pnext-name) != len)
+  {
+     errno = EINVAL;
+    return -1;
+  }  
+  return 0;
+
+}
+/**
 *  metadata Lookup
 
  Under normal condition the service ends by calling : fuse_reply_entry
@@ -39,10 +212,15 @@ void rozofs_ll_lookup_cbk(void *this,void *param);
 void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name) 
 {
     ientry_t *ie = 0;
+    ientry_t *nie = 0;
     epgw_lookup_arg_t arg;
     int    ret;        
     void *buffer_p = NULL;
     int trc_idx;
+    mattr_obj_t mattr_obj;
+    struct fuse_entry_param fep;
+    struct stat stbuf;
+    int allocated = 0;
     
     trc_idx = rozofs_trc_req_name(srv_rozofs_ll_lookup,parent,(char*)name);
     /*
@@ -72,6 +250,23 @@ void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name)
     if (!(ie = get_ientry_by_inode(parent))) {
         errno = ENOENT;
         goto error;
+    }
+    /*
+    ** check for direct access
+    */
+    if (strncmp(name,"@rozofs@",8) == 0)
+    {
+      ret = rozofs_parse_object_name((char*)(name+8),&mattr_obj);
+      if (ret < 0)
+      {
+	errno = ENOENT;
+	goto error;
+      } 
+      /*
+      ** successful parsing-> attempt to create a fake ientry
+      */
+      goto lookup_objectmode;   
+    
     }
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -105,10 +300,52 @@ error:
     ** release the buffer if has been allocated
     */
     rozofs_trc_rsp(srv_rozofs_ll_lookup,parent,NULL,1,trc_idx);
+out:
     STOP_PROFILING_NB(buffer_p,rozofs_ll_lookup);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
 
     return;
+    /**
+    * case of the object mode
+    */
+lookup_objectmode:
+    if (!(nie = get_ientry_by_fid(mattr_obj.fid))) {
+        nie = alloc_ientry(mattr_obj.fid);
+	allocated=1;
+    } 
+    /**
+    *  update the timestamp in the ientry context
+    */
+    nie->timestamp = rozofs_get_ticker_us();
+    if (allocated)
+    {
+      /*
+      ** update the attributes in the ientry
+      */
+      memcpy(nie->attrs.fid, mattr_obj.fid, sizeof(fid_t));
+      nie->attrs.cid = mattr_obj.cid;
+      memcpy(nie->attrs.sids, mattr_obj.sids, sizeof(sid_t)*ROZOFS_SAFE_MAX);
+      nie->attrs.size = mattr_obj.size;
+      nie->attrs.nlink = 1;
+      nie->attrs.mode = S_IFREG | S_IRWXU | S_IRWXG | S_IRWXO ;
+      nie->attrs.uid = 0;
+      nie->attrs.gid = 0;
+    }   
+//    info("FDL %d mode %d  uid %d gid %d",allocated,nie->attrs.mode,nie->attrs.uid,nie->attrs.gid);
+    memset(&fep, 0, sizeof (fep));
+    mattr_to_stat(&nie->attrs, &stbuf);
+    stbuf.st_ino = nie->inode;
+    fep.ino = nie->inode;    
+    fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
+    fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
+    memcpy(&fep.attr, &stbuf, sizeof (struct stat));
+    nie->nlookup++;
+    fuse_reply_entry(req, &fep);
+
+    rozofs_trc_rsp(srv_rozofs_ll_lookup,(nie==NULL)?0:nie->inode,(nie==NULL)?NULL:nie->attrs.fid,0,trc_idx);
+    goto out;
+
+
 }
 
 /**
