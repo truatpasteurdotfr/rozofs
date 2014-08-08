@@ -23,6 +23,7 @@
 #include <fcntl.h> 
 #include <sys/un.h>             
 #include <errno.h>  
+#include <time.h>
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
 #include "ruc_common.h"
@@ -626,6 +627,7 @@ void north_lbg_entry_timeout_CBK (void *opaque)
 
    entry_p->stats.totalConnectAttempts++;
    ret = af_unix_sock_client_reconnect(entry_p->sock_ctx_ref);
+   entry_p->last_reconnect_time = time(NULL); // Save time when we reconnect 
    if (ret < 0)
    {
 //      printf("north_lbg_entry_timeout_CBK-->fatal error on reconnect\n");
@@ -665,6 +667,7 @@ void north_lbg_entry_stop_timer(north_lbg_entry_ctx_t *pObj)
 void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms) 
 {
  uint8_t slot;
+ time_t delay;
   /*
   **  remove the timer from its current list
   */
@@ -672,9 +675,19 @@ void north_lbg_entry_start_timer(north_lbg_entry_ctx_t *entry_p,uint32_t time_ms
 
 //  entry_p->rpc_guard_timer_flg = FALSE;
   north_lbg_tmr_stop(&entry_p->rpc_guard_timer);
+  
+  // Take into account the last reconnect attemp time 
+  // to adjust timer duration in order to reconnect 
+  // every time_ms
+  delay = (time(NULL) - entry_p->last_reconnect_time)*1024;
+  time_ms *= 1024;
+  if (delay >= 0) {
+    if   (delay < time_ms) time_ms -= delay;
+    else                   time_ms = 100;
+  }
   north_lbg_tmr_start(slot,
                   &entry_p->rpc_guard_timer,
-		  time_ms*1000,
+		  time_ms,
                   north_lbg_entry_timeout_CBK,
 		  (void*) entry_p);
 
@@ -1233,7 +1246,7 @@ int north_lbg_attach_app_sup_cbk_on_entries(north_lbg_ctx_t  *lbg_p)
      severe("north_lbg_attach_app_sup_cbk_on_entries socket index %d does not exist",entry_p->sock_ctx_ref);
      return -1;
    }
-    af_inet_attach_application_supervision_callback(sock_p,lbg_p->userPollingCallBack);
+    af_inet_attach_application_supervision_callback(sock_p,lbg_p->userPollingCallBack, lbg_p->active_standby_mode);
     /*
     ** attach the callabck of the lbg for availability supervision
     */
@@ -1367,18 +1380,51 @@ reloop:
     lbg_p->stats.xmitQueuelen++;     
     return 0;  
   }
+  
+  
   /*
-  ** OK there is at least one entry that is free, so get the next valid entry
+  ** Check whether this LBG is in active/standby mode
+  ** in this case send the message on the active connection
   */
-  entry_idx = north_lbg_get_next_valid_entry(lbg_p);
-  if (entry_idx < 0)
-  {
+  if (lbg_p->active_standby_mode == 1) {
+  
     /*
-    ** that situation must not occur since there is at leat one entry that is UP!!!!
+    ** No actibve entry elected. The LBG should nbe down !!!
     */
-//    RUC_WARNING(-1);
-    return -1;    
+    if (lbg_p->active_lbg_entry < 0) {
+      /*
+      ** queue the message at the tail
+      */
+      ruc_objInsertTail((ruc_obj_desc_t*)&lbg_p->xmitList[0],(ruc_obj_desc_t*)buf_p);  
+      /*
+      ** update statistics
+      */
+      lbg_p->stats.xmitQueuelen++;     
+      return 0;  
+    }
+    
+    /*
+    ** Get the active socket to send on
+    */
+    entry_idx = lbg_p->active_lbg_entry;
   }
+  
+  else {
+
+     /*
+     ** OK there is at least one entry that is free, so get the next valid entry
+     */
+     entry_idx = north_lbg_get_next_valid_entry(lbg_p);
+     if (entry_idx < 0)
+     {
+       /*
+       ** that situation must not occur since there is at leat one entry that is UP!!!!
+       */
+   //    RUC_WARNING(-1);
+       return -1;    
+     }
+     
+  }   
   /*
   ** That's fine, get the pointer to the entry in order to get its socket context reference
   */
@@ -1562,6 +1608,114 @@ int north_lbg_is_local(int  lbg_idx)
   }
   return lbg_p->local;
 }
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg entry to use when sending
 
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+void north_lbg_set_active_entry(int  lbg_idx, int sock_idx_in_lbg)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    severe("north_lbg_set_active_entry: no such instance %d ",lbg_idx);
+    return;
+  }
+  //info("JPM lbg %d %s Set active %d",lbg_idx,lbg_p->name,sock_idx_in_lbg);
+  
+  lbg_p->active_lbg_entry = sock_idx_in_lbg;
+  
+  /*
+  ** When the socket becomes active, stop the polling
+  */ 
+  if (lbg_p->active_lbg_entry != -1) {
+    af_unix_ctx_generic_t *sock_p = af_unix_getObjCtx_p(lbg_p->entry_tb[sock_idx_in_lbg].sock_ctx_ref);
+    if (sock_p == NULL)
+    {
+      severe("north_lbg_set_active_entry: no such socket %d in lbg %d entry %d",
+              lbg_p->entry_tb[sock_idx_in_lbg].sock_ctx_ref,
+	      lbg_idx,sock_idx_in_lbg);
+      return;
+    }    
+    sock_p->cnx_supevision.s.check_cnx_rq = 0;
+  }
+  return;  
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Get the lbg entry to use when sending
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_get_active_entry(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_get_active_entry: no such instance %d ",lbg_idx);
+    return -1;
+  }
+  //info("JPM lbg %d %s Get active %d",lbg_idx,lbg_p->name,lbg_p->active_lbg_entry);
+
+  return lbg_p->active_lbg_entry;
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg mode in active/standby
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+void north_lbg_set_active_standby_mode(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    warning("north_lbg_set_active_standby_mode: no such instance %d ",lbg_idx);
+    return;
+  }
+
+  lbg_p->active_standby_mode = 1;
+}
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg mode in active/standby
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_get_active_standby_mode(int  lbg_idx)
+{
+  north_lbg_ctx_t  *lbg_p;
+  
+  lbg_p = north_lbg_getObjCtx_p(lbg_idx);
+  if (lbg_p == NULL) 
+  {
+    return 0;
+  }
+
+  return lbg_p->active_standby_mode;
+}
 
 

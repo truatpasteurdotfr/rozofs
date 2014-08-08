@@ -969,7 +969,7 @@ do_monitor_cfg ()
   do
     for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); 
     do
-      echo "FSMOUNT ${EXPORT_HOST} $mount_instance"
+      echo "FSMOUNT localhost $mount_instance"
       mount_instance=$((mount_instance+1))
     done
   done       

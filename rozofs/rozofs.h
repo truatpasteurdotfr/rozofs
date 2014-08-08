@@ -27,7 +27,10 @@
 /**
 * Ports definition of RozoFS
 */
+
 #define EXPNB_SLAVE_PORT       53000  /**< supports up to 8 exportd slave */
+#define ROZOFS_GET_EXPNB_PORT  get_service_port("rozo_export_nb",NULL,EXPNB_SLAVE_PORT)
+ 
 #define GEO_REPLICA_SLAVE_PORT 53010  /**< oly one port for georeplication */
 
 #define P_COUNT     0

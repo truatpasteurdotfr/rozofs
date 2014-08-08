@@ -151,9 +151,14 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
 
             for (i = 0; i < lbg_p->nb_entries_conf; i++, entry_p++) {
                 sock_p = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
-                pChar += sprintf(pChar, " %-24s |", lbg_p->name);
+                pChar += sprintf(pChar, " %-24s |", lbg_p->name); 
                 pChar += sprintf(pChar, "  %4d  |", lbg_p->index);
-                pChar += sprintf(pChar, "  %2d  |", i);
+		if (lbg_p->active_lbg_entry == i) {
+                  pChar += sprintf(pChar, "  %2d *|", i);
+                }
+		else {
+                  pChar += sprintf(pChar, "  %2d  |", i);
+		}  
                 pChar += sprintf(pChar, " %4d |", sock_p->socketRef); /** socket */
 
                 pChar += sprintf(pChar, " %s |", lbg_north_state2String(entry_p->state));
@@ -320,6 +325,7 @@ void north_lbg_entry_init(void *parent, north_lbg_entry_ctx_t *entry_p, uint32_t
     entry_p->index = index;
     entry_p->free = TRUE;
     entry_p->sock_ctx_ref = -1;
+    entry_p->last_reconnect_time = 0;
     entry_p->state = NORTH_LBG_DEPENDENCY;
     memset(&entry_p->stats, 0, sizeof (north_lbg_stats_t));
     entry_p->parent = parent;
@@ -357,6 +363,8 @@ void north_lbg_ctxInit(north_lbg_ctx_t *p, uint8_t creation) {
     memset(&p->stats, 0, sizeof (north_lbg_stats_t));
 
     p->rechain_when_lbg_gets_down = 0;
+    p->active_lbg_entry = -1;
+    p->active_standby_mode = 0;
 
     /*
      ** clear the state bitmap

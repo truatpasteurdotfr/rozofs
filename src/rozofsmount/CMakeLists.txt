@@ -59,6 +59,7 @@ add_executable(rozofsmount
     rozofs_file_lock.c
     rozofs_xattr_flt.h
     rozofs_xattr_flt.c
+    rozofs_export_cnx_supervision.c
 )
 #pthread need by fuse
 target_link_libraries(rozofsmount rozofs ${PTHREAD_LIBRARY} ${FUSE_LIBRARY} ${UUID_LIBRARY} ${CRYPT_LIBRARY})

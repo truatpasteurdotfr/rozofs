@@ -223,7 +223,15 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
       */
       sock_p->xmit.state = XMIT_READY;
       sock_p->recv.state = RECV_IDLE;
-      sock_p->cnx_availability_state = AF_UNIX_CNX_AVAILABLE;
+      if (sock_p->userPollingCallBack)
+      {
+	    sock_p->cnx_availability_state = AF_UNIX_CNX_UNAVAILABLE;
+	    af_inet_set_cnx_tmo(sock_p,20);
+      }
+      else
+      {
+        sock_p->cnx_availability_state = AF_UNIX_CNX_AVAILABLE;      
+      }
       if (sock_p->userAvailabilityCallBack!= NULL)
       {
         /**
@@ -303,9 +311,10 @@ static  int af_inet_cnx_check_expiration (af_unix_ctx_generic_t  *sock_p)
    uint64_t cur_ts;
    uint64_t cnx_ts;        
 
-   
+     
    if (p->s.check_cnx_enabled == 0) return 0;
    if (p->s.check_cnx_rq == 0) return 0;
+   
    /*
    ** check the timestamp
    */
@@ -866,6 +875,15 @@ int af_unix_sock_client_reconnect(uint32_t af_unix_ctx_id)
    else
    {
      sock_p->socketRef = af_inet_sock_stream_client_create_internal(sock_p,sock_p->so_sendbufsize);
+     /*
+     ** Set a max SYN retry number to 2
+     */
+     int sync_max_retry = 2;
+     if (setsockopt (sock_p->socketRef,IPPROTO_TCP,
+                     TCP_SYNCNT,&sync_max_retry,sizeof(int)) == -1)
+     {
+	   severe("setsockopt TCP_SYNCNT %d %s",sync_max_retry, strerror(errno));
+     }     
    }
    if (sock_p->socketRef == -1)
    {

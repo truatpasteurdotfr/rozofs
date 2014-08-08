@@ -227,8 +227,8 @@ int rozofs_exp_process_export_gateway_conf_nb(rozofs_exp_sup_conf_t *p,rozofs_ex
                                    arg->exportd_host,       // hostname of the Master exportd
                                    0,                       // port
                                    arg->hdr.nb_gateways,    // nb Gateway
-                                   arg->hdr.nb_gateways    // gateway rank =  nb Gateway for Rozofsmount
-                                   );    
+                                   arg->hdr.nb_gateways,    // gateway rank =  nb Gateway for Rozofsmount
+                                   NULL);    
         if (status < 0) 
         {
           severe("fail to add eid %d",i);

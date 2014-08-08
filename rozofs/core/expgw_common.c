@@ -240,7 +240,7 @@ static void export_lbg_start_timer(expgw_exportd_ctx_t *exportclt) {
 
 */
 int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long prog,
-        unsigned long vers,uint32_t port_num) {
+        unsigned long vers,uint32_t port_num,af_stream_poll_CBK_t supervision_callback) {
     int status = -1;
     struct sockaddr_in server;
     struct hostent *hp;
@@ -288,14 +288,51 @@ int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long pr
     af_inet_exportd_conf.recv_srv_type = ROZOFS_RPC_SRV;
     af_inet_exportd_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
 
-    exportclt->export_lbg_id = north_lbg_create_af_inet("METADATA",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,lbg_size,&af_inet_exportd_conf);
+    /*
+    ** allocate a load balancing group
+    */
+    exportclt->export_lbg_id = north_lbg_create_no_conf();
+    if (exportclt->export_lbg_id < 0)
+    {     
+       /*
+       ** cannot create the load balancing group
+       */
+       severe("Cannot create Load Balancing Group for Exportd");
+       goto out;
+    }
+
+    if (supervision_callback != NULL)
+    {	
+      int ret = north_lbg_attach_application_supervision_callback(exportclt->export_lbg_id,supervision_callback);
+      if (ret < 0)
+      {
+         /*
+	 ** cannot create the load balancing group
+	 */
+	 severe("failure while configuring EXPORTD load balancing group");
+	 goto out;     
+      }
+      ret = north_lbg_set_application_tmo4supervision(exportclt->export_lbg_id,3);
+      if (ret < 0)
+      {
+         /*
+	 ** cannot create the load balancing group
+	 */
+	 severe("failure while configuring EXPORTD load balancing group");
+	 goto out;     
+      }
+      north_lbg_set_active_standby_mode(exportclt->export_lbg_id);
+    }
+    
+    exportclt->export_lbg_id = north_lbg_configure_af_inet(exportclt->export_lbg_id,"EXPORTD",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,
+                                                  lbg_size,&af_inet_exportd_conf,0);
     if (exportclt->export_lbg_id >= 0)
     {
       /*
       ** the timer is started only to address the case of a dynamic port
       */
       status = 0;
-      if (port_num == 0) export_lbg_start_timer (exportclt);      
+      if (port_num == 0) export_lbg_start_timer (exportclt); 
       return status;    
     }
     severe("Cannot create Load Balancing Group for Exportd");
@@ -442,7 +479,8 @@ int expgw_clean_up_exportd_table_dirty(uint32_t exportd_id)
 */
 
 int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname, 
-                      uint16_t port,uint16_t nb_gateways,uint16_t gateway_rank)
+                      uint16_t port,uint16_t nb_gateways,uint16_t gateway_rank,
+		      af_stream_poll_CBK_t supervision_callback)
 {
 
   if ((exportd_id >= EXPGW_EID_MAX_IDX) || (eid >= EXPGW_EXPORTD_MAX_IDX))
@@ -481,7 +519,7 @@ int expgw_export_add_eid(uint16_t exportd_id, uint16_t eid, char *hostname,
   /*
   ** create the load balancing group
   */
-  if (expgw_export_lbg_initialize(&expgw_exportd_table[exportd_id],EXPORT_PROGRAM, EXPORT_VERSION, port) != 0)
+  if (expgw_export_lbg_initialize(&expgw_exportd_table[exportd_id],EXPORT_PROGRAM, EXPORT_VERSION, port, supervision_callback) != 0)
   {
     return -1;
   }

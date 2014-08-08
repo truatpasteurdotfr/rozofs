@@ -276,4 +276,49 @@ int north_lbg_send_with_shaping(int  lbg_idx,void *buf_p,uint32_t rsp_size,uint3
   @retval none
 */
 int north_lbg_is_local(int  lbg_idx);
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg mode in active/standby
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_get_active_standby_mode(int  lbg_idx);
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg mode in active/standby
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+void north_lbg_set_active_standby_mode(int  lbg_idx);
+/*__________________________________________________________________________
+*/
+/**
+*  Get the lbg entry to use when sending
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+int north_lbg_get_active_entry(int  lbg_idx);
+
+/*__________________________________________________________________________
+*/
+/**
+*  Set the lbg entry to use when sending
+
+  @param lbg_idx : reference of the load balancing group
+
+
+  @retval none
+*/
+void north_lbg_set_active_entry(int  lbg_idx, int sock_idx_in_lbg);
 #endif

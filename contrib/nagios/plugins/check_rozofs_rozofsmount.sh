@@ -28,7 +28,7 @@ STATE_UNKNOWN=3
 rozodiag_PATHS=". /usr/bin /usr/local/bin $ROZO_TESTS/build/src/rozodiag" 
 resolve_rozodiag() {
 
-  option="-i $1 -p $port"
+  option="-i $host -p $port"
 
   if [ ! -z "$time" ];
   then
@@ -160,7 +160,7 @@ test_storcli()
 {
   # 1st storcli
   port=`expr $port + 1 `
-  resolve_rozodiag $host
+  resolve_rozodiag
   $ROZDBG -c storaged_status >  $TMPFILE
 
   res=`grep cid $TMPFILE`
@@ -238,52 +238,39 @@ then
 fi  
 
 
-# ping every destination host
-# $host is a list '/' separated hosts
-host=`echo $host | sed 's/\// /' `
-ok=0
-hosts=""
-for h in $host
-do
-  ping $h -c 1 -w 2 >> /dev/null
-  if [ $? == 0 ]
-  then
-    hosts[$ok]=$h
-    ok=$((ok+1))
-  fi  
-done  
-case $ok in
-  "0") display_output $STATE_CRITICAL "$host do not respond to ping"
-esac
-# hosts is now the array of host responding to ping
 
+# ping the destination host
+
+ping $host -c 1 >> /dev/null
+if [ $? != 0 ]
+then
+  # re attempt a ping
+  ping $host -c 2 >> /dev/null
+  if [ $? != 0 ]
+  then  
+    display_output $STATE_CRITICAL "$host do not respond to ping"
+  fi 
+fi
 
 if [ ! -z "$instance" ];
 then
   port=$(( 50003 + 3 * $instance ))
 fi
 
-ok=0
-for i in $(seq ${#hosts[@]} )
-do
+# Find rozodiag utility and prepare command line parameters
 
-  # Find rozodiag utility and prepare command line parameter
-  resolve_rozodiag ${hosts[$((i-1))]}
+resolve_rozodiag
 
 
-  # Run vfstat_stor debug command on export to check storage status
+# Run vfstat_stor debug command on export to check storage status
 
-  $ROZDBG -c lbg_entries >  $TMPFILE
-  res=`grep "LBG Name" $TMPFILE`
-  case $res in
-    "") ;;
-    *) ok=1;break;;
-  esac
-done
-case $ok in
-  "0") display_output $STATE_CRITICAL "$host do not respond to rozodiag";;  
+$ROZDBG -c lbg_entries >  $TMPFILE
+res=`grep "LBG Name" $TMPFILE`
+case $res in
+  "") {
+    display_output $STATE_CRITICAL "$host do not respond to rozodiag"
+  };;  
 esac
-host=${hosts[$((i-1))]}
 
 exp_up=`awk 'BEGIN {nb=0;} {if (($1=="EXPORTD") && ($9=="UP")) nb++;} END {printf("%d\n",nb);}' $TMPFILE`
 if [ $exp_up -lt 1 ]

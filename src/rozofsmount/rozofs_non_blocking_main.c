@@ -20,6 +20,7 @@
 #include <rozofs/core/ruc_tcpServer_api.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 #include <pthread.h>
 
 #include "rozofs_export_gateway_conf_non_blocking.h"
@@ -49,7 +50,7 @@ void rozofs_flock_service_init(void) ;
   @retval RUC_OK on success
   @retval RUC_NOK on failure
 */
-int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port)
+int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port, af_stream_poll_CBK_t supervision_callback)
 {
     int ret;
     
@@ -73,9 +74,9 @@ int rozofs_expgateway_init(char *host,int eid,uint16_t export_listening_port)
 //#warning multi-slice is temporary removed
                                export_listening_port,  // port
                                0,  // nb Gateway
-#endif
-                               0   // gateway rank: not significant for an rozofsmount
-                               );
+#endif			       
+                               0,   // gateway rank: not significant for an rozofsmount
+                               supervision_callback); 
     if (ret < 0) {
         fatal("Fatal error on expgw_export_add_eid()");
         goto error;
@@ -217,8 +218,10 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port,uint16_t export_listening_p
 
         if (ret != RUC_OK) break;
 #endif    
+
         exportclt_t *exportclt = args_p->exportclt;
-        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid,export_listening_port);
+        ret = rozofs_expgateway_init( exportclt->host,(int)exportclt->eid, export_listening_port,
+	                              (af_stream_poll_CBK_t) rozofs_export_lbg_cnx_polling);
         if (ret != RUC_OK) break;
 
         break;
@@ -343,7 +346,8 @@ int rozofs_stat_start(void *args) {
      */
 #warning set exportd port number to 53000
     info("exportd slave port number %d\n",53000);
-    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, export_listening_port) != 0) {
+    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, export_listening_port,
+                               (af_stream_poll_CBK_t) rozofs_export_lbg_cnx_polling) != 0) {
         severe("Cannot setup the load balancing group towards Exportd");
     }
     //#warning storcli instances are hardcoded

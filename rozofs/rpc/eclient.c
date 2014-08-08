@@ -28,6 +28,7 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 
 #include "eproto.h"
 #include "eclient.h"
@@ -61,9 +62,10 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,int sit
     init_rpcctl_ctx(&clt->rpcclt);    
 	
     /* Initialize connection with export server */
+    uint16_t export_nb_port = ROZOFS_GET_EXPNB_PORT;    
     if (rpcclt_initialize
             (&clt->rpcclt, host, EXPORT_PROGRAM, EXPORT_VERSION,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, EXPNB_SLAVE_PORT,
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, export_nb_port,
             clt->timeout) != 0)
         goto out;
 

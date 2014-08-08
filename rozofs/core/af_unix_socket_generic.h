@@ -286,7 +286,8 @@ typedef union
    struct {
    uint64_t check_cnx_enabled:1 ; /**< assert to one if enabled */
    uint64_t check_cnx_rq:1 ;      /**< assert to one when there is a buffer submitted */
-   uint64_t timestamp:62 ;        /**< expiration date */
+   uint64_t check_cnx_rq_per_appli:1 ;/* When set to 1 the check_cnx_rq must be cleared by the application*/
+   uint64_t timestamp:61 ;        /**< expiration date */
    } s;
 } af_inet_check_cnx_t;
 /**
@@ -341,8 +342,7 @@ typedef struct _af_unix_ctx_generic_t
   com_recv_template_t   recv;
   rozofs_socket_stats_t stats;
   af_inet_check_cnx_t   cnx_supevision; /**< supervision context */
-  uint8_t               cnx_availability_state;  /**< operational state of the connection */
-  
+  uint8_t               cnx_availability_state;  /**< operational state of the connection */  
 
 } af_unix_ctx_generic_t;
 
@@ -829,7 +829,11 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
 static inline void af_inet_cnx_ok (af_unix_ctx_generic_t *sock_p)
 {
    af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
-   p->s.check_cnx_rq = 0;
+   
+   if (p->s.check_cnx_rq_per_appli == 0) { 
+     p->s.check_cnx_rq = 0;
+   }
+   
 
    if (sock_p->cnx_availability_state  != AF_UNIX_CNX_AVAILABLE)
    {
@@ -890,14 +894,34 @@ static inline void af_inet_enable_cnx_supervision(af_unix_ctx_generic_t  *sock_p
    @param sock_p: reference of the connection
    @param supervision_callback supervision_callback
 */
-static inline void af_inet_attach_application_supervision_callback(af_unix_ctx_generic_t  *sock_p,af_stream_poll_CBK_t supervision_callback)
+static inline void af_inet_attach_application_supervision_callback(af_unix_ctx_generic_t  *sock_p,af_stream_poll_CBK_t supervision_callback, int active_standby_mode)
 {
    af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
    p->s.check_cnx_enabled =1;
+   if (active_standby_mode == 1) {
+     p->s.check_cnx_rq_per_appli = 1;
+   }
+   else {
+     p->s.check_cnx_rq_per_appli = 0;
+   }
    sock_p->userPollingCallBack = supervision_callback;
 }
 
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Clear the check_cnx_rq flag from the application
+   
+   @param sock_p: reference of the connection
+   @param supervision_callback supervision_callback
+*/
+static inline void af_inet_clear_check_cnx_rq(af_unix_ctx_generic_t  *sock_p)
+{
+   af_inet_check_cnx_t *p = &sock_p->cnx_supevision;
+   p->s.check_cnx_rq_per_appli = 0;
+}
 
 
 

@@ -39,6 +39,7 @@
 #include <rozofs/core/rozofs_host_list.h>
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/eproto.h>
+#include <rozofs/core/af_unix_socket_generic.h>
 #include "rpcclt.h"
 #include "storcli_lbg_prototypes.h"
 
@@ -153,8 +154,26 @@ static void export_lbg_start_timer(exportclt_t *exportclt) {
 
 }
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Init of the load balancing group associated with the exportd
+   (used by rozofsmount only)
+   
+   @param exportclt: data structure that describes the remote exportd
+   @param prog: export program name
+   @param vers: exportd program version
+   @param port_num: tcp port of the exportd (0 for dynamic port )
+   @param supervision_callback: supervision callback (NULL if none)
+   
+   @retval 0 on success
+   @retval < 0 on error (see errno for details)
+*/
 int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
-        unsigned long vers,uint32_t port_num) {
+        		  unsigned long vers,uint32_t port_num,
+			  af_stream_poll_CBK_t supervision_callback) 
+{
     int status = -1;
     struct sockaddr_in server;
     struct hostent *hp;
@@ -162,6 +181,7 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
     int lbg_size;
     int export_index=0;
     char * pHost;
+    int ret;
     
     DEBUG_FUNCTION;    
     rpcclt_t * client = &exportclt->rpcclt;
@@ -172,25 +192,25 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
     for (export_index=0; export_index < ROZOFS_HOST_LIST_MAX_HOST; export_index++) { 
 
         pHost = rozofs_host_list_get_host(export_index);
-	if (pHost == NULL) break;
+	    if (pHost == NULL) break;
 	
         if ((hp = gethostbyname(pHost)) == 0) {
             severe("gethostbyname failed for host : %s, %s", pHost,
                     strerror(errno));
             continue;
-	}
+	 }
 
-	bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
-	if (port_num == 0) {
-            if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
-        	warning("pmap_getport failed%s", clnt_spcreateerror(""));
-        	errno = EPROTO;
-        	goto out;
-            }
-            server.sin_port = htons(port);
-	} else {
-            server.sin_port = htons(port_num);
-	}
+	 bcopy((char *) hp->h_addr, (char *) &server.sin_addr, hp->h_length);
+	 if (port_num == 0) {
+         if ((port = pmap_getport(&server, prog, vers, IPPROTO_TCP)) == 0) {
+             warning("pmap_getport failed%s", clnt_spcreateerror(""));
+             errno = EPROTO;
+             goto out;
+         }
+         server.sin_port = htons(port);
+	 } else {
+         server.sin_port = htons(port_num);
+	 }
 	/*
 	** store the IP address and port in the list of the endpoint
 	*/
@@ -203,7 +223,47 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
      af_inet_exportd_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_exportd_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
      
-     client->lbg_id = north_lbg_create_af_inet("EXPORTD",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,lbg_size,&af_inet_exportd_conf);
+     /*
+     ** allocate a load balancing group
+     */
+     client->lbg_id = north_lbg_create_no_conf();
+     if (client->lbg_id < 0)
+     {     
+        /*
+	** cannot create the load balancing group
+	*/
+	severe("Out of lbg context while creating EXPORTD load balancing group");
+	goto out;
+     }
+     /*
+     ** put the supervision callback if any declared
+     */
+ #if 1
+     if (supervision_callback != NULL)
+     {	
+       ret = north_lbg_attach_application_supervision_callback(client->lbg_id,supervision_callback);
+       if (ret < 0)
+       {
+          /*
+	  ** cannot create the load balancing group
+	  */
+	  severe("failure while configuring EXPORTD load balancing group");
+	  goto out;     
+       }
+       ret = north_lbg_set_application_tmo4supervision(client->lbg_id,3);
+       if (ret < 0)
+       {
+          /*
+	  ** cannot create the load balancing group
+	  */
+	  severe("failure while configuring EXPORTD load balancing group");
+	  goto out;     
+       }
+       north_lbg_set_active_standby_mode(client->lbg_id);
+     }
+#endif
+     client->lbg_id = north_lbg_configure_af_inet(client->lbg_id,"METADATA",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,
+                                                  lbg_size,&af_inet_exportd_conf,0);
      if (client->lbg_id >= 0)
      {
        status = 0;

@@ -32,13 +32,30 @@
 #include <rozofs/common/log.h>
 #include <rozofs/rpc/eclient.h>
 #include "rpcclt.h"
+#include <rozofs/core/af_unix_socket_generic.h>
  
 #define STORCLI_PER_FSMOUNT_POWER2 1
 #define STORCLI_PER_FSMOUNT (1<<STORCLI_PER_FSMOUNT_POWER2) 
   
- 
- int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
-        unsigned long vers,uint32_t port_num);
+ /*
+**__________________________________________________________________________
+*/
+/**
+*  Init of the load balancing group associated with the exportd
+   (used by rozofsmount only)
+   
+   @param exportclt: data structure that describes the remote exportd
+   @param prog: export program name
+   @param vers: exportd program version
+   @param port_num: tcp port of the exportd (0 for dynamic port )
+   @param supervision_callback: supervision callback (NULL if none)
+   
+   @retval 0 on success
+   @retval < 0 on error (see errno for details)
+*/
+int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
+        		  unsigned long vers,uint32_t port_num,
+			  af_stream_poll_CBK_t supervision_callback);
         
 int storcli_get_storcli_idx_from_fid(fid_t fid);
        

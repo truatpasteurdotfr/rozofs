@@ -66,7 +66,7 @@ print_help() {
   echo "{-V|--version}"
   echo "    Print version information"
   echo "{-H|--hostname} <host name>"
-  echo "    Destination host of the storage instance instance"
+  echo "    Destination host of the storage instance"
   echo "{-t|--timeout} <seconds>"
   echo "    Time out value"  
 #  echo "{-w|--warning} <threshold|percent%>"
