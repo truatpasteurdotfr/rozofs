@@ -2874,7 +2874,6 @@ static inline int get_rozofs_xattr_max_size(export_t *e, lv2_entry_t *lv2, char 
 	       ;
   
   free /= rozofs_psize;
-  p += sprintf(p,"%d blocks of %d.",free,rozofs_psize); 
         
   /*
   ** Respect the hard quota
