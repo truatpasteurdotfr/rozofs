@@ -89,7 +89,7 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SETXATTR,(xdrproc_t) xdr_epgw_setxattr_arg_t,(void *)&arg,
                               rozofs_ll_setxattr_cbk,buffer_p); 
 #else
@@ -307,7 +307,7 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_GETXATTR,(xdrproc_t) xdr_epgw_getxattr_arg_t,(void *)&arg,
                               rozofs_ll_getxattr_cbk,buffer_p); 
 #else    
@@ -515,7 +515,7 @@ void rozofs_ll_removexattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name)
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_REMOVEXATTR,(xdrproc_t) xdr_epgw_removexattr_arg_t,(void *)&arg,
                               rozofs_ll_removexattr_cbk,buffer_p); 
 #else
@@ -709,7 +709,7 @@ void rozofs_ll_listxattr_nb(fuse_req_t req, fuse_ino_t ino, size_t size)
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_LISTXATTR,(xdrproc_t) xdr_epgw_listxattr_arg_t,(void *)&arg,
                               rozofs_ll_listxattr_cbk,buffer_p); 
 #else

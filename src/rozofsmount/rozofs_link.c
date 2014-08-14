@@ -92,7 +92,7 @@ void rozofs_ll_link_nb(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent,
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)npie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)npie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_LINK,(xdrproc_t) xdr_epgw_link_arg_t,(void *)&arg,
                               rozofs_ll_link_cbk,buffer_p); 
 #else
@@ -362,7 +362,7 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_READLINK,(xdrproc_t) xdr_epgw_mfile_arg_t,(void *)&arg,
                               rozofs_ll_readlink_cbk,buffer_p); 
 #else
@@ -555,7 +555,7 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SYMLINK,(xdrproc_t) xdr_epgw_symlink_arg_t,(void *)&arg,
                               rozofs_ll_symlink_cbk,buffer_p); 
 #else
@@ -825,7 +825,7 @@ void rozofs_ll_unlink_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_UNLINK,(xdrproc_t) xdr_epgw_unlink_arg_t,(void *)&arg,
                               rozofs_ll_unlink_cbk,buffer_p); 
 #else

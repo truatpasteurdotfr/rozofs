@@ -501,5 +501,15 @@ static inline void rozofs_ientry_update(ientry_t *ie,mattr_t  *attr_p)
 
 */
 void rozofs_export_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p);
+/**
+*  reset all the locks of a given client
+*  This is an internal request that do not trigger any response toward fuse
 
+
+ @param eid           :eid this client is mounted on
+ @param client_hash   :reference of the client
+ 
+ @retval none
+*/
+void rozofs_ll_clear_client_file_lock(int eid, uint64_t client_hash);
 #endif

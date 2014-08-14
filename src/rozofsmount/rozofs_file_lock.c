@@ -333,7 +333,7 @@ void rozofs_flock_service_periodic(void * ns) {
   ** now initiates the transaction towards the remote end
   */
 #if 1
-  rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+  rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_POLL_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
                               rozofs_poll_cbk,NULL); 
 #else
@@ -454,7 +454,7 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_GET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
                               rozofs_ll_getlk_cbk,buffer_p); 
 #else
@@ -1114,7 +1114,7 @@ int rozofs_ll_setlk_internal(file_t * file) {
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
                               rozofs_ll_setlk_internal_cbk,file); 
 #else
@@ -1366,7 +1366,7 @@ void rozofs_clear_file_lock_owner(file_t * f) {
     ** now initiates the transaction towards the remote end
     */
 #if 1
-    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)f->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)f->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_CLEAR_OWNER_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
                               rozofs_clear_file_lock_owner_cbk,buffer_p); 
 #else
@@ -1463,7 +1463,7 @@ void rozofs_ll_clear_client_file_lock(int eid, uint64_t client_hash) {
     /*
     ** now initiates the transaction towards the remote end
     */
-    rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)NULL,EXPORT_PROGRAM, EXPORT_VERSION,
+    rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)NULL,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_CLEAR_CLIENT_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
                               rozofs_poll_cbk,NULL); 
 
