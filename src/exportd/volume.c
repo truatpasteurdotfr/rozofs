@@ -196,7 +196,7 @@ void volume_balance(volume_t *volume) {
     list_t *p, *q;
     volume_t clone;
     DEBUG_FUNCTION;
-    START_PROFILING(volume_balance);
+    START_PROFILING_0(volume_balance);
     
     int local_site = export_get_local_site_number();
 
@@ -356,7 +356,7 @@ void volume_balance(volume_t *volume) {
 
 out:
     export_rotate_sid = 0;
-    STOP_PROFILING(volume_balance);
+    STOP_PROFILING_0(volume_balance);
 }
 
 // what if a cluster is < rozofs safe
@@ -439,7 +439,7 @@ out:
 void volume_stat(volume_t *volume, volume_stat_t *stat) {
     list_t *p;
     DEBUG_FUNCTION;
-    START_PROFILING(volume_stat);
+    START_PROFILING_0(volume_stat);
 
     stat->bsize = 1024;
     stat->bfree = 0;
@@ -465,7 +465,7 @@ void volume_stat(volume_t *volume, volume_stat_t *stat) {
     stat->blocks = (long double) stat->blocks / ((double) rozofs_forward /
             (double) rozofs_inverse);
 
-    STOP_PROFILING(volume_stat);
+    STOP_PROFILING_0(volume_stat);
 }
 
 int volume_distribution_check(volume_t *volume, int rozofs_safe, int cid, int *sids) {

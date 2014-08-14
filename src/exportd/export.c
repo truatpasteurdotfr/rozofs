@@ -857,7 +857,7 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     int status = -1;
     struct statfs stfs;
     volume_stat_t vstat;
-    START_PROFILING(export_stat);
+    START_PROFILING_EID(export_stat,export->eid);
 
     st->bsize = ROZOFS_BSIZE_BYTES(e->bsize);
     if (statfs(e->root, &stfs) != 0)
@@ -894,7 +894,7 @@ int export_stat(export_t * e, ep_statfs_t * st) {
 
     status = 0;
 out:
-    STOP_PROFILING(export_stat);
+    STOP_PROFILING_EID(export_stat,export->eid);
     return status;
 }
 

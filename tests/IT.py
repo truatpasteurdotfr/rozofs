@@ -39,6 +39,7 @@ def my_duration (val):
 def reset_counters():
 # Use debug interface to reset profilers and some counters
 #___________________________________________________
+  return
 
   string='./dbg.sh all profiler reset'
   parsed = shlex.split(string)

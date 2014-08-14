@@ -332,9 +332,15 @@ void rozofs_flock_service_periodic(void * ns) {
   /*
   ** now initiates the transaction towards the remote end
   */
+#if 1
+  rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_POLL_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
+                              rozofs_poll_cbk,NULL); 
+#else
   rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                             EP_POLL_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
 			    rozofs_poll_cbk,NULL); 
+#endif
 }
 
 /**
@@ -447,10 +453,16 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
     /*
     ** now initiates the transaction towards the remote end
     */
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_GET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
+                              rozofs_ll_getlk_cbk,buffer_p); 
+#else
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                                     EP_GET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
 			            rozofs_ll_getlk_cbk,buffer_p); 
 			      
+#endif
     if (ret < 0) {
       lock_stat.send_common++;    
       goto error;
@@ -1101,10 +1113,16 @@ int rozofs_ll_setlk_internal(file_t * file) {
     /*
     ** now initiates the transaction towards the remote end
     */
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
+                              rozofs_ll_setlk_internal_cbk,file); 
+#else
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                                      EP_SET_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
-			             rozofs_ll_setlk_internal_cbk,file); 
+			             rozofs_ll_setlk_sinternal_cbk,file); 
 
+#endif
    if (ret == 0) return ret;
    gettimeofday(&tv,(struct timezone *)0); 
    gprofiler.rozofs_ll_setlk_int[P_ELAPSE] += (MICROLONG(tv)-file->timeStamp);  
@@ -1347,10 +1365,15 @@ void rozofs_clear_file_lock_owner(file_t * f) {
     /*
     ** now initiates the transaction towards the remote end
     */
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)f->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_CLEAR_OWNER_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
+                              rozofs_clear_file_lock_owner_cbk,buffer_p); 
+#else
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                                     EP_CLEAR_OWNER_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg, 
 			            rozofs_clear_file_lock_owner_cbk,buffer_p);       
-
+#endif
     if (ret >= 0) return;
 
 error:
@@ -1419,5 +1442,30 @@ error:
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);    
     
+    return;
+}
+/**
+*  reset all the locks of a given client
+*  This is an internal request that do not trigger any response toward fuse
+
+
+ @param eid           :eid this client is mounted on
+ @param client_hash   :reference of the client
+ 
+ @retval none
+*/
+void rozofs_ll_clear_client_file_lock(int eid, uint64_t client_hash) {
+    epgw_lock_arg_t arg;
+
+    arg.arg_gw.eid             = exportclt.eid;
+    arg.arg_gw.lock.client_ref = rozofs_client_hash;       
+
+    /*
+    ** now initiates the transaction towards the remote end
+    */
+    rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)NULL,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_CLEAR_CLIENT_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
+                              rozofs_poll_cbk,NULL); 
+
     return;
 }

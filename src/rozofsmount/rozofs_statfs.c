@@ -57,9 +57,15 @@ void rozofs_ll_statfs_nb(fuse_req_t req, fuse_ino_t ino) {
     /*
     ** now initiates the transaction towards the remote end
     */
+#if 1
+    ret = rozofs_expgateway_send_routing_common(exportclt.eid,(char*)NULL,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_STATFS,(xdrproc_t) xdr_uint32_t,(void *)&exportclt.eid,
+                              rozofs_ll_statfs_cbk,buffer_p); 
+#else
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_STATFS,(xdrproc_t) xdr_uint32_t,(void *)&exportclt.eid,
                               rozofs_ll_statfs_cbk,buffer_p); 
+#endif
     if (ret < 0) goto error;
     
     /*

@@ -1526,6 +1526,8 @@ int fuseloop(struct fuse_args *args, int fg) {
       conf.min_read_size = ((conf.min_read_size / bkbytes)+1) * bkbytes;
     }        
 
+#if 0
+    This message has been post pone after the setup of the EXPORTD LBG (toward slave exportd)
     /*
     ** Send the file lock reset request to remove old locks
     */
@@ -1537,6 +1539,7 @@ int fuseloop(struct fuse_args *args, int fg) {
 
     	ep_clear_client_file_lock_1(&arg, exportclt.rpcclt.client);
     }
+#endif
 
     /* Initialize list and htables for inode_entries */
     list_init(&inode_entries);

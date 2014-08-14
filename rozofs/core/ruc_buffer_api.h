@@ -436,7 +436,7 @@ static inline char * ruc_buf_getPayload(void * bufRef)
     /*
     ** unlucky guy!!
     */
-    RUC_WARNING(bufRef);
+    //RUC_WARNING(bufRef);
     return (char*)NULL;
   }
   if (pelem->state != BUF_ALLOC)

@@ -384,13 +384,21 @@ int rozofs_expgateway_send_routing_common(uint32_t eid,fid_t fid,uint32_t prog,u
 	struct rpc_msg   call_msg;
     uint32_t         null_val = 0;
     int lbg_id;
+    expgw_tx_routing_ctx_t local_routing_ctx;
+    expgw_tx_routing_ctx_t  *routing_ctx_p;
+    
+    rozofs_fuse_save_ctx_t *fuse_ctx_p=NULL;
+    
 
-    
-    rozofs_fuse_save_ctx_t *fuse_ctx_p;
-    
-    GET_FUSE_CTX_P(fuse_ctx_p,fuse_buffer_ctx_p);
-    
-    expgw_tx_routing_ctx_t  *routing_ctx_p = &fuse_ctx_p->expgw_routing_ctx ;
+    if (fuse_buffer_ctx_p != NULL) {
+      GET_FUSE_CTX_P(fuse_ctx_p,fuse_buffer_ctx_p);
+    }  
+    if (fuse_ctx_p != NULL) {    
+      routing_ctx_p = &fuse_ctx_p->expgw_routing_ctx ;
+    }
+    else {
+      routing_ctx_p = &local_routing_ctx;
+    }  
     /*
     ** get the available load balancing group(s) for routing the request 
     */    

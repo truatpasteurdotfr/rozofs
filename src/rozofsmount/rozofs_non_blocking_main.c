@@ -37,7 +37,7 @@ pthread_t heartbeat_thrdId;
 int module_test_id = 0;
 
 void rozofs_flock_service_init(void) ;
-
+extern uint64_t   rozofs_client_hash;
 /**
 *  Init of the module that deals with the export gateways
 
@@ -330,6 +330,12 @@ int rozofs_stat_start(void *args) {
         sprintf(name, "rozofsmount %d", args_p->instance);
         uma_dbg_set_name(name);
     }
+    
+    /*
+    ** Send the file lock reset request to remove old locks
+    ** (NB This is not actually a low level fuse API....)
+    */
+    rozofs_ll_clear_client_file_lock(exportclt.eid,rozofs_client_hash);
 
     /*
      ** init of the fuse part
@@ -344,9 +350,8 @@ int rozofs_stat_start(void *args) {
     /*
      ** Perform the init with exportd--> setup of the TCP connection associated with the load balancing group
      */
-#warning set exportd port number to 53000
-    info("exportd slave port number %d\n",53000);
-    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, export_listening_port,
+    uint16_t export_nb_port = ROZOFS_GET_EXPNB_PORT; 
+    if (export_lbg_initialize((exportclt_t*) args_p->exportclt, EXPORT_PROGRAM, EXPORT_VERSION, export_nb_port,
                                (af_stream_poll_CBK_t) rozofs_export_lbg_cnx_polling) != 0) {
         severe("Cannot setup the load balancing group towards Exportd");
     }

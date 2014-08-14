@@ -115,7 +115,7 @@ void ep_poll_conf_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
 {
     static epgw_status_ret_t ret;
     ep_gateway_t *args = (ep_gateway_t *)pt; 
-    START_PROFILING(ep_poll);
+    START_PROFILING_0(ep_poll);
 
     if (args->hash_config == export_configuration_file_hash) 
     {   
@@ -126,7 +126,7 @@ void ep_poll_conf_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
       ret.status_gw.status = EP_NOT_SYNCED;
     }
     EXPORTS_SEND_REPLY(req_ctx_p);
-    STOP_PROFILING(ep_poll);
+    STOP_PROFILING_0(ep_poll);
     return ;
 }
 /*

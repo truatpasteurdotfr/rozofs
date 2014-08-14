@@ -117,9 +117,15 @@ int rozofs_ll_readdir_send_to_export(fid_t fid, uint64_t cookie,void	 *buffer_p)
     /*
     ** now initiates the transaction towards the remote end
     */
+#if 1
+    ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(char*)arg.arg_gw.fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_READDIR,(xdrproc_t) xdr_epgw_readdir_arg_t,(void *)&arg,
+                              rozofs_ll_readdir_cbk,buffer_p); 
+#else
     ret = rozofs_export_send_common(&exportclt,ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM),EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_READDIR,(xdrproc_t) xdr_epgw_readdir_arg_t,(void *)&arg,
                               rozofs_ll_readdir_cbk,buffer_p); 
+#endif
     return ret;  
 } 
 /*

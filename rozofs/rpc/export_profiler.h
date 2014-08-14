@@ -115,28 +115,34 @@ typedef struct export_one_profiler_t export_one_profiler_t;
 extern export_one_profiler_t * export_profiler[];
 extern uint32_t                export_profiler_eid;
 
-#define START_PROFILING(the_probe)\
+#define START_PROFILING_EID(the_probe,eid)\
     uint64_t tic=0, toc;\
     struct timeval tv;\
-    if (export_profiler_eid <= EXPGW_EXPORTD_MAX_IDX) {\
-       export_one_profiler_t * prof = export_profiler[export_profiler_eid];\
+    if (eid <= EXPGW_EXPORTD_MAX_IDX) {\
+       export_one_profiler_t * prof = export_profiler[eid];\
        if (prof != NULL) {\
           prof->the_probe[P_COUNT]++;\
           gettimeofday(&tv,(struct timezone *)0);\
           tic = MICROLONG(tv);\
        }\
     }
-
-#define STOP_PROFILING(the_probe)\
-    if (export_profiler_eid <= EXPGW_EXPORTD_MAX_IDX) {\
-       export_one_profiler_t * prof = export_profiler[export_profiler_eid];\
+#define STOP_PROFILING_EID(the_probe,eid)\
+    if (eid <= EXPGW_EXPORTD_MAX_IDX) {\
+       export_one_profiler_t * prof = export_profiler[eid];\
        if (prof != NULL) {\
           gettimeofday(&tv,(struct timezone *)0);\
           toc = MICROLONG(tv);\
           prof->the_probe[P_ELAPSE] += (toc - tic);\
        }\
     }
+        
+#define START_PROFILING(the_probe) START_PROFILING_EID(the_probe,export_profiler_eid)   
+#define STOP_PROFILING(the_probe)  STOP_PROFILING_EID(the_probe,export_profiler_eid)
 
+#define START_PROFILING_0(the_probe) START_PROFILING_EID(the_probe,0)   
+#define STOP_PROFILING_0(the_probe)  STOP_PROFILING_EID(the_probe,0)
+   
+    
 #define START_PROFILING_IO(the_probe, the_bytes)\
     uint64_t tic=0, toc;\
     struct timeval tv;\
