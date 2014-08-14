@@ -1740,7 +1740,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
     // Not a hardlink
     if (nlink == 1) {
 
-        if (lv2->attributes.s.attrs.size > 0 && S_ISREG(lv2->attributes.s.attrs.mode)) {
+        if (S_ISREG(lv2->attributes.s.attrs.mode)) {
 
             // Compute hash value for this fid
             uint32_t hash = 0;

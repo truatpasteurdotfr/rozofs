@@ -1440,7 +1440,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
     // Not a hardlink
     if (nlink == 1) {
 
-        if (lv2->attributes.size > 0 && S_ISREG(lv2->attributes.mode)) {
+        if (S_ISREG(lv2->attributes.mode)) {
 
             char trash_file_path[PATH_MAX];
             char trash_bucket_path[PATH_MAX];
