@@ -27,6 +27,7 @@ int monitor_initialize();
 void monitor_release();
 
 int monitor_volume(volume_t *volume);
+int monitor_volume_slave(volume_t *volume);
 
 int monitor_export(export_t *export);
 

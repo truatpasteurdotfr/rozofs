@@ -681,6 +681,40 @@ static void *monitoring_thread(void *v) {
 }
 
 /*
+ *_______________________________________________________________________
+ */
+static void *monitoring_thread_slave(void *v) {
+    struct timespec ts = {10, 0};
+    list_t *p;
+
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+
+    for (;;) {
+        if ((errno = pthread_rwlock_tryrdlock(&volumes_lock)) != 0) {
+            warning("can't lock volumes, monitoring_thread deferred.");
+            nanosleep(&ts, NULL);
+            continue;
+        }
+
+        gprofiler.nb_volumes = 0;
+
+        list_for_each_forward(p, &volumes) {
+            if (monitor_volume_slave(&list_entry(p, volume_entry_t, list)->volume) != 0) {
+                severe("monitor thread failed: %s", strerror(errno));
+            }
+            gprofiler.nb_volumes++;
+        }
+
+        if ((errno = pthread_rwlock_unlock(&volumes_lock)) != 0) {
+            severe("can't unlock volumes, potential dead lock.");
+            continue;
+        }
+
+        nanosleep(&ts, NULL);
+    }
+    return 0;
+}
+/*
 **____________________________________________________________________________
 */
 /**
@@ -1099,8 +1133,15 @@ static int exportd_initialize() {
       if (pthread_create(&monitor_thread, NULL, monitoring_thread, NULL) != 0)
           fatal("can't create monitoring thread %s", strerror(errno));
     }
-    if ( expgwc_non_blocking_conf.slave == 1)
-    {
+    else {
+    
+      /*
+      ** Needed to update gprofiler table that is used to respond to
+      ** get xattribute rozofs_maxsize
+      */ 
+      if (pthread_create(&monitor_thread, NULL, monitoring_thread_slave, NULL) != 0)
+          fatal("can't create monitoring thread %s", strerror(errno));      
+
       /*
       ** just needed by slave exportd
       */
@@ -1117,7 +1158,7 @@ static void exportd_release() {
     pthread_cancel(bal_vol_thread);
     pthread_cancel(rm_bins_thread);
     pthread_cancel(exp_tracking_thread);
-    if ( expgwc_non_blocking_conf.slave == 0) pthread_cancel(monitor_thread);
+    pthread_cancel(monitor_thread);
     if ( expgwc_non_blocking_conf.slave == 1) pthread_cancel(geo_poll_thread);
 
 
