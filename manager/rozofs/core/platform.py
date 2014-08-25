@@ -17,6 +17,7 @@
 # <http://www.gnu.org/licenses/>.
 
 import Pyro.core
+from Pyro.errors import PyroError, NamingError, ProtocolError
 import subprocess
 import time
 
@@ -28,6 +29,12 @@ from rozofs.core.exportd import VolumeConfig, ClusterConfig, ExportConfig
 from rozofs.core.storaged import StorageConfig
 from rozofs.core.rozofsmount import RozofsMountConfig
 from socket import socket
+
+def check_reachability(host):
+    with open('/dev/null', 'w') as devnull:
+        if subprocess.call(['ping', '-c', '1', '-w', '2', host],
+            stdout=devnull, stderr=devnull) is not 0:
+                raise Exception("%s is not reachable" % host)
 
 def get_proxy(host, manager):
     try:
@@ -41,6 +48,7 @@ class Role(object):
     ROZOFSMOUNT = 4
     ROLES = [1, 2, 4]
 
+ROLES_STR = {Role.EXPORTD: "exportd", Role.STORAGED: "storaged", Role.ROZOFSMOUNT: "rozofsmount"}
 
 class ExportStat(object):
     def __init__(self, eid= -1, vid= -1, bsize= -1, blocks= -1, bfree= -1, files= -1, ffree= -1):
@@ -99,13 +107,10 @@ class Node(object):
     def _try_up(self):
         """ check if a node is up if not try to set it up """
         if self._up == False:
-            # is it reachable ?
-            with open('/dev/null', 'w') as devnull:
-                if subprocess.call(['ping', '-c', '1', self._host], stdout=devnull,
-                    stderr=devnull) is not 0:
-                        return False
-            # yes, so try to connect to agents
             try:
+                # is it reachable ?
+                check_reachability(self._host)
+                # yes, so try to connect to agents
                 self._initialize_proxies()
             except:
                 return False
@@ -138,8 +143,16 @@ class Node(object):
             return None
 
         configurations = {}
+
         for role in [r for r in Role.ROLES if r & roles == r and self.has_roles(r)]:
-            configurations[role] = self._proxies[role].get_service_config()
+            try:
+                configurations[role] = self._proxies[role].get_service_config()
+            except NamingError:
+                raise Exception("no %s agent reachable for host: %s" % (ROLES_STR[role], self._host))
+            except ProtocolError:
+                raise Exception("rozofs-manager agent is not reachable for host: %s" % self._host)
+            except Exception:
+                raise
 
         return configurations
 
@@ -157,7 +170,14 @@ class Node(object):
 
         statuses = {}
         for role in [r for r in Role.ROLES if r & roles == r and self.has_roles(r)]:
-            statuses[role] = self._proxies[role].get_service_status()
+            try:
+                statuses[role] = self._proxies[role].get_service_status()
+            except NamingError:
+                raise Exception("no %s agent reachable for host: %s" % (ROLES_STR[role], self._host))
+            except ProtocolError:
+                raise Exception("rozofs-manager agent is not reachable for host: %s" % self._host)
+            except Exception:
+                raise
 
         return statuses
 
@@ -172,45 +192,51 @@ class Node(object):
 class Platform(object):
     """ A rozofs platform."""
 
-    def __init__(self, hostname="localhost"):
+    def __init__(self, hostname="localhost", roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         """
         Args:
             hostname: platform manager host (should be part of the platform !).
+            roles: with which roles the platform must be built 
         """
         self._hostname = hostname
-        self._nodes = self._get_nodes(hostname)
+        self._nodes = self._get_nodes(hostname, roles)
 
-    def _get_nodes(self, hostname):
+    def _get_nodes(self, hostname, roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         nodes = {}
 
         exportd_node = Node(hostname, Role.EXPORTD)
 
         nodes[hostname] = exportd_node
 
-        node_configs = exportd_node.get_configurations(Role.EXPORTD)
-        if not node_configs:
-            raise Exception("%s unreachable." % hostname)
+        if Role.STORAGED & roles == Role.STORAGED:
 
-        econfig = node_configs[Role.EXPORTD]
+            node_configs = exportd_node.get_configurations(Role.EXPORTD)
+            if not node_configs:
+                raise Exception("%s unreachable." % hostname)
+    
+            econfig = node_configs[Role.EXPORTD]
+    
+            if econfig is None:
+                raise "exportd node is off line."
+    
+            for h in [s for v in econfig.volumes.values()
+                            for c in v.clusters.values()
+                            for s in c.storages.values()]:
+                node_roles = Role.STORAGED
 
-        if econfig is None:
-            raise "exportd node is off line."
-
-        for h in [s for v in econfig.volumes.values()
-                        for c in v.clusters.values()
-                        for s in c.storages.values()]:
-            roles = Role.STORAGED
-            # check if has rozofsmount
-            try :
-                p = get_proxy(h, ROZOFSMOUNT_MANAGER)
-                if p.get_service_config():
-                    roles = roles | Role.ROZOFSMOUNT
-            except:
-                pass
-            if h in nodes:  # the exportd node !
-                nodes[h].set_roles(nodes[h].get_roles() | roles)
-            else:
-                nodes[h] = Node(h, roles)
+                if Role.ROZOFSMOUNT & roles == Role.ROZOFSMOUNT:
+                    # check if has rozofsmount
+                    try :
+                        check_reachability(h)
+                        p = get_proxy(h, ROZOFSMOUNT_MANAGER)
+                        if p.get_service_config():
+                            node_roles = node_roles | Role.ROZOFSMOUNT
+                    except:
+                        pass
+                if h in nodes:  # the exportd node !
+                    nodes[h].set_roles(nodes[h].get_roles() | node_roles)
+                else:
+                    nodes[h] = Node(h, node_roles)
 
         return nodes
 
@@ -381,7 +407,7 @@ class Platform(object):
         configuration = node.get_configurations(Role.EXPORTD)
 
         if configuration is None:
-            raise "exportd node is off line."
+            raise Exception("exportd node is off line.")
 
         if len(configuration[Role.EXPORTD].volumes) != 0:
             raise Exception("platform has configured volume(s) !!!")
@@ -394,7 +420,7 @@ class Platform(object):
         configuration = node.get_configurations(Role.EXPORTD)
 
         if configuration is None:
-            raise "exportd node is off line."
+            raise Exception("exportd node is off line.")
 
         return configuration[Role.EXPORTD].layout
 
@@ -560,7 +586,7 @@ class Platform(object):
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
-            raise Exception("Exportd node is off line.")
+            raise Exception("%s is not reachable" % enode._host)
 
         if vid not in econfig[Role.EXPORTD].volumes:
             raise Exception("Unknown volume: %d." % vid)
@@ -631,10 +657,10 @@ class Platform(object):
         print squota
 
         if econfig is None:
-            raise Exception("Exportd node is off line.")
+            raise Exception("%s is not reachable" % enode._host)
 
         if eid not in econfig[Role.EXPORTD].exports.keys():
-            raise Exception("Unknown export: %d." % eid)
+            raise Exception("Unknown export with eid=%d." % eid)
 
         # validate quotas
         if squota is not None:
@@ -712,9 +738,9 @@ class Platform(object):
         for eid, estat in econfig[Role.EXPORTD].stats.estats.items():
             for eeid in eids:
                 if eeid not in econfig[Role.EXPORTD].exports.keys():
-                    raise Exception("Unknown export: %d." % eid)
+                    raise Exception("Unknown export with eid=%d." % eid)
                 if eid == eeid and estat.files != 0 and not force:
-                    raise Exception("Can't remove non empty export (use  force=True)")
+                    raise Exception("Can't remove non empty export (use --force=True)")
 
 
         # delete these exports from exportd configuration
@@ -726,7 +752,7 @@ class Platform(object):
     def mount_export(self, eids=None, hosts=None, options=None):
         """ Mount an exported file system
 
-        Only kown (managed by this platform) hosts could mount a file system.
+        Only known (managed by this platform) hosts could mount a file system.
 
         Args:
             eids: the export ids to mount if None all exports are mount
@@ -739,7 +765,7 @@ class Platform(object):
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
-            raise Exception("Exportd node is off line.")
+            raise Exception("%s is not reachable" % self._hostname)
 
         if hosts is None:
             hosts = self._nodes.keys()
@@ -747,8 +773,7 @@ class Platform(object):
         if eids is None:
             eids = econfig[Role.EXPORTD].exports.keys()
 
-
-        # sanity check
+        # Sanity check
         for h in hosts:
             if h not in self._nodes:
                 raise Exception("Unknown host: %s." % h)
@@ -756,21 +781,27 @@ class Platform(object):
             if eid not in econfig[Role.EXPORTD].exports.keys():
                 raise Exception("Unknown export: %d." % eid)
 
-        # mount
+        # Get curent rozofsmount config on each node
+        current_rconfig = {}
         for h in hosts:
             node = self._nodes[h]
-            # may be overkill
             node.set_roles(node.get_roles() | Role.ROZOFSMOUNT)
-            rconfigs = node.get_configurations(Role.ROZOFSMOUNT)
+            rconfig = node.get_configurations(Role.ROZOFSMOUNT)
+            if rconfig is None:
+                raise Exception("%s is not reachable" % h)
+            current_rconfig[h] = rconfig
 
+        # Set new rozo configs
+        for h in hosts:
+            node = self._nodes[h]
             for eid in eids:
                 expconfig = econfig[Role.EXPORTD].exports[eid]
                 rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1, options)
                 # check duplicates
-                if rconfig not in rconfigs:
-                    rconfigs[Role.ROZOFSMOUNT].append(rconfig)
+                if rconfig not in current_rconfig[h]:
+                    current_rconfig[h][Role.ROZOFSMOUNT].append(rconfig)
 
-            node.set_configurations(rconfigs)
+            node.set_configurations(current_rconfig[h])
 
     def umount_export(self, eids=None, hosts=None):
         """ Umount an exported file system
@@ -801,7 +832,7 @@ class Platform(object):
                 raise Exception("Unknown host: %s." % h)
         for eid in eids:
             if eid not in econfig[Role.EXPORTD].exports.keys():
-                raise Exception("Unknown export: %d." % eid)
+                raise Exception("Unknown export with eid=%d." % eid)
 
         # umount
         for h in hosts:

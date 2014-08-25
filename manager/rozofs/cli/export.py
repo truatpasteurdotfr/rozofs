@@ -27,7 +27,7 @@ from collections import OrderedDict
 def list(platform, args):
     configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
     if configurations[args.exportd] is None:
-        raise Exception("exportd node is off line.")
+        raise Exception("%s is not reachable" % args.exportd)
 
     configuration = configurations[args.exportd][Role.EXPORTD]
 
@@ -96,5 +96,14 @@ def umount(platform, args):
 
 
 def dispatch(args):
-    p = Platform(args.exportd)
+    only_export_actions = {'list', 'create', 'update', 'get'}
+
+    if (args.action in only_export_actions):
+        p = Platform(args.exportd, Role.EXPORTD)
+    else:
+        p = Platform(args.exportd)
+
     globals()[args.action.replace('-', '_')](p, args)
+
+
+
