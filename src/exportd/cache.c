@@ -907,6 +907,7 @@ lv2_entry_t *lv2_cache_put(lv2_cache_t *cache, fid_t fid, const char *path) {
     /*
     ** Try to remove older entries
     */
+    int count = 0;
     while ((cache->size >= cache->max) && (!list_empty(&cache->lru))){ // remove the lru
         lv2_entry_t *lru;
 		
@@ -929,6 +930,9 @@ lv2_entry_t *lv2_cache_put(lv2_cache_t *cache, fid_t fid, const char *path) {
         htable_del(&cache->htable, lru->attributes.fid);
 	lv2_cache_unlink(cache,lru);
 	cache->lru_del++;
+	
+	count++;
+	if (count >= 3) break;
     }
     
     /*
