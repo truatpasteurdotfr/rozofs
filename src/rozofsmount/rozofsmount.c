@@ -1330,10 +1330,11 @@ int fuseloop(struct fuse_args *args, int fg) {
     for (retry_count = 15; retry_count > 0; retry_count--) {
     
         for (export_index=0; export_index < ROZOFS_HOST_LIST_MAX_HOST; export_index++) { 
-	
-	    pHost = rozofs_host_list_get_host(export_index);
-	    if (pHost == NULL) break;
-	    
+
+            pHost = rozofs_host_list_get_host(export_index);
+            if (pHost == NULL)
+                break;
+
             /* Initiate the connection to the export and get information
              * about exported filesystem */
             if (exportclt_initialize(
@@ -1346,27 +1347,45 @@ int fuseloop(struct fuse_args *args, int fg) {
                     conf.max_retry,
                     timeout_mproto) == 0) break;
         }
-	
-	/* Connected to one of the given addresses */
-	if (pHost != NULL) break;
-	
+
+        /* Connected to one of the given addresses */
+        if (pHost != NULL)
+            break;
+
         sleep(2);
-	timeout_mproto.tv_sec++;
-	
+        timeout_mproto.tv_sec++;
+    }
+
+    if (retry_count == 0) {
+        // Unable to mount the filesystem
+        int errsv = errno;
+
+        fprintf(stderr,
+                "rozofsmount failed for:\n"
+                "export directory: %s\n"
+                "export hostname(s): %s\n"
+                "local mountpoint: %s\n",
+                conf.export, conf.host, mountpoint);
+
+        // Try to identify the kind of error
+        if (errsv == ENOENT || errsv == EACCES) {
+            fprintf(stderr, "error: unable to mount export %s (%s)\n",
+                    conf.export, strerror(errno));
+        } else if (EHOSTUNREACH == errsv || ECONNREFUSED == errsv) {
+            fprintf(stderr,
+                    "error: unable to establish connection"
+                    " to export host (%s)\n",
+                    strerror(errno));
+        } else {
+            fprintf(stderr, "error: %s\n", strerror(errno));
+        }
+        fprintf(stderr, "See log for more information\n");
+
+        return 1;
     }
 
     // Check the mountpoint after success connection with the export
     if (rozofs_mountpoint_check(mountpoint) != 0) {
-        return 1;
-    }
-
-    if (retry_count == 0) {
-
-        fprintf(stderr,
-                "rozofsmount failed for:\n" "export directory: %s\n"
-                "export hostname: %s\n" "local mountpoint: %s\n" "error: %s\n"
-                "See log for more information\n", conf.export, conf.host,
-                mountpoint, strerror(errno));
         return 1;
     }
 
