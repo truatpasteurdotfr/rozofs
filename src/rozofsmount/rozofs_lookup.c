@@ -326,7 +326,7 @@ lookup_objectmode:
       nie->attrs.cid = mattr_obj.cid;
       memcpy(nie->attrs.sids, mattr_obj.sids, sizeof(sid_t)*ROZOFS_SAFE_MAX);
       nie->attrs.size = mattr_obj.size;
-      nie->attrs.nlink = 1;
+      nie->attrs.nlink = 0;
       nie->attrs.mode = S_IFREG | S_IRWXU | S_IRWXG | S_IRWXO ;
       nie->attrs.uid = 0;
       nie->attrs.gid = 0;
