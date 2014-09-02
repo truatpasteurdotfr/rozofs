@@ -60,6 +60,9 @@ def stat(platform, args):
     # Check if all storaged nodes running
     for host, status in statuses.items():
         try:
+            if not status:
+                print 'WARNING: %s is not reachable' % str(host)
+                continue
             if not status[Role.STORAGED]: 
                 print 'WARNING: storaged is not running on ' + str(host)
         except KeyError:
@@ -139,5 +142,5 @@ def remove(platform, args):
         platform.remove_volume(vid)
 
 def dispatch(args):
-    p = Platform(args.exportd)
+    p = Platform(args.exportd, Role.EXPORTD | Role.STORAGED)
     globals()[args.action.replace('-', '_')](p, args)
