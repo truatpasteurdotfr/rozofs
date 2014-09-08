@@ -847,7 +847,7 @@ def do_run_list(list):
   dis.separator()   
   dis.new_line()  
   dis.set_column(1,'%s'%(success+failed))
-  dis.set_column(2,'Total')
+  dis.set_column(2,mnt)
   if failed == 0:
     dis.set_column(3,'OK')
   else:

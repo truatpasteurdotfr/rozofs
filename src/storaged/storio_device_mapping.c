@@ -326,9 +326,11 @@ void storio_device_mapping_periodic_ticker(void * param) {
       sprintf(path, "%s/%d/", st->root, dev); 
 
       if (statfs(path, &sfs) == -1) {
-	if (statfs(path, &sfs) == -1) {
+	    if (statfs(path, &sfs) == -1) {
           st->device_free.blocks[passive][dev] = 0;
-	}	
+	      storage_error_on_device(st,dev);
+	      continue;
+	    }	
       }
 
       st->device_free.blocks[passive][dev] = sfs.f_bfree;
