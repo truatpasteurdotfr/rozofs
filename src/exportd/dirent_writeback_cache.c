@@ -51,6 +51,7 @@ uint64_t dirent_wb_cache_write_bytes_count = 0;
 uint64_t dirent_wb_write_count = 0;
 uint64_t dirent_wb_write_chunk_count = 0;  /**< incremented each time a chunk need to be flushed for making some room */
 uint64_t dirent_wbcache_flush_counter = 0;
+uint64_t dirent_wb_total_chunk_write_cpt = 0;
 
 int dirent_wbcache_thread_period_count;
 uint64_t dirent_wbcache_poll_stats[2];
@@ -80,7 +81,7 @@ static char * show_wbcache_thread_help(char * pChar) {
   pChar += sprintf(pChar,"dirent_wbthread reset                : reset statistics\n");
   pChar += sprintf(pChar,"dirent_wbthread disable              : disable writeback dirent cache\n");
   pChar += sprintf(pChar,"dirent_wbthread enable               : enable writeback dirent cache\n");
-  pChar += sprintf(pChar,"dirent_wbthread period [ <period> ]  : change thread period(unit is minutes)\n");  
+  pChar += sprintf(pChar,"dirent_wbthread period [ <period> ]  : change thread period(unit is second)\n");  
   return pChar; 
 }
 /*
@@ -93,6 +94,25 @@ char * show_wbcache_thread_stats_display(char *pChar)
      */
      pChar += sprintf(pChar,"period     : %d second(s) \n",dirent_wbcache_thread_period_count);
      pChar += sprintf(pChar,"statistics :\n");
+     pChar += sprintf(pChar," - wr chunk counter  :%llu\n",
+              (long long unsigned int)dirent_wb_total_chunk_write_cpt);
+     pChar += sprintf(pChar," - write (hit/miss)  :%llu/%llu\n",
+              (long long unsigned int)dirent_wbcache_hit_counter,
+              (long long unsigned int)dirent_wbcache_miss_counter);
+
+     pChar += sprintf(pChar," - chunk flush count :%llu\n",
+              (long long unsigned int)dirent_wb_write_chunk_count);
+
+     /*
+     ** read and clear counters update
+     */
+     dirent_wbcache_hit_counter = 0;
+     dirent_wbcache_miss_counter = 0;
+     dirent_wb_write_chunk_count = 0;
+     dirent_wb_total_chunk_write_cpt = 0;
+
+
+
      pChar += sprintf(pChar," - activation counter:%llu\n",
               (long long unsigned int)dirent_wbcache_poll_stats[P_COUNT]);
      pChar += sprintf(pChar," - average time (us) :%llu\n",
@@ -107,6 +127,26 @@ char * show_wbcache_thread_stats_display(char *pChar)
 
 
 }
+/*
+**_______________________________________________________________
+*/
+/**
+* check if there is some write pending for the cache entry
+
+  @param cache_p : pointer to the cache entry
+  
+  @retval 1 : write pending
+  @retval 0 : no write pending
+*/ 
+static inline dirent_wbcache_check_write_pending(dirent_writeback_entry_t  *cache_p)
+{
+   int i;
+   for (i = 0; i < DIRENT_CACHE_MAX_CHUNK; i++)
+   {
+      if (cache_p->chunk[i].wr_cpt != 0) return 1;
+   }
+   return 0;
+ }
 /*
 **_______________________________________________________________
 */
@@ -250,13 +290,12 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
 	severe("bad write returned value for %s (len %d): error %s",cache_p->pathname,chunk_p->size,strerror(errno));
 	goto error;        
       }       
-//      info("FDL write chunk%d  %s offset %llu len %u",i,cache_p->pathname,chunk_p->off,chunk_p->size);
-      chunk_p->wr_cpt = 0;      
+      chunk_p->wr_cpt = 0; 
       dirent_wb_cache_th_write_bytes_count+= chunk_p->size;
       dirent_wb_write_th_count++;
    }
    /*
-   ** clear the header write cointer here to avoid race condition with check for flush
+   ** clear the header write pointer here to avoid race condition with check for flush
    */
    cache_p->wr_cpt = 0;
    status = 0;
@@ -301,7 +340,14 @@ static void *dirent_wbcache_thread(void *v) {
           for (i = 0; i < DIRENT_CACHE_MAX_ENTRY;i++,cache_p++)
 	  {
 	     if (cache_p->state == 0) continue;
-	     if (cache_p->wr_cpt == 0) continue;
+	     if (cache_p->wr_cpt == 0) 
+	     {
+                if (dirent_wbcache_check_write_pending(cache_p) == 1)
+		{
+		  severe("FDL chunk write pending for index %d",i);
+		} 
+	        continue;
+	     }
 	     dirent_wbcache_diskflush(cache_p);
 	  
 	  
@@ -338,8 +384,7 @@ int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx)
    ** the entry is busy : check if it matches
    */
    if (eid != cache_p->eid) return 0;
-   if (strcmp(pathname,cache_p->pathname)!=0) return 0;
-   
+   if (strcmp(pathname,cache_p->pathname)!=0) return 0;   
    /*
    ** it matches -> flush on disk before read
    */
@@ -373,7 +418,10 @@ int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,i
    cache_p = &dirent_writeback_cache_p[i];
    if ((cache_p->state == 0)|| (cache_p->wr_cpt == 0))
    {
-     
+     if (dirent_wbcache_check_write_pending ( cache_p) == 1)
+     {
+       severe("FDL there is a pending write at entry %d",i);
+     }   
      cache_p->fd = fd;
      strcpy(cache_p->pathname,pathname);
      memcpy(cache_p->dir_fid,dir_fid,sizeof(fid_t));
@@ -497,11 +545,11 @@ int dirent_wbcache_write(int fd,void *buf,size_t count,off_t offset)
     errno = EBADF;
     return -1;
   }
-
   /*
   ** get the cache entry
   */
   cache_p = &dirent_writeback_cache_p[fd];
+
   /*
   ** check the offset
   */
@@ -513,19 +561,20 @@ int dirent_wbcache_write(int fd,void *buf,size_t count,off_t offset)
      if (cache_p->dirent_header == NULL)
      {
         cache_p->dirent_header = malloc(count);
-	if (cache_p->dirent_header == NULL) return -1;
+	if (cache_p->dirent_header == NULL) goto error;
      } 
 //     info("FDL header cache %s : offset %llu size %u",cache_p->pathname,offset,count);
-     cache_p->wr_cpt+=1;
      dirent_wb_cache_write_bytes_count+=count;
      memcpy(cache_p->dirent_header,buf,count);
      dirent_wb_write_count++;
      cache_p->size = count;
-     return count; 
+     cache_p->wr_cpt+=1;
+     goto out; 
   }
   /*
   ** this a chunk: search for a chunk with the same offset
   */
+  dirent_wb_total_chunk_write_cpt++;
   chunk_p = cache_p->chunk;
   free_chunk = -1;
   for (i = 0; i < DIRENT_CACHE_MAX_CHUNK; i++)
@@ -538,16 +587,17 @@ int dirent_wbcache_write(int fd,void *buf,size_t count,off_t offset)
 	if (chunk_p[i].chunk_p == NULL)
 	{
            chunk_p[i].chunk_p = malloc(count);
-	   if (chunk_p[i].chunk_p== NULL) return -1;
+	   if (chunk_p[i].chunk_p== NULL) goto error;
 	} 
 	memcpy(chunk_p[i].chunk_p,buf,count);
 //        info("FDL chunk cache %s : offset %llu size %u",cache_p->pathname,chunk_p[i].off,count);
 
-        chunk_p->wr_cpt+=1;
         dirent_wb_cache_write_bytes_count+=count;
         dirent_wb_write_count++;
-        chunk_p->size = count;
-	return count;      
+        chunk_p[i].size = count;
+        chunk_p[i].wr_cpt+=1;
+
+	goto out;      
      }
      if (((chunk_p[i].off == 0)|| (chunk_p[i].wr_cpt==0)) && ( free_chunk == -1))
      {
@@ -567,26 +617,30 @@ reloop:
     } 
     memcpy(chunk_p[free_chunk].chunk_p,buf,count);
     chunk_p[free_chunk].off = offset;
-//    severe("FDL chunk%d cache %s : offset %llu size %u",free_chunk,cache_p->pathname,chunk_p[free_chunk].off,count);
-    chunk_p[free_chunk].wr_cpt+=1;
+
     dirent_wb_cache_write_bytes_count+=count;
     chunk_p[free_chunk].size = count;
     dirent_wb_write_count++;
-    return count;     
+    chunk_p[free_chunk].wr_cpt+=1;
+    goto out;     
   }
   /*
   ** need to flush one chunk in order to get some room: always flush chunk 0
   */
   ret = dirent_wbcache_chunk_diskflush(cache_p);
-  if (ret < 0) return ret;
+  if (ret < 0) goto error;
   /*
   ** fill the entry in chunk 0
   */
   free_chunk = 0;
   goto reloop;
   
-  severe("FDL need to flush one chunk");
+out :  
   return count;
+
+error:
+  count = -1;
+  goto  error;
 }
 
 /**

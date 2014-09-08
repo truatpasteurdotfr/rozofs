@@ -705,8 +705,8 @@ static inline uint32_t filename_uuid_hash_fnv_with_len(uint32_t h, void *key1, v
 }
 
 
-//#define DIRENT_ROOT_FILE_IDX_SHIFT 0
-//#warning DIRENT_ROOT_FILE_IDX_SHIFT is 0 
+//#define DIRENT_ROOT_FILE_IDX_SHIFT 5
+//#warning DIRENT_ROOT_FILE_IDX_SHIFT is 5 
 #define DIRENT_ROOT_FILE_IDX_SHIFT 12
 
 //#define DIRENT_ROOT_FILE_IDX_SHIFT 10
@@ -779,6 +779,20 @@ char* dirent_cache_display(char *pChar) {
                   (long long unsigned int) dirent_bucket_cache_lru_coll_error);
     pChar+=sprintf(pChar,"collisions Max level0/level1   : %u/%u\n", 
                    dirent_bucket_cache_max_level0_collisions, dirent_bucket_cache_max_level1_collisions);
+
+    pChar+=sprintf(pChar,"Name chunk size                : %u\n",MDIRENTS_NAME_CHUNK_SZ);
+    pChar+=sprintf(pChar,"Name chunk max                 : %u\n",MDIRENTS_NAME_CHUNK_MAX);
+    pChar+=sprintf(pChar,"Sectors (nb sectors/size)      : %u/%u Bytes\n",
+                                                     DIRENT_FILE_MAX_SECTORS,DIRENT_FILE_MAX_SECTORS*MDIRENT_SECTOR_SIZE);
+    pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
+    pChar += sprintf(pChar,"  field name      | start sector(offset) | sector count |\n");
+    pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","header",DIRENT_HEADER_BASE_SECTOR,DIRENT_HEADER_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HEADER_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","name bitmap",DIRENT_NAME_BITMAP_BASE_SECTOR,DIRENT_NAME_BITMAP_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_NAME_BITMAP_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","hash buckets",DIRENT_HASH_BUCKET_BASE_SECTOR,DIRENT_HASH_BUCKET_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HASH_BUCKET_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","hash entries",DIRENT_HASH_ENTRIES_BASE_SECTOR,DIRENT_HASH_ENTRIES_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HASH_ENTRIES_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","name chunks",DIRENT_HASH_NAME_BASE_SECTOR,DIRENT_HASH_NAME_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HASH_NAME_SECTOR_CNT);
+    pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
 
     return pChar;
 }
@@ -2067,8 +2081,8 @@ get_next_collidx:
 	       char fidstr[37];
 	       uuid_unparse(fid_parent, fidstr);
 
-                severe("empty name entry in directory %s at hash_idx %d in file d_%d collision idx %d",
-		        fidstr,hash_entry_idx,root_idx,coll_idx);
+                severe("empty name entry in directory %s at hash_idx %d in file d_%d collision idx %d chunk_idx %d",
+		        fidstr,hash_entry_idx,root_idx,coll_idx,hash_entry_p->chunk_idx);
                 hash_entry_idx++;
                 continue;	    
 	    

@@ -463,18 +463,23 @@ typedef struct _mdirents_btmap_free_hash_t {
  * structure of a mdirent entry with name, fid, type
  */
 typedef struct _mdirents_name_entry_t {
-    uint32_t type :24; ///< type of the entry: directory, regular file, symlink, etc...
-    uint32_t len :8; ///< length of name without null termination
+    uint32_t type :20; ///< type of the entry: directory, regular file, symlink, etc...
+    uint32_t len :12; ///< length of name without null termination
     fid_t fid; ///< unique ID allocated to the file or directory
-    char name[ROZOFS_FILENAME_MAX]; ///< name of the directory or file
+    char name[ROZOFS_FILENAME_MAX*2]; ///< name of the directory or file
 } mdirents_name_entry_t;
 
-#define MDIRENTS_NAME_CHUNK_SZ  32  ///< chunk size of a block used for storing name and fid
+#define MDIRENTS_NAME_CHUNK_SZ  64  ///< chunk size of a block used for storing name and fid
 #define MDIRENTS_NAME_CHUNK_MAX  (((sizeof(mdirents_name_entry_t)-1)/MDIRENTS_NAME_CHUNK_SZ)+1) ///< max number of chunk for the max name length
 #ifndef DIRENT_LARGE
+#if 0
 #define MDIRENTS_NAME_CHUNK_MAX_CNT  (MDIRENTS_NAME_CHUNK_MAX*MDIRENTS_ENTRIES_COUNT) ///< max number of chunks for MDIRENTS_ENTRIES_COUNT
 #define MDIRENTS_BITMAP_FREE_NAME_SZ ((((MDIRENTS_ENTRIES_COUNT*MDIRENTS_NAME_CHUNK_MAX)-1)/8)+1) ///< bitmap size in bytes
 #define MDIRENTS_BITMAP_FREE_NAME_LAST_BIT_IDX ((MDIRENTS_ENTRIES_COUNT*MDIRENTS_NAME_CHUNK_MAX)-1)  //< index of the last valid bit
+#endif
+#define MDIRENTS_NAME_CHUNK_MAX_CNT 4096 ///< max number of chunks
+#define MDIRENTS_BITMAP_FREE_NAME_SZ (MDIRENTS_NAME_CHUNK_MAX_CNT/8)
+#define MDIRENTS_BITMAP_FREE_NAME_LAST_BIT_IDX (MDIRENTS_NAME_CHUNK_MAX_CNT-1)
 #else
 #define MDIRENTS_NAME_CHUNK_MAX_CNT 4096 ///< max number of chunks
 #define MDIRENTS_BITMAP_FREE_NAME_SZ (MDIRENTS_NAME_CHUNK_MAX_CNT/8)
@@ -664,8 +669,8 @@ typedef struct _mdirents_file_t { ///< Main structure of the dirent file
  *  name_entry_lvl0_p array
  */
 #define MDIRENTS_CACHE_CHUNK_INDIRECT_CNT 2
-#define MDIRENTS_CACHE_CHUNK_SECTOR_CNT  2    ///< number of sector per chunk array
-#define MDIRENTS_CACHE_CHUNK_ARRAY_SZ (MDIRENT_SECTOR_SIZE*2)  ///< memory size allocated in memory for a chunk array
+#define MDIRENTS_CACHE_CHUNK_SECTOR_CNT  4    ///< number of sector per chunk array
+#define MDIRENTS_CACHE_CHUNK_ARRAY_SZ (MDIRENT_SECTOR_SIZE*4)  ///< memory size allocated in memory for a chunk array
 #define MDIRENTS_CACHE_NB_CHUNK_PER_CHUNK_ARRAY (MDIRENTS_CACHE_CHUNK_ARRAY_SZ/MDIRENTS_NAME_CHUNK_SZ) /// number of chunk per chunk memory array
 #define MDIRENTS_NAME_PTR_LVL0_NB_BIT  3  /// 8 pointers
 #define MDIRENTS_NAME_PTR_LVL0_NB_PTR  (1<<MDIRENTS_NAME_PTR_LVL0_NB_BIT) ///< number of level 0 pointer of level1 pointers
