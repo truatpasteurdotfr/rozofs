@@ -52,7 +52,7 @@
  * @param device_nb: device number
  *
  */
-int storage_error_on_device(storage_t * st, int device_nb) {
+int storage_error_on_device(storage_t * st, uint8_t device_nb) {
 
   if ((st == NULL) || (device_nb >= STORAGE_MAX_DEVICE_NB)) return 0;     
     
@@ -63,9 +63,153 @@ int storage_error_on_device(storage_t * st, int device_nb) {
   st->device_errors.errors[active][device_nb]++;
   return st->device_errors.errors[active][device_nb];
 }
+/*
+ ** Read a header/mapper file
+    This function looks for a header file of the given FID on every
+    device when it should reside on this storage.
 
+  @param st    : storage we are looking on
+  @param fid   : fid whose hader file we are looking for
+  @param spare : whether this storage is spare for this FID
+  @param hdr   : where to return the read header file
+  
+  @retval  STORAGE_READ_HDR_ERRORS     on failure
+  @retval  STORAGE_READ_HDR_NOT_FOUND  when header file does not exist
+  @retval  STORAGE_READ_HDR_OK         when header file has been read
+  
+*/
+STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, uint8_t spare, rozofs_stor_bins_file_hdr_t * hdr) {
+  int  dev;
+  int  hdrDevice;
+  char path[FILENAME_MAX];
+  int  storage_slice;
+  int  fd;
+  int  nb_read;
+  int       device_result[STORAGE_MAX_DEVICE_NB];
+  uint64_t  device_time[STORAGE_MAX_DEVICE_NB];
+  uint64_t  device_id[STORAGE_MAX_DEVICE_NB];
+  uint64_t  swap_time;
+  int       swap_device;
+  int       nb_devices=0;
+  struct stat buf;
+  int       idx;
+  int       ret;
+  
+  memset(device_time,0,sizeof(device_time));
+  memset(device_id,0,sizeof(device_id));
+  memset(device_result,0,sizeof(device_result));
+  
+  /*
+  ** Compute storage slice from FID
+  */
+  storage_slice = rozofs_storage_fid_slice(fid);    
+ 
+  /*
+  ** Search for the last updated file.
+  ** It may occur that a file can not be written any more although 
+  ** it can still be read, so we better read the lastest file writen
+  ** on disk to be sure to get the correct information.
+  */
+  for (dev=0; dev < st->mapper_redundancy ; dev++) {
 
+    /*
+    ** Header file path
+    */
+    hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
+    storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
+	            
+    // Check that this directory already exists, otherwise it will be create
+    if (storage_create_dir(path) < 0) {
+      device_result[dev] = errno;		    
+      storage_error_on_device(st,hdrDevice);
+      continue;
+    }   
 
+    /* 
+    ** Fullfill the path with the name of the mapping file
+    */
+    storage_complete_path_with_fid(fid,path);
+
+    /*
+    ** Get the file attributes
+    */
+    ret = stat(path,&buf);
+    if (ret < 0) {
+      device_result[dev] = errno;
+      continue;
+    }
+    
+    /*
+    ** Insert in the table in the time order
+    */
+    for (idx=0; idx < nb_devices; idx++) {
+      if (device_time[idx] < buf.st_mtime) continue;
+      break;
+    }
+    nb_devices++;
+    for (; idx < nb_devices; idx++) {  
+     
+      swap_time   = device_time[idx];
+      swap_device = device_id[idx];
+
+      device_time[idx] = buf.st_mtime;
+      device_id[idx]   = hdrDevice;
+
+      buf.st_mtime = swap_time;
+      hdrDevice    = swap_device;  
+    } 
+  }
+  
+  
+  /*
+  ** Header files do not exist
+  */
+  if (nb_devices == 0) {
+    for (dev=0; dev < st->mapper_redundancy ; dev++) {
+      if (device_result[dev] == ENOENT) return STORAGE_READ_HDR_NOT_FOUND;  
+    } 
+    /*
+    ** All devices have problems
+    */
+    return STORAGE_READ_HDR_ERRORS; 
+  }
+  
+
+  /*
+  ** Look for the mapping information in one of the redundant mapping devices
+  ** which numbers are derived from the fid
+  */
+  for (dev=0; dev < nb_devices ; dev++) {
+
+    /*
+    ** Header file name
+    */
+    storage_build_hdr_path(path, st->root, device_id[dev], spare, storage_slice);
+    storage_complete_path_with_fid(fid,path);
+
+    // Open hdr file
+    fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
+    if (fd < 0) {
+      device_result[dev] = errno;	
+      continue;
+    }
+    
+    nb_read = pread(fd, hdr, sizeof (*hdr), 0);
+    close(fd);
+
+    if (nb_read != sizeof (*hdr)) {
+      device_result[dev] = EINVAL;	
+      storage_error_on_device(st,hdrDevice);
+      continue;
+    }
+    return STORAGE_READ_HDR_OK;	
+  }  
+  
+  /*
+  ** All devices have problems
+  */
+  return STORAGE_READ_HDR_ERRORS;
+}
 /*
  ** Write a header/mapper file on a device
 
@@ -110,9 +254,40 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   }
   return 0;
 }  
+/*
+ ** Write a header/mapper file on every device
+    This function writes the header file of the given FID on every
+    device where it should reside on this storage.    
+    
+  @param st    : storage we are looking on
+  @param fid   : fid whose hader file we are looking for
+  @param spare : whether this storage is spare for this FID
+  @param hdr   : the content to be written in header file
+  
+  @retval The number of header file that have been written successfuly
+  
+ */
+int storage_write_all_header_files(storage_t * st, fid_t fid, uint8_t spare, rozofs_stor_bins_file_hdr_t * hdr) {
+  int                       dev;
+  int                       hdrDevice;
+  int                       storage_slice;
+  char                      path[FILENAME_MAX];
+  int                       result=0;
+  
+  storage_slice = rozofs_storage_fid_slice(fid);
 
+  for (dev=0; dev < st->mapper_redundancy ; dev++) {
 
-
+    hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
+    storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
+                 
+    if (storage_write_header_file(st,hdrDevice,path, hdr) == 0) {    
+      //MYDBGTRACE("Header written on storage %d/%d device %d", st->cid, st->sid, hdrDevice);
+      result++;
+    }
+  }  
+  return result;
+}  
 char *storage_dev_map_distribution_write(storage_t * st, 
 					 int * device_id,
 					 uint32_t bsize, 
@@ -128,8 +303,8 @@ char *storage_dev_map_distribution_write(storage_t * st,
     int                       fd;
     int                       result;
     rozofs_stor_bins_file_hdr_t file_hdr;
-    int                       device_result[STORAGE_MAX_DEVICE_NB];
     int                       storage_slice;
+    STORAGE_READ_HDR_RESULT_E read_hdr_res;
 
     DEBUG_FUNCTION;
     
@@ -138,86 +313,37 @@ char *storage_dev_map_distribution_write(storage_t * st,
     */
     storage_slice = rozofs_storage_fid_slice(fid);
      
-    memset(device_result,0,sizeof(device_result));    
 
-    /*
-    ** When no device id is given as input, let's search for the 
-    ** device that store the data of this fid
-    */
-    while (*device_id == -1) {
-    
-      /*
-      ** Look for the mapping information in one of the redundant mapping devices
-      ** which numbers are derived from the fid
-      */
-      for (dev=0; dev < st->mapper_redundancy ; dev++) {
-
-        hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
-	storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
-	            
-	// Check that this directory already exists, otherwise it will be create
-        if (storage_create_dir(path) < 0) {
-	      device_result[dev] = errno;		    
-              storage_error_on_device(st,hdrDevice);
-              continue;
-	}   
-
-        /* 
-        ** Fullfill the path with the name of the mapping file
-        */
-        storage_complete_path_with_fid(fid,path);
-
-        // Open hdr file
-        fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-        if (fd < 0) {
-          device_result[dev] = errno;	
-          continue;
-        }
-        nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
-        if (nb_read != sizeof(file_hdr)) {
-          device_result[dev] = EINVAL;	
-          close(fd);
-          storage_error_on_device(st,hdrDevice);
-          continue;
-        }
-	
-        close(fd);
-	
-        /* Wonderfull. We have found the device number in a mapping file */
-        *device_id = file_hdr.device_id;
-        device_result[dev] = 0;		
-        break;	
-      }	         
- 
-      break;
-    }        
-
-      
-    /*
-    **  Search the device of the fid and allocate one if none exist 
-    */    
-    
     if (*device_id != -1) {
        /* The fid exist on *device_id */         
        goto success;
-    }   
-   
-    /*
-    ** Device not found. Must allocate a device for this fid
-    */
+    }  
     
-    for (dev=0; dev < st->mapper_redundancy ; dev++) {
-      if (device_result[dev] != ENOENT) {
-	    break;
-      }	  
-    } 
     /*
-    ** There is a problem on at least one mapping device.
-    ** Do not allocate a device on this sid !!!
+    ** When no device id is given as input, let's read the header file 
+    */    
+    read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
+
+    /*
+    ** Error accessing all the devices
     */
-    if (dev != st->mapper_redundancy) {
+    if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
       return NULL;
     }
+
+
+    /*
+    ** Header file has been read
+    */
+    if (read_hdr_res == STORAGE_READ_HDR_OK) {  	
+      /* Wonderfull. We have found the device number in a mapping file */
+      *device_id = file_hdr.device_id;
+      if (*device_id != -1) {
+	 /* The fid exist on *device_id */         
+	 goto success;
+      }         
+    }	         
+
 
     /*
     ** Every device has returned ENOENT
@@ -225,27 +351,16 @@ char *storage_dev_map_distribution_write(storage_t * st,
     */  
     *device_id = storio_device_mapping_allocate_device(st);
 
-    result = 0;
+    // Prepare file header
+    memcpy(file_hdr.dist_set_current, dist_set, ROZOFS_SAFE_MAX * sizeof (sid_t));
+    memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
+    file_hdr.layout = layout;
+    file_hdr.bsize  = bsize;
+    file_hdr.version = version;
+    file_hdr.device_id = *device_id;
+    memcpy(file_hdr.fid, fid,sizeof(fid_t));  
 
-    for (dev=0; dev < st->mapper_redundancy ; dev++) {
-      int ret;
-
-      hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
-      storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
-                 
-      // Prepare file header
-      memcpy(file_hdr.dist_set_current, dist_set, ROZOFS_SAFE_MAX * sizeof (sid_t));
-      memset(file_hdr.dist_set_next, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
-      file_hdr.layout = layout;
-      file_hdr.bsize  = bsize;
-      file_hdr.version = version;
-      file_hdr.device_id = *device_id;
-      memcpy(file_hdr.fid, fid,sizeof(fid_t));  
-
-      // Write the file
-      ret = storage_write_header_file(st,hdrDevice,path,&file_hdr);
-      if (ret == 0) result++;	
-    }	         
+    result = storage_write_all_header_files(st, fid, spare, &file_hdr);	         
 
     /*
     ** Failure on every write operation
@@ -263,82 +378,46 @@ char *storage_dev_map_distribution_read(  storage_t * st,
 					  fid_t fid, 
 					  uint8_t spare, 
 					  char *path) {
-    int                       dev;
-    int                       hdrDevice;
-    size_t                    nb_read;
-    int                       fd;
     rozofs_stor_bins_file_hdr_t file_hdr;
-    int                       device_result[STORAGE_MAX_DEVICE_NB];
     int                       storage_slice;
+    STORAGE_READ_HDR_RESULT_E read_hdr_res;
 
     DEBUG_FUNCTION;
+    
+    
+    /*
+    ** When no device id is given as input, let's search for the 
+    ** device that store the data of this fid
+    */
+    if (*device_id == -1) {
+
+
+      /*
+      ** When no device id is given as input, let's read the header file 
+      */    
+      read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
+
+     /*
+      ** Header file not read
+      */
+      if (read_hdr_res != STORAGE_READ_HDR_OK) {   	
+	return NULL;
+      }	
+      
+
+      /* Wonderfull. We have found the device number in a mapping file */
+      *device_id = file_hdr.device_id;
+    }
+    
+    
+    if (*device_id == -1) {
+      return NULL;
+    }	    
     
     /*
     ** Compute storage slice from FID
     */
     storage_slice = rozofs_storage_fid_slice(fid);
-     
-    memset(device_result,0,sizeof(device_result));    
-
-    /*
-    ** When no device id is given as input, let's search for the 
-    ** device that store the data of this fid
-    */
-    while (*device_id == -1) {
-    
-      /*
-      ** Look for the mapping information in one of the redundant mapping devices
-      ** which numbers are derived from the fid
-      */
-      for (dev=0; dev < st->mapper_redundancy ; dev++) {
-
-        hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
-	storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
-	            
-	// Check that this directory already exists, otherwise it will be create
-        if (storage_create_dir(path) < 0) {
-	      device_result[dev] = errno;		    
-              storage_error_on_device(st,hdrDevice);
-              continue;
-	}   
-
-        /* 
-        ** Fullfill the path with the name of the mapping file
-        */
-        storage_complete_path_with_fid(fid,path);
-
-        // Open hdr file
-        fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
-        if (fd < 0) {
-          device_result[dev] = errno;	
-          continue;
-        }
-        nb_read = pread(fd, &file_hdr, sizeof(file_hdr), 0);
-        if (nb_read != sizeof(file_hdr)) {
-          device_result[dev] = EINVAL;	
-          close(fd);
-          storage_error_on_device(st,hdrDevice);
-          continue;
-        }
-	
-        close(fd);
-	
-        /* Wonderfull. We have found the device number in a mapping file */
-        *device_id = file_hdr.device_id;
-        device_result[dev] = 0;		
-        break;	
-      }	         
- 
-      break;
-    }        
-
-
-    /* No device found */
-    if (*device_id == -1) {
-      /* The FID does not exit !!! */
-      return NULL;
-    }   
- 
     storage_build_bins_path(path, st->root, *device_id, spare, storage_slice);
     return path;            
 }

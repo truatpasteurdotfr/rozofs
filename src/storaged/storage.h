@@ -158,7 +158,7 @@ storage_t *storaged_next(storage_t * st);
  * @param device_nb: device number
  *
  */
-int storage_error_on_device(storage_t * st, int device_nb);
+int storage_error_on_device(storage_t * st, uint8_t device_nb);
 
 /** API to be called periodically to monitor errors on a period
  *
@@ -510,5 +510,23 @@ void static inline storage_dev_map_distribution_remove(storage_t * st, fid_t fid
        }
    }
 }
+/*
+ ** Read a header/mapper file
+
+  @param path : pointer to the bdirectory where to write the header file
+  @param hdr : header to write in the file
+  
+  @retval  STORAGE_READ_HDR_ERRORS     on failure
+  @retval  STORAGE_READ_HDR_NOT_FOUND  when header file does not exist
+  @retval  STORAGE_READ_HDR_OK         when header file has been read
+  
+ */
+typedef enum { 
+  STORAGE_READ_HDR_OK,
+  STORAGE_READ_HDR_NOT_FOUND,
+  STORAGE_READ_HDR_ERRORS    
+} STORAGE_READ_HDR_RESULT_E;
+
+STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, uint8_t spare, rozofs_stor_bins_file_hdr_t * hdr);
 #endif
 
