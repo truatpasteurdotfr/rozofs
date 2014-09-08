@@ -1159,7 +1159,15 @@ int storage_stat(storage_t * st, sstat_t * sstat) {
 
       sprintf(path,"%s/%d",st->root,device);
 
-      if (statfs(st->root, &sfs) == -1) {
+      /*
+      ** Check the device is writable
+      */
+      if (access(path,W_OK) == -1) {
+	storage_error_on_device(st,device);
+	continue;
+      }
+      
+      if (statfs(path, &sfs) == -1) {
         storage_error_on_device(st,device);
         continue;
       }	
