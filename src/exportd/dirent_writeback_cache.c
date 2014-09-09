@@ -239,7 +239,7 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
   /*
   ** check if the flush already occur: race between thread and check for flush
   */
-  if (cache_p->wr_cpt == 0)
+  if ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending(cache_p) == 0))
   {
     if ((errno = pthread_rwlock_unlock(&cache_p->lock)) != 0) {
 	severe("can't lock writeback cache entry: %s", strerror(errno));
@@ -340,12 +340,9 @@ static void *dirent_wbcache_thread(void *v) {
           for (i = 0; i < DIRENT_CACHE_MAX_ENTRY;i++,cache_p++)
 	  {
 	     if (cache_p->state == 0) continue;
-	     if (cache_p->wr_cpt == 0) 
+	     if ((cache_p->wr_cpt == 0)
+	     &&  (dirent_wbcache_check_write_pending(cache_p) == 0))
 	     {
-                if (dirent_wbcache_check_write_pending(cache_p) == 1)
-		{
-		  severe("FDL chunk write pending for index %d",i);
-		} 
 	        continue;
 	     }
 	     dirent_wbcache_diskflush(cache_p);
@@ -379,7 +376,7 @@ int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx)
 
    i = root_idx%DIRENT_CACHE_MAX_ENTRY ;  
    cache_p = &dirent_writeback_cache_p[i];
-   if ((cache_p->state == 0)|| (cache_p->wr_cpt == 0))return 0;
+   if ((cache_p->state == 0)|| ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending(cache_p) == 0))) return 0;
    /*
    ** the entry is busy : check if it matches
    */
@@ -416,12 +413,8 @@ int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,i
 
    i = root_idx%DIRENT_CACHE_MAX_ENTRY ;  
    cache_p = &dirent_writeback_cache_p[i];
-   if ((cache_p->state == 0)|| (cache_p->wr_cpt == 0))
-   {
-     if (dirent_wbcache_check_write_pending ( cache_p) == 1)
-     {
-       severe("FDL there is a pending write at entry %d",i);
-     }   
+   if ((cache_p->state == 0)|| ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending ( cache_p) == 0)))
+   { 
      cache_p->fd = fd;
      strcpy(cache_p->pathname,pathname);
      memcpy(cache_p->dir_fid,dir_fid,sizeof(fid_t));
