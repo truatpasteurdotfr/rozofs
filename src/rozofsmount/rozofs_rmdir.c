@@ -255,7 +255,7 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
     */
 
     if ((ie2 = get_ientry_by_fid(fid))) {
-        ie2->nlookup--;
+        //ie2->nlookup--;
     }
     /*
     ** get the parent attributes

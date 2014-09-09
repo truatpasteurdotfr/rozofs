@@ -295,8 +295,12 @@ static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
 
 void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
     ientry_t *ie;
+    int trc_idx;
 
     START_PROFILING(rozofs_ll_forget);
+    errno = 0;
+    trc_idx = rozofs_trc_req_io(srv_rozofs_ll_forget,ino,NULL,nlookup,0);    
+
 
     DEBUG("forget :%lu, nlookup: %lu", ino, nlookup);
     if ((ie = get_ientry_by_inode(ino))) {
@@ -310,9 +314,12 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
                 ie->db.p = NULL;
             }
             free(ie);
+	    ie = NULL;
         }
     }
-
+    rozofs_trc_rsp_attr(srv_rozofs_ll_forget,ino,
+                        (ie==NULL)?NULL:ie->attrs.fid,0,
+			(ie==NULL)?0:ie->nlookup,trc_idx);
     STOP_PROFILING(rozofs_ll_forget);
     fuse_reply_none(req);
 }
@@ -521,6 +528,7 @@ static char * show_ientry_help(char * pChar) {
   pChar += sprintf(pChar,"ientry count         : display ientry count\n");
   pChar += sprintf(pChar,"ientry fid <fid>     : display ientry by FID\n");  
   pChar += sprintf(pChar,"ientry inode <inode> : display ientry by inode\n");  
+  pChar += sprintf(pChar,"ientry nb <nb> : display ientry number <nb> in list\n");  
   return pChar; 
 }
 void show_ientry(char * argv[], uint32_t tcpRef, void *bufRef) {
@@ -576,6 +584,33 @@ void show_ientry(char * argv[], uint32_t tcpRef, void *bufRef) {
           return;        
       }      
   } 
+  else if (strcmp(argv[1],"nb")==0){
+      int ret = sscanf(argv[2],"%llu",&inode);
+      if (ret != 1) {
+          pChar += sprintf(pChar, "this is not a valid number\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;	        
+      }
+      if (inode>rozofs_ientries_count) {
+          pChar += sprintf(pChar, "this is not a valid number\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;	        
+      }
+      list_t * p;
+      ie = NULL;
+      list_for_each_forward(p, &inode_entries) {
+        inode--;
+	if (inode==0) {
+	  ie = list_entry(p, ientry_t, list);
+	  break;
+	}    
+      }	
+      if (ie == NULL) {
+          pChar += sprintf(pChar, "No ientry for this number\n");
+          uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+          return;        
+      }      
+  }   
   else {
       pChar += sprintf(pChar, "ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
       uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
