@@ -562,7 +562,7 @@ class Platform(object):
             raise Exception("Exportd node is off line.")
 
         if vid not in econfig[Role.EXPORTD].volumes:
-            raise Exception("Unknown volume: %d." % vid)
+            raise Exception("Unknown volume with vid=%d." % vid)
 
         if [e for e in econfig[Role.EXPORTD].exports.values() if e.vid == vid]:
             raise Exception("Volume has configured export(s)")
@@ -781,7 +781,7 @@ class Platform(object):
             if eid not in econfig[Role.EXPORTD].exports.keys():
                 raise Exception("Unknown export: %d." % eid)
 
-        # Get curent rozofsmount config on each node
+        # Get current rozofsmount config on each node
         current_rconfig = {}
         for h in hosts:
             node = self._nodes[h]

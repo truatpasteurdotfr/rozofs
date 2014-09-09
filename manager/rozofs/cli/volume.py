@@ -104,6 +104,10 @@ def get(platform, args):
     configuration = configurations[args.exportd][Role.EXPORTD]
     get_l = []
     for vid in args.vid:
+
+        if vid not in configuration.volumes:
+            raise Exception("Unknown volume with vid=%d." % vid)
+
         vconfig = configuration.volumes[vid]
         vstat = configuration.stats.vstats[vid]
         volume_l = []
