@@ -188,6 +188,19 @@ class Node(object):
             if self.has_roles(r):
                 self._proxies[r].set_service_status(s)
 
+    def set_rebuild(self, exports_list):
+        if not self._try_up():
+            raise Exception("%s is not reachable." % self._host)
+
+        try:
+            self._proxies[Role.STORAGED].restart_with_rebuild(exports_list)
+        except NamingError:
+            raise Exception("no %s agent reachable for host: %s." % (ROLES_STR[Role.STORAGED], self._host))
+        except ProtocolError:
+            raise Exception("rozofs-manager agent is not reachable for host: %s." % self._host)
+        except Exception:
+            raise
+
 
 class Platform(object):
     """ A rozofs platform."""
@@ -245,7 +258,6 @@ class Platform(object):
         for n in self._nodes:
             if not n.check_platform_manager():
                 raise Exception("%s: check platform failed." % n._host)
-
 
     # the first exportd nodes
     def _get_exportd_node(self):
@@ -371,6 +383,23 @@ class Platform(object):
             self.set_status(hosts, Role.EXPORTD, ServiceStatus.STOPPED)
         if roles & Role.STORAGED == Role.STORAGED:
             self.set_status(hosts, Role.STORAGED, ServiceStatus.STOPPED)
+
+    def rebuild_storage_node(self, host):
+        """ Convenient method to rebuild one storage node
+        Args:
+            host: storage host to rebuild
+        """
+
+        if host not in self._nodes.keys():
+            raise Exception("Unknown host: %s." % host)
+
+        node = self._nodes[host]
+
+        if node.has_one_of_roles(Role.STORAGED):
+            #XXX: TO CHANGE
+            node.set_rebuild([self._hostname])
+        else:
+            raise Exception("Host: %s is not a storage node." % host)
 
 # Not need anymore ?
     def get_configurations(self, hosts=None, roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):

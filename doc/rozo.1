@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii rozo.1
 .\"
-.TH ROZO 1 "April 2014" RozoFS "User Manuals"
+.TH ROZO 1 "September 2014" RozoFS "User Manuals"
 .SH NAME
 rozo \- RozoFS management tool
 .SH SYNOPSIS
@@ -99,7 +99,7 @@ A running exportd hostname.
 
 .SH NODE TOPIC
 .B rozo node
-.I list\fP | \fIstatus\fP | \fIconfig\fP | \fIstart\fP | \fIstop\fP [\fB\-r | \-\-roles\fP \fIrole\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
+.I list\fP | \fIstatus\fP | \fIconfig\fP | \fIstart\fP | \fIstop\fP | \fIrebuild\fP [\fB\-r | \-\-roles\fP \fIrole\fP...] \fB\-E | \-\-exportd\fP \fIhost\fP 
 
 .\" rozo node list
 .SS list
@@ -173,6 +173,18 @@ List of roles. Must be a subset of {exportd,storaged,rozofsmount}. Only nodes wi
 \fB\-n\fP, \fB\-\-nodes\fP\fI node\fP...
 List of node hostnames to be stopped. If not set all nodes of the platform
 will be stopped.
+
+.\" rozo node rebuild
+.SS rebuild
+.B rozo node rebuild \fB\-n | \-\-node\fP \fInode\fP \fB\-E | \-\-exportd\fP \fIhost\fP 
+.TP
+Restart the storaged daemon for one storage node with processes for rebuild data of each storage declared in the storaged configuration file.
+.TP
+\fB\-E\fP, \fB\-\-exportd \fP\fIhost
+A running exportd hostname.
+.TP
+\fB\-n\fP, \fB\-\-node\fP\fI node\fP
+Storage node hostname to be restarted with rebuild processes.
 
 
 .\""" rozo volume
@@ -359,8 +371,7 @@ A running exportd hostname.
 .SS add
 .B rozo storage add \fB\-n\fP | \fB\-\-nodes\fP \fInode\fP... \fB\-i\fP | \fB\-\-interface\fP \fIinterface\fP \fB\-p\fP | \fB\-\-port\fP \fIport\fP \fB\-E\fP | \fB\-\-exportd\fP \fIhost\fP 
 .TP
-Add an interface listener according to the given \fIinterface\fP and
-\fIport\fP to the storaged \fIhost\fP.
+Add an interface listener according to the given \fIinterface\fP and \fIport\fP to the storaged \fIhost\fP.
 .TP
 \fB\-E\fP, \fB\-\-exportd\fP \fIhost\fP
 A running exportd hostname.

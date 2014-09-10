@@ -81,6 +81,9 @@ def start(platform, args):
 def stop(platform, args):
     platform.stop(args.nodes, __args_to_roles(args))
 
+def rebuild(platform, args):
+    platform.rebuild_storage_node(args.node[0])
+
 def config(platform, args):
     if not args.roles:
         args.roles = [EXPORTD_MANAGER, STORAGED_MANAGER, ROZOFSMOUNT_MANAGER]
