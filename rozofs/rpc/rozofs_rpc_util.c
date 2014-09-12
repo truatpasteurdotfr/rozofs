@@ -28,7 +28,7 @@
 #include <sys/un.h>             
 #include <errno.h>  
 #include <rpc/rpc.h>
-
+#include <rozofs/common/log.h>
 /*
  * XDR the MSG_ACCEPTED part of a reply message union
  */
@@ -40,19 +40,22 @@ rozofs_xdr_accepted_reply(XDR *xdrs, struct accepted_reply *ar)
     /*
     ** skip the verifier: flavor and length
     */
-    int position;
-    position = xdr_getpos(xdrs);
-    xdr_setpos(xdrs,position+2*sizeof(uint32_t));
+//      Add 2 uint32_t with 0 value to replace auth field
 //	if (! xdr_opaque_auth(xdrs, &(ar->ar_verf)))
-//		return (FALSE);
+//		return (FALSE); 
+        uint32_t val=0;
+        if (! xdr_uint32_t(xdrs, (uint32_t*)&val))
+			return (FALSE);
+        if (! xdr_uint32_t(xdrs, (uint32_t*)&val))
+			return (FALSE);	
+					
 	if (! xdr_enum(xdrs, (enum_t *)&(ar->ar_stat)))
 		return (FALSE);
 	switch (ar->ar_stat) {
 
 	case SUCCESS:
-        if (ar->ar_results.proc != NULL)
-        {
-		   return ((*(ar->ar_results.proc))(xdrs, ar->ar_results.where));
+        if (ar->ar_results.proc != NULL) {
+	  return ((*(ar->ar_results.proc))(xdrs, ar->ar_results.where));
         }
         return TRUE;
 
