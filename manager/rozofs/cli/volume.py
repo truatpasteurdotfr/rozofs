@@ -25,11 +25,13 @@ from rozofs.cli.output import ordered_puts
 from collections import OrderedDict
 
 def list(platform, args):
-    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
-    if configurations[args.exportd] is None:
+    e_host = platform._active_export_host
+    configurations = platform.get_configurations([e_host], Role.EXPORTD)
+
+    if configurations[e_host] is None:
         raise Exception("exportd node is off line.")
 
-    configuration = configurations[args.exportd][Role.EXPORTD]
+    configuration = configurations[e_host][Role.EXPORTD]
 
     export_l = {}
     list_l = []
@@ -41,14 +43,14 @@ def list(platform, args):
                 cluster_l.append({'STORAGE ' + str(sid): storage})
             volume_l.append({'CLUSTER ' + str(cid): cluster_l})
         list_l.append({'VOLUME ' + str(vid): volume_l})
-    export_l.update({'EXPORTD on ' + str(args.exportd): list_l})
+    export_l.update({'EXPORTD on ' + str(e_host): list_l})
     ordered_puts(export_l)
 
 def stat(platform, args):
-    
+    e_host = platform._active_export_host
     # Get configuration
-    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
-    if configurations[args.exportd] is None:
+    configurations = platform.get_configurations([e_host], Role.EXPORTD)
+    if configurations[e_host] is None:
         raise Exception("exportd node is off line.")
     
     # Get statuses from storaged nodes
@@ -69,7 +71,7 @@ def stat(platform, args):
             raise Exception("storaged node is off line.")
 
     # configuration of exportd node
-    configuration = configurations[args.exportd][Role.EXPORTD]
+    configuration = configurations[e_host][Role.EXPORTD]
     if configuration.stats is None:
         ordered_puts({'EXPORTD on ' + str(args.exportd): "not running"})
         return
@@ -93,15 +95,16 @@ def stat(platform, args):
                 cluster_l.append({'STORAGE ' + str(sid): storage_l})
             volume_l.append({'CLUSTER ' + str(cid): cluster_l})
         stat_l.append({'VOLUME ' + str(vid): volume_l})
-    export_l.update({'EXPORTD on ' + str(args.exportd): stat_l})
+    export_l.update({'EXPORTD on ' + str(e_host): stat_l})
     ordered_puts(export_l)
 
 def get(platform, args):
-    configurations = platform.get_configurations([args.exportd], Role.EXPORTD)
-    if configurations[args.exportd] is None:
+    e_host = platform._active_export_host
+    configurations = platform.get_configurations([e_host], Role.EXPORTD)
+    if configurations[e_host] is None:
         raise Exception("exportd node is off line.")
 
-    configuration = configurations[args.exportd][Role.EXPORTD]
+    configuration = configurations[e_host][Role.EXPORTD]
     get_l = []
     for vid in args.vid:
 
@@ -127,7 +130,7 @@ def get(platform, args):
             volume_l.append({'CLUSTER ' + str(cid): cluster_l})
         get_l.append({'VOLUME ' + str(vid): volume_l})
 
-    ordered_puts({'' + str(args.exportd): get_l})
+    ordered_puts({'' + str(e_host): get_l})
 
 def expand(platform, args):
     for host in args.hosts:

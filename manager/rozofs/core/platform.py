@@ -34,7 +34,7 @@ def check_reachability(host):
     with open('/dev/null', 'w') as devnull:
         if subprocess.call(['ping', '-c', '1', '-w', '2', host],
             stdout=devnull, stderr=devnull) is not 0:
-                raise Exception("%s is not reachable" % host)
+                raise Exception("host (%s) is not reachable" % host)
 
 def get_proxy(host, manager):
     try:
@@ -205,14 +205,57 @@ class Node(object):
 class Platform(object):
     """ A rozofs platform."""
 
-    def __init__(self, hostname="localhost", roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
+    def __init__(self, export_hosts=['localhost'], roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         """
         Args:
-            hostname: platform manager host (should be part of the platform !).
+            export_hosts: list of export host (should be part of the platform !).
             roles: with which roles the platform must be built 
         """
-        self._hostname = hostname
-        self._nodes = self._get_nodes(hostname, roles)
+        self._export_hosts = export_hosts
+        self._active_export_host = self._get_active_export_host(export_hosts)
+        self._nodes = self._get_nodes(self._active_export_host, roles)
+
+    def _get_active_export_host(self, export_hosts):
+
+        # Check duplicate value
+        if len(export_hosts) != (len(set(export_hosts))):
+            raise Exception('Duplicate export host.')
+
+        valid_hosts = []
+        unvalid_hosts = dict()
+
+         # Check each export host
+        for h in export_hosts:
+            try :
+                check_reachability(h)
+                p = get_proxy(h, EXPORTD_MANAGER)
+            except Exception as e:
+                unvalid_hosts.update({h: e})
+                continue
+            try:
+                try:
+                    # If we can read the exportd config file:
+                    # host is considered active
+                    if p.get_service_config():
+                        valid_hosts.append(h)
+                except NamingError as e:
+                    raise Exception("no %s agent reachable" % ROLES_STR[Role.EXPORTD])
+                except ProtocolError as e:
+                    raise Exception("rozofs-manager agent is not reachable")
+            except Exception as e:
+                unvalid_hosts.update({h: e})
+                pass
+
+        # Check nb. of active export
+        if len(valid_hosts) == 1:
+            return valid_hosts[0]
+        elif len(valid_hosts) > 1:
+            raise Exception('Several active export hosts simultaneously! Fix that!')
+        else:
+            errors =[]
+            for h, e in unvalid_hosts.items():
+                errors.append("%s: %s" % (h, e))
+            raise Exception('Unable to get valid export configuration file.\n'+ "\n".join(errors))
 
     def _get_nodes(self, hostname, roles=Role.EXPORTD | Role.STORAGED | Role.ROZOFSMOUNT):
         nodes = {}
@@ -226,7 +269,7 @@ class Platform(object):
             node_configs = exportd_node.get_configurations(Role.EXPORTD)
             if not node_configs:
                 raise Exception("%s unreachable." % hostname)
-    
+
             econfig = node_configs[Role.EXPORTD]
     
             if econfig is None:
@@ -396,8 +439,7 @@ class Platform(object):
         node = self._nodes[host]
 
         if node.has_one_of_roles(Role.STORAGED):
-            #XXX: TO CHANGE
-            node.set_rebuild([self._hostname])
+            node.set_rebuild(self._export_hosts)
         else:
             raise Exception("Host: %s is not a storage node." % host)
 
@@ -794,7 +836,7 @@ class Platform(object):
         econfig = enode.get_configurations(Role.EXPORTD)
 
         if econfig is None:
-            raise Exception("%s is not reachable" % self._hostname)
+            raise Exception("%s is not reachable" % self._active_export_host)
 
         if hosts is None:
             hosts = self._nodes.keys()
@@ -825,7 +867,7 @@ class Platform(object):
             node = self._nodes[h]
             for eid in eids:
                 expconfig = econfig[Role.EXPORTD].exports[eid]
-                rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1, options)
+                rconfig = RozofsMountConfig("/".join(self._export_hosts) , expconfig.root, -1, options)
                 # check duplicates
                 if rconfig not in current_rconfig[h]:
                     current_rconfig[h][Role.ROZOFSMOUNT].append(rconfig)
@@ -871,7 +913,7 @@ class Platform(object):
 
                 for eid in eids:
                     expconfig = econfig[Role.EXPORTD].exports[eid]
-                    rconfig = RozofsMountConfig(self._hostname , expconfig.root, -1, None)
+                    rconfig = RozofsMountConfig("/".join(self._export_hosts) , expconfig.root, -1, None)
                     if rconfig in rconfigs[Role.ROZOFSMOUNT]:
                         rconfigs[Role.ROZOFSMOUNT].remove(rconfig)
 

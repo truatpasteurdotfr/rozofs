@@ -18,7 +18,7 @@
 # <http://www.gnu.org/licenses/>.
 
 '''
-rozo -- RozoFS comand line interface
+rozo -- RozoFS command line interface
 '''
 
 import sys
@@ -68,7 +68,7 @@ class GetEnvValueAction(Action):
 
         if var_env_value:
             kwargs["required"] = False
-            kwargs["default"] = var_env_value
+            kwargs["default"] = var_env_value.split(',')
 
         Action.__init__(self, **kwargs)
 
@@ -112,19 +112,19 @@ def main(argv=None):  # IGNORE:C0111
         topic_agent_parser = topic_subparsers.add_parser('agent', help='agent commands', add_help=False)
 
         topic_layout_parser = topic_subparsers.add_parser('layout', help='layout commands', add_help=False)
-        topic_layout_parser.add_argument('-E', '--exportd', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
+        topic_layout_parser.add_argument('-E', '--exportd', nargs='+', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
 
         topic_node_parser = topic_subparsers.add_parser('node', help='node commands', add_help=False)
-        topic_node_parser.add_argument('-E', '--exportd', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
+        topic_node_parser.add_argument('-E', '--exportd', nargs='+', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
 
         topic_volume_parser = topic_subparsers.add_parser('volume', help='volume commands', add_help=False)
-        topic_volume_parser.add_argument('-E', '--exportd', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
+        topic_volume_parser.add_argument('-E', '--exportd', nargs='+', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
 
         topic_export_parser = topic_subparsers.add_parser('export', help='export commands', add_help=False)
-        topic_export_parser.add_argument('-E', '--exportd', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
+        topic_export_parser.add_argument('-E', '--exportd', nargs='+', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
 
         topic_storage_parser = topic_subparsers.add_parser('storage', help='storage commands', add_help=False)
-        topic_storage_parser.add_argument('-E', '--exportd', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
+        topic_storage_parser.add_argument('-E', '--exportd', nargs='+', action = GetEnvValueAction, var_name = __export_host_env_var__, required = True, help = export_help_msg)
 
         #
         # Actions
@@ -180,7 +180,7 @@ def main(argv=None):  # IGNORE:C0111
         action_node_stop_parser.add_argument('-n', '--nodes', nargs='+', help='list of nodes. If not set all nodes.')
 
         action_node_rebuild_parser = action_node_subparsers.add_parser('rebuild', add_help=False, help='rebuild one storage node')
-        action_node_rebuild_parser.add_argument('-n', '--node', nargs=1, help='node to rebuild.')
+        action_node_rebuild_parser.add_argument('-n', '--node', nargs=1, required=True, help='node to rebuild.')
 
         # Volume
         action_volume_parser = ArgumentParser(add_help=False, prog='rozo volume')
@@ -198,7 +198,7 @@ def main(argv=None):  # IGNORE:C0111
         action_volume_expand_parser.add_argument('hosts', nargs='+', help='list of nodes to be added.')
 
         action_volume_remove_parser = action_volume_subparsers.add_parser('remove', add_help=False, help='remove a volume')
-        action_volume_remove_parser.add_argument('-v', '--vid', nargs='+', type=int, help='vid(s) of existing volume.')
+        action_volume_remove_parser.add_argument('-v', '--vid', nargs='+', required=True, type=int, help='vid(s) of existing volume.')
 
         # Export
         action_export_parser = ArgumentParser(add_help=False, prog='rozo export')
