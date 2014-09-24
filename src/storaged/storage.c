@@ -1220,13 +1220,13 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
     if (!(dp = opendir(path)))
         goto out;
 
-    // Readdir first time
-    ep = readdir(dp);
-
     // Step to the cookie index
     if (*cookie != 0) {
       seekdir(dp, *cookie);
     }
+
+    // Readdir first time
+    ep = readdir(dp);
 
     // The current nb. of bins files in the list
     i = *current_files_nb;
@@ -1287,7 +1287,9 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
         }
 	
         // Readdir for next entry
-        ep = readdir(dp);
+        if (i < MAX_REBUILD_ENTRIES) {
+          ep = readdir(dp);
+        }  
     }
 
     // Update current nb. of bins files in the list
