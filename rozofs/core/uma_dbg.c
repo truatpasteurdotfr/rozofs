@@ -77,7 +77,9 @@ typedef struct uma_dbg_session_s {
 
 UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
-static char rcvCmdBuffer[255];
+
+#define UMA_DBG_MAX_CMD_LEN 127
+static char rcvCmdBuffer[UMA_DBG_MAX_CMD_LEN+1];
 
 char uma_dbg_temporary_buffer[UMA_DBG_MAX_SEND_SIZE];
 
@@ -316,21 +318,25 @@ void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ...
     return;
   }
   pChar = (char*) (pHead+1);
+  
+  len    = sprintf(pChar, "____[%s]__[ %s]____\n", uma_gdb_system_name, rcvCmdBuffer);
+  pChar += len;
+  len   += sizeof(UMA_MSGHEADER_S);
 
   /* Format the string */
   va_start(vaList,fmt);
-  len = vsprintf(pChar, fmt, vaList)+1;
+  len += vsprintf(pChar, fmt, vaList)+1;
   va_end(vaList);
 
-  if (len > (UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S)))
+  if (len > UMA_DBG_MAX_SEND_SIZE)
   {
-    severe("debug response exceeds buffer length %u/%u",len,(int)((UMA_DBG_MAX_SEND_SIZE - sizeof(UMA_MSGHEADER_S))));
+    severe("debug response exceeds buffer length %u/%u",len,(int)UMA_DBG_MAX_SEND_SIZE);
   }
 
-  pHead->len = htonl(len);
+  pHead->len = htonl(len-sizeof(UMA_MSGHEADER_S));
   pHead->end = end;
 
-  ruc_buf_setPayloadLen(bufRef,len + sizeof(UMA_MSGHEADER_S));
+  ruc_buf_setPayloadLen(bufRef,len);
   uma_tcp_sendSocket(tcpCnxRef,bufRef,0);
 }
 /*-----------------------------------------------------------------------------
@@ -670,8 +676,8 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   /*
   ** save the current received command
   */
-  memcpy(rcvCmdBuffer,pBuf,64);
-  rcvCmdBuffer[63] = 0;
+  memcpy(rcvCmdBuffer,pBuf,UMA_DBG_MAX_CMD_LEN);
+  rcvCmdBuffer[UMA_DBG_MAX_CMD_LEN] = 0;
   pArg = p->argvBuffer;
   while (1) {
     /* Skip blanks */
@@ -743,7 +749,8 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   /* Save this existing command for later replay */
   if (replay == 0) {
     strcpy(p->last_valid_command,(char*)(pHead+1));
-  }  
+  } 
+  
   uma_dbg_topic[idx].funct(p->argv,tcpCnxRef,bufRef);
 }
 /*
