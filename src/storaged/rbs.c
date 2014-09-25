@@ -1618,9 +1618,21 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
         goto out;  	 	 	 
     }
     else {
-      // Build the list from the available data on local disk
-      if (rbs_build_device_missing_list_one_cluster(cid, sid, device, parallel) != 0)
-        goto out;	    		
+      // Is it the only device because in such a case it is a total rebuild
+      if (device >= st2rebuild.storage.device_number) {
+        REBUILD_MSG("storaged_rebuild failed ! No such device number %d.\n",device);
+	goto out;
+      }
+      if (st2rebuild.storage.device_number == 1) {
+	// Build the list from the remote storages
+	if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid, parallel) != 0)
+          goto out;         
+      }
+      else {
+	// Build the list from the available data on local disk
+	if (rbs_build_device_missing_list_one_cluster(cid, sid, device, parallel) != 0)
+          goto out;
+      }	  	    		
     }
     
     rb_hash_table_delete();

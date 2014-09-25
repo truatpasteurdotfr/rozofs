@@ -68,6 +68,28 @@ def reset_counters():
     string='./dbg.sh fs1 trc_fuse disable'
     parsed = shlex.split(string)
     cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  
+#___________________________________________________
+def get_device_numbers(hid):
+# Use debug interface to get the number of sid from exportd
+#___________________________________________________
+  device_number=1
+  mapper_modulo=1
+  mapper_redundancy=1 
+  
+  string="./build/src/rozodiag/rozodiag -i localhost%d -p 50028 -c device device"%(hid+1)
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  for line in cmd.stdout:
+    if "device_number" in line:
+      device_number=line.split()[2]
+    if "mapper_modulo" in line:
+      mapper_modulo=line.split()[2]
+    if "mapper_redundancy" in line:
+      mapper_redundancy=line.split()[2]
+      
+  return device_number,mapper_modulo,mapper_redundancy   
+  
 
 #___________________________________________________
 def get_sid_nb():
@@ -144,13 +166,13 @@ def get_site_number ():
 def get_storcli_port ():
   p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   for proc in p.stdout:
-    if not mnt in proc:
+    if not "%s "%(mnt) in proc:
+      continue
+    if "rozolauncher" in proc:
       continue
     if not " -o rozofsmount" in proc:
       continue      
     if not "storcli -i 1 -H " in proc:
-      continue
-    if "starter.sh" in proc:
       continue
       
     next=0
@@ -672,14 +694,26 @@ def rebuild_one() :
 
     hid=sid+(site*STC_SID)
     
-    for dev in range(6):
+    device_number,mapper_modulo,mapper_redundancy = get_device_numbers(hid)
+    
+    dev=hid%int(mapper_modulo)
+    os.system("./setup.sh storage %d device-delete %d 1> /dev/null"%(hid+1,dev))
+    ret = os.system("./setup.sh storage %d device-rebuild %d -g %s 1> /dev/null"%(hid+1,dev, site))
+    if ret != 0:
+      return ret
+      
+    if int(mapper_modulo) > 1:
+      dev=(dev+2)%int(mapper_modulo)
       os.system("./setup.sh storage %d device-delete %d 1> /dev/null"%(hid+1,dev))
       ret = os.system("./setup.sh storage %d device-rebuild %d -g %s 1> /dev/null"%(hid+1,dev, site))
       if ret != 0:
-        return ret
-      ret = gruyere_one_reread()  
-      if ret != 0:
-        return ret       
+	return ret
+            
+    ret = gruyere_one_reread()  
+    if ret != 0:
+      return ret 
+      
+  ret = gruyere_reread()          
   return ret
 
 #___________________________________________________
@@ -700,7 +734,7 @@ def rebuild_all() :
     ret = gruyere_one_reread()  
     if ret != 0:
       return ret    
-       
+  ret = gruyere_reread()         
   return ret
 #___________________________________________________
 def rebuild_fid() :
