@@ -39,6 +39,7 @@
 #include <readline/history.h>
 
 #include <rozofs/core/uma_dbg_msgHeader.h>
+#include <rozofs/rozofs.h>
 
 #define SILENT 1
 #define NOT_SILENT 0
@@ -97,7 +98,8 @@ void syntax() {
   printf("  [-period <seconds>]\n");       
   printf("         Periodicity when running commands using -c or/and -f options.\n");  
   printf("\nMiscellaneous options:\n");
-  printf("  -t <seconds>   Timeout value to wait for a response (default %d seconds).\n",DEFAULT_TIMEOUT);      
+  printf("  -t <seconds>     Timeout value to wait for a response (default %d seconds).\n",DEFAULT_TIMEOUT);
+  printf("  -reserved_ports  Displays model for port reservation\n");        
   printf("\ne.g\n%s -i 192.168.1.1 -p 50003 -p 50004 -p 50005 -c profiler reset\n",prgName) ;          
   printf("%s -i 192.168.1.1 -p 50003 -i 192.168.1.2 -p 50003 -c profiler -period 10\n",prgName) ;          
   exit(0);
@@ -399,7 +401,18 @@ char *argv[];
       idx++;
       continue;
     }
-
+    
+    /* -reserved_ports */
+    if (strcmp(argv[idx],"-reserved_ports")==0) {
+      char message[1024*4];
+      show_ip_local_reserved_ports(message);
+      printf("%s\n",message);
+      printf("cat /proc/sys/net/ipv4/ip_local_reserved_ports\n");
+      system("cat /proc/sys/net/ipv4/ip_local_reserved_ports"); 
+      exit(0);
+    }
+    
+    
     /* -p <portNumber> */
     if (strcmp(argv[idx],"-p")==0) {
       idx++;
@@ -452,11 +465,11 @@ char *argv[];
             syntax();
 	  }		  
 	}
-        port32 += 50028;
+        port32 = rozofs_get_service_port_storio_diag(port32);
 	
       }
       else if (strncasecmp(pt,"storaged",strlen("storaged"))==0) {
-        port32 = 50027;
+        port32 = rozofs_get_service_port_storaged_diag();
       }
       else if (strncasecmp(pt,"export",strlen("export"))==0) {
         pt += strlen("export");
@@ -467,93 +480,65 @@ char *argv[];
 	    printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
             syntax();
 	  }
-	  port32 += 52000;	  
+	  port32 = rozofs_get_service_port_export_slave_diag(port32);	  
 	}
-	else port32 = 50000;	
+	else port32 = rozofs_get_service_port_export_master_diag();	  	
       }    
       else if (strncasecmp(pt,"geomgr",strlen("geomgr"))==0) {
-	port32 = 54000;	  	
+	port32 = rozofs_get_service_port_geomgr_diag();	  	
       }  
       else if (strncasecmp(pt,"geocli",strlen("geocli"))==0) {
-	pt += strlen("geocli");
-	port32 = 0;
-  	
-        if (*pt == ':') { // geocli: ...
-	  pt++;
-	  if (*pt == ':') { // geocli:: ...
-	    pt++;
-	    ret = sscanf(pt,"%u",&port32);
-	    if (ret != 1) {
-	      printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
-              syntax();
-	    }
-	    port32;
-	  } 
-	  else { // geocli:x ...
-	    ret = sscanf(pt,"%u",&port32);
-	    if (ret != 1) {
-	      printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
-              syntax();
-	    }
-	    while ((*pt != 0)&&(*pt != ':')) pt++;
-	    if (*pt == 0) { // storcli:x 
-	      port32 *= 3;
-	    }    
-	    else { // geocli:x: ...
-	      pt++;
-	      ret = sscanf(pt,"%u",&val32);
-	      if (ret != 1) {
-		printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
-        	syntax();
-	      }	
-	      // storcli:x:y 
-	      port32 *= 3;
-	      port32 += val32;
-	    }
-	  }   
+	pt += strlen("geocli");  	
+        if (*pt != ':') { 
+	  syntax();
+	}  
+	pt++;
+	ret = sscanf(pt,"%u",&port32);
+	if (ret != 1) {
+	  printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
+          syntax();
 	}
-	port32 += 50200;
+	while ((*pt != 0)&&(*pt != ':')) pt++;
+	if (*pt == 0) { 
+	  port32 = rozofs_get_service_port_geocli_diag(port32);
+	}    
+	else { // geocli:x: ...
+	  pt++;
+	  ret = sscanf(pt,"%u",&val32);
+	  if (ret != 1) {
+	    printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
+            syntax();
+	  }	
+	  // storcli:x:y 
+	  port32 = rozofs_get_service_port_geocli_storcli_diag(port32,val32);
+	}
       }  
       else if (strncasecmp(pt,"mount",strlen("mount"))==0) {
 	pt += strlen("mount");
-	port32 = 0;
-  	
-        if (*pt == ':') { // mount: ...
-	  pt++;
-	  if (*pt == ':') { // mount:: ...
-	    pt++;
-	    ret = sscanf(pt,"%u",&port32);
-	    if (ret != 1) {
-	      printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
-              syntax();
-	    }
-	    port32;
-	  } 
-	  else { // mount:x ...
-	    ret = sscanf(pt,"%u",&port32);
-	    if (ret != 1) {
-	      printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
-              syntax();
-	    }
-	    while ((*pt != 0)&&(*pt != ':')) pt++;
-	    if (*pt == 0) { // storcli:x 
-	      port32 *= 3;
-	    }    
-	    else { // mount:x: ...
-	      pt++;
-	      ret = sscanf(pt,"%u",&val32);
-	      if (ret != 1) {
-		printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
-        	syntax();
-	      }	
-	      // mount:x:y 
-	      port32 *= 3;
-	      port32 += val32;
-	    }
-	  }   
+        if (*pt != ':') { 
+	  syntax();
+	}  
+	pt++;
+	ret = sscanf(pt,"%u",&port32);
+	if (ret != 1) {
+	  printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
+          syntax();
 	}
-	port32 += 50003;
-      }        
+	while ((*pt != 0)&&(*pt != ':')) pt++;
+	if (*pt == 0) { 
+	  port32 = rozofs_get_service_port_fsmount_diag(port32);
+	}    
+	else { // geocli:x: ...
+	  pt++;
+	  ret = sscanf(pt,"%u",&val32);
+	  if (ret != 1) {
+	    printf ("%s option with unexpected value \"%s\" !!!\n",argv[idx-1],argv[idx]);
+            syntax();
+	  }	
+	  // storcli:x:y 
+	  port32 = rozofs_get_service_port_fsmount_storcli_diag(port32,val32);
+	}
+      }          
       else {
 	syntax();           
       }

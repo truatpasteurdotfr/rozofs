@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <time.h>
 
+#include <rozofs/rozofs.h>
 #include <rozofs/core/ruc_common.h>
 #include <rozofs/core/uma_tcp_main_api.h>
 #include <rozofs/core/ruc_tcpServer_api.h>
@@ -798,7 +799,7 @@ int main(int argc, char *argv[]) {
   //memset(&geomgr_conf, 0, sizeof (geomgr_conf));
 
   geomgr_input_param.nb_cores = 1; /* Nb cores  */ 
-  geomgr_input_param.dbg_port = 54000;   
+  geomgr_input_param.dbg_port = rozofs_get_service_port_geomgr_diag();   
   geomgr_input_param.cfg      = GEOMGR_DEFAULT_CONFIG;
   geomgr_input_param.timer    = 60;
 

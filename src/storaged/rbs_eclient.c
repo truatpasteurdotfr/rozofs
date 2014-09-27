@@ -83,7 +83,8 @@ char * rbs_get_cluster_list(rpcclt_t * clt, const char *export_host_list, int si
 	    // Initialize connection with exportd server
 	    if (rpcclt_initialize
         	    (clt, pHost, EXPORT_PROGRAM, EXPORT_VERSION,
-        	    ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, EXPNB_SLAVE_PORT, timeo) != 0)
+        	    ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
+		    rozofs_get_service_port_export_master_eproto(), timeo) != 0)
         	continue;
 
 	    // Send request
@@ -171,7 +172,8 @@ int rbs_get_fid_attr(rpcclt_t * clt, const char *export_host, fid_t fid, ep_matt
     // Initialize connection with exportd server
     if (rpcclt_initialize
             (clt, export_host, EXPORT_PROGRAM, EXPORT_VERSION,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, EXPNB_SLAVE_PORT, timeo) != 0)
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, 
+	    rozofs_get_service_port_export_master_eproto(), timeo) != 0)
         goto out;
 
     // Send request

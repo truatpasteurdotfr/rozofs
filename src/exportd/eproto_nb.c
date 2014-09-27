@@ -524,7 +524,8 @@ void ep_mount_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
     ret.status_gw.ep_mount_ret_t_u.export.bs = exp->bsize;
 
-    uint32_t port = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + EXPNB_SLAVE_PORT+1;
+    int eid_slice = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + 1;
+    uint32_t port = rozofs_get_service_port_export_slave_eproto(eid_slice);
     ret.status_gw.ep_mount_ret_t_u.export.listen_port = port;
     
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);

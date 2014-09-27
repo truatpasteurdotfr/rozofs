@@ -27,11 +27,7 @@
 /**
 * Ports definition of RozoFS
 */
-
-#define EXPNB_SLAVE_PORT       53000  /**< supports up to 8 exportd slave */
-#define ROZOFS_GET_EXPNB_PORT  get_service_port("rozo_export_nb",NULL,EXPNB_SLAVE_PORT)
- 
-#define GEO_REPLICA_SLAVE_PORT 53010  /**< oly one port for georeplication */
+#include "rozofs_service_ports.h"
 
 #define P_COUNT     0
 #define P_ELAPSE    1
@@ -39,10 +35,6 @@
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 
-/*
-** Port on which storaged services MPROTO and SPPROTO
-*/
-#define ROZOFS_MPROTO_PORT 51000
 
 #define ROZOFS_UUID_SIZE 16
 /* Instead of using an array of unsigned char for store the UUID, we use an

@@ -216,7 +216,7 @@ int rozofs_stat_start(void *args) {
     /*
      ** Perform the init with exportd--> setup of the TCP connection associated with the load balancing group
      */
-    if (georep_lbg_initialize((exportclt_t*) args_p->exportclt, GEO_PROGRAM, GEO_VERSION, GEO_REPLICA_SLAVE_PORT) != 0) {
+    if (georep_lbg_initialize((exportclt_t*) args_p->exportclt, GEO_PROGRAM, GEO_VERSION, rozofs_get_service_port_export_master_geo_replica()) != 0) {
         severe("Cannot setup the load balancing group towards geo replication module");
     }
     //#warning storcli instances are hardcoded

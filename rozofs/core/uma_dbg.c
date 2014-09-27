@@ -41,6 +41,7 @@
 #include "uma_dbg_api.h"
 #include "uma_dbg_msgHeader.h"
 #include "config.h"
+#include "../rozofs_service_ports.h"
 
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
@@ -239,7 +240,22 @@ void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
     uma_dbg_send(tcpRef, bufRef, TRUE, "uptime = %d days, %d:%d:%d\n", days, hours, mins, secs);
-}      
+}   
+/*__________________________________________________________________________
+ */
+/**
+*  Display the ports that should be reserved
+*/
+void uma_dbg_reserved_ports(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char * pt = uma_dbg_get_buffer();
+  char cmd[512];
+        
+  pt += show_ip_local_reserved_ports(pt);
+  strcpy(cmd,"cat /proc/sys/net/ipv4/ip_local_reserved_ports");
+  pt += sprintf(pt,"%s\n",cmd);  
+  pt += uma_dbg_run_system_cmd(cmd, pt, 1024);
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
 /*__________________________________________________________________________
  */
 /**
@@ -938,6 +954,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   uma_dbg_addTopic("system", uma_dbg_system_cmd); 
   uma_dbg_hide_topic("system");
   uma_dbg_addTopic("ps", uma_dbg_system_ps);
+  uma_dbg_addTopic("reserved_ports", uma_dbg_reserved_ports);
   
 
 }

@@ -103,6 +103,8 @@ add_executable(test_volume
     ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
     ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
     ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_service_ports.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_service_ports.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
     ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.h

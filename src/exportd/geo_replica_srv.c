@@ -2092,7 +2092,8 @@ int geo_replicat_rpc_srv_init(void *args)
       return -1;
     }
     
-    ret = geo_replicat_north_interface_init(args_p->exportd_hostname,GEO_REPLICA_SLAVE_PORT);
+    ret = geo_replicat_north_interface_init(args_p->exportd_hostname,
+                                            rozofs_get_service_port_export_master_geo_replica());
     if (ret < 0) {
       fatal("Fatal error on geo_replicat_north_interface_init()\n");
       return -1;

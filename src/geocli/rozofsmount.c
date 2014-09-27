@@ -27,7 +27,6 @@
 #include <sys/resource.h>
 #include <getopt.h>
 
-#include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/rozofs_timer_conf.h>
 #include <rozofs/core/rozofs_timer_conf_dbg.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
@@ -465,33 +464,22 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     ** declare timer debug functions
     */
     rozofs_timer_conf_dbg_init();
-    rzdbg_default_base_port = GEODBG_DEFAULT_BASE_PORT;
     /*
     ** Check if the base port of rozodebug has been provided, if there is no value, set it to default
     */
     if (conf.dbg_port == 0) 
     {
-      conf.dbg_port = rzdbg_default_base_port;    
-    }
-    else
-    {
-      rzdbg_default_base_port = conf.dbg_port;    
-    }    
+      conf.dbg_port = rozofs_get_service_port_geocli_diag(conf.instance);    
+    } 
     
     if (conf.nb_cores == 0) 
     {
       conf.nb_cores = 2;    
     }     
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
-    rozofs_fuse_conf.debug_port = (uint16_t)rzdbg_get_geocli_port((uint16_t) conf.instance);
-    /* Try to get debug port from /etc/services */
-    {
-      char debug_port_name[32];
-      sprintf(debug_port_name,"geocli%d_dbg",conf.instance);
-      rozofs_fuse_conf.debug_port = get_service_port(debug_port_name,NULL,rozofs_fuse_conf.debug_port);
-    }
+    rozofs_fuse_conf.debug_port = conf.dbg_port;
+
     rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
-    conf.dbg_port = rozofs_fuse_conf.debug_port;
     rozofs_fuse_conf.exportclt = (void*) &exportclt;
     rozofs_fuse_conf.max_transactions = ROZOFSMOUNT_MAX_TX;
 

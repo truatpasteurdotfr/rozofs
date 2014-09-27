@@ -34,7 +34,6 @@
 #include <unistd.h>
 #include <rpc/pmap_clnt.h>
 
-#include <rozofs/rozofs_debug_ports.h>
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/rozofs_srv.h>
@@ -164,10 +163,7 @@ void export_start_one_export_slave(int instance) {
     char     debug_port_name[32];
     char   pidfile[128];
     int ret = -1;
-
-#warning debug port value for slave 52000
-    debug_port_value = 52000+instance;
-            
+           
     char *cmd_p = &cmd[0];
     cmd_p += sprintf(cmd_p, "%s ", "exportd");
     cmd_p += sprintf(cmd_p, "-i %d ", instance);
@@ -175,8 +171,7 @@ void export_start_one_export_slave(int instance) {
     cmd_p += sprintf(cmd_p, "-c %s ", exportd_config_file);
     
     /* Try to get debug port from /etc/services */
-    sprintf(debug_port_name,"exportds_%d_dbg",instance);
-    debug_port_value = get_service_port(debug_port_name,NULL,debug_port_value);
+    debug_port_value = rozofs_get_service_port_export_slave_diag(instance);
 
     cmd_p += sprintf(cmd_p, "-d %d ",debug_port_value );
           
@@ -795,7 +790,8 @@ static void *georep_poll_thread(void *v) {
     */
     if (rpcclt_initialize
             (&export_cnx, "127.0.0.1", EXPORT_PROGRAM, EXPORT_VERSION,
-            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE, EXPNB_SLAVE_PORT+export_instance_id,
+            ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
+	     rozofs_get_service_port_export_slave_eproto(export_instance_id),
             timeout_mproto) == 0) break;
      /*
      ** wait for a while and then re-attempt to re-connect
@@ -1655,7 +1651,7 @@ int main(int argc, char *argv[]) {
     };
 
     /* Try to get debug port from /etc/services */
-    expgwc_non_blocking_conf.debug_port = get_service_port("rozo_exportd_dbg",NULL,rzdbg_default_base_port);
+    expgwc_non_blocking_conf.debug_port = rozofs_get_service_port_export_master_diag();
     expgwc_non_blocking_conf.instance = 0;
     expgwc_non_blocking_conf.slave    = 0;
     expgwc_non_blocking_conf.exportd_hostname = NULL;

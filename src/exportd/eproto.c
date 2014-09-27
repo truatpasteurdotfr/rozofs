@@ -606,7 +606,8 @@ epgw_mount_ret_t *ep_mount_1_svc(epgw_mount_arg_t * arg, struct svc_req * req) {
     ret.status_gw.ep_mount_ret_t_u.export.eid = *eid;
     ret.status_gw.ep_mount_ret_t_u.export.hash_conf = export_configuration_file_hash;
     ret.status_gw.ep_mount_ret_t_u.export.bs = exp->bsize;
-    uint32_t port = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + EXPNB_SLAVE_PORT+1;
+    uint32_t eid_slice = (ret.status_gw.ep_mount_ret_t_u.export.eid-1)%EXPORT_SLICE_PROCESS_NB + 1;
+    uint32_t port = rozofs_get_service_port_export_slave_eproto(eid_slice);
     ret.status_gw.ep_mount_ret_t_u.export.listen_port = port;
     memcpy(ret.status_gw.ep_mount_ret_t_u.export.md5, exp->md5, ROZOFS_MD5_SIZE);
     ret.status_gw.ep_mount_ret_t_u.export.rl = exp->layout;
