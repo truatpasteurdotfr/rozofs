@@ -151,18 +151,18 @@ be installed on each node involved in a RozoFS platform:</p>
 <h3>Advance Package Tool (APT)<a class="headerlink" href="#advance-package-tool-apt" title="Permalink to this headline">¶</a></h3>
 <div class="section" id="install-release-key">
 <h4>Install Release Key<a class="headerlink" href="#install-release-key" title="Permalink to this headline">¶</a></h4>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>wget -O - http://54.225.196.202/debian/devel@rozofs.com.gpg.key | apt-key add -
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>wget -O - http://debian.rozofs.org/debian/devel@rozofs.com.gpg.key | apt-key add -
 </pre></div>
 </div>
 </div>
 <div class="section" id="add-release-packages">
 <h4>Add Release Packages<a class="headerlink" href="#add-release-packages" title="Permalink to this headline">¶</a></h4>
 <p>For the lastest stable release :</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span><span class="nb">echo </span>deb http://54.225.196.202/debian/master <span class="k">$(</span>lsb_release -sc<span class="k">)</span> main | tee /etc/apt/sources.list.d/rozofs.list
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span><span class="nb">echo </span>deb http://debian.rozofs.org/debian/master <span class="k">$(</span>lsb_release -sc<span class="k">)</span> main | tee /etc/apt/sources.list.d/rozofs.list
 </pre></div>
 </div>
 <p>For the lastest development release :</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span><span class="nb">echo </span>deb http://54.225.196.202/debian/develop <span class="k">$(</span>lsb_release -sc<span class="k">)</span> main | tee /etc/apt/sources.list.d/rozofs.list
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span><span class="nb">echo </span>deb http://debian.rozofs.org/debian/develop <span class="k">$(</span>lsb_release -sc<span class="k">)</span> main | tee /etc/apt/sources.list.d/rozofs.list
 </pre></div>
 </div>
 </div>

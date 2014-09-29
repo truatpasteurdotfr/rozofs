@@ -224,24 +224,24 @@ and add the following line:</p>
 </div>
 <div class="section" id="using-the-rozo-console-manager">
 <h2>Using the Rozo Console Manager<a class="headerlink" href="#using-the-rozo-console-manager" title="Permalink to this headline">¶</a></h2>
-<p>RozoFS comes with a command line utility called rozo that aims to
+<p>RozoFS comes with a command line utility called <tt class="docutils literal"><span class="pre">rozo</span></tt> that aims to
 automate the <strong>management</strong> process of a RozoFS platform. Its main
 purpose is to chain up the operations required on remote nodes involved
 on a high level management task such as stopping and starting the whole
 platform, add new nodes to the platform in order to extend the capacity,
 add new exports on volume etc…</p>
-<p>Rozo is fully independant of RozoFS daemons and processes and is not
+<p><tt class="docutils literal"><span class="pre">Rozo</span></tt> is fully independant of RozoFS daemons and processes and is not
 required for a fully functional system but when installed aside RozoFS
 on each involved nodes it greatly facilitates configuration as it takes
 care of all the unique id generation of storage locations, clusters and
-so on. Despite not being a monitoring tool, rozo can be however used to
+so on. Despite not being a monitoring tool, <tt class="docutils literal"><span class="pre">rozo</span></tt> can be however used to
 get easily a description of the platform, its status and its
 configuration.</p>
 <p>Rozo uses the running exportd configuration file as a basic platform
-knowledge, you can use rozo on any nodes (even not involve in the
+knowledge, you can use <tt class="docutils literal"><span class="pre">rozo</span></tt> on any nodes (even not involve in the
 platform).</p>
 <p>You can have an overview of <tt class="docutils literal"><span class="pre">rozo</span></tt> capabilities and get the help you
-need by using the rozo manual</p>
+need by using the rozo manual:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>man rozo
 </pre></div>
 </div>
@@ -265,6 +265,12 @@ nodes platform. Each command is launched on the running exportd node.</p>
 </div>
 <p>You can easily list nodes according to their roles (exportd, storaged or
 rozofsmount) using the <tt class="docutils literal"><span class="pre">-r</span></tt> option.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">If you don&#8217;t want specify the IP address of exportd node for each <tt class="docutils literal"><span class="pre">rozo</span></tt>
+command, you can specify the default exportd IP with
+<strong>ROZO_EXPORT_HOSTNAME</strong> environment variable.</p>
+</div>
 </div>
 <div class="section" id="get-the-status-of-a-platform">
 <h3>Get the Status of a Platform<a class="headerlink" href="#get-the-status-of-a-platform" title="Permalink to this headline">¶</a></h3>
@@ -394,6 +400,15 @@ rozofsmount role to mount this new export (id=2) as illustrated in the
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>df | grep /mnt/rozofs
 rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_1
 rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_2
+</pre></div>
+</div>
+</div>
+<div class="section" id="rebuild-a-storage-node">
+<h3>Rebuild a Storage Node<a class="headerlink" href="#rebuild-a-storage-node" title="Permalink to this headline">¶</a></h3>
+<p><tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">node</span> <span class="pre">rebuild</span></tt> command will restart the storaged daemon for one storage
+node with processes for rebuild data of each storage declared in the storaged
+configuration file.</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo node rebuild -n 192.168.1.204 -E 192.168.1.10
 </pre></div>
 </div>
 </div>

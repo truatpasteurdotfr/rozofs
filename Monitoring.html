@@ -155,19 +155,19 @@ provided by <tt class="docutils literal"><span class="pre">rozodiag</span></tt> 
 based on TCP. There is a predefined set of TCP ports that are reserved
 for the communication with the <em>rozodiag</em> agent. To address one
 <em>rozodiag</em> agent the client should provide the IP address of the
-<em>rozodiag</em> agent and the TCP port number of the target process
+<em>rozodiag</em> agent and the function identifier of the target process
 (<em>rozofsmount</em>, <em>storcli</em>, <em>exportd</em>, etc...).</p>
 </div>
-<div class="section" id="list-of-the-rozodiag-agent-ports">
-<h3>List of the rozodiag agent ports<a class="headerlink" href="#list-of-the-rozodiag-agent-ports" title="Permalink to this headline">¶</a></h3>
-<p>The based TCP port for the <em>rozodiag</em> service is <strong>50000</strong>.</p>
+<div class="section" id="list-of-the-rozodiag-agent-functionnal-targets">
+<h3>List of the rozodiag agent functionnal targets<a class="headerlink" href="#list-of-the-rozodiag-agent-functionnal-targets" title="Permalink to this headline">¶</a></h3>
+<p>The functionnal target is the -T option of the rozodiag command.</p>
 <div class="section" id="exportd-node">
 <h4>exportd node<a class="headerlink" href="#exportd-node" title="Permalink to this headline">¶</a></h4>
 <p>It is assumed that there is one <em>exportd</em> process per <em>exportd</em> node,
 one <em>exportd</em> process supporting more than one exported file system. The
-port value is the following:</p>
+target name is set as follow:</p>
 <ul class="simple">
-<li><em>exportd</em>: <strong>50000</strong></li>
+<li><em>exportd</em>: <strong>-T export</strong></li>
 </ul>
 </div>
 <div class="section" id="rozofs-client-node">
@@ -175,13 +175,13 @@ port value is the following:</p>
 <p>There are 3 processes for one RozoFS client: <em>rozofsmount</em> and two
 <em>storcli</em> processes.</p>
 <p>It might be possible to instanciate more than one RozoFS Client on one
-RozoFS client node, as a consequence the port numbering includes the
+RozoFS client node, as a consequence the target name includes the
 RozoFS client instance.</p>
 <p>The following port numbers are given for the instance 0:</p>
 <ul class="simple">
-<li><em>rozofsmount</em>: <strong>50003</strong> (50003 + 3 * client_instance_id)</li>
-<li><em>storcli-1</em>: <strong>50004</strong> (50004 + 3 * client_instance_id)</li>
-<li><em>storcli-2</em>: <strong>50005</strong> (50005 + 3 * client_instance_id)</li>
+<li><em>rozofsmount</em>: <strong>-T mount:client_instance_id</strong></li>
+<li><em>storcli-1</em>: <strong>-T mount:client_instance_id:1</strong></li>
+<li><em>storcli-2</em>: <strong>-T mount:client_instance_id:2</strong></li>
 </ul>
 </div>
 <div class="section" id="storaged-node">
@@ -190,11 +190,12 @@ RozoFS client instance.</p>
 occupancy, file deletion,..) and several <em>storio</em> processes that are
 responsible of the low level disk operations (read, write and
 truncated). For the case of the <em>storio</em>, the port value depends on the
-<em>storio</em> instance identifier. The port values are the following:</p>
+<em>storio</em> instance identifier. The target name are set as follow:</p>
 <ul class="simple">
-<li><em>storaged</em>: <strong>50027</strong></li>
-<li><em>storio-0</em>: <strong>50028</strong> (50028 + storio_instance_id)</li>
-<li><em>storio-1</em>: <strong>50029</strong> (50028 + storio_instance_id)</li>
+<li><em>storaged</em>: <strong>-T storaged</strong></li>
+<li><em>storio</em> (mono storio mode): <strong>-T storio</strong></li>
+<li><em>storio-1</em> (multi storio mode): <strong>-T storio:1</strong></li>
+<li><em>storio-2</em> (multi storio mode): <strong>-T storio:2</strong></li>
 </ul>
 </div>
 </div>
@@ -203,12 +204,20 @@ truncated). For the case of the <em>storio</em>, the port value depends on the
 <p>The following section provides the help of the <tt class="docutils literal"><span class="pre">rozodiag</span></tt> utilitary.</p>
 <p>Here is the menu of <tt class="docutils literal"><span class="pre">rozodiag</span></tt>. An external application can
 communicate with any component of RozoFS by providing the IP address and
-the RozoFS well-known <em>rozodiag</em> port associated with the component.</p>
-<div class="highlight-python"><pre>rozodiag [-i &lt;hostname&gt;] -p &lt;port&gt; [-c &lt;cmd&gt;] [-f &lt;cmd file&gt;] [-period &lt;s&gt;] [-t &lt;s&gt;]
+the RozoFS target name associated with the component.</p>
+<div class="highlight-python"><pre>rozodiag [-i &lt;hostname&gt;] {-p &lt;port&gt;|-T &lt;target&gt;} [-c &lt;cmd&gt;] [-f &lt;cmd file&gt;] [-period &lt;s&gt;] [-t &lt;s&gt;]
 -i &lt;hostname&gt;           destination IP address or hostname of the debug server
                         default is 127.0.0.1
--p &lt;port&gt;               destination port number of the debug server
-                        mandatory parameter
+   -p &lt;port&gt;            Port number of the diagnostic target.
+or
+   -T &lt;target&gt;           The diagnostic target in the formatT:
+                          export                               for an export
+                          storaged                             for a storaged
+                          storio[:&lt;instance&gt;]                  for a storio
+                          mount[:&lt;mount instance&gt;]             for a rozofsmount
+                          mount[:&lt;mount instance&gt;[:&lt;1|2&gt;]]     for a storcli of a rozofsmount
+At least one -p or -m value must be given.
+
 -c &lt;cmd|all&gt;            command to run in one shot or periodically (-period)
                         several -c options can be set
 -f &lt;cmd file&gt;           command file to run in one shot or periodically (-period)
@@ -223,7 +232,7 @@ the RozoFS well-known <em>rozodiag</em> port associated with the component.</p>
 <em>rozodiag</em> agent Once the TCP connection is established, the
 <em>rozodiag</em> agent displays the process&#8217;s dedicated prompt and then
 waits for a command to be entered.</p>
-<div class="highlight-python"><pre># rozodiag -p 50004
+<div class="highlight-python"><pre># rozodiag -T mount:0:1
 system : storcli 1 of rozofsmount 0
 _________________________________________________________
 storcli 1 of rozofsmount 0&gt;</pre>
@@ -265,7 +274,7 @@ commands to the <em>rozodiag</em> agent and finally closes the TCP
 connection.</p>
 <p>Here is an example where the <tt class="docutils literal"><span class="pre">cpu</span></tt> and <tt class="docutils literal"><span class="pre">buffer</span></tt> commands are
 combined:</p>
-<div class="highlight-python"><pre># rozodiag -p 50004 -c cpu -c buffer
+<div class="highlight-python"><pre># rozodiag -T mount:0:1 -c cpu -c buffer
 
 select max cpu time : 1000 us
 application                      sock  last  cumulated activation  average
@@ -919,14 +928,14 @@ Reset Done</pre>
 <h4>Pseudo tasks statistics<a class="headerlink" href="#pseudo-tasks-statistics" title="Permalink to this headline">¶</a></h4>
 <p><strong>List of the storcli pseudo tasks</strong></p>
 <p>The list of these tasks can be retrieved by using the <tt class="docutils literal"><span class="pre">cpu</span></tt> command:</p>
-<div class="highlight-python"><pre>rozodiag -p 50004 -c cpu</pre>
+<div class="highlight-python"><pre>rozodiag -T mount:0:1 -c cpu</pre>
 </div>
-<p>The port number depends of the instance of the storcli and on the
+<p>The tarhet name depends of the instance of the storcli and on the
 instance of the <em>rozofsmount</em> client that owns the <em>storcli</em>. For the
-<em>rozofsmount</em> instance 0 the storcli&#8217;s port numbers are:</p>
+<em>rozofsmount</em> instance 0 the storcli&#8217;s target names are:</p>
 <ul class="simple">
-<li><strong>50004</strong>: <em>storcli</em> instance 0.</li>
-<li><strong>50005</strong>: <em>storcli</em> instance 1.</li>
+<li><strong>mount:0:1</strong>: <em>storcli</em> instance 1.</li>
+<li><strong>mount:0:2</strong>: <em>storcli</em> instance 2.</li>
 </ul>
 <p>The following output example corresponds to a configuration where the
 <em>storcli</em> is connected with 4 storage nodes:</p>
@@ -978,7 +987,7 @@ connection is broken between the <em>storcli</em> and its associated
 <p>That command provides statistics related to the read/write and truncate
 services. For the case of the read and write it provides the FEC
 encoding/decoding time.</p>
-<div class="highlight-python"><pre>rozodiag -p 50004 -c profiler</pre>
+<div class="highlight-python"><pre>rozodiag -T mount:0:1 -c profiler</pre>
 </div>
 <p>Output example:</p>
 <div class="highlight-python"><pre>GPROFILER version  uptime =  0 days, 0:58:41
@@ -1062,7 +1071,7 @@ the storage node does not respond in the configured time frame.</p>
 </ul>
 <p><strong>Profiler statistics clear</strong></p>
 <p>The profiler statistics can be cleared by using the following command:</p>
-<div class="highlight-python"><pre>rozodiag -p 50004 -c profiler reset</pre>
+<div class="highlight-python"><pre>rozodiag -T mount:0:1 -c profiler reset</pre>
 </div>
 </div>
 <div class="section" id="storage-node-connection-status">
