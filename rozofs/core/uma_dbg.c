@@ -251,9 +251,17 @@ void uma_dbg_reserved_ports(char * argv[], uint32_t tcpRef, void *bufRef) {
   char cmd[512];
         
   pt += show_ip_local_reserved_ports(pt);
+
+  pt += sprintf(pt,"\n");
+  strcpy(cmd,"grep ip_local_reserved_ports /etc/sysctl.conf");
+  pt += sprintf(pt,"%s\n",cmd);    
+  pt += uma_dbg_run_system_cmd(cmd, pt, 1024);
+  pt += sprintf(pt,"\n");
+  
   strcpy(cmd,"cat /proc/sys/net/ipv4/ip_local_reserved_ports");
   pt += sprintf(pt,"%s\n",cmd);  
   pt += uma_dbg_run_system_cmd(cmd, pt, 1024);
+  
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________

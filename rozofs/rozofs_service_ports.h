@@ -181,13 +181,21 @@ static inline int show_ip_local_reserved_ports(char * buf){
   pt += sprintf(pt,"_______|____|_______|___________________________|____________________________________\n");
 
 
+  pt += sprintf(pt, "\necho net.ipv4.ip_local_reserved_ports=\"");
+  p = rozofs_service_port_range;
+  for (idx=0; idx < ROZOFS_SERVICE_PORT_MAX; idx++,p++) {
+    pt += sprintf(pt, "%d-%d,", port[idx], port[idx]+p->rangeSize-1);
+  }  
+  pt--;// remove last ','
+  pt += sprintf(pt, "\" >> /etc/sysctl.conf\n"); 
+  
   pt += sprintf(pt, "\necho \"");
   p = rozofs_service_port_range;
   for (idx=0; idx < ROZOFS_SERVICE_PORT_MAX; idx++,p++) {
     pt += sprintf(pt, "%d-%d,", port[idx], port[idx]+p->rangeSize-1);
   }  
   pt--;// remove last ','
-  pt += sprintf(pt, "\" > /proc/sys/net/ipv4/ip_local_reserved_ports\n\n");  
+  pt += sprintf(pt, "\" > /proc/sys/net/ipv4/ip_local_reserved_ports\n");   
   return (pt-buf); 
 }
 

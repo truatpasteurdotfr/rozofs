@@ -80,6 +80,7 @@ void syntax() {
   printf("    -p <port>      Port number of the diagnostic target.\n");
   printf(" or\n");
   printf("    -T <target>    The target in the format:\n");
+  printf("                     export                               for an export\n");
   printf("                     storaged                             for a storaged\n");
   printf("                     storio[:<instance>]                  for a storio\n");
   printf("                     mount[:<mount instance>]             for a rozofsmount\n");
@@ -407,7 +408,9 @@ char *argv[];
       char message[1024*4];
       show_ip_local_reserved_ports(message);
       printf("%s\n",message);
-      printf("cat /proc/sys/net/ipv4/ip_local_reserved_ports\n");
+      printf("grep ip_local_reserved_ports /etc/sysctl.conf\n");
+      system("grep ip_local_reserved_ports /etc/sysctl.conf");
+      printf("\ncat /proc/sys/net/ipv4/ip_local_reserved_ports\n");
       system("cat /proc/sys/net/ipv4/ip_local_reserved_ports"); 
       exit(0);
     }
