@@ -40,34 +40,6 @@ def reset_counters():
 # Use debug interface to reset profilers and some counters
 #___________________________________________________
   return
-
-  string='./dbg.sh all profiler reset'
-  parsed = shlex.split(string)
-  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-  string='./dbg.sh io diskThreads reset'
-  parsed = shlex.split(string)
-  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-  if fuseTrace == True:
-
-    string='./dbg.sh fs1 fuse reset'
-    parsed = shlex.split(string)
-    cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    string='./dbg.sh fs1 trc_fuse count 256'
-    parsed = shlex.split(string)
-    cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    string='./dbg.sh fs1 trc_fuse enable'
-    parsed = shlex.split(string)
-    cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-  else:
-
-    string='./dbg.sh fs1 trc_fuse disable'
-    parsed = shlex.split(string)
-    cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)  
 #___________________________________________________
 def get_device_numbers(hid):
 # Use debug interface to get the number of sid from exportd
@@ -76,7 +48,7 @@ def get_device_numbers(hid):
   mapper_modulo=1
   mapper_redundancy=1 
   
-  string="./build/src/rozodiag/rozodiag -i localhost%d -p 50028 -c device device"%(hid+1)
+  string="./build/src/rozodiag/rozodiag -i localhost%d -T storio -c device"%(hid+1)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -98,7 +70,7 @@ def get_sid_nb():
 
   sid=int(0)
   
-  string="./build/src/rozodiag/rozodiag -p 50000 -c vfstat_stor"
+  string="./build/src/rozodiag/rozodiag -T export -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -121,7 +93,7 @@ def export_count_sid_up ():
 # seen from the export. 
 #___________________________________________________
 
-  string="./build/src/rozodiag/rozodiag -p 50000 -c vfstat_stor"
+  string="./build/src/rozodiag/rozodiag -T export -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -132,7 +104,7 @@ def export_count_sid_up ():
     
   return match
 #___________________________________________________
-def get_rozofmount_port ():
+def get_rozofmount_instance ():
 
   p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   for proc in p.stdout:
@@ -144,16 +116,16 @@ def get_rozofmount_port ():
 	for opt in proc.split(" "):
 	  if opt.startswith("instance="):
             instance=opt.split("instance=")[1]
-	    port = (int(instance)*3+50003)
-	    return int(port)
+	    return int(instance)
 	    
-  return int(0)
+  return int(78)
+
 #___________________________________________________
 def get_site_number ():
 
-  port=get_rozofmount_port()
+  inst=get_rozofmount_instance()
 
-  string="./build/src/rozodiag/rozodiag -p %d -c start_config"%(port)
+  string="./build/src/rozodiag/rozodiag -T mount:%d -c start_config"%(inst)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   
@@ -162,35 +134,15 @@ def get_site_number ():
     if words[0].strip() == "running_site":    
       return int(words[1])
   return 0  
-#___________________________________________________
-def get_storcli_port ():
-  p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  for proc in p.stdout:
-    if not "%s "%(mnt) in proc:
-      continue
-    if "rozolauncher" in proc:
-      continue
-    if not " -o rozofsmount" in proc:
-      continue      
-    if not "storcli -i 1 -H " in proc:
-      continue
-      
-    next=0
-    for word in proc.split(" "):
-      if word == "-D":
-        next=1  
-      else:
-        if next == 1:
-	  return word
-  return 0	  
+
 #___________________________________________________
 def storcli_count_sid_available ():
 # Use debug interface to count the number of sid 
 # available seen from the storcli. 
 #___________________________________________________
 
-  storcli_port=get_storcli_port()  	      
-  string="./build/src/rozodiag/rozodiag -p %s -c storaged_status"%(storcli_port)       
+  inst=get_rozofmount_instance()
+  string="./build/src/rozodiag/rozodiag -T mount:%d:1 -c storaged_status"%(inst)       
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
