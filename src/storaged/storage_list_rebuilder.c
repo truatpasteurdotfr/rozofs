@@ -167,12 +167,13 @@ int storaged_rebuild_list(char * fid_list) {
   rozofs_rebuild_entry_file_t   file_entry;
   rpcclt_t   rpcclt_export;
   int        ret;
-  uint8_t    rozofs_safe,rozofs_forward; 
+  uint8_t    rozofs_safe,rozofs_forward,rozofs_inverse; 
   uint8_t    prj;
   int        device_id;
   int        spare;
   char       path[FILENAME_MAX];
   char     * pExport_hostname = NULL;
+  int        failed,available;
       
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
@@ -223,16 +224,34 @@ int storaged_rebuild_list(char * fid_list) {
       goto error;
   }
     
-  // Get connections for this given cluster
-  if (rbs_init_cluster_cnts(&cluster_entries, st2rebuild.storage.cid, st2rebuild.storage.sid) != 0) {
-      severe("Can't get cnx server for storage to rebuild (cid:%u; sid:%u): %s\n",
-              st2rebuild.storage.cid, st2rebuild.storage.sid, strerror(errno));
-      goto error;
-  }  
-
-  REBUILD_MSG("  %s rebuild start",fid_list);
-
-
+  // Get connections for this given cluster  
+  rbs_init_cluster_cnts(&cluster_entries, st2rebuild.storage.cid, st2rebuild.storage.sid,&failed,&available);
+  
+  /*
+  ** Check that enough servers are available
+  */
+  rozofs_inverse = rozofs_get_rozofs_inverse(st2rebuild.layout);  
+  if (available<rozofs_inverse) {
+    /*
+    ** Not possible to rebuild any thing
+    */
+    REBUILD_MSG("only %d failed storages !!!",available);
+    goto error;
+  }
+  rozofs_forward = rozofs_get_rozofs_forward(st2rebuild.layout);
+  if (failed > (rozofs_forward-rozofs_inverse)) {
+    /*
+    ** Possibly some file may not be rebuilt !!! 
+    */
+    REBUILD_MSG("  %s rebuild start (%d storaged failed!!!)",fid_list, failed);
+  }
+  else {
+    /*
+    ** Every file should be rebuilt 
+    */
+    REBUILD_MSG("  %s rebuild start",fid_list);
+  }
+  
   nbJobs    = 0;
   nbSuccess = 0;
   offset = sizeof(rozofs_rebuild_header_file_t);
@@ -351,10 +370,9 @@ int storaged_rebuild_list(char * fid_list) {
     return 0;
   }
     
-  REBUILD_MSG("! %s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
 
-  
 error:
+  REBUILD_MSG("! %s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
   if (fd != -1) close(fd);   
   return 1;
 }

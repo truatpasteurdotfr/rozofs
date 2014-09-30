@@ -243,8 +243,7 @@ static inline void * rebuild_storage_thread(int nb, rbs_stor_config_t *stor_conf
             if (result == -1) {
               // Probably a problem when connecting with other members
               // of this cluster
-              REBUILD_MSG("can't rebuild storage (cid:%u;sid:%u) !\n"
-                      "Next attempt in %d seconds.",
+              REBUILD_MSG("can't rebuild storage (cid:%u;sid:%u) ! Next attempt in %d seconds.",
                       stor_confs[i].cid, stor_confs[i].sid,
                       TIME_BETWEEN_2_RB_ATTEMPS);
 

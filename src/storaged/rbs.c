@@ -937,7 +937,33 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
 out:
     return status;
 }
+/** Write the storage to rebuild information in the heaer
+ *  of the rebuild file one the layout is known
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+static int rbs_write_st2rebuild(uint8_t layout,int *cfgfd, int parallel) {
+  int            idx;
+  int            ret;
 
+  /*
+  ** Update layout in st2rebuild
+  */
+  st2rebuild.layout = layout;
+           
+  /*
+  ** Write st2rebuild in file
+  */
+  for (idx=0; idx < parallel; idx++) {
+
+    ret = write(cfgfd[idx],&st2rebuild,sizeof(st2rebuild));
+    if (ret != sizeof(st2rebuild)) {
+      severe("Can not write header in file %s", strerror(errno));
+      return -1;      
+    }
+  }   
+  return 0;
+}    
 /** Retrieves the list of bins files to rebuild from a storage
  *
  * @param rb_stor: storage contacted.
@@ -947,7 +973,7 @@ out:
  * @return: 0  -1 otherwise (errno is set)
  */
 int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
-        sid_t sid, int parallel, int *cfgfd) {
+        sid_t sid, int parallel, int *cfgfd, int failed) {
     int status = -1;
     uint16_t slice = 0;
     uint8_t spare = 0;
@@ -983,9 +1009,49 @@ int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
 
         // For each entry 
         while (iterator != NULL) {
+	
+	   /*
+	   ** Check that not too much storages are failed for this layout
+	   */
+	   if (failed) {
+	     switch(iterator->layout) {
+	     
+	       case LAYOUT_2_3_4:
+	         if (failed>1) {
+		   severe("%d failed storages on LAYOUT_2_3_4",failed);
+		   return -1;
+		 }
+		 break;
+	       case LAYOUT_4_6_8:
+	         if (failed>2) {
+		   severe("%d failed storages on LAYOUT_4_6_8",failed);
+		   return -1;
+		 }
+		 break;	
+	       case LAYOUT_8_12_16:
+	         if (failed>2) {
+		   severe("%d failed storages on LAYOUT_8_12_16",failed);
+		   return -1;
+		 }
+		 break;	
+	       default:	         	 		 	 
+		 severe("Unexpected layout %d",iterator->layout);
+		 return -1;
+	     }
+	     failed = 0;
+	   }
 
            // Verify if this entry is already present in list
 	    if (rb_hash_table_search(iterator->fid) == 0) { 
+	    
+	        /*
+		** Layout not yet filled in st2rebuild. It is time
+		** to update it
+		*/
+	        if (st2rebuild.layout == 0xFF) {
+	          ret = rbs_write_st2rebuild(iterator->layout,cfgfd, parallel);
+		  if (ret != 0) goto out;
+                }
 	    
                 rb_hash_table_insert(iterator->fid);
 			
@@ -1012,8 +1078,13 @@ int rbs_get_rb_entry_list_one_storage(rb_stor_t *rb_stor, cid_t cid,
       }
 
     status = 0;
-out:      
-
+out:  
+    
+    while(iterator) {
+      free_it = iterator;
+      iterator = iterator->next;
+      free(free_it);      
+    }
 
     return status;
 }
@@ -1055,14 +1126,20 @@ int rbs_check_cluster_list(list_t * cluster_entries, cid_t cid, sid_t sid) {
  * @param cluster_entries: list of cluster(s).
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
+ * @param failed: number of failed server comprising the rebuilt server
+ * @param available: number of available server
  *
- * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_init_cluster_cnts(list_t * cluster_entries, cid_t cid,
-        sid_t sid) {
+void rbs_init_cluster_cnts(list_t * cluster_entries, 
+                          cid_t cid,
+                          sid_t sid,
+			  int * failed,
+			  int * available) {
     list_t *p, *q;
-    int status = -1;
 
+    *failed = 0;
+    *available = 0;
+    
     list_for_each_forward(p, cluster_entries) {
 
         rb_cluster_t *clu = list_entry(p, rb_cluster_t, list);
@@ -1073,22 +1150,22 @@ int rbs_init_cluster_cnts(list_t * cluster_entries, cid_t cid,
 
                 rb_stor_t *rb_stor = list_entry(q, rb_stor_t, list);
 
-                if (rb_stor->sid == sid)
+                if (rb_stor->sid == sid) {
+		    (*failed)++;
                     continue;
+		}   
 
                 // Get connections for this storage
                 if (rbs_stor_cnt_initialize(rb_stor) != 0) {
                     severe("rbs_stor_cnt_initialize cid/sid %d/%d failed: %s",
                             cid, rb_stor->sid, strerror(errno));
-                    goto out;
+		    (*failed)++;
+		    continue;	    
                 }
+		(*available)++;
             }
         }
     }
-
-    status = 0;
-out:
-    return status;
 }
 
 /** Release the list of cluster(s)
@@ -1133,14 +1210,13 @@ static void rbs_release_cluster_list(list_t * cluster_entries) {
  * @return: 0 on success -1 otherwise (errno is set)
  */
 static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
-        cid_t cid, sid_t sid, int parallel) {
+        cid_t cid, sid_t sid, int parallel, int failed) {
     list_t       *p, *q;
     int            status = -1;
     char         * dir;
     char           filename[FILENAME_MAX];
     int            idx;
     int            cfgfd[MAXIMUM_PARALLEL_REBUILD_PER_SID];
-    int            ret;
         
     /*
     ** Create FID list file files
@@ -1154,13 +1230,7 @@ static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
       if (cfgfd[idx] == -1) {
 	severe("Can not open file %s %s", filename, strerror(errno));
 	return -1;
-      }
-
-      ret = write(cfgfd[idx],&st2rebuild,sizeof(st2rebuild));
-      if (ret != sizeof(st2rebuild)) {
-	severe("Can not write header in file %s %s", filename, strerror(errno));
-	return -1;      
-      }
+      }    
     }    
 
 
@@ -1176,9 +1246,12 @@ static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
 
                 if (rb_stor->sid == sid)
                     continue;
+		    
+		if (rb_stor->mclient.rpcclt.client == NULL)
+		    continue;   
 
                 // Get the list of bins files to rebuild for this storage
-                if (rbs_get_rb_entry_list_one_storage(rb_stor, cid, sid, parallel,cfgfd) != 0) {
+                if (rbs_get_rb_entry_list_one_storage(rb_stor, cid, sid, parallel,cfgfd, failed) != 0) {
 
                     severe("rbs_get_rb_entry_list_one_storage failed: %s\n",
                             strerror(errno));
@@ -1224,7 +1297,8 @@ static int rbs_build_one_fid_list(cid_t cid, sid_t sid, uint8_t layout, uint8_t 
     severe("Can not open file %s %s", filename, strerror(errno));
     return -1;
   }
-    
+      
+  st2rebuild.layout = layout;
   ret = write(fd,&st2rebuild,sizeof(st2rebuild));
   if (ret != sizeof(st2rebuild)) {
     severe("Can not write header in file %s %s", filename, strerror(errno));
@@ -1295,12 +1369,6 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
       severe("Can not open file %s %s", filename, strerror(errno));
       return 0;
     }
-    
-    ret = write(cfgfd[idx],&st2rebuild,sizeof(st2rebuild));
-    if (ret != sizeof(st2rebuild)) {
-      severe("Can not write header in file %s %s", filename, strerror(errno));
-      return 0;      
-    }
   }    
   
   idx = 0;
@@ -1367,6 +1435,15 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
           // Check whether this FID is already set in the list
 	      if (rb_hash_table_search(file_hdr.fid) != 0) continue;
 
+	      /*
+	      ** Layout not yet filled in st2rebuild. It is time
+	      ** to update it
+	      */
+	      if (st2rebuild.layout == 0xFF) {
+	        ret = rbs_write_st2rebuild(file_hdr.layout,cfgfd, parallel);
+		if (ret != 0) goto out;
+              }
+		
 	      rb_hash_table_insert(file_hdr.fid);	    
 
 	      memcpy(file_entry.fid,file_hdr.fid, sizeof (fid_t));
@@ -1389,7 +1466,8 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
       } // End of slices
     }
   } 
-
+  
+out:
   for (idx=0; idx < parallel; idx++) {
     close(cfgfd[idx]);
   }  
@@ -1553,6 +1631,7 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
     int status = -1;
     int ret;
     char * pExport_host = 0;
+    int failed,available;
 
     DEBUG_FUNCTION;
 
@@ -1567,6 +1646,7 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
     strcpy(st2rebuild.export_hostname,export_host_list);
     strcpy(st2rebuild.config_file,config_file);
     st2rebuild.site = site;
+    st2rebuild.layout = 0xFF;
 
 
     // Get the list of storages for this cluster ID
@@ -1582,8 +1662,7 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
         goto out;
 
     // Get connections for this given cluster
-    if (rbs_init_cluster_cnts(&cluster_entries, cid, sid) != 0)
-        goto out;
+    rbs_init_cluster_cnts(&cluster_entries, cid, sid,&failed,&available);
 	
     // Remove any old files that should exist in the process directory
     ret = rbs_do_remove_lists();
@@ -1614,7 +1693,7 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
     }
     else if (device == -1) {
       // Build the list from the remote storages
-      if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid, parallel) != 0)
+      if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid, parallel, failed) != 0)
         goto out;  	 	 	 
     }
     else {
@@ -1625,7 +1704,7 @@ int rbs_rebuild_storage(const char *export_host_list, int site, cid_t cid, sid_t
       }
       if (st2rebuild.storage.device_number == 1) {
 	// Build the list from the remote storages
-	if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid, parallel) != 0)
+	if (rbs_get_rb_entry_list_one_cluster(&cluster_entries, cid, sid, parallel,failed) != 0)
           goto out;         
       }
       else {

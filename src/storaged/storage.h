@@ -132,6 +132,7 @@ typedef struct _rozofs_rebuild_header_file_t {
   char          export_hostname[ROZOFS_HOSTNAME_MAX];
   int           site;
   storage_t     storage;
+  uint8_t       layout;
 } rozofs_rebuild_header_file_t;
  
 typedef struct _rozofs_rebuild_entry_file_t {

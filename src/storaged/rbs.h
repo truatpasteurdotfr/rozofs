@@ -124,17 +124,22 @@ int rbs_sanity_check(const char *export_host, int site, cid_t cid, sid_t sid,
  *
  */
 char * get_rebuild_directory_name() ;
+
 /** Init connections for storage members of a given cluster but not for the 
  *  storage with sid=sid
  *
  * @param cluster_entries: list of cluster(s).
  * @param cid: unique id of cluster that owns this storage.
  * @param sid: the unique id for the storage to rebuild.
+ * @param failed: number of failed server comprising the rebuilt server
+ * @param available: number of available server
  *
- * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_init_cluster_cnts(list_t * cluster_entries, cid_t cid,
-        sid_t sid);
+void rbs_init_cluster_cnts(list_t * cluster_entries, 
+                          cid_t cid,
+                          sid_t sid,
+			  int * failed,
+			  int * available);
 	
 int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
         list_t * clusters_list,
