@@ -58,6 +58,7 @@ class StoragedConfig():
 class StoragedConfigurationParser(ConfigurationParser):
 
     def parse(self, configuration, config):
+
         if configuration.threads is not None:
             threads_setting = config_setting_add(config.root, THREADS, CONFIG_TYPE_INT)
             config_setting_set_int(threads_setting, int(configuration.threads))
@@ -89,6 +90,7 @@ class StoragedConfigurationParser(ConfigurationParser):
             config_setting_set_string(root_setting, storage.root)
 
     def unparse(self, config, configuration):
+
         threads_setting = config_lookup(config, THREADS)
         if threads_setting is not None:
             configuration.threads = config_setting_get_int(threads_setting)
@@ -157,3 +159,6 @@ class StoragedAgent(Agent):
             self._daemon_manager.start()
         if status == ServiceStatus.STOPPED and current_status:
             self._daemon_manager.stop()
+
+    def restart_with_rebuild(self, exports_list):
+        self._daemon_manager.restart(["-r", "/".join(exports_list)])

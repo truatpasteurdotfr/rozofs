@@ -140,21 +140,25 @@ class ExportdConfig():
 class ExportdConfigurationParser(ConfigurationParser):
 
     def parse(self, configuration, config):
+
         if configuration.nbcores is not None:
             nbcores_setting = config_setting_add(config.root, NBCORES, CONFIG_TYPE_INT)
             config_setting_set_int(nbcores_setting, int(configuration.nbcores))
+
         layout_setting = config_setting_add(config.root, LAYOUT, CONFIG_TYPE_INT)
         config_setting_set_int(layout_setting, int(configuration.layout))
 
         volumes_settings = config_setting_add(config.root, VOLUMES, CONFIG_TYPE_LIST)
         for volume in configuration.volumes.values():
             volume_settings = config_setting_add(volumes_settings, VOLUME, CONFIG_TYPE_GROUP)
+
             vid_setting = config_setting_add(volume_settings, VOLUME_VID, CONFIG_TYPE_INT)
             config_setting_set_int(vid_setting, int(volume.vid))
             
             if volume.layout is not None:
                 volume_layout_setting = config_setting_add(volume_settings, LAYOUT, CONFIG_TYPE_INT)
                 config_setting_set_int(volume_layout_setting, int(volume.layout))
+
             clusters_settings = config_setting_add(volume_settings, VOLUME_CIDS, CONFIG_TYPE_LIST)
             for cluster in volume.clusters.values():
                 cluster_setting = config_setting_add(clusters_settings, '', CONFIG_TYPE_GROUP)
@@ -185,9 +189,11 @@ class ExportdConfigurationParser(ConfigurationParser):
             config_setting_set_string(hqt_setting, str(export.hquota))
 
     def unparse(self, config, configuration):
+
         nbcores_setting = config_lookup(config, NBCORES)
         if nbcores_setting is not None:
             configuration.nbcores = config_setting_get_int(nbcores_setting)
+
         layout_setting = config_lookup(config, LAYOUT)
         if layout_setting == None:
             raise Exception("wrong format: no layout defined.")
@@ -205,10 +211,12 @@ class ExportdConfigurationParser(ConfigurationParser):
                 
                 vid_setting = config_setting_get_member(volume_setting, VOLUME_VID)
                 vid = config_setting_get_int(vid_setting)
+
                 layout = None
                 volume_layout_setting =  config_setting_get_member(volume_setting, LAYOUT)
                 if volume_layout_setting is not None:
                     layout = config_setting_get_int(volume_layout_setting)
+
                 clusters_setting = config_setting_get_member(volume_setting, VOLUME_CIDS)
                 clusters = {}
                 for j in range(config_setting_length(clusters_setting)):
