@@ -705,8 +705,8 @@ static inline uint32_t filename_uuid_hash_fnv_with_len(uint32_t h, void *key1, v
 }
 
 
-//#define DIRENT_ROOT_FILE_IDX_SHIFT 5
-//#warning DIRENT_ROOT_FILE_IDX_SHIFT is 5 
+//#define DIRENT_ROOT_FILE_IDX_SHIFT 0
+//#warning DIRENT_ROOT_FILE_IDX_SHIFT is 0 
 #define DIRENT_ROOT_FILE_IDX_SHIFT 12
 
 //#define DIRENT_ROOT_FILE_IDX_SHIFT 10
@@ -780,18 +780,29 @@ char* dirent_cache_display(char *pChar) {
     pChar+=sprintf(pChar,"collisions Max level0/level1   : %u/%u\n", 
                    dirent_bucket_cache_max_level0_collisions, dirent_bucket_cache_max_level1_collisions);
 
-    pChar+=sprintf(pChar,"Name chunk size                : %u\n",MDIRENTS_NAME_CHUNK_SZ);
-    pChar+=sprintf(pChar,"Name chunk max                 : %u\n",MDIRENTS_NAME_CHUNK_MAX);
+    pChar+=sprintf(pChar,"Name chunk size                : %u\n",(unsigned int)MDIRENTS_NAME_CHUNK_SZ);
+    pChar+=sprintf(pChar,"Name chunk max                 : %u\n",(unsigned int)MDIRENTS_NAME_CHUNK_MAX);
     pChar+=sprintf(pChar,"Sectors (nb sectors/size)      : %u/%u Bytes\n",
-                                                     DIRENT_FILE_MAX_SECTORS,DIRENT_FILE_MAX_SECTORS*MDIRENT_SECTOR_SIZE);
+                                                			 (unsigned int)DIRENT_FILE_MAX_SECTORS,
+									 (unsigned int)DIRENT_FILE_MAX_SECTORS*MDIRENT_SECTOR_SIZE);
     pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
     pChar += sprintf(pChar,"  field name      | start sector(offset) | sector count |\n");
     pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
-    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","header",DIRENT_HEADER_BASE_SECTOR,DIRENT_HEADER_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HEADER_SECTOR_CNT);
-    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","name bitmap",DIRENT_NAME_BITMAP_BASE_SECTOR,DIRENT_NAME_BITMAP_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_NAME_BITMAP_SECTOR_CNT);
-    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","hash buckets",DIRENT_HASH_BUCKET_BASE_SECTOR,DIRENT_HASH_BUCKET_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HASH_BUCKET_SECTOR_CNT);
-    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","hash entries",DIRENT_HASH_ENTRIES_BASE_SECTOR,DIRENT_HASH_ENTRIES_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HASH_ENTRIES_SECTOR_CNT);
-    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","name chunks",DIRENT_HASH_NAME_BASE_SECTOR,DIRENT_HASH_NAME_BASE_SECTOR*MDIRENT_SECTOR_SIZE,DIRENT_HASH_NAME_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","header",(unsigned int)DIRENT_HEADER_BASE_SECTOR,
+                                                                            (unsigned int)DIRENT_HEADER_BASE_SECTOR*MDIRENT_SECTOR_SIZE,
+									    (unsigned int)DIRENT_HEADER_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","name bitmap",(unsigned int)DIRENT_NAME_BITMAP_BASE_SECTOR,
+                                                                                 (unsigned int)DIRENT_NAME_BITMAP_BASE_SECTOR*MDIRENT_SECTOR_SIZE,
+										 (unsigned int)DIRENT_NAME_BITMAP_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","hash buckets",(unsigned int)DIRENT_HASH_BUCKET_BASE_SECTOR,
+                                                                                  (unsigned int)DIRENT_HASH_BUCKET_BASE_SECTOR*MDIRENT_SECTOR_SIZE,
+										  (unsigned int)DIRENT_HASH_BUCKET_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","hash entries",(unsigned int)DIRENT_HASH_ENTRIES_BASE_SECTOR,
+                                                                                   (unsigned int)DIRENT_HASH_ENTRIES_BASE_SECTOR*MDIRENT_SECTOR_SIZE,
+										   (unsigned int)DIRENT_HASH_ENTRIES_SECTOR_CNT);
+    pChar += sprintf(pChar," %-16s |  %8u (0x%-4x)   |  %9u   |\n","name chunks",(unsigned int)DIRENT_HASH_NAME_BASE_SECTOR,
+                                                                                 (unsigned int)DIRENT_HASH_NAME_BASE_SECTOR*MDIRENT_SECTOR_SIZE,
+										 (unsigned int)DIRENT_HASH_NAME_SECTOR_CNT);
     pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
 
     return pChar;
@@ -902,7 +913,7 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         dirent_hdr.level_index = 0;
         dirent_hdr.dirent_idx[0] = root_idx;
         dirent_hdr.dirent_idx[1] = 0;
-        root_entry_p = read_mdirents_file(dirfd, &dirent_hdr);
+        root_entry_p = read_mdirents_file(dirfd, &dirent_hdr,fid_parent);
     } else {
         /*
          ** indicate the entry is present in the cache
@@ -949,7 +960,6 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
              */
             memcpy(name_entry_p->fid, fid, sizeof (fid_t));
             dirent_update_entry += 1;
-            //          printf("FDL BUG : udpated : (len %d/%d) %s\n",len,strlen(name),name);
             /*
              ** just need to re-write the sector
              */
@@ -977,7 +987,7 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
 	   goto out;
 	
 	}
-        root_entry_p = dirent_cache_create_entry(&dirent_hdr);
+        root_entry_p = dirent_cache_create_entry(&dirent_hdr,fid_parent);
         if (root_entry_p == NULL) {
             DIRENT_SEVERE("put_mdirentry at line %d\n", __LINE__);
             return -1;
@@ -1028,20 +1038,6 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         goto out;
     }
 
-#if 0
-#warning FDL_DEBUG control the filename
-    {
-
-        if (strcmp(name, "file_test_put_mdirentry_770") == 0) {
-            printf("put_mdirentry---> dirent_file:%d file %s local_idx %d  cache_entry_p [%d.%d]\n", __LINE__, name,
-                    local_idx, cache_entry_p->header.dirent_idx[0], cache_entry_p->header.dirent_idx[1]);
-            dirent_repair_print_enable = 1;
-            dirent_file_check(dirfd, root_entry_p, bucket_idx);
-            dirent_repair_print_enable = 0;
-            printf("\nEnd\n");
-        }
-    }
-#endif
     hash_entry_p->hash = hash2;
     /*
      ** insert the name entry
@@ -1066,8 +1062,6 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         DIRENT_SEVERE("put_mdirentry at line %d\n", __LINE__);
         goto out;
     }
-    //    printf("Append the entry %s local_idx %d chunk_idx %d offset %x\n",name,local_idx,hash_entry_p->chunk_idx,
-    //            (hash_entry_p->chunk_idx*32)+(DIRENT_HASH_NAME_BASE_SECTOR*512));
     /*
      ** OK now re-write on disk all the impacted dirent cache entries:
      **  root : in case of collision file allocation, hash entry allocation
@@ -1222,7 +1216,7 @@ int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         dirent_hdr.level_index = 0;
         dirent_hdr.dirent_idx[0] = root_idx;
         dirent_hdr.dirent_idx[1] = 0;
-        root_entry_p = read_mdirents_file(dirfd, &dirent_hdr);
+        root_entry_p = read_mdirents_file(dirfd, &dirent_hdr,fid_parent);
     } else {
         cached = 1;
     }
@@ -1433,17 +1427,6 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
     //    bucket_idx = (hash1 >> DIRENT_ROOT_FILE_IDX_SHIFT)&DIRENT_ROOT_BUCKET_IDX_MASK;
     bucket_idx = ((hash2 >> 16) ^ (hash2 & 0xffff)) & DIRENT_ROOT_BUCKET_IDX_MASK;
 
-#if 0 //FDL_DEBUG
-    {
-        char bufall[128];
-        int file_index = 2353944;
-        sprintf(bufall, "file_test_put_mdirentry_%d", file_index);
-        if (strcmp(name, bufall) == 0) {
-            printf("Match for %s root_idx %d hash2 %u\n", bufall, root_idx, hash2);
-
-        }
-    }
-#endif
     root_entry_p = dirent_get_root_entry_from_cache(fid_parent, root_idx);
     if (root_entry_p == NULL) {
         /*
@@ -1453,7 +1436,7 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         dirent_hdr.level_index = 0;
         dirent_hdr.dirent_idx[0] = root_idx;
         dirent_hdr.dirent_idx[1] = 0;
-        root_entry_p = read_mdirents_file(dirfd, &dirent_hdr);
+        root_entry_p = read_mdirents_file(dirfd, &dirent_hdr,fid_parent);
     } else {
         cached = 1;
 
@@ -1485,20 +1468,6 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
          */
         DIRENT_WARN("Entry does not exist for root idx %d bucket_idx %d (cache %d) ( line %d): %s\n",
                 root_idx, bucket_idx, cached, __LINE__, name);
-#if 0
-#warning FDL_DEBUG control the filename
-        {
-
-            if (strcmp(name, "file_test_put_mdirentry_770") == 0) {
-                printf("dirent_file:%d %s\n", __LINE__, name);
-                dirent_repair_print_enable = 1;
-                dirent_file_check(dirfd, root_entry_p, bucket_idx);
-                dirent_repair_print_enable = 0;
-                printf("\nEnd\n");
-
-            }
-        }
-#endif
 
         //XXX: integration tests
         errno = ENOENT;
@@ -1662,7 +1631,6 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         /*
          ** write the returned_prev_entry_p file:
          */
-        // printf("Write Root file\n");
         ret = write_mdirents_file(dirfd, returned_prev_entry_p);
         if (ret < 0) {
             DIRENT_WARN("Error on writing file at line %d\n", __LINE__);
@@ -1785,7 +1753,6 @@ int list_mdirentries(void *root_idx_bitmap_p,int dir_fd, fid_t fid_parent, child
     hash_entry_idx = dirent_cookie.s.hash_entry_idx;
     index_level = dirent_cookie.s.index_level;
     coll_idx = dirent_cookie.s.coll_idx;
-
     *eof = 0;
     /*
      **___________________________________________________________
@@ -1822,7 +1789,7 @@ int list_mdirentries(void *root_idx_bitmap_p,int dir_fd, fid_t fid_parent, child
                   dirent_hdr.level_index = 0;
                   dirent_hdr.dirent_idx[0] = root_idx;
                   dirent_hdr.dirent_idx[1] = 0;
-                  root_entry_p = read_mdirents_file(dir_fd, &dirent_hdr);
+                  root_entry_p = read_mdirents_file(dir_fd, &dirent_hdr,fid_parent);
               } else {
                   /*
                    ** found one, so process its content
@@ -1851,11 +1818,9 @@ int list_mdirentries(void *root_idx_bitmap_p,int dir_fd, fid_t fid_parent, child
             /*
              ** we are done
              */
-            //         printf("FDL BUG EOF\n");
             *eof = 1;
             break;
         }
-        //      printf("!!!!!!!!!! FDL BUG : next root_idx %d\n", root_idx);
         /*
          ** There is a valid entry, but before doing the job, check if the entry has
          **  been extract from the cache or read from disk. If entry has been read
@@ -2071,7 +2036,6 @@ get_next_collidx:
             /**
              *  that's songs good, copy the content of the name in the result buffer
              */
-            //        printf("Current Count %llu Hash entry idx %d: %s \n", (long long unsigned int)dirent_readdir_stats_file_count,hash_entry_idx,name_entry_p->name);
             /*
 	    ** check the length of the filename, if the length is 0, it indicates that we read a truncate dirent file
 	    ** so we skip that entry and goes to the next one

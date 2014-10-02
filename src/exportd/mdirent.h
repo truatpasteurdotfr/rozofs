@@ -3075,12 +3075,13 @@ static inline void dirent_cache_release_all_hash_entries_memory(
  *  API to create a dirent entry from scratch
  *
  @param dirent_hdr_p : pointer to the dirent header that contains its reference
+ @param parent : fid of the parent directory (needed by writeback cache)
 
  @retval  <>NULL  pointer to the dirent cache entry
  @retval NULL : out of cache entries
  */
 mdirents_cache_entry_t *dirent_cache_create_entry(
-        mdirents_header_new_t *dirent_hdr_p);
+        mdirents_header_new_t *dirent_hdr_p,fid_t parent);
 
 /*
  **______________________________________________________________________________
@@ -3446,12 +3447,13 @@ extern int dirent_root_read_only;
  *
  * @param dirfd: file descriptor of the parent directory
  * @param *pathname: pointer to the pathname to read
+ * @param parent: fid of the parent directory (needed by writeback cache
  *
  * @retval NULL if this mdirents file doesn't exist
  * @retval pointer to the mdirents file
  */
 mdirents_cache_entry_t * read_mdirents_file(int dirfd,
-        mdirents_header_new_t *dirent_hdr_p);
+        mdirents_header_new_t *dirent_hdr_p,fid_t parent);
 
 /*
  **______________________________________________________________________________
@@ -3560,12 +3562,13 @@ int list_mdirentries(void *root_idx_bitmap_p,int dir_fd, fid_t fid_parent, child
  * Allocation of a dirent file cache entry
 
  @param dirent_hdr_p : pointer to the dirent header that contains its reference
+ @param parent : fid of the parent directory (needed by writeback cache)
 
  @retval  <>NULL  pointer to the dirent cache entry
  @retval NULL : out of cache entries
  */
 mdirents_cache_entry_t *dirent_cache_allocate_entry(
-        mdirents_header_new_t *dirent_hdr_p);
+        mdirents_header_new_t *dirent_hdr_p,fid_t parent);
 
 /*
  *___________________________________________________________________

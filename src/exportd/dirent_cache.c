@@ -169,12 +169,13 @@ void dirent_cache_initialize(dirent_cache_t *cache) {
  * Allocation of a dirent file cache entry
 
  @param dirent_hdr_p : pointer to the dirent header that contains its reference
-
+ @param parent_fid: fid of the parent directory (needed by writeback cache 
  @retval  <>NULL  pointer to the dirent cache entry
  @retval NULL : out of cache entries
  */
 mdirents_cache_entry_t *dirent_cache_allocate_entry(
-        mdirents_header_new_t *dirent_hdr_p) {
+        mdirents_header_new_t *dirent_hdr_p,
+	fid_t parent_fid) {
     mdirents_cache_entry_t *p;
     int i;
 
@@ -190,6 +191,7 @@ mdirents_cache_entry_t *dirent_cache_allocate_entry(
      ** clear the memory entry
      */
     memset(p, 0, sizeof(mdirents_cache_entry_t));
+    
 //#warning assert dirty bit for bucket hash table and hash entry table
 
     for (i = 0; i < MDIRENTS_HASH_TB_CACHE_MAX_IDX; i++) {
@@ -211,6 +213,11 @@ mdirents_cache_entry_t *dirent_cache_allocate_entry(
      **
      */
     memcpy(&p->header, dirent_hdr_p, sizeof(mdirents_header_new_t));
+    /*
+    ** copy the parent fid in the cache entry
+    */
+    memcpy(p->key.dir_fid, parent_fid, sizeof (fid_t));
+
     return p;
 }
 
@@ -221,12 +228,13 @@ mdirents_cache_entry_t *dirent_cache_allocate_entry(
  *  API to create a dirent entry from scratch
  *
  @param dirent_hdr_p : pointer to the dirent header that contains its reference
-
+ @param fid_parent : fid of the parent directoty (needed by writeback cache
  @retval  <>NULL  pointer to the dirent cache entry
  @retval NULL : out of cache entries
  */
 mdirents_cache_entry_t *dirent_cache_create_entry(
-        mdirents_header_new_t *dirent_hdr_p) {
+        mdirents_header_new_t *dirent_hdr_p,
+	fid_t parent_fid) {
     mdirents_cache_entry_t *p = NULL;
     uint64_t val;
 
@@ -237,7 +245,7 @@ mdirents_cache_entry_t *dirent_cache_create_entry(
     dirent_hdr_p->max_number_of_hash_entries = MDIRENTS_ENTRIES_COUNT;
     dirent_hdr_p->sector_offset_of_name_entry = DIRENT_HASH_NAME_BASE_SECTOR;
 
-    p = dirent_cache_allocate_entry(dirent_hdr_p);
+    p = dirent_cache_allocate_entry(dirent_hdr_p,parent_fid);
     if (p == NULL ) {
         /*
          ** out of memory
@@ -798,7 +806,7 @@ mdirents_cache_entry_t *dirent_cache_alloc_name_entry_idx(
             header.dirent_idx[i] = parent->header.dirent_idx[i];
         header.dirent_idx[header.level_index] = coll_idx;
 
-        dirent_entry = dirent_cache_create_entry(&header);
+        dirent_entry = dirent_cache_create_entry(&header,parent->key.dir_fid);
         if (dirent_entry == NULL ) {
             /*
              ** out of memory
@@ -1524,12 +1532,13 @@ int fdl_debug_coll_idx = -1;
  *
  * @param dirfd: file descriptor of the parent directory
  * @param *pathname: pointer to the pathname to read
+   @param parent: fid of the parent (needed by the writeback cache)
  *
  * @retval NULL if this mdirents file doesn't exist
  * @retval pointer to the mdirents file
  */
 mdirents_cache_entry_t * read_mdirents_file(int dirfd,
-        mdirents_header_new_t *dirent_hdr_p) {
+        mdirents_header_new_t *dirent_hdr_p,fid_t parent) {
     int fd = -1;
     int flag = O_RDONLY;
     mdirents_cache_entry_t * dirent_p = NULL;
@@ -1605,7 +1614,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
     /*
      ** Allocate a fresh free mdirent cache entry
      */
-    dirent_p = dirent_cache_allocate_entry(dirent_hdr_p);
+    dirent_p = dirent_cache_allocate_entry(dirent_hdr_p,parent);
     if (dirent_p == NULL ) {
         /*
          ** the system runs out of memory
@@ -1906,7 +1915,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
             dirent_hdr.dirent_idx[0] = dirent_p->header.dirent_idx[0];
             dirent_hdr.dirent_idx[1] = coll_idx;
 
-            dirent_coll_entry_p = read_mdirents_file(dirfd, &dirent_hdr);
+            dirent_coll_entry_p = read_mdirents_file(dirfd, &dirent_hdr,parent);
             if (dirent_coll_entry_p == NULL ) 
 	    {
 	       /*

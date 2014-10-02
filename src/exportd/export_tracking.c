@@ -1301,7 +1301,7 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     */
     memset(&ext_attrs,0x00,sizeof(ext_attrs));
     memcpy(&ext_attrs.s.pfid,pfid,sizeof(fid_t));
-    strcpy(&ext_attrs.s.name[0],name);
+    strncpy(&ext_attrs.s.name[0],name,ROZOFS_OBJ_NAME_MAX-1);
 
     /*
     ** get the distribution for the file
@@ -1478,9 +1478,10 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     ** copy the parent fid and the name of the regular file
     */
     memcpy(&ext_attrs.s.pfid,pfid,sizeof(fid_t));
-    memset(&ext_attrs.s.name[0],0,ROZOFS_MAXATTR);
-    strncpy(&ext_attrs.s.name[0],name,ROZOFS_MAXATTR-1);
+    memset(&ext_attrs.s.name[0],0,ROZOFS_OBJ_NAME_MAX);
+    strncpy(&ext_attrs.s.name[0],name,ROZOFS_OBJ_NAME_MAX-1);
     attrs->cid = 0;
+    ext_attrs.s.attrs.cid =0;
     memset(&ext_attrs.s.attrs.sids, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
     ext_attrs.s.i_extra_isize = ROZOFS_I_EXTRA_ISIZE;
     ext_attrs.s.i_state = 0;
@@ -1554,7 +1555,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     }
     // update the parent
     // add the new child to the parent
-    if (put_mdirentry(plv2->dirent_root_idx_p,fdp, pfid, name, ext_attrs.s.attrs.fid, attrs->mode) != 0) {
+    if (put_mdirentry(plv2->dirent_root_idx_p,fdp, pfid, name, ext_attrs.s.attrs.fid, ext_attrs.s.attrs.mode) != 0) {
         goto error;
     }
 
@@ -2425,7 +2426,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     */
     memset(&ext_attrs,0x00,sizeof(ext_attrs));
     memcpy(&ext_attrs.s.pfid,pfid,sizeof(fid_t));
-    strcpy(&ext_attrs.s.name[0],name);
+    strncpy(&ext_attrs.s.name[0],name,ROZOFS_OBJ_NAME_MAX-1);
 
     ext_attrs.s.attrs.cid = 0;
     memset(ext_attrs.s.attrs.sids, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
