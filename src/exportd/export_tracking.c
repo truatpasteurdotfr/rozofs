@@ -3207,6 +3207,9 @@ out:
 #define ROZOFS_USER_XATTR "user.rozofs"
 #define ROZOFS_ROOT_XATTR "trusted.rozofs"
 
+#define ROZOFS_XATTR_ID "rozofs_id"
+#define ROZOFS_USER_XATTR_ID "user.rozofs_id"
+#define ROZOFS_ROOT_XATTR_ID "trusted.rozofs_id"
 #define ROZOFS_XATTR_MAX_SIZE "rozofs_maxsize"
 #define ROZOFS_USER_XATTR_MAX_SIZE "user.rozofs_maxsize"
 #define ROZOFS_ROOT_XATTR_MAX_SIZE "trusted.rozofs_maxsize"
@@ -3400,6 +3403,28 @@ static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,i
 /*
 **______________________________________________________________________________
 */
+static inline int get_rozofs_xattr_internal_id(export_t *e, lv2_entry_t *lv2, char * value, int size) {
+  char    * p=value;
+  int       idx;
+  uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  
+  
+  p+=sprintf(p,"@rozofs@%d-%d-%d-",e->eid,lv2->attributes.s.attrs.cid,e->layout);
+  for (idx = 0; idx < rozofs_safe; idx++) {
+    p += sprintf(p,"%d-", lv2->attributes.s.attrs.sids[idx]);
+  }
+  uuid_unparse(lv2->attributes.s.attrs.fid,p); 
+  p+=36;
+  /*
+  ** put the length
+  */
+  p+=sprintf(p,"-%llu",(long long unsigned int)lv2->attributes.s.attrs.size);
+  
+  return (p-value);  
+} 
+/*
+**______________________________________________________________________________
+*/
 static inline int get_rozofs_xattr_max_size(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
   int       idx;
@@ -3562,6 +3587,10 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
       status = get_rozofs_xattr(e,lv2,value,size);
       goto out;
     }  
+    if ((strcmp(name,ROZOFS_XATTR_ID)==0)||(strcmp(name,ROZOFS_USER_XATTR_ID)==0)||(strcmp(name,ROZOFS_ROOT_XATTR_ID)==0)) {
+      status = get_rozofs_xattr_internal_id(e,lv2,value,size);
+      goto out;
+    } 
     if ((strcmp(name,ROZOFS_XATTR_MAX_SIZE)==0)||(strcmp(name,ROZOFS_USER_XATTR_MAX_SIZE)==0)||(strcmp(name,ROZOFS_ROOT_XATTR_MAX_SIZE)==0)) {
       status = get_rozofs_xattr_max_size(e,lv2,value,size);
       goto out;
