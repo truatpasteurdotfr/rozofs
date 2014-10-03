@@ -3767,7 +3767,8 @@ out:
       debug_file_lock_list(pChar);
       info("%s",BuF);
     }
-#endif       
+#endif      
+    if (lv2) lv2_cache_update_lru(e->lv2_cache, lv2);	
     STOP_PROFILING(export_set_file_lock);
     return status;
 }
@@ -3879,6 +3880,8 @@ reloop:
 	  lv2->nb_locks--;
 	  if (list_empty(&lv2->file_lock)) {
 	    lv2->nb_locks = 0;
+	    // Remove it from the lru
+	    lv2_cache_update_lru(e->lv2_cache, lv2);	    
 	    break;
 	  }
 	  goto reloop;
