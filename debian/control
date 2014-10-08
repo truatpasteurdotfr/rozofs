@@ -96,7 +96,7 @@ Package: nagios-plugins-rozofs
 Section: net
 Priority: extra
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozodiag (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, rozofs-rozodiag (>= ${binary:Version})
 Description: RozoFS filesystem (Nagios plugins)
  Provide monitoring information for the various rozofs packages.
  .
