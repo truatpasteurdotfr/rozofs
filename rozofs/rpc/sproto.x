@@ -35,6 +35,8 @@ struct sp_write_arg_t {
     uint8_t     sid;          
     uint8_t     layout;
     uint8_t     spare;
+    uint32_t    rebuild_ref;
+    uint32_t    alignement;
     uint32_t     dist_set[ROZOFS_SAFE_MAX_RPC];
     sp_uuid_t   fid;        
     uint8_t     proj_id;     
@@ -53,6 +55,8 @@ struct sp_write_arg_no_bins_t {
     uint8_t     sid;          
     uint8_t     layout;
     uint8_t     spare;
+    uint32_t    rebuild_ref;
+    uint32_t    alignement;
     uint32_t     dist_set[ROZOFS_SAFE_MAX_RPC];
     sp_uuid_t   fid;        
     uint8_t     proj_id;     
@@ -113,6 +117,46 @@ struct sp_remove_arg_t {
     sp_uuid_t   fid;
 };
 
+struct sp_remove_chunk_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    uint8_t     layout;  
+    uint8_t     bsize;      
+    uint8_t     spare;
+    uint8_t     dist_set[ROZOFS_SAFE_MAX];    
+    sp_uuid_t   fid;
+    uint32_t    rebuild_ref;
+    uint32_t    chunk;
+};
+
+struct sp_rebuild_start_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    sp_uuid_t   fid;
+    uint64_t    start_bid;
+    uint64_t    stop_bid;
+};
+
+union sp_rebuild_start_ret_t switch (sp_status_t status) {
+    case SP_SUCCESS:    uint32_t rebuild_ref;
+    case SP_FAILURE:    int      error;
+    default:            void;
+};
+
+struct sp_rebuild_stop_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    sp_uuid_t   fid;
+    uint32_t    rebuild_ref;
+};
+
+union sp_rebuild_stop_ret_t switch (sp_status_t status) {
+    case SP_SUCCESS:    uint32_t rebuild_ref;
+    case SP_FAILURE:    int      error;
+    default:            void;
+};
+
+
 struct sp_read_t {
     uint32_t    filler;
     opaque      bins<>;
@@ -147,6 +191,15 @@ program STORAGE_PROGRAM {
 
         sp_status_ret_t
         SP_REMOVE(sp_remove_arg_t)  = 4;
+	
+        sp_rebuild_start_ret_t
+        SP_REBUILD_START(sp_rebuild_start_arg_t)  = 5;
+
+        sp_rebuild_stop_ret_t
+        SP_REBUILD_STOP(sp_rebuild_stop_arg_t)  = 6;
+			
+        sp_status_ret_t
+        SP_REMOVE_CHUNK(sp_remove_chunk_arg_t)  = 7;		
 
     }=1;
 } = 0x20000002;

@@ -14,16 +14,20 @@ from optparse import OptionParser
 fileSize=int(4)
 loop=int(32)
 process=int(8)
-NB_SID=int(8)
-STC_SID=int(8)
-nbGruyere=int(1000)
-stopOnFailure=False
+EXPORT_SID_NB=int(8)
+STORCLI_SID_NB=int(8)
+nbGruyere=int(256)
+stopOnFailure=True
 fuseTrace=False
 DEFAULT_MNT="mnt1_1_g0"
-mnt=DEFAULT_MNT
+ALL_MNT="mnt1_1_g0,mnt2_1_g0,mnt3_1_g0,mnt4_1_g0"
+mnts=DEFAULT_MNT
+mnt=""
 DEFAULT_RETRIES=int(20)
-
- 
+tst_file="tst_file"
+device_number=""
+mapper_modulo=""
+mapper_redundancy="" 
 
 #___________________________________________________
 def my_duration (val):
@@ -40,6 +44,28 @@ def reset_counters():
 # Use debug interface to reset profilers and some counters
 #___________________________________________________
   return
+#___________________________________________________
+def get_all_mount_points():
+#___________________________________________________
+  global ALL_MNT
+  
+  string="df"
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  ALL_MNT=""
+  for line in cmd.stdout:
+  
+    if line.split()[0] != "rozofs":
+      continue
+    mount=line.split()[5]
+    mount=mount.split('/')
+    mount=mount[len(mount)-1] 
+    if ALL_MNT == "":
+      ALL_MNT=mount
+    else:
+      ALL_MNT=ALL_MNT+','+mount
+
 #___________________________________________________
 def get_device_numbers(hid):
 # Use debug interface to get the number of sid from exportd
@@ -62,30 +88,32 @@ def get_device_numbers(hid):
       
   return device_number,mapper_modulo,mapper_redundancy   
   
-
 #___________________________________________________
 def get_sid_nb():
 # Use debug interface to get the number of sid from exportd
 #___________________________________________________
 
-  sid=int(0)
-  
+  inst=get_rozofmount_instance()
+
+  string="./build/src/rozodiag/rozodiag -T mount:%d:1 -c storaged_status"%(inst)       
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  storcli_sid=int(0)
+  for line in cmd.stdout:
+    if "UP" in line or "DOWN" in line:
+      storcli_sid=storcli_sid+1
+      
   string="./build/src/rozodiag/rozodiag -T export -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-
+  export_sid=int(0)
   for line in cmd.stdout:
     if "UP" in line or "DOWN" in line:
-      sid=sid+1
-      
-  per_site=int(sid)      
-  p = subprocess.Popen(["ps","-ef"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-  for proc in p.stdout:
-    if "-o geocli" in proc:
-      per_site=per_site/2
-      break
-  return sid,per_site    
+      export_sid=export_sid+1
+
+  return export_sid,storcli_sid    
 
 #___________________________________________________
 def export_count_sid_up ():
@@ -119,7 +147,6 @@ def get_rozofmount_instance ():
 	    return int(instance)
 	    
   return int(78)
-
 #___________________________________________________
 def get_site_number ():
 
@@ -134,7 +161,6 @@ def get_site_number ():
     if words[0].strip() == "running_site":    
       return int(words[1])
   return 0  
-
 #___________________________________________________
 def storcli_count_sid_available ():
 # Use debug interface to count the number of sid 
@@ -179,15 +205,25 @@ def loop_wait_until (success,retries,function):
     
   time.sleep(1)    
   return True  
+#___________________________________________________
+def start_all_sid () :
+# Wait for all sid up seen by storcli as well as export
+#___________________________________________________
+
+  for sid in range(STORCLI_SID_NB):
+    hid=sid+(site*STORCLI_SID_NB)
+    os.system("./setup.sh storage %s start"%(hid+1))    
     
+
+      
 #___________________________________________________
 def wait_until_all_sid_up (retries=DEFAULT_RETRIES) :
 # Wait for all sid up seen by storcli as well as export
 #___________________________________________________
-
-  if loop_wait_until(STC_SID,retries,'storcli_count_sid_available') == False:
+   
+  if loop_wait_until(STORCLI_SID_NB,retries,'storcli_count_sid_available') == False:    
     return False
-  if loop_wait_until(NB_SID,retries,'export_count_sid_up') == False:
+  if loop_wait_until(EXPORT_SID_NB,retries,'export_count_sid_up') == False:
     return False
   return True  
   
@@ -197,7 +233,7 @@ def wait_until_one_sid_down (retries=DEFAULT_RETRIES) :
 # Wait until one sid down seen by storcli 
 #___________________________________________________
 
-  if loop_wait_until(STC_SID-1,retries,'storcli_count_sid_available') == False:
+  if loop_wait_until(STORCLI_SID_NB-1,retries,'storcli_count_sid_available') == False:
     return False
   return True   
 #___________________________________________________
@@ -235,9 +271,9 @@ def storageFailed (test) :
   if wait_until_all_sid_up() == False:
     return 1
 
-  for sid in range(STC_SID):
+  for sid in range(STORCLI_SID_NB):
 
-    hid=sid+(site*STC_SID)
+    hid=sid+(site*STORCLI_SID_NB)
     
     storageStop(hid)
     reset_counters()
@@ -325,12 +361,12 @@ def snipper_storio ():
 #___________________________________________________
 
   while True:
-    for sid in range(STC_SID):      
+    for sid in range(STORCLI_SID_NB):      
 
       if wait_until_all_sid_up() == False:
         return 1
  
-      hid=sid+(site*STC_SID)
+      hid=sid+(site*STORCLI_SID_NB)
       
       sys.stdout.write("\r                                 ")
       sys.stdout.flush()
@@ -381,102 +417,76 @@ def snipper (target):
   try:
     ret = getattr(sys.modules[__name__],func)()         
   except:
-    print "No such snipper %s"%(func)
+    print "Failed snipper %s"%(func)
     ret = 1
   return ret  
 
 #___________________________________________________
 def wr_rd_total ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  ret=os.system("./rw -process %d -loop %d -fileSize %d -total -mount %s"%(process,loop,fileSize,mnt))
+  ret=os.system("./rw -process %d -loop %d -fileSize %d -file %s -total -mount %s"%(process,loop,fileSize,tst_file,mnt))
   return ret  
 
 #___________________________________________________
 def wr_rd_partial ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -partial -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_random ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -random -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_total_close ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeAfter -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -total -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_partial_close ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial -closeAfter -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -partial -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_random_close ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeAfter -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -random -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_total ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeBetween -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  ret=os.system("./rw -process %d -loop %d -fileSize %d -partial -closeBetween -mount %s"%(process,loop,fileSize,mnt))
+  ret=os.system("./rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
   return ret 
 
 #___________________________________________________
 def wr_close_rd_random ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeBetween -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_total_close ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial_close ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_random_close ():
 #___________________________________________________
-
-  do_compile_program('./rw')
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,mnt))
+  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def rw2 ():
 #___________________________________________________
-
-  do_compile_program('./rw2')
-  return os.system("./rw2 -loop %s -file %s/ze_rw2_test_file"%(loop,mnt))
+  return os.system("./rw2 -loop %s -file %s/%s"%(loop,mnt,tst_file))
 
 #___________________________________________________
 def prepare_file_to_read(filename,mega):
@@ -489,8 +499,7 @@ def prepare_file_to_read(filename,mega):
 def read_parallel ():
 #___________________________________________________
 
-  do_compile_program('./read_parallel')
-  zefile='%s/myfile'%(mnt)
+  zefile='%s/%s'%(mnt,tst_file)
   prepare_file_to_read(zefile,fileSize) 
   ret=os.system("./read_parallel -process %s -loop %s -file %s"%(process,loop,zefile)) 
   return ret   
@@ -498,52 +507,38 @@ def read_parallel ():
 #___________________________________________________
 def xattr():
 #___________________________________________________
-
-  do_compile_program('./test_xattr')  
   return os.system("./test_xattr -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def link():
 #___________________________________________________
-
-  do_compile_program('./test_link')  
   return os.system("./test_link -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def readdir():
-#___________________________________________________
-
-  do_compile_program('./test_readdir')  
+#___________________________________________________ 
   return os.system("./test_readdir -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def rename():
 #___________________________________________________
-
-  do_compile_program('./test_rename')  
   ret=os.system("./test_rename -process %d -loop %d -mount %s"%(process,loop,mnt))
   return ret 
 
 #___________________________________________________
 def chmod():
 #___________________________________________________
-
-  do_compile_program('./test_chmod')  
   return os.system("./test_chmod -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def truncate():
 #___________________________________________________
-
-  do_compile_program('./test_trunc')  
   return os.system("./test_trunc -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def lock_posix_passing():
-#___________________________________________________
-
-  do_compile_program('./test_file_lock')  
-  zefile='%s/lock'%(mnt)
+#___________________________________________________ 
+  zefile='%s/%s'%(mnt,tst_file)
   try:
     os.remove(zefile)
   except:
@@ -553,22 +548,19 @@ def lock_posix_passing():
 #___________________________________________________
 def lock_posix_blocking():
 #___________________________________________________
-
-  do_compile_program('./test_file_lock')  
-  zefile='%s/lock'%(mnt)
+  zefile='%s/%s'%(mnt,tst_file)
   try:
     os.remove(zefile)
   except:
     pass  
+
   ret=os.system("./test_file_lock -process %d -loop %d -file %s"%(process,loop,zefile))
   return ret 
 
 #___________________________________________________
 def lock_bsd_passing():
-#___________________________________________________
-
-  do_compile_program('./test_file_lock')  
-  zefile='%s/lock'%(mnt)
+#___________________________________________________  
+  zefile='%s/%s'%(mnt,tst_file)
   try:
     os.remove(zefile)
   except:
@@ -577,19 +569,17 @@ def lock_bsd_passing():
 
 
 #___________________________________________________
-def quiet():
+def quiet(val=10):
 #___________________________________________________
 
   while True:
-    time.sleep(60)
+    time.sleep(val)
 
 
 #___________________________________________________
 def lock_bsd_blocking():
 #___________________________________________________
-
-  do_compile_program('./test_file_lock')  
-  zefile='%s/lock'%(mnt)
+  zefile='%s/%s'%(mnt,tst_file)
   try:
     os.remove(zefile)
   except:
@@ -600,10 +590,17 @@ def lock_bsd_blocking():
 def gruyere_one_reread():
 # reread files create by test_rebuild utility to check
 # their content
-#___________________________________________________
-
-  do_compile_program('./test_rebuild')  
+#___________________________________________________ 
   return os.system("./test_rebuild -action check -nbfiles %d -mount %s"%(int(nbGruyere),mnt))
+#___________________________________________________
+def gruyere_file_reread(nb):
+# reread files create by test_rebuild utility to check
+# their content
+#___________________________________________________ 
+  ret=os.system("./test_rebuild -action check -f %d -mount %s"%(int(nb),mnt))
+  if ret != 0:
+    print "File %s/rebuild/%d is corrupted"%(mnt,f)
+  return ret
 
 #___________________________________________________
 def gruyere_reread():
@@ -619,9 +616,7 @@ def gruyere_reread():
 #___________________________________________________
 def gruyere_write():
 # Use test_rebuild utility to create a bunch of files
-#___________________________________________________
-
-  do_compile_program('./test_rebuild')  
+#___________________________________________________ 
   return os.system("./test_rebuild -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
 
 #___________________________________________________
@@ -642,9 +637,9 @@ def rebuild_one() :
 #___________________________________________________
 
   ret=1 
-  for sid in range(STC_SID):
+  for sid in range(STORCLI_SID_NB):
 
-    hid=sid+(site*STC_SID)
+    hid=sid+(site*STORCLI_SID_NB)
     
     device_number,mapper_modulo,mapper_redundancy = get_device_numbers(hid)
     
@@ -674,9 +669,9 @@ def rebuild_all() :
 #___________________________________________________
 
   ret=1 
-  for sid in range(STC_SID):
+  for sid in range(STORCLI_SID_NB):
 
-    hid=sid+(site*STC_SID)
+    hid=sid+(site*STORCLI_SID_NB)
 
     os.system("./setup.sh storage %d device-delete all  1> /dev/null"%(hid+1))
     ret = os.system("./setup.sh storage %d device-rebuild all -g %s 1> /dev/null"%(hid+1,site))
@@ -686,23 +681,39 @@ def rebuild_all() :
     ret = gruyere_one_reread()  
     if ret != 0:
       return ret    
+
   ret = gruyere_reread()         
   return ret
+#___________________________________________________
+def delete_rebuild() :
+# test re-building a whole storage
+#___________________________________________________
+  os.system("rm -rf %s/rebuild  1> /dev/null"%(mnt))
+  return 0
 #___________________________________________________
 def rebuild_fid() :
 # test rebuilding per FID
 #___________________________________________________
+  skip=0
 
   for f in range(int(nbGruyere)/10):
+  
+    skip=skip+1
+    if skip == 4:
+      skip=0  
 
     # Get the split of file on storages      
-    string="./setup.sh cou %s/rebuild/%d"%(mnt,f+1)
+#    string="./setup.sh cou %s/rebuild/%d"%(mnt,f+1)
+    string="attr -g rozofs %s/rebuild/%d"%(mnt,f+1)
     parsed = shlex.split(string)
     cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     # loop on the bins file constituting this file, and ask
     # the storages for a rebuild of the file
     bins_list = []
+    fid=""
+    cid=0
+    storage=0
     for line in cmd.stdout:
 	  
       if "FID" in line:
@@ -710,35 +721,41 @@ def rebuild_fid() :
 	if len(words) >= 2:
           fid=words[2]
 	  continue
-	  	    
-      if "/bins_" in line:
-        bins_list.append(line)
-	continue	  
+	  
+      if "CLUSTER" in line:
+        words=line.split();
+	if len(words) >= 2:
+          cid=words[2]
+	  continue
+	  
+      if "STORAGE" in line:
+        words=line.split();
+	if len(words) >= 2:
+          storages=words[2]
+	  continue	  	  	    
+	  
+    
 
     # loop on the bins file constituting this file, and ask
     # the storages for a rebuild of the file
-    for line in bins_list:
-        words=line.split();
-	if len(words) >= 2:
-	
-	  name=words[1].split('/')
-	  check=name[len(name)-2]
-	  if check == "bins_0" or check == "bins_1": 
-	    cidsid=name[len(name)-4].split("storage_")[1].split('-')	  
-          else:
-	    cidsid=name[len(name)-5].split("storage_")[1].split('-')	  
+    line_nb=0
+    for sid in storages.split('-'):
+    
+      line_nb=line_nb+1
+      if skip >= line_nb:
+	  continue;  
 
-          hid=int(cidsid[1])+(int(site)*int(STC_SID))
-	  
-          string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s "%(hid,site,cidsid[0],cidsid[1],fid)
-          parsed = shlex.split(string)
-          cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-          cmd.wait()
-	  
-          if cmd.returncode != 0:
-            return 1        
+      hid=int(sid)+(int(site)*int(STORCLI_SID_NB))
 
-  return gruyere_one_reread()  
+      string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s "%(hid,site,cid,sid,fid)
+      parsed = shlex.split(string)
+      cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      cmd.wait()
+
+      if cmd.returncode != 0:
+        print "%s failed"%(string)
+	return 1 	       
+  return gruyere_reread()  
 
 #___________________________________________________
 def append_circumstance_test_list(list,input_list,circumstance):
@@ -758,12 +775,30 @@ def do_compile_program(program):
 
   if not os.path.exists(program) or os.stat(program).st_mtime < os.stat("%s.c"%(program)).st_mtime:
     os.system("gcc -g %s.c -lpthread -o %s"%(program,program))
-     
+
+#___________________________________________________
+def do_compile_programs(): 
+# compile all program if program.c is younger
+#___________________________________________________
+  do_compile_program('./rw')
+  do_compile_program('./rw2')
+  do_compile_program('./read_parallel')
+  do_compile_program('./test_xattr')
+  do_compile_program('./test_link')
+  do_compile_program('./test_readdir')
+  do_compile_program('./test_rename')
+  do_compile_program('./test_chmod')
+  do_compile_program('./test_trunc')
+  do_compile_program('./test_file_lock')
+  do_compile_program('./test_rebuild')
+ 
+
 #___________________________________________________
 def do_run_list(list):
 # run a list of test
 #___________________________________________________
-
+  global tst_file
+  
   tst_num=int(0)
   failed=int(0)
   success=int(0)
@@ -796,9 +831,12 @@ def do_run_list(list):
     split=tst.split('/') 
     
     time_before=time.time()
-    reset_counters()    
+    reset_counters()   
+    tst_file="tst_file" 
     
     if len(split) > 1:
+    
+      tst_file="%s.%s"%(split[1],split[0])
     
       # There is a test circumstance. resolve and call the circumstance  
       # function giving it the test name
@@ -808,6 +846,8 @@ def do_run_list(list):
         ret = 1
 
     else:
+
+      tst_file=split[0]
 
       # No test circumstance. Resolve and call the test function
       try:
@@ -921,13 +961,13 @@ def usage():
   print "      [--fast]           The run 2 times faster tests."
   print "      [--long]           The run 2 times longer tests."
   print "      [--repeat <nb>]    The number of times the test list must be repeated."   
-  print "      [--stop]           To stop the tests on the 1rst failure." 
+  print "      [--cont]           To continue tests on failure." 
   print "      [--fusetrace]      To enable fuse trace on test. When set, --stop is automaticaly set."
   print "    extra:"
   print "      [--process <nb>]   The number of processes that will run the test in paralell. (default %d)"%(process)
   print "      [--count <nb>]     The number of loop that each process will do. (default %s)"%(loop) 
   print "      [--fileSize <nb>]  The size in MB of the file for the test. (default %d)"%(fileSize)   
-  print "      [--mount <mount>]  The mount directory. (default %s)"%(DEFAULT_MNT)   
+  print "      [--mount <mount1,mount2,..>]  A comma separated list of mount points. (default %s)"%(mnts) 
   print "    Test group and names can be displayed thanks to ./IT.py -l"
   print "       - all              designate all the tests."
   print "       - rw               designate the read/write test list."
@@ -950,13 +990,13 @@ parser.add_option("-c","--count", action="store", type="string", dest="count", h
 parser.add_option("-f","--fileSize", action="store", type="string", dest="fileSize", help="The size in MB of the file for the test.")
 parser.add_option("-l","--list",action="store_true",dest="list", default=False, help="To display the list of test")
 parser.add_option("-k","--snipper",action="store",type="string",dest="snipper", help="To start a storio/storcli snipper.")
-parser.add_option("-s","--stop", action="store_true",dest="stop", default=False, help="To stop on 1rst failure.")
+parser.add_option("-s","--cont", action="store_true",dest="cont", default=False, help="To continue on failure.")
 parser.add_option("-t","--fusetrace", action="store_true",dest="fusetrace", default=False, help="To enable fuse trace on test.")
 parser.add_option("-F","--fast", action="store_true",dest="fast", default=False, help="To run 2 times faster tests.")
 parser.add_option("-S","--speed", action="store_true",dest="speed", default=False, help="To run 4 times faster tests.")
 parser.add_option("-L","--long", action="store_true",dest="long", default=False, help="To run 2 times longer tests.")
-parser.add_option("-r","--repeat", action="store", type="string", dest="repeat", help="Test repetition count.")
-parser.add_option("-m","--mount", action="store", type="string", dest="mount", help="The mount point to test on.")
+parser.add_option("-r","--repeat", action="store", type="string", dest="repeat", help="A repetition count.")
+parser.add_option("-m","--mount", action="store", type="string", dest="mount", help="A comma separated list of mount points to test on.")
 
 # Read/write test list
 TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_rd_total_close','wr_rd_partial_close','wr_rd_random_close','wr_close_rd_total','wr_close_rd_partial','wr_close_rd_random','wr_close_rd_total_close','wr_close_rd_partial_close','wr_close_rd_random_close']
@@ -965,7 +1005,7 @@ TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_pass
 # Rebuild test list
 TST_REBUILD=['gruyere','rebuild_fid','rebuild_one','rebuild_all']
 
-
+get_all_mount_points()
 
 (options, args) = parser.parse_args()
  
@@ -985,8 +1025,8 @@ if options.list == True:
   do_list()
   exit(0)
     
-if options.stop == True:  
-  stopOnFailure=True 
+if options.cont == True:  
+  stopOnFailure=False 
 
 if options.fusetrace == True:  
   stopOnFailure=True 
@@ -1005,15 +1045,20 @@ elif options.long == True:
   nbGruyere=nbGruyere*2
 
 if options.mount != None:
-  mnt=options.mount  
-
-site=get_site_number()
+  mnts=options.mount
+  if mnts == "all":
+    mnts=ALL_MNT
+else:
+  mnts=ALL_MNT.split(',')[0]
+mnt=mnts.split(',')[0]  
 
 if options.snipper != None:
-  NB_SID,STC_SID=get_sid_nb()
+  site=get_site_number()
+  EXPORT_SID_NB,STORCLI_SID_NB=get_sid_nb()
   snipper(options.snipper)
   exit(0)  
   
+#TST_REBUILD=TST_REBUILD+['rebuild_delete']
 
 # Build list of test 
 list=[] 
@@ -1024,7 +1069,7 @@ for arg in args:
     list.extend(TST_RW)
     append_circumstance_test_list(list,TST_RW,'storageFailed')
     append_circumstance_test_list(list,TST_RW,'storageReset')
-    append_circumstance_test_list(list,TST_RW,'storcliReset')   
+#re    append_circumstance_test_list(list,TST_RW,'storcliReset')   
   elif arg == "rw":
     list.extend(TST_RW)
   elif arg == "storageFailed":
@@ -1036,7 +1081,7 @@ for arg in args:
   elif arg == "basic":
     list.extend(TST_BASIC)
   elif arg == "rebuild":
-    list.extend(TST_REBUILD)              
+    list.extend(TST_REBUILD)  
   else:
     list.append(arg)              
 # No list of test. Print usage
@@ -1052,10 +1097,16 @@ if options.repeat != None:
 else:
   new_list.extend(list)  
 
-if not os.path.isdir(mnt):
-  print "%s is not a directory"%(mnt)
-  exit(-1)   
-  
-# Run the requested test list
-NB_SID,STC_SID=get_sid_nb()
-do_run_list(new_list)
+do_compile_programs() 
+
+for mnt in mnts.split(','):
+
+  mnt=mnt.split('/')[0]
+  site=get_site_number()
+  EXPORT_SID_NB,STORCLI_SID_NB=get_sid_nb()
+
+  if not os.path.isdir(mnt):
+    print "%s is not a directory"%(mnt)
+    continue 
+
+  do_run_list(new_list)

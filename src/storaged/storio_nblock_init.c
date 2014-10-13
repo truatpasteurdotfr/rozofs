@@ -140,6 +140,10 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
 	sp_clear_io_probe(gprofiler, read);
 	sp_clear_io_probe(gprofiler, write);
 	sp_clear_io_probe(gprofiler, truncate);
+	sp_clear_io_probe(gprofiler, remove);
+	sp_clear_io_probe(gprofiler, rebuild_start);
+	sp_clear_io_probe(gprofiler, rebuild_stop);
+	sp_clear_io_probe(gprofiler, remove_chunk);
 	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
 	return;      
       }
@@ -169,6 +173,10 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
     sp_display_io_probe(gprofiler, read);
     sp_display_io_probe(gprofiler, write);
     sp_display_io_probe(gprofiler, truncate);
+    sp_display_io_probe(gprofiler, remove);
+    sp_display_io_probe(gprofiler, rebuild_start);
+    sp_display_io_probe(gprofiler, rebuild_stop);
+    sp_display_io_probe(gprofiler, remove_chunk);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
@@ -344,6 +352,10 @@ int storio_start_nb_th(void *args) {
   if (size < sizeof(sp_read_arg_t)) size = sizeof(sp_read_arg_t);
   if (size < sizeof(sp_truncate_arg_no_bins_t)) size = sizeof(sp_truncate_arg_no_bins_t);
   if (size < sizeof(sp_remove_arg_t)) size = sizeof(sp_remove_arg_t);
+  if (size < sizeof(sp_rebuild_start_arg_t)) size = sizeof(sp_rebuild_start_arg_t);
+  if (size < sizeof(sp_rebuild_stop_arg_t)) size = sizeof(sp_rebuild_stop_arg_t);
+  if (size < sizeof(sp_remove_chunk_arg_t)) size = sizeof(sp_remove_chunk_arg_t);
+
   decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
   if (decoded_rpc_buffer_pool == NULL) {
     fatal("Can not allocate decoded_rpc_buffer_pool");
@@ -354,7 +366,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Initialize the disk thread interface and start the disk threads
   */	
-  ret = storio_disk_thread_intf_create(args_p->hostname,args_p->instance_id, storaged_config.nb_disk_threads, ROZORPC_SRV_CTX_CNT) ;
+  ret = storio_disk_thread_intf_create(args_p->hostname,args_p->instance_id, storaged_config.nb_disk_threads) ;
   if (ret < 0) {
     fatal("storio_disk_thread_intf_create");
     return -1;
@@ -384,7 +396,7 @@ int storio_start_nb_th(void *args) {
   ** A timing counter service
   */ 
   detailed_counters_init();
-   
+  serialization_counters_init();
   /*
   ** init of the fd cache
   */

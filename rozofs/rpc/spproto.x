@@ -46,6 +46,9 @@ struct spp_profiler_t {
     uint64_t    read[3];
     uint64_t    write[3];
     uint64_t    truncate[3];
+    uint64_t    rebuild_start[3];
+    uint64_t    rebuild_stop[3];
+    uint64_t    remove_chunk[3];
 };
 
 union spp_profiler_ret_t switch (spp_status_t status) {

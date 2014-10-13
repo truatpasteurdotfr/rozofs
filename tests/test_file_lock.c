@@ -262,7 +262,7 @@ int lockAllUnlockByPieces (int ope, int posRef) {
      
   fd = open(MYFILENAME, O_RDWR);
   if (fd < 0) {
-    printf("proc %3d - open(%s) errno %d %s\n", myProcId, FILENAME,errno, strerror(errno));
+    printf("proc %3d - open(%s) errno %d %s\n", myProcId, MYFILENAME,errno, strerror(errno));
     ret -1;
     goto out;  
   }    
@@ -426,9 +426,9 @@ int do_posix_test(int count) {
   int idx;
   int posRef;
      
-  fd = open(FILENAME, O_RDWR);
+  fd = open(MYFILENAME, O_RDWR);
   if (fd < 0) {
-    printf("proc %3d - open(%s) errno %d %s\n", myProcId, FILENAME,errno, strerror(errno));
+    printf("proc %3d - open(%s) errno %d %s\n", myProcId, MYFILENAME,errno, strerror(errno));
     return -1;  
   }    
       
@@ -464,9 +464,9 @@ int do_bsd_test(int count) {
   int ret;
   int idx;
 
-  fd = open(FILENAME, O_RDWR);
+  fd = open(MYFILENAME, O_RDWR);
   if (fd < 0) {
-    printf("proc %3d - open(%s) errno %d %s\n", myProcId, FILENAME,errno, strerror(errno));
+    printf("proc %3d - open(%s) errno %d %s\n", myProcId, MYFILENAME,errno, strerror(errno));
     return -1;  
   }    
 

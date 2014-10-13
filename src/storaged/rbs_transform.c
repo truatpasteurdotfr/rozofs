@@ -44,6 +44,7 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
     uint64_t ts_empty_count = 0;
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
 
     *timestamp_p = 0;
     rbs_timestamp_next_free_idx = 0;
@@ -56,6 +57,9 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
             // This projection context does not contain valid data, so skip it
             continue;
         }
+        if ((block_idx+1) > prj_ctx_p[prj_ctx_idx].nbBlocks) {
+	  continue;
+	} 
 
         // Get the pointer to the projection header
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
@@ -63,14 +67,20 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
                 + ((rozofs_get_max_psize(layout,bsize)+
                 ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                 * block_idx));
-        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
-	        ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,rozofs_bins_hdr_p->s.projection_id));
+        if (rozofs_bins_hdr_p->s.projection_id < rozofs_forward) {	
 
-        // Header and footer have different time stamp.
-	// Let's consider this block invalid
-        if (rozofs_bins_hdr_p->s.timestamp != rozofs_bins_foot_p->timestamp) {
-	    rozofs_bins_hdr_p->s.timestamp = 0;
+          rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
+	          ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,rozofs_bins_hdr_p->s.projection_id));
+
+          // Header and footer have different time stamp.
+	  // Let's consider this block invalid
+          if (rozofs_bins_hdr_p->s.timestamp != rozofs_bins_foot_p->timestamp) {
+	      rozofs_bins_hdr_p->s.timestamp = 0;
+	  }
 	}
+	else {
+	  rozofs_bins_hdr_p->s.timestamp = 0;
+	}  
 
         // Case of ts = 0
         if (rozofs_bins_hdr_p->s.timestamp == 0) {
@@ -144,7 +154,7 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
 
     return -1;
 }
-int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint32_t bsize,
+int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, int spare_idx, uint8_t layout, uint32_t bsize,
         uint32_t block_idx, uint8_t *prj_idx_tb_p, uint64_t *timestamp_p,
         uint16_t *effective_length_p) {
 
@@ -153,6 +163,7 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
     rbs_timestamp_ctx_t *ts_ctx_p = NULL;
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
+    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t and_the_winner_is = -1;
 
     *timestamp_p = 0;
@@ -160,6 +171,8 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
 
     // For each projection
     for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++) {
+    
+        if (spare_idx == prj_ctx_idx) continue;
 
         // Check projection state
         if (prj_ctx_p[prj_ctx_idx].prj_state != PRJ_READ_DONE) {
@@ -173,14 +186,22 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
                 + ((rozofs_get_max_psize(layout,bsize)+
                 ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
                 * block_idx));
-        rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
-	       ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,prj_ctx_idx));
+		
+        if (rozofs_bins_hdr_p->s.projection_id < rozofs_forward) {	
 
-        // Header and footer have different time stamp.
-	// Let's consider this block invalid
-        if (rozofs_bins_hdr_p->s.timestamp != rozofs_bins_foot_p->timestamp) {
-	    rozofs_bins_hdr_p->s.timestamp = 0;
+          rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
+	          ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,rozofs_bins_hdr_p->s.projection_id));
+
+          // Header and footer have different time stamp.
+	  // Let's consider this block invalid
+          if (rozofs_bins_hdr_p->s.timestamp != rozofs_bins_foot_p->timestamp) {
+	      rozofs_bins_hdr_p->s.timestamp = 0;
+	  }
 	}
+	else {
+	  rozofs_bins_hdr_p->s.timestamp = 0;
+	}  
+			
 
         // First valid projection
         if (rbs_timestamp_next_free_idx == 0) {

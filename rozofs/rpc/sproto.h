@@ -36,6 +36,8 @@ struct sp_write_arg_t {
 	uint8_t sid;
 	uint8_t layout;
 	uint8_t spare;
+	uint32_t rebuild_ref;
+	uint32_t alignement;
 	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint8_t proj_id;
@@ -54,6 +56,8 @@ struct sp_write_arg_no_bins_t {
 	uint8_t sid;
 	uint8_t layout;
 	uint8_t spare;
+	uint32_t rebuild_ref;
+	uint32_t alignement;
 	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint8_t proj_id;
@@ -122,6 +126,54 @@ struct sp_remove_arg_t {
 };
 typedef struct sp_remove_arg_t sp_remove_arg_t;
 
+struct sp_remove_chunk_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t layout;
+	uint8_t bsize;
+	uint8_t spare;
+	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	sp_uuid_t fid;
+	uint32_t rebuild_ref;
+	uint32_t chunk;
+};
+typedef struct sp_remove_chunk_arg_t sp_remove_chunk_arg_t;
+
+struct sp_rebuild_start_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	sp_uuid_t fid;
+	uint64_t start_bid;
+	uint64_t stop_bid;
+};
+typedef struct sp_rebuild_start_arg_t sp_rebuild_start_arg_t;
+
+struct sp_rebuild_start_ret_t {
+	sp_status_t status;
+	union {
+		uint32_t rebuild_ref;
+		int error;
+	} sp_rebuild_start_ret_t_u;
+};
+typedef struct sp_rebuild_start_ret_t sp_rebuild_start_ret_t;
+
+struct sp_rebuild_stop_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	sp_uuid_t fid;
+	uint32_t rebuild_ref;
+};
+typedef struct sp_rebuild_stop_arg_t sp_rebuild_stop_arg_t;
+
+struct sp_rebuild_stop_ret_t {
+	sp_status_t status;
+	union {
+		uint32_t rebuild_ref;
+		int error;
+	} sp_rebuild_stop_ret_t_u;
+};
+typedef struct sp_rebuild_stop_ret_t sp_rebuild_stop_ret_t;
+
 struct sp_read_t {
 	uint32_t filler;
 	struct {
@@ -169,6 +221,15 @@ extern  sp_status_ret_t * sp_truncate_1_svc(sp_truncate_arg_t *, struct svc_req 
 #define SP_REMOVE 4
 extern  sp_status_ret_t * sp_remove_1(sp_remove_arg_t *, CLIENT *);
 extern  sp_status_ret_t * sp_remove_1_svc(sp_remove_arg_t *, struct svc_req *);
+#define SP_REBUILD_START 5
+extern  sp_rebuild_start_ret_t * sp_rebuild_start_1(sp_rebuild_start_arg_t *, CLIENT *);
+extern  sp_rebuild_start_ret_t * sp_rebuild_start_1_svc(sp_rebuild_start_arg_t *, struct svc_req *);
+#define SP_REBUILD_STOP 6
+extern  sp_rebuild_stop_ret_t * sp_rebuild_stop_1(sp_rebuild_stop_arg_t *, CLIENT *);
+extern  sp_rebuild_stop_ret_t * sp_rebuild_stop_1_svc(sp_rebuild_stop_arg_t *, struct svc_req *);
+#define SP_REMOVE_CHUNK 7
+extern  sp_status_ret_t * sp_remove_chunk_1(sp_remove_chunk_arg_t *, CLIENT *);
+extern  sp_status_ret_t * sp_remove_chunk_1_svc(sp_remove_chunk_arg_t *, struct svc_req *);
 extern int storage_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -187,6 +248,15 @@ extern  sp_status_ret_t * sp_truncate_1_svc();
 #define SP_REMOVE 4
 extern  sp_status_ret_t * sp_remove_1();
 extern  sp_status_ret_t * sp_remove_1_svc();
+#define SP_REBUILD_START 5
+extern  sp_rebuild_start_ret_t * sp_rebuild_start_1();
+extern  sp_rebuild_start_ret_t * sp_rebuild_start_1_svc();
+#define SP_REBUILD_STOP 6
+extern  sp_rebuild_stop_ret_t * sp_rebuild_stop_1();
+extern  sp_rebuild_stop_ret_t * sp_rebuild_stop_1_svc();
+#define SP_REMOVE_CHUNK 7
+extern  sp_status_ret_t * sp_remove_chunk_1();
+extern  sp_status_ret_t * sp_remove_chunk_1_svc();
 extern int storage_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -202,6 +272,11 @@ extern  bool_t xdr_sp_read_arg_t (XDR *, sp_read_arg_t*);
 extern  bool_t xdr_sp_truncate_arg_no_bins_t (XDR *, sp_truncate_arg_no_bins_t*);
 extern  bool_t xdr_sp_truncate_arg_t (XDR *, sp_truncate_arg_t*);
 extern  bool_t xdr_sp_remove_arg_t (XDR *, sp_remove_arg_t*);
+extern  bool_t xdr_sp_remove_chunk_arg_t (XDR *, sp_remove_chunk_arg_t*);
+extern  bool_t xdr_sp_rebuild_start_arg_t (XDR *, sp_rebuild_start_arg_t*);
+extern  bool_t xdr_sp_rebuild_start_ret_t (XDR *, sp_rebuild_start_ret_t*);
+extern  bool_t xdr_sp_rebuild_stop_arg_t (XDR *, sp_rebuild_stop_arg_t*);
+extern  bool_t xdr_sp_rebuild_stop_ret_t (XDR *, sp_rebuild_stop_ret_t*);
 extern  bool_t xdr_sp_read_t (XDR *, sp_read_t*);
 extern  bool_t xdr_sp_read_ret_t (XDR *, sp_read_ret_t*);
 extern  bool_t xdr_sp_write_ret_t (XDR *, sp_write_ret_t*);
@@ -216,6 +291,11 @@ extern bool_t xdr_sp_read_arg_t ();
 extern bool_t xdr_sp_truncate_arg_no_bins_t ();
 extern bool_t xdr_sp_truncate_arg_t ();
 extern bool_t xdr_sp_remove_arg_t ();
+extern bool_t xdr_sp_remove_chunk_arg_t ();
+extern bool_t xdr_sp_rebuild_start_arg_t ();
+extern bool_t xdr_sp_rebuild_start_ret_t ();
+extern bool_t xdr_sp_rebuild_stop_arg_t ();
+extern bool_t xdr_sp_rebuild_stop_ret_t ();
 extern bool_t xdr_sp_read_t ();
 extern bool_t xdr_sp_read_ret_t ();
 extern bool_t xdr_sp_write_ret_t ();

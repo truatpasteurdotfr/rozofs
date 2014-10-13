@@ -262,6 +262,7 @@ void  rozorpc_srv_ctxInit(rozorpc_srv_ctx_t *p,uint8_t creation)
   p->profiler_time  = 0;
   p->decoded_arg = NULL;
   p->arg_decoder = NULL;
+  list_init(&p->list);
  
 }
 
@@ -346,6 +347,8 @@ void rozorpc_srv_release_context(rozorpc_srv_ctx_t *ctx_p)
      ruc_buf_freeBuffer(ctx_p->decoded_arg);
      ctx_p->decoded_arg = NULL;
   }
+  
+  list_remove(&ctx_p->list);
 
   /*
   ** remove it from any other list and re-insert it on the free list

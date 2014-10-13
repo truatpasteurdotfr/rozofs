@@ -19,6 +19,7 @@
 #define UMA_DBG_API_H
 
 #include <rozofs/common/types.h>
+#include <stdio.h>
 
 #include "ruc_common.h"
 
@@ -28,7 +29,51 @@
 */
 #define UMA_DBG_MAX_SEND_SIZE (1024*384)
 extern char uma_dbg_temporary_buffer[];
-
+/*__________________________________________________________________________
+ */
+/**
+*  Display bytes with correct unit 
+*  @param value         Value in bytes to display
+*  @param value_string  String where to format the value
+*/
+static inline int uma_dbg_byte2String(uint64_t value, char * value_string) {
+  uint64_t   modulo=0;
+  char     * pt = value_string;
+  
+  if (value<1000) {
+    return sprintf(pt,"%llu Bytes",(long long unsigned int) value);  		    
+  }
+  
+  if (value<1000000) {
+    if (value>99000) {
+      return sprintf(pt,"%llu KB",(long long unsigned int) value/1000);  		    
+    }
+    modulo = (value % 1000) / 100;
+    return sprintf(pt,"%llu.%1.1llu KB",(long long unsigned int) value/1000, (long long unsigned int)modulo);
+  }
+  
+  if (value<1000000000) {
+    if (value>99000000) {
+      return sprintf(pt,"%llu MB",(long long unsigned int) value/1000000);  		    
+    }
+    modulo = (value % 1000000) / 100000;
+    return sprintf(pt,"%llu.%1.1llu MB",(long long unsigned int) value/1000000, (long long unsigned int)modulo);
+  }
+    
+  if (value<1000000000000) {
+    if (value>99000000000) {
+      return sprintf(pt,"%llu GB",(long long unsigned int) value/1000000000);  		    
+    }
+    modulo = (value % 1000000000) / 100000000;
+    return sprintf(pt,"%llu.%1.1llu GB",(long long unsigned int) value/1000000000, (long long unsigned int)modulo);
+  }  
+  
+  if (value>99000000000000) {
+    return sprintf(pt,"%llu PB",(long long unsigned int) value/1000000000000);  		    
+  }
+  modulo = (value % 1000000000000) / 100000000000;
+ return sprintf(pt,"%llu.%1.1llu PB",(long long unsigned int) value/1000000000000,(long long unsigned int) modulo);
+}
 /*__________________________________________________________________________
  */
 /**

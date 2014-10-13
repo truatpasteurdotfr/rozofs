@@ -57,17 +57,20 @@
 #include "sconfig.h"
 #include "rbs.h"
 #include "rbs_eclient.h"
-
+#include "rbs_sclient.h"
 
 sconfig_t   storaged_config;
+uint8_t prj_id_present[ROZOFS_SAFE_MAX];
 
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 static uint16_t storaged_nrstorages = 0;
-
-
+char                command[1];
+char              * fid2rebuild_string=NULL;
 uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
+/* nb. of retries for get bins on storages */
+static uint32_t retries = 10;
 
 // Rebuild storage variables
 
@@ -157,6 +160,463 @@ static void storaged_release() {
         free(s);
     }
 }
+
+int rbs_restore_one_spare_entry(storage_t       * st, 
+                                int               local_idx, 
+			        uint32_t        * block_start,
+			        uint32_t          block_end, 
+			     	rb_entry_t      * re, 
+				uint8_t           spare_idx,
+				uint64_t        * size_written,
+				uint64_t        * size_read) {
+    int status = -1;
+    int i = 0;
+    int ret = -1;
+    rbs_storcli_ctx_t working_ctx;
+    int block_idx = 0;
+    uint8_t rbs_prj_idx_table[ROZOFS_SAFE_MAX];
+    int     count;
+    rbs_inverse_block_t * pBlock;
+    int prj_count;
+    uint16_t prj_ctx_idx;
+    uint16_t projection_id;
+    char   *  pforward = NULL;
+    rozofs_stor_bins_hdr_t * rozofs_bins_hdr_p;
+    rozofs_stor_bins_footer_t * rozofs_bins_foot_p;
+//    rozofs_stor_bins_hdr_t * bins_hdr_local_p;    
+    int    remove_file=0;
+    uint32_t   rebuild_ref=0;
+            
+    // Get rozofs layout parameters
+    uint8_t  layout            = re->layout;
+    uint32_t bsize             = re->bsize;
+    uint32_t bbytes            = ROZOFS_BSIZE_BYTES(bsize);
+    uint8_t  rozofs_safe       = rozofs_get_rozofs_safe(layout);
+    uint8_t  rozofs_forward    = rozofs_get_rozofs_forward(layout);
+    uint8_t  rozofs_inverse    = rozofs_get_rozofs_inverse(layout);
+    uint16_t disk_block_size   = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t)) 
+                               + sizeof (rozofs_stor_bins_hdr_t) 
+			       + sizeof(rozofs_stor_bins_footer_t);
+    uint16_t disk_block_bins_size   = disk_block_size/sizeof(bin_t);
+    uint32_t requested_blocks  = ROZOFS_BLOCKS_IN_BUFFER(re->bsize);
+    uint32_t nb_blocks_read_distant = requested_blocks;
+    uint32_t block_per_chunk = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(re->bsize);
+    uint32_t chunk_stop;
+    uint32_t chunk;
+
+    // Clear the working context
+    memset(&working_ctx, 0, sizeof (working_ctx));
+
+    /*
+    ** Compute starting and stopping chunks
+    */    
+    chunk = *block_start / block_per_chunk;
+    if (block_end==0xFFFFFFFF) chunk_stop = 0xFFFFFFFF; // whole file
+    else                       chunk_stop = chunk;      // one chunk
+          
+    while (chunk<=chunk_stop) {
+
+      *block_start = chunk * block_per_chunk;
+      block_end    = *block_start + block_per_chunk - 1;
+      
+      remove_file = 1; /* Should possibly remove the chunk at the end */
+
+      rebuild_ref = sclient_rebuild_start_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, *block_start, block_end);
+      if (rebuild_ref == 0) {
+	remove_file = 0;
+	goto out;
+      }     
+
+      // While we can read in the bins file
+      while(*block_start <= block_end) {
+
+
+          // Clear the working context
+	  if (working_ctx.data_read_p) {
+            free(working_ctx.data_read_p);
+            working_ctx.data_read_p = NULL;	
+	  }	
+          // Free bins read in previous round
+	  for (i = 0; i < rozofs_safe; i++) {
+              if (working_ctx.prj_ctx[i].bins) {
+        	  free(working_ctx.prj_ctx[i].bins);
+		  working_ctx.prj_ctx[i].bins = NULL;
+	      }	   
+	      working_ctx.prj_ctx[i].prj_state = PRJ_READ_IDLE;
+	  }
+
+
+	  if ((block_end-*block_start+1) < requested_blocks){
+	    requested_blocks = (block_end-*block_start+1);
+	  }
+
+          // Read every available bins
+	  ret = rbs_read_all_available_proj(re->storages, spare_idx, layout, bsize, st->cid,
+                                	    re->dist_set_current, re->fid, *block_start,
+                                	    requested_blocks, &nb_blocks_read_distant,
+                                	    &working_ctx,
+					    size_read);
+
+	  // Reading at least inverse projection has failed				  
+          if (ret != 0) {
+              remove_file = 0;// Better keep the file	
+              errno = EIO;	
+              goto out;
+          }
+
+	  if (nb_blocks_read_distant == 0) break; // End of chunk	
+
+	  // Loop on the received blocks
+          pBlock = &working_ctx.block_ctx_table[0];	
+          for (block_idx = 0; block_idx < nb_blocks_read_distant; block_idx++,pBlock++) {
+
+              count = rbs_count_timestamp_tb(working_ctx.prj_ctx, spare_idx, layout, bsize, block_idx,
+                                             rbs_prj_idx_table, 
+			  		     &pBlock->timestamp,
+                                             &pBlock->effective_length);
+
+	      // Less than rozofs_inverse projection. Can not regenerate anything 
+	      // from what has been read				   	
+	      if (count < 0) {
+                  remove_file = 0;// Better keep the file	    
+        	  errno = EIO;	
+        	  goto out;	      
+	      }
+
+	      // All projections have been read. Nothing to regenerate for this block
+	      if (count >= rozofs_forward) continue;
+
+
+              // Enough projection read to regenerate data, but not all existing projections   
+
+#if 0
+              // Is this block already written on local disk
+              bins_hdr_local_p = (rozofs_stor_bins_hdr_t *) working_ctx.prj_ctx[spare_idx].bins;
+	      if ((bins_hdr_local_p != NULL)&&(working_ctx.prj_ctx[spare_idx].nbBlocks>block_idx)) {
+		   bins_hdr_local_p = (bins_hdr_local_p*) ((char*)bins_hdr_local_p + (disk_block_size * block_idx));  
+		   if (bins_hdr_local_p->s.timestamp == pBlock->timestamp) {
+		       // Check footer too
+		       projection_id = bins_hdr_local_p->s.projection_id;
+		       if (projection_id < rozofs_forward) {
+			 rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_get_psizes(layout,bsize,projection_id));	
+
+        		 // Compare timestamp of local and distant block
+        		 if (rozofs_bins_foot_p->timestamp == bins_hdr_local_p->s.timestamp) {
+                	    remove_file = 0;// This file must exist
+                	    continue; // Check next block
+        		 }
+		       }	 
+		   }	 
+	      }
+#endif
+
+              // Case of the empty block
+              if (pBlock->timestamp == 0) {
+
+		 prj_ctx_idx = rbs_prj_idx_table[0];
+		 
+	         if (pforward == NULL) pforward = xmalloc(disk_block_size);
+                 memset(pforward,0,disk_block_size);
+		 
+        	 // Store the projection localy	
+        	 ret = sclient_write_rbs(re->storages[spare_idx], st->cid, st->sid,
+	                        	 layout, bsize, 1 /* Spare */,
+					 re->dist_set_current, re->fid,
+					 *block_start+block_idx, 1,
+					 (const bin_t *)pforward,
+					 rebuild_ref);
+        	 remove_file = 0;	// This file must exist   
+        	 if (ret < 0) {
+                     goto out;
+        	 }	
+	         *size_written += disk_block_size;
+		 continue;
+	      }  		
+
+	      // Need to regenerate a projection and need 1rst to regenerate initial data.	
+
+	      // Allocate memory for initial data
+              if (working_ctx.data_read_p == NULL) {
+		working_ctx.data_read_p = xmalloc(bbytes);
+	      }		
+
+
+              memset(prj_id_present,0,sizeof(prj_id_present));
+
+              for (prj_count = 0; prj_count < count; prj_count++) {
+
+        	  // Get the pointer to the beginning of the projection and extract
+        	  // the projection ID
+        	  prj_ctx_idx = rbs_prj_idx_table[prj_count];
+
+        	  rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p =
+                	  (rozofs_stor_bins_hdr_t*) (working_ctx.prj_ctx[prj_ctx_idx].bins
+                	  + (disk_block_bins_size * block_idx));
+
+        	  // Extract the projection_id from the header and fill the table
+        	  // of projections for the block block_idx for each projection
+        	  projection_id = rozofs_bins_hdr_p->s.projection_id;
+
+		  prj_id_present[projection_id] = 1;
+
+		  if (prj_count < rozofs_inverse) {
+        	      rbs_projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
+        	      rbs_projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
+        	      rbs_projections[prj_count].size    = rozofs_get_psizes(layout,bsize,projection_id);
+        	      rbs_projections[prj_count].bins    = (bin_t*) (rozofs_bins_hdr_p + 1);
+		  }   
+              }
+
+              // Inverse data for the block (first_block_idx + block_idx)
+              transform_inverse((pxl_t *) working_ctx.data_read_p,
+                		rozofs_inverse,
+                		bbytes / rozofs_inverse / sizeof (pxl_t),
+                		rozofs_inverse, rbs_projections);
+
+	      // Find out which projection id to regenerate
+              for (projection_id = 0; projection_id < rozofs_safe; projection_id++) {
+	          if (prj_id_present[projection_id] == 0) break;
+	      }
+
+	      // Allocate memory for regenerated projection
+	      if (pforward == NULL) pforward = xmalloc(disk_block_size);
+	      rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *) pforward;
+	      rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,projection_id));	
+
+	      // Describe projection to rebuild 
+              rbs_projections[projection_id].angle.p = rozofs_get_angles_p(layout,projection_id);
+              rbs_projections[projection_id].angle.q = rozofs_get_angles_q(layout,projection_id);
+              rbs_projections[projection_id].size    = rozofs_get_psizes(layout,bsize,projection_id);
+              rbs_projections[projection_id].bins    = (bin_t*) (rozofs_bins_hdr_p + 1);
+
+              // Generate projections to rebuild
+              transform_forward_one_proj((const bin_t *)working_ctx.data_read_p, 
+	                        	 rozofs_inverse, 
+	                        	 bbytes / rozofs_inverse / sizeof (pxl_t),
+					 projection_id, 
+					 rbs_projections);
+
+	      // Fill projection header			       
+	      rozofs_bins_hdr_p->s.projection_id     = projection_id;			       
+	      rozofs_bins_hdr_p->s.effective_length  = pBlock->effective_length;
+	      rozofs_bins_hdr_p->s.timestamp         = pBlock->timestamp;			       
+              rozofs_bins_hdr_p->s.version           = 0;
+              rozofs_bins_hdr_p->s.filler            = 0;
+
+              rozofs_bins_foot_p->timestamp          = pBlock->timestamp;	
+
+              // Store the projection localy	
+              ret = sclient_write_rbs(re->storages[spare_idx], st->cid, st->sid,
+	                              layout, bsize, 1 /* Spare */,
+				      re->dist_set_current, re->fid,
+				      *block_start+block_idx, 1,
+				      (const bin_t *)rozofs_bins_hdr_p,
+				      rebuild_ref);
+              remove_file = 0;// This file must exist		   
+              if (ret < 0) {
+        	  severe("sclient_write_rbs failed %s", strerror(errno));
+        	  goto out;
+              }	
+	      *size_written += disk_block_size;	             
+          }
+
+	  *block_start += nb_blocks_read_distant;
+
+      }	
+      
+      if (remove_file) {
+	ret = sclient_remove_chunk_rbs(re->storages[local_idx], st->cid, st->sid, layout, 
+	                               1/*spare*/, re->bsize,
+	                               re->dist_set_current, re->fid, chunk, rebuild_ref);
+      }
+
+      if (rebuild_ref != 0) {
+	sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref);
+	rebuild_ref = 0;
+      } 
+      
+      // end of file
+      if (*block_start == chunk * block_per_chunk) {
+        break;
+      }
+      
+      // Next chunk
+      chunk++;        
+    }
+      
+    status = 0;
+    			      
+out:
+
+    *block_start = chunk * block_per_chunk;    
+    
+    if (rebuild_ref != 0) {
+      sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref);
+    }    
+    
+    // Clear the working context
+    if (working_ctx.data_read_p) {
+      free(working_ctx.data_read_p);
+      working_ctx.data_read_p = NULL;	
+    }	    
+    for (i = 0; i < rozofs_safe; i++) {
+        if (working_ctx.prj_ctx[i].bins) {
+            free(working_ctx.prj_ctx[i].bins);
+	    working_ctx.prj_ctx[i].bins = NULL;
+	}	   
+    }    
+
+    if (pforward) {
+      free(pforward);
+      pforward = NULL;
+    }
+
+    return status;
+}
+
+#define RESTORE_ONE_RB_ENTRY_FREE_ALL \
+	for (i = 0; i < rozofs_safe; i++) {\
+            if (working_ctx.prj_ctx[i].bins) {\
+        	free(working_ctx.prj_ctx[i].bins);\
+		working_ctx.prj_ctx[i].bins = NULL;\
+	    }\
+	}\
+	if (working_ctx.data_read_p) {\
+          free(working_ctx.data_read_p);\
+          working_ctx.data_read_p = NULL;\
+	}\
+	if (saved_bins) {\
+	  free(saved_bins);\
+	  saved_bins = NULL;\
+	}\
+        memset(&working_ctx, 0, sizeof (working_ctx));
+	
+int rbs_restore_one_rb_entry(storage_t       * st, 
+                             int               local_idx, 
+			     uint32_t        * block_start,
+			     uint32_t          block_end, 
+			     rb_entry_t      * re, 
+			     uint8_t           proj_id_to_rebuild,
+			     uint64_t        * size_written,
+			     uint64_t        * size_read) {
+    int               status = -1;
+    int               ret    = -1;
+    rbs_storcli_ctx_t working_ctx;
+    uint32_t          rebuild_ref;
+  
+    // Get rozofs layout parameters
+    uint8_t layout                  = re->layout;
+    uint32_t bsize                  = re->bsize;
+    uint16_t rozofs_disk_psize      = rozofs_get_psizes(layout,bsize,proj_id_to_rebuild);
+    uint8_t  rozofs_safe            = rozofs_get_rozofs_safe(layout);
+    uint16_t rozofs_max_psize       = rozofs_get_max_psize(layout,bsize);
+    uint32_t requested_blocks       = ROZOFS_BLOCKS_IN_BUFFER(re->bsize);
+    uint32_t nb_blocks_read_distant = requested_blocks;
+    bin_t * saved_bins = NULL;
+    int     i;   
+    //int   size;
+       
+    // Clear the working context
+    memset(&working_ctx, 0, sizeof (working_ctx));
+
+    rebuild_ref = sclient_rebuild_start_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, *block_start, block_end);
+    if (rebuild_ref == 0) {
+      goto out;
+    }
+        
+    // While we can read in the bins file
+    while(*block_start <= block_end) {
+         
+        // Clear the working context
+	RESTORE_ONE_RB_ENTRY_FREE_ALL;
+	
+	if ((block_end!=0xFFFFFFFF) && ((block_end-*block_start+1) < requested_blocks)) {
+	  requested_blocks = (block_end-*block_start+1);
+	}
+
+        // Try to read blocks on others storages
+        ret = rbs_read_blocks(re->storages, local_idx, layout, bsize, st->cid,
+                	      re->dist_set_current, re->fid, *block_start,
+                	      requested_blocks, &nb_blocks_read_distant, retries,
+                	      &working_ctx,
+			      size_read);
+
+        if (ret != 0) goto out;
+        if (nb_blocks_read_distant == 0) break; // End of file
+
+        /*
+	** Check whether the projection to rebuild has been read
+	*/
+	if ((working_ctx.prj_ctx[proj_id_to_rebuild].bins != NULL)
+	&&  (working_ctx.prj_ctx[proj_id_to_rebuild].nbBlocks != 0)) {
+	  saved_bins = working_ctx.prj_ctx[proj_id_to_rebuild].bins;
+	  working_ctx.prj_ctx[proj_id_to_rebuild].bins = NULL;
+	} 
+	
+	if (working_ctx.prj_ctx[proj_id_to_rebuild].bins == NULL) {
+          // Allocate memory to store projection
+          working_ctx.prj_ctx[proj_id_to_rebuild].bins =
+                  xmalloc((rozofs_max_psize * sizeof (bin_t) 
+		  + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) * 
+		  nb_blocks_read_distant);
+        }		  
+
+        memset(working_ctx.prj_ctx[proj_id_to_rebuild].bins, 0,
+                (rozofs_max_psize * sizeof (bin_t) +
+                sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) *
+                nb_blocks_read_distant);
+
+        // Generate projections to rebuild
+        ret = rbs_transform_forward_one_proj(working_ctx.prj_ctx,
+                			     working_ctx.block_ctx_table,
+                			     layout,bsize,0,
+                			     nb_blocks_read_distant,
+                			     proj_id_to_rebuild,
+                			     working_ctx.data_read_p);
+        if (ret != 0) {
+            severe("rbs_transform_forward_one_proj failed: %s",strerror(errno));
+            goto out;
+        }
+	
+	/*
+	** Compare to read bins
+	*/
+	if ((saved_bins) 
+	&&  (memcmp(working_ctx.prj_ctx[proj_id_to_rebuild].bins,
+	             saved_bins,
+		     rozofs_disk_psize*nb_blocks_read_distant*sizeof(bin_t)) == 0)
+	   ) {
+            /* No need to rewrites these blocks */
+	    *block_start += nb_blocks_read_distant;
+	    continue;
+	}
+	
+        // Store the projection localy	
+        ret = sclient_write_rbs(re->storages[local_idx], st->cid, st->sid,
+	                        layout, bsize, 0 /* Not spare */,
+				re->dist_set_current, re->fid,
+				*block_start, nb_blocks_read_distant,
+				working_ctx.prj_ctx[proj_id_to_rebuild].bins,
+				rebuild_ref);
+	if (ret < 0) {
+            severe("sclient_write_rbs failed: %s", strerror(errno));
+            goto out;
+        }
+	*size_written += (nb_blocks_read_distant * (rozofs_disk_psize+3) * 8);
+				
+	*block_start += nb_blocks_read_distant;	             
+    }
+    status = 0;
+out:
+    if (rebuild_ref != 0) {
+      sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref);
+    }    
+    RESTORE_ONE_RB_ENTRY_FREE_ALL;   
+    return status;
+}
+
+
+
 int storaged_rebuild_list(char * fid_list) {
   int        fd = -1;
   int        nbJobs=0;
@@ -165,15 +625,19 @@ int storaged_rebuild_list(char * fid_list) {
   uint64_t   offset;
   rozofs_rebuild_header_file_t  st2rebuild;
   rozofs_rebuild_entry_file_t   file_entry;
+  rozofs_rebuild_entry_file_t   file_entry_saved;
   rpcclt_t   rpcclt_export;
   int        ret;
   uint8_t    rozofs_safe,rozofs_forward,rozofs_inverse; 
   uint8_t    prj;
-  int        device_id;
   int        spare;
-  char       path[FILENAME_MAX];
   char     * pExport_hostname = NULL;
-  int        failed,available;
+  int        local_index=-1;    
+  rb_entry_t re;
+  fid_t      null_fid={0};
+  int        failed,available;  
+  uint64_t   size_written = 0;
+  uint64_t   size_read    = 0;
       
   fd = open(fid_list,O_RDWR);
   if (fd < 0) {
@@ -243,25 +707,32 @@ int storaged_rebuild_list(char * fid_list) {
     /*
     ** Possibly some file may not be rebuilt !!! 
     */
-    REBUILD_MSG("  %s rebuild start (%d storaged failed!!!)",fid_list, failed);
+    REBUILD_MSG("   -> %s rebuild start (%d storaged failed!!!)",fid_list, failed);
   }
   else {
     /*
     ** Every file should be rebuilt 
     */
-    REBUILD_MSG("  %s rebuild start",fid_list);
+    REBUILD_MSG("   -> %s rebuild start",fid_list);
   }
   
+
+
   nbJobs    = 0;
   nbSuccess = 0;
   offset = sizeof(rozofs_rebuild_header_file_t);
 
   while (pread(fd,&file_entry,sizeof(file_entry),offset) == sizeof(file_entry)) {
-    rb_entry_t re;
   
-    offset += sizeof(file_entry);
-    
+    offset += sizeof(file_entry); 
+       
     if (file_entry.todo == 0) continue;
+    if (memcmp(null_fid,file_entry.fid,sizeof(fid_t))==0) {
+      severe("Null entry");
+      continue;
+    }
+
+    memcpy(&file_entry_saved,&file_entry,sizeof(file_entry));
 
     nbJobs++;
         
@@ -271,8 +742,11 @@ int storaged_rebuild_list(char * fid_list) {
 #if 0
   {
     char fid_string[128];
-    uuid_unparse(file_entry.fid,fid_string);
-    info("rebuilding FID %s",fid_string);
+    uuid_unparse(file_entry.fid,fid_string);  
+    info("rebuilding FID %s layout %d bsize %d from %llu to %llu",
+          fid_string,file_entry.layout, file_entry.bsize,
+         (long long unsigned int) file_entry.block_start, 
+	 (long long unsigned int) file_entry.block_end);
   }  
 #endif
     
@@ -280,14 +754,14 @@ int storaged_rebuild_list(char * fid_list) {
     memcpy(re.dist_set_current,file_entry.dist_set_current, sizeof(re.dist_set_current));
     re.bsize = file_entry.bsize;
     re.layout = file_entry.layout;
-    re.storages = NULL;
 
     // Get storage connections for this entry
-    if (rbs_get_rb_entry_cnts(&re, 
+    local_index = rbs_get_rb_entry_cnts(&re, 
                               &cluster_entries, 
                               st2rebuild.storage.cid, 
 			      st2rebuild.storage.sid,
-                              rozofs_inverse) != 0) {
+                              rozofs_inverse);
+    if (local_index == -1) {
         severe( "rbs_get_rb_entry_cnts failed: %s", strerror(errno));
         continue; // Try with the next
     }
@@ -295,7 +769,7 @@ int storaged_rebuild_list(char * fid_list) {
     // Get rozofs layout parameters
     rozofs_safe = rozofs_get_rozofs_safe(file_entry.layout);
     rozofs_forward = rozofs_get_rozofs_forward(file_entry.layout);
-
+    
     // Compute the proj_id to rebuild
     // Check if the storage to rebuild is
     // a spare for this entry
@@ -305,60 +779,69 @@ int storaged_rebuild_list(char * fid_list) {
     if (prj >= rozofs_forward) spare = 1;
     else                       spare = 0;
 
-    // Build the full path of directory that contains the bins file
-    device_id = -1; // The device must be allocated
-    if (storage_dev_map_distribution_write(&st2rebuild.storage,  &device_id,  
-                                     re.bsize, re.fid, re.layout, re.dist_set_current, spare,
-                                     path, 0) == NULL) {
-      char fid_string[128];
-      uuid_unparse(re.fid,fid_string);
-      severe("rbs_restore_one_rb_entry spare %d FID %s",spare, fid_string);
-      continue;      
-    }  
-
-    // Check that this directory already exists, otherwise it will be created
-    if (storage_create_dir(path) < 0) continue;
-
-    // Build the path of bins file
-    storage_complete_path_with_fid(re.fid, path);
-
-    
+    /*
+    ** 1rst try to remove the file when requested
+    */
     if (file_entry.unlink) {
-      unlink(path);
+      ret = sclient_remove_rbs(re.storages[local_index], 
+                               st2rebuild.storage.cid, 
+			       st2rebuild.storage.sid, 
+			       file_entry.layout, 
+			       file_entry.fid);
+      if (ret == 0) {
+        file_entry.unlink = 0;
+      }  		       
     }
     
+    size_written = 0;
+    size_read    = 0;
 
     // Restore this entry
     if (spare == 1) {
-      ret = rbs_restore_one_spare_entry(&st2rebuild.storage, &re, path, device_id, prj);      
+      ret = rbs_restore_one_spare_entry(&st2rebuild.storage, local_index, 
+                                        &file_entry.block_start, file_entry.block_end, 
+					&re, prj,
+					&size_written,
+					&size_read);     
     }
     else {
-      ret = rbs_restore_one_rb_entry(&st2rebuild.storage, &re, path, device_id, prj);
-    }
-    
-    
-    // Free storages cnt
-    if (re.storages != NULL) {
-      free(re.storages);
-      re.storages = NULL;
-    }  
-         
-    if (ret != 0) {
-        //severe( "rbs_restore_one_rb_entry failed: %s", strerror(errno));
-        continue; // Try with the next
-    }
-    
-   
-    nbSuccess++;
-    if ((nbSuccess % (16*1024)) == 0) {
-      REBUILD_MSG("  ~ %s %d/%d",fid_list,nbSuccess,nbJobs);
+      ret = rbs_restore_one_rb_entry(&st2rebuild.storage, local_index, 
+                                     &file_entry.block_start, file_entry.block_end, 
+				     &re, prj, 
+				     &size_written,
+				     &size_read);
     } 
-    file_entry.todo = 0;
+             
+    if (ret == 0) {
+      nbSuccess++;
+
+      // Update counters in header file      
+      st2rebuild.counters.done_files++;
+      if (spare == 1) {
+        st2rebuild.counters.written_spare += size_written;
+	st2rebuild.counters.read_spare    += size_read;
+      }
+      st2rebuild.counters.written += size_written;
+      st2rebuild.counters.read    += size_read;       
     
-    if (pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry))<0) {
-      severe("pwrite size %lu offset %llu %s",(unsigned long int)sizeof(file_entry), 
-             (unsigned long long int) offset-sizeof(file_entry), strerror(errno));
+      pwrite(fd, &st2rebuild.counters, sizeof(st2rebuild.counters), 0);
+
+      if ((nbSuccess % (16*1024)) == 0) {
+        REBUILD_MSG("  ~ %s %d/%d",fid_list,nbSuccess,nbJobs);
+      } 
+      file_entry.todo = 0;
     }
+    
+    
+    /*
+    ** Update input job file if any change
+    */
+    if (memcmp(&file_entry_saved,&file_entry, sizeof(file_entry)) != 0) {
+      if (pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry))<0) {
+	severe("pwrite size %lu offset %llu %s",(unsigned long int)sizeof(file_entry), 
+               (unsigned long long int) offset-sizeof(file_entry), strerror(errno));
+      }
+    }     
   }
   
   close(fd);
@@ -366,13 +849,15 @@ int storaged_rebuild_list(char * fid_list) {
 
   if (nbSuccess == nbJobs) {
     unlink(fid_list);
-    REBUILD_MSG(". %s rebuild success of %d files",fid_list,nbSuccess);    
+    REBUILD_MSG("  <-  %s rebuild success of %d files",fid_list,nbSuccess);    
     return 0;
   }
     
 
-error:
-  REBUILD_MSG("! %s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
+  
+error: 
+  REBUILD_MSG("  !!! %s rebuild failed %d/%d",fid_list,nbJobs-nbSuccess,nbJobs);
+
   if (fd != -1) close(fd);   
   return 1;
 }

@@ -3523,6 +3523,7 @@ static inline int get_rozofs_xattr_max_size(export_t *e, lv2_entry_t *lv2, char 
   ** Find out the rigth unit to display the result
   */
   free *= ROZOFS_BSIZE_BYTES(e->bsize);
+  if (free > ROZOFS_STORAGE_FILE_MAX_SIZE) free = ROZOFS_STORAGE_FILE_MAX_SIZE;
   
   if (free < 1024) {
     p += sprintf(p,"Remaining available space %llu B%s", (unsigned long long int) free, quota?" (hard quota).":"."); 

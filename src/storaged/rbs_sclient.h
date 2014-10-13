@@ -88,14 +88,16 @@ int rbs_get_rb_entry_list(mclient_t * mclt, cid_t cid, sid_t sid,
         uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof);
 
-int rbs_read_blocks(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t cid,
+int rbs_read_blocks(sclient_t **storages, int local_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
-        rbs_storcli_ctx_t * working_ctx_p);
+        rbs_storcli_ctx_t * working_ctx_p,
+	uint64_t          * size_read);
 int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
-        rbs_storcli_ctx_t * working_ctx_p);
+        rbs_storcli_ctx_t * working_ctx_p,
+	uint64_t          * size_read);
 /** Send a request to export server for get the list of member storages
  *  of cluster with a given cid and add this storage list to the list
  *  of clusters

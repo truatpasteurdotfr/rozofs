@@ -33,11 +33,12 @@
 
 
 
-#define DEFAULT_PARALLEL_REBUILD_PER_SID 4
+#define DEFAULT_PARALLEL_REBUILD_PER_SID 8
 #define MAXIMUM_PARALLEL_REBUILD_PER_SID 16
 
 
 #define REBUILD_MSG(fmt, ...) { logmsg(EINFO, fmt, ##__VA_ARGS__); printf(fmt"\n", ##__VA_ARGS__); }
+#define REBUILD_FAILED(fmt, ...) { REBUILD_MSG("storage_rebuild failed !!!"); REBUILD_MSG(fmt, ##__VA_ARGS__); }
 
 /* Timeout in seconds for exportd requests */
 #define RBS_TIMEOUT_EPROTO_REQUESTS 25
@@ -59,7 +60,7 @@ typedef struct rb_entry {
     uint32_t bsize; //< Block size as defined in ROZOFS_BSIZE_E
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes
     // target for this file.
-    sclient_t **storages;
+    sclient_t * storages[ROZOFS_SAFE_MAX];
     list_t list;
 } rb_entry_t;
 
@@ -79,52 +80,12 @@ typedef struct rb_cluster {
     list_t list;
 } rb_cluster_t;
 
-/** Rebuild the storage with CID=cid, SID=sid, root_path=root and managed by the
- *  export server with hostname=export_host.
- *
- * @param export_host: export server hostname.
- * @param site: site number to rebuild.
- * @param cid: unique id of cluster that owns this storage.
- * @param sid: the unique id for the storage to rebuild.
- * @param root: the absolute path where rebuild bins file(s) will be store.
- * @param dev: the atotal number of device.
- * @param dev_mapper: the number of device holding header (mapper) files.
- * @param dev_red: the number of replica of header files.
- * @param stor_idx: storage index used for display statistics.
- * @param device: device to rebuild or -1 when all devices.
- * @param config_file: configuration file name
- * @param fid2rebuild: FID of the only file
- *
- * @return: 0 on success -1 otherwise (errno is set)
- */
-int rbs_rebuild_storage(const char *export_host, int site, cid_t cid, sid_t sid,
-        const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red,
-	uint8_t stor_idx, int device,
-	int parallel, char * config_file, 
-	fid_t fid2rebuild);
 
-/** Check if possible to rebuild the storage with CID=cid, SID=sid,
- *  root_path=root and managed by the export server with hostname=export_host.
- *
- * @param export_host: export server hostname.
- * @param site: the site identifier
- * @param cid: unique id of cluster that owns this storage.
- * @param sid: the unique id for the storage to rebuild.
- * @param root: the absolute path where rebuild bins file(s) will be store.
- * @param dev: the atotal number of device.
- * @param dev_mapper: the number of device holding header (mapper) files.
- * @param dev_red: the number of replica of header files.
- *
- * @return: 0 on success -1 otherwise (errno is set)
- */
-int rbs_sanity_check(const char *export_host, int site, cid_t cid, sid_t sid,
-        const char *root, uint32_t dev, uint32_t dev_mapper, uint32_t dev_red);
 
 /** Get name of temporary rebuild directory
  *
  */
 char * get_rebuild_directory_name() ;
-
 /** Init connections for storage members of a given cluster but not for the 
  *  storage with sid=sid
  *
@@ -147,7 +108,22 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
         sid_t sid_to_rebuild,
         uint8_t nb_cnt_required);
 
-int rbs_restore_one_rb_entry(storage_t * st, rb_entry_t * re, char * path, int device_id, uint8_t proj_id_to_rebuild);
-int rbs_restore_one_spare_entry(storage_t * st, rb_entry_t * re, char * path, int device_id, uint8_t proj_id_to_rebuild);
-
+/** Release the list of cluster(s)
+ *
+ * @param cluster_entries: list of cluster(s).
+ */
+void rbs_release_cluster_list(list_t * cluster_entries);
+/** Remove empty rebuild list files 
+ *
+ */
+int rbs_do_remove_lists();
+/** Check if the storage is present on cluster list
+ *
+ * @param cluster_entries: list of cluster(s).
+ * @param cid: unique id of cluster that owns this storage.
+ * @param sid: the unique id for the storage to rebuild.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int rbs_check_cluster_list(list_t * cluster_entries, cid_t cid, sid_t sid) ;
 #endif

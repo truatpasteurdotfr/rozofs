@@ -49,7 +49,7 @@ def display_forward_inverse(forward,inverse):
   dis.new_line() 
   dis.set_column(1,'p')
   dis.set_column(2,'q')
-  bs=int(4)  
+  bs=int(base_block_size)  
   for i in range(1,loop+1):
     dis.set_column_on_right (i+2) 
     dis.set_column(i+2,'%d KB'%(int(bs)))
@@ -63,7 +63,7 @@ def display_forward_inverse(forward,inverse):
     dis.set_column(1,"%d"%(int(p))) 
     dis.set_column(2,'1') 
  
-    bs=int(4)
+    bs=int(base_block_size)
     for i in range(1,loop+1):      
       size = compute_one_prj(bs*1024,forward,inverse,prj) 
       dis.set_column(2+i,'%d'%(size)) 
@@ -84,6 +84,7 @@ def syntax(string=None) :
 header=2
 footer=1  
 loop=7
+base_block_size=1  
   
 parser = OptionParser()
 parser.add_option("-i","--inverse", action="store",type="string", dest="inverse", help="The inverse value.")
@@ -94,6 +95,7 @@ parser.add_option("-F","--faults", action="store", type="string", dest="faults",
 
 print "\nHeader size %d bins / Footer size %d bins"%(header,footer)
 
+  
   
 if options.forward != None or options.inverse != None:
   if options.forward == None:
@@ -117,7 +119,7 @@ dis.new_line()
 dis.set_column(1,'%d'%(fault),'')
 dis.set_column(2,'faults')
 
-bs=int(4)  
+bs=int(base_block_size)  
 for i in range(1,loop+1):
   dis.set_column(2*i+1,'%d'%(int(bs)),'')
   dis.set_column(2*i+2,'KB')
@@ -138,7 +140,7 @@ for inverse in range(inv_start,inv_stop):
   dis.new_line()     
   dis.set_column(1,"%d"%(inverse))
   dis.set_column(2,"%d"%(forward)) 
-  bs=4 
+  bs=int(base_block_size)
   for i in range(1,loop+1):
     redsum,redmax = compute_one_layout(bs*1024,forward,inverse)
     dis.set_column(2*i+1,"%3.2f"%(redmax))

@@ -84,3 +84,48 @@ sp_remove_1(sp_remove_arg_t *argp, CLIENT *clnt)
 	}
 	return (&clnt_res);
 }
+
+sp_rebuild_start_ret_t *
+sp_rebuild_start_1(sp_rebuild_start_arg_t *argp, CLIENT *clnt)
+{
+	static sp_rebuild_start_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, SP_REBUILD_START,
+		(xdrproc_t) xdr_sp_rebuild_start_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_sp_rebuild_start_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+sp_rebuild_stop_ret_t *
+sp_rebuild_stop_1(sp_rebuild_stop_arg_t *argp, CLIENT *clnt)
+{
+	static sp_rebuild_stop_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, SP_REBUILD_STOP,
+		(xdrproc_t) xdr_sp_rebuild_stop_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_sp_rebuild_stop_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
+
+sp_status_ret_t *
+sp_remove_chunk_1(sp_remove_chunk_arg_t *argp, CLIENT *clnt)
+{
+	static sp_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, SP_REMOVE_CHUNK,
+		(xdrproc_t) xdr_sp_remove_chunk_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_sp_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}

@@ -64,6 +64,8 @@
 #define STORIO_PID_FILE "storio"
 #define TIME_BETWEEN_2_RB_ATTEMPS 30
 
+
+
 /*
 ** Structure used to monitor device errors
 */
@@ -99,14 +101,27 @@ typedef struct storage {
 /**
  *  Header structure for one file bins
  */
+ 
+
+//__Specific values in the chunk to device array
+// Used in the interface When the FID is not inserted in the cache and so the
+// header file will have to be read from disk.
+#define ROZOFS_UNKNOWN_CHUNK  255
+// Used in the device per chunk array when no device has been allocated 
+// because the chunk is after the end of file
+#define ROZOFS_EOF_CHUNK      254
+// Used in the device per chunk array when no device has been allocated 
+// because it is included in a whole of the file
+#define ROZOFS_EMPTY_CHUNK    253
+ 
 typedef struct rozofs_stor_bins_file_hdr {
+    uint8_t version; ///<  version of rozofs. (not used yet)
     uint8_t layout; ///< layout used for this file.
     uint8_t bsize;  ///< Block size as defined in enum ROZOFS_BSIZE_E
-    sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
-    sid_t dist_set_next[ROZOFS_SAFE_MAX]; ///< next sids of storage nodes target for this. file (not used yet)
-    uint8_t version; ///<  version of rozofs. (not used yet)
-    uint32_t device_id; // Device number that hold the data
-    fid_t fid;
+    fid_t   fid;
+    sid_t   dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
+    uint8_t device[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE]; // Device number that hold the chunk of projection
+
 } rozofs_stor_bins_file_hdr_t;
 
 
@@ -125,9 +140,17 @@ typedef struct bins_file_rebuild {
 /*
 ** Structures of the FID to rebuild file
 */
+typedef struct  _rozofs_rbs_counters_t {
+  uint32_t      done_files;
+  uint64_t      written;
+  uint64_t      written_spare; 
+  uint64_t      read;
+  uint64_t      read_spare; 
+} ROZOFS_RBS_COUNTERS_T;
 
 // File header
 typedef struct _rozofs_rebuild_header_file_t {
+  ROZOFS_RBS_COUNTERS_T counters;
   char          config_file[PATH_MAX];
   char          export_hostname[ROZOFS_HOSTNAME_MAX];
   int           site;
@@ -142,7 +165,60 @@ typedef struct _rozofs_rebuild_entry_file_t {
     uint8_t todo:1;  
     uint8_t unlink:1;  
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes
+    uint32_t  block_start; // Starting block to rebuild from 
+    uint32_t  block_end;   // Last block to rebuild
 } rozofs_rebuild_entry_file_t; 
+
+#if 0
+#define MYDBGTRACE(fmt,...) {\
+    char MyString[256];\
+    char trace_path[128];\
+    char fid_string[37];\
+    FILE * myfd;\
+    uuid_unparse(fid, fid_string);\
+    sprintf(MyString,"\n%s "fmt,fid_string,__VA_ARGS__);\
+    sprintf(trace_path,"/tmp/trace_cid%d_sid%d",st->cid,st->sid);\
+    myfd = fopen(trace_path, "a");\
+    if (myfd != NULL) {\
+      fwrite(MyString,strlen(MyString),1,myfd);\
+      fclose(myfd);\
+    }\
+  }
+#define MYDBGTRACE_DEV(device,fmt,...) {\
+    char MyString[512];\
+    char MyDev[256];\
+    char * ptChar= MyDev;\
+    char trace_path[128];\
+    char fid_string[37];\
+    FILE * myfd;\
+    int idx;\
+    for (idx=0; idx<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE;idx++) {\
+      if (device[idx] == ROZOFS_UNKNOWN_CHUNK) {\
+        ptChar += sprintf(ptChar,"/?/ ");\
+        break;\
+      }\
+      if (device[idx] == ROZOFS_EOF_CHUNK) {\
+        ptChar += sprintf(ptChar,"/ ");\
+        break;\
+      }\
+      if (device[idx] == ROZOFS_EMPTY_CHUNK)\
+        ptChar += sprintf(ptChar,"/E");\
+      else\
+        ptChar += sprintf(ptChar,"/%d",idx,device[idx]);\
+    }\
+    uuid_unparse(fid, fid_string);\
+    sprintf(MyString,"\n%s %s"fmt,fid_string,MyDev,__VA_ARGS__);\
+    sprintf(trace_path,"/tmp/trace_cid%d_sid%d",st->cid,st->sid);\
+    myfd = fopen(trace_path, "a");\
+    if (myfd != NULL) {\
+      fwrite(MyString,strlen(MyString),1,myfd);\
+      fclose(myfd);\
+    }\
+  }  
+#else  
+#define MYDBGTRACE(fmt,...)
+#define MYDBGTRACE_DEV(device,fmt,...)
+#endif 
 
 /**
  *  Get the next storage 
@@ -200,6 +276,25 @@ static inline void storage_device_mapping_reset_error_counters() {
   }
 }
 
+static inline char * trace_device(uint8_t * device, char * pChar) {
+  int  idx;
+      
+  for (idx=0; idx<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE;idx++) {
+    if (device[idx] == ROZOFS_UNKNOWN_CHUNK) {
+      pChar += sprintf(pChar,"?");
+      break; 
+    }   
+    if (device[idx] == ROZOFS_EOF_CHUNK) break;
+    if (device[idx] == ROZOFS_EMPTY_CHUNK) 
+      pChar += sprintf(pChar,"/E");
+    else
+      pChar += sprintf(pChar,"/%d",device[idx]);
+  }
+  pChar += sprintf(pChar,"/");
+  return pChar;
+} 
+
+
 /*
 ** FID storage slice computing
 */
@@ -246,15 +341,15 @@ static inline void storage_build_hdr_path(char * path,
 ** @param spare      Whether this is a path to a spare file
 ** @param slice      the storage slice number
 */
-static inline void storage_build_bins_path(char * path, 
+static inline int storage_build_bins_path(char * path, 
                                char * root_path, 
 			       uint32_t device, 
 			       uint8_t spare, 
 			       int     slice) {
 #if FID_STORAGE_SLICE_SIZE == 1
-   sprintf(path, "%s/%d/bins_%u/", root_path, device, spare);  
+   return sprintf(path, "%s/%d/bins_%u/", root_path, device, spare);  
 #else 			       
-   sprintf(path, "%s/%d/bins_%u/%d/", root_path, device, spare, slice);  
+   return sprintf(path, "%s/%d/bins_%u/%d/", root_path, device, spare, slice);  
 #endif   
 } 
 
@@ -269,7 +364,6 @@ static inline void storage_build_bins_path(char * path,
 static inline int storage_mapper_device(fid_t fid, int rank, int modulo) {
   return (fid[2]+rank) % modulo;
 } 
-
 /*
  ** Write a header/mapper file on a device
 
@@ -279,7 +373,17 @@ static inline int storage_mapper_device(fid_t fid, int rank, int modulo) {
   @retval 0 on sucess. -1 on failure
   
  */
-int storage_write_header_file(storage_t * st,int device, char * path, rozofs_stor_bins_file_hdr_t * hdr);
+int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_bins_file_hdr_t * hdr);
+/*
+ ** Write all header/mapper files on a storage
+
+  @param path : pointer to the bdirectory where to write the header file
+  @param hdr : header to write in the file
+  
+  @retval The number of header file that have been written successfuly
+  
+ */
+int storage_write_all_header_files(storage_t * st, fid_t fid, uint8_t spare, rozofs_stor_bins_file_hdr_t * hdr);
  
 
 /** Get the directory path for a given [storage, layout, dist_set, spare]
@@ -287,6 +391,7 @@ int storage_write_header_file(storage_t * st,int device, char * path, rozofs_sto
  * @param st: the storage to be initialized.
  * @param device_id: input current device id or -1 when unkown
  *                   output chossen device id or -1 on error
+ * @param chunk: The chunk number that has to be mapped 
  * @param bsize: the block size as defined in ROZOFS_BSIZE_E 
  * @param fid: the fid of the file 
  * @param layout: layout used for store this file.
@@ -300,7 +405,8 @@ int storage_write_header_file(storage_t * st,int device, char * path, rozofs_sto
 
 char *storage_dev_map_distribution_write( 
                                     storage_t * st, 
-				    int * device_id,
+				    uint8_t * device_id,
+				    uint8_t chunk,
 				    uint32_t bsize, 
 				    fid_t fid, 
 				    uint8_t layout,
@@ -310,7 +416,8 @@ char *storage_dev_map_distribution_write(
 				    int version);
 				    
 char *storage_dev_map_distribution_read(  storage_t * st, 
-					  int * device_id,
+					  uint8_t * device_id,
+				           uint8_t chunk,					  
 					  fid_t fid, 
 					  uint8_t spare, 
 					  char *path);	
@@ -347,7 +454,7 @@ void storage_release(storage_t * st);
 /** Write nb_proj projections
  *
  * @param st: the storage to use.
- * @param device_id: device_id holding FID or -1 when unknown
+ * @param device: Array of device allocated for the 128 chunks
  * @param layout: layout used for store this file.
  * @param bsize: Block size from enum ROZOFS_BSIZE_E
  * @param dist_set: storages nodes used for store this file.
@@ -362,14 +469,84 @@ void storage_release(storage_t * st);
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_write(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
-        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj, uint8_t version,
-        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty);
 
+int storage_write_chunk(storage_t * st, uint8_t * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, uint8_t chunk, bid_t bid, uint32_t nb_proj, uint8_t version,
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty);
+	 
+static inline int storage_write(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, bid_t input_bid, uint32_t input_nb_proj, uint8_t version,
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty) {
+    int ret1,ret2;
+    bid_t      bid;
+    uint32_t   nb_proj;
+    char     * pBins;
+    
+    MYDBGTRACE_DEV(device,"write bid %d nb %d",input_bid,input_nb_proj);
+    int block_per_chunk         = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(bsize);
+    int chunk                   = input_bid/block_per_chunk;
+
+    
+    if (chunk>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) { 
+      errno = EFBIG;
+      return -1;
+    }  
+    
+    bid = input_bid - (chunk * block_per_chunk);
+           
+    if ((bid+input_nb_proj) <= block_per_chunk){ 
+      /*
+      ** Every block can be written in one time in the same chunk
+      */
+      ret1 = storage_write_chunk(st, device, layout, bsize, dist_set,
+        			 spare, fid, chunk, bid, input_nb_proj, version,
+        			 file_size, bins, is_fid_faulty);
+      if (ret1 == -1) {
+        MYDBGTRACE("write errno %s",strerror(errno));			     
+      }
+      return ret1;	 
+    }  
+
+    /* 
+    ** We have to write two chunks
+    */ 
+    
+    if ((chunk+1)>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) { 
+      errno = EFBIG;
+      return -1;
+    }        
+    
+    // 1rst chunk
+    nb_proj = block_per_chunk-bid;
+    pBins = (char *) bins;    
+    ret1 = storage_write_chunk(st, device, layout, bsize, dist_set,
+        		      spare, fid, chunk, bid, nb_proj, version,
+        		      file_size, (bin_t*)pBins, is_fid_faulty); 
+    if (ret1 == -1) {
+      MYDBGTRACE("write errno %s",strerror(errno));
+      return -1;			     
+    }
+	    
+      
+    // 2nd chunk
+    chunk++;         
+    bid     = 0;
+    nb_proj = input_nb_proj - nb_proj;
+    pBins += ret1;  
+    ret2 = storage_write_chunk(st, device, layout, bsize, dist_set,
+        		      spare, fid, chunk, bid, nb_proj, version,
+        		      file_size, (bin_t*)pBins, is_fid_faulty); 
+    if (ret2 == -1) {
+      MYDBGTRACE("write errno %s",strerror(errno));
+      return -1;			     
+    }
+    
+    return ret2+ret1;
+}
 /** Read nb_proj projections
  *
  * @param st: the storage to use.
- * @param device_id: device_id holding FID or -1 when unknown
+ * @param device: Array of device allocated for the 128 chunks
  * @param layout: layout used by this file.
  * @param bsize: Block size from enum ROZOFS_BSIZE_E
  * @param dist_set: storages nodes used for store this file.
@@ -384,14 +561,154 @@ int storage_write(storage_t * st, int * device_id, uint8_t layout, uint32_t bsiz
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_read(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
-        uint8_t spare, fid_t fid, bid_t bid, uint32_t nb_proj,
-        bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty);
+int storage_read_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, uint8_t chunk, bid_t bid, uint32_t nb_proj,
+        bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty) ;
+static inline int storage_read(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, bid_t input_bid, uint32_t input_nb_proj,
+        bin_t * bins, size_t * len_read, uint64_t *file_size,int * is_fid_faulty) {
+    bid_t    bid;
+    uint32_t nb_proj;
+    char * pBins = (char *) bins;
+    size_t len_read1,len_read2;
+    int    ret1,ret2;
+
+    MYDBGTRACE_DEV(device,"read bid %d nb %d",input_bid,input_nb_proj);
+
+    *len_read = len_read1 = len_read2 = 0;       
+    int block_per_chunk         = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(bsize);
+    int chunk                   = input_bid/block_per_chunk;
+    
+    if (chunk>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {  
+      return 0;
+    }        
+    
+    bid = input_bid - (chunk * block_per_chunk);
+    if ((bid+input_nb_proj) <= block_per_chunk){ 
+      /*
+      ** All the blocks can be read in one time in the same chunk
+      */
+      ret1 = storage_read_chunk(st, device, layout, bsize, dist_set,
+        			spare, fid, chunk, bid, input_nb_proj,
+        			bins, len_read, file_size,is_fid_faulty);
+      if (ret1 == -1) {
+        MYDBGTRACE("read error len %d errno %s",*len_read,strerror(errno));			     
+        return -1;
+      }
+      /*
+      ** When this chunk is not the last one and we have read less than requested
+      ** one has to pad with 0 the missing data (whole in file)
+      */
+      if (*len_read < ret1) {
+        chunk++;
+        if (chunk<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {          
+          if (device[chunk] != ROZOFS_EOF_CHUNK) {
+	    pBins += *len_read;
+	    memset(pBins,0,ret1-*len_read);
+	    *len_read = ret1;
+	  }  
+        }
+      }	      
+      MYDBGTRACE("read success len %d",*len_read);			           	
+      return 0;				  
+    }  
+
+
+    /* 
+    ** We have to read from two chunks
+    */   
+    
+    /*
+    *_____ 1rst chunk
+    */
+    nb_proj = (block_per_chunk-bid);
+
+    ret1 = storage_read_chunk(st, device, layout, bsize, dist_set,
+        		      spare, fid, chunk, bid, nb_proj,
+        		      (bin_t*) pBins, &len_read1, file_size,is_fid_faulty);
+    if (ret1 == -1) {
+      MYDBGTRACE("read error len %d errno %s",*len_read,strerror(errno));			     		    
+      return -1;
+    }
+
+    /*
+    ** Is there a next chunk ?
+    */
+    chunk++;
+    if (chunk>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {
+      *len_read = len_read1;
+      MYDBGTRACE("read success len %d",*len_read);			           	
+      return 0;	
+    }
+    
+    if (device[chunk] == ROZOFS_EOF_CHUNK) {
+      *len_read = len_read1;
+      MYDBGTRACE("read success len %d",*len_read);			           	
+      return 0;	
+    }
+    
+        
+    /*
+    ** When this chunk is not the last one and we have read less than requested
+    ** one has to pad with 0 the missing data (whole in file)
+    */
+    if (len_read1 < ret1) {
+      pBins += len_read1;
+      memset(pBins,0,ret1-len_read1);
+      len_read1 = ret1;
+    }
+          
+    /*
+    *_____ 2nd chunk
+    */
+    bid = 0;
+    nb_proj = input_nb_proj - nb_proj;  
+    pBins = (char *) bins;
+    pBins += ret1;  
+    ret2 = storage_read_chunk(st, device, layout, bsize, dist_set,
+        		      spare, fid, chunk, bid, nb_proj,
+        		      (bin_t*) pBins, &len_read2, file_size,is_fid_faulty);
+    if (ret2 == -1) {
+      MYDBGTRACE("read error len %d errno %s",*len_read,strerror(errno));			     		    
+      return -1;
+    }     
+
+    /*
+    ** Is there a next chunk ?
+    */
+    chunk++;
+    if (chunk>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {
+      *len_read = len_read1 + len_read2;
+      MYDBGTRACE("read success len %d",*len_read);			           	
+      return 0;	
+    }
+    
+    if (device[chunk] == ROZOFS_EOF_CHUNK) {
+      *len_read = len_read1 + len_read2;
+      MYDBGTRACE("read success len %d",*len_read);			           	
+      return 0;	
+    }
+            
+    /*
+    ** When this chunk is not the last one and we have read less than requested
+    ** one has to pad with 0 the missing data (whole in file)
+    */
+    if (len_read2 < ret2) {
+      pBins += len_read2;
+      memset(pBins,0,ret2-len_read2);
+      len_read2 = ret2;
+    }    
+    *len_read = len_read1 + len_read2;
+    MYDBGTRACE("read success len %d",*len_read);			           	
+    return 0;
+
+}
+
 
 /** Truncate a bins file (not used yet)
  *
  * @param st: the storage to use.
- * @param device_id: device_id holding FID or -1 when unknown
+ * @param device: Array of device allocated for the 128 chunks
  * @param layout: layout used by this file.
  * @param bsize: Block size from enum ROZOFS_BSIZE_E
  * @param dist_set: storages nodes used for store this file.
@@ -408,7 +725,7 @@ int storage_read(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int storage_truncate(storage_t * st, int * device_id, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, tid_t proj_id,bid_t bid,uint8_t version,
          uint16_t last_seg,uint64_t last_timestamp,u_int len, char * data,int * is_fid_faulty);
 
@@ -438,7 +755,7 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,  uint8_t * dev
 /*
  ** Build the path for the projection file
   @param fid: unique file identifier
-  @param path : pointer to the buffer where reuslting path will be stored
+  @param path : pointer to the buffer where resulting path will be stored
   
   @retval pointer to the beginning of the path
   
@@ -446,6 +763,26 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid,  uint8_t * dev
 static inline void storage_complete_path_with_fid(fid_t fid, char *path) {
     int len = strlen(path);
     uuid_unparse(fid, &path[len]);
+}
+/*
+ ** Add/replace a chunk number at end of the path
+    
+    When the path string finishes with "-xxx" replace "xxx" 
+    with the given chunk value else add "-xxx" at the end of the string
+ 
+  @param chunk: chunk number
+  @param path : pointer to the buffer where resulting path will be stored
+  
+  @retval pointer to the beginning of the path
+  
+ */
+static inline void storage_complete_path_with_chunk(int chunk, char *path) {
+    int len = strlen(path);
+    char * pt;
+    
+    pt = path+len-4;
+    if (*pt != '-') pt += 4;
+    sprintf(pt,"-%3.3d", chunk);
 }
 /*
  ** Create a directory if it does not yet exist
@@ -529,5 +866,10 @@ typedef enum {
 } STORAGE_READ_HDR_RESULT_E;
 
 STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, uint8_t spare, rozofs_stor_bins_file_hdr_t * hdr);
+
+int storage_rm_chunk(storage_t * st, uint8_t * device, 
+                     uint8_t layout, uint8_t bsize, uint8_t spare, 
+		     sid_t * dist_set, fid_t fid, 
+		     uint8_t chunk, int * is_fid_faulty);
 #endif
 

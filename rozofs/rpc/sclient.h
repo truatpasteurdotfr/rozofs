@@ -50,5 +50,14 @@ int sclient_read(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout,
 int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint32_t bsize, uint8_t spare,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, uint32_t * nb_proj_recv, bin_t * bins);
-
+	
+uint32_t sclient_rebuild_start_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid,uint64_t block_start, uint64_t block_end) ;
+int sclient_rebuild_stop_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, uint32_t ref) ;
+int sclient_remove_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, fid_t fid) ;
+int sclient_remove_chunk_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare, uint32_t bsize,
+                               sid_t dist_set[ROZOFS_SAFE_MAX], 
+			      fid_t fid, int chunk, uint32_t ref);
+int sclient_write_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint32_t bsize,
+        uint8_t spare, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, uint32_t bid,
+        uint32_t nb_proj, const bin_t * bins, uint32_t rebuild_ref);
 #endif

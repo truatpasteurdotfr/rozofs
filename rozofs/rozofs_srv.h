@@ -209,6 +209,7 @@ static inline char * rozofs_display_size(char * p, uint8_t layout, uint32_t bsiz
   
 
   p += sprintf(p,"  prj |   p |   q | size in bytes\n");
+  p += sprintf(p,"      |     |     | w/o header&footer\n");
   p += sprintf(p,"------+-----+-----+--------------\n");
   
   for (prj_id=0; prj_id < pLayout->rozofs_forward; prj_id++) {

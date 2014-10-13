@@ -59,6 +59,10 @@ xdr_sp_write_arg_t (XDR *xdrs, sp_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->rebuild_ref))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->alignement))
+		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX_RPC,
 		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
@@ -90,6 +94,10 @@ xdr_sp_write_arg_no_bins_t (XDR *xdrs, sp_write_arg_no_bins_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->rebuild_ref))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->alignement))
 		 return FALSE;
 	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX_RPC,
 		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
@@ -222,6 +230,112 @@ xdr_sp_remove_arg_t (XDR *xdrs, sp_remove_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
 		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_sp_remove_chunk_arg_t (XDR *xdrs, sp_remove_chunk_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->layout))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->bsize))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->dist_set, ROZOFS_SAFE_MAX,
+		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+		 return FALSE;
+	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->rebuild_ref))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->chunk))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_sp_rebuild_start_arg_t (XDR *xdrs, sp_rebuild_start_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->start_bid))
+		 return FALSE;
+	 if (!xdr_uint64_t (xdrs, &objp->stop_bid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_sp_rebuild_start_ret_t (XDR *xdrs, sp_rebuild_start_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_sp_status_t (xdrs, &objp->status))
+		 return FALSE;
+	switch (objp->status) {
+	case SP_SUCCESS:
+		 if (!xdr_uint32_t (xdrs, &objp->sp_rebuild_start_ret_t_u.rebuild_ref))
+			 return FALSE;
+		break;
+	case SP_FAILURE:
+		 if (!xdr_int (xdrs, &objp->sp_rebuild_start_ret_t_u.error))
+			 return FALSE;
+		break;
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+bool_t
+xdr_sp_rebuild_stop_arg_t (XDR *xdrs, sp_rebuild_stop_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->rebuild_ref))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_sp_rebuild_stop_ret_t (XDR *xdrs, sp_rebuild_stop_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_sp_status_t (xdrs, &objp->status))
+		 return FALSE;
+	switch (objp->status) {
+	case SP_SUCCESS:
+		 if (!xdr_uint32_t (xdrs, &objp->sp_rebuild_stop_ret_t_u.rebuild_ref))
+			 return FALSE;
+		break;
+	case SP_FAILURE:
+		 if (!xdr_int (xdrs, &objp->sp_rebuild_stop_ret_t_u.error))
+			 return FALSE;
+		break;
+	default:
+		break;
+	}
 	return TRUE;
 }
 

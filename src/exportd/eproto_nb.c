@@ -604,12 +604,18 @@ void ep_list_cluster_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
                     stor_idx++;
                 }
                 // OK -> answered
+		
+		if (stor_idx == 0) {
+		  // This site has no such cluster
+                  ret.status_gw.ep_cluster_ret_t_u.error = ENODEV;		  
+		  goto unlock;
+		}
                 ret.status_gw.ep_cluster_ret_t_u.cluster.storages_nb = stor_idx;
                 ret.status_gw.status = EP_SUCCESS;
                 goto unlock;
             }
         }
-    }
+    }   
     // cid not found
     ret.status_gw.ep_cluster_ret_t_u.error = EINVAL;
 

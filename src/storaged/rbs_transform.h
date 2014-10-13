@@ -62,6 +62,7 @@ typedef struct rbs_projection_ctx {
     uint8_t prj_state; /**< read state see rozofs_read_req_state_e enum      */
     void *prj_buf; /**< ruc buffer that contains the payload             */
     bin_t *bins; /**< pointer to the payload (data read)               */
+    uint32_t nbBlocks;
 } rbs_projection_ctx_t;
 
 /**
@@ -147,7 +148,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout,uint32
  *
  * @return: 0 on success -1 otherwise
  */
-int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint32_t bsize,
+int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, int spare_idx, uint8_t layout, uint32_t bsize,
         uint32_t block_idx, uint8_t *prj_idx_tb_p, uint64_t *timestamp_p,
         uint16_t *effective_length_p);
 #endif

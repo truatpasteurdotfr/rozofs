@@ -41,6 +41,7 @@ typedef enum _action_e {
 } action_e;
 action_e action  = ACTION_NONE;
 int      nbfiles = DEFAULT_NBFILE;
+int      fNum    = -1;
 char path[128];
 
 #define HEXDUMP_COLS 16
@@ -93,7 +94,7 @@ void hexdump(void *mem, unsigned int offset, unsigned int len)
 static void usage() {
     printf("Parameters:\n");
     printf("[ -mount <mount> ]                     The mount point(default %s)\n", DEFAULT_MOUNT);
-    printf("[ -nbfiles <NB> ]                      Number of files (default %s)\n", DEFAULT_NBFILE);
+    printf("[ -nbfiles <NB> | -f <fileNumber>]     Number of files (default %d) or file number\n", DEFAULT_NBFILE);
     printf("[ -action <create|check|delete> ]      What to do with these files\n");
     exit(-100);
 }
@@ -156,7 +157,23 @@ char *argv[];
             idx++;
             continue;
         }	
-			
+					
+	/* -f <NB> */
+        if (strcmp(argv[idx], "-f") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%u", &val);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+	    fNum = val;
+            idx++;
+            continue;
+        }				
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
@@ -166,16 +183,16 @@ char *argv[];
   else      
     sprintf(path,"%s/rebuild", mount);
 }
-#define LOOP_NB  37
+#define LOOP_NB  129
 #define BLKSIZE (1024*8)
 char    refblock[BLKSIZE];
 char    readblock[BLKSIZE];
 
-void update_block(int f, int b) {
+void update_block(int b) {
   char string[64];
   int len;
   
-  len = sprintf(string,"\n--%8.8d--%8.8d--\n",f,b);
+  len = sprintf(string,"\n------------%8.8d--\n",b);
   memcpy(refblock,string,len);
   
 }
@@ -215,8 +232,17 @@ int check() {
   char * fname;
   int    fd=-1;
   int    ret;
-
-  for (idx=1; idx <= nbfiles; idx++) {
+  int    start,stop;
+  
+  if (fNum == -1) {
+    start = 1;
+    stop  = nbfiles;
+  }
+  else {
+    start = fNum;
+    stop  = fNum;
+  }
+  for (idx=start; idx <= stop; idx++) {
 
     fname = getfilename(idx); 
   	
@@ -234,7 +260,7 @@ int check() {
 	exit(-1);
       }
 
-      update_block(idx,loop);
+      update_block(loop);
       
       if (memcmp(readblock,refblock,BLKSIZE)!=0) {
 	printf("CHECK memcmp(%s) bad content loop %d\n", fname, loop);
@@ -259,7 +285,7 @@ int create() {
     for (idx=1; idx <= nbfiles; idx++) {
 
       fname = getfilename(idx); 
-      update_block(idx,loop);
+      update_block(loop);
 
       if (loop == 0) fd = open(fname, O_CREAT | O_TRUNC | O_WRONLY, 0640);
       else           fd = open(fname, O_WRONLY);

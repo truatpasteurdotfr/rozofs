@@ -1026,6 +1026,7 @@ retry:
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
 //     if (projection_id >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
+     request->rebuild_ref = 0; // This is not a rebuild process
      memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
      memcpy(request->fid, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
      request->proj_id = projection_id;
@@ -1220,6 +1221,7 @@ retry:
      request->bsize         = storcli_write_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
+     request->rebuild_ref = 0; // This is not a rebuild process     
      memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
      memcpy(request->fid, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
      request->proj_id = projection_id;

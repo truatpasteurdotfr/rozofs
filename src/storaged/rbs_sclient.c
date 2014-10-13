@@ -86,6 +86,7 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
     uint8_t rozofs_safe = 0;
     list_t * storages = NULL;
     list_t *r = NULL;
+    int    local_index=-1;
 
     rozofs_safe = rozofs_get_rozofs_safe(rb_entry->layout);
 
@@ -96,8 +97,10 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
 
     list_for_each_forward(r, clusters_list) {
         rb_cluster_t *clu = list_entry(r, rb_cluster_t, list);
-        if (clu->cid == cid_to_search)
+        if (clu->cid == cid_to_search) {
             storages = &clu->storages;
+	    break;
+	}    
     }
 
     if (!storages) {
@@ -105,15 +108,8 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
         return -1;
     }
 
-    rb_entry->storages = xmalloc(rozofs_safe * sizeof (sclient_t *));
-    memset(rb_entry->storages, 0, rozofs_safe * sizeof (sclient_t *));
-
     // For each storage associated with this file
     for (i = 0; i < rozofs_safe; i++) {
-
-        // If sid == sid to rebuild, it's not necessary to establish cnt
-        if (rb_entry->dist_set_current[i] == sid_to_rebuild)
-            continue;
 
         // Get connection for this storage
         if ((rb_entry->storages[i] = rbs_get_stor_cnt(storages,
@@ -121,6 +117,19 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
                 rand_value)) != NULL) {
 
             // Check connection status
+	    
+            if (rb_entry->dist_set_current[i] == sid_to_rebuild) {
+	      if ((rb_entry->storages[i]->status != 1) 
+	      ||  (rb_entry->storages[i]->rpcclt.client == 0)) {
+	        severe("Can not connect to local storage sid %d",
+		       sid_to_rebuild);
+	        connected = 0;
+		break;
+	      }
+	      local_index = i;
+	      continue;
+            }
+
             if (rb_entry->storages[i]->status == 1 &&
                     rb_entry->storages[i]->rpcclt.client != 0)
                 connected++; // This storage seems to be OK
@@ -128,15 +137,12 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
     }
 
     if (connected < nb_cnt_required) {
-        free(rb_entry->storages);
-        rb_entry->storages = NULL;
         errno = EPROTO;
         return -1;
     }
 
-    return 0;
+    return local_index;
 }
-
 int rbs_get_rb_entry_list(mclient_t * mclt, cid_t cid, sid_t sid,
         sid_t rebuild_sid, uint8_t * device, uint8_t * spare, uint16_t * slice, uint64_t * cookie,
         bins_file_rebuild_t ** children, uint8_t * eof) {
@@ -200,13 +206,18 @@ out:
 int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
         uint8_t layout, uint32_t bsize, sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid,
         bid_t first_block_idx, uint32_t nb_blocks_2_read,
-        uint32_t * nb_blocks_read, rbs_projection_ctx_t * proj_ctx_p) {
+        uint32_t * nb_blocks_read, rbs_projection_ctx_t * proj_ctx_p,
+	uint64_t * size_read) {
 
     int status = -1;
     int ret = 0;
     uint8_t spare = 0;
+    uint64_t size;
+    uint64_t prjSize;
 
     DEBUG_FUNCTION;
+    
+    proj_ctx_p->nbBlocks = 0;
 
     // Check connection
     if (!storage || !storage->rpcclt.client || storage->status != 1) {
@@ -215,12 +226,12 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
     }
 
     // Memory allocation for store response
-    bin_t * bins = xmalloc(nb_blocks_2_read *
-            ((rozofs_get_max_psize(layout,bsize) * sizeof (bin_t))
-            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)));
-
-    memset(bins, 0, nb_blocks_2_read * ((rozofs_get_max_psize(layout,bsize) * sizeof (bin_t))
-            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)));
+    prjSize = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t);
+    prjSize += sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);
+    size = prjSize * nb_blocks_2_read;
+	    
+    bin_t * bins = xmalloc(size);
+    memset(bins, 0, size);
 
 
     // Is-it a spare storage ?
@@ -241,6 +252,9 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
     // Set the useful pointer on the received message
     proj_ctx_p->bins = bins;
     proj_ctx_p->prj_state = PRJ_READ_DONE;
+    proj_ctx_p->nbBlocks = *nb_blocks_read;
+    
+    *size_read += (proj_ctx_p->nbBlocks * prjSize);
 
     status = 0;
 out:
@@ -256,10 +270,11 @@ typedef struct rbs_blocks_recv_ctx {
 
 rbs_blocks_recv_ctx_t rbs_blocks_recv_tb[ROZOFS_SAFE_MAX];
 
-static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t cid,
+static int rbs_read_proj_set(sclient_t **storages, int local_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
-        rbs_storcli_ctx_t * working_ctx_p) {
+        rbs_storcli_ctx_t * working_ctx_p,
+	uint64_t          * size_read) {
     int status = -1;
     int i = 0;
     uint8_t nb_diff_nb_blocks_recv = 0;
@@ -281,7 +296,13 @@ static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, uint32_t bsiz
         for (stor_idx = 0; stor_idx < rozofs_safe; stor_idx++) {
 
             uint32_t curr_nb_blocks_read = 0;
-
+	    
+	    /* Do not read local block */
+            if (stor_idx == local_idx) {
+              working_ctx_p->prj_ctx[stor_idx].prj_state = PRJ_READ_ERROR;	    
+	      continue;	    
+            }
+	    
             // Check if a spare storage
             if (stor_idx >= rozofs_inverse) {
                 working_ctx_p->redundancy_stor_idx_current = stor_idx;
@@ -296,9 +317,9 @@ static int rbs_read_proj_set(sclient_t **storages, uint8_t layout, uint32_t bsiz
             if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
                     stor_idx, layout, bsize, dist_set, fid, first_block_idx,
                     nb_blocks_2_read, &curr_nb_blocks_read,
-                    &working_ctx_p->prj_ctx[stor_idx]) != 0) {
+                    &working_ctx_p->prj_ctx[stor_idx], size_read) != 0) {
                 continue; // Problem; try with the next storage;
-            }
+            }	    
 
             // If it's the first request received
             if (nb_diff_nb_blocks_recv == 0) {
@@ -359,7 +380,8 @@ out:
 int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, 
-        rbs_storcli_ctx_t * working_ctx_p) {
+        rbs_storcli_ctx_t * working_ctx_p,
+	uint64_t * size_read) {
     int status = -1;
     int i = 0;
     uint8_t nb_diff_nb_blocks_recv = 0;
@@ -383,6 +405,7 @@ int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t lay
           working_ctx_p->prj_ctx[spare_idx].prj_state = PRJ_READ_ERROR;	
 	  continue;
         }
+		
         uint32_t curr_nb_blocks_read = 0;
 
         // Check if the projection is already read
@@ -395,7 +418,8 @@ int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t lay
         if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
                 stor_idx, layout, bsize, dist_set, fid, first_block_idx,
                 nb_blocks_2_read, &curr_nb_blocks_read,
-                &working_ctx_p->prj_ctx[stor_idx]) != 0) {
+                &working_ctx_p->prj_ctx[stor_idx],
+		size_read) != 0) {
             continue; // Problem; try with the next storage;
         }
 	
@@ -456,13 +480,13 @@ int rbs_read_all_available_proj(sclient_t **storages, int spare_idx, uint8_t lay
 out:
     return status;
 }
-int rbs_read_blocks(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t cid,
+int rbs_read_blocks(sclient_t **storages, int local_idx, uint8_t layout, uint32_t bsize, cid_t cid,
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t first_block_idx,
         uint32_t nb_blocks_2_read, uint32_t * nb_blocks_read, int retry_nb,
-        rbs_storcli_ctx_t * working_ctx_p) {
+        rbs_storcli_ctx_t * working_ctx_p, 
+	uint64_t          * size_read) {
 
     int status = -1;
-    int i = 0;
     int ret = -1;
     // Nb. of blocks read on storages
     uint32_t real_nb_blocks_read = 0;
@@ -472,9 +496,9 @@ int rbs_read_blocks(sclient_t **storages, uint8_t layout, uint32_t bsize, cid_t 
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
     // Read projections on storages
-    ret = rbs_read_proj_set(storages, layout, bsize, cid, dist_set, fid,
+    ret = rbs_read_proj_set(storages, local_idx, layout, bsize, cid, dist_set, fid,
             first_block_idx, nb_blocks_2_read, &real_nb_blocks_read,
-            retry_nb, working_ctx_p);
+            retry_nb, working_ctx_p,size_read);
 
     // Error
     if (ret != 0) {
@@ -518,12 +542,15 @@ transform_inverse:
 
             // Increment the nb. of redundancy_stor_idx_current
             working_ctx_p->redundancy_stor_idx_current++;
+	    
+	    if (stor_idx == local_idx) continue;
 
             // Send one another read request
             if (rbs_read_proj(storages[stor_idx], cid, dist_set[stor_idx],
                     stor_idx, layout, bsize, dist_set, fid, first_block_idx,
                     nb_blocks_2_read, &nb_blocks_read,
-                    &working_ctx_p->prj_ctx[stor_idx]) != 0) {
+                    &working_ctx_p->prj_ctx[stor_idx],
+		    size_read) != 0) {
                 continue; // Problem: try with the next storage;
             }
 
@@ -550,8 +577,5 @@ transform_inverse:
 
     status = 0;
 out:
-    for (i = 0; i < rozofs_safe; i++)
-        if (working_ctx_p->prj_ctx[i].bins)
-            free(working_ctx_p->prj_ctx[i].bins);
     return status;
 }

@@ -173,7 +173,7 @@ int storio_encode_rpc_response (rozorpc_srv_ctx_t *p,char * arg_ret) {
    *header_len_p = htonl(0x80000000 | total_len);
    total_len += sizeof(uint32_t);
    ruc_buf_setPayloadLen(p->xmitBuf,total_len);
-
+   
    return 0;
 }
 
@@ -239,9 +239,8 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
 
 
   // Lookup for the device id for this FID
-  msg->device_id_back = msg->device_id_sent;
   // Read projections
-  if (storage_read(st, &msg->device_id_back, args->layout, args->bsize,(sid_t *) args->dist_set, args->spare,
+  if (storage_read(st, msg->device_per_chunk, args->layout, args->bsize,(sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
             (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
@@ -311,16 +310,11 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   args   = (sp_write_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
 
   /*
-  ** set the pointer to the bins
+  ** set the pointer to the bins that are in the xmit buffer
+  ** since received bufer is also used for the response
   */
-  char *pbuf = ruc_buf_getPayload(rpcCtx->recv_buf); 
+  char *pbuf = ruc_buf_getPayload(rpcCtx->xmitBuf); 
   pbuf += rpcCtx->position;
-  
-  /*
-  ** Use received buffer for the response
-  */
-  rpcCtx->xmitBuf  = rpcCtx->recv_buf;
-  rpcCtx->recv_buf = NULL;
 
   /*
   ** Check that the received data length is consistent with the bins length
@@ -365,12 +359,9 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
     return;
   }
   
-
-  // Lookup for the device id for this FID
-  msg->device_id_back = msg->device_id_sent;
   
   // Write projections
-  size =  storage_write(st, &msg->device_id_back, args->layout, args->bsize, (sid_t *) args->dist_set, args->spare,
+  size =  storage_write(st, msg->device_per_chunk, args->layout, args->bsize, (sid_t *) args->dist_set, args->spare,
           (unsigned char *) args->fid, args->bid, args->nb_proj, version,
           &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
   if (size <= 0)  {
@@ -387,8 +378,9 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
     return;
   }
   
-  ret.status = SP_SUCCESS;          
-  msg->size = size;        
+  ret.status = SP_SUCCESS;  
+  ret.sp_write_ret_t_u.file_size = 0;
+           
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
   thread_ctx_p->stat.diskWrite_Byte_count += size;
   storio_send_response(thread_ctx_p,msg,0);
@@ -434,17 +426,12 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   args   = (sp_truncate_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
 
   /*
-  ** set the pointer to the bins
+  ** set the pointer to the bins that are in the xmit buffer
+  ** since received bufer is also used for the response
   */
-  char *pbuf = ruc_buf_getPayload(rpcCtx->recv_buf); 
+  char *pbuf = ruc_buf_getPayload(rpcCtx->xmitBuf); 
   pbuf += rpcCtx->position;
     
-  /*
-  ** Use received buffer for the response
-  */
-  rpcCtx->xmitBuf  = rpcCtx->recv_buf;
-  rpcCtx->recv_buf = NULL;
-  
 
   // Get the storage for the couple (cid;sid)
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
@@ -455,11 +442,8 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
     return;
   }
 
-  // Lookup for the device id for this FID
-  msg->device_id_back = msg->device_id_sent;  
-
   // Truncate bins file
-  result = storage_truncate(st, &msg->device_id_back, args->layout, args->bsize, (sid_t *) args->dist_set,
+  result = storage_truncate(st, msg->device_per_chunk, args->layout, args->bsize, (sid_t *) args->dist_set,
         		    args->spare, (unsigned char *) args->fid, args->proj_id,
         		    args->bid,version,args->last_seg,args->last_timestamp,
 			    args->len, pbuf, &is_fid_faulty);
@@ -519,18 +503,6 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_remove_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
-
-  /*
-  ** set the pointer to the bins
-  */
-  char *pbuf = ruc_buf_getPayload(rpcCtx->recv_buf); 
-  pbuf += rpcCtx->position;
-    
-  /*
-  ** Use received buffer for the response
-  */
-  rpcCtx->xmitBuf  = rpcCtx->recv_buf;
-  rpcCtx->recv_buf = NULL;
   
 
   // Get the storage for the couple (cid;sid)
@@ -563,6 +535,77 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
   thread_ctx_p->stat.diskRemove_time +=(timeAfter-timeBefore);  
+}    
+/**
+*  Remove a chunk file
+
+  @param thread_ctx_p: pointer to the thread context
+  @param msg         : address of the message received
+  
+  @retval: none
+*/
+static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+  struct timeval     timeDay;
+  unsigned long long timeBefore, timeAfter;
+  storage_t *st = 0;
+  sp_remove_chunk_arg_t      * args;
+  rozorpc_srv_ctx_t      * rpcCtx;
+  sp_status_ret_t          ret;
+  int                      result;
+  int                      is_fid_faulty;
+  
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeBefore = MICROLONG(timeDay);
+
+  ret.status = SP_FAILURE;          
+  
+  /*
+  ** update statistics
+  */
+  thread_ctx_p->stat.diskRemove_chunk_count++;
+  
+  rpcCtx = msg->rpcCtx;
+  args   = (sp_remove_chunk_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+      
+
+  // Get the storage for the couple (cid;sid)
+  if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    ret.sp_status_ret_t_u.error = errno;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRemove_chunk_badCidSid++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }
+  
+
+  // remove chunk file
+  result = storage_rm_chunk(st, msg->device_per_chunk, 
+                            args->layout, args->bsize, args->spare,
+			    args->dist_set, (unsigned char*)args->fid,
+			    args->chunk, &is_fid_faulty);
+  if (result != 0) {
+    if (is_fid_faulty) {
+      storio_register_faulty_fid(thread_ctx_p->thread_idx,
+				 args->cid,
+				 args->sid,
+				 (uint8_t*)args->fid);
+    }           ret.sp_status_ret_t_u.error = errno;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRemove_chunk_error++; 
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }
+  
+  ret.status = SP_SUCCESS;          
+  storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+  storio_send_response(thread_ctx_p,msg,0);
+
+  /*
+  ** Update statistics
+  */
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
+  thread_ctx_p->stat.diskRemove_chunk_time +=(timeAfter-timeBefore);  
 }    
 
 /*
@@ -613,6 +656,10 @@ void *storio_disk_thread(void *arg) {
         storio_disk_remove(ctx_p,&msg);
         break;
 	       	
+      case STORIO_DISK_THREAD_REMOVE_CHUNK:
+        storio_disk_remove_chunk(ctx_p,&msg);
+        break;
+
       default:
         fatal(" unexpected opcode : %d\n",msg.opcode);
         exit(0);       

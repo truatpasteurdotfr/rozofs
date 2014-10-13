@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     uint64_t file_size;
     uint8_t write_version;
     uint8_t i = 0;
-    int     device_id;
+    uint8_t device_id[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE];
     int     is_fid_faulty;
     uint32_t bsize = ROZOFS_BSIZE_4K;
 
@@ -117,8 +117,9 @@ int main(int argc, char **argv) {
 
             // Write projections
             fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_1, rozofs_get_psizes(layout,bsize, tid_1), bid);
-             device_id = -1;
-            if (storage_write(&st, &device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, &file_size, bins_write_1, &is_fid_faulty) != 0) {
+	    
+	    memset(device_id,ROZOFS_UNKNOWN_CHUNK,ROZOFS_SAFE_MAX);
+            if (storage_write(&st, device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, &file_size, bins_write_1, &is_fid_faulty) != 0) {
                 perror("failed to write bins");
                 exit(-1);
             }
@@ -127,7 +128,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Write %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_2, rozofs_get_psizes(layout, bsize,tid_2), bid);
             
-            if (storage_write(&st,&device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, &file_size, bins_write_2, &is_fid_faulty) != 0) {
+            if (storage_write(&st,device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, write_version, &file_size, bins_write_2, &is_fid_faulty) != 0) {
                 perror("failed to write bins");
                 exit(-1);
             }
@@ -136,7 +137,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_1, rozofs_get_psizes(layout, bsize,tid_1), bid);
 
-            if (storage_read(&st, &device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_1, &len_read, &file_size, &is_fid_faulty) != 0) {
+            if (storage_read(&st, device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_1, &len_read, &file_size, &is_fid_faulty) != 0) {
                 perror("failed to read bins");
                 exit(-1);
             }
@@ -152,7 +153,7 @@ int main(int argc, char **argv) {
 
             fprintf(stdout, "Read %u projections (id=%u and sizeof: %u bins) at bid=%"PRIu64"\n", nrb, tid_2, rozofs_get_psizes(layout, bsize,tid_2), bid);
 
-            if (storage_read(&st, &device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_2, &len_read, &file_size, &is_fid_faulty) != 0) {
+            if (storage_read(&st, device_id, layout, bsize, (uint8_t *) & dist_set, spare, fid, bid, nrb, bins_read_2, &len_read, &file_size, &is_fid_faulty) != 0) {
                 perror("failed to read bins");
                 exit(-1);
             }

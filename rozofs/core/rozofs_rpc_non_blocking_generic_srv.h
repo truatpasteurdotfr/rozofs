@@ -29,6 +29,7 @@
 #include "config.h"
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/common/list.h>
 #include <rpc/rpc.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/core/rozofs_tx_common.h>
@@ -77,7 +78,7 @@
 /**
 *  North Interface
 */
-#define ROZORPC_SRV_CTX_CNT   8  /**< context for processing either a read or write request from rozofsmount and internal read req */
+#define ROZORPC_SRV_CTX_CNT   16  /**< context for processing either a read or write request from rozofsmount and internal read req */
 #define ROZORPC_SRV_CTX_MIN_CNT 3 /**< minimum count to process a request from rozofsmount */
 /**
 * Buffer s associated with the reception of the load balancing group on north interface
@@ -140,7 +141,7 @@ typedef struct _rozorpc_srv_ctx_t
   xdrproc_t  arg_decoder;          /**< procedure for decoding/freeing arguments */
   uint64_t *profiler_probe;       /**< pointer to the profiler counter */
   uint64_t profiler_time;        /**< profiler timestamp */
-
+  list_t   list;                 /**< To chain the request somewhere */
 } rozorpc_srv_ctx_t;
 
 #define ROZORPC_SRV_START_NORTH_PROF(buffer)\

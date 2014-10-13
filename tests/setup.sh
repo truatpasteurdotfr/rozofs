@@ -778,6 +778,7 @@ do_start_all_processes() {
      start_storaged ${STORAGES_BY_CLUSTER}
      #start_expgw
      start_exportd 1
+     #sleep 5
      deploy_clients_local
 }
 
@@ -928,6 +929,10 @@ do_one_cou ()
     DIRECTORY|SYMBOLIC) return;;
   esac
 
+  if [ "$GEOREP" -ne 1 ];
+  then
+  printf "__________________Site 0\n"  
+  fi
   
   # Header and bins files
   for sid in $SID_LIST
@@ -935,7 +940,7 @@ do_one_cou ()
     sid=`expr $sid + 0`
     dir="${LOCAL_STORAGES_ROOT}_$cluster-$sid"
     doSpace="Yes"
-    for file in `find $dir -name $fid`
+    for file in `find $dir -name "${fid}*"`
     do
       case $doSpace in
        Yes) printf "\n"; doSpace="No";;
@@ -943,7 +948,29 @@ do_one_cou ()
       size=`ls -l $file  | awk '{ printf $5 }'`
       printf "%10s %s\n" $size $file
     done
-  done     
+  done
+  
+  if [ "$GEOREP" -eq 1 ];
+  then
+    return
+  fi
+    
+  printf "\n__________________Site 1\n"  
+  for sid in $SID_LIST
+  do
+    sid=`expr $sid + $STORAGES_PER_SITE`
+    dir="${LOCAL_STORAGES_ROOT}_$cluster-$sid"
+    doSpace="Yes"
+    for file in `find $dir -name "${fid}*"`
+    do
+      case $doSpace in
+       Yes) printf "\n"; doSpace="No";;
+      esac	
+      size=`ls -l $file  | awk '{ printf $5 }'`
+      printf "%10s %s\n" $size $file
+    done
+  done
+   
 }
 do_monitor_cfg () 
 {
@@ -1077,7 +1104,7 @@ usage ()
     echo >&2 "$0 geomgr modify|delete"    
     echo >&2 "$0 cou <fileName>"    
     echo >&2 "$0 core [remove] <coredir>/<corefile>"
-    echo >&2 "$0 process"
+    echo >&2 "$0 process [ <filter> ]"
     echo >&2 "$0 monitor"
     echo >&2 "$0 reload"
     echo >&2 "$0 build"
@@ -1093,6 +1120,11 @@ usage ()
 # $1 -> Layout to use
 set_layout () {
 
+  if [ ! -f ${WORKING_DIR}/layout.saved ];
+  then
+    echo 0 > ${WORKING_DIR}/layout.saved   
+  fi
+  
   # Get default layout from /tmp/rozo.layout if not given as parameter
   
   case "$1" in
@@ -1161,7 +1193,10 @@ display_process() {
 show_process () {
 
   tst_dir=`pwd | awk -F'/' '{ print $NF }'`
-  LIST=`ps -ef | grep "/$tst_dir" | awk '{ if ($3==1) print $2;}'`
+  case "$1" in
+    "") LIST=`ps -ef | grep "/$tst_dir" | awk '{ if ($3==1) print $2;}'`;;
+    *)  LIST=`ps -ef | grep "/$tst_dir" | grep "$1" | awk '{ if ($3==1) print $2;}'`;;
+  esac
 
   for proc in $LIST
   do
@@ -1184,7 +1219,7 @@ main ()
         export PATH=$PATH:$dir
       fi
     done  
- 
+
     # Set new layout when given on start command
     # or read saved layout 
     if [ "$1" == "start" -a $# -ge 2 ];
@@ -1205,7 +1240,7 @@ main ()
     declare -a EXPORT_BSIZE=($BS4K $BS8K $BS16K $BS32K)
     declare -a EXPORT_VID=(1 1 1 1)
     NB_VOLUMES=1
-    NB_CLUSTERS_BY_VOLUME=2
+    NB_CLUSTERS_BY_VOLUME=1
     NB_PORTS_PER_STORAGE_HOST=2
     NB_DISK_THREADS=3
     NB_CORES=2
@@ -1216,9 +1251,9 @@ main ()
     SQUOTA=""
     HQUOTA=""
     
-    NB_DEVICE_PER_SID=6
+    NB_DEVICE_PER_SID=4
     NB_DEVICE_MAPPER_PER_SID=4
-    NB_DEVICE_MAPPER_RED_PER_SID=2
+    NB_DEVICE_MAPPER_RED_PER_SID=3
     # GEOREP = 1 (1 site) or 2 (2 georeplicated sites)
     GEOREP=2
 
@@ -1260,7 +1295,8 @@ main ()
     elif [ "$1" == "stop" ]
     then
            do_stop
-
+           show_process
+	   
     elif [ "$1" == "core" ]
     then
            do_core $*	
@@ -1270,6 +1306,8 @@ main ()
     elif [ "$1" == "pause" ]
     then
            do_pause
+	   show_process
+	   
     elif [ "$1" == "resume" ]
     then
            do_start_all_processes
@@ -1352,7 +1390,7 @@ main ()
       esac      
     elif [ "$1" == "process" ]
     then 
-       show_process 
+       show_process $2
     elif [ "$1" == "monitor" ]
     then 
        set_layout
@@ -1360,6 +1398,7 @@ main ()
     elif [ "$1" == "clean" ]
     then
         clean_all
+	show_process
     else
         usage
     fi

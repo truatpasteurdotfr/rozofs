@@ -183,7 +183,7 @@ test_storage_io_devices()
   # resolve_rozodiag
  
   # Check device status
-  $ROZDBG -c device device >  $TMPFILE
+  $ROZDBG -c device >  $TMPFILE
   faulty_devices=`awk '{ if ($3=="faulty" && $4=="devices") print $5 }' $TMPFILE`
   case $faulty_devices in
     "") return 1;;

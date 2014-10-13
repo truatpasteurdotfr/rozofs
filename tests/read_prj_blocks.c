@@ -127,12 +127,13 @@ int read_data_file() {
     rozofs_stor_bins_footer_t * rozofs_bins_foot_p;
     char * loc_read_bins_p = NULL;
     int      forward = rozofs_get_rozofs_forward(layout);
-    int      inverse = rozofs_get_rozofs_inverse(layout);
+//    int      inverse = rozofs_get_rozofs_inverse(layout);
     uint16_t disk_block_size; 
     uint16_t max_block_size = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t)) 
                             + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
     char * p;
     int empty,valid;
+    int prj_id;
         
 
     // Allocate memory for reading
@@ -183,7 +184,7 @@ int read_data_file() {
 	 continue;
        }
        
-       if (idx >= inverse)
+       if (idx >= forward)
           disk_block_size = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t));
        else
           disk_block_size = (rozofs_get_psizes(layout,bsize,idx)*sizeof (bin_t));          
@@ -197,16 +198,31 @@ int read_data_file() {
 	   fd[idx] = -1;        
        }
        else {
-           count++;
-	   rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;
-	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) ((char*) rozofs_bins_hdr_p + disk_block_size - sizeof(rozofs_stor_bins_footer_t));
+         count++;
+	 rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;
+	 prj_id = rozofs_bins_hdr_p->s.projection_id;
+	 
+	 if (prj_id >= forward) {
+	   valid = 1;
+	   p += sprintf(p,"| xxxxxxxxxxxxxxxx | xxxx | %2d |",prj_id);	     
+	 }
+	 else {
+           disk_block_size = (rozofs_get_psizes(layout,bsize,prj_id)*sizeof (bin_t));
+           disk_block_size += sizeof (rozofs_stor_bins_hdr_t);
 	   
-	   if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) {
+	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) 
+	            ((char*) rozofs_bins_hdr_p + disk_block_size);
+           if (rozofs_bins_hdr_p->s.timestamp == 0) {
+	     p += sprintf(p,"| %16d | .... | %2d |",0,prj_id);
+	   }		    
+	   else if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) {
 	     valid = 1;
-	     p += sprintf(p,"| xxxxxxxxxxxxxxxx | xxxx | xx |");	     
+	     p += sprintf(p,"--%16.16llu----------%2d--", 
+	                  (long long unsigned int)rozofs_bins_hdr_p->s.timestamp, 
+			  prj_id);	     
 	   }
 	   else if (rozofs_bins_hdr_p->s.timestamp == 0) {
-	     p += sprintf(p,"| %16d | %4d | .. |",0,0);
+	     p += sprintf(p,"| %16d | .... | %2d |",0,prj_id);
 	   }
 	   else {
 	     valid = 1;
@@ -214,7 +230,8 @@ int read_data_file() {
         	    (unsigned long long)rozofs_bins_hdr_p->s.timestamp,    
         	    rozofs_bins_hdr_p->s.effective_length,    
         	    rozofs_bins_hdr_p->s.projection_id);   
-           }		  
+           }
+	 }  		  
        }
 
      }

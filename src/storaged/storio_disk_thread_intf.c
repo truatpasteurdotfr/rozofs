@@ -34,6 +34,7 @@
 #include "sproto_nb.h"
 #include "config.h"
 #include "storio_device_mapping.h"
+#include "storio_serialization.h"
 
 DECLARE_PROFILING(spp_profiler_t); 
  
@@ -49,9 +50,6 @@ struct  sockaddr_un storio_north_socket_name;
 int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) ;
  
 
-
-void * af_unix_disk_pool_send = NULL;
-void * af_unix_disk_pool_recv = NULL;
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -161,30 +159,17 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_line_val_and_sum("   error",diskRemove_error);  
   display_line_val_and_sum("   Cumulative Time (us)",diskRemove_time);
   display_line_div_and_sum("   Average Time (us)",diskRemove_time,diskRemove_count);  
-  display_line_topic("");  
+  
+  display_line_topic("Remove chunk Requests");  
+  display_line_val_and_sum("   number", diskRemove_chunk_count);
+  display_line_val_and_sum("   Unknown cid/sid",diskRemove_chunk_badCidSid);  
+  display_line_val_and_sum("   error",diskRemove_chunk_error);  
+  display_line_val_and_sum("   Cumulative Time (us)",diskRemove_chunk_time);
+  display_line_div_and_sum("   Average Time (us)",diskRemove_chunk_time,diskRemove_chunk_count);  
+  display_line_topic("");    
   pChar += sprintf(pChar,"\n");
 
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
-}
-
-/*__________________________________________________________________________
-*/
-/**
-* test function for allocatiing a buffer in the client space
-
- The service might reject the buffer allocation because the pool runs
- out of buffer or because there is no pool with a buffer that is large enough
- for receiving the message because of a out of range size.
-
- @param userRef : pointer to a user reference: not used here
- @param socket_context_ref: socket context reference
- @param len : length of the incoming message
- 
- @retval <>NULL pointer to a receive buffer
- @retval == NULL no buffer
-*/
-void * af_unix_disk_userRcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref,uint32_t len) {
-  return ruc_buf_getBuffer(af_unix_disk_pool_recv);   
 }
 
 
@@ -217,7 +202,7 @@ ruc_sockCallBack_t af_unix_disk_callBack_sock=
 
   Called from the socket controller. 
 
-
+serial
   @param unused: not used
   @param socketId: reference of the socket (not used)
  
@@ -291,7 +276,7 @@ uint32_t af_unix_disk_rcvReadysock(void * unused,int socketId)
 */
 void af_unix_disk_response(storio_disk_thread_msg_t *msg) 
 {
-
+  storio_device_mapping_t * dev_map_p = NULL;
   storio_disk_thread_request_e   opcode;
   rozorpc_srv_ctx_t            * rpcCtx;
   int                            ret;
@@ -305,123 +290,74 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
   
     case STORIO_DISK_THREAD_READ:
       STOP_PROFILING_IO(read,msg->size);
-      /*
-      ** If the device id was not known on the request but is returned in 
-      ** the response, let's insert it in the lookup table
-      */
-      if ((msg->device_id_sent == -1) && (msg->device_id_back != -1)) {
-        /*
-	** Retrieve the FID from the decoded request 
+      sp_read_arg_t * read_arg_p = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+      dev_map_p = storio_device_mapping_search(read_arg_p->fid);
+      if (dev_map_p != NULL) { 
+	/*
+	** Send waiting request if any
 	*/
-        sp_read_arg_t * read_arg_p = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-        /*
-	** The device id of the FID was not in the lookup table, but we have
-	** now the information to insert it.
-	*/	
-	storio_device_mapping_insert((uint8_t*)read_arg_p->fid, msg->device_id_back);	
-      }
-      /*
-      ** If the device id was known on the request but the response tells 
-      ** it has not been found. Remove it from the cache
-      */
-      if ((msg->device_id_sent != -1) && (msg->device_id_back == -1)) {
-        /*
-	** Retrieve the FID from the decoded request 
-	*/
-        sp_read_arg_t * read_arg_p = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-        /*
-	** Remove the entry from the lookup table
-	*/
-	storio_device_mapping_t * dev_map_p = storio_device_mapping_search(read_arg_p->fid);
-	if (dev_map_p != NULL) {    
-          storio_device_mapping_release_entry(dev_map_p);
-	}  		
-      }      
+	storio_serialization_end(dev_map_p,rpcCtx) ;
+      }			
       update_read_detailed_counters(toc - tic);      
       break;
 
     case STORIO_DISK_THREAD_WRITE:
       STOP_PROFILING_IO(write,msg->size);
-      /*
-      ** If the device id was not known on the request but is returned in 
-      ** the response, let's insert it in the lookup table
-      */   
-      if ((msg->device_id_sent == -1) && (msg->device_id_back != -1)) {
-        /*
-	** Retrieve the FID from the decoded request 
+      sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+      dev_map_p = storio_device_mapping_search(write_arg_p->fid);
+
+      if (dev_map_p != NULL) { 
+	/*
+	** Send waiting request if any
 	*/
-        sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-        /*
-	** The device id of the FIS was not in the lookup table, but we have
-	** now the information to insert it.
-	*/
-	storio_device_mapping_insert((uint8_t*)write_arg_p->fid, msg->device_id_back);	
-      }      
-      /*
-      ** If the device id was known on the request but the response tells 
-      ** it has not been found. Remove it from the cache
-      */
-      if ((msg->device_id_sent != -1) && (msg->device_id_back == -1)) {
-        /*
-	** Retrieve the FID from the decoded request 
-	*/
-        sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-        /*
-	** Remove the entry from the lookup table
-	*/
-	storio_device_mapping_t * dev_map_p = storio_device_mapping_search(write_arg_p->fid);
-	if (dev_map_p != NULL) {    
-          storio_device_mapping_release_entry(dev_map_p);
-	}  		
-      }      
+	storio_serialization_end(dev_map_p,rpcCtx) ;
+      }	 
       update_write_detailed_counters(toc - tic);            
       break;     
 
     case STORIO_DISK_THREAD_TRUNCATE:
       STOP_PROFILING(truncate);
-       /*
-      ** If the device id was not known on the request but is returned in 
-      ** the response, let's insert it in the lookup table
-      */
-      if ((msg->device_id_sent == -1) && (msg->device_id_back != -1)) {
-        /*
-	** Retrieve the FID from the decoded request 
+      sp_truncate_arg_t * truncate_arg_p = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+      dev_map_p = storio_device_mapping_search(truncate_arg_p->fid);
+      if (dev_map_p != NULL) { 
+	/*
+	** Send waiting request if any
 	*/
-        sp_truncate_arg_t * truncate_arg_p = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-        /*
-	** The device id of the FIS was not in the lookup table, but we have
-	** now the information to insert it.
-	*/
-	storio_device_mapping_insert((uint8_t*)truncate_arg_p->fid, msg->device_id_back);	
-      }
-      /*
-      ** If the device id was known on the request but the response tells 
-      ** it has not been found. Remove it from the cache
-      */
-      if ((msg->device_id_sent != -1) && (msg->device_id_back == -1)) {
-        /*
-	** Retrieve the FID from the decoded request 
-	*/
-        sp_truncate_arg_t * truncate_arg_p = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-        /*
-	** Remove the entry from the lookup table
-	*/
-	storio_device_mapping_t * dev_map_p = storio_device_mapping_search(truncate_arg_p->fid);
-	if (dev_map_p != NULL) {    
-          storio_device_mapping_release_entry(dev_map_p);
-	}  		
-      }            
+	storio_serialization_end(dev_map_p,rpcCtx) ;
+      }	       	            
       break;   
+      
     case STORIO_DISK_THREAD_REMOVE:
       STOP_PROFILING(remove);
-      break;   
+      sp_remove_arg_t * remove_arg_p = (sp_remove_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+      dev_map_p = storio_device_mapping_search(remove_arg_p->fid);
+      if (dev_map_p != NULL) { 
+	/*
+	** Send waiting request if any
+	*/
+	storio_serialization_end(dev_map_p,rpcCtx) ;
+      }        
+      break; 
+      
+    case STORIO_DISK_THREAD_REMOVE_CHUNK:
+      STOP_PROFILING(remove_chunk);
+      sp_remove_chunk_arg_t * remove_chunk_arg_p = (sp_remove_chunk_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
+      dev_map_p = storio_device_mapping_search(remove_chunk_arg_p->fid);
+      if (dev_map_p != NULL) { 
+	/*
+	** Send waiting request if any
+	*/
+	storio_serialization_end(dev_map_p,rpcCtx) ;
+      }        
+      break;    
+           
     default:
       severe("Unexpected opcode %d", opcode);
   }
   /*
   ** send the response towards the storcli process that initiates the disk operation
   */
-  ret = af_unix_generic_send_stream_with_idx((int)rpcCtx->socketRef,rpcCtx->xmitBuf);  
+  ret = af_unix_generic_send_stream_with_idx((int)rpcCtx->socketRef,rpcCtx->xmitBuf); 
   if (ret == 0) {
     /**
     * success so remove the reference of the xmit buffer since it is up to the called
@@ -578,31 +514,29 @@ void storio_send_response (rozofs_disk_thread_ctx_t *thread_ctx_p, storio_disk_t
 /**
 *  Send a disk request to the disk threads
 *
-* @param opcode     the request operation code
+* @param device     Array of device used per chunk
 * @param rpcCtx     pointer to the generic rpc context
 * @param timeStart  time stamp when the request has been decoded
 *
 * @retval 0 on success -1 in case of error
 *  
 */
-int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode, 
-                                 int                            device_id,
+int storio_disk_thread_intf_send(uint8_t                      * device,
                                  rozorpc_srv_ctx_t            * rpcCtx,
-				                 uint64_t                       timeStart) 
+				                 uint64_t       timeStart) 
 {
   int                         ret;
   storio_disk_thread_msg_t    msg;
  
   /* Fill the message */
-  msg.msg_len         = sizeof(storio_disk_thread_msg_t)-sizeof(msg.msg_len);
-  msg.opcode          = opcode;
-  msg.status          = 0;
-  msg.transaction_id  = transactionId++;
-  msg.device_id_sent  = device_id;
-  msg.device_id_back  = -1;
-  msg.timeStart       = timeStart;
-  msg.size            = 0;
-  msg.rpcCtx          = rpcCtx;
+  msg.msg_len          = sizeof(storio_disk_thread_msg_t)-sizeof(msg.msg_len);
+  msg.opcode           = rpcCtx->opcode;
+  msg.status           = 0;
+  msg.transaction_id   = transactionId++;
+  msg.device_per_chunk = device;
+  msg.timeStart        = timeStart;
+  msg.size             = 0;
+  msg.rpcCtx           = rpcCtx;
   
   /* Send the buffer to its destination */
   ret = sendto(af_unix_disk_south_socket_ref,&msg, sizeof(msg),0,(struct sockaddr*)&storio_north_socket_name,sizeof(storio_north_socket_name));
@@ -701,27 +635,13 @@ void af_unix_disk_scheduler_entry_point(uint64_t current_time)
 *
 * @param hostname    storio hostname (for tests)
 * @param nb_threads  Number of threads that can process the disk requests
-* @param nb_buffer   Number of buffer for sending and number of receiving buffer
 *
 *  @retval 0 on success -1 in case of error
 */
-int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads, int nb_buffer) {
+int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads) {
 
   af_unix_disk_thread_count = nb_threads;
 
-  af_unix_disk_pool_send = ruc_buf_poolCreate(nb_buffer,sizeof(storio_disk_thread_msg_t));
-  if (af_unix_disk_pool_send == NULL) {
-    fatal("storio_disk_thread_intf_create af_unix_disk_pool_send (%d,%d)", nb_buffer, (int)sizeof(storio_disk_thread_msg_t));
-    return -1;
-  }
-  ruc_buffer_debug_register_pool("diskSendPool",af_unix_disk_pool_send);   
-  
-  af_unix_disk_pool_recv = ruc_buf_poolCreate(1,sizeof(storio_disk_thread_msg_t));
-  if (af_unix_disk_pool_recv == NULL) {
-    fatal("storio_disk_thread_intf_create af_unix_disk_pool_recv (1,%d)", (int)sizeof(storio_disk_thread_msg_t));
-    return -1;
-  }
-  ruc_buffer_debug_register_pool("diskRecvPool",af_unix_disk_pool_recv);   
   /*
   ** init of the AF_UNIX sockaddr associated with the south socket (socket used for disk response receive)
   */

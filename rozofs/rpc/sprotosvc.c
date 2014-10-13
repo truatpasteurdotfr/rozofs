@@ -25,6 +25,9 @@ storage_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		sp_read_arg_t sp_read_1_arg;
 		sp_truncate_arg_t sp_truncate_1_arg;
 		sp_remove_arg_t sp_remove_1_arg;
+		sp_rebuild_start_arg_t sp_rebuild_start_1_arg;
+		sp_rebuild_stop_arg_t sp_rebuild_stop_1_arg;
+		sp_remove_chunk_arg_t sp_remove_chunk_1_arg;
 	} argument;
 	char *result;
 	xdrproc_t _xdr_argument, _xdr_result;
@@ -59,6 +62,24 @@ storage_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 		_xdr_argument = (xdrproc_t) xdr_sp_remove_arg_t;
 		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) sp_remove_1_svc;
+		break;
+
+	case SP_REBUILD_START:
+		_xdr_argument = (xdrproc_t) xdr_sp_rebuild_start_arg_t;
+		_xdr_result = (xdrproc_t) xdr_sp_rebuild_start_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) sp_rebuild_start_1_svc;
+		break;
+
+	case SP_REBUILD_STOP:
+		_xdr_argument = (xdrproc_t) xdr_sp_rebuild_stop_arg_t;
+		_xdr_result = (xdrproc_t) xdr_sp_rebuild_stop_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) sp_rebuild_stop_1_svc;
+		break;
+
+	case SP_REMOVE_CHUNK:
+		_xdr_argument = (xdrproc_t) xdr_sp_remove_chunk_arg_t;
+		_xdr_result = (xdrproc_t) xdr_sp_status_ret_t;
+		local = (char *(*)(char *, struct svc_req *)) sp_remove_chunk_1_svc;
 		break;
 
 	default:

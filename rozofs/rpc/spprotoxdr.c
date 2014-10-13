@@ -70,6 +70,15 @@ xdr_spp_profiler_t (XDR *xdrs, spp_profiler_t *objp)
 	 if (!xdr_vector (xdrs, (char *)objp->truncate, 3,
 		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
 		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rebuild_start, 3,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->rebuild_stop, 3,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->remove_chunk, 3,
+		sizeof (uint64_t), (xdrproc_t) xdr_uint64_t))
+		 return FALSE;
 	return TRUE;
 }
 

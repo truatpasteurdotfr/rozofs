@@ -30,6 +30,7 @@
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/core/rozofs_socket_family.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
+#include "storage.h"
 
 typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            diskRead_count;
@@ -55,6 +56,11 @@ typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            diskRemove_error;
   uint64_t            diskRemove_badCidSid;  
   uint64_t            diskRemove_time;  
+  
+  uint64_t            diskRemove_chunk_count;
+  uint64_t            diskRemove_chunk_error;
+  uint64_t            diskRemove_chunk_badCidSid;  
+  uint64_t            diskRemove_chunk_time;  
 
 } rozofs_disk_thread_stat_t;
 /*
@@ -79,7 +85,9 @@ typedef enum _storio_disk_thread_request_e {
   STORIO_DISK_THREAD_READ=1,
   STORIO_DISK_THREAD_WRITE,
   STORIO_DISK_THREAD_TRUNCATE,
-  STORIO_DISK_THREAD_REMOVE
+  STORIO_DISK_THREAD_REMOVE,
+  STORIO_DISK_THREAD_REMOVE_CHUNK, 
+  STORIO_DISK_THREAD_MAX_OPCODE
 } storio_disk_thread_request_e;
 
 typedef struct _storio_disk_thread_msg_t
@@ -88,8 +96,7 @@ typedef struct _storio_disk_thread_msg_t
   uint32_t            opcode;
   uint32_t            status;
   uint32_t            transaction_id;
-  int32_t             device_id_sent;
-  int32_t             device_id_back;  
+  uint8_t           * device_per_chunk;
   uint64_t            timeStart;
   uint64_t            size;
   rozorpc_srv_ctx_t * rpcCtx;
@@ -100,27 +107,24 @@ typedef struct _storio_disk_thread_msg_t
 *
 * @param hostname    storio hostname (for simulation)
 * @param nb_threads  Number of threads that can process the disk requests
-* @param nb_buffer   Number of buffer for sending and number of receiving buffer
 *
 *  @retval 0 on success -1 in case of error
 */
-int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads, int nb_buffer) ;
+int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads) ;
 
 /*__________________________________________________________________________
 */
 /**
 *  Send a disk request to the disk threads
 *
-* @param opcode     the request operation code
-* @param device_id  the device holding the data or -1 when unknown
+* @param device     Array of allocated device per chunk
 * @param rpcCtx     pointer to the generic rpc context
 * @param timeStart  time stamp when the request has been decoded
 *
 * @retval 0 on success -1 in case of error
 *  
 */
-int storio_disk_thread_intf_send(storio_disk_thread_request_e   opcode, 
-                                 int                            device_id,
+int storio_disk_thread_intf_send(uint8_t                      * device,
                                  rozorpc_srv_ctx_t            * rpcCtx,
 				 uint64_t                       timeStart) ;
 

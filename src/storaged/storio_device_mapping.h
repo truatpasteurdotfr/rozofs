@@ -51,20 +51,39 @@ extern "C" {
 /**
 * Attributes cache constants
 */
-#define STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2  16 
-#define STORIO_DEVICE_MAPPING_MAX_ENTRIES  (1024*256)
+#define STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2  11
+#define STORIO_DEVICE_MAPPING_MAX_ENTRIES  (1024*128)
 
 #define STORIO_DEVICE_MAPPING_LVL0_SZ  (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2) 
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
 
 
+typedef struct storio_rebuild_t {
+  uint32_t            rebuild_ts;
+  uint64_t            start_block;
+  uint64_t            stop_block;
+  fid_t               fid;
+} STORIO_REBUILD_T;
+
+#define MAX_STORIO_PARALLEL_REBUILD   32
+STORIO_REBUILD_T storio_rebuild_table[MAX_STORIO_PARALLEL_REBUILD];
+
+
+#define MAX_FID_PARALLEL_REBUILD 4
+typedef union storio_rebuild_ref_u {
+  uint8_t     u8[MAX_FID_PARALLEL_REBUILD];
+  uint32_t    u32;
+} STORIO_REBUILD_REF_U;
 
 typedef struct _storio_device_mapping_t
 {
-  com_cache_entry_t   cache;   /** < common cache structure    */
-  fid_t               fid;
-  int                 device_number;   /**< Device number to write the data on        */
-  uint32_t            consistency;     /**< Consistancy index */
+  com_cache_entry_t    cache;   /** < common cache structure    */
+  fid_t                fid;
+  uint8_t              device[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE];   /**< Device number to write the data on        */
+  list_t               running_request;
+  list_t               waiting_request;
+  uint64_t             consistency;
+  STORIO_REBUILD_REF_U storio_rebuild_ref;
 } storio_device_mapping_t;
 
 typedef struct _storio_device_mapping_stat_t
@@ -111,42 +130,6 @@ extern com_cache_main_t  *storio_device_mapping_p; /**< pointer to the device ca
 */
 void storio_device_mapping_release_entry(void *entry_p);
 
-/*
-**______________________________________________________________________________
-*/
-/**
-* allocate an entry for the decice mapping  cache
-
-  @param device_id : choosen device nb to store the data on
-  @param fid : fid iof the file
-  
-  @retval <>NULL: pointer to the cache entry
-  @retval NULL : out of memory
-*/
-static inline storio_device_mapping_t *storio_device_mapping_alloc_entry(fid_t fid, uint32_t device_nb)
-{
-  storio_device_mapping_t  *p;
-  /*
-  ** allocate an entry for the context
-  */
-  p = malloc(sizeof(storio_device_mapping_t));
-  if (p == NULL)
-  {
-    return NULL;
-  }
-  p->cache.usr_entry_p = p;
-  
-  memcpy(&p->fid,fid,sizeof(fid_t));
-  p->device_number = device_nb;
-  p->consistency   = storio_device_mapping_stat.consistency;
-
-  p->cache.usr_key_p   = p->fid;
-  list_init(&p->cache.global_lru_link);
-  list_init(&p->cache.bucket_lru_link);
-  p->cache.dirty_bucket_counter = 0;
-  p->cache.dirty_main_counter = 0;
-  return p;
-}
 
 
 /*
@@ -159,24 +142,32 @@ static inline storio_device_mapping_t *storio_device_mapping_alloc_entry(fid_t f
 *  @param device_id The device number 
 *
 */
-static inline storio_device_mapping_t * storio_device_mapping_insert(fid_t fid, int device_id) {
+static inline storio_device_mapping_t * storio_device_mapping_insert(void * fid) {
   storio_device_mapping_t            * p;  
-
-  /*
-  ** The device id of the FIS was not in the lookup table, but we have
-  ** now the information to insert it.
-  */
-  p = (storio_device_mapping_t*) com_cache_bucket_search_entry(storio_device_mapping_p,fid);
-  if (p != NULL) {
-    p->device_number = device_id;
-    return p;
-  }
   
   /*
   ** allocate an entry
   */
-  p = storio_device_mapping_alloc_entry(fid,device_id);
-  if (p == NULL) return NULL;
+  p = malloc(sizeof(storio_device_mapping_t));
+  if (p == NULL)
+  {
+    return NULL;
+  }
+  p->cache.usr_entry_p = p;
+  
+  memcpy(&p->fid,fid,sizeof(fid_t));
+  memset(p->device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+  p->consistency   = storio_device_mapping_stat.consistency;
+
+  p->cache.usr_key_p   = p->fid;
+  list_init(&p->cache.global_lru_link);
+  list_init(&p->cache.bucket_lru_link);
+  p->cache.dirty_bucket_counter = 0;
+  p->cache.dirty_main_counter = 0;
+  list_init(&p->running_request);
+  list_init(&p->waiting_request);
+
+  p->storio_rebuild_ref.u32 = 0xFFFFFFFF;
 
   storio_device_mapping_stat.count++;
  

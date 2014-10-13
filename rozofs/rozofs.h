@@ -27,6 +27,7 @@
 /**
 * Ports definition of RozoFS
 */
+
 #include "rozofs_service_ports.h"
 
 #define P_COUNT     0
@@ -118,6 +119,19 @@ typedef enum _ROZOFS_BSIZE_E {
 #define SHAREMEM_IDX_WRITE 1
 /* Timeout in seconds for storaged requests by mproto */
 #define ROZOFS_MPROTO_TIMEOUT_SEC 4
+
+
+/*
+** Projection files on storages are split in chunks. Each chunk is allocated 
+** a specific device on the storage.
+*/
+
+
+#define ROZOFS_STORAGE_FILE_MAX_SIZE             (8UL*1024*1024*1024*1024)    // 8 TiB
+#define ROZOFS_STORAGE_MAX_CHUNK_PER_FILE        128
+#define ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(bsize) (ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/ROZOFS_BSIZE_BYTES(bsize))
+#define ROZOFS_STORAGE_GET_CHUNK_NB(offset)     ((offset)/(ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE))
+
 
 /**
 * cluster state
