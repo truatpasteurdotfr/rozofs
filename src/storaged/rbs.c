@@ -46,7 +46,6 @@
 #include "rbs_eclient.h"
 #include "rbs.h"
 #include "storage.h"
-#include "rbs_monitor.h"
 
 DECLARE_PROFILING(spp_profiler_t);
 
