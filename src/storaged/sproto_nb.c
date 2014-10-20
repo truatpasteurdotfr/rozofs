@@ -433,42 +433,27 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 	*/    
 	for (nb_rebuild=0; nb_rebuild < MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
 
+	  storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
+	  
 	  /* This context is free */
-	  if (dev_map_p->storio_rebuild_ref.u8[nb_rebuild] == 0xFF) {
+	  if (storio_rebuild_ref == 0xFF) {
 	    continue;
 	  }
 
-	  storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
-	  if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-	    /* Bad reference */
+	  /*
+	  ** Retrieve the rebuild context  
+	  */
+          pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)write_arg_p->fid);
+	  if (pRebuild == NULL) {
+	    /* This context is not allocated for this FID */
 	    dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
             continue;
 	  }
-
-	  /*
-	  ** Check whether the rebuild is on the same FID 
-	  */
-          pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-	  if (memcmp(pRebuild->fid,dev_map_p->fid,sizeof(fid_t))!= 0) {
-	    /* This context is now allocated to an other FID */
-	    dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-            continue;
-	  }
-
-	  /*
-	  ** Check the time stamp
-	  */
-	  if ((time(NULL) - pRebuild->rebuild_ts) > 25) {
-	    /* More than 25 sec of inactivity */
-	    memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
-	    dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF; 
-            continue;
-	  } 
 
 	  if ((write_arg_p->bid <= pRebuild->stop_block)
 	  &&  ((write_arg_p->bid+write_arg_p->nb_proj-1) >=  pRebuild->start_block)) {
 	    /* Incompatible entries. Free the rebuild context */
-	    memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
+	    storio_rebuild_ctx_free(pRebuild);
 	    dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;	      
 	  }  
 	}         
@@ -487,23 +472,17 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
       
       nb_rebuild--;
       storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
-      if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-	/* Bad reference */
+
+      /*
+      ** Retrieve the rebuild context  
+      */
+      pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)write_arg_p->fid);
+      if (pRebuild == NULL) {
+	/* This context is not allocated for this FID */
 	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
         errno = EAGAIN;
 	goto error;
       }      
-      pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-
-      /*
-      ** Check whether the rebuild is on the same FID 
-      */
-      if (memcmp(pRebuild->fid,write_arg_p->fid,sizeof(fid_t))!= 0) {
-	/* This context is now allocated to an other FID */
-	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-        errno = EAGAIN;
-	goto error;	      
-      }
       
       /*
       ** Rebuild still on going. Update the time stamp
@@ -680,25 +659,18 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
     for (nb_rebuild=0; nb_rebuild < MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
 
       /* This context is free */
-      if (dev_map_p->storio_rebuild_ref.u8[nb_rebuild] == 0xFF) {
+      storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
+      if (storio_rebuild_ref == 0xFF) {
         selected_index = nb_rebuild;
 	continue;
       }
 
-      storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
-      if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-	/* Bad reference */
-	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-	selected_index = nb_rebuild;
-        continue;
-      }
-      pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-
       /*
-      ** Check whether the rebuild is on the same FID 
+      ** Retrieve the rebuild context  
       */
-      if (memcmp(pRebuild->fid,dev_map_p->fid,sizeof(fid_t))!= 0) {
-	/* This context is now allocated to an other FID */
+      pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)dev_map_p->fid);
+      if (pRebuild == NULL) {
+	/* This context is not allocated for this FID */
 	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
 	selected_index = nb_rebuild;
         continue;
@@ -709,7 +681,7 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
       */
       if ((ts - pRebuild->rebuild_ts) > 25) {
 	/* More than 25 sec of inactivity */
-	memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
+	storio_rebuild_ctx_free(pRebuild);
 	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF; 
 	selected_index = nb_rebuild;
         continue;
@@ -731,23 +703,8 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
     }  	      
 
     /* A free FID entry has been found, let's find a free storio rebuild context */
-    pRebuild = storio_rebuild_table;
-    for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,pRebuild++) {
-      if (pRebuild->rebuild_ts == 0) break;
-    }
-
-    /* No Free context found. Let's check whether a context is too old */
-    if (storio_rebuild_ref == MAX_STORIO_PARALLEL_REBUILD) {
-      pRebuild = storio_rebuild_table;	
-      for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,pRebuild++) {
-	if (ts - pRebuild->rebuild_ts > 25) {
-	  memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
-	  break;
-	} 
-      }
-    }
-
-    if (storio_rebuild_ref == MAX_STORIO_PARALLEL_REBUILD) {
+    pRebuild = storio_rebuild_ctx_allocate();
+    if (pRebuild == NULL) {
       /* No free context */
       errno = EBUSY;
       goto error;	  
@@ -761,7 +718,7 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
     pRebuild->stop_block    = rebuild_start_arg_p->stop_bid;
     memcpy(pRebuild->fid,rebuild_start_arg_p->fid,sizeof(fid_t));
        
-    dev_map_p->storio_rebuild_ref.u8[selected_index] = storio_rebuild_ref;
+    dev_map_p->storio_rebuild_ref.u8[selected_index] = pRebuild->ref;
 	           
     ret.status                               = SP_SUCCESS;            
     ret.sp_rebuild_start_ret_t_u.rebuild_ref = selected_index+1;
@@ -824,23 +781,17 @@ void sp_rebuild_stop_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
       goto error;
     }
       
-    if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-      /* Bad reference */
-      dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-      goto error;
-    }
-    pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-
     /*
-    ** Check whether the rebuild is on the same FID 
+    ** Retrieve the rebuild context  
     */
-    if (memcmp(pRebuild->fid,rebuild_stop_arg_p->fid,sizeof(fid_t))!= 0) {
-      /* This context is now allocated to an other FID */
+    pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)rebuild_stop_arg_p->fid);
+    if (pRebuild == NULL) {
+      /* This context is not allocated for this FID */
       dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
       goto error;
     }
 	 
-    memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
+    storio_rebuild_ctx_free (pRebuild);
     dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;    
 	           
     ret.status                              = SP_SUCCESS;            
@@ -900,24 +851,18 @@ void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 	if (storio_rebuild_ref == 0xFF) {
 	  continue;
 	}
-
-	if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-	  /* Bad reference */
-	  dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-          continue;
-	}
-	pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-
+      
 	/*
-	** Check whether the rebuild is on the same FID 
+	** Retrieve the rebuild context  
 	*/
-	if (memcmp(pRebuild->fid,truncate_arg_p->fid,sizeof(fid_t))!= 0) {
-	  /* This context is now allocated to an other FID */
+	pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)truncate_arg_p->fid);
+	if (pRebuild == NULL) {
+	  /* This context is not allocated for this FID */
 	  dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
           continue;
 	}
 
-	memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
+        storio_rebuild_ctx_free (pRebuild);
 	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;    
       }
     } 
@@ -980,8 +925,8 @@ void sp_remove_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
       if (dev_map_p == NULL) { 
         goto error;
       }
-    }      
-
+    } 
+         
     /*
     ** All rebuild process are broken by this request
     */   
@@ -993,27 +938,22 @@ void sp_remove_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 	if (storio_rebuild_ref == 0xFF) {
 	  continue;
 	}
-
-	if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-	  /* Bad reference */
-	  dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-          continue;
-	}
-	pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-
+      
 	/*
-	** Check whether the rebuild is on the same FID 
+	** Retrieve the rebuild context  
 	*/
-	if (memcmp(pRebuild->fid,remove_arg_p->fid,sizeof(fid_t))!= 0) {
-	  /* This context is now allocated to an other FID */
+	pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)remove_arg_p->fid);
+	if (pRebuild == NULL) {
+	  /* This context is not allocated for this FID */
 	  dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
           continue;
 	}
 
-	memset(pRebuild,0, sizeof(STORIO_REBUILD_T));
+        storio_rebuild_ctx_free (pRebuild);
 	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;    
-      }  
-    }
+      }
+    } 
+
         
     req_ctx_p->opcode = STORIO_DISK_THREAD_REMOVE;
         
@@ -1087,19 +1027,13 @@ void sp_remove_chunk_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
       errno = EAGAIN;
       goto error;
     }  
-    if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-      /* Bad reference */
-      dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-      errno = EAGAIN;
-      goto error;
-    }  
-    pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-
+    
     /*
-    ** Check whether the rebuild is on the same FID 
+    ** Retrieve the rebuild context  
     */
-    if (memcmp(pRebuild->fid,remove_chunk_arg_p->fid,sizeof(fid_t))!= 0) {
-      /* This context is now allocated to an other FID */
+    pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)remove_chunk_arg_p->fid);
+    if (pRebuild == NULL) {
+      /* This context is not allocated for this FID */
       dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
       errno = EAGAIN;
       goto error;

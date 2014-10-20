@@ -46,7 +46,7 @@
 extern sconfig_t storaged_config;
 
 storio_device_mapping_stat_t storio_device_mapping_stat = { };
-
+STORIO_REBUILD_STAT_S        storio_rebuild_stat = {0};
 /*
 **______________________________________________________________________________
 
@@ -171,8 +171,8 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
           pChar += sprintf(pChar,"Bad reference %d\n",storio_rebuild_ref);  
           continue;
 	}
-	pRebuild = &storio_rebuild_table[storio_rebuild_ref];
-	if (memcmp(pRebuild->fid,fid,sizeof(fid_t))!= 0) {
+	pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)fid);
+	if (pRebuild == 0) {
           pChar += sprintf(pChar,"Context reallocated to an other FID\n");  
           continue;
 	}
@@ -277,16 +277,27 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   STORIO_REBUILD_T             * pRebuild;
   char                         * pChar=uma_dbg_get_buffer();
   int                            nb=0;
+
+  if ((argv[1] != NULL) && (strcmp(argv[1],"reset")==0)) {
+    memset(&storio_rebuild_stat,0,sizeof(storio_rebuild_stat));     
+  }
+
+  pChar += sprintf(pChar,"allocated        : %llu\n",(long long unsigned int) storio_rebuild_stat.allocated);
+  pChar += sprintf(pChar,"stollen          : %llu\n",(long long unsigned int) storio_rebuild_stat.stollen);
+  pChar += sprintf(pChar,"out of ctx       : %llu\n",(long long unsigned int) storio_rebuild_stat.out_of_ctx);
+  pChar += sprintf(pChar,"lookup hit       : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_hit);
+  pChar += sprintf(pChar,"lookup miss      : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_miss);
+  pChar += sprintf(pChar,"lookup bad index : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_bad_index);
   
-  pChar += sprintf(pChar,"Running rebuilds: "); 
-  pRebuild = storio_rebuild_table;
+  pChar += sprintf(pChar,"Running rebuilds : "); 
+  pRebuild = storio_rebuild_ctx_retrieve(0, NULL);
   for (storio_ref=0; storio_ref <MAX_STORIO_PARALLEL_REBUILD; storio_ref++,pRebuild++) {
     if (pRebuild->rebuild_ts == 0) continue;
     
     pChar += sprintf(pChar,"\n%2d) ",storio_ref);  
     uuid_unparse(pRebuild->fid,pChar);
     pChar += 36;
-    pChar += sprintf(pChar," start %llu stop %llu aging %llu sec",
+    pChar += sprintf(pChar," start %10llu stop %10llu aging %llu sec",
                      (long long unsigned int)pRebuild->start_block,
 		     (long long unsigned int)pRebuild->stop_block,
 		     (long long unsigned int)(time(NULL)-pRebuild->rebuild_ts));
@@ -541,7 +552,10 @@ uint32_t storio_device_mapping_init()
     return 0;
   }
   
-  memset(storio_rebuild_table,0,sizeof(STORIO_REBUILD_T)*MAX_STORIO_PARALLEL_REBUILD);
+  /*
+  ** Initialize rebuild context distributor
+  */
+  storio_rebuild_ctx_distributor_init();
   
   storio_device_mapping_stat.consistency = 1;
   
