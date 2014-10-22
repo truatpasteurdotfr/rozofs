@@ -13,11 +13,11 @@
 
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC=geomgr             # Introduce a short description here
-NAME=rozofs-geomgr      # Introduce the short server's name here
-DAEMON=/usr/bin/geomgr # Introduce the server's location here
-DAEMON_ARGS=""           # Arguments to run the daemon with
+NAME=geomgr             # Introduce the short server's name here
+DAEMON=/usr/bin/geomgr  # Introduce the server's location here
+DAEMON_ARGS=""          # Arguments to run the daemon with
 PIDFILE=/var/run/launcher_${NAME}.pid
-SCRIPTNAME=/etc/init.d/$NAME
+SCRIPTNAME=$0
 LAUNCHER=/usr/bin/rozolauncher
 . /lib/init/vars.sh
 
