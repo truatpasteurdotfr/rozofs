@@ -72,14 +72,14 @@ char prompt[64];
 **   lnkdebug <IPADDR> <PORT>
 */
 void syntax() {
-  printf("\n%s ([-i <hostname>] -p <port>)... [-c <cmd|all>]... [-f <cmd file>]... [-period <seconds>] [-t <seconds>]\n\n",prgName);
+  printf("\n%s ([-i <hostname>] {-p <port>|-T <target>})... [-c <cmd|all>]... [-f <cmd file>]... [-period <seconds>] [-t <seconds>]\n\n",prgName);
   printf("Several diagnostic targets can be specified ( [-i <hostname>] {-p <port>|-T <target>} )...\n");
   printf("  -i <hostname>  IP address or hostname of the diagnostic target.\n");
   printf("                 When omitted previous -i value in the command line is taken as default\n");
   printf("                 or 127.0.0.1 when no previous -i option is set.\n");
   printf("    -p <port>      Port number of the diagnostic target.\n");
   printf(" or\n");
-  printf("    -T <target>    The target in the format:\n");
+  printf("    -T <target>    The diagnostic target in the format:\n");
   printf("                     export                               for an export\n");
   printf("                     storaged                             for a storaged\n");
   printf("                     storio[:<instance>]                  for a storio\n");
@@ -251,26 +251,33 @@ int debug_run_this_cmd(int socketId, const char * cmd, int silent) {
 }
 #define SYSTEM_HEADER "system : "
 void uma_dbg_read_prompt(int socketId, char * pr) {
-  int i=strlen(SYSTEM_HEADER);
   char *c = pr;
+  char *pt = msg.buffer; 
     
   // Read the prompt
   if (debug_run_this_cmd(socketId, "who", SILENT) < 0)  return;
   
-  if (strncmp(msg.buffer,SYSTEM_HEADER, strlen(SYSTEM_HEADER)) == 0) {
+  // skip 1rst line
+  while ((*pt != 0)&&(*pt != '\n')) pt++;
+  
+  if (*pt != 0) {
 
-    while(msg.buffer[i] != '\n') {
-      *c = msg.buffer[i];
-      c++;
-      i++;
+    pt++;
+  
+    if (strncmp(pt,SYSTEM_HEADER, strlen(SYSTEM_HEADER)) == 0) {
+
+      pt += strlen(SYSTEM_HEADER);
+
+      while((*pt != '\n')&&(*pt != 0)) {
+	*c = *pt;
+	c++;
+	pt++;
+      }
     }
-    *c++ = '>';
-    *c++ = ' ';     
-    *c = 0;
-  }
-  else {
-    strcpy(pr,"rzdbg> ");
-  }
+  }  
+  *c++ = '>';
+  *c++ = ' ';     
+  *c = 0;
 }
 #define LIST_COMMAND_HEADER "List of available topics :"
 void uma_dbg_read_all_cmd_list(int socketId) {
