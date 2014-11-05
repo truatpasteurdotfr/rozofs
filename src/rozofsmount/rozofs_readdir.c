@@ -355,16 +355,10 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
 
       memset(&attrs, 0, sizeof (mattr_t));
 
-      // May be already cached
-      if (!(ie2 = get_ientry_by_fid((unsigned char *)iterator->fid))) {
-        // If not, cache it
-        ie2 =  alloc_ientry((unsigned char *)iterator->fid); 
-      }
-      
       memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
 
       // Add this directory entry to the buffer
-      dirbuf_add(req, db, iterator->name, ie2->inode, &attrs);
+      dirbuf_add(req, db, iterator->name, fid_hash(iterator->fid), &attrs);
      
       iterator = iterator->next;
     }
