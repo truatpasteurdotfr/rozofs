@@ -261,7 +261,6 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
    size_t       size;
    off_t        off;
    ientry_t    *ie = 0;
-   ientry_t    *ie2 = 0;
    ep_child_t  *iterator = NULL;
     mattr_t     attrs;
     dirbuf_t   *db=NULL;
