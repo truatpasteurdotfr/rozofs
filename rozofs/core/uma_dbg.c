@@ -48,7 +48,7 @@ static time_t uptime=0;
 
 typedef struct uma_dbg_topic_s {
   char                     * name;
-  uint16_t                   hide:1;
+  uint16_t                   option;
   uint16_t                   len:15;
   uma_dbg_topic_function_t funct;
 } UMA_DBG_TOPIC_S;
@@ -64,7 +64,7 @@ uma_dbg_catcher_function_t	uma_dbg_catcher = uma_dbg_catcher_DFT;
 
 typedef struct uma_dbg_session_s {
   ruc_obj_desc_t            link;
-  uint32_t		    ref;
+  void 		            * ref;
   uint32_t                    ipAddr;
   uint16_t                    port;
   uint32_t                    tcpCnxRef;
@@ -77,11 +77,13 @@ typedef struct uma_dbg_session_s {
 
 UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
-static char rcvCmdBuffer[255];
+#define UMA_DBG_MAX_CMD_LEN 127
+static char rcvCmdBuffer[UMA_DBG_MAX_CMD_LEN+1];
 
 char uma_dbg_temporary_buffer[UMA_DBG_MAX_SEND_SIZE];
 
 void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic);
+static uint32_t do_not_send = 0;
 
 /*__________________________________________________________________________
  */
@@ -261,6 +263,39 @@ void uma_dbg_show_name(char * argv[], uint32_t tcpRef, void *bufRef) {
 void uma_dbg_show_version(char * argv[], uint32_t tcpRef, void *bufRef) {  
   uma_dbg_send(tcpRef, bufRef, TRUE, "version : %s\n", VERSION);
 }
+/*__________________________________________________________________________
+ */
+/**
+*  Reset every resetable command
+*/
+void uma_dbg_counters_reset(char * argv[], uint32_t tcpRef, void *bufRef) {
+  int topicNum;
+  UMA_DBG_TOPIC_S * p;
+  char mybuffer[1024];
+  char *pChar = mybuffer;
+  
+  if ((argv[1] == NULL)||(strcmp(argv[1],"reset")!=0)) {  
+    uma_dbg_send(tcpRef, bufRef, TRUE, "counters requires \"reset\" as parameter\n");
+    return; 
+  }
+  
+  /*
+  ** To prevent called function to send back a response
+  */ 
+  do_not_send = 1;
+  
+  p = uma_dbg_topic;
+  for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++,p++) {
+    if (p->option & UMA_DBG_OPTION_RESET) {
+      pChar += sprintf(pChar,"%s reset\n",p->name);
+      p->funct(argv,tcpRef,bufRef);
+    }
+  }  
+
+  do_not_send = 0;
+
+  uma_dbg_send(tcpRef, bufRef, TRUE, "%s", mybuffer);
+} 
 /*-----------------------------------------------------------------------------
 **
 **  #SYNOPSIS
@@ -309,6 +344,12 @@ void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ...
   char            *pChar;
   uint32_t           len;
 
+  /* 
+  ** May be in a specific process such as counter reset
+  ** and so do not send any thing
+  */
+  if (do_not_send) return;
+  
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
     severe( "ruc_buf_getPayload(%p)", bufRef );
@@ -395,7 +436,7 @@ UMA_DBG_SESSION_S *uma_dbg_findFromAddrAndPort(uint32_t ipAddr, uint16_t port) {
 **----------------------------------------------------------------------------
 */
 
-UMA_DBG_SESSION_S *uma_dbg_findFromRef(uint32_t ref) {
+UMA_DBG_SESSION_S *uma_dbg_findFromRef(void * ref) {
   ruc_obj_desc_t    * pnext;
   UMA_DBG_SESSION_S * p;
 
@@ -441,27 +482,6 @@ UMA_DBG_SESSION_S *uma_dbg_findFromCnxRef(uint32_t ref) {
 /*
 **--------------------------------------------------------------------------
 **  #SYNOPSIS
-**  called by any SWBB that wants to hide a topic (not listed)
-
-**   IN:
-**       topic : a string representing the topic
-**   OUT : none
-**
-**
-**--------------------------------------------------------------------------
-*/
-void uma_dbg_hide_topic(char * topic) {
-  int idx;
-  for (idx=0; idx <uma_dbg_nb_topic; idx++) {
-    if (strcasecmp(topic,uma_dbg_topic[idx].name)==0) {
-      uma_dbg_topic[idx].hide = 1;
-      return;
-    }
-  }
-}  
-/*
-**--------------------------------------------------------------------------
-**  #SYNOPSIS
 **  called by any SWBB that wants to add a topic on the debug interface
 
 **   IN:
@@ -473,14 +493,29 @@ void uma_dbg_hide_topic(char * topic) {
 **
 **--------------------------------------------------------------------------
 */
-void uma_dbg_insert_topic(int idx, char * topic, uint8_t hide, uint16_t length, uma_dbg_topic_function_t funct) {
+void uma_dbg_insert_topic(int idx, char * topic, uint16_t option, uint16_t length, uma_dbg_topic_function_t funct) {
   /* Register the topic */
   uma_dbg_topic[idx].name         = topic;
   uma_dbg_topic[idx].len          = length;
   uma_dbg_topic[idx].funct        = funct;
-  uma_dbg_topic[idx].hide         = hide;
+  uma_dbg_topic[idx].option       = option;
 }  
-void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
+/*
+**--------------------------------------------------------------------------
+**  #SYNOPSIS
+**  called by any SWBB that wants to add a topic on the debug interface
+
+**   IN:
+**       topic : a string representing the topic
+**       allBack : the function to be called when a request comes in
+**                 for this topic
+**       option : a bit mask of options
+**   OUT : none
+**
+**
+**--------------------------------------------------------------------------
+*/
+void uma_dbg_addTopic_option(char * topic, uma_dbg_topic_function_t funct, uint16_t option) {
   int    idx,idx2;
   uint16_t length;
   char * my_topic = NULL;
@@ -536,9 +571,9 @@ void uma_dbg_addTopic(char * topic, uma_dbg_topic_function_t funct) {
   }
   
   for (idx2 = uma_dbg_nb_topic-1; idx2 >= idx; idx2--) {
-     uma_dbg_insert_topic(idx2+1,uma_dbg_topic[idx2].name,uma_dbg_topic[idx2].hide,uma_dbg_topic[idx2].len, uma_dbg_topic[idx2].funct);
+     uma_dbg_insert_topic(idx2+1,uma_dbg_topic[idx2].name,uma_dbg_topic[idx2].option,uma_dbg_topic[idx2].len, uma_dbg_topic[idx2].funct);
   }
-  uma_dbg_insert_topic(idx,my_topic,0/*no hide*/,length, funct);
+  uma_dbg_insert_topic(idx,my_topic,option,length, funct);
   uma_dbg_nb_topic++;
 }
 /*-----------------------------------------------------------------------------
@@ -578,7 +613,7 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   
   for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
   
-    if (uma_dbg_topic[topicNum].hide) continue;
+    if (uma_dbg_topic[topicNum].option & UMA_DBG_OPTION_HIDE) continue;
   
     if (len == 0) {
       idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);
@@ -627,7 +662,6 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   UMA_MSGHEADER_S *pHead;
   uint32_t           idx;
   UMA_DBG_SESSION_S * p;
-  uint64_t         userRef = (uint64_t)opaque;
   int                 replay=0;
 
   /*
@@ -637,7 +671,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
 
   /* Retrieve the session context from the referecne */
 
-  if ((p = uma_dbg_findFromRef((uint32_t)userRef)) == NULL) {
+  if ((p = uma_dbg_findFromRef(opaque)) == NULL) {
     uma_dbg_send(tcpCnxRef,bufRef,TRUE,"Internal error");
     return;
   }
@@ -671,8 +705,8 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   /*
   ** save the current received command
   */
-  memcpy(rcvCmdBuffer,pBuf,64);
-  rcvCmdBuffer[63] = 0;
+  memcpy(rcvCmdBuffer,pBuf,UMA_DBG_MAX_CMD_LEN);
+  rcvCmdBuffer[UMA_DBG_MAX_CMD_LEN] = 0;
   pArg = p->argvBuffer;
   while (1) {
     /* Skip blanks */
@@ -715,7 +749,7 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   /* Search match on first characters */
   if (found == 0) {
     for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
-      if (uma_dbg_topic[topicNum].hide) continue;
+      if (uma_dbg_topic[topicNum].option & UMA_DBG_OPTION_HIDE) continue;
       if (uma_dbg_topic[topicNum].len > length) {
         int order = strncasecmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
         if (order < 0) break;  	
@@ -744,7 +778,8 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   /* Save this existing command for later replay */
   if (replay == 0) {
     strcpy(p->last_valid_command,(char*)(pHead+1));
-  }  
+  } 
+  
   uma_dbg_topic[idx].funct(p->argv,tcpCnxRef,bufRef);
 }
 /*
@@ -768,9 +803,8 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
 //64BITS void uma_dbg_disc_CBK(uint32_t refObj,uint32 tcpCnxRef) {
 void uma_dbg_disc_CBK(void *opaque,uint32_t tcpCnxRef) {
   UMA_DBG_SESSION_S * pObj;
-  uint64_t refObj =(uint64_t) opaque;
 
-  if ((pObj = uma_dbg_findFromRef((uint32_t)refObj)) == NULL) {
+  if ((pObj = uma_dbg_findFromRef(opaque)) == NULL) {
     return;
   }
 
@@ -840,11 +874,7 @@ uint32_t uma_dbg_accept_CBK(uint32_t userRef,int socketId,struct sockaddr * sock
   pconf->bufSize          = 2048*4;
   pconf->userRcvCallBack  = uma_dbg_receive_CBK;
   pconf->userDiscCallBack = uma_dbg_disc_CBK;
-//64BITS
-{
-  uint64_t val64 = (uint64_t)pObj->ref;  /* reference of the debug session */
-  pconf->userRef          =  (void*)val64;
-}
+  pconf->userRef          =  pObj->ref;
   pconf->socketRef        = socketId;
   pconf->xmitPool         = NULL; /* use the default XMIT pool ref */
   pconf->recvPool         = pObj->recvPool; /* Use a big buffer pool */
@@ -881,7 +911,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   ruc_tcp_server_connect_t  inputArgs;
   UMA_DBG_SESSION_S         *p;
   ruc_obj_desc_t            *pnext ;
-  uint32_t                    idx;
+  void                      *idx;
   uint32_t                    tcpCnxServer;
 
   /* Service already initialized */
@@ -904,7 +934,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   pnext = NULL;
   idx = 0;
   while (( p = (UMA_DBG_SESSION_S*) ruc_objGetNext(&uma_dbg_freeList->link, &pnext)) != NULL) {
-    p->ref       = idx++;
+    p->ref       = (void *) idx++;
     p->ipAddr    = (uint32_t)-1;
     p->port      = (uint16_t)-1;
     p->tcpCnxRef = (uint32_t)-1;
@@ -934,11 +964,9 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   uma_dbg_addTopic("who", uma_dbg_show_name);
   uma_dbg_addTopic("uptime", uma_dbg_show_uptime);
   uma_dbg_addTopic("version", uma_dbg_show_version);
-  uma_dbg_addTopic("system", uma_dbg_system_cmd); 
-  uma_dbg_hide_topic("system");
+  uma_dbg_addTopic_option("system", uma_dbg_system_cmd, UMA_DBG_OPTION_HIDE); 
   uma_dbg_addTopic("ps", uma_dbg_system_ps);
-  
-
+  uma_dbg_addTopic("counters", uma_dbg_counters_reset);
 }
 /*
 **-------------------------------------------------------

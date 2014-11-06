@@ -362,7 +362,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Init of the north interface (read/write request processing)
   */ 
-  ret = storio_north_interface_buffer_init(STORIO_BUF_RECV_CNT, STORIO_BUF_RECV_SZ);
+  ret = storio_north_interface_buffer_init(ROZORPC_SRV_CTX_CNT, STORIO_BUF_RECV_SZ);
   if (ret < 0) {
     fatal("Fatal error on storio_north_interface_buffer_init()\n");
     return -1;
@@ -386,7 +386,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** add profiler subject 
   */
-  uma_dbg_addTopic("profiler", show_profile_storaged_io_display);
+  uma_dbg_addTopic_option("profiler", show_profile_storaged_io_display,UMA_DBG_OPTION_RESET);
 
     if ((args_p->hostname[0] != 0)) {
         info("storio started (instance: %d, host: %s, dbg port: %d).",
