@@ -377,7 +377,8 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
-  
+  msg->size = size;   
+    
   ret.status = SP_SUCCESS;  
   ret.sp_write_ret_t_u.file_size = 0;
            
