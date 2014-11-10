@@ -851,8 +851,13 @@ void rozofs_set_cache(char * argv[], uint32_t tcpRef, void *bufRef)
 void rozofs_disable_xattr(char * argv[], uint32_t tcpRef, void *bufRef) 
 {
 
-   rozofs_xattr_disable = 1;
-   uma_dbg_send(tcpRef, bufRef, TRUE, "Extended Attributes are now disabled\n");
+   if ((argv[1] != NULL)&&(strcmp(argv[1],"disable")==0)) { 
+     rozofs_xattr_disable = 1;
+     uma_dbg_send(tcpRef, bufRef, TRUE, "Extended Attributes are now disabled\n");
+     return;
+   }  
+   uma_dbg_send(tcpRef, bufRef, TRUE, "To disable extended attributes enter \"xattr disable\"\n");
+   
 }
 
 /*__________________________________________________________________________
@@ -1719,7 +1724,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic("layout", show_layout);
     uma_dbg_addTopic("trc_fuse", show_trc_fuse);
     uma_dbg_addTopic("xattr_flt", show_xattr_flt);
-    uma_dbg_addTopic("xattr_disable", rozofs_disable_xattr);
+    uma_dbg_addTopic("xattr", rozofs_disable_xattr);
     
     /*
     ** Disable extended attributes if required
