@@ -207,6 +207,13 @@ static inline unsigned int fid_hash(void *key) {
     return hash;
 }
 
+static inline fuse_ino_t fid_to_fuse_inode(void *key) {
+    fuse_ino_t hash = 0;
+    uint8_t *c;
+    for (c = key; c != key + 16; c++)
+        hash = *c + (hash << 6) + (hash << 16) - hash;
+    return hash;
+}
 static inline void ientries_release() {
     list_t *p, *q;
 
@@ -252,7 +259,7 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 
 	ie = xmalloc(sizeof(ientry_t));
 	memcpy(ie->fid, fid, sizeof(fid_t));
-	ie->inode = inode_p->fid[1]; //fid_hash(fid);
+	ie->inode = fid_to_fuse_inode(fid);
 	list_init(&ie->list);
 	ie->db.size = 0;
 	ie->db.eof = 0;
