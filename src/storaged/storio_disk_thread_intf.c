@@ -75,7 +75,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
     sum.val += p[i].stat.val;\
     display_val(p[i].stat.val);\
   }\
-  if (last) display_val(sum.val);
+  if (last) { display_val(sum.val);}
   
 
 #define display_line_div(title,val1,val2) \
@@ -83,7 +83,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
   for (i=startIdx; i<stopIdx; i++) {\
     display_div(p[i].stat.val1,p[i].stat.val2);\
   }\
-  if (last) display_div(sum.val1,sum.val2);
+  if (last) { display_div(sum.val1,sum.val2); }
 
  
 static char * disk_thread_debug_help(char * pChar) {

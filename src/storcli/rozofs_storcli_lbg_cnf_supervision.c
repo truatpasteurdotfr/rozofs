@@ -297,7 +297,6 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
   uint32_t      socketIdx;
   int         bytesRcvd;
   storcli_sup_msg_t msg;
-  mstorage_t *storage_p;
   int ret;
   uint32_t retcode;
   int nBytes;
@@ -368,7 +367,7 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
       
 #if 0      
     case STORCLI_LBG_CREATE:
-      storage_p = (mstorage_t*)msg.param;
+      mstorage_t *storage_p = (mstorage_t*)msg.param;
       retcode = 0;
       storage_p->lbg_id[msg.filler] = north_lbg_create_no_conf();
       if (storage_p->lbg_id[msg.filler] < 0)

@@ -119,7 +119,7 @@ int storaged_lbg_initialize(mstorage_t *s, int index) {
                                           ROZOFS_SOCK_FAMILY_STORAGE_NORTH,lbg_size,&af_inet_storaged_conf, local);
      if (ret < 0)
      {
-      severe("Cannot create Load Balancing Group %d for storaged %s",s->lbg_id,s->host);
+      severe("Cannot create Load Balancing Group %d for storaged %s",s->lbg_id[index],s->host);
       return -1;    
      }
      north_lbg_set_next_global_entry_idx_p(s->lbg_id[index],&storcli_next_storio_global_index);

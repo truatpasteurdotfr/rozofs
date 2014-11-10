@@ -60,12 +60,10 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
     int stor_len =  ret->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len;
     ep_cnf_storage_node_t *stor_p;
     stor_p = ret->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_val;
-    int sid;
     
     for (node = 0; node < stor_len; node++,stor_p++) 
     {
       int i = 0;
-      int ret;
       list_t *iterator = NULL;
       int found = 0;
       /* Search if the node has already been created  */

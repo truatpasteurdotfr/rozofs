@@ -1000,8 +1000,6 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     list_t *iterator = NULL;
     int export_index=0;
     char * pHost;
-    int sid;
-    int cid;
 	  
     /* Initialize rozofs */
     rozofs_layout_initialize();
