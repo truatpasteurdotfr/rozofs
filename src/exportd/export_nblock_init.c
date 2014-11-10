@@ -834,14 +834,14 @@ int expgwc_start_nb_blocking_th(void *args) {
     /*
     ** add profiler subject (exportd statistics)
     */
-    uma_dbg_addTopic("profiler", show_profiler);
+    uma_dbg_addTopic_option("profiler", show_profiler,UMA_DBG_OPTION_RESET);
     uma_dbg_addTopic("profiler_conf", show_profiler_conf);
     uma_dbg_addTopic("profiler_short", show_profiler_short);
     /*
     ** dirent cache stats
     */
     uma_dbg_addTopic("dirent_cache",show_dirent_cache);
-    uma_dbg_addTopic("dirent_wbthread",show_wbcache_thread);
+    uma_dbg_addTopic_option("dirent_wbthread",show_wbcache_thread,UMA_DBG_OPTION_RESET);
     /*
     ** do not provide volume stats for the case of the slaves
     */
@@ -867,7 +867,7 @@ int expgwc_start_nb_blocking_th(void *args) {
       {
 	severe("geo replication service is unavailable: %s",strerror(errno));
       }
-      uma_dbg_addTopic("geo_profiler", show_geo_profiler);
+      uma_dbg_addTopic_option("geo_profiler", show_geo_profiler,UMA_DBG_OPTION_RESET);
     }
     
     ret = geo_proc_module_init(GEO_REP_SRV_CLI_CTX_MAX);
@@ -875,7 +875,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     {
       severe("geo replication service is unavailable: %s",strerror(errno));
     }
-    uma_dbg_addTopic("geo_replica", show_geo_replication);
+    uma_dbg_addTopic_option("geo_replica", show_geo_replication,UMA_DBG_OPTION_RESET);
 
     expgwc_non_blocking_thread_started = 1;
     

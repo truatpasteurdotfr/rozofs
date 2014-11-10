@@ -105,7 +105,7 @@ void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRe
 */
 void serialization_counters_init(void) {
   reset_serialization_counters();
-  uma_dbg_addTopic("serialization", display_serialization_counters); 
+  uma_dbg_addTopic_option("serialization", display_serialization_counters, UMA_DBG_OPTION_RESET); 
 }
 /*
 **___________________________________________________________

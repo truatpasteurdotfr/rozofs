@@ -253,9 +253,6 @@ static inline ientry_t *get_ientry_by_fid(fid_t fid) {
 
 static inline ientry_t *alloc_ientry(fid_t fid) {
 	ientry_t *ie;
-	rozofs_inode_t *inode_p ;
-	
-	inode_p = (rozofs_inode_t*) fid;
 
 	ie = xmalloc(sizeof(ientry_t));
 	memcpy(ie->fid, fid, sizeof(fid_t));

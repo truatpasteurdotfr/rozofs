@@ -587,6 +587,6 @@ uint32_t storio_device_mapping_init()
   */
   uma_dbg_addTopic("device", storage_device_debug); 
   uma_dbg_addTopic("fid", storage_fid_debug); 
-  uma_dbg_addTopic("rebuild", storage_rebuild_debug); 
+  uma_dbg_addTopic_option("rebuild", storage_rebuild_debug, UMA_DBG_OPTION_RESET); 
   return 0;
 }

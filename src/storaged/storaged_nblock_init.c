@@ -445,7 +445,7 @@ int storaged_start_nb_blocking_th(void *args) {
     return -1;
   }
    
-  uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
+  uma_dbg_addTopic_option("profiler", show_profile_storaged_master_display,UMA_DBG_OPTION_RESET);
 
     info("storaged non-blocking thread started "
             "(instance: %d, host: %s, port: %d).",
@@ -507,7 +507,7 @@ int storaged_start_nb_th(void *args) {
     /*
      ** add profiler subject 
      */
-    uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
+    uma_dbg_addTopic_option("profiler", show_profile_storaged_master_display,UMA_DBG_OPTION_RESET);
     
     storio_nb = args_p->nb_storio;
     uma_dbg_addTopic("storio_nb", show_storio_nb);

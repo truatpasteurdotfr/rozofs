@@ -765,7 +765,7 @@ int rozofs_stcmoj_thread_intf_create(char * hostname,int eid,int storcli_idx, in
   */
   storcli_set_socket_name_with_eid_stc_id(&storio_north_socket_name,ROZOFS_SOCK_FAMILY_STORCLI_MOJETTE_NORTH_SUNPATH,hostname,eid,storcli_idx);
   
-  uma_dbg_addTopic("MojetteThreads", mojette_thread_debug); 
+  uma_dbg_addTopic_option("MojetteThreads", mojette_thread_debug, UMA_DBG_OPTION_RESET); 
   /*
   ** attach the callback on socket controller
   */

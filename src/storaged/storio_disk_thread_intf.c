@@ -676,7 +676,7 @@ int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_thre
   */
   storio_set_socket_name_with_hostname(&storio_north_socket_name,ROZOFS_SOCK_FAMILY_DISK_NORTH,hostname,instance_id);
   
-  uma_dbg_addTopic("diskThreads", disk_thread_debug); 
+  uma_dbg_addTopic_option("diskThreads", disk_thread_debug,UMA_DBG_OPTION_RESET); 
   /*
   ** attach the callback on socket controller
   */

@@ -6,7 +6,7 @@
  it under the terms of the GNU General Public License as published
  by the Free Software Foundation, version 2.
 
- Rozofs is distributed in the hope that it will be useful, but
+ Rozofs is distributed in the hope that it willgeo_err be useful, but
  WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  General Public License for more details.
@@ -2120,7 +2120,7 @@ int geo_replicat_rpc_srv_init(void *args)
     /*
     **
     */ 
-    uma_dbg_addTopic("geo_error", show_geo_err);
+    uma_dbg_addTopic_option("geo_error", show_geo_err,UMA_DBG_OPTION_RESET);
     uma_dbg_addTopic("geo_statistics", show_geo_rep_stats);
     uma_dbg_addTopic("geo_files", show_geo_rep_files);
     return 0;
