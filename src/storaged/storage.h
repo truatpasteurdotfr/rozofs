@@ -33,7 +33,7 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/htable.h>
 
-#define ROZOFS_MAX_DISK_THREADS  16
+#define ROZOFS_MAX_DISK_THREADS  32
 
 /* Storage config to be configured in cfg file */
 #define STORAGE_MAX_DEVICE_NB   64
