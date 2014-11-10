@@ -265,19 +265,7 @@ int storio_north_interface_init(char * host, int instance_id) {
   uint32_t ipAddr;
   int count;
   int warning_raised = 0;
-  int first,last;
   
-  /* Single storio mode. Listen on every configured port */
-  if (instance_id == 0) {
-    first = 0;
-    last  = storaged_config.io_addr_nb;
-  }
-  /* Multiple storio. Listen on one of the configured port */
-  else {
-    first = instance_id-1;
-    last  = instance_id;  
-  }
-
   /*
   ** Wait until at least one of the IP address configured exists
   */
@@ -287,7 +275,7 @@ int storio_north_interface_init(char * host, int instance_id) {
     /*
     ** Count the number of available IP addresses
     */
-    for (i=first; i< last; i++) {     
+    for (i=0; i< storaged_config.io_addr_nb; i++) {     
       ipAddr = storaged_config.io_addr[i].ipv4;
       if ((ipAddr == INADDR_ANY) ||
          (is_this_ipV4_configured(ipAddr))) count++;
@@ -309,7 +297,7 @@ int storio_north_interface_init(char * host, int instance_id) {
   }
   
   /* At least one port to listen to. */
-  for (i=first; i< last; i++) {
+  for (i=0; i< storaged_config.io_addr_nb; i++) {
     
     ipAddr = storaged_config.io_addr[i].ipv4;
     if ((ipAddr != INADDR_ANY) && !(is_this_ipV4_configured(ipAddr))) {
@@ -323,12 +311,12 @@ int storio_north_interface_init(char * host, int instance_id) {
     */ 
     ret = af_inet_sock_listening_create("IO",
                                         storaged_config.io_addr[i].ipv4,
-					storaged_config.io_addr[i].port,
+					storaged_config.io_addr[i].port+instance_id,
 					&af_inet_rozofs_north_conf);
     if (ret < 0) {
       uint32_t ip = storaged_config.io_addr[i].ipv4;
       fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
-              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.io_addr[i].port);
+              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, storaged_config.io_addr[i].port+instance_id);
       return -1;
     } 
   }

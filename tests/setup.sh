@@ -28,8 +28,17 @@ ROZOFS_SITE_PATH=/usr/local/etc/rozofs/
    mkdir -p $ROZOFS_SITE_PATH
    echo $1 > $ROZOFS_SITE_PATH/rozofs_site
 }
+# hid must be set
+# Output storage conf file name
+resolve_storage_conf_file() {
+  STORAGE_CONF=${LOCAL_CONF}'storage_'${hid}'.conf' 
+} 
+# Input cid & hid must be set 
+resolve_storage_path() {
+  storage_path=${LOCAL_STORAGES_ROOT}_c${cid}_h${hid}
+}  
 # Input host number
-# output gid, hid, cid, sid
+# output gid, hid, cid
 resolve_host_storage() {
     
   # Geo replication case
@@ -37,13 +46,48 @@ resolve_host_storage() {
   if [ $hid -gt $STORAGES_PER_SITE ]
   then
     gid=1
-    sid=$(( hid - STORAGES_PER_SITE ))
   else
     gid=0
-    sid=$hid
-  fi  
-  cid=$(( ((sid-1) / STORAGES_BY_CLUSTER) + 1 ))
-  STORAGE_CONF=${LOCAL_CONF}'storage_l'${ROZOFS_LAYOUT}'_'${cid}'_'${hid}'.conf'  
+  fi 
+  vid=$(( ((hid-1)/STORAGES_BY_CLUSTER) + 1 ))  
+  resolve_storage_conf_file  
+}
+# Input local cid number and host number
+resolve_local_cid_hid() {
+  localcid=$1
+  hid=$2
+ 
+  if [ $hid -gt $STORAGES_PER_SITE ]
+  then
+    gid=1
+    basehost=$((hid-STORAGES_PER_SITE))
+  else
+    gid=0
+    basehost=$hid
+  fi 
+  vid=$(( ((basehost-1)/STORAGES_BY_CLUSTER) + 1 ))
+  cid=$(( ((vid-1)*NB_CLUSTERS_BY_VOLUME)+localcid ))
+  sid=$(( (basehost-1)%STORAGES_BY_CLUSTER + 1 ))
+
+  resolve_storage_path       
+}
+resolve_cid_hid() {
+  cid=$1
+  hid=$2
+ 
+  if [ $hid -gt $STORAGES_PER_SITE ]
+  then
+    gid=1
+    basehost=$((hid-STORAGES_PER_SITE))
+  else
+    gid=0
+    basehost=$hid
+  fi 
+  vid=$(( ((basehost-1)/STORAGES_BY_CLUSTER) + 1 ))
+  sid=$(( (basehost-1)%STORAGES_BY_CLUSTER + 1 ))
+  
+  resolve_storage_path  
+  resolve_storage_conf_file       
 }
 
 process_killer () { 
@@ -112,64 +156,65 @@ rebuild ()
 
 gen_storage_conf ()
 {
-    STORAGES_BY_CLUSTER=$1
-    PORT_PER_STORAGE_HOST=$2
 
     if [ ! -e "$LOCAL_CONF" ]
     then
 	mkdir -p $LOCAL_CONF
     fi
 
-    for hid in $(seq ${STORAGES_TOTAL}); do
+    for gid in $(seq ${GEOREP}); do
+      for vid in $(seq ${NB_VOLUMES}); do
+        for sid in $(seq ${STORAGES_BY_CLUSTER}); do
+	
+          hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + ((gid-1)*STORAGES_PER_SITE)  )) 
+          resolve_storage_conf_file
+       
+	  if [ -e "$STORAGE_CONF" ]
+	  then
+              rm -rf $STORAGE_CONF
+	  fi
 
-        # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-        resolve_host_storage $hid
+	  touch $STORAGE_CONF
 
-	if [ -e "$STORAGE_CONF" ]
-	then
-            rm -rf $STORAGE_CONF
-	fi
+	  echo "#${NAME_LABEL}" >> $STORAGE_CONF
+	  echo "#${DATE_LABEL}" >> $STORAGE_CONF
 
-	touch $STORAGE_CONF
+	  printf "threads = $NB_DISK_THREADS;\n" >> $STORAGE_CONF
+	  printf "nbcores = $NB_CORES;\n" >> $STORAGE_CONF
+	  printf "storio  = \"$STORIO_MODE\";\n" >> $STORAGE_CONF
 
-	echo "#${NAME_LABEL}" >> $STORAGE_CONF
-	echo "#${DATE_LABEL}" >> $STORAGE_CONF
+	  printf "listen = ( \n" >> $STORAGE_CONF
+	  printf "  {addr = \"192.168.2.$hid\"; port = 41000;}" >> $STORAGE_CONF
 
-	printf "threads = $NB_DISK_THREADS;\n" >> $STORAGE_CONF
-	printf "nbcores = $NB_CORES;\n" >> $STORAGE_CONF
-	printf "storio  = \"$STORIO_MODE\";" >> $STORAGE_CONF
+	  # Test for special character "*"
+	  #printf "  {addr = \"*\"; port = 4100$sid;}" >> $STORAGE_CONF
 
-	printf "listen = ( \n" >> $STORAGE_CONF
-	printf "  {addr = \"192.168.2.$hid\"; port = 41000;}" >> $STORAGE_CONF
+	  for idx in $(seq 2 1 ${NB_PORTS_PER_STORAGE_HOST}); do
+              printf " ,\n  {addr = \"192.168.$((idx+1)).$hid\"; port = 41000;}"
+	  done >>  $STORAGE_CONF
 
-	# Test for special character "*"
-	#printf "  {addr = \"*\"; port = 4100$sid;}" >> $STORAGE_CONF
-
-	for idx in $(seq 2 1 ${PORT_PER_STORAGE_HOST}); do
-            printf " ,\n  {addr = \"192.168.$((idx+1)).$hid\"; port = 41000;}"
-	done >>  $STORAGE_CONF
-
-	printf "\n);\n" >>  $STORAGE_CONF
-	echo 'storages = (' >> $STORAGE_CONF
-	echo "  {cid = $cid; sid = $sid; root =\"${LOCAL_STORAGES_ROOT}_$cid-$hid\"; device-total = $NB_DEVICE_PER_SID; device-mapper = $NB_DEVICE_MAPPER_PER_SID; device-redundancy = $NB_DEVICE_MAPPER_RED_PER_SID;}" >> $STORAGE_CONF
-	echo ');' >> $STORAGE_CONF
-    done;	
+	  printf "\n);\n" >>  $STORAGE_CONF
+	  echo 'storages = (' >> $STORAGE_CONF
+	  
+	  for idx in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+	  
+	    cid=$(( idx + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
+	    
+	    resolve_storage_path
+	    printf "  {cid = $cid; sid = $sid; root =\"${storage_path}\"; device-total = $NB_DEVICE_PER_SID; device-mapper = $NB_DEVICE_MAPPER_PER_SID; device-redundancy = $NB_DEVICE_MAPPER_RED_PER_SID;}"
+	    if [ $idx -ne $NB_CLUSTERS_BY_VOLUME ];
+	    then
+	      printf ",\n"
+	    else
+	      printf "\n"
+	    fi
+	  done  >> $STORAGE_CONF
+	  echo ');' >> $STORAGE_CONF
+	done
+      done
+    done
 }
-start_one_storage() 
-{
-    case $1 in
-	"all") start_storaged ${STORAGES_BY_CLUSTER} 0; return;;
-    esac
 
-
-    hid=$1	       
-    # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-    resolve_host_storage $hid
-
-    #echo "Start storage cid: $cid sid: $sid"
-    rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$hid.pid  ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid &
-    #sleep 1
-}
 reset_one_storio() 
 {
     case "$1" in
@@ -179,11 +224,13 @@ reset_one_storio()
 
     hid=$1	       
     # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-    resolve_host_storage $hid
+    resolve_storage_conf_file $hid
 
     #echo "Start storage cid: $cid sid: $sid"
-    pid=`ps -ef | grep "storio -i" | grep -v rozolauncher | grep " -c $STORAGE_CONF" | awk '{ print $2 }'`
-    kill -9 $pid
+    for pid in `ps -ef | grep "storio" | grep -v rozolauncher | grep " -c $STORAGE_CONF" | grep " -i $2" | awk '{ print $2 }'`
+    do
+      kill -9 $pid
+    done  
     #sleep 1
 }
 gen_export_conf ()
@@ -191,7 +238,7 @@ gen_export_conf ()
 
     ROZOFS_LAYOUT=$1
 
-    FILE=${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf'
+    FILE=${LOCAL_CONF}'export.conf'
 
     if [ ! -e "$LOCAL_CONF" ]
     then
@@ -203,8 +250,6 @@ gen_export_conf ()
         rm -rf $FILE
     fi
 
-    sid=0
-
     touch $FILE
     echo "#${NAME_LABEL}" >> $FILE
     echo "#${DATE_LABEL}" >> $FILE
@@ -212,6 +257,7 @@ gen_export_conf ()
     echo "layout = 2 ;" >> $FILE
     echo 'volumes =' >> $FILE
     echo '      (' >> $FILE
+
 
     for v in $(seq ${NB_VOLUMES}); do
 
@@ -225,35 +271,36 @@ gen_export_conf ()
 	fi
         echo '            cids= ' >> $FILE
         echo '            (' >> $FILE
-
+ 
         for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
 
             let idx_cluster=(${v}-1)*${NB_CLUSTERS_BY_VOLUME}+${c}
+            let idx_host=(${v}-1)*${STORAGES_BY_CLUSTER}
 
             echo '                   {' >> $FILE
             echo "                       cid = $idx_cluster;" >> $FILE
             echo '                       sids =' >> $FILE
             echo '                       (' >> $FILE
 
-            for k in $(seq ${STORAGES_BY_CLUSTER}); do
+            for sid in $(seq ${STORAGES_BY_CLUSTER}); do
 	    
-                sid=$((sid+1))                    
+		idx_host=$((idx_host+1))                   
 
 	       	if [ "$GEOREP" -ne 1 ];
 		then
-		    sid_geo=$((sid+STORAGES_PER_SITE))
-                    if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
+		    idx_geo=$((idx_host+STORAGES_PER_SITE))
+                    if [[ ${sid} == ${STORAGES_BY_CLUSTER} ]]
                     then
-                	echo "                           {sid = ${sid}; site0 = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";site1 = \"${LOCAL_STORAGE_NAME_BASE}${sid_geo}\";}" >> $FILE
+                	echo "                           {sid = ${sid}; site0 = \"${LOCAL_STORAGE_NAME_BASE}${idx_host}\";site1 = \"${LOCAL_STORAGE_NAME_BASE}${idx_geo}\";}" >> $FILE
                     else
-                	echo "                           {sid = ${sid}; site0 = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";site1 = \"${LOCAL_STORAGE_NAME_BASE}${sid_geo}\";}," >> $FILE
+                	echo "                           {sid = ${sid}; site0 = \"${LOCAL_STORAGE_NAME_BASE}${idx_host}\";site1 = \"${LOCAL_STORAGE_NAME_BASE}${idx_geo}\";}," >> $FILE
                     fi
 		else
-                    if [[ ${k} == ${STORAGES_BY_CLUSTER} ]]
+                    if [[ ${sid} == ${STORAGES_BY_CLUSTER} ]]
                     then
-                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}" >> $FILE
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${idx_host}\";}" >> $FILE
                     else
-                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${sid}\";}," >> $FILE
+                        echo "                           {sid = ${sid}; host = \"${LOCAL_STORAGE_NAME_BASE}${idx_host}\";}," >> $FILE
                     fi		  
 		fi    
             done;
@@ -278,14 +325,19 @@ gen_export_conf ()
     echo ';' >> $FILE
     
     echo 'exports = (' >> $FILE
-    for k in $(seq ${NB_EXPORTS}); do
-        if [[ ${k} == ${NB_EXPORTS} ]]
-        then
-            echo "   {eid = $k; bsize = ${EXPORT_BSIZE[k-1]}; root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${EXPORT_VID[k-1]};}" >> $FILE
-        else
-            echo "   {eid = $k; bsize = ${EXPORT_BSIZE[k-1]};root = \"${LOCAL_EXPORTS_ROOT}_$k\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${EXPORT_VID[k-1]};}," >> $FILE
-        fi
-    done;
+
+    eid=0
+    for vid in $(seq ${NB_VOLUMES}); do        
+      for k in $(seq ${NB_EXPORTS}); do
+          eid=$((eid+1))
+          if [[ ${k} == ${NB_EXPORTS} && ${vid} ==  ${NB_VOLUMES} ]]
+          then
+              echo "   {eid = $eid; bsize = ${EXPORT_BSIZE[k-1]};root = \"${LOCAL_EXPORTS_ROOT}_$eid\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${vid};}" >> $FILE
+          else
+              echo "   {eid = $eid; bsize = ${EXPORT_BSIZE[k-1]};root = \"${LOCAL_EXPORTS_ROOT}_$eid\"; md5=\"${4}\"; squota=\"$SQUOTA\"; hquota=\"$HQUOTA\"; vid=${vid};}," >> $FILE
+          fi
+      done;
+    done  
     echo ');' >> $FILE
 }
 geomgr_modify ()
@@ -397,66 +449,125 @@ rebuild_storage_fid()
     resolve_host_storage $hid
     shift 3
 
-    cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $*"
-    echo $cmd
-    $cmd
-}
-rebuild_storage_device() 
-{
-    hid=$1
-    # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-    resolve_host_storage $hid
-
-    case "$2" in
-      "")   usage "Missing device identifier";;
-      all)  dev="";;
-      *)    dev="-d $2";;
-    esac
-
-    echo "rebuild $cid/$sid device $2"     
-    create_storage_device $hid $2
-    
-    ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $3 $4 --sid $cid/$sid $dev 
-}
-delete_storage_device() 
-{
-    hid=$1
-    # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-    resolve_host_storage $hid
-
-    case "$2" in
-      "")   usage "Missing device identifier";;
-      all)  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
-      *)    begin=$2 ; end=$2;;
-    esac
-    for device in $(seq $begin $end)
+    for localcid in $(seq $NB_CLUSTERS_BY_VOLUME)
     do
 
-      dir="${LOCAL_STORAGES_ROOT}_$cid-$hid/$device"
-      if [ -d $dir ];
+      # Resolve the storage path from cid&hid 
+      resolve_local_cid_hid $localcid $hid
+      if [ ! -d ${storage_path} ];
       then
-        echo "delete ${LOCAL_STORAGE_NAME_BASE}$hid device $device : $dir" 
-        \rm -rf $dir
-      else
-        echo "$dir does not exist !!!"         	  
+	echo "${storage_path} does not exist !!!" 
+	continue        	  
       fi
-    done  
+      cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $*"
+      echo $cmd
+      $cmd
+    done
 }
-create_storage_device() 
+# Input 
+# 1 : host number
+# 2 : cid
+# 3 : device num or all
+# 4&5 : -g site
+rebuild_storage_device() 
 {
-    hid=$1
-    # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-    resolve_host_storage $hid
-		    
+  hid=$1
+  cid=$2
+  
+  case "$3" in
+    "")    dev="";;
+    "all") dev="";;
+    *)     dev="-d $3";;
+  esac  
+    
+  resolve_cid_hid $cid $hid
+
+  if [ ! -d ${storage_path} ];
+  then
+    echo "${storage_path} does not exist !!!" 
+    return        	  
+  fi
+
+  create_storage_device $storage_path $3
+  
+  echo "${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $4 $5 --sid $cid/$sid $dev"  
+  ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $4 $5 --sid $cid/$sid $dev 
+}
+# Input 
+# 1 : host number
+# 2&3 : -g site
+rebuild_storage() 
+{
+  resolve_host_storage $1
+    
+  for cid in $(seq ${NB_CLUSTERS_BY_VOLUME})
+  do
+      cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
+      resolve_storage_path
+      create_storage_device $storage_path	  
+  done
+  
+  echo "${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $2 $3"  
+  ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} $2 $3
+}
+# Input 
+# 1 : host number
+delete_storage() 
+{
+  resolve_host_storage $1
+
+  for cid in $(seq ${NB_CLUSTERS_BY_VOLUME})
+  do
+      cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
+      resolve_storage_path
+      \rm -rf $storage_path/*
+      echo "\rm -rf $storage_path/"	  
+  done
+}
+# Input 
+# 1 : host number
+# 2 : cid
+# 3 : device num or all or ""
+delete_storage_device() 
+{
+  hid=$1
+  cid=$2
+  dev=$3
+
+  case "$dev" in
+    "")   begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
+    all)  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
+    *)    begin=$dev ; end=$dev;;
+  esac
+    
+  resolve_cid_hid $cid $hid
+
+  if [ ! -d ${storage_path} ];
+  then
+    echo "${storage_path} does not exist !!!" 
+    return        	  
+  fi
+
+    
+  for device in $(seq $begin $end)
+  do
+    \rm -rf ${storage_path}/$device 
+  done   
+}
+# Input 
+# 1 : directory name
+# 2 : device num or all or ""
+create_storage_device() {		    
 
     case "$2" in
       "")  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
       all) begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
       *)   begin=$2 ; end=$2;;
     esac
+    
     for device in $(seq $begin $end)
     do
-      mkdir ${LOCAL_STORAGES_ROOT}_$cid-$hid/$device > /dev/null 2>&1
+      mkdir ${1}/${device} > /dev/null 2>&1
     done  
 }
 stop_one_storage () {
@@ -465,6 +576,21 @@ stop_one_storage () {
    esac
    rozolauncher stop /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$1.pid   
 }   
+start_one_storage() 
+{
+    case $1 in
+	"all") start_storaged ${STORAGES_BY_CLUSTER} 0; return;;
+    esac
+
+
+    hid=$1	       
+    # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
+    resolve_storage_conf_file
+
+    #echo "Start storage cid: $cid sid: $sid"
+    rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$hid.pid  ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid &
+    #sleep 1
+}
 reset_one_storage () {
   stop_one_storage $1
   #sleep 1
@@ -473,20 +599,12 @@ reset_one_storage () {
 # $1 = STORAGES_BY_CLUSTER
 start_storaged ()
 {
-
     STORAGES_BY_CLUSTER=$1
     
     echo "------------------------------------------------------"
     echo "Start ${LOCAL_STORAGE_DAEMON}"
-
     for hid in $(seq ${STORAGES_TOTAL}); do
-
-        # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
-        resolve_host_storage $hid
-    
-        cmd="rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}${hid}.pid ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}${hid}"
-	echo $cmd
-	$cmd &	    		  
+        start_one_storage $hid 		  
     done	
 }
 
@@ -508,53 +626,31 @@ reload_storaged ()
 create_storages ()
 {
 
-    for hid in $(seq ${STORAGES_TOTAL}); do
+    for gid in $(seq ${GEOREP}); do
+      for vid in $(seq ${NB_VOLUMES}); do
+        for sid in $(seq ${STORAGES_BY_CLUSTER}); do
+	
+          hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + ((gid-1)*STORAGES_PER_SITE)  )) 
+          resolve_storage_conf_file
+	  	       
+	  if [ ! -e "$STORAGE_CONF" ]
+	  then
+              echo "Missing configuration file $STORAGE_CONF"
+	  fi
+	  
+	  for cid in $(seq ${NB_CLUSTERS_BY_VOLUME})
+	  do
 
-        resolve_host_storage $hid		    
-        fname=${LOCAL_STORAGES_ROOT}_${cid}-${hid}
+            cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
+	    resolve_storage_path
+            mkdir -p $storage_path
+	    create_storage_device $storage_path	  
+          done
+	  
 
-        if [ -e "$fname" ]
-        then
-            rm -rf $fname/*.bins
-        else
-            mkdir -p $fname
-        fi
-
-	create_storage_device $hid all
-    done;	
-}
-# $1 -> storages by node
-remove_storages ()
-{
-    for hid in $(seq ${STORAGES_TOTAL}); do
-
-	if [ -e "${LOCAL_STORAGES_ROOT}_${i}-${sid}" ]
-	then
-            rm -rf ${LOCAL_STORAGES_ROOT}_${i}-${sid}
-	fi
-
-    done;
-}
-
-# $1 -> LAYOUT
-# $2 -> NB STORAGES BY CLUSTER
-go_layout ()
-{
-    STORAGES_BY_CLUSTER=$2
-
-    if [ ! -e "${LOCAL_CONF}export_l${ROZOFS_LAYOUT}.conf" ] || [ ! -e "${LOCAL_CONF}export_l${ROZOFS_LAYOUT}.conf" ]
-    then
-        echo "Unable to change configuration files to layout ${ROZOFS_LAYOUT}"
-        exit 0
-    fi
-    
-    ln -s -f ${LOCAL_CONF}'export_l'${ROZOFS_LAYOUT}'.conf' ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE}
-    for hid in $(seq ${STORAGES_TOTAL}); do
-        # Resolve STORAGE_CONF	and gid, hid, cid, sid   
-        resolve_host_storage $hid		    
-        ln -s -f $STORAGE_CONF ${LOCAL_CONF}'_'${cid}'_'${hid}"_"${LOCAL_STORAGE_CONF_FILE}
-    done;
-
+	done
+      done
+    done	
 }
 
 deploy_clients_local ()
@@ -566,11 +662,11 @@ deploy_clients_local ()
 	return
     fi	
 
-    NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+    EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
     fs_instance=0
     geo_instance=0
 
-    for eid in $(seq ${NB_EXPORTS}); do
+    for eid in $(seq ${EXPORT_IN_CONF}); do
         
         for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
 	
@@ -641,9 +737,9 @@ undeploy_clients_local ()
 	return
     fi	
 
-    NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+    EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 
-    for eid in $(seq ${NB_EXPORTS}); do
+    for eid in $(seq ${EXPORT_IN_CONF}); do
         for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); do
 
             mount_point0=${LOCAL_MNT_ROOT}${eid}_${idx_client}_g0
@@ -719,9 +815,9 @@ create_exports ()
 	return
     fi
     
-    NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+    EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 
-    for eid in $(seq ${NB_EXPORTS}); do
+    for eid in $(seq ${EXPORT_IN_CONF}); do
         if [ -e "${LOCAL_EXPORTS_ROOT}_${eid}" ]
         then
             rm -rf ${LOCAL_EXPORTS_ROOT}_${eid}/*
@@ -740,9 +836,9 @@ remove_exports ()
 	return
     fi
     
-    NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+    EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 
-    for eid in $(seq ${NB_EXPORTS}); do
+    for eid in $(seq ${EXPORT_IN_CONF}); do
 
         if [ -e "${LOCAL_EXPORTS_ROOT}_${eid}" ]
         then
@@ -780,6 +876,7 @@ do_start_all_processes() {
      start_exportd 1
      #sleep 5
      deploy_clients_local
+     show_map     
 }
 
 
@@ -919,9 +1016,10 @@ do_one_cou ()
   slice=`awk '{if ($1=="SLICE") printf $3; }' $COUFILE`
 #  lay=`awk '{if ($1=="LAYOUT") printf $3; }' $COUFILE`
   dist=`awk '{if ($1=="STORAGE") printf $3; }' $COUFILE`
-  cluster=`awk '{if ($1=="CLUSTER") printf $3; }' $COUFILE`
+  cid=`awk '{if ($1=="CLUSTER") printf $3; }' $COUFILE`
   SID_LIST=`echo $dist | awk -F'-' '{ for (i=1;i<=NF;i++) print " "$i; }'`
   eid=`awk '{if ($1=="EID") printf $3; }' $COUFILE`
+  vid=`awk '{if ($1=="VID") printf $3; }' $COUFILE`
   
   rm -f $COUFILE
 
@@ -938,9 +1036,10 @@ do_one_cou ()
   for sid in $SID_LIST
   do
     sid=`expr $sid + 0`
-    dir="${LOCAL_STORAGES_ROOT}_$cluster-$sid"
+    hid=$(( ((sid-1)%STORAGES_BY_CLUSTER) + 1 + ((vid-1)*STORAGES_BY_CLUSTER) ))
+    resolve_storage_path
     doSpace="Yes"
-    for file in `find $dir -name "${fid}*"`
+    for file in `find $storage_path -name "${fid}*"`
     do
       case $doSpace in
        Yes) printf "\n"; doSpace="No";;
@@ -959,9 +1058,10 @@ do_one_cou ()
   for sid in $SID_LIST
   do
     sid=`expr $sid + $STORAGES_PER_SITE`
-    dir="${LOCAL_STORAGES_ROOT}_$cluster-$sid"
+    hid=$(( ((sid-1)%STORAGES_BY_CLUSTER) + 1 + ((vid-1)*STORAGES_BY_CLUSTER) + STORAGES_PER_SITE))
+    resolve_storage_path
     doSpace="Yes"
-    for file in `find $dir -name "${fid}*"`
+    for file in `find $storage_path -name "${fid}*"`
     do
       case $doSpace in
        Yes) printf "\n"; doSpace="No";;
@@ -979,20 +1079,20 @@ do_monitor_cfg ()
   for v in $(seq ${NB_VOLUMES}); 
   do
     echo "VOLUME ${EXPORT_HOST} $v"
-    for c in $(seq ${NB_CLUSTERS_BY_VOLUME}); 
+    host=$((v-1))
+    host=$((host*STORAGES_BY_CLUSTER))
+
+    for j in $(seq ${STORAGES_BY_CLUSTER}); 
     do
-      for j in $(seq ${STORAGES_BY_CLUSTER}); 
-      do
-        sid=$((sid+1))
-        echo "STORAGE localhost$sid"
-      done
+      host=$((host+1))
+      echo "STORAGE localhost$host"
     done
   done
 
   mount_instance=0
-  NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+  EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
 
-  for eid in $(seq ${NB_EXPORTS}); 
+  for eid in $(seq ${EXPORT_IN_CONF}); 
   do
     for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS}); 
     do
@@ -1030,10 +1130,10 @@ pjd_test()
     then
         echo "Unable to run pjd tests (configuration file doesn't exist)"
     else
-        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+        EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
         EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
 
-        for eid in $(seq ${NB_EXPORTS}); do
+        for eid in $(seq ${EXPORT_IN_CONF}); do
             echo "------------------------------------------------------"
             mountpoint -q ${LOCAL_MNT_ROOT}${eid}
             if [ "$?" -eq 0 ]
@@ -1063,10 +1163,10 @@ fileop_test(){
         INCREMENT=1
         FILE_SIZE=2M
 
-        NB_EXPORTS=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
+        EXPORT_IN_CONF=`grep eid ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | wc -l`
         EXPORT_LAYOUT=`grep layout ${LOCAL_CONF}${LOCAL_EXPORT_CONF_FILE} | grep -v grep | cut -c 10`
 
-        for eid in $(seq ${NB_EXPORTS}); do
+        for eid in $(seq ${EXPORT_IN_CONF}); do
                 echo "------------------------------------------------------"
                 mountpoint -q ${LOCAL_MNT_ROOT}${eid}
                 if [ "$?" -eq 0 ]
@@ -1080,7 +1180,72 @@ fileop_test(){
         done;
     fi
 }
+map_separator_line() {
+  printf "______"
+  for sid in $(seq ${STORAGES_BY_CLUSTER})
+  do
+    printf ${1}"_____"
+  done
+  printf "\n"   
+}
+show_map() {
+  eid=0
+  for vid in $(seq ${NB_VOLUMES})
+  do
+    printf "\n"
+    map_separator_line "_"
+    printf "  Volume %d\n" $vid
+    map_separator_line "_"
 
+    for k in $(seq ${NB_EXPORTS}); do
+      eid=$((eid+1))
+      bsize=${EXPORT_BSIZE[k-1]}
+      for idx_client in $(seq ${ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS})
+      do
+	for geo_site in $(seq ${GEOREP})
+	do
+          mount_point=${LOCAL_MNT_ROOT}${eid}_${idx_client}_g$((geo_site-1))
+	  printf "%-20s eid %d %dK site %d\n" $mount_point ${eid} $(( (bsize+1)*4)) $((geo_site-1)) 
+        done
+      done 
+    done
+    map_separator_line "_"
+         
+    printf "site0 "
+    for sid in $(seq ${STORAGES_BY_CLUSTER})
+    do
+       hid=$(( ((vid-1)*STORAGES_BY_CLUSTER) + sid ))
+       printf "| h%-2d "  $hid
+    done
+    printf "\n"
+    if [ $GEOREP -ne 1 ];
+    then    
+      printf "site1 "
+      for sid in $(seq ${STORAGES_BY_CLUSTER})
+      do
+	 hid=$(( ((vid-1)*STORAGES_BY_CLUSTER) + STORAGES_PER_SITE + sid ))
+	 printf "| h%-2d "  $hid
+      done
+      printf "\n"      
+    fi
+
+    map_separator_line "|" 
+    
+    for loccid in $(seq ${NB_CLUSTERS_BY_VOLUME})
+    do
+       cid=$(( ((vid-1)*NB_CLUSTERS_BY_VOLUME) + loccid ))
+       printf " c%-2d  " $cid       
+       for sid in $(seq ${STORAGES_BY_CLUSTER})
+       do
+	 printf "| s%-2d " $sid
+       done
+       printf "\n" 
+    done
+    
+    map_separator_line "|"     
+  done
+
+}
 usage ()
 {
     case $1 in
@@ -1097,7 +1262,8 @@ usage ()
     echo >&2 "$0 pause"
     echo >&2 "$0 resume"
     echo >&2 "$0 storage <hid>|all stop|start|reset"
-    echo >&2 "$0 storage <hid>|all device-delete|device-rebuild <device>|all"
+    echo >&2 "$0 storage <hid>|all device-delete|device-rebuild <cid> <device>|all"
+    echo >&2 "$0 storage <hid> delete|rebuild"
     echo >&2 "$0 storage <hid> fid-rebuild -s <cid>/<sid> -f <fid>"
     echo >&2 "$0 export stop|start|reset"
     echo >&2 "$0 fsmount stop|start|reset"
@@ -1231,18 +1397,18 @@ main ()
         set_layout
     fi
     
-    NB_EXPORTS=4
+    NB_EXPORTS=2
     # BSIZE 0=4K 1=8K 2=16K 3=32K 
     BS4K=0
     BS8K=1
     BS16K=2
     BS32K=3
     declare -a EXPORT_BSIZE=($BS4K $BS8K $BS16K $BS32K)
-    declare -a EXPORT_VID=(1 1 1 1)
+
     NB_VOLUMES=1
-    NB_CLUSTERS_BY_VOLUME=1
+    NB_CLUSTERS_BY_VOLUME=2
     NB_PORTS_PER_STORAGE_HOST=2
-    NB_DISK_THREADS=3
+    NB_DISK_THREADS=4
     NB_CORES=2
     WRITE_FILE_BUFFERING_SIZE=256
     NB_STORCLI=1
@@ -1255,14 +1421,16 @@ main ()
     NB_DEVICE_MAPPER_PER_SID=4
     NB_DEVICE_MAPPER_RED_PER_SID=3
     # GEOREP = 1 (1 site) or 2 (2 georeplicated sites)
-    GEOREP=2
+    GEOREP=1
 
-    STORAGES_PER_SITE=$((NB_VOLUMES*NB_CLUSTERS_BY_VOLUME*STORAGES_BY_CLUSTER))
+    STORAGES_PER_SITE=$((NB_VOLUMES*STORAGES_BY_CLUSTER))
+    SID_PER_SITE=$((STORAGES_PER_SITE*NB_CLUSTERS_BY_VOLUME))
     STORAGES_TOTAL=$((STORAGES_PER_SITE*GEOREP))
+    SID_TOTAL=$((SID_PER_SITE*GEOREP))
 
     # Only one storio per storage or one storio per listening port ?
-    #STORIO_MODE="multiple"
-    STORIO_MODE="single"   
+    STORIO_MODE="multiple"
+    #STORIO_MODE="single"   
     
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
@@ -1281,12 +1449,10 @@ main ()
         check_build
         do_stop
 
-        gen_storage_conf ${STORAGES_BY_CLUSTER} ${NB_PORTS_PER_STORAGE_HOST}
+        gen_storage_conf 
         gen_export_conf ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
         gen_geomgr_conf
 	
-        go_layout ${ROZOFS_LAYOUT} ${STORAGES_BY_CLUSTER}
-
         create_storages
         create_exports
 
@@ -1303,6 +1469,9 @@ main ()
     elif [ "$1" == "cou" ]
     then
            do_cou $*	      
+    elif [ "$1" == "map" ]
+    then
+           show_map 	
     elif [ "$1" == "pause" ]
     then
            do_pause
@@ -1374,10 +1543,18 @@ main ()
     elif [ "$1" == "storage" ]
     then  	
       case "$3" in 
+        # storage hid stop
         stop)            stop_one_storage $2;;
+	# storage hid start
 	start)           start_one_storage $2;;
-	device-rebuild)  rebuild_storage_device $2 $4 $5 $6;;
-	device-delete)   delete_storage_device $2 $4;; 
+	# storage hid device-rebuild cid device -g site
+	device-rebuild)  rebuild_storage_device $2 $4 $5 $6 $7;;
+	# storage hid device-delete cid device
+	device-delete)   delete_storage_device $2 $4 $5;; 
+	# storage hid delete
+	delete)          delete_storage $2;;	
+	# storage hid rebuild -g site
+	rebuild)         rebuild_storage $2 $4 $5;;
         fid-rebuild)     rebuild_storage_fid $*;;
 	reset)           reset_one_storage $2;;
         *)               usage;;
@@ -1385,7 +1562,8 @@ main ()
     elif [ "$1" == "storio" ]
     then  	
       case "$3" in 
-        reset)           reset_one_storio $2;;
+        # storio hid reset [instance]
+        reset)           reset_one_storio $2 $4;;
         *)               usage;;
       esac      
     elif [ "$1" == "process" ]

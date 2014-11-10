@@ -111,6 +111,7 @@ int exportclt_initialize(exportclt_t * clt, const char *host, char *root,int sit
         mstor->sids_nb = stor_node.sids_nb;
         memcpy(mstor->sids, stor_node.sids, sizeof (sid_t) * stor_node.sids_nb);
         memcpy(mstor->cids, stor_node.cids, sizeof (cid_t) * stor_node.sids_nb);
+	memset(mstor->lbg_id,-1,sizeof(mstor->lbg_id));
 
         /* Add to the list */
         list_push_back(&clt->storages, &mstor->list);

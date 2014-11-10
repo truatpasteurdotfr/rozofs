@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#set -x
 TMP="/tmp/.read_prj_blocks"
 
 usage() {
@@ -16,12 +16,18 @@ esac
 
 attr -g rozofs $1 > $TMP
 LAYOUT=`awk '{ if ($1=="LAYOUT") print $3; }' $TMP`
+case $LAYOUT in
+  "0") HOSTNB=4;;
+  "1") HOSTNB=8;;
+  "3") HOSTNB=16;;
+esac  
+VID=`awk '{ if ($1=="VID") print $3; }' $TMP`
 BSIZE=`awk '{ if ($1=="BSIZE") print $3; }' $TMP` 
 FID=`awk '{ if ($1=="FID") print $3; }' $TMP` 
 cid=`awk '{ if ($1=="CLUSTER") print $3; }' $TMP`
 DIST=`awk '{ if ($1=="STORAGE") print $3; }' $TMP`
 SIZE=`awk '{ if ($1=="SIZE") print $3; }' $TMP`
-CHUNK_SIZE=$((64*1024*1024/128))
+CHUNK_SIZE=$((64*1024*1024*1024))
 chunks=$((SIZE/CHUNK_SIZE))
 
 sids=""
@@ -46,7 +52,9 @@ do
   do
     
     name=`printf "%s-%3.3d" $FID $chunk`
-    res=`find storage_$cid-$sid -name "$name"`
+    locsid=$(( (sid-1)%HOSTNB + 1 ))
+    hid=$(( ((VID-1)*HOSTNB) + locsid ))
+    res=`find storage_c${cid}_h${hid} -name "$name"`
     case $res in 
       "") {
         list="$list -f NULL"

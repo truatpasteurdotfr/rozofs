@@ -129,7 +129,7 @@ void *connect_storage(void *v);
 /**
 * Init of the load balancing group from mstorage configuration
 */
-int storaged_lbg_initialize(mstorage_t *s);
+int storaged_lbg_initialize(mstorage_t *s, int index);
 /**______________________________________________________________________________
 */
 /**
@@ -141,5 +141,10 @@ static inline int storcli_get_site_number()
 {
   return storcli_site_number;
 }
+/*__________________________________________________________________________
+** Create every LBG toward a storage node while its configuration is received
+** from the storaged
+ */
+int rozofs_storcli_setup_all_lbg_of_storage(mstorage_t *s);
 
 #endif

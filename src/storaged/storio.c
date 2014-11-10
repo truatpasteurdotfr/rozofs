@@ -103,6 +103,7 @@ static int storaged_initialize() {
     /* For each storage on configuration file */
     list_for_each_forward(p, &storaged_config.storages) {
         storage_config_t *sc = list_entry(p, storage_config_t, list);
+		
         /* Initialize the storage */
         if (storage_initialize(storaged_storages + storaged_nrstorages++,
                 sc->cid, sc->sid, sc->root, 
@@ -291,7 +292,7 @@ int main(int argc, char *argv[]) {
         fatal( "Can't initialize storaged config: %s.\n",strerror(errno));
     }
     // Read the configuration file
-    if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
+    if (sconfig_read(&storaged_config, storaged_config_file, storio_instance) != 0) {
         fatal("Failed to parse storage configuration file: %s.\n",strerror(errno));
     }
     // Check the configuration

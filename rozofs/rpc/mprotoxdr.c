@@ -118,6 +118,30 @@ xdr_mp_io_address_t (XDR *xdrs, mp_io_address_t *objp)
 }
 
 bool_t
+xdr_mp_storio_mode_t (XDR *xdrs, mp_storio_mode_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_enum (xdrs, (enum_t *) objp))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_mp_ports_t (XDR *xdrs, mp_ports_t *objp)
+{
+	//register int32_t *buf;
+
+	//int i;
+	 if (!xdr_mp_storio_mode_t (xdrs, &objp->mode))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->io_addr, STORAGE_NODE_PORTS_MAX,
+		sizeof (mp_io_address_t), (xdrproc_t) xdr_mp_io_address_t))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_mp_ports_ret_t (XDR *xdrs, mp_ports_ret_t *objp)
 {
 	//register int32_t *buf;
@@ -126,8 +150,7 @@ xdr_mp_ports_ret_t (XDR *xdrs, mp_ports_ret_t *objp)
 		 return FALSE;
 	switch (objp->status) {
 	case MP_SUCCESS:
-		 if (!xdr_vector (xdrs, (char *)objp->mp_ports_ret_t_u.io_addr, STORAGE_NODE_PORTS_MAX,
-			sizeof (mp_io_address_t), (xdrproc_t) xdr_mp_io_address_t))
+		 if (!xdr_mp_ports_t (xdrs, &objp->mp_ports_ret_t_u.ports))
 			 return FALSE;
 		break;
 	case MP_FAILURE:

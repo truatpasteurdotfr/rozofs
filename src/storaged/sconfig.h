@@ -53,7 +53,7 @@ int sconfig_initialize(sconfig_t *config);
 
 void sconfig_release(sconfig_t *config);
 
-int sconfig_read(sconfig_t *config, const char *fname);
+int sconfig_read(sconfig_t *config, const char *fname,int cid);
 
 int sconfig_validate(sconfig_t *config);
 

@@ -108,9 +108,16 @@ void mp_ports_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
 
     ret->status = MP_SUCCESS;
 
-    memcpy(&ret->mp_ports_ret_t_u.io_addr, storaged_config.io_addr,
+    memcpy(&ret->mp_ports_ret_t_u.ports.io_addr, storaged_config.io_addr,
             sizeof(storaged_config.io_addr));
-
+	    
+    if (storaged_config.multiio == 0) {
+      ret->mp_ports_ret_t_u.ports.mode = MP_SINGLE;
+    }    
+    else {
+      ret->mp_ports_ret_t_u.ports.mode = MP_MULTIPLE;
+    }
+    
     STOP_PROFILING(ports);
 }
 

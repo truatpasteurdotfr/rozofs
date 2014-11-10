@@ -279,7 +279,7 @@ static void on_start() {
     //SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
     
     
-    conf.io_port = 0;
+    conf.nb_storio = 0;
     /*
     ** Then start storio
     */
@@ -297,25 +297,42 @@ static void on_start() {
         severe("rozo_launcher_start(%s,%s) %s",pidfile, cmd, strerror(errno));
       }
 
-      conf.io_port++;
+      conf.nb_storio++;
     }
     else {
-      int idx;
-      for (idx = 0; idx < storaged_nb_ports; idx++) {
+      uint64_t  bitmask[4] = {0};
+      list_t   *l = NULL;
+      uint8_t   cid,rank,bit; 
+         
+      /* For each storage on configuration file */
+      list_for_each_forward(l, &storaged_config.storages) {
+      
+        storage_config_t *sc = list_entry(l, storage_config_t, list);
+	cid = sc->cid;
+	
+        /* Is this storage already started */
+	rank = (cid-1)/64;
+	bit  = (cid-1)%64; 
+	if (bitmask[rank] & (1<<bit)) {
+	  continue;
+	}
+	
+	bitmask[rank] |= (1<<bit);
+	
 	p = cmd;
-	p += sprintf(p, "storio -i %d -c %s ", idx+1, storaged_config_file);
+	p += sprintf(p, "storio -i %d -c %s ", cid, storaged_config_file);
 	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
 
       
-        if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,idx+1);
-        else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",idx+1);
+        if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,cid);
+        else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",cid);
  
         // Launch storio
 	ret = rozo_launcher_start(pidfile, cmd);
 	if (ret !=0) {
           severe("rozo_launcher_start(%s,%s) %s",pidfile, cmd, strerror(errno));
 	}
-        conf.io_port++;
+        conf.nb_storio++;
       }
     }
 
@@ -404,7 +421,7 @@ int main(int argc, char *argv[]) {
         goto error;
     }
     // Read the configuration file
-    if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
+    if (sconfig_read(&storaged_config, storaged_config_file,0) != 0) {
         fprintf(stderr, "Failed to parse storage configuration file: %s.\n",
                 strerror(errno));
         goto error;

@@ -3229,6 +3229,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   
   pFid = (uint8_t *) lv2->attributes.s.attrs.fid;  
   DISPLAY_ATTR_INT("EID", e->eid);
+  DISPLAY_ATTR_INT("VID", e->volume->vid);
   DISPLAY_ATTR_INT("LAYOUT", e->layout);  
   DISPLAY_ATTR_INT("BSIZE", e->bsize);  
   

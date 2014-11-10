@@ -75,7 +75,7 @@ static af_unix_socket_conf_t  af_inet_storaged_conf =
 
 int storcli_next_storio_global_index =0;
 
-int storaged_lbg_initialize(mstorage_t *s) {
+int storaged_lbg_initialize(mstorage_t *s, int index) {
     int lbg_size;
     int ret;
     int i;
@@ -86,14 +86,14 @@ int storaged_lbg_initialize(mstorage_t *s) {
     /*
     ** configure the callback that is intended to perform the polling of the storaged on each TCP connection
     */
-   ret =  north_lbg_attach_application_supervision_callback(s->lbg_id,(af_stream_poll_CBK_t)storcli_lbg_cnx_polling);
+   ret =  north_lbg_attach_application_supervision_callback(s->lbg_id[index],(af_stream_poll_CBK_t)storcli_lbg_cnx_polling);
    if (ret < 0)
    {
      severe("Cannot configure Soraged polling callback");   
    }
 
 
-   ret =  north_lbg_set_application_tmo4supervision(s->lbg_id,3);
+   ret =  north_lbg_set_application_tmo4supervision(s->lbg_id[index],3);
    if (ret < 0)
    {
      severe("Cannot configure application TMO");   
@@ -112,7 +112,7 @@ int storaged_lbg_initialize(mstorage_t *s) {
      af_inet_storaged_conf.recv_srv_type = ROZOFS_RPC_SRV;
      af_inet_storaged_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
               
-     ret = north_lbg_configure_af_inet(s->lbg_id,
+     ret = north_lbg_configure_af_inet(s->lbg_id[index],
                                           s->host,
                                           INADDR_ANY,0,
                                           my_list,
@@ -122,7 +122,7 @@ int storaged_lbg_initialize(mstorage_t *s) {
       severe("Cannot create Load Balancing Group %d for storaged %s",s->lbg_id,s->host);
       return -1;    
      }
-     north_lbg_set_next_global_entry_idx_p(s->lbg_id,&storcli_next_storio_global_index);
+     north_lbg_set_next_global_entry_idx_p(s->lbg_id[index],&storcli_next_storio_global_index);
      return  0;
 }     
 

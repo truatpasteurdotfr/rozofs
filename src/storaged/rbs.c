@@ -79,10 +79,11 @@ char * get_rebuild_directory_name() {
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
+int rbs_stor_cnt_initialize(rb_stor_t * rb_stor, int cid) {
     int status = -1;
     int i = 0;
     mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
+    int single_storio;
     DEBUG_FUNCTION;
 
     // Copy hostname for this storage
@@ -101,7 +102,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
         goto out;
     } else {
         // Send request to get TCP ports for this storage
-        if (mclient_ports(&rb_stor->mclient, io_address) != 0) {
+        if (mclient_ports(&rb_stor->mclient, &single_storio, io_address) != 0) {
             severe("Warning: failed to get ports for storage (host: %s)."
                     , rb_stor->host);
             goto out;
@@ -128,7 +129,12 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor) {
             }
 
             rb_stor->sclients[i].ipv4 = ip;
-            rb_stor->sclients[i].port = io_address[i].port;
+	    if (single_storio) {
+              rb_stor->sclients[i].port = io_address[i].port;
+	    }
+	    else {
+              rb_stor->sclients[i].port = io_address[i].port+cid;	    
+	    } 
             rb_stor->sclients[i].status = 0;
             rb_stor->sclients[i].rpcclt.sock = -1;
 
@@ -210,7 +216,7 @@ void rbs_init_cluster_cnts(list_t * cluster_entries,
                 rb_stor_t *rb_stor = list_entry(q, rb_stor_t, list);
 		
                 // Get connections for this storage
-                if (rbs_stor_cnt_initialize(rb_stor) != 0) {
+                if (rbs_stor_cnt_initialize(rb_stor,cid) != 0) {
                   severe("rbs_stor_cnt_initialize cid/sid %d/%d failed: %s",
                             cid, rb_stor->sid, strerror(errno));
 		  (*failed)++;

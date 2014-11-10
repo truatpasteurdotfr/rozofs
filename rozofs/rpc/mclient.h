@@ -43,6 +43,6 @@ int mclient_stat(mclient_t *clt, sstat_t *st);
 
 int mclient_remove(mclient_t * clt, fid_t fid);
 
-int mclient_ports(mclient_t * mclt, mp_io_address_t * io_address_p);
+int mclient_ports(mclient_t * mclt, int * single, mp_io_address_t * io_address_p);
 
 #endif

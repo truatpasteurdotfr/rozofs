@@ -406,26 +406,40 @@ char *display_mstorage(mstorage_t *s,char *buffer)
 {
 
   int i;
+  int lbg_id;
+  uint8_t cid,sid;
+  uint32_t *sid_lbg_id_p;
 
   for (i = 0; i< s->sids_nb; i++)
   {
-     buffer += sprintf(buffer," %3.3d  |  %2.2d  |",s->cids[i],s->sids[i]);
+     cid = s->cids[i];
+     sid = s->sids[i];
+     buffer += sprintf(buffer," %3.3d  |  %2.2d  |",cid,sid);
      buffer += sprintf(buffer," %-20s |",s->host);
-     if ( s->lbg_id == -1)
+     
+     sid_lbg_id_p = rozofs_storcli_cid_table[cid-1];
+     if (sid_lbg_id_p == NULL) {
+       lbg_id = -1;
+     }
+     else {       
+       lbg_id = sid_lbg_id_p[sid-1];
+     }
+     
+     if ( lbg_id == -1)
      {
        buffer += sprintf(buffer,"  ???     |");
      }
      else
      {
-       buffer += sprintf(buffer,"  %3d     |",s->lbg_id);       
+       buffer += sprintf(buffer,"  %3d     |",lbg_id);       
      }
-     buffer += sprintf(buffer,"  %s  |",north_lbg_display_lbg_state(bufall,s->lbg_id));         
-     buffer += sprintf(buffer,"  %s      |",north_lbg_is_available(s->lbg_id)==1 ?"UP  ":"DOWN");        
-     buffer += sprintf(buffer," %3s |",storcli_lbg_cnx_supervision_tab[s->lbg_id].state==STORCLI_LBG_RUNNING ?"YES":"NO");        
-     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[s->lbg_id].tmo_counter); 
-     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[s->lbg_id].poll_counter); 
+     buffer += sprintf(buffer,"  %s  |",north_lbg_display_lbg_state(bufall,lbg_id));         
+     buffer += sprintf(buffer,"  %s      |",north_lbg_is_available(lbg_id)==1 ?"UP  ":"DOWN");        
+     buffer += sprintf(buffer," %3s |",storcli_lbg_cnx_supervision_tab[lbg_id].state==STORCLI_LBG_RUNNING ?"YES":"NO");        
+     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[lbg_id].tmo_counter); 
+     buffer += sprintf(buffer," %5d |",storcli_lbg_cnx_supervision_tab[lbg_id].poll_counter); 
      buffer += sprintf(buffer," %2d |",STORCLI_LBG_SP_NULL_INTERVAL);         
-     buffer += sprintf(buffer,"  %s      |\n",show_storcli_display_poll_state(bufall,storcli_lbg_cnx_supervision_tab[s->lbg_id].poll_state));         
+     buffer += sprintf(buffer,"  %s      |\n",show_storcli_display_poll_state(bufall,storcli_lbg_cnx_supervision_tab[lbg_id].poll_state));         
   }
   return buffer;
 }
@@ -674,7 +688,7 @@ int rozofs_storcli_cid_table_insert(cid_t cid, sid_t sid, uint32_t lbg_id) {
         rozofs_storcli_cid_table[cid - 1] = sid_lbg_id_p;
     }
     sid_lbg_id_p[sid - 1] = lbg_id;
-    /*
+        /*
     ** clear the tmo supervision structure assocated with the lbg
     */
     storcli_lbg_cnx_sup_clear_tmo(lbg_id);
@@ -713,38 +727,41 @@ static int get_storage_ports(mstorage_t *s) {
         DEBUG("Warning: failed to join storage (host: %s), %s.\n",
                 s->host, strerror(errno));
         goto out;
-    } else {
-        /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, io_address) != 0) {
-            DEBUG("Warning: failed to get ports for storage (host: %s).\n",
-                    s->host);
-            goto out;
-        }
+    } 
+    
+    
+    /* Send request to get storage TCP ports */
+    if (mclient_ports(&mclt, &s->single_storio, io_address) != 0) {
+        DEBUG("Warning: failed to get ports for storage (host: %s).\n",
+                s->host);
+	/* Release mclient*/
+	mclient_release(&mclt);
+        goto out;
     }
-
-    /* Copy each TCP ports */
-	for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-
-		if (io_address[i].port != 0) {
-			uint32_t ip = io_address[i].ipv4;
-
-			if (ip == INADDR_ANY) {
-				// Copy storage hostnane and IP
-				strcpy(s->sclients[i].host, s->host);
-				rozofs_host2ip(s->host, &ip);
-			} else {
-				sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
-						(ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
-			}
-			s->sclients[i].ipv4 = ip;
-			s->sclients[i].port = io_address[i].port;
-			s->sclients[i].status = 0;
-			s->sclients_nb++;
-		}
-	}
-
+    
     /* Release mclient*/
     mclient_release(&mclt);
+    
+    /* Copy each TCP ports */
+    for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+
+      if (io_address[i].port != 0) {
+	      uint32_t ip = io_address[i].ipv4;
+
+	if (ip == INADDR_ANY) {
+		// Copy storage hostnane and IP
+		strcpy(s->sclients[i].host, s->host);
+		rozofs_host2ip(s->host, &ip);
+	} else {
+		sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
+				(ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+	}
+	s->sclients[i].ipv4 = ip;
+	s->sclients[i].port = io_address[i].port;
+	s->sclients[i].status = 0;
+	s->sclients_nb++;
+      }
+    }
 
     status = 0;
 out:
@@ -790,8 +807,7 @@ void *connect_storage(void *v) {
 				 ** we just can assert a flag to indicate that the configuration
 				 ** data of the lbg are available.
 				 */
-				storcli_sup_send_lbg_port_configuration(STORCLI_LBG_ADD,
-						(void *) mstorage);
+				storcli_sup_send_lbg_port_configuration((void *) mstorage);
 				configuration_done = 1;
 
 				ts.tv_sec = CONNECTION_THREAD_TIMESPEC * 20;
@@ -842,6 +858,130 @@ void rozofs_storcli_start_connect_storage_thread() {
  */
 
 /**
+ *  Configure all LBG for a storage node
+
+  @param none
+  
+  @retval 0 on success
+  @retval -1 on error
+ */
+int rozofs_storcli_setup_all_lbg_of_storage(mstorage_t *s) {
+  int sid;
+  int cid;  
+  int i,idx;
+  int ret;
+  int hostlen;
+
+  if (s->sclients_nb == 0) return 0;
+
+  /*
+  ** In single storio mode, there is only one LBG for all cids of this storage
+  */
+  if (s->single_storio) {
+
+    /*
+    ** allocate the load balancing group for the mstorage
+    */
+    if (s->lbg_id[0] == -1) {
+    
+      s->lbg_id[0] = north_lbg_create_no_conf();
+      if (s->lbg_id[0] < 0) {
+	severe(" out of lbg contexts");
+	return -1;
+      }	
+
+      /*
+      ** proceed with storage configuration if the number of port is different from 0
+      */
+      ret = storaged_lbg_initialize(s,0);
+      if (ret < 0) {
+	severe("storaged_lbg_initialize");
+        return -1;
+      }
+    }
+    
+    /*
+    ** init of the cid/sid<-->lbg_id association table
+    */
+    for (i = 0; i < s->sids_nb; i++) {
+      rozofs_storcli_cid_table_insert(s->cids[i], s->sids[i], s->lbg_id[0]);
+    }
+    
+    return 0;
+  }
+
+  /*
+  ** In multiple storio, there is one LBG per cluster on the storage node.
+  ** The destination port is the base port number + the cid value
+  */
+  for (idx = 0; idx < s->sids_nb; idx++) {
+
+    cid = s->cids[idx];
+    sid = s->sids[idx];
+    
+    /*
+    ** LBG already configured for this cluster
+    */
+    if (s->lbg_id[cid-1] == -1) {
+
+      /*
+      ** allocate the load balancing group for the mstorage
+      */
+      s->lbg_id[cid-1] = north_lbg_create_no_conf();
+      if (s->lbg_id[cid-1] < 0) {
+	severe(" out of lbg contexts %d",cid);
+	return -1;
+      }
+
+      /* Add the cid number to the service port */
+      for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+	if (s->sclients[i].port != 0) {
+	  s->sclients[i].port += cid;
+	}
+      }
+      
+      /*
+      ** Add cluster number to the LBG name
+      */
+      hostlen = strlen(s->host);
+      sprintf(&s->host[hostlen],"_c%d",cid);
+
+      /*
+      ** proceed with storage configuration if the number of port is different from 0
+      */
+      ret = storaged_lbg_initialize(s,cid-1);
+
+      /*
+      ** Restore host name
+      */
+      s->host[hostlen] = 0;
+
+      /* Restore the base service port number */
+      for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+	if (s->sclients[i].port != 0) {
+	  s->sclients[i].port -= cid;
+	}
+      }
+      
+      /* Initialization failed */	
+      if (ret < 0) {
+	severe("storaged_lbg_initialize %d",cid);      
+        return -1;
+      }
+    }
+    
+    /*
+    ** init of the cid/sid<-->lbg_id association table
+    */
+    rozofs_storcli_cid_table_insert(cid, sid, s->lbg_id[cid-1]);
+  } 
+  
+  return 0;
+}	
+/*__________________________________________________________________________
+ */
+
+/**
  *  Get the exportd configuration:
   The goal of that procedure is to get the list of the mstorages
   that are associated with the exportd that is referenced as input
@@ -855,13 +995,14 @@ void rozofs_storcli_start_connect_storage_thread() {
   @retval -1 on error
  */
 int rozofs_storcli_get_export_config(storcli_conf *conf) {
-
     int i = 0;
     int ret;
     list_t *iterator = NULL;
     int export_index=0;
     char * pHost;
-
+    int sid;
+    int cid;
+	  
     /* Initialize rozofs */
     rozofs_layout_initialize();
 
@@ -930,14 +1071,7 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         strcpy(mclt.host, s->host);
         mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
         memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
-        /*
-         ** allocate the load balancing group for the mstorage
-         */
-        s->lbg_id = north_lbg_create_no_conf();
-        if (s->lbg_id < 0) {
-            severe(" out of lbg contexts");
-            goto fatal;
-        }
+
 
         struct timeval timeout_mproto;
         timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_MONITOR_PROGRAM);
@@ -949,53 +1083,48 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         if (mclient_initialize(&mclt, timeout_mproto) != 0) {
             fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
                     s->host, strerror(errno));
-        } else {
-            /* Send request to get storage TCP ports */
-            if (mclient_ports(&mclt, io_address) != 0) {
-                fprintf(stderr,
-                        "Warning: failed to get ports for storage (host: %s).\n"
-                        , s->host);
-            }
+            continue;		    
         }
 
-     
+        /* Send request to get storage TCP ports */
+        if (mclient_ports(&mclt, &s->single_storio, io_address) != 0) {
+            fprintf(stderr,
+                    "Warning: failed to get ports for storage (host: %s).\n"
+                    , s->host);
+        }
+	
+        /* Release mclient*/
+        mclient_release(&mclt);	
+
+        /* Configuration not received */
+        if (io_address[0].port == 0) continue;
+
         /* Initialize each TCP ports connection with this storage node
          *  (by sproto) */
-		for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
-			if (io_address[i].port != 0) {
-				uint32_t ip = io_address[i].ipv4;
+	for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+	  if (io_address[i].port != 0) {
+	    uint32_t ip = io_address[i].ipv4;
 
-				if (ip == INADDR_ANY) {
-					// Copy storage hostnane and IP
-					strcpy(s->sclients[i].host, s->host);
-					rozofs_host2ip(s->host, &ip);
-				} else {
-					sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
-							(ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
-				}
-				s->sclients[i].ipv4 = ip;
-				s->sclients[i].port = io_address[i].port;
-				s->sclients[i].status = 0;
-				s->sclients_nb++;
-			}
-		}
-        /*
-         ** proceed with storage configuration if the number of port is different from 0
-         */
-        if (s->sclients_nb != 0) {
-            ret = storaged_lbg_initialize(s);
-            if (ret < 0) {
-                goto fatal;
-            }
-        }
-        /*
-         ** init of the cid/sid<-->lbg_id association table
-         */
-        for (i = 0; i < s->sids_nb; i++) {
-            rozofs_storcli_cid_table_insert(s->cids[i], s->sids[i], s->lbg_id);
-        }
-        /* Release mclient*/
-        mclient_release(&mclt);
+	    if (ip == INADDR_ANY) {
+	      // Copy storage hostnane and IP
+	      strcpy(s->sclients[i].host, s->host);
+	      rozofs_host2ip(s->host, &ip);
+	    } else {
+	      sprintf(s->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
+			      (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+	    }
+	    s->sclients[i].ipv4 = ip;
+	    s->sclients[i].port = io_address[i].port;
+	    s->sclients[i].status = 0;
+	    s->sclients_nb++;
+	  }
+	}
+
+        ret = rozofs_storcli_setup_all_lbg_of_storage(s);
+	if (ret != 0) {
+	  goto fatal;
+	}  
+
     }
     /*
     ** start the exportd configuration polling thread

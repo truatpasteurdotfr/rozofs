@@ -62,6 +62,7 @@
 uint32_t storio_nb = 0;
 DECLARE_PROFILING(spp_profiler_t);
 
+extern sconfig_t storaged_config;
 
 /*
  **_________________________________________________________________________
@@ -214,8 +215,32 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
 
 static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
-    
-    sprintf(pChar,"storio_nb : %d\n", storio_nb);
+    uint64_t  bitmask[4] = {0};
+    list_t   *l = NULL;
+    uint8_t   cid,rank,bit; 
+          
+    pChar += sprintf(pChar,"storio_nb : %d\n", storio_nb);
+    pChar += sprintf(pChar,"mode : %s\n", storaged_config.multiio?"multiple":"single");
+    pChar += sprintf(pChar,"cids : ");
+             
+    /* For each storage on configuration file */
+    list_for_each_forward(l, &storaged_config.storages) {
+
+      storage_config_t *sc = list_entry(l, storage_config_t, list);
+      cid = sc->cid;
+
+      /* Is this storage already started */
+      rank = (cid-1)/64;
+      bit  = (cid-1)%64; 
+      if (bitmask[rank] & (1<<bit)) {
+	continue;
+      }
+
+      bitmask[rank] &= (1<<bit);
+      pChar += sprintf(pChar,"%d ",cid);
+    }
+    pChar += sprintf(pChar,"\n");
+   
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
@@ -484,7 +509,7 @@ int storaged_start_nb_th(void *args) {
      */
     uma_dbg_addTopic("profiler", show_profile_storaged_master_display);
     
-    storio_nb = args_p->io_port;
+    storio_nb = args_p->nb_storio;
     uma_dbg_addTopic("storio_nb", show_storio_nb);
 
 

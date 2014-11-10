@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     list_t *p;
 
     sconfig_initialize(&config);
-    sconfig_read(&config, argv[1]);
+    sconfig_read(&config, argv[1],0);
 
     list_for_each_forward(p, &config.storages) {
         storage_config_t *sc = list_entry(p, storage_config_t, list);

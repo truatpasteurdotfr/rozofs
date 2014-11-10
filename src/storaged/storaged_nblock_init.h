@@ -30,7 +30,7 @@ typedef struct _storaged_start_conf_param_t
    uint16_t   debug_port;  /**< debug port for the storaged debug */
    uint16_t   instance_id;  /**< instance number of the storaged  */
    char       hostname[ROZOFS_HOSTNAME_MAX]; /**< hostname or NULL */
-   uint16_t   io_port;   /**< IO port for read/write : 0 for parent process */
+   uint16_t   nb_storio;   /**< number of storio processes */
 
 } storaged_start_conf_param_t;
 

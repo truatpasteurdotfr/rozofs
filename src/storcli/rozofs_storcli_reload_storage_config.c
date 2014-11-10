@@ -34,6 +34,7 @@
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/core/north_lbg_api.h>
+#include <rozofs/core/rozofs_ip_utilities.h>
 #include "rozofs_storcli_reload_storage_config.h"
 #include "storcli_main.h"
 #include "rozofs_storcli_lbg_cnf_supervision.h"
@@ -59,7 +60,7 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
     int stor_len =  ret->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_len;
     ep_cnf_storage_node_t *stor_p;
     stor_p = ret->status_gw.ep_conf_ret_t_u.export.storage_nodes.storage_nodes_val;
-
+    int sid;
     
     for (node = 0; node < stor_len; node++,stor_p++) 
     {
@@ -78,18 +79,16 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
         ** update the cid and sid part only. changing the number of
         ** ports of the mstorage is not yet supported.
         */
+        found = 1;
+	
         s->sids_nb = stor_p->sids_nb;
         memcpy(s->sids, stor_p->sids, sizeof (sid_t) * stor_p->sids_nb);
         memcpy(s->cids, stor_p->cids, sizeof (cid_t) * stor_p->sids_nb);
-        /*
-        ** update of the cid/sid<-->lbg_id association table
-        */
-        for (i = 0; i < s->sids_nb;i++)
-        {
-          rozofs_storcli_cid_table_insert(s->cids[i],s->sids[i],s->lbg_id);       
-        }
-        found = 1;
-        break;
+
+        if (s->sclients_nb != 0) {
+          storcli_sup_send_lbg_port_configuration(s);
+	}
+	break; 
       }
       /*
       ** Check if the node has been found in the configuration. If it is the
@@ -101,7 +100,7 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       */
       mstorage_t *mstor = (mstorage_t *) xmalloc(sizeof (mstorage_t));
       memset(mstor, 0, sizeof (mstorage_t));
-      mstor->lbg_id = -1;  /**< lbg not yet allocated */
+      memset(mstor->lbg_id,-1,sizeof(mstor->lbg_id));/**< lbg not yet allocated */
       strcpy(mstor->host, stor_p->host);
       mstor->sids_nb = stor_p->sids_nb;
       memcpy(mstor->sids, stor_p->sids, sizeof (sid_t) * stor_p->sids_nb);
@@ -117,16 +116,8 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       init_rpcctl_ctx(&mclt.rpcclt);
       strcpy(mclt.host, mstor->host);
       mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
-      //memset(io_address, 0, sizeof (io_address));
-      /*
-      ** allocate the load balancing group for the mstorage
-      */
-      storcli_sup_send_lbg_create(STORCLI_LBG_CREATE,mstor);
-      if (mstor->lbg_id < 0)
-      {
-        severe(" out of lbg contexts");
-        goto fatal;        
-      }
+      memset(io_address, 0, sizeof (io_address));
+
       struct timeval timeout_mproto;
       timeout_mproto.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
       timeout_mproto.tv_usec = 0;
@@ -139,45 +130,42 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       else 
       {
         /* Send request to get storage TCP ports */
-        if (mclient_ports(&mclt, io_address) != 0) 
+        if (mclient_ports(&mclt, &mstor->single_storio, io_address) != 0) 
         {
             fprintf(stderr,
                     "Warning: failed to get ports for storage (host: %s).\n"
                     , mstor->host);
         }
       }
+
       /* Initialize each TCP ports connection with this storage node
        *  (by sproto) */
-      for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) 
-      {
-         if (io_address[i].port  != 0) 
-         {
-	     uint32_t ip = io_address[i].ipv4;
-             sprintf(mstor->sclients[i].host, "%u.%u.%u.%u", ip>>24, (ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF);
-             mstor->sclients[i].port = io_address[i].port;
-             mstor->sclients[i].status = 0;
-             mstor->sclients_nb++;
-         }
+      for (i = 0; i < STORAGE_NODE_PORTS_MAX; i++) {
+	if (io_address[i].port != 0) {
+	  uint32_t ip = io_address[i].ipv4;
+
+	  if (ip == INADDR_ANY) {
+	    // Copy storage hostnane and IP
+	    strcpy(mstor->sclients[i].host, mstor->host);
+	    rozofs_host2ip(mstor->host, &ip);
+	  } else {
+	    sprintf(mstor->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
+			    (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+	  }
+	  mstor->sclients[i].ipv4 = ip;
+	  mstor->sclients[i].port = io_address[i].port;
+	  mstor->sclients[i].status = 0;
+	  mstor->sclients_nb++;
+	}
       }
+
       /*
       ** proceed with storage configuration if the number of port is different from 0
       */
-      if (mstor->sclients_nb != 0)
-      {
-        ret = storcli_sup_send_lbg_port_configuration(STORCLI_LBG_ADD, (void *) mstor);
-//        ret = storaged_lbg_initialize(mstor);
-        if (ret < 0)
-        {
-          goto fatal;                       
-        }
+      if (mstor->sclients_nb != 0) {
+        storcli_sup_send_lbg_port_configuration((void *) mstor);
       }
-      /*
-      ** init of the cid/sid<-->lbg_id association table
-      */
-      for (i = 0; i < mstor->sids_nb;i++)
-      {
-        rozofs_storcli_cid_table_insert(mstor->cids[i],mstor->sids[i],mstor->lbg_id);       
-      }
+
       /* Release mclient*/
       mclient_release(&mclt);
       /*

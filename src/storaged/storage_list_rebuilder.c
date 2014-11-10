@@ -658,7 +658,7 @@ int storaged_rebuild_list(char * fid_list) {
   }
   
   // Read the configuration file
-  if (sconfig_read(&storaged_config, st2rebuild.config_file) != 0) {
+  if (sconfig_read(&storaged_config, st2rebuild.config_file,0) != 0) {
       severe("Failed to parse storage configuration file %s : %s.\n",st2rebuild.config_file,strerror(errno));
       goto error;
   }

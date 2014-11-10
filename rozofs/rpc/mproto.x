@@ -57,8 +57,19 @@ struct mp_io_address_t {
   uint32_t port;
 };
 
+enum mp_storio_mode_t {
+    MP_SINGLE = 0,
+    MP_MULTIPLE = 1
+};
+
+struct mp_ports_t {
+  enum   mp_storio_mode_t mode;
+  struct mp_io_address_t  io_addr[STORAGE_NODE_PORTS_MAX];
+};
+
+
 union mp_ports_ret_t switch (mp_status_t status) {
-    case MP_SUCCESS:    struct mp_io_address_t  io_addr[STORAGE_NODE_PORTS_MAX];
+    case MP_SUCCESS:    struct mp_ports_t  ports;
     case MP_FAILURE:    int         error;
     default:            void;
 };

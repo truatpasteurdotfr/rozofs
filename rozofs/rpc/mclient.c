@@ -116,10 +116,12 @@ out:
     return status;
 }
 
-int mclient_ports(mclient_t * mclt, mp_io_address_t * io_address_p) {
+int mclient_ports(mclient_t * mclt, int * single, mp_io_address_t * io_address_p) {
     int status = -1;
     mp_ports_ret_t *ret = 0;
     DEBUG_FUNCTION;
+    
+    *single = 1;
 
     if (!(mclt->rpcclt.client) || !(ret = mp_ports_1(NULL, mclt->rpcclt.client))) {
         errno = EPROTO;
@@ -129,7 +131,10 @@ int mclient_ports(mclient_t * mclt, mp_io_address_t * io_address_p) {
         errno = ret->mp_ports_ret_t_u.error;
         goto out;
     }
-    memcpy(io_address_p, &ret->mp_ports_ret_t_u.io_addr, STORAGE_NODE_PORTS_MAX * sizeof (struct mp_io_address_t));
+    if (ret->mp_ports_ret_t_u.ports.mode == MP_MULTIPLE) {
+      *single = 0;
+    }
+    memcpy(io_address_p, &ret->mp_ports_ret_t_u.ports.io_addr, STORAGE_NODE_PORTS_MAX * sizeof (struct mp_io_address_t));
 
     status = 0;
 out:

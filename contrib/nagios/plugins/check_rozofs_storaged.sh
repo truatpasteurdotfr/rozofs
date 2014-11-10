@@ -190,7 +190,54 @@ test_storage_io_devices()
     *)  return 0;;
   esac 
 }
+test_one_storio() {
+  
+  test_storage_io
+  if [ $? -eq 0 ]
+  then
+    display_output $STATE_CRITICAL "some I/O process do not respond to rozodiag"
+  fi
 
+  # Test whether devices are OK
+  faulty_devices=""
+  test_storage_io_devices
+  if [ $? -eq 0 ]
+  then
+    display_output $STATE_WARNING "Some devices are faulty : $faulty_devices"
+  fi
+} 
+test_storio_single() 
+{
+  if [ ! -z "$portbase" ];
+  then
+    port=$((portbase + 1))
+  else
+    DBGTARGET="storio:0"
+  fi 
+  resolve_rozodiag
+  
+  test_one_storio
+}
+test_storio_multiple()
+{
+  while [ ! -z $1 ];
+  do
+ 
+    cid=$1
+    
+    if [ ! -z "$portbase" ];
+    then
+      port=$((portbase + cid))
+    else
+      DBGTARGET="storio:$cid"
+    fi 
+    resolve_rozodiag
+    
+    test_one_storio
+    
+    shift 1
+  done
+}
 #######################################################
 #         M A I N
 #######################################################
@@ -234,6 +281,10 @@ while [ "$1" ]; do
    esac
 done
 
+if [ ! -z "$port" ];
+then
+  portbase=$port
+fi
 
 # Check mandatory parameters are set
 
@@ -283,32 +334,15 @@ case $storio_nb in
   };;  
 esac
 
-for i in $(seq ${storio_nb}) 
-do
+mode=`awk '{if($1=="mode") print $3;}' $TMPFILE`
+case "$mode" in
+  "multiple") {
+    cids=`awk '{if($1=="cids") { for (i=3;i<=NF;i++) printf("%d ",$i); printf("\n");}}' $TMPFILE`
+    test_storio_multiple $cids
+  };;
+  *) test_storio_single;;
+esac  
 
-  if [ ! -z "$port" ];
-  then
-    port=`expr $port + 1 `
-  else
-    DBGTARGET="storio:$i"
-  fi 
-  resolve_rozodiag
- 
-  test_storage_io
-  if [ $? -eq 0 ]
-  then
-    display_output $STATE_CRITICAL "I/O process $i do not respond to rozodiag"
-  fi
-
-  # Test whether devices are OK
-  faulty_devices=""
-  test_storage_io_devices
-  if [ $? -eq 0 ]
-  then
-    display_output $STATE_CRITICAL "Some devices are faulty : $faulty_devices"
-  fi
-  
-done
 
 # Hurra !!!
 display_output $STATE_OK 

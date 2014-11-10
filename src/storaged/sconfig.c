@@ -88,7 +88,7 @@ void sconfig_release(sconfig_t *config) {
     }
 }
 
-int sconfig_read(sconfig_t *config, const char *fname) {
+int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
     int status = -1;
     config_t cfg;
     struct config_setting_t *stor_settings = 0;
@@ -239,6 +239,12 @@ int sconfig_read(sconfig_t *config, const char *fname) {
             severe("can't lookup cid for storage %d.", i);
             goto out;
         }
+	
+        /*
+	** Only keep the clusters we take care of
+	*/
+	if ((cluster_id!=0)&&(cluster_id!=cid)) continue;
+	
 
         if (config_setting_lookup_string(ms, SROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;
@@ -270,7 +276,6 @@ int sconfig_read(sconfig_t *config, const char *fname) {
 	if (!config_setting_lookup_int(ms, SDEV_RED, &redundancy)) {
 	  redundancy = 2;
 	}
-
 
         new = xmalloc(sizeof (storage_config_t));
         if (storage_config_initialize(new, (cid_t) cid, (sid_t) sid,

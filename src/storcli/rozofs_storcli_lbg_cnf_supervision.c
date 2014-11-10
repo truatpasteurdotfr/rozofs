@@ -100,14 +100,14 @@ storcli_lbg_sup_conf_t *storcli_sup_getObjRef()
   @retval 0 success
   @retval -1 error
 */
-int storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage )
+int storcli_sup_send_lbg_port_configuration(void *mstorage)
 {
   int nBytes;
   uint32_t  response;
   storcli_sup_msg_t msg;
   storcli_lbg_sup_conf_t *p = &storcli_sup_lbg_ctx;
 
-  msg.opcode = opcode;
+  msg.opcode = STORCLI_LBG_ADD;
   msg.param = mstorage;
 
   nBytes = send(p->internalSocket[RUC_SOC_SEND],
@@ -139,7 +139,7 @@ int storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage )
   }
   return (int)response;
 }
-
+#if 0
 /*
 **_________________________________________________________________________
 */
@@ -151,7 +151,7 @@ int storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage )
   @retval 0 on success
   @retval -1 on error
 */
-int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage )
+int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage , int index)
 {
   int nBytes;
   storcli_sup_msg_t msg;
@@ -161,7 +161,7 @@ int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage )
 
   msg.opcode = opcode;
   msg.param = mstorage;
-  mstor->lbg_id = -1;
+  msg.filler = index;
 
   nBytes = send(p->internalSocket[RUC_SOC_SEND],
                 (const char *)&msg,
@@ -192,7 +192,9 @@ int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage )
     return -1;
   }
   return (int)response;
-}  
+} 
+#endif
+
 /*----------------------------------------------
 **  storcli_sup_getIntSockIdxFromSocketId
 **----------------------------------------------
@@ -344,7 +346,7 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
   switch ( msg.opcode)
   {
     case STORCLI_LBG_ADD:
-      ret = storaged_lbg_initialize( (mstorage_t*)msg.param);
+      ret = rozofs_storcli_setup_all_lbg_of_storage( (mstorage_t*)msg.param);
       if (ret < 0)
       {
         fatal("Cannot configure Load Balancing Group");                       
@@ -364,11 +366,12 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
       }         
       break;
       
+#if 0      
     case STORCLI_LBG_CREATE:
       storage_p = (mstorage_t*)msg.param;
       retcode = 0;
-      storage_p->lbg_id = north_lbg_create_no_conf();
-      if (storage_p->lbg_id < 0)
+      storage_p->lbg_id[msg.filler] = north_lbg_create_no_conf();
+      if (storage_p->lbg_id[msg.filler] < 0)
       {
         fatal("Cannot configure Load Balancing Group");      
         retcode = (uint32_t) -1;                 
@@ -387,6 +390,7 @@ uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId)
 
       }         
       break;
+#endif
 
     default:
       RUC_WARNING(msg.opcode);

@@ -28,9 +28,9 @@
 **
 */
 
-#define NB_FSMOUNT 8
-#define NB_STORIO  8
-#define NB_GEOCLI 30
+#define NB_FSMOUNT   8
+#define NB_STORIO  255
+#define NB_GEOCLI   30
 #define NB_EXPORT_SLAVE 8
 
 typedef enum rozofs_service_port_range_e {
@@ -167,18 +167,18 @@ static inline int show_ip_local_reserved_ports(char * buf){
   int       idx;
   ROZOFS_SERVICE_PORT_RANGE_DESC_T *p;
   
-  pt += sprintf(pt,"_______.____._______.___________________________.____________________________________\n");
-  pt += sprintf(pt," %5s | %2s | %5s | %25s | %s\n", "Value","Nb","Const", "/etc/services","Role");
-  pt += sprintf(pt,"_______|____|_______|___________________________|____________________________________\n");
+  pt += sprintf(pt,"_______._____._______.___________________________.____________________________________\n");
+  pt += sprintf(pt," %5s | %3s | %5s | %25s | %s\n", "Value","Nb","Const", "/etc/services","Role");
+  pt += sprintf(pt,"_______|_____|_______|___________________________|____________________________________\n");
   
   
   p = rozofs_service_port_range;
   for (idx=0; idx < ROZOFS_SERVICE_PORT_MAX; idx++,p++) {
     port[idx] = rozofs_get_service_port(idx);
-    pt += sprintf(pt," %5d | %2d | %5d | %25s | %s\n", 
+    pt += sprintf(pt," %5d | %3d | %5d | %25s | %s\n", 
                   port[idx], p->rangeSize, p->defaultValue, p->name, p->service);
   }		 
-  pt += sprintf(pt,"_______|____|_______|___________________________|____________________________________\n");
+  pt += sprintf(pt,"_______|_____|_______|___________________________|____________________________________\n");
 
 
   pt += sprintf(pt, "\necho net.ipv4.ip_local_reserved_ports=\"");

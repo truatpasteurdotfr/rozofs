@@ -27,8 +27,12 @@ DEFAULT_RETRIES=int(20)
 tst_file="tst_file"
 device_number=""
 mapper_modulo=""
-mapper_redundancy="" 
-
+mapper_redundancy=""
+vid=""
+list_cid=[]
+list_sid=[]
+list_host=[]  
+hunic=[]
 #___________________________________________________
 def my_duration (val):
 #___________________________________________________
@@ -67,14 +71,25 @@ def get_all_mount_points():
       ALL_MNT=ALL_MNT+','+mount
 
 #___________________________________________________
-def get_device_numbers(hid):
+def get_device_numbers(hid,cid):
 # Use debug interface to get the number of sid from exportd
 #___________________________________________________
   device_number=1
   mapper_modulo=1
   mapper_redundancy=1 
+
+  storio_name="storio:0"
   
-  string="./build/src/rozodiag/rozodiag -i localhost%d -T storio -c device"%(hid+1)
+  string="./build/src/rozodiag/rozodiag -i localhost%d -T storaged -c storio"%(hid)
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  for line in cmd.stdout:
+    if "mode" in line:
+      if "multiple" in line:
+        storio_name="storio:%d"%(cid)
+      break; 
+        
+  string="./build/src/rozodiag/rozodiag -i localhost%d -T %s -c device"%(hid,storio_name)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -92,6 +107,10 @@ def get_device_numbers(hid):
 def get_sid_nb():
 # Use debug interface to get the number of sid from exportd
 #___________________________________________________
+  global list_cid
+  global list_sid
+  global list_host
+  global hunic
 
   inst=get_rozofmount_instance()
 
@@ -103,13 +122,26 @@ def get_sid_nb():
   for line in cmd.stdout:
     if "UP" in line or "DOWN" in line:
       storcli_sid=storcli_sid+1
-      
+      words=line.split()
+      list_cid.append(int(words[0]))
+      list_sid.append(int(words[2]))
+      list_host.append(int(words[4].split('localhost')[1]))
+       
+  hunic=[]
+  for h in list_host:
+    if h not in hunic:
+      hunic.append(h) 
+           
   string="./build/src/rozodiag/rozodiag -T export -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   export_sid=int(0)
   for line in cmd.stdout:
+    if len(line.split()) == 0:
+      continue
+    if line.split()[0] != vid:
+      continue;
     if "UP" in line or "DOWN" in line:
       export_sid=export_sid+1
 
@@ -120,17 +152,31 @@ def export_count_sid_up ():
 # Use debug interface to count the number of sid up 
 # seen from the export. 
 #___________________________________________________
-
+  global vid
+  
   string="./build/src/rozodiag/rozodiag -T export -c vfstat_stor"
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
   match=int(0)
   for line in cmd.stdout:
+    if len(line.split()) == 0:
+      continue
+    if line.split()[0] != vid:
+      continue
     if "UP" in line:
       match=match+1
-    
+
   return match
+#___________________________________________________
+def get_volume_id ():
+  
+  p = subprocess.Popen(["attr","-g","rozofs",mnt], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  for line in p.stdout:
+    if "VID" in line:       
+      return line.split()[2]
+      
+  return -1
 #___________________________________________________
 def get_rozofmount_instance ():
 
@@ -146,7 +192,8 @@ def get_rozofmount_instance ():
             instance=opt.split("instance=")[1]
 	    return int(instance)
 	    
-  return int(78)
+  print "Instance of %s not found !!!\n"%(mnt)	    
+  exit(-1)
 #___________________________________________________
 def get_site_number ():
 
@@ -194,7 +241,7 @@ def loop_wait_until (success,retries,function):
 
     retries=retries-1
     if retries == 0:
-      print "Maximum retries reached. %s is %d"%(function,up)      
+      print "Maximum retries reached. %s is %d\n"%(function,up)      
       return False
       
     sys.stdout.write(".")
@@ -202,9 +249,32 @@ def loop_wait_until (success,retries,function):
      
     up=getattr(sys.modules[__name__],function)()
     time.sleep(1)
-    
+   
   time.sleep(1)    
   return True  
+#___________________________________________________
+def loop_wait_until_less (success,retries,function):
+# Loop until <function> returns <success> for a maximum 
+# of <retries> attempt (one attempt per second)
+#___________________________________________________
+
+  up=int(0)
+
+  while int(up) >= int(success):
+
+    retries=retries-1
+    if retries == 0:
+      print "Maximum retries reached. %s is %d\n"%(function,up)      
+      return False
+      
+    sys.stdout.write(".")
+    sys.stdout.flush()     
+     
+    up=getattr(sys.modules[__name__],function)()
+    time.sleep(1)
+   
+  time.sleep(1)    
+  return True    
 #___________________________________________________
 def start_all_sid () :
 # Wait for all sid up seen by storcli as well as export
@@ -220,8 +290,7 @@ def start_all_sid () :
 def wait_until_all_sid_up (retries=DEFAULT_RETRIES) :
 # Wait for all sid up seen by storcli as well as export
 #___________________________________________________
-   
-  if loop_wait_until(STORCLI_SID_NB,retries,'storcli_count_sid_available') == False:    
+  if loop_wait_until(STORCLI_SID_NB,retries,'storcli_count_sid_available') == False: 
     return False
   if loop_wait_until(EXPORT_SID_NB,retries,'export_count_sid_up') == False:
     return False
@@ -233,7 +302,7 @@ def wait_until_one_sid_down (retries=DEFAULT_RETRIES) :
 # Wait until one sid down seen by storcli 
 #___________________________________________________
 
-  if loop_wait_until(STORCLI_SID_NB-1,retries,'storcli_count_sid_available') == False:
+  if loop_wait_until_less(STORCLI_SID_NB,retries,'storcli_count_sid_available') == False:
     return False
   return True   
 #___________________________________________________
@@ -241,10 +310,10 @@ def storageStart (hid,count=int(1)) :
 
   while count != 0:
   
-    sys.stdout.write("\rStorage %d restart"%(hid+1)) 
+    sys.stdout.write("\rStorage %d restart"%(hid)) 
     sys.stdout.flush()
         
-    os.system("./setup.sh storage %s start"%(hid+1))    
+    os.system("./setup.sh storage %s start"%(hid))    
 
     if wait_until_all_sid_up() == True:
       return 0
@@ -256,10 +325,10 @@ def storageStop (hid) :
   
   sys.stdout.write("\r                                 ")
   sys.stdout.flush()  
-  sys.stdout.write("\rStorage %d stop"%(hid+1))
+  sys.stdout.write("\rStorage %d stop"%(hid))
   sys.stdout.flush()
 
-  os.system("./setup.sh storage %s stop"%(hid+1))
+  os.system("./setup.sh storage %s stop"%(hid))
   wait_until_one_sid_down()   
     
 #___________________________________________________
@@ -267,14 +336,14 @@ def storageFailed (test) :
 # Run test names <test> implemented in function <test>()
 # under the circumstance that a storage is stopped
 #___________________________________________________
-
+  global hunic
+       
   if wait_until_all_sid_up() == False:
     return 1
 
-  for sid in range(STORCLI_SID_NB):
-
-    hid=sid+(site*STORCLI_SID_NB)
-    
+  
+  for hid in hunic:    
+           
     storageStop(hid)
     reset_counters()
     
@@ -284,10 +353,10 @@ def storageFailed (test) :
     except:
       ret = 1
       
+    storageStart(hid)  
+
     if ret != 0:
-      return 1
-      
-    ret = storageStart(hid)  
+      return 1      
 
       
   return 0
@@ -359,21 +428,20 @@ def storcliReset (test):
 def snipper_storio ():
 # sub process that periodicaly resets the storio(s)
 #___________________________________________________
-
+  global hunic
+    
   while True:
-    for sid in range(STORCLI_SID_NB):      
+    for hid in hunic:      
 
       if wait_until_all_sid_up() == False:
         return 1
- 
-      hid=sid+(site*STORCLI_SID_NB)
       
       sys.stdout.write("\r                                 ")
       sys.stdout.flush()
-      sys.stdout.write("\rStorio %d reset"%(hid+1))
+      sys.stdout.write("\rStorio %d reset"%(hid))
       sys.stdout.flush()
 
-      os.system("./setup.sh storio %d reset"%(hid+1))
+      os.system("./setup.sh storio %d reset"%(hid))
 
 
 #___________________________________________________
@@ -394,7 +462,7 @@ def storageReset (test):
   
   try:
     # Resolve and call <test> function
-    ret = getattr(sys.modules[__name__],test)()         
+    ret = getattr(sys.modules[__name__],test)() 
   except:
     ret = 1
     
@@ -611,6 +679,7 @@ def gruyere_reread():
   ret = gruyere_one_reread()
   if ret != 0:
     return ret
+    
   return storageFailed('gruyere_one_reread')
 
 #___________________________________________________
@@ -618,7 +687,6 @@ def gruyere_write():
 # Use test_rebuild utility to create a bunch of files
 #___________________________________________________ 
   return os.system("./test_rebuild -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
-
 #___________________________________________________
 def gruyere():
 # call gruyere_write that create a bunch of files while
@@ -627,32 +695,34 @@ def gruyere():
 #___________________________________________________
 
   ret = storageReset('gruyere_write')
-  if ret != 0:
+  if ret != 0:  
     return ret
-  return gruyere_reread()  
+  return gruyere_reread()
 
 #___________________________________________________
-def rebuild_one() :
+def rebuild_one_dev() :
 # test rebuilding device per device
 #___________________________________________________
 
   ret=1 
-  for sid in range(STORCLI_SID_NB):
+  for idx in range(len(list_sid)):
 
-    hid=sid+(site*STORCLI_SID_NB)
-    
-    device_number,mapper_modulo,mapper_redundancy = get_device_numbers(hid)
+    hid=list_host[idx]
+    cid=list_cid[idx]
+    sid=list_sid[idx]
+        
+    device_number,mapper_modulo,mapper_redundancy = get_device_numbers(hid,cid)
     
     dev=hid%int(mapper_modulo)
-    os.system("./setup.sh storage %d device-delete %d 1> /dev/null"%(hid+1,dev))
-    ret = os.system("./setup.sh storage %d device-rebuild %d -g %s 1> /dev/null"%(hid+1,dev, site))
+    os.system("./setup.sh storage %d device-delete %d %d 1> /dev/null"%(hid,cid,dev))
+    ret = os.system("./setup.sh storage %d device-rebuild %d %d -g %s 1> /dev/null"%(hid,cid,dev,site))
     if ret != 0:
       return ret
       
     if int(mapper_modulo) > 1:
       dev=(dev+2)%int(mapper_modulo)
-      os.system("./setup.sh storage %d device-delete %d 1> /dev/null"%(hid+1,dev))
-      ret = os.system("./setup.sh storage %d device-rebuild %d -g %s 1> /dev/null"%(hid+1,dev, site))
+      os.system("./setup.sh storage %d device-delete %d %d 1> /dev/null"%(hid,cid,dev))
+      ret = os.system("./setup.sh storage %d device-rebuild %d %d -g %s 1> /dev/null"%(hid,cid,dev,site))
       if ret != 0:
 	return ret
             
@@ -664,17 +734,19 @@ def rebuild_one() :
   return ret
 
 #___________________________________________________
-def rebuild_all() :
-# test re-building a whole storage
+def rebuild_all_dev() :
+# test re-building all devices of a sid
 #___________________________________________________
 
   ret=1 
-  for sid in range(STORCLI_SID_NB):
+  for idx in range(len(list_sid)):
 
-    hid=sid+(site*STORCLI_SID_NB)
+    hid=list_host[idx]
+    cid=list_cid[idx]
+    sid=list_sid[idx]
 
-    os.system("./setup.sh storage %d device-delete all  1> /dev/null"%(hid+1))
-    ret = os.system("./setup.sh storage %d device-rebuild all -g %s 1> /dev/null"%(hid+1,site))
+    os.system("./setup.sh storage %d device-delete %d all  1> /dev/null"%(hid,cid))
+    ret = os.system("./setup.sh storage %d device-rebuild %d all -g %s 1> /dev/null"%(hid,cid,site))
     if ret != 0:
       return ret
 
@@ -684,6 +756,28 @@ def rebuild_all() :
 
   ret = gruyere_reread()         
   return ret
+
+#___________________________________________________
+def rebuild_one_node() :
+# test re-building a whole storage
+#___________________________________________________
+  global hunic
+    
+ 
+  ret=1 
+  for hid in hunic:
+
+    os.system("./setup.sh storage %d delete  1> /dev/null"%(hid))
+    ret = os.system("./setup.sh storage %d rebuild -g %s 1> /dev/null"%(hid,site))
+    if ret != 0:
+      return ret
+
+    ret = gruyere_one_reread()  
+    if ret != 0:
+      return ret    
+
+  ret = gruyere_reread()         
+  return ret  
 #___________________________________________________
 def delete_rebuild() :
 # test re-building a whole storage
@@ -695,7 +789,9 @@ def rebuild_fid() :
 # test rebuilding per FID
 #___________________________________________________
   skip=0
-
+  global list_cid
+  global list_sid
+  global list_host
   for f in range(int(nbGruyere)/10):
   
     skip=skip+1
@@ -713,7 +809,7 @@ def rebuild_fid() :
     bins_list = []
     fid=""
     cid=0
-    storage=0
+    storages=""
     for line in cmd.stdout:
 	  
       if "FID" in line:
@@ -733,21 +829,29 @@ def rebuild_fid() :
 	if len(words) >= 2:
           storages=words[2]
 	  continue	  	  	    
-	  
-    
-
+      
     # loop on the bins file constituting this file, and ask
     # the storages for a rebuild of the file
     line_nb=0
     for sid in storages.split('-'):
     
+      sid=int(sid)
+      
       line_nb=line_nb+1
       if skip >= line_nb:
 	  continue;  
 
-      hid=int(sid)+(int(site)*int(STORCLI_SID_NB))
+      hid=-1
+      for idx in range(len(list_sid)):
+        if int(list_cid[idx]) == int(cid) and int(list_sid[idx]) == int(sid):
+          hid=list_host[idx]
+          break
 
-      string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s "%(hid,site,cid,sid,fid)
+      if hid == -1:
+        print "No such cid/sid %d/%d\n"%(cid,sid)
+	continue;
+	
+      string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s 1> /dev/null"%(hid,site,cid,sid,fid)
       parsed = shlex.split(string)
       cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
       cmd.wait()
@@ -869,7 +973,6 @@ def do_run_list(list):
         break
          
     
-
   dis.separator()   
   dis.new_line()  
   dis.set_column(1,'%s'%(success+failed))
@@ -1003,7 +1106,11 @@ TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_r
 # Basic test list
 TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking']
 # Rebuild test list
-TST_REBUILD=['gruyere','rebuild_fid','rebuild_one','rebuild_all']
+TST_REBUILD=['gruyere','rebuild_fid','rebuild_one_dev','rebuild_all_dev','rebuild_one_node']
+
+list_cid=[]
+list_sid=[]
+list_host=[]
 
 get_all_mount_points()
 
@@ -1054,7 +1161,7 @@ mnt=mnts.split(',')[0]
 
 if options.snipper != None:
   site=get_site_number()
-  EXPORT_SID_NB,STORCLI_SID_NB=get_sid_nb()
+  EXPORT_SID_NB,STORCLI_SID_NB=get_sid_nb() 
   snipper(options.snipper)
   exit(0)  
   
@@ -1103,6 +1210,7 @@ for mnt in mnts.split(','):
 
   mnt=mnt.split('/')[0]
   site=get_site_number()
+  vid=get_volume_id()
   EXPORT_SID_NB,STORCLI_SID_NB=get_sid_nb()
 
   if not os.path.isdir(mnt):

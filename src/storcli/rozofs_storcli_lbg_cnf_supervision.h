@@ -43,8 +43,9 @@ typedef struct storcli_lbg_sup_conf_t
 } storcli_lbg_sup_conf_t;
 
 
-#define STORCLI_LBG_ADD     1  /**< opcode for add a load balancing group  */
-#define STORCLI_LBG_CREATE  2  /**< opcode for creating a load balancing group with no config. */
+#define STORCLI_LBG_ADD     1  /**< opcode for adding a storage node LBGs  */
+#define STORCLI_LBG_CREATE  2  /**< deprecated !! opcode for creating a load balancing group with no config. */
+
 /**
 * message structue echanged between the thread that monitor the port configuration of
 * a load balancing group and the non blocking entity
@@ -60,7 +61,7 @@ typedef struct _storcli_sup_msg_t
 
 
 storcli_lbg_sup_conf_t *storcli_sup_getObjRef();
-int storcli_sup_send_lbg_port_configuration(uint32_t opcode, void *mstorage );
+int storcli_sup_send_lbg_port_configuration(void *mstorage);
 uint32_t  storcli_sup_getIntSockIdxFromSocketId(storcli_lbg_sup_conf_t *p,int socketId);
 uint32_t storcli_sup_rcvReadyInternalSock(void * not_significant,int socketId);
 uint32_t storcli_sup_rcvMsgInternalSock(void * not_significant,int socketId);
@@ -68,7 +69,7 @@ uint32_t storcli_sup_xmitReadyInternalSock(void * not_significant,int socketId);
 uint32_t storcli_sup_xmitEvtInternalSock(void * not_significant,int socketId);
 uint32_t storcli_sup_createInternalSocket(storcli_lbg_sup_conf_t *p);
 uint32_t storcli_sup_deleteInternalSocket(storcli_lbg_sup_conf_t *p);
-int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage );
+int storcli_sup_send_lbg_create(uint32_t opcode, void *mstorage , int index);
 uint32_t storcli_sup_moduleInit();
 
 #endif

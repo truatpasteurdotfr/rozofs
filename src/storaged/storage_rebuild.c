@@ -1640,6 +1640,7 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     int c;
+    int ret;
     
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
@@ -1800,7 +1801,13 @@ int main(int argc, char *argv[]) {
         goto error;
     }
     // Read the configuration file
-    if (sconfig_read(&storaged_config, storaged_config_file) != 0) {
+    if (cid == -1) {
+      ret = sconfig_read(&storaged_config, storaged_config_file,0);
+    }
+    else {
+      ret = sconfig_read(&storaged_config, storaged_config_file,cid);    
+    }  
+    if (ret < 0) {
         REBUILD_FAILED("Failed to parse storage configuration file %s.",storaged_config_file);
         goto error;
     }
