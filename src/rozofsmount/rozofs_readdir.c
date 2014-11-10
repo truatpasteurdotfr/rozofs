@@ -272,8 +272,6 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
     mattr_t     attrs;
     dirbuf_t   *db=NULL;
     int trc_idx;
-    rozofs_inode_t *inode_p ;
-    fuse_ino_t inode;
 
     errno = 0;
                 
@@ -372,11 +370,9 @@ void rozofs_ll_readdir_cbk(void *this,void *param)
       }
 #endif      
       memcpy(attrs.fid, iterator->fid, sizeof (fid_t));
-      inode_p = (rozofs_inode_t*) attrs.fid;
-      inode = inode_p->fid[1];
 
       // Add this directory entry to the buffer
-      dirbuf_add(req, db, iterator->name, inode, &attrs);
+      dirbuf_add(req, db, iterator->name, fid_hash(iterator->fid), &attrs);
      
       iterator = iterator->next;
     }
