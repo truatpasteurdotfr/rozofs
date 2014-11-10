@@ -855,7 +855,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     }
     uma_dbg_addTopic("lv2_cache",show_lv2_attribute_cache);
     uma_dbg_addTopic("flock",    show_flock);    
-    uma_dbg_addTopic("trk_thread", show_tracking_thread);
+    uma_dbg_addTopic_option("trk_thread", show_tracking_thread,UMA_DBG_OPTION_RESET);
     
     if (args_p->slave == 0)
     {
