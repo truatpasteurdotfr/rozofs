@@ -3316,6 +3316,67 @@ static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,i
   int          new_cid;
   int          new_sids[ROZOFS_SAFE_MAX]; 
   uint8_t      rozofs_safe;
+  int          valint;
+
+  /*
+  ** Is this an uid change 
+  */  
+  if (sscanf(p," uid = %d", &valint) == 1) {
+    if (lv2->attributes.s.attrs.uid != valint) {
+      lv2->attributes.s.attrs.uid = valint;
+      /*
+      ** Save new distribution on disk
+      */
+      return export_lv2_write_attributes(e->trk_tb_p,lv2);
+
+    }
+    return 0;
+  }
+
+  /*
+  ** Is this an gid change 
+  */  
+  if (sscanf(p," gid = %d", &valint) == 1) {
+    if (lv2->attributes.s.attrs.gid != valint) {
+      lv2->attributes.s.attrs.gid = valint;
+      /*
+      ** Save new distribution on disk
+      */
+      return export_lv2_write_attributes(e->trk_tb_p,lv2);
+
+    }
+    return 0;
+  }
+  
+  /*
+  ** Is this an children change 
+  */  
+  if (sscanf(p," children = %d", &valint) == 1) {
+    if (lv2->attributes.s.attrs.children != valint) {
+      lv2->attributes.s.attrs.children = valint;
+      /*
+      ** Save new distribution on disk
+      */
+      return export_lv2_write_attributes(e->trk_tb_p,lv2);
+
+    }
+    return 0;
+  }
+  
+  /*
+  ** Is this a nlink change 
+  */  
+  if (sscanf(p," nlink = %d", &valint) == 1) {
+    if (lv2->attributes.s.attrs.size != valint) {
+      lv2->attributes.s.attrs.nlink = valint;
+      /*
+      ** Save new distribution on disk
+      */
+      return export_lv2_write_attributes(e->trk_tb_p,lv2);
+
+    }
+    return 0;
+  }
 
   if (S_ISDIR(lv2->attributes.s.attrs.mode)) {
     errno = EISDIR;
@@ -3326,7 +3387,7 @@ static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,i
     errno = EMLINK;
     return -1;
   }
-
+  
   /*
   ** File must not yet be written 
   */
