@@ -31,7 +31,12 @@ VALGRIND_BINARY=`which valgrind`
 LOCAL_SOURCE_DIR=$(dirname ${WORKING_DIR})
 ROZOFS_SHELL_DIR=${WORKING_DIR}/../src/rozofsmount/
 LOCAL_BUILD_DIR=${WORKING_DIR}/build
-LOCAL_CMAKE_BUILD_TYPE=Release #Debug or Release
+# Choose a build option within :
+# - Debug   : Fortification compilation warnings 
+# - Debug++ : No optimization but traces enabled
+# - gdb     : to be used with gdb. No optimization and no trace
+# - Release : optimized for execution without any trace
+LOCAL_CMAKE_BUILD_TYPE=Release
 LOCAL_BINARY_DIR=${LOCAL_BUILD_DIR}/src
 ROZOFS_BIN_DIR=${LOCAL_BINARY_DIR}/storcli
 LOCAL_CONF=${WORKING_DIR}/config_files/
