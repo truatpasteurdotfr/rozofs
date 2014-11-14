@@ -27,7 +27,8 @@ FID=`awk '{ if ($1=="FID") print $3; }' $TMP`
 cid=`awk '{ if ($1=="CLUSTER") print $3; }' $TMP`
 DIST=`awk '{ if ($1=="STORAGE") print $3; }' $TMP`
 SIZE=`awk '{ if ($1=="SIZE") print $3; }' $TMP`
-CHUNK_SIZE=$((64*1024*1024*1024))
+MAX_SIZE=`awk '{if (($1=="#define")&&($2=="ROZOFS_STORAGE_FILE_MAX_SIZE")) printf("%s\n",$3);}' ../rozofs/rozofs.h`
+CHUNK_SIZE=$((MAX_SIZE/128))
 chunks=$((SIZE/CHUNK_SIZE))
 
 sids=""

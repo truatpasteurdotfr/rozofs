@@ -122,6 +122,20 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint8_t                        nb_rebuild;
   uint8_t                        storio_rebuild_ref;
   STORIO_REBUILD_T             * pRebuild; 
+  uint64_t                       chunkSize;
+  
+  if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024*1024)) {
+    pChar += sprintf(pChar,"chunk size  : %llu G\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024*1024)); 
+  }
+  else if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024)) {
+    pChar += sprintf(pChar,"chunk size  : %llu M\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024)); 
+  }  
+  else if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024)) {
+    pChar += sprintf(pChar,"chunk size  : %llu K\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024)); 
+  }
+  else {
+    pChar += sprintf(pChar,"chunk size  : %llu\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE); 
+  }  
  
 
   if (argv[1] == NULL) {
