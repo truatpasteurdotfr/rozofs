@@ -122,35 +122,45 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint8_t                        nb_rebuild;
   uint8_t                        storio_rebuild_ref;
   STORIO_REBUILD_T             * pRebuild; 
-  uint64_t                       chunkSize;
   
   if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024*1024)) {
-    pChar += sprintf(pChar,"chunk size  : %llu G\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024*1024)); 
+    pChar += sprintf(pChar,"chunk size  : %llu G\n", 
+               (long long unsigned int) ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024*1024)); 
   }
   else if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024)) {
-    pChar += sprintf(pChar,"chunk size  : %llu M\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024)); 
+    pChar += sprintf(pChar,"chunk size  : %llu M\n", 
+               (long long unsigned int)ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024)); 
   }  
   else if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024)) {
-    pChar += sprintf(pChar,"chunk size  : %llu K\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024)); 
+    pChar += sprintf(pChar,"chunk size  : %llu K\n", 
+               (long long unsigned int)ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024)); 
   }
   else {
-    pChar += sprintf(pChar,"chunk size  : %llu\n", ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE); 
+    pChar += sprintf(pChar,"chunk size  : %llu\n", 
+               (long long unsigned int)ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE); 
   }  
  
 
   if (argv[1] == NULL) {
-    pChar += sprintf(pChar,"Entries/max : %llu/%d\n",(unsigned long long)storio_device_mapping_stat.count,
-                    STORIO_DEVICE_MAPPING_MAX_ENTRIES);
-    pChar += sprintf(pChar,"Entry size  : %d\n",(int)sizeof(storio_device_mapping_t));
-    pChar += sprintf(pChar,"Size/max    : %llu/%llu\n",
-                    (unsigned long long)sizeof(storio_device_mapping_t)*storio_device_mapping_stat.count,
-		    (unsigned long long)sizeof(storio_device_mapping_t)*STORIO_DEVICE_MAPPING_MAX_ENTRIES); 
+
+    pChar = com_cache_show_cache_stats(pChar,storio_device_mapping_p,"FID cache");
+
+    pChar += sprintf(pChar,"cache size  : %d buckets x %d = %d\n", 
+                    (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2),
+                     (int)sizeof (com_cache_bucket_t),
+		     (int)sizeof (com_cache_bucket_t)*(1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2));  
+    pChar += sprintf(pChar,"entry/bucket: %d\n", STORIO_DEVICE_MAPPING_MAX_ENTRIES/(1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2));
+    pChar += sprintf(pChar,"ctx nb x sz : %d x %d = %d\n",
+            (int) STORIO_DEVICE_MAPPING_MAX_ENTRIES + 1024,
+	    (int)sizeof(storio_device_mapping_t),
+	    (int) ((STORIO_DEVICE_MAPPING_MAX_ENTRIES + 1024) * sizeof(storio_device_mapping_t)));
     pChar += sprintf(pChar,"consistency : %llu\n", (unsigned long long)storio_device_mapping_stat.consistency);     
-    pChar += sprintf(pChar,"miss        : %llu\n", (unsigned long long)storio_device_mapping_stat.miss);   
-    pChar += sprintf(pChar,"match       : %llu\n", (unsigned long long)storio_device_mapping_stat.match);   
-    pChar += sprintf(pChar,"insert      : %llu\n", (unsigned long long)storio_device_mapping_stat.insert);   
-    pChar += sprintf(pChar,"release     : %llu\n", (unsigned long long)storio_device_mapping_stat.release);   
-    pChar += sprintf(pChar,"inconsistent: %llu\n", (unsigned long long)storio_device_mapping_stat.inconsistent);   
+    pChar += sprintf(pChar,"inconsistent: %llu\n", (unsigned long long)storio_device_mapping_stat.inconsistent);  
+    pChar += sprintf(pChar,"lost        : %llu\n", (unsigned long long)storio_device_mapping_stat.lost);       
+    pChar += sprintf(pChar,"recycled    : %llu\n", (unsigned long long)storio_device_mapping_stat.recycled); 
+    pChar += sprintf(pChar,"out of ctx  : %llu\n", (unsigned long long)storio_device_mapping_stat.out_of_ctx);  
+    pChar += sprintf(pChar,"allocated   : %llu\n", (unsigned long long)storio_device_mapping_stat.allocated);       
+    pChar += sprintf(pChar,"released    : %llu\n", (unsigned long long)storio_device_mapping_stat.released);     
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
     return;       
   }     
@@ -455,23 +465,39 @@ void storio_device_mapping_start_timer() {
 **______________________________________________________________________________
 */
 /**
-* release an entry of the attributes cache
+* release an entry ocalled fromthe application
 
   @param p : pointer to the user cache entry 
   
 */
-void storio_device_mapping_release_entry(void *entry_p)
+void storio_device_mapping_release_entry(storio_device_mapping_t *p)
 {
-  com_cache_entry_t  *p = entry_p;
-  com_cache_bucket_remove_entry(storio_device_mapping_p, p->usr_key_p);
-  free(p);
-  storio_device_mapping_stat.release++;
-  storio_device_mapping_stat.count--;
-}
-void storio_device_mapping_delete_cbk(void * entry) 
+  com_cache_bucket_remove_entry(storio_device_mapping_p, p->cache.usr_key_p);
+} 
+/*
+**______________________________________________________________________________
+*/
+/**
+* release an entry called from the cache 
+
+  @param p : pointer to the user cache entry 
+  
+*/
+void storio_device_mapping_delete_cbk(void *entry_p)
 {
-  return;
-}  
+  storio_device_mapping_t  *p = entry_p;
+
+  /*
+  ** Unlink global & bucket LRU
+  */
+  list_remove(&p->cache.global_lru_link);
+  list_remove(&p->cache.bucket_lru_link);
+   
+  /*
+  ** Free the context
+  */  
+  storio_device_mapping_ctx_free(p); 
+} 
 /*
 **______________________________________________________________________________
 */
@@ -497,7 +523,21 @@ static inline uint32_t uuid_hash_fnv(uint32_t h, void *key) {
     }
     return h;
 }
+/*
+**______________________________________________________________________________
+*/
+/**
+* fid entry hash compute 
 
+  @param p : pointer to the user cache entry 
+  
+  @retval hash value
+  
+*/
+uint32_t storio_device_mapping_hash16bits_compute(void *usr_key) {
+  uint16_t * p16 = (uint16_t *) usr_key;
+  return (uint32_t) (p16[0]^p16[1]^p16[2]^p16[3]^p16[4]^p16[5]^p16[6]^p16[7]);
+}
 /*
 **______________________________________________________________________________
 */
@@ -571,11 +611,9 @@ uint32_t storio_device_mapping_init()
   */
   storio_rebuild_ctx_distributor_init();
   
-  storio_device_mapping_stat.consistency = 1;
-  
   
   callbacks.usr_exact_match_fct = storio_device_mapping_exact_match;
-  callbacks.usr_hash_fct        = storio_device_mapping_hash_compute;
+  callbacks.usr_hash_fct        = storio_device_mapping_hash16bits_compute;
   callbacks.usr_delete_fct      = storio_device_mapping_delete_cbk;
   
   storio_device_mapping_p = com_cache_create(STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2,
@@ -589,6 +627,11 @@ uint32_t storio_device_mapping_init()
     return -1;  
   }
 
+  /*
+  ** Initialize dev mapping distributor
+  */
+  storio_device_mapping_stat.consistency = 1;   
+  storio_device_mapping_ctx_distributor_init();
 
   /*
   ** Register periodic ticker

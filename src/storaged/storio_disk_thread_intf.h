@@ -31,6 +31,7 @@
 #include <rozofs/core/rozofs_socket_family.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include "storage.h"
+#include "storio_device_mapping.h"
 
 typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            diskRead_count;
@@ -96,7 +97,7 @@ typedef struct _storio_disk_thread_msg_t
   uint32_t            opcode;
   uint32_t            status;
   uint32_t            transaction_id;
-  uint8_t           * device_per_chunk;
+  int                 fidIdx;
   uint64_t            timeStart;
   uint64_t            size;
   rozorpc_srv_ctx_t * rpcCtx;
@@ -117,14 +118,14 @@ int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_thre
 /**
 *  Send a disk request to the disk threads
 *
-* @param device     Array of allocated device per chunk
+* @param fidCtx     FID context
 * @param rpcCtx     pointer to the generic rpc context
 * @param timeStart  time stamp when the request has been decoded
 *
 * @retval 0 on success -1 in case of error
 *  
 */
-int storio_disk_thread_intf_send(uint8_t                      * device,
+int storio_disk_thread_intf_send(storio_device_mapping_t      * fidCtx,
                                  rozorpc_srv_ctx_t            * rpcCtx,
 				 uint64_t                       timeStart) ;
 

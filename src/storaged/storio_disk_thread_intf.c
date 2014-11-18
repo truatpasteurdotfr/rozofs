@@ -529,14 +529,14 @@ void storio_send_response (rozofs_disk_thread_ctx_t *thread_ctx_p, storio_disk_t
 /**
 *  Send a disk request to the disk threads
 *
-* @param device     Array of device used per chunk
+* @param fidCtx     FID context
 * @param rpcCtx     pointer to the generic rpc context
 * @param timeStart  time stamp when the request has been decoded
 *
 * @retval 0 on success -1 in case of error
 *  
 */
-int storio_disk_thread_intf_send(uint8_t                      * device,
+int storio_disk_thread_intf_send(storio_device_mapping_t      * fidCtx,
                                  rozorpc_srv_ctx_t            * rpcCtx,
 				                 uint64_t       timeStart) 
 {
@@ -548,7 +548,7 @@ int storio_disk_thread_intf_send(uint8_t                      * device,
   msg.opcode           = rpcCtx->opcode;
   msg.status           = 0;
   msg.transaction_id   = transactionId++;
-  msg.device_per_chunk = device;
+  msg.fidIdx           = fidCtx->index;
   msg.timeStart        = timeStart;
   msg.size             = 0;
   msg.rpcCtx           = rpcCtx;

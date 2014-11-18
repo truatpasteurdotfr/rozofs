@@ -126,7 +126,7 @@ static inline int storio_serialization_unqueue_run(storio_device_mapping_t * dev
   list_push_back(&dev_map_p->running_request,&req_ctx_p->list);
   storage_unqueued_req[req_ctx_p->opcode]++;    
 
-  storio_disk_thread_intf_send(dev_map_p->device,req_ctx_p,toc) ;
+  storio_disk_thread_intf_send(dev_map_p,req_ctx_p,toc) ;
   return 1;  
 }
 /*
@@ -277,27 +277,6 @@ int storio_serialization_begin(storio_device_mapping_t * dev_map_p, rozorpc_srv_
 /*
 **___________________________________________________________
 */
-int storio_serialization_begin_old(storio_device_mapping_t * dev_map_p, rozorpc_srv_ctx_t *req_ctx_p) {
-  
-  /*
-  ** When waiting queue is not empty, put the request behind
-  */
-  if (!list_empty(&dev_map_p->waiting_request)) {
-    return storio_serialization_wait(dev_map_p,req_ctx_p);
-  } 
-
-  /*
-  ** Waiting queue is empty. If running queue too, please go
-  */
-  if (list_empty(&dev_map_p->running_request)) { 
-    return storio_serialization_direct_run(dev_map_p,req_ctx_p);
-  }  
-
-  return storio_serialization_wait(dev_map_p,req_ctx_p);    
-}
-/*
-**___________________________________________________________
-*/
 void storio_serialization_end(storio_device_mapping_t * dev_map_p, rozorpc_srv_ctx_t *req_ctx_p) {	
   uint64_t            toc;    
   struct timeval      tv;
@@ -369,58 +348,6 @@ void storio_serialization_end(storio_device_mapping_t * dev_map_p, rozorpc_srv_c
     }
     
     storio_serialization_unqueue_run(dev_map_p,req, toc);
-  }
-  
-  return;    
-}
-/*
-**___________________________________________________________
-*/
-void storio_serialization_end_old(storio_device_mapping_t * dev_map_p, rozorpc_srv_ctx_t *req_ctx_p) {	
-  uint64_t            toc;    
-  struct timeval      tv;
-  list_t            * pw;
-  rozorpc_srv_ctx_t * reqw;
-  
-  /*
-  ** Remove this request
-  */
-  list_remove(&req_ctx_p->list);
-  
-  if (list_empty(&dev_map_p->waiting_request)) {
-  
-    /*
-    ** No waiting request to run
-    */
-    if (req_ctx_p->opcode == STORIO_DISK_THREAD_REMOVE) {
-      storio_device_mapping_release_entry(dev_map_p);
-    }
-    
-    return;
-  }  
-  
-  /*
-  ** Waiting list is not empty
-  */
-
-  gettimeofday(&tv,(struct timezone *)0);
-  toc = MICROLONG(tv);
-
-
-  /* Loop on waiting requests */
-  list_for_each_forward(pw, &dev_map_p->waiting_request) {
-
-    reqw = list_entry(pw, rozorpc_srv_ctx_t, list);
-
-    /*
-    ** Running queue is empty, please go
-    */
-    if (list_empty(&dev_map_p->running_request)) { 
-      storio_serialization_unqueue_run(dev_map_p,reqw,toc);
-      continue;
-    }  
-    
-    return;
   }
   
   return;    

@@ -52,8 +52,8 @@ extern "C" {
 /**
 * Attributes cache constants
 */
-#define STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2  11
-#define STORIO_DEVICE_MAPPING_MAX_ENTRIES  (1024*128)
+#define STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2  12
+#define STORIO_DEVICE_MAPPING_MAX_ENTRIES  (64*1024)
 
 #define STORIO_DEVICE_MAPPING_LVL0_SZ  (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2) 
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
@@ -90,7 +90,9 @@ typedef union storio_rebuild_ref_u {
 
 typedef struct _storio_device_mapping_t
 {
+  ruc_obj_desc_t       link;  
   com_cache_entry_t    cache;   /** < common cache structure    */
+  int                  index;
   fid_t                fid;
   uint8_t              device[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE];   /**< Device number to write the data on        */
   list_t               running_request;
@@ -99,14 +101,17 @@ typedef struct _storio_device_mapping_t
   STORIO_REBUILD_REF_U storio_rebuild_ref;
 } storio_device_mapping_t;
 
+storio_device_mapping_t * storio_device_mapping_ctx_free_list;
+ruc_obj_desc_t            storio_device_mapping_ctx_lost_list;
+
 typedef struct _storio_device_mapping_stat_t
 {
-  uint64_t            consistency;
-  uint64_t            count;   
-  uint64_t            miss;
-  uint64_t            match;
-  uint64_t            insert;
-  uint64_t            release;
+  uint64_t            consistency; 
+  uint64_t            allocated; 
+  uint64_t            out_of_ctx;
+  uint64_t            lost;
+  uint64_t            recycled;
+  uint64_t            released;
   uint64_t            inconsistent;   
 } storio_device_mapping_stat_t;
 
@@ -132,6 +137,7 @@ static inline void storage_device_mapping_increment_consistency() {
 extern com_cache_main_t  *storio_device_mapping_p; /**< pointer to the device cache  */
 
 
+
 /*
 **______________________________________________________________________________
 */
@@ -141,8 +147,165 @@ extern com_cache_main_t  *storio_device_mapping_p; /**< pointer to the device ca
   @param p : pointer to the user cache entry 
   
 */
-void storio_device_mapping_release_entry(void *entry_p);
+void storio_device_mapping_release_entry(storio_device_mapping_t *p);
+void storio_device_mapping_delete_cbk(void *entry_p);
 
+/*
+**______________________________________________________________________________
+*/
+/**
+* Reset a storio device_mapping context
+
+  @param p the device_mapping context to initialize
+ 
+*/
+static inline void storio_device_mapping_ctx_reset(storio_device_mapping_t * p) {
+
+  p->cache.usr_entry_p = p;
+  
+  memset(&p->fid,0,sizeof(fid_t));
+  memset(p->device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+  p->consistency   = storio_device_mapping_stat.consistency;
+
+  p->cache.usr_key_p   = p->fid;
+  list_init(&p->cache.global_lru_link);
+  list_init(&p->cache.bucket_lru_link);
+  p->cache.dirty_bucket_counter = 0;
+  p->cache.dirty_main_counter = 0;
+  list_init(&p->running_request);
+  list_init(&p->waiting_request);
+
+  p->storio_rebuild_ref.u32 = 0xFFFFFFFF;
+}
+
+/*
+**______________________________________________________________________________
+*/
+/**
+* Allocate a storio device_mapping context from the distributor
+
+ 
+ @retval the pointer to the device_mapping context or NULL in case of error
+*/
+static inline storio_device_mapping_t * storio_device_mapping_ctx_allocate() {
+  storio_device_mapping_t * p;
+  
+  /*
+  ** Get first free context
+  */
+  p = (storio_device_mapping_t*) ruc_objGetFirst(&storio_device_mapping_ctx_free_list->link);
+  if (p != NULL) {
+    ruc_objRemove(&p->link);
+    storio_device_mapping_stat.allocated++;
+    storio_device_mapping_ctx_reset(p);  
+    return p;
+  }
+  
+  /*
+  ** No more free context. Let's recycle a context from the lost list
+  */
+  p = (storio_device_mapping_t*) ruc_objGetFirst(&storio_device_mapping_ctx_lost_list);
+  if (p != NULL) {
+    storio_device_mapping_stat.recycled++;
+    storio_device_mapping_stat.lost--;      
+    ruc_objRemove(&p->link);
+    storio_device_mapping_ctx_reset(p);  
+    return p;
+  }  
+  
+  storio_device_mapping_stat.out_of_ctx++;
+  return NULL;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+* Free a storio device_mapping context 
+*/
+static inline void storio_device_mapping_ctx_free(storio_device_mapping_t * p) {
+
+  /*
+  ** In case some request is pending, do not clear the context
+  ** but put it in the lost queue
+  */
+  if (!list_empty(&p->running_request)) {
+    severe ("running not empty");
+    ruc_objInsertTail(&storio_device_mapping_ctx_lost_list,&p->link); 
+    storio_device_mapping_stat.lost++;
+    return;
+  }
+  
+  if (!list_empty(&p->waiting_request)) {
+    severe ("waiting not empty");
+    ruc_objInsertTail(&storio_device_mapping_ctx_lost_list,&p->link); 
+    storio_device_mapping_stat.lost++;
+    return;
+  } 
+   
+  /*
+  ** Free the context
+  */    
+  storio_device_mapping_ctx_reset(p);  
+  ruc_objInsert(&storio_device_mapping_ctx_free_list->link,&p->link); 
+  storio_device_mapping_stat.released++;
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+* Retrieve a context from its index
+*
+* @param idx The context index
+*
+* @return the rebuild context address or NULL
+*/
+static inline storio_device_mapping_t * storio_device_mapping_ctx_retrieve(int idx) {
+  storio_device_mapping_t * p;
+ 
+  if (idx>=(STORIO_DEVICE_MAPPING_MAX_ENTRIES + 1024)) {
+    return NULL;
+  }  
+
+  p = (storio_device_mapping_t*) ruc_objGetRefFromIdx(&storio_device_mapping_ctx_free_list->link,idx);  
+  return p;  
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+* Initialize the storio device_mapping context distributor
+
+ 
+ retval 0 on success
+ retval < 0 on error
+*/
+static inline void storio_device_mapping_ctx_distributor_init() {
+  int                       nbCtx = STORIO_DEVICE_MAPPING_MAX_ENTRIES + 1024;
+  storio_device_mapping_t * p;
+  int                       idx;
+  
+  /*
+  ** Reset stattistics 
+  */
+  memset(&storio_device_mapping_stat, 0, sizeof(storio_device_mapping_stat));
+  
+  /*
+  ** Allocate memory
+  */
+  storio_device_mapping_ctx_free_list = (storio_device_mapping_t*) ruc_listCreate(nbCtx,sizeof(storio_device_mapping_t));
+  if (storio_device_mapping_ctx_free_list == NULL) {
+    /*
+    ** error on distributor creation
+    */
+    fatal( "ruc_listCreate(%d,%d)", STORIO_DEVICE_MAPPING_MAX_ENTRIES,(int)sizeof(storio_device_mapping_t) );
+  }
+  
+  
+  for (idx=0; idx<nbCtx; idx++) {
+    p = storio_device_mapping_ctx_retrieve(idx);
+    p->index = idx;
+  }  
+}
 
 
 /*
@@ -161,35 +324,18 @@ static inline storio_device_mapping_t * storio_device_mapping_insert(void * fid)
   /*
   ** allocate an entry
   */
-  p = malloc(sizeof(storio_device_mapping_t));
-  if (p == NULL)
-  {
+  p = storio_device_mapping_ctx_allocate();
+  if (p == NULL) {
     return NULL;
   }
-  p->cache.usr_entry_p = p;
   
   memcpy(&p->fid,fid,sizeof(fid_t));
-  memset(p->device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
-  p->consistency   = storio_device_mapping_stat.consistency;
-
-  p->cache.usr_key_p   = p->fid;
-  list_init(&p->cache.global_lru_link);
-  list_init(&p->cache.bucket_lru_link);
-  p->cache.dirty_bucket_counter = 0;
-  p->cache.dirty_main_counter = 0;
-  list_init(&p->running_request);
-  list_init(&p->waiting_request);
-
-  p->storio_rebuild_ref.u32 = 0xFFFFFFFF;
-
-  storio_device_mapping_stat.count++;
  
   if (com_cache_bucket_insert_entry(storio_device_mapping_p, &p->cache) < 0) {
      severe("error device mapping insertion"); 
      storio_device_mapping_release_entry(p->cache.usr_entry_p);
      return NULL;
   }
-  storio_device_mapping_stat.insert++;
   return p;
 }
 /*
@@ -211,21 +357,18 @@ static inline storio_device_mapping_t * storio_device_mapping_search(void * fid)
   */
   p = com_cache_bucket_search_entry(storio_device_mapping_p,fid);
   if (p == NULL) {
-    storio_device_mapping_stat.miss++;   
     return NULL;
   }
   /*
   ** Check the entry is conistent
   */
   if (p->consistency == storio_device_mapping_stat.consistency) {
-    storio_device_mapping_stat.match++;   
     return p;
   }
   /*
   ** The entry is inconsistent and must be removed 
   */
   storio_device_mapping_stat.inconsistent++; 
-  storio_device_mapping_stat.miss++;   
   storio_device_mapping_release_entry(p);  
   return NULL;
 }
@@ -367,6 +510,11 @@ static inline void storio_rebuild_ctx_distributor_init() {
   uint8_t            storio_rebuild_ref;
 
   /*
+  ** Initi lost list
+  */
+  ruc_listHdrInit(&storio_device_mapping_ctx_lost_list);
+
+  /*
   ** Allocate memory
   */
   storio_rebuild_ctx_free_list = (STORIO_REBUILD_T*) ruc_listCreate(MAX_STORIO_PARALLEL_REBUILD,sizeof(STORIO_REBUILD_T));
@@ -415,7 +563,6 @@ static inline STORIO_REBUILD_T * storio_rebuild_ctx_retrieve(int idx, char * fid
     return p; 
   }  
   
-  storio_rebuild_stat.lookup_miss++;  
   return NULL;  
 }
 

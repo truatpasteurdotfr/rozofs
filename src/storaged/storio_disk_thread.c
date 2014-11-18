@@ -195,6 +195,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   rozorpc_srv_ctx_t      * rpcCtx;
   sp_read_ret_t            ret;
   int                      is_fid_faulty;
+  storio_device_mapping_t * fidCtx;
     
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
@@ -209,6 +210,15 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   rpcCtx = msg->rpcCtx;
   args   = (sp_read_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
 
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_read_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRead_error++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }  
 
   // Get the storage for the couple (cid;sid)
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
@@ -240,7 +250,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
 
   // Lookup for the device id for this FID
   // Read projections
-  if (storage_read(st, msg->device_per_chunk, args->layout, args->bsize,(sid_t *) args->dist_set, args->spare,
+  if (storage_read(st, fidCtx->device, args->layout, args->bsize,(sid_t *) args->dist_set, args->spare,
             (unsigned char *) args->fid, args->bid, args->nb_proj,
             (bin_t *) ret.sp_read_ret_t_u.rsp.bins.bins_val,
             (size_t *) & ret.sp_read_ret_t_u.rsp.bins.bins_len,
@@ -294,6 +304,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   uint8_t                  version = 0;
   int                      size;
   int                      is_fid_faulty;
+  storio_device_mapping_t * fidCtx;
     
   
   gettimeofday(&timeDay,(struct timezone *)0);  
@@ -309,6 +320,16 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   rpcCtx = msg->rpcCtx;
   args   = (sp_write_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
 
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_write_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRead_error++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }  
+    
   /*
   ** set the pointer to the bins that are in the xmit buffer
   ** since received bufer is also used for the response
@@ -361,7 +382,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   
   
   // Write projections
-  size =  storage_write(st, msg->device_per_chunk, args->layout, args->bsize, (sid_t *) args->dist_set, args->spare,
+  size =  storage_write(st, fidCtx->device, args->layout, args->bsize, (sid_t *) args->dist_set, args->spare,
           (unsigned char *) args->fid, args->bid, args->nb_proj, version,
           &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
   if (size <= 0)  {
@@ -411,6 +432,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   uint8_t                  version = 0;
   int                      result;
   int                      is_fid_faulty;
+  storio_device_mapping_t * fidCtx;
     
   
   gettimeofday(&timeDay,(struct timezone *)0);  
@@ -426,6 +448,17 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   rpcCtx = msg->rpcCtx;
   args   = (sp_truncate_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
 
+
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_status_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRead_error++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }  
+    
   /*
   ** set the pointer to the bins that are in the xmit buffer
   ** since received bufer is also used for the response
@@ -444,7 +477,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   }
 
   // Truncate bins file
-  result = storage_truncate(st, msg->device_per_chunk, args->layout, args->bsize, (sid_t *) args->dist_set,
+  result = storage_truncate(st, fidCtx->device, args->layout, args->bsize, (sid_t *) args->dist_set,
         		    args->spare, (unsigned char *) args->fid, args->proj_id,
         		    args->bid,version,args->last_seg,args->last_timestamp,
 			    args->len, pbuf, &is_fid_faulty);
@@ -491,6 +524,7 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   rozorpc_srv_ctx_t      * rpcCtx;
   sp_status_ret_t          ret;
   int                      result;
+  //storio_device_mapping_t * fidCtx;
   
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
@@ -504,6 +538,7 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_remove_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+  //fidCtx = msg->fidCtx;
   
 
   // Get the storage for the couple (cid;sid)
@@ -554,6 +589,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   sp_status_ret_t          ret;
   int                      result;
   int                      is_fid_faulty;
+  storio_device_mapping_t * fidCtx;
   
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeBefore = MICROLONG(timeDay);
@@ -567,8 +603,17 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_remove_chunk_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      
 
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_status_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRead_error++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  } 
+  
   // Get the storage for the couple (cid;sid)
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_status_ret_t_u.error = errno;
@@ -580,7 +625,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   
 
   // remove chunk file
-  result = storage_rm_chunk(st, msg->device_per_chunk, 
+  result = storage_rm_chunk(st, fidCtx->device, 
                             args->layout, args->bsize, args->spare,
 			    args->dist_set, (unsigned char*)args->fid,
 			    args->chunk, &is_fid_faulty);

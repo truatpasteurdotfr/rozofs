@@ -504,7 +504,7 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
       return;
     }   
 
-    if (storio_disk_thread_intf_send(dev_map_p->device, req_ctx_p, tic) == 0) {
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
       return;
     }  
 
@@ -595,7 +595,7 @@ void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
       return;
     }  
     
-    if (storio_disk_thread_intf_send(dev_map_p->device, req_ctx_p, tic) == 0) {
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
       return;
     }
     severe("storio_disk_thread_intf_send %s", strerror(errno));
@@ -878,7 +878,7 @@ void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     }  
     
     
-    if (storio_disk_thread_intf_send(dev_map_p->device, req_ctx_p, tic) == 0) {
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
       return;
     }      
 
@@ -964,7 +964,7 @@ void sp_remove_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
       return;
     }  
     
-    if (storio_disk_thread_intf_send(dev_map_p->device, req_ctx_p, tic) == 0) {
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
       return;
     }        
 
@@ -1048,7 +1048,7 @@ void sp_remove_chunk_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
       return;
     }  
     
-    if (storio_disk_thread_intf_send(dev_map_p->device, req_ctx_p, tic) == 0) {
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
       return;
     }        
 
