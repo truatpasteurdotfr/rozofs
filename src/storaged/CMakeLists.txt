@@ -108,7 +108,10 @@ add_executable(storio
     storio_device_mapping.h
     storio_serialization.h
     storio_serialization.c
+    storio_fid_cache.c
+    storio_fid_cache.h
 )
+
 target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 # Install

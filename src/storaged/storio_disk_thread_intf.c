@@ -58,31 +58,38 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
   - 
   RETURN: none
   ==========================================================================*/
-#define new_line(title)  pChar += sprintf(pChar,"\n%-24s |", title)
+#define new_line(title,empty) \
+  if (lineEmpty) { pChar = pLine;}\
+  lineEmpty = empty;\
+  pLine = pChar;\
+  pChar += sprintf(pChar,"\n%-24s |", title);
+    
 #define display_val(val) pChar += sprintf(pChar," %16lld |", (long long unsigned int) val)
 #define display_div(val1,val2) if (val2==0) display_val(0);else display_val(val1/val2)
 #define display_txt(txt) pChar += sprintf(pChar," %16s |", (char *) txt)
 
 #define display_line_topic(title) \
-  new_line(title);\
+  new_line(title,0);\
   for (i=startIdx; i<(stopIdx+last); i++) {\
     pChar += sprintf(pChar,"__________________|");\
   }
     
 #define display_line_val(title,val) \
-  new_line(title);\
+  new_line(title,1);\
   for (i=startIdx; i<stopIdx; i++) {\
     sum.val += p[i].stat.val;\
     display_val(p[i].stat.val);\
   }\
+  if (sum.val!=0) { lineEmpty=0; }\
   if (last) { display_val(sum.val);}
-  
+    
 
 #define display_line_div(title,val1,val2) \
-  new_line(title);\
+  new_line(title,1);\
   for (i=startIdx; i<stopIdx; i++) {\
     display_div(p[i].stat.val1,p[i].stat.val2);\
   }\
+  if (sum.val1!=0) { lineEmpty=0; }\
   if (last) { display_div(sum.val1,sum.val2); }
 
  
@@ -95,6 +102,8 @@ static char * disk_thread_debug_help(char * pChar) {
 #define THREAD_PER_LINE 6
 void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   char           *pChar=uma_dbg_get_buffer();
+  char           *pLine=pChar;
+  int             lineEmpty=0;;
   int i;
   rozofs_disk_thread_ctx_t *p = rozofs_disk_thread_ctx_tb;
   int startIdx,stopIdx;
@@ -129,7 +138,7 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       last = 1;
     }  
     
-    new_line("Thread number");
+    new_line("Thread number",0);
     for (i=startIdx; i<stopIdx; i++) {
       display_val(p[i].thread_idx);
     } 
@@ -140,9 +149,9 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     display_line_topic("Read Requests");  
     display_line_val("   number", diskRead_count);
     display_line_val("   No such file",diskRead_nosuchfile);
-    display_line_val("   Unknown cid/sid",diskRead_badCidSid);  
-    display_line_val("   error spare",diskRead_error_spare);  
-    display_line_val("   error",diskRead_error);  
+    display_line_val("!! Unknown cid/sid",diskRead_badCidSid);  
+    display_line_val("!! error spare",diskRead_error_spare);  
+    display_line_val("!! error",diskRead_error);  
     display_line_val("   Bytes",diskRead_Byte_count);      
     display_line_val("   Cumulative Time (us)",diskRead_time);
     display_line_div("   Average Bytes",diskRead_Byte_count,diskRead_count);  
@@ -151,8 +160,8 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     display_line_topic("Write Requests");  
     display_line_val("   number", diskWrite_count);
-    display_line_val("   Unknown cid/sid",diskWrite_badCidSid);  
-    display_line_val("   error",diskWrite_error);  
+    display_line_val("!! Unknown cid/sid",diskWrite_badCidSid);  
+    display_line_val("!! error",diskWrite_error);  
     display_line_val("   Bytes",diskWrite_Byte_count);      
     display_line_val("   Cumulative Time (us)",diskWrite_time);
     display_line_div("   Average Bytes",diskWrite_Byte_count,diskWrite_count); 
@@ -161,22 +170,22 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     display_line_topic("Truncate Requests");  
     display_line_val("   number", diskTruncate_count);
-    display_line_val("   Unknown cid/sid",diskTruncate_badCidSid);  
-    display_line_val("   error",diskTruncate_error);  
+    display_line_val("!! Unknown cid/sid",diskTruncate_badCidSid);  
+    display_line_val("!! error",diskTruncate_error);  
     display_line_val("   Cumulative Time (us)",diskTruncate_time);
     display_line_div("   Average Time (us)",diskTruncate_time,diskTruncate_count);
 
     display_line_topic("Remove Requests");  
     display_line_val("   number", diskRemove_count);
-    display_line_val("   Unknown cid/sid",diskRemove_badCidSid);  
-    display_line_val("   error",diskRemove_error);  
+    display_line_val("!! Unknown cid/sid",diskRemove_badCidSid);  
+    display_line_val("!! error",diskRemove_error);  
     display_line_val("   Cumulative Time (us)",diskRemove_time);
     display_line_div("   Average Time (us)",diskRemove_time,diskRemove_count);  
   
     display_line_topic("Remove chunk Requests");  
     display_line_val("   number", diskRemove_chunk_count);
-    display_line_val("   Unknown cid/sid",diskRemove_chunk_badCidSid);  
-    display_line_val("   error",diskRemove_chunk_error);  
+    display_line_val("!! Unknown cid/sid",diskRemove_chunk_badCidSid);  
+    display_line_val("!! error",diskRemove_chunk_error);  
     display_line_val("   Cumulative Time (us)",diskRemove_chunk_time);
     display_line_div("   Average Time (us)",diskRemove_chunk_time,diskRemove_chunk_count);  
 
@@ -369,6 +378,13 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     default:
       severe("Unexpected opcode %d", opcode);
   }
+  
+  /*
+  ** Put the FID context in the correct list
+  ** (i.e running or inactive list)
+  */
+  storio_device_mapping_ctx_evaluate(dev_map_p);  
+     
   /*
   ** send the response towards the storcli process that initiates the disk operation
   */

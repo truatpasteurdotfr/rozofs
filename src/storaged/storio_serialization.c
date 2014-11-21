@@ -293,11 +293,7 @@ void storio_serialization_end(storio_device_mapping_t * dev_map_p, rozorpc_srv_c
   
     /*
     ** No waiting request to run
-    */
-    if (req_ctx_p->opcode == STORIO_DISK_THREAD_REMOVE) {
-      storio_device_mapping_release_entry(dev_map_p);
-    }
-    
+    */    
     return;
   }  
   

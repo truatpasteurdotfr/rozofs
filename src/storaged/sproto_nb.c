@@ -412,7 +412,7 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     req_ctx_p->recv_buf = NULL;
   
     /*
-    ** Lookup for the device_id in the lookup table
+    ** Lookup for the FID context in the lookup table
     */ 
     dev_map_p = storio_device_mapping_search(write_arg_p->fid);
     if (dev_map_p == NULL) { 
@@ -501,12 +501,13 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ** If any request is already running, chain this request on the FID context
     */
     if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
-      return;
+      goto out;
     }   
 
     if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
-      return;
+      goto out;
     }  
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
 
 
 error:    
@@ -520,7 +521,14 @@ error:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(write);
-    return ;
+
+out:
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);
+    return;
 }
 /*
 **___________________________________________________________
@@ -592,11 +600,11 @@ void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ** If any request is already running, chain this request on the FID context
     */
     if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
-      return;
+      goto out;
     }  
     
     if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
-      return;
+      goto out;
     }
     severe("storio_disk_thread_intf_send %s", strerror(errno));
     
@@ -610,7 +618,14 @@ error:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(read);
-    return ;
+
+out:
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);
+    return;    
 }
 /*
 **___________________________________________________________
@@ -736,6 +751,12 @@ send_response:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(rebuild_start);
+    
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);    
     return ;
 }
 /*
@@ -810,6 +831,12 @@ send_response:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(rebuild_stop);
+    
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);   
     return ;
 }
 /*
@@ -874,14 +901,14 @@ void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ** If any request is already running, chain this request on the FID context
     */
     if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
-      return;
+      goto out;
     }  
     
     
     if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
-      return;
+      goto out;
     }      
-
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
 
 error:    
     severe("sp_truncate_1_svc_disk_thread storio_disk_thread_intf_send %s", strerror(errno));
@@ -895,6 +922,13 @@ error:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(truncate);
+    
+out:
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);    
     return ;
 }
 
@@ -961,12 +995,13 @@ void sp_remove_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     ** If any request is already running, chain this request on the FID context
     */
     if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
-      return;
+      goto out;
     }  
     
     if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
-      return;
+      goto out;
     }        
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
 
     
 error:    
@@ -981,6 +1016,13 @@ error:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(remove);
+
+out:
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);   
     return ;
 }
 /*
@@ -1045,12 +1087,13 @@ void sp_remove_chunk_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
     ** If any request is already running, chain this request on the FID context
     */
     if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
-      return;
+      goto out;
     }  
     
     if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
-      return;
+      goto out;
     }        
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
 
     
 error:    
@@ -1065,5 +1108,12 @@ error:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(remove);
+
+out:
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);    
     return ;
 }

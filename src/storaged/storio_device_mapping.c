@@ -34,13 +34,13 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/common/mattr.h>
-#include <rozofs/core/com_cache.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_timer_api.h>
 
 #include "storio_device_mapping.h"
 #include "sconfig.h"
 #include "storaged.h"
+#include "storio_fid_cache.h"
 
 
 extern sconfig_t storaged_config;
@@ -53,7 +53,6 @@ STORIO_REBUILD_STAT_S        storio_rebuild_stat = {0};
       Attributes LOOKUP SECTION
 **______________________________________________________________________________
 */
-com_cache_main_t  *storio_device_mapping_p = NULL; /**< pointer to the fid cache  */
 
 #define NB_STORIO_FAULTY_FID_MAX 15
 
@@ -118,7 +117,6 @@ void storio_register_faulty_fid(int threadNb, uint8_t cid, uint8_t sid, fid_t fi
 void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   fid_t                          fid;
   char                         * pChar=uma_dbg_get_buffer();
-  storio_device_mapping_t      * com_cache_entry_p; 
   uint8_t                        nb_rebuild;
   uint8_t                        storio_rebuild_ref;
   STORIO_REBUILD_T             * pRebuild; 
@@ -142,72 +140,74 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
  
 
   if (argv[1] == NULL) {
-
-    pChar = com_cache_show_cache_stats(pChar,storio_device_mapping_p,"FID cache");
-
-    pChar += sprintf(pChar,"cache size  : %d buckets x %d = %d\n", 
-                    (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2),
-                     (int)sizeof (com_cache_bucket_t),
-		     (int)sizeof (com_cache_bucket_t)*(1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2));  
-    pChar += sprintf(pChar,"entry/bucket: %d\n", STORIO_DEVICE_MAPPING_MAX_ENTRIES/(1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2));
+    pChar = display_cache_fid_stat(pChar);
     pChar += sprintf(pChar,"ctx nb x sz : %d x %d = %d\n",
-            (int) STORIO_DEVICE_MAPPING_MAX_ENTRIES + 1024,
+            (int) STORIO_DEVICE_MAPPING_MAX_ENTRIES,
 	    (int)sizeof(storio_device_mapping_t),
-	    (int) ((STORIO_DEVICE_MAPPING_MAX_ENTRIES + 1024) * sizeof(storio_device_mapping_t)));
-    pChar += sprintf(pChar,"consistency : %llu\n", (unsigned long long)storio_device_mapping_stat.consistency);     
-    pChar += sprintf(pChar,"inconsistent: %llu\n", (unsigned long long)storio_device_mapping_stat.inconsistent);  
-    pChar += sprintf(pChar,"lost        : %llu\n", (unsigned long long)storio_device_mapping_stat.lost);       
-    pChar += sprintf(pChar,"recycled    : %llu\n", (unsigned long long)storio_device_mapping_stat.recycled); 
-    pChar += sprintf(pChar,"out of ctx  : %llu\n", (unsigned long long)storio_device_mapping_stat.out_of_ctx);  
-    pChar += sprintf(pChar,"allocated   : %llu\n", (unsigned long long)storio_device_mapping_stat.allocated);       
-    pChar += sprintf(pChar,"released    : %llu\n", (unsigned long long)storio_device_mapping_stat.released);     
+	    (int) (STORIO_DEVICE_MAPPING_MAX_ENTRIES * sizeof(storio_device_mapping_t)));
+    pChar += sprintf(pChar,"free        : %llu\n", (long long unsigned int) storio_device_mapping_stat.free);  
+    pChar += sprintf(pChar,"running     : %llu\n", (long long unsigned int) storio_device_mapping_stat.running);
+    pChar += sprintf(pChar,"inactive    : %llu\n", (long long unsigned int) storio_device_mapping_stat.inactive);
+    pChar += sprintf(pChar,"allocation  : %llu (release+%llu)\n", 
+                          (long long unsigned int) storio_device_mapping_stat.allocation,
+			  (long long unsigned int) (storio_device_mapping_stat.allocation-storio_device_mapping_stat.release));
+    pChar += sprintf(pChar,"release     : %llu\n", (long long unsigned int) storio_device_mapping_stat.release);
+    pChar += sprintf(pChar,"out of ctx  : %llu\n", (long long unsigned int) storio_device_mapping_stat.out_of_ctx);  
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
     return;       
   }     
 
   uuid_parse(argv[1],fid);
-  com_cache_entry_p = com_cache_bucket_search_entry(storio_device_mapping_p,fid);
-  if (com_cache_entry_p == NULL) {
+  int index = storio_fid_cache_search(storio_device_mapping_hash32bits_compute(fid),fid);
+  if (index == -1) {
     pChar += sprintf(pChar,"%s no match found !!!\n",argv[1]);
   } 
   else {
-    if (com_cache_entry_p->consistency == storio_device_mapping_stat.consistency) {
-      pChar += sprintf(pChar,"%s is consistent (%llu)\n",
-	        argv[1],
-		(unsigned long long)storio_device_mapping_stat.consistency);
+    storio_device_mapping_t * p = storio_device_mapping_ctx_retrieve(index);
+    if (p == NULL) {
+      pChar += sprintf(pChar,"%s no match found !!!\n",argv[1]);
     }
     else {
-      pChar += sprintf(pChar,"%s is inconsistent %llu vs %llu\n",
-	       argv[1],
-	       (unsigned long long)com_cache_entry_p->consistency, 
-	       (unsigned long long)storio_device_mapping_stat.consistency);        
-    }
-    pChar = trace_device(com_cache_entry_p->device, pChar);       
-    pChar += sprintf(pChar,"\n");        
-    pChar += sprintf(pChar,"running_request = %d\n",list_size(&com_cache_entry_p->running_request)); 
-    pChar += sprintf(pChar,"waiting_request = %d\n",list_size(&com_cache_entry_p->waiting_request)); 
-    if (com_cache_entry_p->storio_rebuild_ref.u32 != 0xFFFFFFFF) {
-      for (nb_rebuild=0; nb_rebuild   <MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
-	storio_rebuild_ref = com_cache_entry_p->storio_rebuild_ref.u8[nb_rebuild];
-	if (storio_rebuild_ref == 0xFF) continue;
-	pChar += sprintf(pChar,"  rebuild %d : ",nb_rebuild+1);  
-	if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-          pChar += sprintf(pChar,"Bad reference %d\n",storio_rebuild_ref);  
-          continue;
-	}
-	pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)fid);
-	if (pRebuild == 0) {
-          pChar += sprintf(pChar,"Context reallocated to an other FID\n");  
-          continue;
-	}
-	pChar += sprintf(pChar,"start %llu stop %llu aging %llu sec\n",
-                	 (unsigned long long)pRebuild->start_block,
-			 (unsigned long long)pRebuild->stop_block,
-			 (unsigned long long)(time(NULL)-pRebuild->rebuild_ts));
+    
+#if 0    
+      if (p->consistency == storio_device_mapping_stat.consistency) {
+	pChar += sprintf(pChar,"%s is consistent (%llu)\n",
+	          argv[1],
+		  (unsigned long long)storio_device_mapping_stat.consistency);
       }
-    }  
+      else {
+	pChar += sprintf(pChar,"%s is inconsistent %llu vs %llu\n",
+		 argv[1],
+		 (unsigned long long)p->consistency, 
+		 (unsigned long long)storio_device_mapping_stat.consistency);        
+      }
+#endif      
+      pChar = trace_device(p->device, pChar);       
+      pChar += sprintf(pChar,"\n");        
+      pChar += sprintf(pChar,"running_request = %d\n",list_size(&p->running_request)); 
+      pChar += sprintf(pChar,"waiting_request = %d\n",list_size(&p->waiting_request)); 
+      if (p->storio_rebuild_ref.u32 != 0xFFFFFFFF) {
+	for (nb_rebuild=0; nb_rebuild   <MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
+	  storio_rebuild_ref = p->storio_rebuild_ref.u8[nb_rebuild];
+	  if (storio_rebuild_ref == 0xFF) continue;
+	  pChar += sprintf(pChar,"  rebuild %d : ",nb_rebuild+1);  
+	  if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
+            pChar += sprintf(pChar,"Bad reference %d\n",storio_rebuild_ref);  
+            continue;
+	  }
+	  pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)fid);
+	  if (pRebuild == 0) {
+            pChar += sprintf(pChar,"Context reallocated to an other FID\n");  
+            continue;
+	  }
+	  pChar += sprintf(pChar,"start %llu stop %llu aging %llu sec\n",
+                	   (unsigned long long)pRebuild->start_block,
+			   (unsigned long long)pRebuild->stop_block,
+			   (unsigned long long)(time(NULL)-pRebuild->rebuild_ts));
+	}
+      }  
+    }
   }
-
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }
@@ -461,101 +461,6 @@ void storio_device_mapping_start_timer() {
  			    0);
 
 }
-/*
-**______________________________________________________________________________
-*/
-/**
-* release an entry ocalled fromthe application
-
-  @param p : pointer to the user cache entry 
-  
-*/
-void storio_device_mapping_release_entry(storio_device_mapping_t *p)
-{
-  com_cache_bucket_remove_entry(storio_device_mapping_p, p->cache.usr_key_p);
-} 
-/*
-**______________________________________________________________________________
-*/
-/**
-* release an entry called from the cache 
-
-  @param p : pointer to the user cache entry 
-  
-*/
-void storio_device_mapping_delete_cbk(void *entry_p)
-{
-  storio_device_mapping_t  *p = entry_p;
-
-  /*
-  ** Unlink global & bucket LRU
-  */
-  list_remove(&p->cache.global_lru_link);
-  list_remove(&p->cache.bucket_lru_link);
-   
-  /*
-  ** Free the context
-  */  
-  storio_device_mapping_ctx_free(p); 
-} 
-/*
-**______________________________________________________________________________
-*/
-/**
-*  hash computation from  fid 
-
-  @param h : initial hahs value
-  @param key2: parent fid
-  @param hash2 : pointer to the secondary hash (optional)
-  @param len: pointer to an array that return the length of the filename string
-  
-  @retval hash value
-*/
-static inline uint32_t uuid_hash_fnv(uint32_t h, void *key) {
-
-    unsigned char *d ;
-
-    if (h == 0) h = 2166136261U;
-
-    d = (unsigned char *) key;
-    for (d = key; d != key + 16; d++) {
-        h = (h * 16777619)^ *d;
-    }
-    return h;
-}
-/*
-**______________________________________________________________________________
-*/
-/**
-* fid entry hash compute 
-
-  @param p : pointer to the user cache entry 
-  
-  @retval hash value
-  
-*/
-uint32_t storio_device_mapping_hash16bits_compute(void *usr_key) {
-  uint16_t * p16 = (uint16_t *) usr_key;
-  return (uint32_t) (p16[0]^p16[1]^p16[2]^p16[3]^p16[4]^p16[5]^p16[6]^p16[7]);
-}
-/*
-**______________________________________________________________________________
-*/
-/**
-* fid entry hash compute 
-
-  @param p : pointer to the user cache entry 
-  
-  @retval hash value
-  
-*/
-uint32_t storio_device_mapping_hash_compute(void *usr_key)
-{
-  uint32_t hash;
-
-  hash = uuid_hash_fnv(0,usr_key);
-  return hash;
-}
 
 /*
 **______________________________________________________________________________
@@ -570,18 +475,51 @@ uint32_t storio_device_mapping_hash_compute(void *usr_key)
   @retval <> 0  no match  
 */
 
-uint32_t storio_device_mapping_exact_match(void *key1, void *key2)
-{
-  if (uuid_compare(key1,key2) != 0)  
-  {
-    return 1;
+uint32_t storio_device_mapping_exact_match(void *key ,uint32_t index) {
+  storio_device_mapping_t   * p;  
+  
+  p = storio_device_mapping_ctx_retrieve(index);
+  if (p == NULL) return 0;
+    
+  if (uuid_compare(p->fid,key) != 0) {
+    return 0;
   }
   /*
   ** Match !!
   */
-  return 0;
+  return 1;
 }
-	   
+/*
+**______________________________________________________________________________
+*/
+/**
+* attributes entry hash compute 
+
+  @param key1 : pointer to the key associated with the entry from cache 
+  @param key2 : pointer to array that contains the searching key
+  
+  @retval 0 on match
+  @retval <> 0  no match  
+*/
+
+uint32_t storio_device_mapping_delete_req(uint32_t index) {
+  storio_device_mapping_t   * p;  
+  
+  /*
+  ** Retrieve the context from the index
+  */
+  p = storio_device_mapping_ctx_retrieve(index);
+  if (p == NULL) return 0;
+    
+  /*
+  ** Release the context when inactive
+  */  
+  if (p->status == STORIO_FID_INACTIVE) {
+    storio_device_mapping_release_entry(p);
+    return 1;
+  }
+  return 0;
+}	   
 /*
 **______________________________________________________________________________
 */
@@ -599,38 +537,20 @@ uint32_t storio_device_mapping_exact_match(void *key1, void *key2)
 uint32_t storio_device_mapping_init()
 {
 
-  com_cache_usr_fct_t callbacks;
-  
-  if (storio_device_mapping_p != NULL)
-  {
-    return 0;
-  }
-  
   /*
   ** Initialize rebuild context distributor
   */
   storio_rebuild_ctx_distributor_init();
   
-  
-  callbacks.usr_exact_match_fct = storio_device_mapping_exact_match;
-  callbacks.usr_hash_fct        = storio_device_mapping_hash16bits_compute;
-  callbacks.usr_delete_fct      = storio_device_mapping_delete_cbk;
-  
-  storio_device_mapping_p = com_cache_create(STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2,
-                                      STORIO_DEVICE_MAPPING_MAX_ENTRIES,
-                                      &callbacks);
-  if (storio_device_mapping_p == NULL)
-  {
-    /*
-    ** we run out of memory
-    */
-    return -1;  
-  }
+  /*
+  ** Initialize the FID cache 
+  */
+  storio_fid_cache_init(storio_device_mapping_exact_match, storio_device_mapping_delete_req);
 
   /*
   ** Initialize dev mapping distributor
   */
-  storio_device_mapping_stat.consistency = 1;   
+//  storio_device_mapping_stat.consistency = 1;   
   storio_device_mapping_ctx_distributor_init();
 
   /*
