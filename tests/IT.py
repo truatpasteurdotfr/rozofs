@@ -33,6 +33,9 @@ list_cid=[]
 list_sid=[]
 list_host=[]  
 hunic=[]
+inverse=2
+forward=3
+safe=4
 #___________________________________________________
 def my_duration (val):
 #___________________________________________________
@@ -146,7 +149,26 @@ def get_sid_nb():
       export_sid=export_sid+1
 
   return export_sid,storcli_sid    
+#___________________________________________________
+def get_layout():
+# Get the inverse forward and safe values
+#___________________________________________________
+  global inverse, forward, safe
+  inst=get_rozofmount_instance()
 
+  string="./build/src/rozodiag/rozodiag -T mount:%d -c layout"%(inst)       
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  for line in cmd.stdout:
+    if "LAYOUT_" in line:
+      words=line.split()
+      layout=words[0]
+      values=layout.split('_')
+      inverse=values[1]
+      forward=values[2]
+      safe=values[3]
+      return
 #___________________________________________________
 def export_count_sid_up ():
 # Use debug interface to count the number of sid up 
@@ -291,8 +313,10 @@ def wait_until_all_sid_up (retries=DEFAULT_RETRIES) :
 # Wait for all sid up seen by storcli as well as export
 #___________________________________________________
   if loop_wait_until(STORCLI_SID_NB,retries,'storcli_count_sid_available') == False: 
+    print "storcli_count_sid_available %s failed"%(STORCLI_SID_NB)
     return False
   if loop_wait_until(EXPORT_SID_NB,retries,'export_count_sid_up') == False:
+    print "export_count_sid_up %s failed"%(EXPORT_SID_NB)
     return False
   return True  
   
@@ -306,30 +330,50 @@ def wait_until_one_sid_down (retries=DEFAULT_RETRIES) :
     return False
   return True   
 #___________________________________________________
+def wait_until_x_sid_down (x,retries=DEFAULT_RETRIES) :
+# Wait until one sid down seen by storcli 
+#___________________________________________________
+
+  if loop_wait_until_less(int(STORCLI_SID_NB)-int(x),retries,'storcli_count_sid_available') == False:
+    return False
+  return True   
+#___________________________________________________
 def storageStart (hid,count=int(1)) :
 
-  while count != 0:
-  
-    sys.stdout.write("\rStorage %d restart"%(hid)) 
-    sys.stdout.flush()
-        
-    os.system("./setup.sh storage %s start"%(hid))    
+  sys.stdout.write("\r                                   ")
+  sys.stdout.write("\rStorage start ")
 
-    if wait_until_all_sid_up() == True:
-      return 0
-    count=count-1
+  for idx in range(int(count)): 
+    sys.stdout.write("%d "%(int(hid)+idx)) 
+    sys.stdout.flush()
+    os.system("./setup.sh storage %d start"%(int(hid)+idx))
+        
+#___________________________________________________
+def storageStartAndWait (hid,count=int(1)) :
+
+  storageStart(hid,count)
+  time.sleep(1)
+  if wait_until_all_sid_up() == True:
+    return 0
         
   return 1 
 #___________________________________________________
-def storageStop (hid) :
-  
-  sys.stdout.write("\r                                 ")
-  sys.stdout.flush()  
-  sys.stdout.write("\rStorage %d stop"%(hid))
-  sys.stdout.flush()
+def storageStop (hid,count=int(1)) :
 
-  os.system("./setup.sh storage %s stop"%(hid))
-  wait_until_one_sid_down()   
+  sys.stdout.write("\r                                   ")
+  sys.stdout.write("\rStorage stop ")
+
+  for idx in range(int(count)): 
+    sys.stdout.write("%d "%(int(hid)+idx)) 
+    sys.stdout.flush()
+    os.system("./setup.sh storage %d stop"%(int(hid)+idx))
+  
+#___________________________________________________
+def storageStopAndWait (hid,count=int(1)) :
+
+  storageStop(hid,count)
+  time.sleep(1)
+  wait_until_x_sid_down(count)   
     
 #___________________________________________________
 def storageFailed (test) :
@@ -338,22 +382,34 @@ def storageFailed (test) :
 #___________________________________________________
   global hunic
        
+  # Wait all sid up before starting the test     
   if wait_until_all_sid_up() == False:
     return 1
 
+  # Compute number of allowed failures
+  nb_failures=int(forward)-int(inverse)
   
+  # Loop on hosts
   for hid in hunic:    
            
-    storageStop(hid)
+    # Process hosts in a bunch of allowed failures	   
+    if nb_failures!=1:
+      if hid%nb_failures != 1:
+        continue
+      	    
+    # Reset a bunch of storages	    
+    storageStopAndWait(hid,nb_failures)
     reset_counters()
     
+    # Run the test
     try:
       # Resolve and call <test> function
       ret = getattr(sys.modules[__name__],test)()         
     except:
       ret = 1
       
-    storageStart(hid)  
+    # Restart every storages  
+    storageStartAndWait(hid,nb_failures)  
 
     if ret != 0:
       return 1      
@@ -430,18 +486,33 @@ def snipper_storio ():
 #___________________________________________________
   global hunic
     
+
+  # Compute number of allowed failures
+  nb_failures=int(forward)-int(inverse)
+    
   while True:
     for hid in hunic:      
 
+      # Process hosts in a bunch of allowed failures	   
+      if nb_failures!=1:
+	if hid%nb_failures != 1:
+          continue
+
+      # Wait all sid up before starting the test     
       if wait_until_all_sid_up() == False:
         return 1
-      
+          
       sys.stdout.write("\r                                 ")
       sys.stdout.flush()
-      sys.stdout.write("\rStorio %d reset"%(hid))
+      sys.stdout.write("\rStorio reset ")
+      cmd=""
+      for idx in range(nb_failures):
+        sys.stdout.write("%d "%(int(hid)+idx))
+	cmd+="./setup.sh storio %d reset;"%(int(hid)+idx)
+	
       sys.stdout.flush()
 
-      os.system("./setup.sh storio %d reset"%(hid))
+      os.system(cmd)
 
 
 #___________________________________________________
@@ -458,7 +529,7 @@ def storageReset (test):
   cmd = subprocess.Popen(parsed, stderr=subprocess.PIPE)
 
   saveloop=loop
-  loop=loop*5
+  loop=loop*8
   
   try:
     # Resolve and call <test> function
@@ -1158,6 +1229,7 @@ if options.mount != None:
 else:
   mnts=ALL_MNT.split(',')[0]
 mnt=mnts.split(',')[0]  
+get_layout()
 
 if options.snipper != None:
   site=get_site_number()
@@ -1210,6 +1282,7 @@ for mnt in mnts.split(','):
 
   mnt=mnt.split('/')[0]
   site=get_site_number()
+  get_layout()
   vid=get_volume_id()
   EXPORT_SID_NB,STORCLI_SID_NB=get_sid_nb()
 
