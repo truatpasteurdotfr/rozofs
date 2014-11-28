@@ -163,6 +163,7 @@ static void storaged_release() {
 
 int rbs_restore_one_spare_entry(storage_t       * st, 
                                 int               local_idx, 
+			        int               relocate,
 			        uint32_t        * block_start,
 			        uint32_t          block_end, 
 			     	rb_entry_t      * re, 
@@ -221,7 +222,9 @@ int rbs_restore_one_spare_entry(storage_t       * st,
       
       remove_file = 1; /* Should possibly remove the chunk at the end */
 
-      rebuild_ref = sclient_rebuild_start_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, *block_start, block_end);
+      rebuild_ref = sclient_rebuild_start_rbs(re->storages[local_idx], st->cid, st->sid, re->fid,
+                                              relocate?SP_NEW_DEVICE:SP_SAME_DEVICE, chunk, 1 /* spare */, 
+					      *block_start, block_end);
       if (rebuild_ref == 0) {
 	remove_file = 0;
 	goto out;
@@ -424,14 +427,15 @@ int rbs_restore_one_spare_entry(storage_t       * st,
 
       }	
       
-      if (remove_file) {
+      if ((remove_file)&&(!relocate)) {
 	ret = sclient_remove_chunk_rbs(re->storages[local_idx], st->cid, st->sid, layout, 
 	                               1/*spare*/, re->bsize,
 	                               re->dist_set_current, re->fid, chunk, rebuild_ref);
       }
 
       if (rebuild_ref != 0) {
-	sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref);
+	sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, 
+	                         rebuild_ref, SP_SUCCESS);
 	rebuild_ref = 0;
       } 
       
@@ -451,7 +455,8 @@ out:
     *block_start = chunk * block_per_chunk;    
     
     if (rebuild_ref != 0) {
-      sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref);
+      sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, 
+                               rebuild_ref, SP_FAILURE);
     }    
     
     // Clear the working context
@@ -493,6 +498,7 @@ out:
 	
 int rbs_restore_one_rb_entry(storage_t       * st, 
                              int               local_idx, 
+			     int               relocate,
 			     uint32_t        * block_start,
 			     uint32_t          block_end, 
 			     rb_entry_t      * re, 
@@ -514,12 +520,15 @@ int rbs_restore_one_rb_entry(storage_t       * st,
     uint32_t nb_blocks_read_distant = requested_blocks;
     bin_t * saved_bins = NULL;
     int     i;   
-    //int   size;
+    uint32_t block_per_chunk = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(re->bsize);
+    uint32_t chunk           = *block_start / block_per_chunk;;
        
     // Clear the working context
     memset(&working_ctx, 0, sizeof (working_ctx));
 
-    rebuild_ref = sclient_rebuild_start_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, *block_start, block_end);
+    rebuild_ref = sclient_rebuild_start_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, 
+                                            relocate?SP_NEW_DEVICE:SP_SAME_DEVICE, chunk, 0 /* spare */,  
+					    *block_start, block_end);
     if (rebuild_ref == 0) {
       goto out;
     }
@@ -609,7 +618,8 @@ int rbs_restore_one_rb_entry(storage_t       * st,
     status = 0;
 out:
     if (rebuild_ref != 0) {
-      sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref);
+      sclient_rebuild_stop_rbs(re->storages[local_idx], st->cid, st->sid, re->fid, rebuild_ref, 
+                               (status==0)?SP_SUCCESS:SP_FAILURE);
     }    
     RESTORE_ONE_RB_ENTRY_FREE_ALL;   
     return status;
@@ -778,40 +788,30 @@ int storaged_rebuild_list(char * fid_list) {
     }  
     if (prj >= rozofs_forward) spare = 1;
     else                       spare = 0;
-
-    /*
-    ** 1rst try to remove the file when requested
-    */
-    if (file_entry.unlink) {
-      ret = sclient_remove_rbs(re.storages[local_index], 
-                               st2rebuild.storage.cid, 
-			       st2rebuild.storage.sid, 
-			       file_entry.layout, 
-			       file_entry.fid);
-      if (ret == 0) {
-        file_entry.unlink = 0;
-      }  		       
-    }
     
     size_written = 0;
     size_read    = 0;
 
     // Restore this entry
+    uint32_t block_start = file_entry.block_start;
     if (spare == 1) {
-      ret = rbs_restore_one_spare_entry(&st2rebuild.storage, local_index, 
-                                        &file_entry.block_start, file_entry.block_end, 
+      ret = rbs_restore_one_spare_entry(&st2rebuild.storage, local_index, file_entry.relocate,
+                                        &block_start, file_entry.block_end, 
 					&re, prj,
 					&size_written,
 					&size_read);     
     }
     else {
-      ret = rbs_restore_one_rb_entry(&st2rebuild.storage, local_index, 
-                                     &file_entry.block_start, file_entry.block_end, 
+      ret = rbs_restore_one_rb_entry(&st2rebuild.storage, local_index, file_entry.relocate,
+                                     &block_start, file_entry.block_end, 
 				     &re, prj, 
 				     &size_written,
 				     &size_read);
     } 
-             
+         
+    /* 
+    ** Rebuild is successfull
+    */	     
     if (ret == 0) {
       nbSuccess++;
 
@@ -829,9 +829,30 @@ int storaged_rebuild_list(char * fid_list) {
       if ((nbSuccess % (16*1024)) == 0) {
         REBUILD_MSG("  ~ %s %d/%d",fid_list,nbSuccess,nbJobs);
       } 
+      /*
+      ** This file has been rebuilt so remove it from the job list
+      */
       file_entry.todo = 0;
     }
-    
+    /*
+    ** Rebuild is failed, nevetherless some pieces of the file may have
+    ** been successfully rebuilt and needs not to be rebuilt again on a
+    ** next trial
+    */
+    else {
+      /*
+      ** In case of file relocation, the new data chunk file has been removed 
+      ** and the previous data chunk file location has been restored
+      ** when the rebuild has failed. So we are back to the starting point of
+      ** the rebuilt and there has been no improvment...
+      ** When no relocation was requested, the block_start has increased up to 
+      ** where the rebuild has failed. These part before block_start is rebuilt 
+      ** and needs not to be redone although the glocal rebuild has failed. 
+      */
+      if (!file_entry.relocate) {
+        file_entry.block_start = block_start;
+      }
+    }
     
     /*
     ** Update input job file if any change

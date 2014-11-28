@@ -186,10 +186,14 @@ static inline int storio_is_request_exclusive(storio_device_mapping_t * dev_map_
 
   switch (req_ctx_p->opcode) {
   
-    case STORIO_DISK_THREAD_READ:     return 0;
-    case STORIO_DISK_THREAD_TRUNCATE: return 1;
-    case STORIO_DISK_THREAD_REMOVE:   return 1;
-    case STORIO_DISK_THREAD_REMOVE_CHUNK:   return 1;
+    /*
+    ** Read is non exclusive
+    */
+    case STORIO_DISK_THREAD_READ: return 0;
+
+    /*
+    ** Write are exclusive when a new chunk is to be allocated
+    */
     case STORIO_DISK_THREAD_WRITE:
     {
       sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(req_ctx_p->decoded_arg);
@@ -219,6 +223,16 @@ static inline int storio_is_request_exclusive(storio_device_mapping_t * dev_map_
       }
       return 0;      
     }
+
+    /*
+    ** Other requests are exclusive for incompatibility reasons
+    **
+    ** case STORIO_DISK_THREAD_TRUNCATE:
+    ** case STORIO_DISK_THREAD_REMOVE:
+    ** case STORIO_DISK_THREAD_REMOVE_CHUNK:
+    ** case STORIO_DISK_REBUILD_START:
+    ** case STORIO_DISK_REBUILD_STOP:
+    */
     default:
       return 1;
   }    
@@ -283,6 +297,7 @@ void storio_serialization_end(storio_device_mapping_t * dev_map_p, rozorpc_srv_c
   list_t            * p, * q;
   rozorpc_srv_ctx_t * req;
   
+  if (dev_map_p == NULL) return;
   
   /*
   ** Remove this request

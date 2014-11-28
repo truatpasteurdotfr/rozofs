@@ -139,10 +139,19 @@ struct sp_remove_chunk_arg_t {
 };
 typedef struct sp_remove_chunk_arg_t sp_remove_chunk_arg_t;
 
+enum sp_device_e {
+	SP_SAME_DEVICE = 0,
+	SP_NEW_DEVICE = 1,
+};
+typedef enum sp_device_e sp_device_e;
+
 struct sp_rebuild_start_arg_t {
 	uint16_t cid;
 	uint8_t sid;
 	sp_uuid_t fid;
+	sp_device_e device;
+	uint8_t chunk;
+	uint8_t spare;
 	uint64_t start_bid;
 	uint64_t stop_bid;
 };
@@ -161,6 +170,7 @@ struct sp_rebuild_stop_arg_t {
 	uint16_t cid;
 	uint8_t sid;
 	sp_uuid_t fid;
+	sp_status_t status;
 	uint32_t rebuild_ref;
 };
 typedef struct sp_rebuild_stop_arg_t sp_rebuild_stop_arg_t;
@@ -273,6 +283,7 @@ extern  bool_t xdr_sp_truncate_arg_no_bins_t (XDR *, sp_truncate_arg_no_bins_t*)
 extern  bool_t xdr_sp_truncate_arg_t (XDR *, sp_truncate_arg_t*);
 extern  bool_t xdr_sp_remove_arg_t (XDR *, sp_remove_arg_t*);
 extern  bool_t xdr_sp_remove_chunk_arg_t (XDR *, sp_remove_chunk_arg_t*);
+extern  bool_t xdr_sp_device_e (XDR *, sp_device_e*);
 extern  bool_t xdr_sp_rebuild_start_arg_t (XDR *, sp_rebuild_start_arg_t*);
 extern  bool_t xdr_sp_rebuild_start_ret_t (XDR *, sp_rebuild_start_ret_t*);
 extern  bool_t xdr_sp_rebuild_stop_arg_t (XDR *, sp_rebuild_stop_arg_t*);
@@ -292,6 +303,7 @@ extern bool_t xdr_sp_truncate_arg_no_bins_t ();
 extern bool_t xdr_sp_truncate_arg_t ();
 extern bool_t xdr_sp_remove_arg_t ();
 extern bool_t xdr_sp_remove_chunk_arg_t ();
+extern bool_t xdr_sp_device_e ();
 extern bool_t xdr_sp_rebuild_start_arg_t ();
 extern bool_t xdr_sp_rebuild_start_ret_t ();
 extern bool_t xdr_sp_rebuild_stop_arg_t ();

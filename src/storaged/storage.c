@@ -63,6 +63,7 @@ int storage_error_on_device(storage_t * st, uint8_t device_nb) {
   st->device_errors.errors[active][device_nb]++;
   return st->device_errors.errors[active][device_nb];
 }
+
 /*
  ** Read a header/mapper file
     This function looks for a header file of the given FID on every
@@ -751,6 +752,166 @@ static inline void storage_get_projid_size(uint8_t spare,
 } 
 uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
 
+
+int storage_relocate_chunk(storage_t * st, uint8_t * device,fid_t fid, uint8_t spare, 
+                           uint8_t chunk, uint8_t * old_device) {
+    STORAGE_READ_HDR_RESULT_E      read_hdr_res;  
+    rozofs_stor_bins_file_hdr_t    file_hdr;
+    int                            result;
+
+    /*
+    ** Let's read the header file 
+    */    
+    read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
+
+    /*
+    ** Error accessing all the devices
+    */
+    if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
+      severe("storage_relocate_chunk");
+      return -1;
+    }
+
+    /*
+    ** Header file does not exist! This is a brand new file
+    */    
+    if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) { 
+      memset(device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+      *old_device = ROZOFS_EMPTY_CHUNK;
+      return 0;
+    }
+
+    /*
+    ** Header file has been read
+    */
+    
+    /* Save the previous chunk location and then release it */
+    *old_device = file_hdr.device[chunk];
+    
+    /* Last chunk ? */
+    if (chunk == (ROZOFS_STORAGE_MAX_CHUNK_PER_FILE-1)) {
+      file_hdr.device[chunk] = ROZOFS_EOF_CHUNK;
+    }
+    /* End of file ? */
+    else if (file_hdr.device[chunk+1] == ROZOFS_EOF_CHUNK) {
+      int idx;
+      file_hdr.device[chunk] = ROZOFS_EOF_CHUNK;
+      idx = chunk-1;
+      /* Previous empty chunk is now end of file */
+      while (idx>=0) {
+        if (file_hdr.device[idx] != ROZOFS_EMPTY_CHUNK) break;
+	file_hdr.device[idx] = ROZOFS_EOF_CHUNK;
+	idx--;
+      }
+    }
+    /* Inside the file */
+    else {
+      file_hdr.device[chunk] = ROZOFS_EMPTY_CHUNK;
+    }  
+    memcpy(device,file_hdr.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+
+    /* 
+    ** Rewrite file header on disk
+    */   
+    result = storage_write_all_header_files(st, fid, spare, &file_hdr);        
+    /*
+    ** Failure on every write operation
+    */ 
+    if (result == 0) return -1;   
+    return 0;
+}
+int storage_rm_data_chunk(storage_t * st, uint8_t device, fid_t fid, uint8_t spare, uint8_t chunk, int errlog) {
+  char path[FILENAME_MAX];
+  int  ret;
+
+  uint32_t storage_slice = rozofs_storage_fid_slice(fid);
+  storage_build_bins_path(path, st->root, device, spare, storage_slice);
+  storage_complete_path_with_fid(fid, path);
+  storage_complete_path_with_chunk(chunk,path);
+
+  ret = unlink(path);   
+  if ((ret < 0) && (errno != ENOENT) && (errlog)) {
+    severe("storage_rm_data_chunk(%s) %s", path, strerror(errno));
+  }
+  return ret;  
+} 
+int storage_restore_chunk(storage_t * st, uint8_t * device,fid_t fid, uint8_t spare, 
+                           uint8_t chunk, uint8_t old_device) {
+    STORAGE_READ_HDR_RESULT_E      read_hdr_res;  
+    rozofs_stor_bins_file_hdr_t    file_hdr;
+    int                            result;       
+   
+    /*
+    ** Let's read the header file 
+    */    
+    read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
+
+    /*
+    ** Error accessing all the devices
+    */
+    if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
+      severe("storage_relocate_chunk");
+      return -1;
+    }
+
+    /*
+    ** Header file does not exist! This is a brand new file
+    */    
+    if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) { 
+      memset(device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+      return 0;
+    }
+
+    /*
+    ** Header file has been read. 
+    */
+       
+    info("restore chunk %d old_device %d failed device %d", chunk, old_device, file_hdr.device[chunk]);   
+    
+    /*
+    ** Remove new data file which rebuild has failed 
+    */
+    storage_rm_data_chunk(st, file_hdr.device[chunk], fid, spare, chunk,0/* No errlog*/);        
+    
+    /*
+    ** Restore device in header file
+    */
+    file_hdr.device[chunk] = old_device;
+    if (old_device==ROZOFS_EOF_CHUNK) {
+      /* not the last chunk */
+      if ((chunk != (ROZOFS_STORAGE_MAX_CHUNK_PER_FILE-1))
+      &&  (file_hdr.device[chunk+1] != ROZOFS_EOF_CHUNK)) {
+	file_hdr.device[chunk] = ROZOFS_EMPTY_CHUNK;
+      }
+    }
+    else if (old_device==ROZOFS_EMPTY_CHUNK) {  
+      /* Last chunk */
+      if ((chunk == (ROZOFS_STORAGE_MAX_CHUNK_PER_FILE-1))
+      ||  (file_hdr.device[chunk+1] != ROZOFS_EOF_CHUNK)) {
+	file_hdr.device[chunk] = ROZOFS_EOF_CHUNK;
+      }   
+    }
+    if (file_hdr.device[chunk] == ROZOFS_EOF_CHUNK) {
+      int idx = chunk-1;
+      /* Previous empty chunk is now end of file */
+      while (idx>=0) {
+        if (file_hdr.device[idx] != ROZOFS_EMPTY_CHUNK) break;
+	file_hdr.device[idx] = ROZOFS_EOF_CHUNK;
+	idx--;
+      }      
+    }     
+    memcpy(device,file_hdr.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+
+    /* 
+    ** Rewrite file header on disk
+    */   
+    result = storage_write_all_header_files(st, fid, spare, &file_hdr);        
+    /*
+    ** Failure on every write operation
+    */ 
+    if (result == 0) return -1;   
+    return 0;
+}
 int storage_write_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
         uint8_t spare, fid_t fid, uint8_t chunk, bid_t bid, uint32_t nb_proj, uint8_t version,
         uint64_t *file_size, const bin_t * bins, int * is_fid_faulty) {
@@ -801,7 +962,6 @@ open:
     // Build the path of bins file
     storage_complete_path_with_fid(fid, path);
     storage_complete_path_with_chunk(chunk,path);
-
 
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
@@ -1315,23 +1475,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
 	continue;
       }
       
-      
-      // Build the full path of directory that contains the bins file
-      int storage_slice = rozofs_storage_fid_slice(fid);
-      storage_build_bins_path(path, st->root, file_hdr.device[chunk_idx], spare, storage_slice);
-      storage_complete_path_with_fid(fid, path);
-      storage_complete_path_with_chunk(chunk_idx,path);
-
-      // Check that this file exists
-      if (access(path, F_OK) != -1) {
-        MYDBGTRACE("unlink(%s)",path);
-        if (unlink(path) == -1) {
-          if (errno != ENOENT) {
-              severe("storage_rm_file failed: unlink file %s failed: %s",
-                      path, strerror(errno));
-          }
-        } 
-      }	
+      storage_rm_data_chunk(st, file_hdr.device[chunk_idx], fid, spare, chunk_idx,1/*errlog*/);
       rewrite_file_hdr = 1;            
       file_hdr.device[chunk_idx] = ROZOFS_EOF_CHUNK;
     } 
@@ -1360,17 +1504,12 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
                      uint8_t layout, uint8_t bsize, uint8_t spare, 
 		     sid_t * dist_set, fid_t fid, 
 		     uint8_t chunk, int * is_fid_faulty) {
-    char path[FILENAME_MAX];
-    int    storage_slice;
     rozofs_stor_bins_file_hdr_t file_hdr;
-
 
     MYDBGTRACE_DEV(device,"%d/%d rm chunk %d : ", st->cid, st->sid, chunk);
 
     // No specific fault on this FID detected
     *is_fid_faulty = 0;  
-    path[0]=0;
-    errno = 0;
     
     /*
     ** When device array is not given, one has to read the header file on disk
@@ -1386,14 +1525,14 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
       if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
 	*is_fid_faulty = 1;
 	errno = EIO; 
-	goto out;
+	return -1;
       }
       
       /*
       ** Header files do not exist
       */      
       if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) {
-        goto out;  
+        return 0;  
       } 
 
       /* 
@@ -1413,23 +1552,20 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
     ** We are trying to read after the end of file
     */				     
     if (device[chunk] == ROZOFS_EOF_CHUNK) {
-      goto out;
+      return 0;
     }
 
     /*
     ** This chunk is a whole
     */      
     if(device[chunk] == ROZOFS_EMPTY_CHUNK) {
-      goto out;
+      return 0;
     }
     
-  
-    
-    storage_slice = rozofs_storage_fid_slice(fid);
-    storage_build_bins_path(path, st->root, device[chunk], spare, storage_slice);
-    storage_complete_path_with_fid(fid, path);
-    storage_complete_path_with_chunk(chunk,path);
-    unlink(path);
+    /*
+    ** Remove data chunk
+    */
+    storage_rm_data_chunk(st, device[chunk], fid, spare, chunk, 0 /* No errlog*/) ;
     
     // Last chunk
     if ((chunk+1) >= ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {
@@ -1453,7 +1589,7 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
       */
       if (chunk == 0) {
         storage_dev_map_distribution_remove(st, fid, spare);
-        goto out;
+	return 0;
       }
       
       chunk--;
@@ -1467,14 +1603,10 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
     */
     memcpy(file_hdr.device,device,sizeof(file_hdr.device));
     storage_write_all_header_files(st, fid, spare, &file_hdr);        
-
-out:
-    if (errno==0) return 0;
-    return -1;
+    return 0;
 }
 int storage_rm_file(storage_t * st, fid_t fid) {
     uint8_t spare = 0;
-    char path[FILENAME_MAX];
     STORAGE_READ_HDR_RESULT_E read_hdr_res;
     int chunk;
     rozofs_stor_bins_file_hdr_t file_hdr;
@@ -1504,28 +1636,11 @@ int storage_rm_file(storage_t * st, fid_t fid) {
 	if (file_hdr.device[chunk] == ROZOFS_EMPTY_CHUNK) {
 	  continue;
 	}
-	
-          
-        // Build the full path of directory that contains the bins file
-        int storage_slice = rozofs_storage_fid_slice(fid);
-        storage_build_bins_path(path, st->root, file_hdr.device[chunk], spare, storage_slice);
-        storage_complete_path_with_fid(fid, path);
-        storage_complete_path_with_chunk(chunk,path);
 
-        // Check that this file exists
-        if (access(path, F_OK) == -1) {
-            continue;
-	}
-
-	MYDBGTRACE("unlink(%s)",path);
-        if (unlink(path) == -1) {
-            if (errno != ENOENT) {
-                severe("storage_rm_file failed: unlink file %s failed: %s",
-                        path, strerror(errno));
-		return -1;	
-            }
-        } 
-
+	/*
+	** Remove data chunk
+	*/
+	storage_rm_data_chunk(st, file_hdr.device[chunk], fid, spare, chunk, 0 /* No errlog*/);
       }
 
       // It's not possible for one storage to store one bins file

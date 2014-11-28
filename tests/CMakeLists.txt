@@ -37,9 +37,6 @@ add_executable(test_dist
     test_dist.c
 )
 
-add_executable(test_xattr
-    test_xattr.c
-)
 add_executable(read_prj_blocks 
     read_prj_blocks.c
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
@@ -176,9 +173,6 @@ target_link_libraries(test_econfig ${CONFIG_LIBRARY})
 #target_link_libraries(export_tool rozofs ${CONFIG_LIBRARY} ${UUID_LIBRARY})
 
 
-add_executable(rw
-    rw.c
-)
 
 add_executable(test_statvfs
     test_statvfs.c

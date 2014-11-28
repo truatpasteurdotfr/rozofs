@@ -308,32 +308,34 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 
   pChar += sprintf(pChar,"allocated        : %llu\n",(long long unsigned int) storio_rebuild_stat.allocated);
   pChar += sprintf(pChar,"stollen          : %llu\n",(long long unsigned int) storio_rebuild_stat.stollen);
+  pChar += sprintf(pChar,"aborted          : %llu\n",(long long unsigned int) storio_rebuild_stat.aborted);
+  pChar += sprintf(pChar,"released         : %llu\n",(long long unsigned int) storio_rebuild_stat.released);
   pChar += sprintf(pChar,"out of ctx       : %llu\n",(long long unsigned int) storio_rebuild_stat.out_of_ctx);
   pChar += sprintf(pChar,"lookup hit       : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_hit);
   pChar += sprintf(pChar,"lookup miss      : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_miss);
   pChar += sprintf(pChar,"lookup bad index : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_bad_index);
   
   pChar += sprintf(pChar,"Running rebuilds : "); 
-  pRebuild = storio_rebuild_ctx_retrieve(0, NULL);
-  for (storio_ref=0; storio_ref <MAX_STORIO_PARALLEL_REBUILD; storio_ref++,pRebuild++) {
+  
+  for (storio_ref=0; storio_ref <MAX_STORIO_PARALLEL_REBUILD; storio_ref++) {
+
+    pRebuild = storio_rebuild_ctx_retrieve(storio_ref, NULL);
     if (pRebuild->rebuild_ts == 0) continue;
     
     pChar += sprintf(pChar,"\n%2d) ",storio_ref);  
     uuid_unparse(pRebuild->fid,pChar);
     pChar += 36;
-    pChar += sprintf(pChar," start %10llu stop %10llu aging %llu sec",
+    pChar += sprintf(pChar," chunk %-3d device %-3d start %-10llu stop %-10llu aging %llu sec",
+                     pRebuild->chunk, pRebuild->old_device,
                      (long long unsigned int)pRebuild->start_block,
 		     (long long unsigned int)pRebuild->stop_block,
 		     (long long unsigned int)(time(NULL)-pRebuild->rebuild_ts));
-    nb++;		     
+    nb++;
   }
   
-  if (nb == 0) {
-    pChar += sprintf(pChar,"NONE\n");
-  }
-  else {
-    pChar += sprintf(pChar,"\n");
-  }
+  if (nb == 0) pChar += sprintf(pChar,"NONE\n");
+  else         pChar += sprintf(pChar,"\n");
+
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }
@@ -456,7 +458,7 @@ void storio_device_mapping_start_timer() {
     return;
   }
   ruc_periodic_timer_start (periodic_timer, 
-                            8000, // every 8 sec
+                            5000, // every 5 sec
  	                    storio_device_mapping_periodic_ticker,
  			    0);
 

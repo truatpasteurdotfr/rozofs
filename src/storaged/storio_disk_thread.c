@@ -176,7 +176,218 @@ int storio_encode_rpc_response (rozorpc_srv_ctx_t *p,char * arg_ret) {
    
    return 0;
 }
+/**
+*  Rebuild stop when relocation was requested
 
+  @param thread_ctx_p: pointer to the thread context
+  @param msg         : address of the message received
+  
+  @retval: none
+*/
+static inline void storio_disk_rebuild_stop(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+  struct timeval     timeDay;
+  unsigned long long timeBefore, timeAfter;
+  storage_t *st = 0;
+  sp_rebuild_stop_arg_t  * args;
+  rozorpc_srv_ctx_t      * rpcCtx;
+  sp_rebuild_stop_ret_t    ret;
+  int                      result;
+  int                      is_fid_faulty;
+  storio_device_mapping_t * fidCtx;
+  int                       rebuildIdx;
+  STORIO_REBUILD_T        * pRebuild;
+    
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeBefore = MICROLONG(timeDay);
+
+  ret.status = SP_FAILURE;          
+  
+  /*
+  ** update statistics
+  */
+  thread_ctx_p->stat.rebStop_count++;
+  
+  rpcCtx = msg->rpcCtx;
+  args   = (sp_rebuild_stop_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_rebuild_stop_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    thread_ctx_p->stat.rebStop_error++ ;   
+    goto out;
+  } 
+
+  /*
+  ** Retrieve the rebuild context from the index hiden in the device field
+  */
+  rebuildIdx = args->rebuild_ref-1;
+  if (rebuildIdx >= MAX_FID_PARALLEL_REBUILD) {
+    ret.sp_rebuild_stop_ret_t_u.error = EIO;
+    severe("Bad rebuild index %d",rebuildIdx); 
+    thread_ctx_p->stat.rebStop_error++ ;   
+    goto out;
+  } 
+  
+  pRebuild = storio_rebuild_ctx_retrieve(fidCtx->storio_rebuild_ref.u8[rebuildIdx],(char*)args->fid);
+  if (pRebuild == NULL) {
+    ret.sp_rebuild_stop_ret_t_u.error = EIO;
+    severe("Bad rebuild context %d",rebuildIdx); 
+    thread_ctx_p->stat.rebStop_error++ ;   
+    goto out;    
+  }
+  
+  // Get the storage for the couple (cid;sid)
+  if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    ret.sp_rebuild_stop_ret_t_u.error = errno;
+    thread_ctx_p->stat.rebStop_badCidSid++ ;   
+    goto out;
+  }  
+
+
+  ret.status = SP_SUCCESS;
+
+  /* 
+  ** well ? Nothing to do
+  */
+  if (pRebuild->old_device == fidCtx->device[pRebuild->chunk]) {
+    goto out;
+  }    
+  
+  /*
+  ** Depending on the rebuild result one has to remove 
+  ** old or new data file
+  */
+  if (args->status == SP_SUCCESS) {   
+
+   /*
+    ** Do not test return code, since the device is probably reachable
+    ** or un writable, and so the unlink will probably fail...
+    */
+    storage_rm_data_chunk(st, pRebuild->old_device, (char*)args->fid, pRebuild->spare, pRebuild->chunk,0/* No errlog*/);        
+    
+    goto out;
+  }  
+  
+  /*
+  ** The rebuild is failed, so let's remove the newly created file 
+  ** and restore the old device 
+  */
+  result = storage_restore_chunk(st, fidCtx->device,(unsigned char*)args->fid, pRebuild->spare, 
+                                 pRebuild->chunk, pRebuild->old_device);
+
+out:           
+  
+  storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+  storio_send_response(thread_ctx_p,msg,0);
+
+ /*
+  ** Update statistics
+  */
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
+  thread_ctx_p->stat.rebStop_time +=(timeAfter-timeBefore);  
+}  
+/*__________________________________________________________________________
+*/
+/**
+*  Rebuild start with chunk reloation on an other device
+
+  @param thread_ctx_p: pointer to the thread context
+  @param msg         : address of the message received
+  
+  @retval: none
+*/
+static inline void storio_disk_rebuild_start(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+  struct timeval     timeDay;
+  unsigned long long timeBefore, timeAfter;
+  storage_t *st = 0;
+  sp_rebuild_start_arg_t * args;
+  rozorpc_srv_ctx_t      * rpcCtx;
+  sp_rebuild_start_ret_t   ret;
+  storio_device_mapping_t * fidCtx;
+  int                       rebuildIdx;
+  STORIO_REBUILD_T        * pRebuild;
+  int                       res;  
+  
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeBefore = MICROLONG(timeDay);
+
+  ret.status = SP_FAILURE;          
+  
+  /*
+  ** update statistics
+  */
+  thread_ctx_p->stat.rebStart_count++;
+  
+  rpcCtx = msg->rpcCtx;
+  args   = (sp_rebuild_start_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+
+  /*
+  ** Retrieve the FID context
+  */
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_rebuild_start_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    thread_ctx_p->stat.rebStart_error++ ;   
+    goto out;
+  } 
+  
+  /*
+  ** Retrieve the rebuild context from the index hiden in the device field
+  */
+  rebuildIdx = args->device;
+  if (rebuildIdx >= MAX_FID_PARALLEL_REBUILD) {
+    ret.sp_rebuild_start_ret_t_u.error = EIO;
+    severe("Bad rebuild index %d",rebuildIdx); 
+    thread_ctx_p->stat.rebStart_error++ ;   
+    goto out;
+  } 
+  
+  pRebuild = storio_rebuild_ctx_retrieve(fidCtx->storio_rebuild_ref.u8[rebuildIdx],(char*)args->fid);
+  if (pRebuild == NULL) {
+    ret.sp_rebuild_start_ret_t_u.error = EIO;
+    severe("Bad rebuild context %d",rebuildIdx); 
+    thread_ctx_p->stat.rebStart_error++ ;   
+    goto out;    
+  }
+
+
+  // Get the storage for the couple (cid;sid)
+  if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    ret.sp_rebuild_start_ret_t_u.error = errno;
+    thread_ctx_p->stat.rebStart_badCidSid++ ;   
+    goto out;
+  }
+  
+  
+  /*
+  ** Remove the device of this chunk, but keep the data on disk
+  */
+  pRebuild->chunk = args->chunk;
+  res = storage_relocate_chunk(st, fidCtx->device,(unsigned char *)args->fid, args->spare, 
+                               args->chunk, &pRebuild->old_device);
+  if (res != 0)  {
+    ret.sp_rebuild_start_ret_t_u.error = errno;
+    thread_ctx_p->stat.rebStart_error++;   
+    goto out;
+  }
+    
+  ret.status = SP_SUCCESS;  
+  ret.sp_rebuild_start_ret_t_u.rebuild_ref = rebuildIdx+1;
+
+out:           
+  storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+  storio_send_response(thread_ctx_p,msg,0);
+
+  /*
+  ** Update statistics
+  */
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
+  thread_ctx_p->stat.rebStart_time +=(timeAfter-timeBefore);  
+}
 /*__________________________________________________________________________
 */
 /**
@@ -205,7 +416,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   /*
   ** update statistics
   */
-  thread_ctx_p->stat.diskRead_count++;
+  thread_ctx_p->stat.read_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_read_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -215,7 +426,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
     ret.sp_read_ret_t_u.error = EIO;
     severe("Bad FID ctx index %d",msg->fidIdx); 
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRead_error++ ;   
+    thread_ctx_p->stat.read_error++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }  
@@ -224,7 +435,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_read_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRead_badCidSid++ ;   
+    thread_ctx_p->stat.read_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -257,9 +468,9 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
             &ret.sp_read_ret_t_u.rsp.file_size, &is_fid_faulty) != 0) 
   {
     ret.sp_read_ret_t_u.error = errno;
-    if (errno == ENOENT)    thread_ctx_p->stat.diskRead_nosuchfile++;
-    else if (!args->spare)  thread_ctx_p->stat.diskRead_error++;
-    else                    thread_ctx_p->stat.diskRead_error_spare++;
+    if (errno == ENOENT)    thread_ctx_p->stat.read_nosuchfile++;
+    else if (!args->spare)  thread_ctx_p->stat.read_error++;
+    else                    thread_ctx_p->stat.read_error_spare++;
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
 				 args->cid,
@@ -274,7 +485,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   ret.status = SP_SUCCESS;  
   msg->size = ret.sp_read_ret_t_u.rsp.bins.bins_len;        
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-  thread_ctx_p->stat.diskRead_Byte_count += ret.sp_read_ret_t_u.rsp.bins.bins_len;
+  thread_ctx_p->stat.read_Byte_count += ret.sp_read_ret_t_u.rsp.bins.bins_len;
   storio_send_response(thread_ctx_p,msg,0);
 
   /*
@@ -282,7 +493,7 @@ static inline void storio_disk_read(rozofs_disk_thread_ctx_t *thread_ctx_p,stori
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->stat.diskRead_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.read_time +=(timeAfter-timeBefore);  
 }
 /*__________________________________________________________________________
 */
@@ -315,7 +526,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   /*
   ** update statistics
   */
-  thread_ctx_p->stat.diskWrite_count++;
+  thread_ctx_p->stat.write_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_write_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -325,7 +536,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
     ret.sp_write_ret_t_u.error = EIO;
     severe("Bad FID ctx index %d",msg->fidIdx); 
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRead_error++ ;   
+    thread_ctx_p->stat.read_error++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }  
@@ -346,7 +557,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
             args->len, size, ruc_buf_getPayloadLen(rpcCtx->xmitBuf), rpcCtx->position);
     ret.sp_write_ret_t_u.error = EPIPE;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskWrite_error++; 
+    thread_ctx_p->stat.write_error++; 
     storio_send_response(thread_ctx_p,msg,-1); 
     return;   
   }
@@ -364,7 +575,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
                args->len, size, args->nb_proj, proj_psize);
        ret.sp_write_ret_t_u.error = EIO;
        storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-       thread_ctx_p->stat.diskWrite_error++; 
+       thread_ctx_p->stat.write_error++; 
        storio_send_response(thread_ctx_p,msg,-1); 
        return;         
      }	        
@@ -375,7 +586,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_write_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskWrite_badCidSid++ ;   
+    thread_ctx_p->stat.write_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -387,7 +598,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
           &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
   if (size <= 0)  {
     ret.sp_write_ret_t_u.error = errno;
-    thread_ctx_p->stat.diskWrite_error++; 
+    thread_ctx_p->stat.write_error++; 
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
 				 args->cid,
@@ -404,7 +615,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   ret.sp_write_ret_t_u.file_size = 0;
            
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-  thread_ctx_p->stat.diskWrite_Byte_count += size;
+  thread_ctx_p->stat.write_Byte_count += size;
   storio_send_response(thread_ctx_p,msg,0);
 
   /*
@@ -412,7 +623,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->stat.diskWrite_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.write_time +=(timeAfter-timeBefore);  
 }    
 /**
 *  Truncate a file
@@ -443,7 +654,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   /*
   ** update statistics
   */
-  thread_ctx_p->stat.diskTruncate_count++;
+  thread_ctx_p->stat.truncate_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_truncate_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -454,7 +665,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
     ret.sp_status_ret_t_u.error = EIO;
     severe("Bad FID ctx index %d",msg->fidIdx); 
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRead_error++ ;   
+    thread_ctx_p->stat.read_error++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }  
@@ -471,7 +682,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskTruncate_badCidSid++ ;   
+    thread_ctx_p->stat.truncate_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -483,7 +694,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
 			    args->len, pbuf, &is_fid_faulty);
   if (result != 0) {
     ret.sp_status_ret_t_u.error = errno;
-    thread_ctx_p->stat.diskTruncate_error++; 
+    thread_ctx_p->stat.truncate_error++; 
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
 				 args->cid,
@@ -504,7 +715,7 @@ static inline void storio_disk_truncate(rozofs_disk_thread_ctx_t *thread_ctx_p,s
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->stat.diskTruncate_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.truncate_time +=(timeAfter-timeBefore);  
 }    
 
 
@@ -534,7 +745,7 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   /*
   ** update statistics
   */
-  thread_ctx_p->stat.diskRemove_count++;
+  thread_ctx_p->stat.remove_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_remove_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -545,7 +756,7 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRemove_badCidSid++ ;   
+    thread_ctx_p->stat.remove_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -556,7 +767,7 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   if (result != 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRemove_error++; 
+    thread_ctx_p->stat.remove_error++; 
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -570,7 +781,7 @@ static inline void storio_disk_remove(rozofs_disk_thread_ctx_t *thread_ctx_p,sto
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->stat.diskRemove_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.remove_time +=(timeAfter-timeBefore);  
 }    
 /**
 *  Remove a chunk file
@@ -599,7 +810,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   /*
   ** update statistics
   */
-  thread_ctx_p->stat.diskRemove_chunk_count++;
+  thread_ctx_p->stat.remove_chunk_count++;
   
   rpcCtx = msg->rpcCtx;
   args   = (sp_remove_chunk_arg_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
@@ -609,7 +820,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
     ret.sp_status_ret_t_u.error = EIO;
     severe("Bad FID ctx index %d",msg->fidIdx); 
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRead_error++ ;   
+    thread_ctx_p->stat.remove_chunk_error++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   } 
@@ -618,7 +829,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
     ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRemove_chunk_badCidSid++ ;   
+    thread_ctx_p->stat.remove_chunk_badCidSid++ ;   
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -635,9 +846,10 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
 				 args->cid,
 				 args->sid,
 				 (uint8_t*)args->fid);
-    }           ret.sp_status_ret_t_u.error = errno;
+    }          
+    ret.sp_status_ret_t_u.error = errno;
     storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRemove_chunk_error++; 
+    thread_ctx_p->stat.remove_chunk_error++; 
     storio_send_response(thread_ctx_p,msg,-1);
     return;
   }
@@ -651,7 +863,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   */
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
-  thread_ctx_p->stat.diskRemove_chunk_time +=(timeAfter-timeBefore);  
+  thread_ctx_p->stat.remove_chunk_time +=(timeAfter-timeBefore);  
 }    
 
 /*
@@ -704,6 +916,14 @@ void *storio_disk_thread(void *arg) {
 	       	
       case STORIO_DISK_THREAD_REMOVE_CHUNK:
         storio_disk_remove_chunk(ctx_p,&msg);
+        break;
+	
+      case STORIO_DISK_REBUILD_START:
+        storio_disk_rebuild_start(ctx_p,&msg);
+        break;
+	
+      case STORIO_DISK_REBUILD_STOP:
+        storio_disk_rebuild_stop(ctx_p,&msg);
         break;
 
       default:

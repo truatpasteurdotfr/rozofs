@@ -458,7 +458,7 @@ def storcliReset (test):
   time.sleep(3)
  
   # Start process that reset the storages
-  string="./IT.py --snipper storcli --mount %s"%(mnt)
+  string="./IT/IT.py --snipper storcli --mount %s"%(mnt)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stderr=subprocess.PIPE)
 
@@ -524,7 +524,7 @@ def storageReset (test):
   
  
   # Start process that reset the storages
-  string="./IT.py --snipper storio --mount %s"%(mnt)
+  string="./IT/IT.py --snipper storio --mount %s"%(mnt)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stderr=subprocess.PIPE)
 
@@ -563,69 +563,69 @@ def snipper (target):
 #___________________________________________________
 def wr_rd_total ():
 #___________________________________________________
-  ret=os.system("./rw -process %d -loop %d -fileSize %d -file %s -total -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  ret=os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -total -mount %s"%(process,loop,fileSize,tst_file,mnt))
   return ret  
 
 #___________________________________________________
 def wr_rd_partial ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -partial -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -partial -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_random ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -random -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -random -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_total_close ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -total -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -total -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_partial_close ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -partial -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -partial -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_random_close ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -random -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -random -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_total ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial ():
 #___________________________________________________
-  ret=os.system("./rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  ret=os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
   return ret 
 
 #___________________________________________________
 def wr_close_rd_random ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_total_close ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial_close ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_random_close ():
 #___________________________________________________
-  return os.system("./rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT/rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def rw2 ():
 #___________________________________________________
-  return os.system("./rw2 -loop %s -file %s/%s"%(loop,mnt,tst_file))
+  return os.system("./IT/rw2 -loop %s -file %s/%s"%(loop,mnt,tst_file))
 
 #___________________________________________________
 def prepare_file_to_read(filename,mega):
@@ -640,39 +640,39 @@ def read_parallel ():
 
   zefile='%s/%s'%(mnt,tst_file)
   prepare_file_to_read(zefile,fileSize) 
-  ret=os.system("./read_parallel -process %s -loop %s -file %s"%(process,loop,zefile)) 
+  ret=os.system("./IT/read_parallel -process %s -loop %s -file %s"%(process,loop,zefile)) 
   return ret   
 
 #___________________________________________________
 def xattr():
 #___________________________________________________
-  return os.system("./test_xattr -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT/test_xattr -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def link():
 #___________________________________________________
-  return os.system("./test_link -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT/test_link -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def readdir():
 #___________________________________________________ 
-  return os.system("./test_readdir -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT/test_readdir -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def rename():
 #___________________________________________________
-  ret=os.system("./test_rename -process %d -loop %d -mount %s"%(process,loop,mnt))
+  ret=os.system("./IT/test_rename -process %d -loop %d -mount %s"%(process,loop,mnt))
   return ret 
 
 #___________________________________________________
 def chmod():
 #___________________________________________________
-  return os.system("./test_chmod -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT/test_chmod -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def truncate():
 #___________________________________________________
-  return os.system("./test_trunc -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT/test_trunc -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def lock_posix_passing():
@@ -682,7 +682,7 @@ def lock_posix_passing():
     os.remove(zefile)
   except:
     pass  
-  return os.system("./test_file_lock -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
+  return os.system("./IT/test_file_lock -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
 
 #___________________________________________________
 def lock_posix_blocking():
@@ -693,7 +693,7 @@ def lock_posix_blocking():
   except:
     pass  
 
-  ret=os.system("./test_file_lock -process %d -loop %d -file %s"%(process,loop,zefile))
+  ret=os.system("./IT/test_file_lock -process %d -loop %d -file %s"%(process,loop,zefile))
   return ret 
 
 #___________________________________________________
@@ -704,7 +704,7 @@ def lock_bsd_passing():
     os.remove(zefile)
   except:
     pass  
-  return os.system("./test_file_lock -process %d -loop %d -file %s -nonBlocking -bsd"%(process,loop,zefile))
+  return os.system("./IT/test_file_lock -process %d -loop %d -file %s -nonBlocking -bsd"%(process,loop,zefile))
 
 
 #___________________________________________________
@@ -723,20 +723,20 @@ def lock_bsd_blocking():
     os.remove(zefile)
   except:
     pass  
-  return os.system("./test_file_lock -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
+  return os.system("./IT/test_file_lock -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
 
 #___________________________________________________
 def gruyere_one_reread():
 # reread files create by test_rebuild utility to check
 # their content
 #___________________________________________________ 
-  return os.system("./test_rebuild -action check -nbfiles %d -mount %s"%(int(nbGruyere),mnt))
+  return os.system("./IT/test_rebuild -action check -nbfiles %d -mount %s"%(int(nbGruyere),mnt))
 #___________________________________________________
 def gruyere_file_reread(nb):
 # reread files create by test_rebuild utility to check
 # their content
 #___________________________________________________ 
-  ret=os.system("./test_rebuild -action check -f %d -mount %s"%(int(nb),mnt))
+  ret=os.system("./IT/test_rebuild -action check -f %d -mount %s"%(int(nb),mnt))
   if ret != 0:
     print "File %s/rebuild/%d is corrupted"%(mnt,f)
   return ret
@@ -757,7 +757,7 @@ def gruyere_reread():
 def gruyere_write():
 # Use test_rebuild utility to create a bunch of files
 #___________________________________________________ 
-  return os.system("./test_rebuild -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
+  return os.system("./IT/test_rebuild -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
 #___________________________________________________
 def gruyere():
 # call gruyere_write that create a bunch of files while
@@ -797,6 +797,29 @@ def rebuild_one_dev() :
       if ret != 0:
 	return ret
             
+    ret = gruyere_one_reread()  
+    if ret != 0:
+      return ret 
+      
+  ret = gruyere_reread()          
+  return ret
+
+#___________________________________________________
+def relocate_one_dev() :
+# test rebuilding device per device
+#___________________________________________________
+
+  ret=1 
+  for idx in range(len(list_sid)):
+
+    hid=list_host[idx]
+    cid=list_cid[idx]
+    sid=list_sid[idx]
+        
+    ret = os.system("./setup.sh storage %d device-relocate %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+    if ret != 0:
+      return ret
+                  
     ret = gruyere_one_reread()  
     if ret != 0:
       return ret 
@@ -955,18 +978,13 @@ def do_compile_program(program):
 def do_compile_programs(): 
 # compile all program if program.c is younger
 #___________________________________________________
-  do_compile_program('./rw')
-  do_compile_program('./rw2')
-  do_compile_program('./read_parallel')
-  do_compile_program('./test_xattr')
-  do_compile_program('./test_link')
-  do_compile_program('./test_readdir')
-  do_compile_program('./test_rename')
-  do_compile_program('./test_chmod')
-  do_compile_program('./test_trunc')
-  do_compile_program('./test_file_lock')
-  do_compile_program('./test_rebuild')
- 
+  dirs=os.listdir("%s/IT"%(os.getcwd()))
+  for file in dirs:
+    if ".c" not in file:
+      continue
+    words=file.split('.')
+    prg=words[0]   
+    do_compile_program("IT/%s"%(prg))
 
 #___________________________________________________
 def do_run_list(list):
@@ -995,7 +1013,7 @@ def do_run_list(list):
   
     tst_num=tst_num+1
     
-    sys.stdout.write( "\r___%4d/%d : %s\n"%(tst_num,total_tst,tst))
+    sys.stdout.write( "\r___%4d/%d : %-40s \n"%(tst_num,total_tst,tst))
 
     dis.new_line()  
     dis.set_column(1,'%s'%(tst_num))
@@ -1126,9 +1144,9 @@ def do_list():
 def usage():
 #___________________________________________________
 
-  print "\n./IT.py -l"
+  print "\n./IT/IT.py -l"
   print "  Display the whole list of tests."
-  print "\n./IT.py [options] [extra] <test name/group> [<test name/group>...]"      
+  print "\n./IT/IT.py [options] [extra] <test name/group> [<test name/group>...]"      
   print "  Runs a test list."
   print "    options:"
   print "      [--speed]          The run 4 times faster tests."
@@ -1142,7 +1160,7 @@ def usage():
   print "      [--count <nb>]     The number of loop that each process will do. (default %s)"%(loop) 
   print "      [--fileSize <nb>]  The size in MB of the file for the test. (default %d)"%(fileSize)   
   print "      [--mount <mount1,mount2,..>]  A comma separated list of mount points. (default %s)"%(mnts) 
-  print "    Test group and names can be displayed thanks to ./IT.py -l"
+  print "    Test group and names can be displayed thanks to ./IT/IT.py -l"
   print "       - all              designate all the tests."
   print "       - rw               designate the read/write test list."
   print "       - storageFailed    designate the read/write test list run when a storage is failed."
@@ -1177,7 +1195,7 @@ TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_r
 # Basic test list
 TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking']
 # Rebuild test list
-TST_REBUILD=['gruyere','rebuild_fid','rebuild_one_dev','rebuild_all_dev','rebuild_one_node']
+TST_REBUILD=['gruyere','rebuild_fid','rebuild_one_dev','relocate_one_dev','rebuild_all_dev','rebuild_one_node']
 
 list_cid=[]
 list_sid=[]

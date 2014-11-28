@@ -147,48 +147,62 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     }   
 
     display_line_topic("Read Requests");  
-    display_line_val("   number", diskRead_count);
-    display_line_val("   No such file",diskRead_nosuchfile);
-    display_line_val("!! Unknown cid/sid",diskRead_badCidSid);  
-    display_line_val("!! error spare",diskRead_error_spare);  
-    display_line_val("!! error",diskRead_error);  
-    display_line_val("   Bytes",diskRead_Byte_count);      
-    display_line_val("   Cumulative Time (us)",diskRead_time);
-    display_line_div("   Average Bytes",diskRead_Byte_count,diskRead_count);  
-    display_line_div("   Average Time (us)",diskRead_time,diskRead_count);
-    display_line_div("   Throughput (MBytes/s)",diskRead_Byte_count,diskRead_time);  
+    display_line_val("   number", read_count);
+    display_line_val("   No such file",read_nosuchfile);
+    display_line_val("!! Unknown cid/sid",read_badCidSid);  
+    display_line_val("!! error spare",read_error_spare);  
+    display_line_val("!! error",read_error);  
+    display_line_val("   Bytes",read_Byte_count);      
+    display_line_val("   Cumulative Time (us)",read_time);
+    display_line_div("   Average Bytes",read_Byte_count,read_count);  
+    display_line_div("   Average Time (us)",read_time,read_count);
+    display_line_div("   Throughput (MBytes/s)",read_Byte_count,read_time);  
 
     display_line_topic("Write Requests");  
-    display_line_val("   number", diskWrite_count);
-    display_line_val("!! Unknown cid/sid",diskWrite_badCidSid);  
-    display_line_val("!! error",diskWrite_error);  
-    display_line_val("   Bytes",diskWrite_Byte_count);      
-    display_line_val("   Cumulative Time (us)",diskWrite_time);
-    display_line_div("   Average Bytes",diskWrite_Byte_count,diskWrite_count); 
-    display_line_div("   Average Time (us)",diskWrite_time,diskWrite_count);
-    display_line_div("   Throughput (MBytes/s)",diskWrite_Byte_count,diskWrite_time);  
+    display_line_val("   number", write_count);
+    display_line_val("!! Unknown cid/sid",write_badCidSid);  
+    display_line_val("!! error",write_error);  
+    display_line_val("   Bytes",write_Byte_count);      
+    display_line_val("   Cumulative Time (us)",write_time);
+    display_line_div("   Average Bytes",write_Byte_count,write_count); 
+    display_line_div("   Average Time (us)",write_time,write_count);
+    display_line_div("   Throughput (MBytes/s)",write_Byte_count,write_time);  
 
     display_line_topic("Truncate Requests");  
-    display_line_val("   number", diskTruncate_count);
-    display_line_val("!! Unknown cid/sid",diskTruncate_badCidSid);  
-    display_line_val("!! error",diskTruncate_error);  
-    display_line_val("   Cumulative Time (us)",diskTruncate_time);
-    display_line_div("   Average Time (us)",diskTruncate_time,diskTruncate_count);
+    display_line_val("   number", truncate_count);
+    display_line_val("!! Unknown cid/sid",truncate_badCidSid);  
+    display_line_val("!! error",truncate_error);  
+    display_line_val("   Cumulative Time (us)",truncate_time);
+    display_line_div("   Average Time (us)",truncate_time,truncate_count);
 
     display_line_topic("Remove Requests");  
-    display_line_val("   number", diskRemove_count);
-    display_line_val("!! Unknown cid/sid",diskRemove_badCidSid);  
-    display_line_val("!! error",diskRemove_error);  
-    display_line_val("   Cumulative Time (us)",diskRemove_time);
-    display_line_div("   Average Time (us)",diskRemove_time,diskRemove_count);  
+    display_line_val("   number", remove_count);
+    display_line_val("!! Unknown cid/sid",remove_badCidSid);  
+    display_line_val("!! error",remove_error);  
+    display_line_val("   Cumulative Time (us)",remove_time);
+    display_line_div("   Average Time (us)",remove_time,remove_count);  
   
     display_line_topic("Remove chunk Requests");  
-    display_line_val("   number", diskRemove_chunk_count);
-    display_line_val("!! Unknown cid/sid",diskRemove_chunk_badCidSid);  
-    display_line_val("!! error",diskRemove_chunk_error);  
-    display_line_val("   Cumulative Time (us)",diskRemove_chunk_time);
-    display_line_div("   Average Time (us)",diskRemove_chunk_time,diskRemove_chunk_count);  
+    display_line_val("   number", remove_chunk_count);
+    display_line_val("!! Unknown cid/sid",remove_chunk_badCidSid);  
+    display_line_val("!! error",remove_chunk_error);  
+    display_line_val("   Cumulative Time (us)",remove_chunk_time);
+    display_line_div("   Average Time (us)",remove_chunk_time,remove_chunk_count);  
 
+    display_line_topic("Start rebuild Requests");  
+    display_line_val("   number", rebStart_count);
+    display_line_val("!! Unknown cid/sid",rebStart_badCidSid);  
+    display_line_val("!! error",rebStart_error);  
+    display_line_val("   Cumulative Time (us)",rebStart_time);
+    display_line_div("   Average Time (us)",rebStart_time,rebStart_count);  
+
+    display_line_topic("Stop rebuild Requests");  
+    display_line_val("   number", rebStop_count);
+    display_line_val("!! Unknown cid/sid",rebStop_badCidSid);  
+    display_line_val("!! error",rebStop_error);  
+    display_line_val("   Cumulative Time (us)",rebStop_time);
+    display_line_div("   Average Time (us)",rebStop_time,rebStop_count);  
+ 
     display_line_topic("");  
     pChar += sprintf(pChar,"\n");
   }
@@ -308,83 +322,80 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
   struct timeval                 tv;  
   rpcCtx = msg->rpcCtx;
   opcode = msg->opcode;
-  tic    = msg->timeStart;
+  tic    = msg->timeStart; 
+  void * fid = NULL;
 
   switch (opcode) {
   
     case STORIO_DISK_THREAD_READ:
       STOP_PROFILING_IO(read,msg->size);
-      sp_read_arg_t * read_arg_p = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      dev_map_p = storio_device_mapping_search(read_arg_p->fid);
-      if (dev_map_p != NULL) { 
-	/*
-	** Send waiting request if any
-	*/
-	storio_serialization_end(dev_map_p,rpcCtx) ;
-      }			
+      fid = &((sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid;
       update_read_detailed_counters(toc - tic);      
       break;
 
     case STORIO_DISK_THREAD_WRITE:
       STOP_PROFILING_IO(write,msg->size);
-      sp_write_arg_t * write_arg_p = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      dev_map_p = storio_device_mapping_search(write_arg_p->fid);
-
-      if (dev_map_p != NULL) { 
-	/*
-	** Send waiting request if any
-	*/
-	storio_serialization_end(dev_map_p,rpcCtx) ;
-      }	 
+      fid = &((sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid;
       update_write_detailed_counters(toc - tic);            
       break;     
 
     case STORIO_DISK_THREAD_TRUNCATE:
       STOP_PROFILING(truncate);
-      sp_truncate_arg_t * truncate_arg_p = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      dev_map_p = storio_device_mapping_search(truncate_arg_p->fid);
-      if (dev_map_p != NULL) { 
-	/*
-	** Send waiting request if any
-	*/
-	storio_serialization_end(dev_map_p,rpcCtx) ;
-      }	       	            
+      fid = &((sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid;       	            
       break;   
       
     case STORIO_DISK_THREAD_REMOVE:
       STOP_PROFILING(remove);
-      sp_remove_arg_t * remove_arg_p = (sp_remove_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      dev_map_p = storio_device_mapping_search(remove_arg_p->fid);
-      if (dev_map_p != NULL) { 
-	/*
-	** Send waiting request if any
-	*/
-	storio_serialization_end(dev_map_p,rpcCtx) ;
-      }        
+      fid = &((sp_remove_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid;       	                   
       break; 
       
     case STORIO_DISK_THREAD_REMOVE_CHUNK:
       STOP_PROFILING(remove_chunk);
-      sp_remove_chunk_arg_t * remove_chunk_arg_p = (sp_remove_chunk_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      dev_map_p = storio_device_mapping_search(remove_chunk_arg_p->fid);
-      if (dev_map_p != NULL) { 
-	/*
-	** Send waiting request if any
-	*/
-	storio_serialization_end(dev_map_p,rpcCtx) ;
-      }        
+      fid = &((sp_remove_chunk_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid;       	                          
       break;    
-           
+      
+    case STORIO_DISK_REBUILD_START:
+      STOP_PROFILING(rebuild_start);
+      fid = &((sp_rebuild_start_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid;       	                                 
+      break; 
+      
+    case STORIO_DISK_REBUILD_STOP:
+      fid = &((sp_rebuild_stop_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg))->fid; 
+      dev_map_p = storio_device_mapping_search(fid); 
+      if (dev_map_p != NULL) {
+        sp_rebuild_stop_response(dev_map_p, rpcCtx);
+      }
+      else {
+        severe("STORIO_DISK_REBUILD_STOP");
+      }	
+      STOP_PROFILING(rebuild_stop);      
+      break;                  
+      
     default:
       severe("Unexpected opcode %d", opcode);
   }
-  
+
   /*
-  ** Put the FID context in the correct list
-  ** (i.e running or inactive list)
+  ** Rtrieve FID context
   */
-  storio_device_mapping_ctx_evaluate(dev_map_p);  
-     
+  if (dev_map_p == NULL) dev_map_p = storio_device_mapping_search(fid);
+  
+  if (dev_map_p == NULL) {
+    severe("Missing context");
+  }
+  else { 
+    /*
+    ** Send waiting request if any
+    */
+    storio_serialization_end(dev_map_p,rpcCtx) ;	
+        
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);  
+  } 
+    
   /*
   ** send the response towards the storcli process that initiates the disk operation
   */

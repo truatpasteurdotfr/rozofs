@@ -244,7 +244,9 @@ out:
         xdr_free((xdrproc_t) xdr_sp_status_ret_t, (char *) ret);
     return status;
 }
-uint32_t sclient_rebuild_start_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, uint64_t block_start, uint64_t block_stop) {
+uint32_t sclient_rebuild_start_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, 
+                                   sp_device_e device, uint8_t chunk, uint8_t spare,
+				   uint64_t block_start, uint64_t block_stop) {
     uint32_t                ref = 0;
     sp_rebuild_start_ret_t *ret = 0;
     sp_rebuild_start_arg_t  args;
@@ -254,6 +256,9 @@ uint32_t sclient_rebuild_start_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t 
     // Fill request
     args.cid = cid;
     args.sid = sid;
+    args.device    = device;
+    args.chunk     = chunk; /* Only valid when device is SP_NEW_DEVICE */
+    args.spare     = spare; /* Only valid when device is SP_NEW_DEVICE */    
     args.start_bid = block_start;
     args.stop_bid  = block_stop;
     memcpy(args.fid, fid, sizeof (fid_t));
@@ -280,7 +285,7 @@ out:
         xdr_free((xdrproc_t) xdr_sp_rebuild_start_ret_t, (char *) ret);
     return ref;
 }
-int sclient_rebuild_stop_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, uint32_t ref) {
+int sclient_rebuild_stop_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, uint32_t ref, sp_status_t result) {
     int status = -1;
     sp_rebuild_stop_ret_t *ret = 0;
     sp_rebuild_stop_arg_t args;
@@ -291,6 +296,7 @@ int sclient_rebuild_stop_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, u
     args.cid = cid;
     args.sid = sid;
     args.rebuild_ref = ref;
+    args.status      = result;
     memcpy(args.fid, fid, sizeof (fid_t));
 
     if (!(clt->rpcclt.client) ||

@@ -34,34 +34,44 @@
 #include "storio_device_mapping.h"
 
 typedef struct _rozofs_disk_thread_stat_t {
-  uint64_t            diskRead_count;
-  uint64_t            diskRead_Byte_count;
-  uint64_t            diskRead_error;
-  uint64_t            diskRead_error_spare;  
-  uint64_t            diskRead_nosuchfile;
-  uint64_t            diskRead_badCidSid;
-  uint64_t            diskRead_time;
+  uint64_t            read_count;
+  uint64_t            read_Byte_count;
+  uint64_t            read_error;
+  uint64_t            read_error_spare;  
+  uint64_t            read_nosuchfile;
+  uint64_t            read_badCidSid;
+  uint64_t            read_time;
   
-  uint64_t            diskWrite_count;
-  uint64_t            diskWrite_Byte_count;
-  uint64_t            diskWrite_error;
-  uint64_t            diskWrite_badCidSid;  
-  uint64_t            diskWrite_time;
+  uint64_t            write_count;
+  uint64_t            write_Byte_count;
+  uint64_t            write_error;
+  uint64_t            write_badCidSid;  
+  uint64_t            write_time;
 
-  uint64_t            diskTruncate_count;
-  uint64_t            diskTruncate_error;
-  uint64_t            diskTruncate_badCidSid;  
-  uint64_t            diskTruncate_time;  
+  uint64_t            truncate_count;
+  uint64_t            truncate_error;
+  uint64_t            truncate_badCidSid;  
+  uint64_t            truncate_time;  
 
-  uint64_t            diskRemove_count;
-  uint64_t            diskRemove_error;
-  uint64_t            diskRemove_badCidSid;  
-  uint64_t            diskRemove_time;  
+  uint64_t            remove_count;
+  uint64_t            remove_error;
+  uint64_t            remove_badCidSid;  
+  uint64_t            remove_time;  
   
-  uint64_t            diskRemove_chunk_count;
-  uint64_t            diskRemove_chunk_error;
-  uint64_t            diskRemove_chunk_badCidSid;  
-  uint64_t            diskRemove_chunk_time;  
+  uint64_t            remove_chunk_count;
+  uint64_t            remove_chunk_error;
+  uint64_t            remove_chunk_badCidSid;  
+  uint64_t            remove_chunk_time;  
+  
+  uint64_t            rebStart_count;
+  uint64_t            rebStart_error;
+  uint64_t            rebStart_badCidSid;  
+  uint64_t            rebStart_time;
+  
+  uint64_t            rebStop_count;
+  uint64_t            rebStop_error;
+  uint64_t            rebStop_badCidSid;  
+  uint64_t            rebStop_time;
 
 } rozofs_disk_thread_stat_t;
 /*
@@ -87,7 +97,9 @@ typedef enum _storio_disk_thread_request_e {
   STORIO_DISK_THREAD_WRITE,
   STORIO_DISK_THREAD_TRUNCATE,
   STORIO_DISK_THREAD_REMOVE,
-  STORIO_DISK_THREAD_REMOVE_CHUNK, 
+  STORIO_DISK_THREAD_REMOVE_CHUNK,
+  STORIO_DISK_REBUILD_START,
+  STORIO_DISK_REBUILD_STOP,
   STORIO_DISK_THREAD_MAX_OPCODE
 } storio_disk_thread_request_e;
 

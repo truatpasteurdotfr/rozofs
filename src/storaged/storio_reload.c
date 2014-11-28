@@ -41,14 +41,14 @@ char * storaged_hostname = NULL;
  * @param nb: Number of entries.
  * @param v: table of storages configurations to rebuild.
  */
-int send_reload_to_storio() {
+int send_reload_to_storio(int from, int to) {
   char pid_file[128];
   int fd;
   int ret;
   int pid;
   int i;
 
-  for (i=0; i< 16; i++) {
+  for (i=from; i<= to; i++) {
 
     if (storaged_hostname != NULL) {
 	sprintf(pid_file, "%s%s_%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname,i);
@@ -83,15 +83,19 @@ void usage() {
     printf("Usage: storio_reload [OPTIONS]\n\n");
     printf("   -h, --help\t\t\tprint this message.\n");
     printf("   -H, --host=storaged-host\tspecify the hostname of the storio to reload\n"); 
-    printf("                           \t(default: none).\n");   
+    printf("   -i, --instance=<cluster>\tspecify the cluster of the storio to reload\n"); 
+    printf("                           \t(default: every cluster).\n");   
 }
 
 int main(int argc, char *argv[]) {
     int c;
+    int from=0;
+    int to=255;
     
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "host", required_argument, 0, 'H'},	
+        { "instance", required_argument, 0, 'i'},
         { 0, 0, 0, 0}
     };
 
@@ -100,7 +104,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:i:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -118,13 +122,23 @@ int main(int argc, char *argv[]) {
                 usage();
                 exit(EXIT_SUCCESS);
                 break;
+	    case 'i':	
+                errno = 0;
+                from = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                to = from;	
+		break;
             default:
                 usage();
                 exit(EXIT_FAILURE);
                 break;
         }
     }
-    if (send_reload_to_storio()==0) {
+    if (send_reload_to_storio(from,to)==0) {
       exit(EXIT_SUCCESS);
     }
     exit(EXIT_FAILURE);

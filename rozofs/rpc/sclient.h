@@ -25,6 +25,7 @@
 #include <rozofs/rozofs.h>
 
 #include "rpcclt.h"
+#include "sproto.h"
 
 typedef struct sclient {
     char host[ROZOFS_HOSTNAME_MAX];
@@ -51,8 +52,10 @@ int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint
         sid_t dist_set[ROZOFS_SAFE_MAX], fid_t fid, bid_t bid,
         uint32_t nb_proj, uint32_t * nb_proj_recv, bin_t * bins);
 	
-uint32_t sclient_rebuild_start_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid,uint64_t block_start, uint64_t block_end) ;
-int sclient_rebuild_stop_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, uint32_t ref) ;
+uint32_t sclient_rebuild_start_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, 
+                                   sp_device_e device, uint8_t chunk, uint8_t spare,
+				   uint64_t block_start, uint64_t block_stop);
+int sclient_rebuild_stop_rbs(sclient_t * clt, cid_t cid, sid_t sid, fid_t fid, uint32_t ref, sp_status_t status);
 int sclient_remove_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, fid_t fid) ;
 int sclient_remove_chunk_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint8_t spare, uint32_t bsize,
                                sid_t dist_set[ROZOFS_SAFE_MAX], 

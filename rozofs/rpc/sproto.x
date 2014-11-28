@@ -129,10 +129,17 @@ struct sp_remove_chunk_arg_t {
     uint32_t    chunk;
 };
 
+enum sp_device_e {
+    SP_SAME_DEVICE = 0,
+    SP_NEW_DEVICE  = 1
+};
 struct sp_rebuild_start_arg_t {
     uint16_t    cid;
     uint8_t     sid;
     sp_uuid_t   fid;
+    sp_device_e device;
+    uint8_t     chunk; /* valid when SP_NEW_DEVICE is set */
+    uint8_t     spare; /* valid when SP_NEW_DEVICE is set */
     uint64_t    start_bid;
     uint64_t    stop_bid;
 };
@@ -147,6 +154,7 @@ struct sp_rebuild_stop_arg_t {
     uint16_t    cid;
     uint8_t     sid;
     sp_uuid_t   fid;
+    sp_status_t status;
     uint32_t    rebuild_ref;
 };
 

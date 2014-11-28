@@ -33,7 +33,7 @@
 
 
 
-#define DEFAULT_PARALLEL_REBUILD_PER_SID 8
+#define DEFAULT_PARALLEL_REBUILD_PER_SID 3
 #define MAXIMUM_PARALLEL_REBUILD_PER_SID 16
 
 
@@ -86,6 +86,7 @@ typedef struct rb_cluster {
  *
  */
 char * get_rebuild_directory_name() ;
+char * get_rebuild_sid_directory_name(int cid, int sid) ;
 /** Init connections for storage members of a given cluster but not for the 
  *  storage with sid=sid
  *
@@ -113,10 +114,10 @@ int rbs_get_rb_entry_cnts(rb_entry_t * rb_entry,
  * @param cluster_entries: list of cluster(s).
  */
 void rbs_release_cluster_list(list_t * cluster_entries);
-/** Remove empty rebuild list files 
+/** Remove every file in a directory 
  *
  */
-int rbs_do_remove_lists();
+int rbs_empty_dir(char * dirname) ;
 /** Check if the storage is present on cluster list
  *
  * @param cluster_entries: list of cluster(s).

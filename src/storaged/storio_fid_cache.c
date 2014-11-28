@@ -99,7 +99,6 @@ void storio_fid_cache_init_lowest_arrays() {
   }
 }
 /*
-/*
 **______________________________________________________________________________
 ** Insert a FID context reference in the cache 
 ** 
@@ -413,7 +412,6 @@ static inline uint32_t storio_fid_cache_searchOrRemove(uint32_t hash, void * key
 uint32_t storio_fid_cache_search(uint32_t hash, void * key) {
  return storio_fid_cache_searchOrRemove(hash, key, 1);
 }
-/*
 /*
 **______________________________________________________________________________
 ** Remove a FID context reference from the cache 

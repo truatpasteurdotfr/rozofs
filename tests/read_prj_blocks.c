@@ -60,6 +60,7 @@
 #include "rbs_eclient.h"
 
 int layout = 0;
+int firstBlock = 0;
 char * filename[128] = {NULL};
 int    fd[128] = {-1};
 
@@ -70,49 +71,48 @@ int    bbytes=-1;
 
 
 #define HEXDUMP_COLS 16
-void hexdump(void *mem, unsigned int offset, unsigned int len)
-{
-        unsigned int i, j;
-        
-        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
-        {
-                /* print offset */
-                if(i % HEXDUMP_COLS == 0)
-                {
-                        printf("0x%06x: ", i+offset);
-                }
- 
-                /* print hex data */
-                if(i < len)
-                {
-                        printf("%02x ", 0xFF & ((char*)mem)[i+offset]);
-                }
-                else /* end of block, just aligning for ASCII dump */
-                {
-                        printf("   ");
-                }
-                
-                /* print ASCII dump */
-                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
-                {
-                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
-                        {
-                                if(j >= len) /* end of block, not really printing */
-                                {
-                                        putchar(' ');
-                                }
-                                else if(isprint(((char*)mem)[j+offset])) /* printable char */
-                                {
-                                        putchar(0xFF & ((char*)mem)[j+offset]);        
-                                }
-                                else /* other char */
-                                {
-                                        putchar('.');
-                                }
-                        }
-                        putchar('\n');
-                }
+void hexdump(int blk, int prj, char * msg,void *mem, unsigned int offset, unsigned int len) {
+  FILE * fd;
+  unsigned int i, j;
+  char fname[128];
+  
+  sprintf(fname,"b%d_sid%d.txt", blk, prj);
+  fd = fopen(fname,"w");
+  printf("%s\n",fname);
+  fprintf(fd,"%s\n",msg);
+
+  for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++) {
+          /* print offset */
+    if(i % HEXDUMP_COLS == 0) {
+      fprintf(fd,"0x%06x: ", i+offset);
+    }
+
+    /* print hex data */
+    if(i < len) {
+      fprintf(fd,"%02x ", 0xFF & ((char*)mem)[i+offset]);
+    }
+    else /* end of block, just aligning for ASCII dump */{
+      fprintf(fd,"%s","   ");
+    }
+
+    /* print ASCII dump */
+    if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1)) {
+      for(j = i - (HEXDUMP_COLS - 1); j <= i; j++) {
+        if(j >= len) /* end of block, not really printing */{
+          fprintf(fd,"%c",' ');
         }
+        else if(isprint(((char*)mem)[j+offset])) /* printable char */{
+	  fprintf(fd,"%c",0xFF & ((char*)mem)[j+offset]);        
+        }
+        else /* other char */{
+          fprintf(fd,"%c",'.');
+        }
+      }	
+      fprintf(fd,"%c",'\n');
+    }
+  }
+  
+  fclose(fd);
 }
 
 
@@ -175,7 +175,7 @@ int read_data_file() {
       count = 0;
       
       p = &LINE[0];
-      p += sprintf(p,"| %4d | %8d |",block_idx,block_idx*bbytes);
+      p += sprintf(p,"| %4d | %8d |",block_idx+firstBlock,(block_idx+firstBlock)*bbytes);
 
       for (idx=0; idx < nb_file; idx++) {
       
@@ -265,13 +265,15 @@ int read_data_file() {
 	   printf("Can not read block %d of %s\n", block_number, filename[idx]);       
        }
        else {
+           char msg[256];
        	   rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;   
 	   if (rozofs_bins_hdr_p->s.timestamp == 0) {
-	     printf("Block %d of %s is a whole\n", block_number, filename[idx]);
+	     sprintf(msg,"%s Block %d is a whole\n", filename[idx], block_number);
+	     hexdump(block_number,idx,msg, NULL, 0, 0);
 	   }
 	   else {
-	     printf("Size %d Block %d of %s\n",disk_block_size, block_number, filename[idx]);	     
-	     hexdump(rozofs_bins_hdr_p, 0, disk_block_size);   
+	     sprintf(msg,"%s Block %d size %d\n",filename[idx],block_number,  disk_block_size);	     
+	     hexdump(block_number,idx,msg,rozofs_bins_hdr_p, 0, disk_block_size);   
            }		  
        }
 
@@ -306,6 +308,7 @@ void usage() {
     printf("      NULL to tell the file is not present\n");
     printf("   -l, --layout=<layout> \tThe data file layout.\n"); 
     printf("   -b, --bsize=<block size>\tThe data block size (default %d)\n",bsize); 
+    printf("   -c, --chunk=<chunk index>\tThe chunk number\n");
     printf("   -n, --blockNumber=<block#>  \tThe block number to dump.\n");   
 }
 
@@ -317,6 +320,7 @@ int main(int argc, char *argv[]) {
         { "file", required_argument, 0, 'f'},	
         { "layout", required_argument, 0, 'l'},	
         { "bsize", required_argument, 0, 'b'},	
+        { "chunk", required_argument, 0, 'c'},	
         { "blockNumber", required_argument, 0, 'n'},	
         { 0, 0, 0, 0}
     };
@@ -329,7 +333,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:f:l:b:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:f:l:b:c:n:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -355,6 +359,17 @@ int main(int argc, char *argv[]) {
                   }
 		}
 		break;
+            case 'c':
+	        {
+		  int ret;
+                  ret = sscanf(optarg,"%d", &firstBlock);
+                  if (ret <= 0) { 
+                      fprintf(stderr, "dataReader failed. Bad chunk number: %s %s\n", optarg,
+                              strerror(errno));
+                      exit(EXIT_FAILURE);
+                  }
+		}
+		break;		
             case 'n':
 	        {
 		  int ret;
@@ -403,6 +418,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "bad block size: %d\n", bsize);
         exit(EXIT_FAILURE);
     }
+    firstBlock *= ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(bsize);
 
     // Start rebuild storage   
     if (read_data_file() != 0) goto error;

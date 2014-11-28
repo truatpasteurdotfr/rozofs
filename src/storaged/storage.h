@@ -62,7 +62,7 @@
 #define MAX_REBUILD_ENTRIES 60
 
 #define STORIO_PID_FILE "storio"
-#define TIME_BETWEEN_2_RB_ATTEMPS 30
+#define TIME_BETWEEN_2_RB_ATTEMPS 60
 
 
 
@@ -156,6 +156,7 @@ typedef struct _rozofs_rebuild_header_file_t {
   int           site;
   storage_t     storage;
   uint8_t       layout;
+  uint8_t       device;
 } rozofs_rebuild_header_file_t;
  
 typedef struct _rozofs_rebuild_entry_file_t {
@@ -163,7 +164,7 @@ typedef struct _rozofs_rebuild_entry_file_t {
     uint8_t layout; ///< layout used for this file.
     uint8_t bsize;
     uint8_t todo:1;  
-    uint8_t unlink:1;  
+    uint8_t relocate:1;  
     sid_t dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes
     uint32_t  block_start; // Starting block to rebuild from 
     uint32_t  block_end;   // Last block to rebuild
@@ -352,7 +353,16 @@ static inline int storage_build_bins_path(char * path,
    return sprintf(path, "%s/%d/bins_%u/%d/", root_path, device, spare, slice);  
 #endif   
 } 
-
+/** Remove a chunk of data without modifying the header file 
+ *
+ * @param st: the storage where the data file resides
+ * @param device: device where the data file resides
+ * @param fid: the fid of the file 
+ * @param spare: wheteher this is a spare file
+ * @param chunk: The chunk number that has to be removed
+ * @param errlog: whether an log is to be send on error
+ */
+int storage_rm_data_chunk(storage_t * st, uint8_t device, fid_t fid, uint8_t spare, uint8_t chunk, int errlog) ;
 /** Compute the 
  *
  * @param fid: FID of the file
@@ -703,8 +713,23 @@ static inline int storage_read(storage_t * st, uint8_t * device, uint8_t layout,
     return 0;
 
 }
-
-
+/** Relocate a chunk on a new device in a process of rebuild. 
+ *  This just consist in changing in the file distribution the 
+ *  chunk to empty, but not removing the data in order to be 
+ *  able to restore it later when the rebuild fails...
+ * 
+ * @param st: the storage to use.
+ * @param device: Array of device allocated for the 128 chunks
+ * @param fid: unique file id.
+ * @param spare: indicator on the status of the projection.
+ * @param chunk: the chunk that is to be rebuilt with relocate
+ * @param old_device: to return the old device value 
+ * 
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int storage_relocate_chunk(storage_t * st, uint8_t * device,fid_t fid, uint8_t spare, 
+                           uint8_t chunk, uint8_t * old_device);
+			   
 /** Truncate a bins file (not used yet)
  *
  * @param st: the storage to use.

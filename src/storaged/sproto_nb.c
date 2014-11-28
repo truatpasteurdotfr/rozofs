@@ -649,62 +649,70 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
     req_ctx_p->recv_buf = NULL;
     
     /*
-    ** Lookup in the FID cache
+    ** Lookup in the FID cache for the FID context
     */ 
     dev_map_p = storio_device_mapping_search(rebuild_start_arg_p->fid);
     if (dev_map_p == NULL) { 
-      
+      /*
+      ** Missing ! Create one entry
+      */
       dev_map_p = storio_device_mapping_insert (rebuild_start_arg_p->fid);
       if (dev_map_p == NULL) { 
         errno = ENOMEM;      
         goto error;
       }
     }  
-
     
     /*
     ** Get current time in sec 
     */
     ts = time(NULL);
 
-
     /*
     ** Check for compatibility with the already running rebuilds
     */    
     for (nb_rebuild=0; nb_rebuild < MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
 
-      /* This context is free */
       storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
+
+      /* This context is free */
       if (storio_rebuild_ref == 0xFF) {
-        selected_index = nb_rebuild;
+        selected_index = nb_rebuild; // This entry can be used
 	continue;
       }
 
       /*
-      ** Retrieve the rebuild context  
+      ** Retrieve the rebuild context from its index 
       */
       pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)dev_map_p->fid);
       if (pRebuild == NULL) {
 	/* This context is not allocated for this FID */
-	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
-	selected_index = nb_rebuild;
+	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF; // reset entry
+	selected_index = nb_rebuild;                         // This entry can be used
         continue;
       }
 
       /*
       ** Check the time stamp
       */
-      if ((ts - pRebuild->rebuild_ts) > 25) {
-	/* More than 25 sec of inactivity */
-	storio_rebuild_ctx_free(pRebuild);
-	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF; 
-	selected_index = nb_rebuild;
+      uint32_t delay;
+      if (pRebuild->spare) delay = 5*60;
+      else                 delay = 20;
+      if ((ts - pRebuild->rebuild_ts) > delay) {
+      
+	/* The context is inactive for a too long time */
+	storio_rebuild_ctx_aborted(pRebuild,ts - pRebuild->rebuild_ts);
+	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;  // reset entry
+	selected_index = nb_rebuild;                          // This entry can be used
         continue;
       } 
 
+      /*
+      ** Check overlapping of the area to rebuild
+      */
       if ((rebuild_start_arg_p->start_bid <= pRebuild->stop_block)
       &&  (rebuild_start_arg_p->stop_bid >=  pRebuild->start_block)) {
-	/* Some rebuilds overlap. Incompatible entries */
+	/* Those rebuilds overlap => refuse new rebuild */
 	errno = EBUSY;
 	goto error;        
       }           
@@ -712,7 +720,7 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
         
 
     if (selected_index == -1) {
-      /* All FID entries are active. Can not start a new rebuild on this FID */      
+      /* All FID rebuild entries are active. Can not start a new rebuild on this FID */      
       errno = EBUSY;
       goto error;
     }  	      
@@ -731,18 +739,49 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
     pRebuild->rebuild_ts    = ts;
     pRebuild->start_block   = rebuild_start_arg_p->start_bid;
     pRebuild->stop_block    = rebuild_start_arg_p->stop_bid;
+    pRebuild->spare         = rebuild_start_arg_p->spare;
     memcpy(pRebuild->fid,rebuild_start_arg_p->fid,sizeof(fid_t));
-       
+
     dev_map_p->storio_rebuild_ref.u8[selected_index] = pRebuild->ref;
-	           
-    ret.status                               = SP_SUCCESS;            
-    ret.sp_rebuild_start_ret_t_u.rebuild_ref = selected_index+1;
-    goto send_response;   
+        
+    /*
+    ** In case the same device is to be used, just send 
+    ** the response back to the rebuilder
+    */
+    if (rebuild_start_arg_p->device == SP_SAME_DEVICE) {
+      pRebuild->relocate = 0;          
+      ret.status                               = SP_SUCCESS;            
+      ret.sp_rebuild_start_ret_t_u.rebuild_ref = selected_index+1;
+      goto send_response;       
+    }
+    
+    pRebuild->relocate = 1;          
+    	    
+    /*
+    ** A new device has to be choosen to replace the previous one.
+    ** let's send the request to disk threads for this job
+    */
+    req_ctx_p->opcode = STORIO_DISK_REBUILD_START;
+    
+    /* !!! Dirty Hiding of the selected context index !!! */
+    rebuild_start_arg_p->device = selected_index;
+        
+    /*
+    ** If any request is already running, chain this request on the FID context
+    */
+    if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
+      goto out;
+    }  
+    
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
+      goto out;
+    }
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
+    
     
 error:
     ret.status                         = SP_FAILURE;            
     ret.sp_rebuild_start_ret_t_u.error = errno;
-    goto send_response;
     
 send_response:    
     rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
@@ -750,14 +789,15 @@ send_response:
     ** release the context
     */
     rozorpc_srv_release_context(req_ctx_p);
-    STOP_PROFILING(rebuild_start);
-    
+    STOP_PROFILING(rebuild_start);    
+ 
+out:
     /*
     ** Put the FID context in the correct list
     ** (i.e running or inactive list)
     */
-    storio_device_mapping_ctx_evaluate(dev_map_p);    
-    return ;
+    storio_device_mapping_ctx_evaluate(dev_map_p);
+    return;        
 }
 /*
 **___________________________________________________________
@@ -812,17 +852,41 @@ void sp_rebuild_stop_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
       goto error;
     }
 	 
-    storio_rebuild_ctx_free (pRebuild);
-    dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;    
-	           
-    ret.status                              = SP_SUCCESS;            
-    ret.sp_rebuild_stop_ret_t_u.rebuild_ref = rebuild_stop_arg_p->rebuild_ref;
-    goto send_response;   
+    /*
+    ** In caase no relocation has been done, just send back the response
+    */	 
+    if (pRebuild->relocate == 0) {
+    	           
+      storio_rebuild_ctx_free (pRebuild);
+      dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;    
+
+      ret.status                              = SP_SUCCESS;            
+      ret.sp_rebuild_stop_ret_t_u.rebuild_ref = rebuild_stop_arg_p->rebuild_ref;
+      goto send_response;   
+      
+    }	 
+	 
+    /*
+    ** When relocation was requested one has to delete
+    ** either old or new data file
+    */
+    req_ctx_p->opcode = STORIO_DISK_REBUILD_STOP;
+    
+    /*
+    ** If any request is already running, chain this request on the FID context
+    */
+    if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
+      goto out;
+    }  
+    
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
+      goto out;
+    }
+    severe("storio_disk_thread_intf_send %s", strerror(errno));	  
     
 error:
     ret.status                        = SP_FAILURE;            
     ret.sp_rebuild_stop_ret_t_u.error = EAGAIN;
-    goto send_response;
     
 send_response:    
     rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
@@ -831,12 +895,57 @@ send_response:
     */
     rozorpc_srv_release_context(req_ctx_p);
     STOP_PROFILING(rebuild_stop);
-    
+
+out:    
     /*
     ** Put the FID context in the correct list
     ** (i.e running or inactive list)
     */
     storio_device_mapping_ctx_evaluate(dev_map_p);   
+    return ;
+}
+/*
+**___________________________________________________________
+** Recevive stop response from disk thread
+*/
+void sp_rebuild_stop_response(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    storio_device_mapping_t       * dev_map_p = (storio_device_mapping_t*) pt;
+    sp_rebuild_stop_arg_t         * rebuild_stop_arg_p;
+    uint8_t                         nb_rebuild;
+    uint8_t                         storio_rebuild_ref;
+    STORIO_REBUILD_T              * pRebuild;
+            
+    /*
+    ** Check for compatibility with the already running rebuilds
+    */    
+    rebuild_stop_arg_p = (sp_rebuild_stop_arg_t*) ruc_buf_getPayload(req_ctx_p->decoded_arg);
+    nb_rebuild = rebuild_stop_arg_p->rebuild_ref;
+    nb_rebuild--;
+    if (nb_rebuild > MAX_FID_PARALLEL_REBUILD) {
+      severe("sp_rebuild_stop_response bad rebuild ref %d",nb_rebuild);
+      return;
+    }
+
+    /* This context is free */
+    storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
+    if (storio_rebuild_ref == 0xFF) {
+      severe("sp_rebuild_stop_response bad rebuild ctx index %d",storio_rebuild_ref);
+      return;
+    }
+      
+    /*
+    ** Retrieve the rebuild context  
+    */
+    pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)rebuild_stop_arg_p->fid);
+    if (pRebuild == NULL) {
+      /* This context is not allocated for this FID */
+      dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
+      severe("sp_rebuild_stop_response stollen rebuild ctx %d",storio_rebuild_ref);
+      return;
+    }
+	   
+    storio_rebuild_ctx_free (pRebuild);
+    dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;    
     return ;
 }
 /*

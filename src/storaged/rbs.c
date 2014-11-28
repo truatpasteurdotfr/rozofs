@@ -61,7 +61,11 @@ char * get_rebuild_directory_name() {
   sprintf(rebuild_directory_name,"/tmp/rbs.%d",pid);  
   return rebuild_directory_name;
 }
-
+char * get_rebuild_sid_directory_name(int cid, int sid) {
+  pid_t pid = getpid();
+  sprintf(rebuild_directory_name,"/tmp/rbs.%d/cid%d_sid%d",pid,cid,sid);  
+  return rebuild_directory_name;
+}
 
 /** Initialize a storage to rebuild
  *
@@ -269,27 +273,22 @@ void rbs_release_cluster_list(list_t * cluster_entries) {
 
 
 
+
 /** Remove empty rebuild list files 
  *
  */
-int rbs_do_remove_lists() {
-  char         * dirName;
+int rbs_empty_dir(char * dirname) {
   char           fileName[FILENAME_MAX];
   DIR           *dir;
   struct dirent *file;
     
   /*
-  ** Start one rebuild process par rebuild file
-  */
-  dirName = get_rebuild_directory_name();
-  
-  /*
   ** Open this directory
   */
-  dir = opendir(dirName);
+  dir = opendir(dirname);
   if (dir == NULL) {
     if (errno == ENOENT) return 0;
-    severe("opendir(%s) %s", dirName, strerror(errno));
+    severe("opendir(%s) %s", dirname, strerror(errno));
     return -1;
   } 	  
   /*
@@ -298,14 +297,13 @@ int rbs_do_remove_lists() {
   while ((file = readdir(dir)) != NULL) {  
     if (strcmp(file->d_name,".")==0)  continue;
     if (strcmp(file->d_name,"..")==0) continue;
-    sprintf(fileName,"%s/%s",dirName,file->d_name);
+    sprintf(fileName,"%s/%s",dirname,file->d_name);
     unlink(fileName);
   }
   
   closedir(dir);
   return 0;
 } 
-
 
 
 

@@ -262,6 +262,16 @@ xdr_sp_remove_chunk_arg_t (XDR *xdrs, sp_remove_chunk_arg_t *objp)
 }
 
 bool_t
+xdr_sp_device_e (XDR *xdrs, sp_device_e *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_enum (xdrs, (enum_t *) objp))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_sp_rebuild_start_arg_t (XDR *xdrs, sp_rebuild_start_arg_t *objp)
 {
 	//register int32_t *buf;
@@ -271,6 +281,12 @@ xdr_sp_rebuild_start_arg_t (XDR *xdrs, sp_rebuild_start_arg_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_sp_device_e (xdrs, &objp->device))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->chunk))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->spare))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->start_bid))
 		 return FALSE;
@@ -311,6 +327,8 @@ xdr_sp_rebuild_stop_arg_t (XDR *xdrs, sp_rebuild_stop_arg_t *objp)
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
 	 if (!xdr_sp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_sp_status_t (xdrs, &objp->status))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->rebuild_ref))
 		 return FALSE;

@@ -58,22 +58,29 @@ extern "C" {
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
 
 
+
 typedef struct storio_rebuild_t {
   ruc_obj_desc_t      link;
   uint8_t             ref;
+  uint8_t             spare;
+  uint8_t             chunk;
+  uint8_t             relocate;
+  uint8_t             old_device;
   uint32_t            rebuild_ts;
   uint64_t            start_block;
   uint64_t            stop_block;
   fid_t               fid;
 } STORIO_REBUILD_T;
 
-#define MAX_STORIO_PARALLEL_REBUILD   32
+#define MAX_STORIO_PARALLEL_REBUILD   64
 STORIO_REBUILD_T * storio_rebuild_ctx_free_list;
 
 typedef struct storio_rebuild_stat_s {
   uint64_t             allocated;
   uint64_t             stollen;
   uint64_t             out_of_ctx;
+  uint64_t             released;
+  uint64_t             aborted;
   uint64_t             lookup_hit;
   uint64_t             lookup_miss;
   uint64_t             lookup_bad_index;
@@ -557,48 +564,13 @@ void storio_register_faulty_fid(int threadNb, uint8_t cid, uint8_t sid, fid_t fi
 static inline void storio_rebuild_ctx_reset(STORIO_REBUILD_T * p) {
   ruc_objRemove(&p->link);  
   p->rebuild_ts  = 0;
+  p->spare       = 0;
+  p->relocate    = 0;
+  p->chunk       = ROZOFS_UNKNOWN_CHUNK;
+  p->old_device  = ROZOFS_UNKNOWN_CHUNK;
   p->start_block = 0;
   p->stop_block  = 0;
   memset(p->fid,0, sizeof(fid_t));
-}
-
-/*
-**______________________________________________________________________________
-*/
-/**
-* Allocate a storio rebuild context from the distributor
-
- 
- @retval the pointer to the rebuild context or NULL in case of error
-*/
-static inline STORIO_REBUILD_T * storio_rebuild_ctx_allocate() {
-  STORIO_REBUILD_T * p;
-  int                storio_rebuild_ref;
-  
-  /*
-  ** Get first free context
-  */
-  p = (STORIO_REBUILD_T*) ruc_objGetFirst(&storio_rebuild_ctx_free_list->link);
-  if (p != NULL) {
-    storio_rebuild_stat.allocated++;
-    storio_rebuild_ctx_reset(p);  
-    return p;
-  }
-
-  /* No Free context found. Let's check whether a context is old enough to be stollen */
-  uint32_t ts = time(NULL);
-  
-  p = (STORIO_REBUILD_T*) ruc_objGetRefFromIdx(&storio_rebuild_ctx_free_list->link,0);
-  for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,p++) {
-    if (ts - p->rebuild_ts > 25) {
-      storio_rebuild_stat.stollen++;
-      storio_rebuild_ctx_reset(p);  
-      return p;      
-    }
-  }
-  
-  storio_rebuild_stat.out_of_ctx++;
-  return NULL;
 }
 /*
 **______________________________________________________________________________
@@ -607,40 +579,57 @@ static inline STORIO_REBUILD_T * storio_rebuild_ctx_allocate() {
 * Free a storio rebuild context 
 */
 static inline void storio_rebuild_ctx_free(STORIO_REBUILD_T * p) {
-  storio_rebuild_ctx_reset(p);  
-  ruc_objInsert(&storio_rebuild_ctx_free_list->link,&p->link); 
+  storio_rebuild_stat.released++;
+  storio_rebuild_ctx_reset(p);
+  ruc_objInsert(&storio_rebuild_ctx_free_list->link,&p->link);
 }
 /*
 **______________________________________________________________________________
 */
 /**
-* Initialize the storio rebuild context distributor
-
+* A rebuild context is beeing stollen
  
- retval 0 on success
- retval < 0 on error
+ @retval the pointer to the rebuild context or NULL in case of error
 */
-static inline void storio_rebuild_ctx_distributor_init() {
-  STORIO_REBUILD_T * p;
-  uint8_t            storio_rebuild_ref;
+static inline void storio_rebuild_ctx_stollen(STORIO_REBUILD_T * p, uint32_t delay) {
+  char fid_string[128];
 
+  storio_rebuild_stat.stollen++;
 
   /*
-  ** Allocate memory
+  ** When a relocation of a device was running, we should try to restore the
+  ** the old_device when possible !!!
   */
-  storio_rebuild_ctx_free_list = (STORIO_REBUILD_T*) ruc_listCreate(MAX_STORIO_PARALLEL_REBUILD,sizeof(STORIO_REBUILD_T));
-  if (storio_rebuild_ctx_free_list == NULL) {
-    /*
-    ** error on distributor creation
-    */
-    fatal( "ruc_listCreate(%d,%d)", MAX_STORIO_PARALLEL_REBUILD,(int)sizeof(STORIO_REBUILD_T) );
-  }
   
-  p = (STORIO_REBUILD_T*) ruc_objGetRefFromIdx(&storio_rebuild_ctx_free_list->link,0);
-  for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,p++) {
-    p->ref = storio_rebuild_ref;
-    storio_rebuild_ctx_free(p); 
-  }
+  uuid_unparse(p->fid,fid_string);    
+  severe("rebuild stollen FID %s spare %d relocate %d chunk %d old device %d delay %u",
+            fid_string, p->spare, p->relocate, p->chunk, p->old_device, delay);
+  
+  storio_rebuild_ctx_reset(p);
+}
+/*
+**______________________________________________________________________________
+*/
+/**
+* A rebuild context is beeing aborted
+ 
+ @retval the pointer to the rebuild context or NULL in case of error
+*/
+static inline void storio_rebuild_ctx_aborted(STORIO_REBUILD_T * p, uint32_t delay) {
+  char fid_string[128];
+
+  storio_rebuild_stat.aborted++;
+
+  /*
+  ** When a relocation of a device was running, we should try to restore the
+  ** the old_device when possible !!!
+  */
+  
+  uuid_unparse(p->fid,fid_string);    
+  severe("rebuild aborted FID %s spare %d relocate %d chunk %d old device %d delay %u",
+            fid_string, p->spare, p->relocate, p->chunk, p->old_device, delay);
+  
+  storio_rebuild_ctx_free(p);
 }
 /*
 **______________________________________________________________________________
@@ -676,6 +665,99 @@ static inline STORIO_REBUILD_T * storio_rebuild_ctx_retrieve(int idx, char * fid
   
   return NULL;  
 }
+/*
+**______________________________________________________________________________
+*/
+/**
+* Allocate a storio rebuild context from the distributor
+
+ 
+ @retval the pointer to the rebuild context or NULL in case of error
+*/
+static inline STORIO_REBUILD_T * storio_rebuild_ctx_allocate() {
+  STORIO_REBUILD_T * p;
+  int                storio_rebuild_ref;
+  uint32_t           delay;
+  
+  /*
+  ** Get first free context
+  */
+  p = (STORIO_REBUILD_T*) ruc_objGetFirst(&storio_rebuild_ctx_free_list->link);
+  if (p != NULL) {
+    storio_rebuild_stat.allocated++;
+    storio_rebuild_ctx_reset(p);  
+    return p;
+  }
+
+  /* No Free context found. Let's check whether a context is old enough to be stollen */
+  uint32_t ts = time(NULL);
+
+  /*
+  ** Look for a non spare file rebuild that has not been written for some seconds
+  */  
+  for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,p++) {
+    p = storio_rebuild_ctx_retrieve(storio_rebuild_ref, NULL);
+    if (p->spare) continue;
+
+    delay = ts - p->rebuild_ts;
+    if (delay > 20) {
+      storio_rebuild_ctx_stollen(p,delay);  
+      return p;      
+    }
+  }
+
+  /*
+  ** Look for a spare file rebuild that has not been written for some minutes
+  */  
+  for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,p++) {
+    p = storio_rebuild_ctx_retrieve(storio_rebuild_ref, NULL);
+    if (!p->spare) continue;
+
+    delay = ts - p->rebuild_ts;
+    if (delay > (5*60)) {
+      storio_rebuild_ctx_stollen(p,delay);  
+      return p;      
+    }
+  }  
+  
+  storio_rebuild_stat.out_of_ctx++;
+  return NULL;
+}
+
+/*
+**______________________________________________________________________________
+*/
+/**
+* Initialize the storio rebuild context distributor
+
+ 
+ retval 0 on success
+ retval < 0 on error
+*/
+static inline void storio_rebuild_ctx_distributor_init() {
+  STORIO_REBUILD_T * p;
+  uint8_t            storio_rebuild_ref;
+
+
+  /*
+  ** Allocate memory
+  */
+  storio_rebuild_ctx_free_list = (STORIO_REBUILD_T*) ruc_listCreate(MAX_STORIO_PARALLEL_REBUILD,sizeof(STORIO_REBUILD_T));
+  if (storio_rebuild_ctx_free_list == NULL) {
+    /*
+    ** error on distributor creation
+    */
+    fatal( "ruc_listCreate(%d,%d)", MAX_STORIO_PARALLEL_REBUILD,(int)sizeof(STORIO_REBUILD_T) );
+  }
+  
+  p = (STORIO_REBUILD_T*) ruc_objGetRefFromIdx(&storio_rebuild_ctx_free_list->link,0);
+  for (storio_rebuild_ref=0; storio_rebuild_ref<MAX_STORIO_PARALLEL_REBUILD; storio_rebuild_ref++,p++) {
+    p->ref = storio_rebuild_ref;
+    storio_rebuild_ctx_free(p); 
+  }
+  storio_rebuild_stat.released = 0;
+}
+
 
 
 #ifdef __cplusplus
