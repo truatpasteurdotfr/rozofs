@@ -121,7 +121,39 @@ static inline int rozo_launcher_stop(char *pidfile) {
     severe("rozo_launcher_stop(%s) %s",pidfile, strerror(errno));
   }
   exit(0);
-} 
+}
+
+/*__________________________________________________________________________
+**
+** Reload a process using the launcher 
+**
+** @param pidfile   pid file name conaining process pid to stop
+**
+** @retval the number of parameters or 0
+*/
+static inline int rozo_launcher_reload(char *pidfile) {  
+  char * argv[4];
+
+  argv[0] = "rozolauncher";
+  argv[1] = "reload";
+  argv[2] = pidfile;
+  argv[3] = NULL;
+        
+  pid_t pid = vfork();
+  
+  if (pid < 0) {
+    severe("vfork() %s",strerror(errno));
+    return -1;
+  }
+  
+  if (pid!=0) return 0; 
+
+
+  if (execvp(argv[0],argv)<0) {
+    severe("rozo_launcher_reload(%s) %s",pidfile, strerror(errno));
+  }
+  exit(0);
+}  
 #else
 /*__________________________________________________________________________
 **

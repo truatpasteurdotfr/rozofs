@@ -44,10 +44,13 @@ typedef struct mattr {
     uint32_t children;              /**< number of children (excluding . and ..) */
 } mattr_t;
 
+
+#if 0
 /**
 *  extended attributes structure
 */
 #define ROZOFS_OBJ_NAME_MAX 96
+#define ROZOFS_OBJ_MAX_SUFFIX 8
 typedef union
 {
    char inode_buf[512];
@@ -58,13 +61,72 @@ typedef union
      uint32_t i_state;     /**< inode state               */
      uint64_t i_file_acl;  /**< extended inode */
      uint64_t i_link_name;  /**< symlink block */
-     char    name[ROZOFS_OBJ_NAME_MAX]; 
+     mdirent_fid_name_info_t fname;  /**< reference of the name within the dentry file */
+     char     suffix[ROZOFS_OBJ_MAX_SUFFIX];
+//     char    name[ROZOFS_OBJ_NAME_MAX]; 
    } s;
 } ext_mattr_t;
 
 #define ROZOFS_I_EXTRA_ISIZE (sizeof(mattr_t)+sizeof(fid_t)+ \
                               2*sizeof(uint32_t)+sizeof(uint64_t)+\
 			      ROZOFS_OBJ_NAME_MAX)
+#else
+#define ROZOFS_OBJ_NAME_MAX 60
+#define ROZOFS_OBJ_MAX_SUFFIX 16
+/**
+*  structure used for tracking the location of the fid and name of the object
+*/
+typedef struct _mdirent_fid_name_info_t
+{
+    uint16_t coll:1;   /**< asserted to 1 if coll_idx is significant  */
+    uint16_t root_idx:15;   /**< index of the root file  */
+    uint16_t coll_idx;   /**< index of the collision file */
+    uint16_t chunk_idx:12; 
+    uint16_t nb_chunk :4;
+} mdirent_fid_name_info_t;
+
+#define ROZOFS_FNAME_TYPE_DIRECT 0
+#define ROZOFS_FNAME_TYPE_INDIRECT 1
+typedef struct _inode_fname_t
+{
+   uint16_t name_type:1;
+   uint16_t len:15;
+   uint16_t hash_suffix;
+   union
+   {
+     char name[ROZOFS_OBJ_NAME_MAX]; /**< direct case   */
+     struct
+     {
+       mdirent_fid_name_info_t name_dentry;
+       char suffix[ROZOFS_OBJ_MAX_SUFFIX];     
+     } s;
+   };
+ } rozofs_inode_fname_t;
+
+
+typedef union
+{
+   char inode_buf[512];
+   struct inode_internal_t {
+     mattr_t attrs;  /**< standard attributes       */
+     fid_t   pfid;   /**< parent fid                */
+     uint32_t grpquota_id;   /**< id of the group for quota */
+     uint32_t usrquota_id;   /**< id of the user for quota  */
+     uint32_t i_extra_isize;  /**< array reserved for extended attributes */
+     uint32_t i_state;     /**< inode state               */
+     uint64_t i_file_acl;  /**< extended inode */
+     uint64_t i_link_name;  /**< symlink block */
+     uint64_t hpc_reserved;  /**< reserved for hpc */
+     rozofs_inode_fname_t fname;  /**< reference of the name within the dentry file */
+   } s;
+} ext_mattr_t;
+
+#define ROZOFS_I_EXTRA_ISIZE (sizeof(mattr_t)+sizeof(fid_t)+ 2*sizeof(uint32_t)+\
+                              2*sizeof(uint32_t)+3*sizeof(uint64_t)+\
+			      sizeof(mdirent_fid_name_info_t))
+
+#define ROZOFS_I_EXTRA_ISIZE_BIS (sizeof(ext_mattr_t) -sizeof(struct inode_internal_t))
+#endif
 
 /** initialize mattr_t
  *
@@ -85,5 +147,37 @@ void mattr_initialize(mattr_t *mattr);
  * @param mattr: the mattr to release.
  */
 void mattr_release(mattr_t *mattr);
+/*
+**__________________________________________________________________
+*/
+/**
+* store the file name in the inode
+  The way the name is stored depends on the size of
+  the filename: when the name is less than 62 bytes
+  it is directly stored in the inode
+  
+  @param inode_fname_p: pointer to the array used for storing object name
+  @param name: name of the object
+  @param dentry_fname_info_p :pointer to the array corresponding to the fname in dentry
+*/
+void exp_store_fname_in_inode(rozofs_inode_fname_t *inode_fname_p,
+                              char *name,
+			      mdirent_fid_name_info_t *dentry_fname_info_p);
 
+/*
+**__________________________________________________________________
+*/
+/**
+* store the directory name in the inode
+  The way the name is stored depends on the size of
+  the filename: when the name is less than 62 bytes
+  it is directly stored in the inode
+  
+  @param inode_fname_p: pointer to the array used for storing object name
+  @param name: name of the object
+  @param dentry_fname_info_p :pointer to the array corresponding to the fname in dentry
+*/
+void exp_store_dname_in_inode(rozofs_inode_fname_t *inode_fname_p,
+                              char *name,
+			      mdirent_fid_name_info_t *dentry_fname_info_p);
 #endif

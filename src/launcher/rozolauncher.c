@@ -114,6 +114,42 @@ int rozolauncher_stop(char * pid_file) {
   
   return kill(pid,SIGTERM);
 }
+
+/*
+ *_______________________________________________________________________
+  *
+  * Try to read the process id in the gieven pid file and sends it a SIGTERM
+  *
+  * @param pid_file The name of the pid file
+ */
+int rozolauncher_reload(char * pid_file) {
+  int   fd;
+  char  process_id_string[64];
+  int   ret;   
+  int   pid;
+
+  
+  fd = open(pid_file,O_RDONLY, 0640);
+  if (fd < 0) {
+    return -1;
+  }
+  
+  
+  ret = pread(fd,&process_id_string, 64,0);
+  close(fd);
+  
+  if (ret < 0) return -1;
+  
+  
+  ret = sscanf(process_id_string,"%d",&pid);
+  if (ret != 1) return -1;
+
+#ifdef LAUNCHER_TRACE
+  info("reload process %d %s",pid,pid_file);
+#endif 
+  
+  return kill(pid,SIGUSR1);
+}
 /*
  *_______________________________________________________________________
  * 
@@ -157,6 +193,8 @@ void usage(char * msg) {
   fprintf(stderr, "     saves its pid in <pid file>.\n");
   fprintf(stderr, "  rozolauncher stop <pid file>\n");
   fprintf(stderr, "     This command kill the process whose pid is in <pid file>\n");
+  fprintf(stderr, "  rozolauncher reload <pid file>\n");
+  fprintf(stderr, "     This command reload the process whose pid is in <pid file>\n");
 
   exit(-1);
 }
@@ -186,6 +224,12 @@ int main(int argc, char *argv[]) {
   */
   if (strcmp(argv[1],"stop")==0) {
     return rozolauncher_stop(argv[2]);
+  }
+  /*
+  ** Reload
+  */
+  if (strcmp(argv[1],"reload")==0) {
+    return rozolauncher_reload(argv[2]);
   }
 
   /*

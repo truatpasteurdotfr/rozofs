@@ -48,6 +48,7 @@ int fdl_debug_bucket_idx = 203;
  *  Global Data
  */
 int dirent_current_eid;  /**< current eid: used by dirent writeback cache */
+char *dirent_export_root_path = NULL;  /**< pointer to the root path of the export */
 
 
 #define DIRENT_WRITE_DEBUG 0
@@ -1590,7 +1591,7 @@ mdirents_cache_entry_t * read_mdirents_file(int dirfd,
     
     }
 #endif
-    if ((fd = DIRENT_OPENAT_READ(dirfd, path_p, flag, S_IRWXU,dirent_hdr_p->dirent_idx[0])) == -1) {    
+    if ((fd = DIRENT_OPENAT_READ(dirfd, path_p, flag, S_IRWXU,parent,dirent_hdr_p->dirent_idx[0])) == -1) {    
 //    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         //DIRENT_SEVERE("Cannot open the file %s, error %s at line %d\n",path_p,strerror(errno),__LINE__);
 	/*
@@ -2616,7 +2617,7 @@ int dirent_read_name_array_from_disk(int dirfd,
     /*
     ** check if the writeback cache must be flush
     */
-    if ((fd = DIRENT_OPENAT_READ(dirfd, path_p, flag, S_IRWXU,dirent_hdr_p->dirent_idx[0])) == -1) {    
+    if ((fd = DIRENT_OPENAT_READ(dirfd, path_p, flag, S_IRWXU,dirent_p->key.dir_fid,dirent_hdr_p->dirent_idx[0])) == -1) {    
 //    if ((fd = openat(dirfd, path_p, flag, S_IRWXU)) == -1) {
         DIRENT_SEVERE("Cannot open the file %s (%s)",path_p,strerror(errno));
 	errno = EIO;

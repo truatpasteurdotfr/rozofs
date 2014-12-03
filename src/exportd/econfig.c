@@ -777,6 +777,11 @@ out:
     return status;
 }
 
+
+int load_exports_conf_api(econfig_t *ec, struct config_t *config) {
+   return load_exports_conf(ec,config);
+}
+
 int econfig_read(econfig_t *config, const char *fname) {
     int status = -1;
     //const char *host;

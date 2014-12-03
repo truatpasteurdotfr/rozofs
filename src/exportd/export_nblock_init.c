@@ -68,6 +68,8 @@
 #include "geo_replication.h"
 #include "geo_replica_srv.h"
 #include "geo_replica_ctx.h"
+#include "rozofs_quota_api.h"
+#include "export_quota_thread_api.h"
 
 DECLARE_PROFILING(epp_profiler_t);
 
@@ -277,6 +279,53 @@ void show_profiler_short(char * argv[], uint32_t tcpRef, void *bufRef) {
 *_______________________________________________________________________
 */
 /**
+*  trash statistics
+*/
+
+static char * show_trash_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"trash limit [nb] : number of file deletions per period (default:%d)\n",RM_FILES_MAX);
+  pChar += sprintf(pChar,"trash            : display statistics\n");  
+  return pChar; 
+}
+
+void show_trash(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = uma_dbg_get_buffer();
+    int limit;
+    int ret;
+
+    if (argv[1] == NULL) {
+      export_rm_bins_stats(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
+      return;
+    }
+
+    if (strcmp(argv[1],"limit")==0) {
+
+      if (argv[2] == NULL) {
+        export_limit_rm_files = limit;
+	sprintf(pChar," revert to default (%d) \n",RM_FILES_MAX);
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;	 
+      }
+      	     
+      ret = sscanf(argv[2], "%d", &limit);
+      if (ret != 1) {
+        show_trash_help(pChar);	
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;   
+      }
+      export_limit_rm_files = limit;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");   	  
+      return;
+    }
+    show_trash_help(pChar);	
+    uma_dbg_send(tcpRef, bufRef, TRUE,uma_dbg_get_buffer());
+}
+/*
+*_______________________________________________________________________
+*/
+/**
 * dirent cache
 */
 char *dirent_cache_display(char *pChar);
@@ -286,6 +335,16 @@ void show_dirent_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar = dirent_cache_display(pChar);
     pChar = dirent_disk_display_stats(pChar);
     pChar = dirent_wbcache_display_stats(pChar);
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
+}
+
+/*
+** Quota statistics information
+*/
+
+void show_quota_wb(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = uma_dbg_get_buffer();
+    quota_wbcache_display_stats(pChar);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
 }
 /*
@@ -843,6 +902,18 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("dirent_cache",show_dirent_cache);
     uma_dbg_addTopic_option("dirent_wbthread",show_wbcache_thread,UMA_DBG_OPTION_RESET);
     /*
+    ** trash statistics
+    */
+    uma_dbg_addTopic("trash", show_trash);
+    /*
+    ** quota 
+    */
+    uma_dbg_addTopic("quota_wb", show_quota_wb);
+    uma_dbg_addTopic("quota_wb_thread",show_wbcache_quota_thread);
+    uma_dbg_addTopic("quota_cache",show_quota_cache);
+    uma_dbg_addTopic("quota_get",rw_quota_entry);
+    uma_dbg_addTopic("fstat_thread",show_export_fstat_thread);
+/*
     ** do not provide volume stats for the case of the slaves
     */
     if (args_p->slave == 0)
@@ -881,6 +952,14 @@ int expgwc_start_nb_blocking_th(void *args) {
     
     info("exportd non-blocking thread started (instance: %d, port: %d).",
             args_p->instance, args_p->debug_port);
+    /*
+    ** start the periodic quota thread
+    */
+    ret = export_fstat_init();
+    if (ret < 0)
+    {
+      severe("quota period thread is unavailable: %s",strerror(errno));
+    }    
     /*
      ** main loop
      */

@@ -109,6 +109,7 @@ typedef struct _exp_trck_top_header_t
    char root_path[1024];  
    int create_flag;    /**< assert to 1 when tracking main file has to be created */
    exp_trck_header_memory_t *entry_p[EXP_TRCK_MAX_USER_ID];
+   void *trck_inode_p;  /**< memory structure used for inode tracking */
 } exp_trck_top_header_t;
    
 /*
@@ -322,4 +323,24 @@ int exp_metadata_update_main_tracking_file_header(exp_trck_top_header_t *top_hdr
 
 */
 int exp_trck_write_main_tracking_file(char * root_path,uint8_t user_id,off_t offset,size_t size,void *data_p);					       
+
+/*
+**__________________________________________________________________
+*/
+/**
+*
+    write attributes associated with an inode within a given space
+    
+    @param top_hdr_p: pointer to the top table
+    @param inode: address of the inode
+    @param attr_p: pointer to the attribute array
+    @param attr_sz: size of the attributes
+
+    
+    @retval 0 on success
+    @retval -1 on error
+    
+*/
+int exp_metadata_create_attributes_burst(exp_trck_top_header_t *top_hdr_p,rozofs_inode_t *inode,void *attr_p,int attr_sz);
+
 #endif

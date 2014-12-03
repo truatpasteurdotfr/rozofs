@@ -124,7 +124,7 @@ void exp_trck_delete_attempt( exp_trck_top_header_t *top_p,
   ** OK, the file is not empty, but we can truncate it
   */
   off_t len =  sizeof(exp_trck_file_header_t)+top_p->max_attributes_sz*(nb_entries-nb_empty_entries);
-  sprintf(newpathname,"%s/%d/.trk_%llu",top_p->root_path,slice_id,(long long unsigned int)file_id);
+  sprintf(newpathname,"%s/%d/trk_%llu",top_p->root_path,slice_id,(long long unsigned int)file_id);
   ret = truncate(newpathname,len);
   if (ret < 0)
   {

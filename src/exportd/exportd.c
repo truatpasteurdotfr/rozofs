@@ -160,7 +160,6 @@ void export_kill_one_export_slave(int instance) {
 void export_start_one_export_slave(int instance) {
     char cmd[1024];
     uint16_t debug_port_value;
-    char     debug_port_name[32];
     char   pidfile[128];
     int ret = -1;
            
@@ -193,6 +192,49 @@ void export_start_one_export_slave(int instance) {
 /*
  *_______________________________________________________________________
  */
+/**
+*   start of a slave exportd process
+
+  @param instance: instance id of the exportd process
+  
+   @retval none
+*/
+void export_reload_one_export_slave(int instance) {
+    char cmd[1024];
+    uint16_t debug_port_value;
+    char   pidfile[128];
+    int ret = -1;
+           
+    char *cmd_p = &cmd[0];
+    cmd_p += sprintf(cmd_p, "%s ", "exportd");
+    cmd_p += sprintf(cmd_p, "-i %d ", instance);
+    cmd_p += sprintf(cmd_p, "-s ");
+    cmd_p += sprintf(cmd_p, "-c %s ", exportd_config_file);
+    
+    /* Try to get debug port from /etc/services */
+    debug_port_value = rozofs_get_service_port_export_slave_diag(instance);
+
+    cmd_p += sprintf(cmd_p, "-d %d ",debug_port_value );
+          
+    sprintf(pidfile,"/var/run/launcher_exportd_slave_%d.pid",instance);
+
+    // Launch exportd slave
+    ret = rozo_launcher_reload(pidfile);
+    if (ret !=0) {
+      severe("rozo_launcher_reload(%s,%s) %s",pidfile, cmd, strerror(errno));
+      return;
+    }
+    
+    info("reload exportd slave (instance: %d, config: %s,"
+            " profile port: %d).",
+            instance,  exportd_config_file,
+            debug_port_value);
+}
+
+
+/*
+ *_______________________________________________________________________
+ */
  /**
  *  starting of all the slave exportd
  
@@ -217,7 +259,6 @@ void export_kill_all_export_slave() {
 void export_start_export_slave() {
 	int i;
 
-#warning need to confirm about the index number to start for exportd slave
     for (i = 1; i <= EXPORT_SLICE_PROCESS_NB; i++) {
       export_start_one_export_slave(i);
     }
@@ -229,14 +270,6 @@ void export_start_export_slave() {
 /**
 *  slave exportd reload: that happens upon a change in the configuration
 */
-static inline void export_reload_one_export_slave(int instance) {
-  /*
-  ** starting an instance of exportd stops its previous launcher and process
-  ** before launcher a new launcher
-  */
-  export_start_one_export_slave(instance);
-}
-
 void export_reload_all_export_slave() {
     int i;
 
@@ -1038,9 +1071,11 @@ static int load_exports_conf() {
                     econfig->vid, strerror(errno));
         }
 	entry->export.trk_tb_p = NULL;
+	entry->export.quota_p = NULL;
         if (export_is_valid(econfig->root) != 0) {
             // try to create it
-            if (export_create(econfig->root,&entry->export) != 0) {
+	    entry->export.eid = econfig->eid;
+            if (export_create(econfig->root,&entry->export,&cache) != 0) {
                 severe("can't create export with path %s: %s\n",
                         econfig->root, strerror(errno));
                 goto out;

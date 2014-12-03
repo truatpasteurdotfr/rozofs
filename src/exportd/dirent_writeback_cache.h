@@ -36,7 +36,7 @@
 #include "mdir.h"
 #include "mdirent.h"
 
-#define DIRENT_CACHE_MAX_ENTRY   32
+#define DIRENT_CACHE_MAX_ENTRY   64
 #define DIRENT_CACHE_MAX_CHUNK   16
 
 typedef struct _dirent_chunk_cache_t

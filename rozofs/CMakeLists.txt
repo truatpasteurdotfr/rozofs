@@ -26,6 +26,8 @@ set (librozofs_sources
     common/export_track.h
     common/rozofs_site.c
     common/rozofs_site.h
+    common/export_track_change.h
+    common/export_track_change.c
     rpc/eproto.h
     rpc/eprotoxdr.c
     rpc/eprotosvc.c
@@ -176,6 +178,8 @@ set (librozofs_sources
     core/rozofs_core_files.c
     core/rozofs_core_files.h    
     core/rozofs_host2ip.h    
+    core/disk_table_service.c
+    core/disk_table_service.h
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

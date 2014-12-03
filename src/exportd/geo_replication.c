@@ -29,8 +29,15 @@
 #include <sys/param.h>
 #include <rozofs/common/log.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include "export.h"
 #include "geo_replication.h"
 #include "geo_profiler.h"
+
+/**
+*  pointers table of the context associated with the eid: MAX is EXPGW_EID_MAX_IDX (see rozofs.h for details)
+*/
+int geo_rep_srv_ctx_table_init_done = 0;
+geo_rep_srv_ctx_t  *geo_rep_srv_ctx_table[EXPORT_GEO_MAX_CTX][EXPGW_EID_MAX_IDX+1];
 /*
 **_________________________________________________________________________
 *      PUBLIC FUNCTIONS
@@ -1080,6 +1087,33 @@ void *geo_rep_init(int eid,int site_id,char *root_path)
 {
     int ret;
     geo_rep_srv_ctx_t *ctx_p= NULL;
+    
+    if (geo_rep_srv_ctx_table_init_done == 0)
+    {
+       /*
+       ** clear the pointers table
+       */
+       memset(&geo_rep_srv_ctx_table[0][0],0,sizeof(void*)*(EXPORT_GEO_MAX_CTX*EXPGW_EID_MAX_IDX+1));
+       geo_rep_srv_ctx_table_init_done = 1;
+    }      
+    /*
+    ** check the case of the reload: the context might be already allocated:
+    */
+    if (site_id > EXPORT_GEO_MAX_CTX)
+    {
+       severe("site is out of range %d max is %d",site_id,(int)EXPORT_GEO_MAX_CTX);
+       return NULL;    
+    }
+    if(eid > EXPGW_EID_MAX_IDX)
+    {
+       severe("eid is out of range %d max is %d",eid,(int)EXPGW_EID_MAX_IDX);
+       return NULL;
+    
+    }    
+    if (geo_rep_srv_ctx_table[site_id][eid] != NULL)
+    {
+       return geo_rep_srv_ctx_table[site_id][eid];
+    }
     /*
     ** allocate a context for the export replication
     */
@@ -1140,5 +1174,9 @@ void *geo_rep_init(int eid,int site_id,char *root_path)
 
     
     ctx_p->geo_replication_enable = 1;
+    /*
+    ** store the context in the pointer table at the site and eid index
+    */
+    geo_rep_srv_ctx_table[site_id][eid] = ctx_p;
     return ctx_p;
 }

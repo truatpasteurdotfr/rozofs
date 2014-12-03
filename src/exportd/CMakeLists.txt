@@ -101,6 +101,12 @@ add_executable(exportd
     geo_replica_ctx.h
     geo_replica_tmr.c
     geo_replica_tmr.h
+
+    rozofs_quota.h
+    rozofs_quota_api.h
+    rozofs_quota.c
+    quota_writeback_cache.c
+    export_quota_thread.c    
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -129,6 +135,18 @@ target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG
 #    expgw_gw_poll.c
 #)
 #target_link_libraries(expgateway rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+
+add_executable(rozofs_repquota
+    rozofs_quota.h
+    rozofs_quota.c
+    rozofs_quota_api.h
+    quota_writeback_cache.c
+    rozofs_repquota.c
+    econfig.h
+    econfig.c
+)
+target_link_libraries(rozofs_repquota rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 
 # Install

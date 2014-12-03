@@ -31,12 +31,18 @@
 #include <rozofs/common/export_track.h>
 
 #define EXP_MAX_FAKE_LVL2_ENTRIES 16
-#define LV2_MAX_ENTRIES (256*1024)
-#define LV2_BUKETS 1024
+//#warning LV2_MAX_ENTRIES  2048
+//#define LV2_MAX_ENTRIES (2048)
+#define LV2_MAX_ENTRIES (512*1024)
+#define LV2_BUKETS (1024*64)
 
 lv2_entry_t  exp_fake_lv2_entry[EXP_MAX_FAKE_LVL2_ENTRIES];
 int exp_fake_lv2_entry_idx = 0;
 
+/**
+*  pointers table of the context associated with the eid: MAX is EXPGW_EID_MAX_IDX (see rozofs.h for details)
+*/
+export_tracking_table_t * export_tracking_table[EXPGW_EID_MAX_IDX+1] = { 0 };
 
 
 /**
@@ -335,6 +341,80 @@ out:
 //    STOP_PROFILING(lv2_cache_put);
     return entry;
 }
+
+
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   The purpose of that service is to store object attributes in the attributes cache
+
+  @param attr_p: pointer to the attributes of the object
+  @param cache : pointer to the export attributes cache
+  @param fid : unique identifier of the object
+  
+  @retval <> NULL: attributes of the object
+  @retval == NULL : no attribute returned for the object (see errno for details)
+*/
+
+lv2_entry_t *lv2_cache_put_forced(lv2_cache_t *cache, fid_t fid,ext_mattr_t *attr_p) {
+    lv2_entry_t *entry;
+    int count=0;
+
+    // maybe already cached.
+    if ((entry = htable_get(&cache->htable, fid)) != 0) {
+        goto out;
+    }
+    entry = malloc(sizeof(lv2_entry_t));
+    if (entry == NULL)
+    {
+       severe("lv2_cache_put: %s\b",strerror(errno));
+       return NULL;
+    }
+    memset(entry,0,sizeof(lv2_entry_t));
+
+    /*
+    ** copy the attributes
+    */
+    memcpy(entry,attr_p,sizeof( ext_mattr_t));
+    /*
+    ** Initialize file locking 
+    */
+    list_init(&entry->file_lock);
+    entry->nb_locks = 0;
+    list_init(&entry->list);
+
+    /*
+    ** Try to remove older entries
+    */
+    count = 0;
+    while ((cache->size >= cache->max) && (!list_empty(&cache->lru))){ 
+      lv2_entry_t *lru;
+		
+	  lru = list_entry(cache->lru.prev, lv2_entry_t, list);  
+ 	  if (lru->nb_locks != 0) {
+	    severe("lv2 with %d locks in lru",lru->nb_locks);
+ 	  }
+
+           
+	  htable_del(&cache->htable, lru->attributes.s.attrs.fid);
+	  lv2_cache_unlink(cache,lru);
+	  cache->lru_del++;
+
+	  count++;
+	  if (count >= 3) break;
+    }
+    /*
+    ** Insert the new entry
+    */
+    lv2_cache_update_lru(cache,entry);
+    htable_put(&cache->htable, entry->attributes.s.attrs.fid, entry);
+    cache->size++;    
+out:
+    return entry;
+}
+
 /*
 **__________________________________________________________________
 */
@@ -489,6 +569,150 @@ int exp_attr_delete(export_tracking_table_t *trk_tb_p,fid_t fid)
    }
    return 0;
 }
+
+/*
+**__________________________________________________________________
+*/
+/**
+*  Create the attributes of a directory/regular file or symbolic link without write attributes on disk
+
+  create an oject according to its type. The service performs the allocation of the fid. 
+  It is assumed that all the other fields of the object attributes are already been filled in.
+  
+  @param trk_tb_p: export attributes tracking table
+  @param slice: slice of the parent directory
+  @param global_attr_p : pointer to the attributes of the object
+  @param type: type of the object (ROZOFS_REG: regular file, ROZOFS_SLNK: symbolic link, ROZOFS_DIR : directory
+  @param link: pointer to the symbolic link (significant for ROZOFS_SLNK only)
+  
+  @retval 0 on success: (the attributes contains the lower part of the fid that is allocated by the service)
+  @retval -1 on error (see errno for details)
+*/
+int exp_attr_create_write_cond(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t *global_attr_p,int type,char *link,uint8_t write)
+{
+   fid_t fid;
+   rozofs_inode_t *fake_inode;
+   rozofs_inode_t fake_inode_link;
+   int ret;
+   exp_trck_top_header_t *p = NULL;
+   exp_trck_top_header_t *p_link = NULL;
+   uint32_t link_slice;
+   int inode_allocated = 0;
+   int link_allocated = 0;
+   
+   uuid_generate(fid);
+
+
+   fake_inode = (rozofs_inode_t*)fid;
+   fake_inode->fid[1] = 0;
+   fake_inode->s.key = type;
+   fake_inode->s.usr_id = slice; /** always the parent slice for storage */
+   fake_inode->s.eid = trk_tb_p->eid; 
+      
+   if (fake_inode->s.key >= ROZOFS_MAXATTR)
+   {
+     errno = EINVAL;
+     return -1;
+   }
+   p = trk_tb_p->tracking_table[fake_inode->s.key];
+   if (p == NULL)
+   {
+     errno = ENOTSUP;
+     goto error;
+   }   
+   /*
+   ** allocate the inode
+   */
+   ret = exp_metadata_allocate_inode(p,fake_inode,type,slice);
+   if (ret < 0)
+   { 
+      goto error;
+   }
+   inode_allocated = 1;
+   /*
+   ** copy the definitive fid of the object
+   */
+   memcpy(&global_attr_p->s.attrs.fid,fake_inode,sizeof(fid_t));
+   if (link == NULL)
+   {
+     if (write)
+     {
+       /*
+       ** write the metadata on disk for the directory and the regular file
+       */
+       ret = exp_metadata_write_attributes(p,fake_inode,global_attr_p,sizeof(ext_mattr_t));
+       if (ret < 0)
+       {
+	 goto error;
+       }
+    }
+    return 0;
+  }
+  /*
+  ** case of a symbolic link: here we need to allocate a block for storing the link
+  ** the slice associated with the link is the one associated with the fid of the file
+  ** and not the fid of the parent directory
+  */
+  exp_trck_get_slice(global_attr_p->s.attrs.fid,&link_slice);
+
+  fake_inode = (rozofs_inode_t*)fid;
+  fake_inode_link.fid[1] = 0;
+  fake_inode_link.s.key = ROZOFS_SLNK;
+  fake_inode_link.s.usr_id = link_slice; 
+  fake_inode_link.s.eid = trk_tb_p->eid;   
+
+  p_link = trk_tb_p->tracking_table[ROZOFS_SLNK];
+  if (p_link == NULL)
+  {
+    errno = ENOTSUP;
+    goto error;
+  }  
+   /*
+   ** allocate the inode
+   */
+   ret = exp_metadata_allocate_inode(p_link,&fake_inode_link,ROZOFS_SLNK,link_slice);
+   if (ret < 0)
+   { 
+    goto error;
+   }
+   link_allocated = 1;
+   /*
+   ** write the link value
+   */
+   int len = strlen(link);
+   ret = exp_metadata_write_attributes(p_link,&fake_inode_link,link,len+1);
+   if (ret < 0)
+   {
+    goto error;
+   }
+   /*
+   ** update the inode with the reference of the block allocated for storing the link value
+   */
+   global_attr_p->s.i_link_name = fake_inode_link.fid[1];
+   if (write)
+   {
+     ret = exp_metadata_write_attributes(p,fake_inode,global_attr_p,sizeof(ext_mattr_t));
+     if (ret < 0)
+     {  
+       goto error;
+     }   
+   }
+   return 0;
+
+error:
+   if (inode_allocated)
+   {
+     exp_attr_delete(trk_tb_p,global_attr_p->s.attrs.fid);           
+   }
+   if (link_allocated)
+   {
+     memcpy(fid,&fake_inode_link,sizeof(fid_t));
+     exp_attr_delete(trk_tb_p,fid);           
+   }
+   return -1;
+}
+
+
 
 /*
 **__________________________________________________________________
@@ -863,6 +1087,26 @@ export_tracking_table_t *exp_create_attributes_tracking_context(uint16_t eid, ch
    int ret; 
    int loop;
    
+   /*
+   ** check if the entry already exists: this is done to address the case of the exportd reload
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      severe("failed to create ressource: eid %d is out of range max is %d",eid,EXPGW_EID_MAX_IDX);
+      return NULL;
+   }
+   if (export_tracking_table[eid]!= NULL)
+   {
+      /*
+      ** the context is already allocated: nothing more to done:
+      **  note: it is not foreseen the change the root path of an exportd !!
+      */
+      return export_tracking_table[eid];
+   }
+   
    tab_p = malloc(sizeof(export_tracking_table_t));
    if (tab_p == NULL)
    {
@@ -950,6 +1194,11 @@ export_tracking_table_t *exp_create_attributes_tracking_context(uint16_t eid, ch
        goto error;   
      }  
    }   
+   /*
+   ** everything is fine, so store the reference of the context in the table at the index of the eid
+   */
+   export_tracking_table[eid]= tab_p;
+   
    return tab_p;
 
 error:

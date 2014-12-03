@@ -24,6 +24,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/list.h>
+#include <libconfig.h>
 
 #define MD5_LEN  22
 
@@ -98,4 +99,5 @@ int econfig_check_consistency(econfig_t *from, econfig_t *to);
 
 int econfig_print(econfig_t *config);
 
+int load_exports_conf_api(econfig_t *ec, struct config_t *config);
 #endif

@@ -127,6 +127,8 @@ uint32_t dirent_bucket_cache_enable = 0;
 #endif
 uint8_t dirent_cache_safe_enable = 1;
 
+
+
 /*
  **______________________________________________________________________________
  */
@@ -662,11 +664,6 @@ int dirent_cache_bucket_remove_entry(dirent_cache_main_t *cache, fid_t fid, uint
     return -1;
 }
 
-
-
-
-
-
 /**
  *   Compute the hash values for the name and fid: called from listdir
 
@@ -705,15 +702,30 @@ static inline uint32_t filename_uuid_hash_fnv_with_len(uint32_t h, void *key1, v
 }
 
 
-//#define DIRENT_ROOT_FILE_IDX_SHIFT 0
-//#warning DIRENT_ROOT_FILE_IDX_SHIFT is 0 
 #define DIRENT_ROOT_FILE_IDX_SHIFT 12
+//warning DIRENT_ROOT_FILE_IDX_SHIFT is 12 
+//#define DIRENT_ROOT_FILE_IDX_SHIFT 12
 
 //#define DIRENT_ROOT_FILE_IDX_SHIFT 10
 #define DIRENT_ROOT_FILE_IDX_MASK ((1<<DIRENT_ROOT_FILE_IDX_SHIFT)-1)
 #define DIRENT_ROOT_FILE_IDX_MAX   (1 << DIRENT_ROOT_FILE_IDX_SHIFT)
 
 #define DIRENT_ROOT_BUCKET_IDX_MASK ((1<<8)-1)
+
+
+typedef struct _dirent_range_t
+{
+   uint64_t file_limit;  /**< max limit of file for the range  */
+   int      mask;        /**< mask associated with the limit   */
+   uint64_t count;       /**< put_dentry statistics            */
+} dirent_range_t;
+   
+#define DIRENT_MAX_RANGE 3
+dirent_range_t dirent_range_table[] = {
+     {10000,0x1,0},   /**< 2 dirent root files max */
+     {100000,0xf,0}, /**< 8 dirent root files max */
+     {0,DIRENT_ROOT_FILE_IDX_MASK,0}  /**< 4096 dirent root file max */
+};
 /*
  **______________________________________________________________________________
  */
@@ -762,6 +774,13 @@ int dirent_remove_root_entry_from_cache(fid_t fid, int root_idx) {
  ** Print the dirent cache bucket statistics
  */
 char* dirent_cache_display(char *pChar) {
+    int i;
+    uint64_t malloc_size;
+    
+    malloc_size = DIRENT_MALLOC_GET_CURRENT_SIZE();
+    
+    pChar+=sprintf(pChar,"Malloc size (MB/B)             : %llu/%llu\n",(long long unsigned int)malloc_size/(1024*1024), 
+                   (long long unsigned int)malloc_size);    
     pChar+=sprintf(pChar,"Level 0 cache state            : %s\n", (dirent_bucket_cache_enable == 0) ? "Disabled" : "Enabled");
     pChar+=sprintf(pChar,"Number of entries level 0      : %u\n", dirent_bucket_cache_append_counter);
     pChar+=sprintf(pChar,"hit/miss                       : %llu/%llu\n", 
@@ -805,6 +824,22 @@ char* dirent_cache_display(char *pChar) {
 										 (unsigned int)DIRENT_HASH_NAME_SECTOR_CNT);
     pChar += sprintf(pChar,"------------------+----------------------+--------------+\n");
 
+
+
+    pChar += sprintf(pChar,"\n------------+-------------+---------------------+\n");
+    pChar += sprintf(pChar," file_limit | mask        |      put count      |\n");
+    pChar += sprintf(pChar,"------------+-------------+---------------------+\n");
+    for (i = 0; i < DIRENT_MAX_RANGE; i++)
+    {
+    
+      pChar += sprintf(pChar," %10llu |  %8x   |  %16llu   |\n",
+                       (long long unsigned int)dirent_range_table[i].file_limit,
+                       dirent_range_table[i].mask,
+                       (long long unsigned int)dirent_range_table[i].count);
+		         
+    }
+    pChar += sprintf(pChar,"------------+-------------+---------------------+\n");
+
     return pChar;
 }
 
@@ -841,6 +876,35 @@ int dirent_put_root_entry_to_cache(fid_t fid, int root_idx, mdirents_cache_entry
 
 int dirent_append_entry = 0;
 int dirent_update_entry = 0;
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  Get the mask to apply according to the current number of file in the directory
+
+  @param children : number of files
+  @param hash1 : hash value for fid and name
+  
+  @retval root_idx : root file index
+*/
+int dirent_get_root_idx(uint64_t children,uint32_t hash1)
+{
+    int range;
+    int root_idx;
+    
+    for (range = 0; range < DIRENT_MAX_RANGE;range++)
+    {
+       if (dirent_range_table[range].file_limit == 0) break;
+       if (dirent_range_table[range].file_limit >= children) break;    
+    } 
+    /*
+     ** attempt to get the root dirent file from cache
+     */
+    root_idx = hash1 & dirent_range_table[range].mask;
+    return root_idx;
+}
+
 /*
  **______________________________________________________________________________
  */
@@ -848,16 +912,20 @@ int dirent_update_entry = 0;
 /**
  * API to put a mdirentry in one parent directory
  *
- * @param dirfd: file descriptor of the parent directory
- * @param *name: pointer to the name of the mdirentry to put
- * @param fid_parent: unique identifier of the parent directory
- *  @param fid: unique identifier of the mdirentry to put
- * @param type: type of the mdirentry to put
+  @param dirfd: file descriptor of the parent directory
+  @param *name: pointer to the name of the mdirentry to put
+  @param fid_parent: unique identifier of the parent directory
+  @param fid: unique identifier of the mdirentry to put
+  @param children: number of children
+  @param type: type of the mdirentry to put
+  @param mask : range index in which the entry has been stored
  *
- * @retval  0 on success
+ * @retval  0 on success (mask contains the mask of the dirent root file)
  * @retval -1 on failure
  */
-int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t type) {
+int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t type,
+                  mdirent_fid_name_info_t *fid_name_info_p,uint64_t children,int *mask) 
+{
 
     int root_idx = 0;
     int bucket_idx = 0;
@@ -875,9 +943,16 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
     mdirents_name_entry_t *name_entry_p = NULL;
     mdirents_hash_entry_t *hash_entry_p = NULL;
     mdirents_hash_ptr_t mdirents_hash_ptr;
+    int range;
+    
+    *mask = -1; /* unknown mask */
     
     START_PROFILING(put_mdirentry);
-
+    
+    if (fid_name_info_p != NULL)
+    {
+       memset(fid_name_info_p,0,sizeof(mdirent_fid_name_info_t));
+    }
    /*
    ** set the pointer to the root idx bitmap
    */
@@ -897,12 +972,20 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
      ** build a hash value based on the fid of the parent directory and the name to search
      */
     hash1 = filename_uuid_hash_fnv(0, name, fid_parent, &hash2, &len);
+    for (range = 0; range < DIRENT_MAX_RANGE;range++)
+    {
+       if (dirent_range_table[range].file_limit == 0) break;
+       if (dirent_range_table[range].file_limit >= children) break;    
+    } 
     /*
      ** attempt to get the root dirent file from cache
      */
-    root_idx = hash1 & DIRENT_ROOT_FILE_IDX_MASK;
-    //    bucket_idx = (hash1 >> DIRENT_ROOT_FILE_IDX_SHIFT)&DIRENT_ROOT_BUCKET_IDX_MASK;
+    root_idx = hash1 & dirent_range_table[range].mask;
+    dirent_range_table[range].count++;
+    *mask = dirent_range_table[range].mask;
     bucket_idx = ((hash2 >> 16) ^ (hash2 & 0xffff)) & DIRENT_ROOT_BUCKET_IDX_MASK;
+    
+    if (fid_name_info_p!= NULL) fid_name_info_p->root_idx = root_idx;
 
     root_entry_p = dirent_get_root_entry_from_cache(fid_parent, root_idx);
     if (root_entry_p == NULL) {
@@ -960,6 +1043,19 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
              */
             memcpy(name_entry_p->fid, fid, sizeof (fid_t));
             dirent_update_entry += 1;
+	    if (fid_name_info_p != NULL)
+	    {
+	      /*
+	      ** save the information related to fid&name
+	      */
+	      if (cache_entry_p->header.level_index != 0)
+	      {
+		fid_name_info_p->coll = 1;
+		fid_name_info_p->coll_idx = cache_entry_p->header.dirent_idx[1] ; 
+	      }
+	      fid_name_info_p->chunk_idx = hash_entry_p->chunk_idx ;
+	      fid_name_info_p->nb_chunk = hash_entry_p->nb_chunk ;
+	    }
             /*
              ** just need to re-write the sector
              */
@@ -1082,6 +1178,22 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
             goto out;
 
         }
+	/*
+	** save the information related to the name array if requested by the caller
+	*/
+	if (fid_name_info_p != NULL)
+	{
+	  /*
+	  ** save the information related to fid&name
+	  */
+	  if (cache_entry_p->header.level_index != 0)
+	  {
+	    fid_name_info_p->coll = 1;
+	    fid_name_info_p->coll_idx = cache_entry_p->header.dirent_idx[1] ; 
+	  }
+	  fid_name_info_p->chunk_idx = hash_entry_p->chunk_idx ;
+	  fid_name_info_p->nb_chunk = hash_entry_p->nb_chunk ;
+	}
         /*
          ** check if another dirent cache entry  needs to be re-written on disk
          */
@@ -1164,14 +1276,73 @@ int fdl_root_idx = -1;
 int fdl_root_count = 0;
 #endif
 
-int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type) {
+int get_mdirentry_internal(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, 
+                           uint32_t * type,int mask,int len,uint32_t hash1,uint32_t hash2);
+
+int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type,int *mask_ret) 
+{
+
+  uint32_t hash1;
+  uint32_t hash2;
+  int range_idx;
+  int len;
+  int status = -1;
+  int mask;
+  int ret;
+  int root_idx_bit;
+
+  START_PROFILING(get_mdirentry);
+  *mask_ret = 0;
+  /*
+  ** file is unknown by default
+  */
+  errno = ENOENT;
+   /*
+   ** set the pointer to the root idx bitmap
+   */
+   dirent_set_root_idx_bitmap_ptr(root_idx_bitmap_p);
+
+  /*
+  ** compute the hash of the entry to search
+  */
+  hash1 = filename_uuid_hash_fnv(0, name, fid_parent, &hash2, &len);
+  /*
+  ** check if the entry is the different range
+  */
+  for (range_idx = 0; range_idx < DIRENT_MAX_RANGE;range_idx++)
+  {
+    mask = dirent_range_table[range_idx].mask;
+    if (mask == 0) goto out;
+    /*
+    ** check if the file exists, otherwise skip it
+    */
+    root_idx_bit = dirent_check_root_idx_bit(hash1 & mask);
+    if (root_idx_bit == 0) continue;  
+    ret = get_mdirentry_internal(root_idx_bitmap_p,dirfd,fid_parent,name,fid,type,mask,len,hash1,hash2);
+    if (ret == 0)
+    {
+      *mask_ret = mask;
+      status = 0;
+      errno = 0;
+      goto out;
+    }  
+  }
+out:
+  STOP_PROFILING(get_mdirentry);
+  return status;
+
+}
+/*
+ **______________________________________________________________________________
+ */
+
+int get_mdirentry_internal(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, 
+                           uint32_t * type,int mask,int len,uint32_t hash1,uint32_t hash2) 
+{
     int root_idx = 0;
     int status = -1;
     int cached = 0;
     int bucket_idx = 0;
-    uint32_t hash1;
-    uint32_t hash2;
-    int len;
     int local_idx;
     mdirents_header_new_t dirent_hdr;
     mdirents_cache_entry_t *root_entry_p;
@@ -1179,7 +1350,7 @@ int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
     mdirents_name_entry_t *name_entry_p = NULL;
     mdirents_hash_entry_t *hash_entry_p = NULL;
     
-    START_PROFILING(get_mdirentry);
+//    START_PROFILING(get_mdirentry);
 
    /*
    ** set the pointer to the root idx bitmap
@@ -1194,17 +1365,10 @@ int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
     ** disk, the rigths may be downgraded to read only.
     */
     DIRENT_ROOT_SET_READ_WRITE();
-
-    /*
-     ** build a hash value based on the fid of the parent directory and the name to search
-     */
-    hash1 = filename_uuid_hash_fnv(0, name, fid_parent, &hash2, &len);
-
     /*
      ** attempt to get the root dirent file from cache
      */
-    root_idx = hash1 & DIRENT_ROOT_FILE_IDX_MASK;
-    //    bucket_idx = (hash1 >> DIRENT_ROOT_FILE_IDX_SHIFT)&DIRENT_ROOT_BUCKET_IDX_MASK;
+    root_idx = hash1 & mask;
     bucket_idx = ((hash2 >> 16) ^ (hash2 & 0xffff)) & DIRENT_ROOT_BUCKET_IDX_MASK;
 
     root_entry_p = dirent_get_root_entry_from_cache(fid_parent, root_idx);
@@ -1339,7 +1503,7 @@ out:
         dirent_remove_root_entry_from_cache(fid_parent, root_idx);
 	dirent_cache_release_entry(root_entry_p);
       }
-      STOP_PROFILING(get_mdirentry);
+//      STOP_PROFILING(get_mdirentry);
       return status;        
     }
     if (root_entry_p != NULL) {
@@ -1349,7 +1513,7 @@ out:
             DIRENT_SEVERE(" get_mdirentry failed to release cache entry for %s",name);
         }
     }
-    STOP_PROFILING(get_mdirentry);
+//    STOP_PROFILING(get_mdirentry);
     return status;
 }
 
@@ -1381,9 +1545,50 @@ static inline void dirent_dbg_check_cache_entry(fid_t fid_parent, int root_idx) 
  * @retval -1 on failure
  */
 
+int del_mdirentry_internal(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type,int mask);
 
 
-int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type) {
+int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type,int mask) 
+{
+
+  int range_idx;
+  int status = -1;
+  int ret;
+  
+  START_PROFILING(del_mdirentry);
+
+  if (mask != 0)
+  {
+    status = del_mdirentry_internal(root_idx_bitmap_p,dirfd,fid_parent,name,fid,type,mask);
+    goto out;  
+  }
+
+  /*
+  ** The mask is unknown so scan the different ranges
+  */
+  for (range_idx = 0; range_idx < DIRENT_MAX_RANGE;range_idx++)
+  {
+    mask = dirent_range_table[range_idx].mask;
+    if (mask == 0) goto out;
+    ret = del_mdirentry_internal(root_idx_bitmap_p,dirfd,fid_parent,name,fid,type,mask);
+    if (ret == 0)
+    {
+      status = 0;
+      goto out;
+    }  
+  }
+out:
+  STOP_PROFILING(del_mdirentry);
+  return status;
+
+}
+
+/*
+ **______________________________________________________________________________
+ */
+ 
+int del_mdirentry_internal(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t * type,int mask) 
+{
     int root_idx = 0;
     int cached = 0;
     int status = -1;
@@ -1399,7 +1604,7 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
     mdirents_cache_entry_t *cache_entry_p;
     mdirents_cache_entry_t *returned_prev_entry_p;
     
-    START_PROFILING(del_mdirentry);
+//    START_PROFILING(del_mdirentry);
    /*
    ** set the pointer to the root idx bitmap
    */
@@ -1423,8 +1628,8 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
     /*
      ** attempt to get the root dirent file from cache
      */
-    root_idx = hash1 & DIRENT_ROOT_FILE_IDX_MASK;
-    //    bucket_idx = (hash1 >> DIRENT_ROOT_FILE_IDX_SHIFT)&DIRENT_ROOT_BUCKET_IDX_MASK;
+//    root_idx = hash1 & DIRENT_ROOT_FILE_IDX_MASK;
+    root_idx = hash1 & mask;
     bucket_idx = ((hash2 >> 16) ^ (hash2 & 0xffff)) & DIRENT_ROOT_BUCKET_IDX_MASK;
 
     root_entry_p = dirent_get_root_entry_from_cache(fid_parent, root_idx);
@@ -1466,9 +1671,10 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
         /*
          ** the entry does not exist
          */
+#if 0
         DIRENT_WARN("Entry does not exist for root idx %d bucket_idx %d (cache %d) ( line %d): %s\n",
                 root_idx, bucket_idx, cached, __LINE__, name);
-
+#endif
         //XXX: integration tests
         errno = ENOENT;
         goto out;
@@ -1510,19 +1716,22 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
              ** remove the file
              */
         {
-            char pathname[64];
-            char *path_p;
-
+            char pathname_dentry_file[64];
+            char *path_d;
+            char *path_full;
+            char path[PATH_MAX];
             /*
              ** build the filename of the dirent file to read
              */
-            path_p = dirent_build_filename(&cache_entry_p->header, pathname);
+	    path_full = path;
+            path_d = dirent_build_filename(&cache_entry_p->header, pathname_dentry_file);
+	    mdirent_resolve_path(dirent_export_root_path,fid_parent,(char*)pathname_dentry_file,path_full);
+
 	    if (cache_entry_p->header.level_index == 0) 
 	    {
 	       dirent_clear_root_idx_bit(cache_entry_p->header.dirent_idx[0]);    
 	    }
 #ifndef DIRENT_SKIP_DISK
-            int flags = 0;
             int ret;
 	    /*
 	    ** before removing the file need to check the presence in the cache
@@ -1530,11 +1739,11 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
 	    */
 	    if (dirent_writeback_cache_enable != 0)
 	    {
-	      dirent_wbcache_check_flush_on_read(dirent_current_eid,(char *)path_p,cache_entry_p->header.dirent_idx[0]);
+	      dirent_wbcache_check_invalidate_on_unlink(dirent_current_eid,(char *)path_d,cache_entry_p->header.dirent_idx[0],cache_entry_p->key.dir_fid);
 	    }
-            ret = unlinkat(dirfd, path_p, flags);
+            ret = unlink( path_full);
             if (ret < 0) {
-                DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path_p, strerror(errno), __LINE__);
+//                DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path_p, strerror(errno), __LINE__);
             }
 #endif
         }
@@ -1580,9 +1789,9 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
                 /*
                  ** root file is empty : delete the file
                  */
-                char pathname[64];
-                char *path_p;
-
+                char pathname_dentry_file[64];
+                char *path_d;
+        	char path[PATH_MAX];
                 /*
                  ** if (cached == 1)--> remove the entry from the level 0 cache
                  */
@@ -1599,10 +1808,19 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
                 /*
                  ** build the filename of the dirent file to read
                  */
-                path_p = dirent_build_filename(&root_entry_p->header, pathname);
+                path_d = dirent_build_filename(&root_entry_p->header, pathname_dentry_file);
+	        mdirent_resolve_path(dirent_export_root_path,fid_parent,(char*)pathname_dentry_file,path);
 		if (root_entry_p->header.level_index == 0) 
 		{
 		   dirent_clear_root_idx_bit(root_entry_p->header.dirent_idx[0]);    
+		}
+		/*
+		** invalidate the writeback cache for that entry
+		*/
+		if (dirent_writeback_cache_enable != 0)
+		{
+		  dirent_wbcache_check_invalidate_on_unlink(dirent_current_eid,(char *)path_d,root_entry_p->header.dirent_idx[0],
+		                                            root_entry_p->key.dir_fid);
 		}
                 /*
                  ** now release the associated memory
@@ -1610,18 +1828,16 @@ int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
                 if (dirent_cache_release_entry(root_entry_p) < 0) {
                     DIRENT_WARN(" ERROR  dirent_cache_release_entry\at line %d\n", __LINE__);
                 }
-
                 /*
                  ** clear the pointer to the root entry
                  */
                 root_entry_p = NULL;
-		
 #ifndef DIRENT_SKIP_DISK
-                int flags = 0;
                 int ret;
-                ret = unlinkat(dirfd, path_p, flags);
+
+                ret = unlink(path);
                 if (ret < 0) {
-                    DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path_p, strerror(errno), __LINE__);
+                    DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path, strerror(errno), __LINE__);
                     goto out;
                 }
 #endif
@@ -1667,7 +1883,7 @@ out:
         dirent_remove_root_entry_from_cache(fid_parent, root_idx);
 	dirent_cache_release_entry(root_entry_p);
       }
-      STOP_PROFILING(del_mdirentry);
+//      STOP_PROFILING(del_mdirentry);
       return status;        
     }
     if (root_entry_p != NULL) {
@@ -1677,7 +1893,7 @@ out:
             DIRENT_SEVERE(" get_mdirentry failed to release cache entry\n");
         }
     }
-    STOP_PROFILING(del_mdirentry);
+//    STOP_PROFILING(del_mdirentry);
     return status;
 }
 
@@ -2053,6 +2269,8 @@ get_next_collidx:
                 continue;	    
 	    
 	    }
+#warning do not control the compute_root_idx since it is useless 
+#if 0
             {
 	      uint32_t hash1;
 	      uint32_t hash2;
@@ -2072,7 +2290,7 @@ get_next_collidx:
                 continue;	   	      	      	      
 	      }
             }
-
+#endif
             *iterator = xmalloc(sizeof (child_t));
             memset(*iterator, 0, sizeof (child_t));
             memcpy((*iterator)->fid, name_entry_p->fid, sizeof (fid_t));

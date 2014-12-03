@@ -85,6 +85,7 @@ extern uint64_t malloc_size; /**< cumulative allocated bytes */
 extern uint32_t malloc_size_tb[]; /**< @ingroup DIRENT_MALLOC per memory block statistics */
 
 extern int dirent_current_eid;  /**< current eid: used by dirent writeback cache */
+extern char *dirent_export_root_path ;  /**< pointer to the root path of the export */
 
 /*
  *__________________________________________________
@@ -432,6 +433,7 @@ typedef struct _mdirents_header_new_t {
     uint64_t sector_offset_of_name_entry :16; ///< index of the first name entry sector
     uint64_t filler :32;
 } mdirents_header_new_t;
+
 
 #define MDIRENTS_BITMAP_COLL_DIRENT_LAST_BYTE  (((MDIRENTS_MAX_COLLS_IDX-1)/8)+1) //< index of the last byte of the bitmap
 /**
@@ -3485,23 +3487,39 @@ int write_mdirents_file(int dirfd, mdirents_cache_entry_t *dirent_cache_p);
 int dirent_write_name_array_to_disk(int dirfd,
         mdirents_cache_entry_t *dirent_cache_p, uint16_t start_chunk_idx);
 
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  Get the mask to apply according to the current number of file in the directory
+
+  @param children : number of files
+  @param hash1 : hash value for fid and name
+  
+  @retval root_idx : root file index
+*/
+int dirent_get_root_idx(uint64_t children,uint32_t hash1);
 /*
  **______________________________________________________________________________
  */
+
 /** @ingroup DIRENT_HIGH_LVL_API
  * API to put a mdirentry in one parent directory
  *
- * @param dirfd: file descriptor of the parent directory
- * @param *name: pointer to the name of the mdirentry to put
- * @param fid_parent: unique identifier of the parent directory
- *  @param fid: unique identifier of the mdirentry to put
- * @param type: type of the mdirentry to put
+  @param dirfd: file descriptor of the parent directory
+  @param *name: pointer to the name of the mdirentry to put
+  @param fid_parent: unique identifier of the parent directory
+  @param fid: unique identifier of the mdirentry to put
+  @param children: number of children
+  @param type: type of the mdirentry to put
+  @param mask : range index in which the entry has been stored
  *
- * @retval  0 on success
+ * @retval  0 on success (mask contains the mask of the dirent root file)
  * @retval -1 on failure
  */
-int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid,
-        uint32_t type);
+int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, uint32_t type,
+                  mdirent_fid_name_info_t *fid_name_info_p,uint64_t children,int *mask);
 
 /*
  **______________________________________________________________________________
@@ -3517,8 +3535,8 @@ int put_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
  * @retval  0 on success
  * @retval -1 on failure
  */
-int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid,
-        uint32_t * type);
+int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, 
+                  fid_t fid, uint32_t * type,int *mask_ret) ;
 
 /*
  **______________________________________________________________________________
@@ -3534,8 +3552,9 @@ int get_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * na
  * @retval  0 on success
  * @retval -1 on failure
  */
-int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid,
-        uint32_t * type);
+int del_mdirentry(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, char * name, fid_t fid, 
+         uint32_t * type,int mask);
+
 /*
  **______________________________________________________________________________
  */
@@ -3869,6 +3888,8 @@ extern uint64_t dirent_wb_cache_write_bytes_count;
 extern uint64_t dirent_wb_write_count;
 extern uint64_t dirent_wb_write_chunk_count;  /**< incremented each time a chunk need to be flushed for making some room */
 extern uint64_t dirent_wbcache_flush_counter;
+extern uint64_t dirent_wbcache_invalidate_counter;
+
 /**
 *____________________________________________________________
 */
@@ -3880,6 +3901,9 @@ static inline char *dirent_wbcache_display_stats(char *pChar) {
             (long long unsigned int) dirent_wbcache_hit_counter,
             (long long unsigned int) dirent_wbcache_miss_counter,
             (long long unsigned int) dirent_wbcache_flush_counter
+	    );
+    pChar+=sprintf(pChar,"invalidate     : %llu\n",
+            (long long unsigned int) dirent_wbcache_invalidate_counter
 	    );
     pChar+=sprintf(pChar,"total Write : memory %llu MBytes (%llu Bytes) requests %llu ejected chunks %llu\n\n",
             (long long unsigned int) dirent_wb_cache_write_bytes_count / (1024*1024),
@@ -3929,9 +3953,24 @@ int dirent_wbcache_write(int fd,void *buf,size_t count,off_t offset);
   @param eid : export identifier
   @param pathname : local pathname of the dirent file
   @param root_idx : root index of the file (key)
+  @param dir_fid : fid of the directory (key)
 
 */
-int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx);
+int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx,fid_t dir_fid);
+
+/**
+*____________________________________________________________
+*/
+/**
+*  check if the write back cache must be invalidated
+   
+  @param eid : export identifier
+  @param pathname : local pathname of the dirent file
+  @param root_idx : root index of the file (key)
+  @param dir_fid : fid of the directory (key)
+
+*/
+int dirent_wbcache_check_invalidate_on_unlink(int eid,char *pathname,int root_idx,fid_t dir_fid);
 /**
 *____________________________________________________________
 */
@@ -4045,6 +4084,18 @@ static inline ssize_t dirent_pwrite(int fd, const void *buf, size_t count,
 
 #define DIRENT_PWRITE dirent_pwrite  /**<@ingroup DIRENT_RW_DISK */
 
+
+static inline void mdirent_resolve_path(char *root_path,fid_t fid,char *pathname_dentry,char *path)
+{
+    char str[37];
+    uint32_t slice;
+    uint32_t subslice;
+    
+    mstor_get_slice_and_subslice(fid, &slice, &subslice);
+    uuid_unparse(fid, str);
+    sprintf(path, "%s/%d/%s/%s", root_path, slice, str,pathname_dentry);
+
+}
 /**
 *____________________________________________________________
 */
@@ -4062,9 +4113,13 @@ static inline ssize_t dirent_pwrite(int fd, const void *buf, size_t count,
 static inline int dirent_openat(int dirfd, const char *pathname, int flags, mode_t mode,fid_t dir_fid,int root_idx)
 {
   int fd;
+  char path[PATH_MAX];
+  
   if (dirent_writeback_cache_enable == 0)
   {
-    fd = openat(dirfd, pathname,flags,mode);
+    mdirent_resolve_path(dirent_export_root_path,dir_fid,(char*)pathname,path);
+    severe("FDL root_path: %s",path);
+    fd = open(path,flags,mode);
     return fd;
   }
   /*
@@ -4076,7 +4131,8 @@ static inline int dirent_openat(int dirfd, const char *pathname, int flags, mode
     /*
     ** writeback cache is full, so by-pass it
     */
-    fd = openat(dirfd, pathname,flags,mode);
+    mdirent_resolve_path(dirent_export_root_path,dir_fid,(char*)pathname,path);
+    fd = open(path,flags,mode);
     return fd;
   }
   /*
@@ -4102,17 +4158,20 @@ static inline int dirent_openat(int dirfd, const char *pathname, int flags, mode
    @param dir_fid : fid of the directory
    
  */
-static inline int dirent_openat_read(int dirfd, const char *pathname, int flags, mode_t mode,int root_idx)
+static inline int dirent_openat_read(int dirfd, const char *pathname, int flags, mode_t mode,fid_t dir_fid,int root_idx)
 {
   int fd;
+  char path[PATH_MAX];
+
   if (dirent_writeback_cache_enable != 0)
   {
     /*
     ** check if the write back cachemust be flushed
     */   
-    dirent_wbcache_check_flush_on_read(dirent_current_eid,(char *)pathname,root_idx);
+    dirent_wbcache_check_flush_on_read(dirent_current_eid,(char *)pathname,root_idx,dir_fid);
   }
-  fd = openat(dirfd, pathname,flags,mode);
+  mdirent_resolve_path(dirent_export_root_path,dir_fid,(char*)pathname,path);
+  fd = open(path,flags,mode);
   return fd;
 }
 #define DIRENT_OPENAT_READ dirent_openat_read

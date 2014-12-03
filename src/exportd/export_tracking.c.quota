@@ -49,7 +49,6 @@
 #include "mdirent.h"
 #include "xattr_main.h"
 #include "rozofs_quota_api.h"
-#include "export_quota_thread_api.h"
 
 /** Max entries of lv1 directory structure (nb. of buckets) */
 #define MAX_LV1_BUCKETS 1024
@@ -442,8 +441,30 @@ static int export_update_files(export_t *e, int32_t n) {
     int status = -1;
     START_PROFILING(export_update_files);
 
-    status = export_fstat_update_files(e->eid,n);
+    if (n<0) {
+      n = -n;
+      /*
+      ** Releasing more files than existing !!!
+      */
+      if (n > e->fstat.files) {
+#warning do not send the severe on fstats.files
+#if 0
+        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %d files",
+	       e->root, e->fstat.blocks, e->fstat.files, n); 
+#endif
+        n = e->fstat.files;
+      }
+      e->fstat.files -= n;
+    }
+    else {
+      e->fstat.files += n;
+    }
+    if (pwrite(e->fdstat, &e->fstat, sizeof (export_fstat_t), 0)
+            != sizeof (export_fstat_t))
+        goto out;
 
+    status = 0;
+out:
     STOP_PROFILING(export_update_files);
     return status;
 }
@@ -461,7 +482,42 @@ static int export_update_blocks(export_t * e, int32_t n) {
     if (n == 0) return 0;
     
     START_PROFILING(export_update_blocks);
-     status = export_fstat_update_blocks(e->eid,n);
+    
+    /*
+    ** Releasing some blocks 
+    */
+    if (n<0) {
+    
+      n = -n;
+
+      /*
+      ** Releasing more blocks than allocated !!!
+      */
+      if (n > e->fstat.blocks) {
+        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %d blocks",
+	       e->root, e->fstat.blocks, e->fstat.files, n); 
+        n = e->fstat.blocks;
+      }
+
+      e->fstat.blocks -= n;
+    }
+    else {
+
+      if (e->hquota > 0 && e->fstat.blocks + n > e->hquota) {
+          warning("quota exceed: %"PRIu64" over %"PRIu64"", e->fstat.blocks + n,
+                  e->hquota);
+          errno = EDQUOT;
+          goto out;
+      }
+
+      e->fstat.blocks += n;      
+    }
+    if (pwrite(e->fdstat, &e->fstat, sizeof (export_fstat_t), 0)
+            != sizeof (export_fstat_t))
+        goto out;
+
+    status = 0;
+out:
     STOP_PROFILING(export_update_blocks);
     return status;
 }
@@ -777,15 +833,7 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     if (pread(e->fdstat, &e->fstat, sizeof (export_fstat_t), 0)
             != sizeof (export_fstat_t))
         return -1;
-    /*
-    ** register the export with the periodic quota thread
-    */
-    void *ptr;
-    if (export_fstat_alloc_context(e->eid,fstat_path,hquota,squota,0) == NULL)
-    {
-       severe("cannot allocate context for eid in quota thread");
-       return -1;
-    }
+
     // Register the root
     sprintf(const_path, "%s/%s", e->root, CONST_FNAME);
     if ((fd = open(const_path, O_RDWR, S_IRWXU)) < 1) {
@@ -1212,10 +1260,13 @@ out:
 
 int rozofs_parse_object_name(char *name,char **basename,int *file_count)
 {
+  int ret;
   int count;
   char *pnext;
   char *cur = name;
-
+  int len;
+  
+  len = strlen(name);
 
   while(1)
   {
@@ -1475,8 +1526,8 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
     if (export_lv2_write_attributes(e->trk_tb_p,plv2) != 0) {
         goto error;
     }
-//#warning fdl test
-#if 1 
+#warning fdl test
+#if 0 
     // update export files
     export_update_files(e, filecount+1);
 #endif
@@ -1494,7 +1545,7 @@ error:
     if (inode_allocated)
     {
        fid_t child_fid;
-       uint32_t child_type;
+       int child_type;
        /*
        ** release the inodes that has been allocated
        */
@@ -1697,8 +1748,8 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     if (export_lv2_write_attributes(e->trk_tb_p,plv2) != 0) {
         goto error;
     }
-//#warning fdl test +quota
-#if 1 
+#warning fdl test +quota
+#if 0 
     // update export files
     export_update_files(e, 1);
 #endif
@@ -1934,6 +1985,8 @@ error:
         char fname[PATH_MAX];
         mdir_t node_mdir_del;
         // XXX: put version
+        fid_t fid;
+        uint32_t type;
         sprintf(fname, "%s/%s", node_path, MDIR_ATTRS_FNAME);
         unlink(fname);
         node_mdir_del.fdp = open(node_path, O_RDONLY, S_IRWXU);
@@ -2024,6 +2077,7 @@ int export_unlink_multiple(export_t * e, fid_t parent, char *name, fid_t fid,mat
     lv2_entry_t *lv2=NULL;
     fid_t child_fid;
     uint32_t child_type;
+    uint16_t nlink = 0;
     int fdp = -1;
     int ret;
     rozofs_inode_t *fake_inode_p;
@@ -2857,7 +2911,11 @@ int export_rmdir(export_t *e, fid_t pfid, char *name, fid_t fid,mattr_t * pattrs
     lv2_entry_t *plv2=NULL;
     lv2_entry_t *lv2=NULL;
     fid_t fake_fid;
+    fid_t dot_fid;
+    fid_t dot_dot_fid;
     uint32_t fake_type;
+    uint32_t dot_type;
+    uint32_t dot_dot_type;
     char lv2_path[PATH_MAX];
     char lv3_path[PATH_MAX];
     int fdp = -1;
@@ -3225,6 +3283,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
     int old_parent_fdp = -1;
     int new_parent_fdp = -1;
     int to_replace_fdp = -1;
+    int to_rename_fdp  = -1;
     rmfentry_disk_t trash_entry;
     int ret;
     rozofs_inode_t *fake_inode_p;    
@@ -3270,7 +3329,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
       ** load the root_idx bitmap of the fid to rename
       */
       export_dir_load_root_idx_bitmap(e,fid_to_rename,lv2_to_rename);
-      export_open_parent_directory(e,fid_to_rename);
+      to_rename_fdp = export_open_parent_directory(e,fid_to_rename);
     }  
     // Get the lv2 entry of newparent
     if (!(lv2_new_parent = export_lookup_fid(e->trk_tb_p,e->lv2_cache, npfid)))

@@ -148,6 +148,23 @@ void lv2_cache_del(lv2_cache_t *cache, fid_t fid) ;
 */
 
 lv2_entry_t *lv2_cache_put(export_tracking_table_t *trk_tb_p,lv2_cache_t *cache, fid_t fid);
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   The purpose of that service is to store object attributes in the attributes cache
+
+  @param attr_p: pointer to the attribut of the object
+  @param cache : pointer to the export attributes cache
+  @param fid : unique identifier of the object
+  
+  @retval <> NULL: attributes of the object
+  @retval == NULL : no attribute returned for the object (see errno for details)
+*/
+
+lv2_entry_t *lv2_cache_put_forced(lv2_cache_t *cache, fid_t fid,ext_mattr_t *attr_p);
+
 /** Format statistics information about the lv2 cache
  *
  *
@@ -219,6 +236,28 @@ int export_lv2_write_attributes(export_tracking_table_t *trk_tb_p,lv2_entry_t *e
   @retval -1 on error (see errno for details)
 */
 int exp_attr_create(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t *global_attr_p,int type,char *link);
+
+
+/*
+**__________________________________________________________________
+*/
+/**
+*  Create the attributes of a directory/regular file or symbolic link without write attributes on disk
+
+  create an oject according to its type. The service performs the allocation of the fid. 
+  It is assumed that all the other fields of the object attributes are already been filled in.
+  
+  @param trk_tb_p: export attributes tracking table
+  @param slice: slice of the parent directory
+  @param global_attr_p : pointer to the attributes of the object
+  @param type: type of the object (ROZOFS_REG: regular file, ROZOFS_SLNK: symbolic link, ROZOFS_DIR : directory
+  @param link: pointer to the symbolic link (significant for ROZOFS_SLNK only)
+  @param write: assert to 1 if write is requested/ 0: no write
+  
+  @retval 0 on success: (the attributes contains the lower part of the fid that is allocated by the service)
+  @retval -1 on error (see errno for details)
+*/
+int exp_attr_create_write_cond(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t *global_attr_p,int type,char *link,uint8_t write);
 /*
 **__________________________________________________________________
 */

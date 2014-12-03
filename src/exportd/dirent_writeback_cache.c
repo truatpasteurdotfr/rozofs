@@ -51,6 +51,7 @@ uint64_t dirent_wb_cache_write_bytes_count = 0;
 uint64_t dirent_wb_write_count = 0;
 uint64_t dirent_wb_write_chunk_count = 0;  /**< incremented each time a chunk need to be flushed for making some room */
 uint64_t dirent_wbcache_flush_counter = 0;
+uint64_t dirent_wbcache_invalidate_counter = 0;
 uint64_t dirent_wb_total_chunk_write_cpt = 0;
 
 int dirent_wbcache_thread_period_count;
@@ -103,6 +104,7 @@ char * show_wbcache_thread_stats_display(char *pChar)
      pChar += sprintf(pChar," - chunk flush count :%llu\n",
               (long long unsigned int)dirent_wb_write_chunk_count);
 
+
      /*
      ** read and clear counters update
      */
@@ -127,6 +129,37 @@ char * show_wbcache_thread_stats_display(char *pChar)
 
 
 }
+
+/**
+*  Get the hash idx for the writeback cache
+
+   @param fid
+   
+   @retval index in the writeback cache
+*/
+static inline int dirent_wbcache_get_index(void *fid,char *path)
+{
+
+    uint32_t h;
+
+    unsigned char *d = (unsigned char *) fid;
+    int i = 0;
+
+    h = 2166136261U;
+    /*
+     ** hash on name
+     */
+    for (i=0; i < sizeof(fid_t); d++, i++) {
+        h = (h * 16777619)^ *d;
+
+    }
+    d = (unsigned char *)path;
+    for (i=0; *d != 0; d++, i++) {
+        h = (h * 16777619)^ *d;
+
+    }
+    return (int)(h%DIRENT_CACHE_MAX_ENTRY);
+}
 /*
 **_______________________________________________________________
 */
@@ -138,7 +171,7 @@ char * show_wbcache_thread_stats_display(char *pChar)
   @retval 1 : write pending
   @retval 0 : no write pending
 */ 
-static inline dirent_wbcache_check_write_pending(dirent_writeback_entry_t  *cache_p)
+static inline int dirent_wbcache_check_write_pending(dirent_writeback_entry_t  *cache_p)
 {
    int i;
    for (i = 0; i < DIRENT_CACHE_MAX_CHUNK; i++)
@@ -221,13 +254,12 @@ void show_wbcache_thread(char * argv[], uint32_t tcpRef, void *bufRef) {
 */
 int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
 {
-  export_t *exp;
   int fd = -1;
   int flag = O_WRONLY | O_CREAT | O_NOATIME;
   dirent_chunk_cache_t *chunk_p;
   int i;
   int status = -1;
-  int fd_dir=-1;
+  char path[PATH_MAX];
 
   /*
   ** take the lock associated with the entry
@@ -248,23 +280,13 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
     return 0;     
   }
 
-  
-  /*
-  ** open the directory associated with the dirent file
-  */
-  exp = exports_lookup_export(cache_p->eid);
-  if (exp == NULL)
-    goto error;
-
-  fd_dir = export_open_parent_directory(exp,cache_p->dir_fid);
-  if (fd_dir == -1) 
-     goto error;
   /*
   ** open the dirent file
   */
-  if ((fd = openat(fd_dir, cache_p->pathname, flag, S_IRWXU)) == -1) 
+  mdirent_resolve_path(dirent_export_root_path,cache_p->dir_fid,(char*)cache_p->pathname,path);
+  if ((fd = open(path, flag, S_IRWXU)) == -1) 
   {
-     severe("cannot open %s",cache_p->pathname);
+     severe("cannot open %s",path);
      goto error;  
   } 
   /*
@@ -302,7 +324,6 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
 
 error:
   if(fd != -1) close(fd);
-  if (fd_dir!= -1) close(fd_dir);
   if ((errno = pthread_rwlock_unlock(&cache_p->lock)) != 0) {
       severe("can't lock writeback cache entry: %s", strerror(errno));
       return -1;
@@ -366,15 +387,17 @@ static void *dirent_wbcache_thread(void *v) {
   @param eid : export identifier
   @param pathname : local pathname of the dirent file
   @param root_idx : root index of the file (key)
+  @param dir_fid : fid of the directory (key)
 
 */
-int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx)
+int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx,fid_t dir_fid)
 {
 
    dirent_writeback_entry_t  *cache_p;
    int i;
 
-   i = root_idx%DIRENT_CACHE_MAX_ENTRY ;  
+//   i = root_idx%DIRENT_CACHE_MAX_ENTRY ;
+   i = dirent_wbcache_get_index(dir_fid,pathname);
    cache_p = &dirent_writeback_cache_p[i];
    if ((cache_p->state == 0)|| ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending(cache_p) == 0))) return 0;
    /*
@@ -382,12 +405,71 @@ int dirent_wbcache_check_flush_on_read(int eid,char *pathname,int root_idx)
    */
    if (eid != cache_p->eid) return 0;
    if (strcmp(pathname,cache_p->pathname)!=0) return 0;   
+   if (memcmp(dir_fid, cache_p->dir_fid, sizeof (fid_t))!=0)  return 0;  
+
    /*
    ** it matches -> flush on disk before read
    */
    dirent_wbcache_diskflush(cache_p);
 
    dirent_wbcache_flush_counter++;
+   return i;
+
+}
+
+
+/**
+*____________________________________________________________
+*/
+/**
+*  check if the write back cache must be invalidated
+   
+  @param eid : export identifier
+  @param pathname : local pathname of the dirent file
+  @param root_idx : root index of the file (key)
+  @param dir_fid : fid of the directory (key)
+
+*/
+int dirent_wbcache_check_invalidate_on_unlink(int eid,char *pathname,int root_idx,fid_t dir_fid)
+{
+
+   dirent_writeback_entry_t  *cache_p;
+   dirent_chunk_cache_t *chunk_p;
+   int i;
+
+//   i = root_idx%DIRENT_CACHE_MAX_ENTRY ;  
+   i = dirent_wbcache_get_index(dir_fid,pathname);
+   cache_p = &dirent_writeback_cache_p[i];
+   if ((cache_p->state == 0)|| ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending(cache_p) == 0))) return 0;
+   /*
+   ** the entry is busy : check if it matches
+   */
+   if (eid != cache_p->eid) return 0;
+   if (strcmp(pathname,cache_p->pathname)!=0) return 0;   
+   if (memcmp(dir_fid, cache_p->dir_fid, sizeof (fid_t))!=0)  return 0;  
+
+   /*
+   ** it matches -> invalidate the entry
+   ** take the lock associated with the entry
+   */
+   if ((errno = pthread_rwlock_wrlock(&cache_p->lock)) != 0) {
+       severe("can't lock writeback cache entry: %s", strerror(errno));
+       return -1;
+   }
+   chunk_p = &cache_p->chunk[0];
+   for (i = 0; i < DIRENT_CACHE_MAX_CHUNK; i++,chunk_p++) chunk_p->wr_cpt = 0;
+   /*
+   ** clear the header write pointer here to avoid race condition with check for flush
+   */
+   cache_p->wr_cpt = 0;
+   cache_p->state = 0;
+
+  if ((errno = pthread_rwlock_unlock(&cache_p->lock)) != 0) {
+      severe("can't lock writeback cache entry: %s", strerror(errno));
+      return -1;
+  }
+
+   dirent_wbcache_invalidate_counter++;
    return i;
 
 }
@@ -411,7 +493,8 @@ int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,i
    dirent_writeback_entry_t  *cache_p;
    int i;
 
-   i = root_idx%DIRENT_CACHE_MAX_ENTRY ;  
+//   i = root_idx%DIRENT_CACHE_MAX_ENTRY ;  
+   i = dirent_wbcache_get_index(dir_fid,pathname);
    cache_p = &dirent_writeback_cache_p[i];
    if ((cache_p->state == 0)|| ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending ( cache_p) == 0)))
    { 
@@ -420,7 +503,6 @@ int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,i
      memcpy(cache_p->dir_fid,dir_fid,sizeof(fid_t));
      cache_p->eid = eid;   
      cache_p->state = 1; 
-//     severe("FDL new open %s fd %d",pathname,i);
     if ((errno = pthread_rwlock_wrlock(&cache_p->lock)) != 0) {
         severe("can't lock writeback cache entry: %s", strerror(errno));
         return -1;
@@ -432,7 +514,7 @@ int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,i
    */
    if (eid != cache_p->eid) goto out;
    if (strcmp(pathname,cache_p->pathname)!=0) goto out;
-//   if (memcmp(dir_fid, cache_p->dir_fid, sizeof (fid_t))!=0)  goto out;
+   if (memcmp(dir_fid, cache_p->dir_fid, sizeof (fid_t))!=0)  goto out;
    
    /*
    ** it matches
@@ -444,6 +526,24 @@ int dirent_wbcache_open(int fd_dir,int fd,int eid,char *pathname,fid_t dir_fid,i
    dirent_wbcache_hit_counter++;
    return i;
 out:
+   if (cache_p->fd == -1)
+   {
+     /*
+     ** the entry is free, so push it on disk
+     */
+     dirent_wbcache_diskflush(cache_p);
+     dirent_wbcache_flush_counter++;
+     if ((errno = pthread_rwlock_wrlock(&cache_p->lock)) != 0) {
+	 severe("can't lock writeback cache entry: %s", strerror(errno));
+	 return -1;
+     }
+     cache_p->fd = fd;
+     strcpy(cache_p->pathname,pathname);
+     memcpy(cache_p->dir_fid,dir_fid,sizeof(fid_t));
+     cache_p->eid = eid;   
+     cache_p->state = 1; 
+     return i;
+   } 
    dirent_wbcache_miss_counter++;
    return -1;
 }
@@ -459,28 +559,18 @@ out:
 */
 int dirent_wbcache_chunk_diskflush(dirent_writeback_entry_t  *cache_p)
 {
-  export_t *exp;
   int fd = -1;
   int flag = O_WRONLY | O_CREAT | O_NOATIME;
   dirent_chunk_cache_t *chunk_p;
   int status = -1;
-  int fd_dir=-1;
-  /*
-  ** open the directory associated with the dirent file
-  */
-  exp = exports_lookup_export(cache_p->eid);
-  if (exp == NULL)
-    goto error;
-
-  fd_dir = export_open_parent_directory(exp,cache_p->dir_fid);
-  if (fd_dir == -1) 
-     goto error;
+  char path[PATH_MAX];
   /*
   ** open the dirent file
   */
-  if ((fd = openat(fd_dir, cache_p->pathname, flag, S_IRWXU)) == -1) 
+  mdirent_resolve_path(dirent_export_root_path,cache_p->dir_fid,(char*)cache_p->pathname,path);
+  if ((fd = open(path, flag, S_IRWXU)) == -1) 
   {
-     severe("cannot open %s",cache_p->pathname);
+     severe("cannot open %s",path);
      goto error;  
   } 
   chunk_p = &cache_p->chunk[0];
@@ -497,7 +587,6 @@ int dirent_wbcache_chunk_diskflush(dirent_writeback_entry_t  *cache_p)
 
 error:
   if(fd != -1) close(fd);
-  if(fd_dir != -1) close(fd_dir);
 
   return status;   
 
@@ -633,7 +722,7 @@ out :
 
 error:
   count = -1;
-  goto  error;
+  goto  out;
 }
 
 /**

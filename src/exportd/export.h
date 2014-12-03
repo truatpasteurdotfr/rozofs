@@ -141,6 +141,7 @@ typedef struct export {
     uint8_t layout; ///< layout
     uint64_t squota; ///< soft quota in blocks
     uint64_t hquota; ///< hard quota in blocks
+    void    *quota_p;  ///< pointer to the quota context
     export_fstat_t fstat; ///< fstat value
     int fdstat; ///< open file descriptor on stat file
     fid_t rfid; ///< root fid
@@ -156,6 +157,16 @@ typedef struct export {
 extern uint32_t export_configuration_file_hash;  /**< hash value of the configuration file */
 extern int export_local_site_number; 
 extern int rozofs_no_site_file; 
+extern uint64_t export_rm_bins_pending_count; /**< trash thread statistics  */
+extern uint64_t export_rm_bins_done_count ;  /**< trash thread statistics  */
+extern int export_limit_rm_files;
+
+/**
+*  trash statistics display
+
+   @param buf : pointer to the buffer that will contains the statistics
+*/
+char *export_rm_bins_stats(char *pChar);
 /**
 *  Reload in memory the files that have not yet been deleted
 *  return the current sitde number of the exportd
@@ -206,10 +217,11 @@ int export_is_valid(const char *root);
  *
  * @param root: root directory to create file in
  * @param export: pointer to the export
+ * @param lv2_cache: pointer to the cache to use
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
-int export_create(const char *root,export_t * e);
+int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache);
 
 /** initialize an export
  *

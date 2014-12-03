@@ -27,7 +27,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "export_track.h"
-
+#include "export_track_change.h"
 
 //static char pathname[1024];
 int open_count;
@@ -548,12 +548,13 @@ int exp_trck_get_relative_inode_idx(int fd,char *root_path ,rozofs_inode_t *inod
   ssize_t count;
   rozofs_inode_t fake_idx; 
   uint16_t val16;
+ 
   
   off = GET_FILE_OFFSET(inode->s.idx);
   count = pread(fd,&val16,sizeof(uint16_t),off);
   if (count != sizeof(uint16_t))
   {
-    severe("fail to write tracking file %s:bad size (%d) expect %d\n",root_path,(int)count,(int)sizeof(uint16_t));
+    severe("fail to read tracking file %s:bad size (%d) expect %d\n",root_path,(int)count,(int)sizeof(uint16_t));
     errno = EIO;
     return -1;
   }
@@ -891,13 +892,19 @@ int exp_metadata_release_inode(exp_trck_top_header_t *top_hdr_p,rozofs_inode_t *
     @retval -1 on error (see errno for details
     
 */
+int fdl_access_count=10;
 int exp_trck_rw_attributes(char *root_path,rozofs_inode_t *inode,void *attr_p,int attr_sz,int max_attr_sz,int read)
 {
    int fd = -1;
    ssize_t count;
    char pathname[1024];
    
-   
+#if 0
+#warning do not write
+     if (fdl_access_count == 0 ) return 0;
+     fdl_access_count--;
+
+#endif   
    if (attr_sz > max_attr_sz)
    {
       errno = EFBIG;
@@ -976,9 +983,89 @@ int exp_metadata_write_attributes(exp_trck_top_header_t *top_hdr_p,rozofs_inode_
       errno = EFBIG;
       return -1;
    }
+   /*
+   ** take care of the tracking
+   */
+   expt_set_bit(top_hdr_p->trck_inode_p,inode->s.usr_id,inode->s.file_id);
+   
    return exp_trck_rw_attributes(main_trck_p->root_path,inode,attr_p,attr_sz,main_trck_p->max_attributes_sz,0);
 }
 
+
+/*
+**__________________________________________________________________
+*/
+/**
+*
+    write attributes associated with an inode within a given space
+    
+    @param top_hdr_p: pointer to the top table
+    @param inode: address of the inode
+    @param attr_p: pointer to the attribute array
+    @param attr_sz: size of the attributes
+
+    
+    @retval 0 on success
+    @retval -1 on error
+    
+*/
+int exp_metadata_create_attributes_burst(exp_trck_top_header_t *top_hdr_p,rozofs_inode_t *inode,void *attr_p,int attr_sz)
+{
+   exp_trck_header_memory_t  *main_trck_p;
+   int fd = -1;
+   ssize_t count;
+   char pathname[1024];
+   
+   main_trck_p = top_hdr_p->entry_p[inode->s.usr_id];
+   if (main_trck_p == NULL)
+   {
+      severe("user_id %d does not exist\n",inode->s.usr_id);
+      errno = ENOENT;
+      return -1;
+   }
+   /*
+   ** take care of the tracking
+   */
+   expt_set_bit(top_hdr_p->trck_inode_p,inode->s.usr_id,inode->s.file_id);
+    /*
+    ** build the pathname of the tracking file
+    */
+    sprintf(pathname,"%s/%d/trk_%llu",main_trck_p->root_path,inode->s.usr_id,(long long unsigned int)inode->s.file_id);
+   /*
+   ** the file exist so open it and read its header in order to find out where is the 
+   ** next index to allocated
+   */
+     open_count++;
+
+   if ((fd = open(pathname, O_RDWR , 0640)) < 0)  
+   {
+     severe("cannot open %s: %s\n",pathname,strerror(errno));
+     return -1;
+   } 
+   /*
+   ** write the attributes on disk: 
+   */
+   off_t attr_offset = inode->s.idx*main_trck_p->max_attributes_sz+sizeof(exp_trck_file_header_t);
+   count = pwrite(fd,attr_p,attr_sz, attr_offset);		         
+   if (count != attr_sz)
+   {
+     CLOSE_CONTROL(__LINE__);
+     if (fd != -1) close(fd);
+     return -1;
+   } 
+   CLOSE_CONTROL(__LINE__);
+   if (fd != -1) close(fd);
+   return 0; 
+
+
+
+
+
+
+
+   
+   return exp_trck_rw_attributes(main_trck_p->root_path,inode,attr_p,attr_sz,main_trck_p->max_attributes_sz,0);
+}
 
 /*
 **__________________________________________________________________
@@ -1316,6 +1403,7 @@ int exp_trck_top_add_user_id(exp_trck_top_header_t *top_hdr_p,int user_id)
 exp_trck_top_header_t *exp_trck_top_allocate(char *name,char *root_path,uint16_t max_attributes_sz,int create_flag)
 {
    exp_trck_top_header_t *top_hdr_p;
+   char full_path[1024];
    
    top_hdr_p = malloc(sizeof(exp_trck_top_header_t));
    if (top_hdr_p == NULL)
@@ -1330,6 +1418,11 @@ exp_trck_top_header_t *exp_trck_top_allocate(char *name,char *root_path,uint16_t
    strcpy(top_hdr_p->root_path,root_path);
    top_hdr_p->max_attributes_sz = max_attributes_sz;
    top_hdr_p->create_flag = create_flag;
+   /*
+   ** allocare a context for inode type tracking
+   */
+   sprintf(full_path,"%s/%s",root_path,name);
+   top_hdr_p->trck_inode_p = expt_alloc_context(root_path);
    return top_hdr_p; 
 }
 
