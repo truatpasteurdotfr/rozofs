@@ -305,6 +305,17 @@ void rozofs_catch_sigpipe(int s){
   signal(SIGPIPE,rozofs_catch_sigpipe);
 }
 /*__________________________________________________________________________
+  handle the SIGCHOLD signal to be able to call wait() or waitpid()
+  and get child exit status
+  ==========================================================================
+  PARAMETERS: 
+  - sig : the signal number
+  RETURN: none
+  ==========================================================================*/
+void rozofs_cath_child(int sig){
+  signal(SIGCHLD, rozofs_cath_child);
+}
+/*__________________________________________________________________________
   Declare a list of signals and the handler to process them
   ==========================================================================
   @param application       the application name. This will be the directory
@@ -341,7 +352,6 @@ void rozofs_signals_declare(char * application, int max_core_files) {
 
   /* Ignored signals */
   
-  signal(SIGCHLD, SIG_IGN);
   signal(SIGTSTP, SIG_IGN);
   signal(SIGTTOU, SIG_IGN);
   signal(SIGTTIN, SIG_IGN);
@@ -352,6 +362,10 @@ void rozofs_signals_declare(char * application, int max_core_files) {
    * process when a TCP connexion is down
    */   
   signal (SIGPIPE,rozofs_catch_sigpipe);
-
+  
+  /*
+  ** SIG child
+  */
+  signal(SIGCHLD, rozofs_cath_child);
   rozofs_clean_core();
 }
