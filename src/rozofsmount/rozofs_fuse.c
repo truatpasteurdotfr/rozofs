@@ -21,6 +21,7 @@
 #include <rozofs/core/ruc_buffer_debug.h>
 
 #include "rozofs_fuse.h"
+#include "rozofs_fuse_api.h"
 
 rozofs_fuse_ctx_t  *rozofs_fuse_ctx_p = NULL;  /**< pointer to the rozofs_fuse saved contexts   */
 uint64_t rozofs_write_merge_stats_tab[RZ_FUSE_WRITE_MAX]; /**< read/write merge stats table */
@@ -46,6 +47,9 @@ uint64_t rozofs_fuse_req_enoent_count = 0;
 uint64_t rozofs_fuse_req_tic = 0;
 uint64_t rozofs_fuse_buffer_depletion_count = 0;
 int rozofs_fuse_loop_count = 2;
+
+uint64_t fuse_profile[3];
+
 
 
 /*
@@ -388,6 +392,7 @@ int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p)
     ** Get a buffer from the rozofs_fuse context. That buffer is unique and is allocated
     ** at startup.
     */
+//    START_PROFILING_FUSE();
     buf = ctx_p->buf_fuse_req_p;
     
 	while (1) {
@@ -431,6 +436,7 @@ int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p)
         /*
         ** OK it looks like that there is a valid message
         */
+//        STOP_PROFILING_FUSE();
         
 		if ( exit_req == 0) fuse_session_process_buf(se, &fbuf, tmpch);
         if (fuse_session_exited(se) == 1)
@@ -608,6 +614,10 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   memset(rozofs_write_merge_stats_tab,0,sizeof(uint64_t)*RZ_FUSE_WRITE_MAX);
   pChar +=sprintf(pChar,"fuse req_in (count/bytes): %8llu/%llu\n",(long long unsigned int)rozofs_fuse_req_count,
                                                     (long long unsigned int)rozofs_fuse_req_byte_in);  
+  pChar +=sprintf(pChar,"fuse time                :%8llu (%8llu)\n",
+          (long long unsigned int)(fuse_profile[P_COUNT]?fuse_profile[P_ELAPSE]/fuse_profile[P_COUNT]:0),
+          (long long unsigned int)fuse_profile[P_COUNT]);
+
   if (delay)
   {
   pChar +=sprintf(pChar,"fuse req_in/s            : %8llu/%llu\n",(long long unsigned int)(rozofs_fuse_req_count*1000000/delay),
@@ -805,7 +815,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
    */
    rozofs_fuse_ctx_p->connectionId = ruc_sockctl_connect(rozofs_fuse_ctx_p->fd,  // Reference of the socket
                                               "rozofs_fuse",                 // name of the socket
-                                              3,                             // Priority within the socket controller
+                                              16,                             // Priority within the socket controller
                                               (void*)rozofs_fuse_ctx_p,      // user param for socketcontroller callback
                                               &rozofs_fuse_callBack_sock);   // Default callbacks
     if (rozofs_fuse_ctx_p->connectionId == NULL)
@@ -825,7 +835,10 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
   /*
   ** attach the callback on socket controller
   */
+//#warning no poller
   ruc_sockCtrl_attach_applicative_poller(rozofs_fuse_scheduler_entry_point); 
+  int i;
+  for(i = 0; i < 3;i++) fuse_profile[i] = 0;
   
   uma_dbg_addTopic("fuse", rozofs_fuse_show);
   return status;

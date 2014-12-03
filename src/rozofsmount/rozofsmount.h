@@ -182,15 +182,42 @@ static inline int eid_check_free_quota(uint32_t bsize, uint64_t oldSize, uint64_
 
 
 
+static inline uint32_t fuse_ino_hash_fnv_with_len( void *key1) {
 
+    unsigned char *d = (unsigned char *) key1;
+    int i = 0;
+    int h;
 
-
-static inline uint32_t fuse_ino_hash(void *n) {
-    return hash_xor8(*(uint32_t *) n);
+     h = 2166136261U;
+    /*
+     ** hash on name
+     */
+    d = key1;
+    for (i = 0; i <sizeof (fuse_ino_t) ; d++, i++) {
+        h = (h * 16777619)^ *d;
+    }
+    return (uint32_t) h;
 }
 
+static inline uint32_t fuse_ino_hash(void *n) {
+    return fuse_ino_hash_fnv_with_len(n);
+}
+
+
+extern uint64_t hash_inode_collisions_count;
+extern uint64_t hash_inode_max_collisions;
+extern uint64_t hash_inode_cur_collisions;
+
 static inline int fuse_ino_cmp(void *v1, void *v2) {
-      return memcmp(v1, v2, sizeof (fuse_ino_t));
+      int ret;
+      ret =  memcmp(v1, v2, sizeof (fuse_ino_t));
+      if (ret != 0) {
+          hash_inode_collisions_count++;
+	  hash_inode_cur_collisions++;
+	  return ret;
+      }
+      if (hash_inode_max_collisions < hash_inode_cur_collisions) hash_inode_max_collisions = hash_inode_cur_collisions;
+      return ret;
 //    return (*(fuse_ino_t *) v1 - *(fuse_ino_t *) v2);
 
 }
@@ -207,13 +234,6 @@ static inline unsigned int fid_hash(void *key) {
     return hash;
 }
 
-static inline fuse_ino_t fid_to_fuse_inode(void *key) {
-    fuse_ino_t hash = 0;
-    uint8_t *c;
-    for (c = key; c != key + 16; c++)
-        hash = *c + (hash << 6) + (hash << 16) - hash;
-    return hash;
-}
 static inline void ientries_release() {
     list_t *p, *q;
 
@@ -244,6 +264,7 @@ static inline void del_ientry(ientry_t * ie) {
 }
 
 static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
+    hash_inode_cur_collisions = 0;
     return htable_get(&htable_inode, &ino);
 }
 
@@ -253,10 +274,13 @@ static inline ientry_t *get_ientry_by_fid(fid_t fid) {
 
 static inline ientry_t *alloc_ientry(fid_t fid) {
 	ientry_t *ie;
+	rozofs_inode_t *inode_p ;
+	
+	inode_p = (rozofs_inode_t*) fid;
 
 	ie = xmalloc(sizeof(ientry_t));
 	memcpy(ie->fid, fid, sizeof(fid_t));
-	ie->inode = fid_to_fuse_inode(fid);
+	ie->inode = inode_p->fid[1]; //fid_hash(fid);
 	list_init(&ie->list);
 	ie->db.size = 0;
 	ie->db.eof = 0;

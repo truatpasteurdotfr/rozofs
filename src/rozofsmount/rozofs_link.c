@@ -838,6 +838,13 @@ void rozofs_ll_unlink_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     /*
     ** no error just waiting for the answer
     */
+#if 1
+#warning anticipate unlink response
+
+    fuse_reply_err(req, 0);
+
+
+#endif
     return;
     
 error:
@@ -1014,11 +1021,11 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
       */
       pie->timestamp = rozofs_get_ticker_us();
     }    
-
-    fuse_reply_err(req, 0);
+#warning do not answer to fuse for unlink
+//    fuse_reply_err(req, 0);
     goto out;
 error:
-    fuse_reply_err(req, errno);
+//    fuse_reply_err(req, errno);
 out:
     /*
     ** release the transaction context and the fuse context

@@ -291,6 +291,7 @@ int rozofs_stat_start(void *args) {
                     "???");
 #endif
  #if 0
+ #warning fifo scheduling
       int ret= 0;
       my_priority.sched_priority= 98;
       policy = SCHED_FIFO;

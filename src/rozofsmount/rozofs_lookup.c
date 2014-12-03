@@ -256,17 +256,16 @@ void rozofs_ll_lookup_nb(fuse_req_t req, fuse_ino_t parent, const char *name)
     if (strncmp(name,"@rozofs@",8) == 0)
     {
       ret = rozofs_parse_object_name((char*)(name+8),&mattr_obj);
-      if (ret < 0)
+      if (ret == 0)
       {
-	errno = ENOENT;
-	goto error;
-      } 
-      /*
-      ** successful parsing-> attempt to create a fake ientry
-      */
-      goto lookup_objectmode;   
-    
+	/*
+	** successful parsing-> attempt to create a fake ientry
+	*/
+	//errno = ENOENT;
+	goto lookup_objectmode;
+      }     
     }
+
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    

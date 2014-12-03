@@ -25,6 +25,24 @@
 
 #include "rozofs_fuse.h"
 
+
+#define START_PROFILING_FUSE()\
+{ \
+  struct timeval     timeDay;  \
+  fuse_profile[P_COUNT]++;\
+    gettimeofday(&timeDay,(struct timezone *)0);  \
+    fuse_profile[P_BYTES] = MICROLONG(timeDay); \
+}
+
+#define STOP_PROFILING_FUSE()\
+{ \
+  unsigned long long timeAfter;\
+  struct timeval     timeDay;  \
+    gettimeofday(&timeDay,(struct timezone *)0);  \
+    timeAfter = MICROLONG(timeDay); \
+    fuse_profile[P_ELAPSE] += (timeAfter-fuse_profile[P_BYTES]); \
+}
+
 extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
 extern uint32_t rozofs_fuse_usr_ctx_idx ;
 extern uint64_t rozofs_write_merge_stats_tab[];
@@ -137,6 +155,7 @@ extern int rozofs_trc_last_idx;
 extern int rozofs_trc_enabled;
 extern int rozofs_trc_index;
 extern rozofs_trace_t *rozofs_trc_buffer;
+extern uint64_t fuse_profile[];
 /*
 **____________________________________________________
 */
@@ -396,6 +415,8 @@ static inline void *_rozofs_fuse_alloc_saved_context(char *name )
   */
   expgw_routing_ctx_init(&fuse_save_ctx_p->expgw_routing_ctx);
   ruc_listEltInit(&fuse_save_ctx_p->link);
+  
+//  STOP_PROFILING_FUSE();
   
   return buffer_p;
 }

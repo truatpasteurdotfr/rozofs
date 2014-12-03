@@ -192,7 +192,6 @@ static inline void storio_disk_rebuild_stop(rozofs_disk_thread_ctx_t *thread_ctx
   rozorpc_srv_ctx_t      * rpcCtx;
   sp_rebuild_stop_ret_t    ret;
   int                      result;
-  int                      is_fid_faulty;
   storio_device_mapping_t * fidCtx;
   int                       rebuildIdx;
   STORIO_REBUILD_T        * pRebuild;
@@ -264,7 +263,7 @@ static inline void storio_disk_rebuild_stop(rozofs_disk_thread_ctx_t *thread_ctx
     ** Do not test return code, since the device is probably reachable
     ** or un writable, and so the unlink will probably fail...
     */
-    storage_rm_data_chunk(st, pRebuild->old_device, (char*)args->fid, pRebuild->spare, pRebuild->chunk,0/* No errlog*/);        
+    storage_rm_data_chunk(st, pRebuild->old_device, (unsigned char*)args->fid, pRebuild->spare, pRebuild->chunk,0/* No errlog*/);        
     
     goto out;
   }  
