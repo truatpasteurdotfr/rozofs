@@ -73,7 +73,11 @@ static inline uint64_t exportd_get_free_quota(export_t *exp) {
   uint64_t quota;
   
   if (exp->hquota == 0) return -1;
-  quota = exp->hquota - exp->fstat.blocks;
+  
+  export_fstat_t * estats = export_fstat_get_stat(exp->eid);    
+  if (estats == NULL) return -1;
+  
+  quota = exp->hquota - estats->blocks;
   return quota; 
 }
 /*

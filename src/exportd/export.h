@@ -142,7 +142,7 @@ typedef struct export {
     uint64_t squota; ///< soft quota in blocks
     uint64_t hquota; ///< hard quota in blocks
     void    *quota_p;  ///< pointer to the quota context
-    export_fstat_t fstat; ///< fstat value
+//    export_fstat_t fstat; ///< fstat value
     int fdstat; ///< open file descriptor on stat file
     fid_t rfid; ///< root fid
     lv2_cache_t *lv2_cache; ///< cache of lv2 entries
@@ -818,4 +818,14 @@ int exp_trck_inode_release_poll(export_t * e,int type);
    @retval < 0 error
 */
 int export_open_parent_directory(export_t *e,fid_t parent);
+/*
+**__________________________________________________________________
+*/
+/** Get pointer to the export statistics in memory
+ *
+ * @param eid: the export to get statistics from
+ *
+ * @return the pointer to the statitics of NULL 
+ */
+export_fstat_t * export_fstat_get_stat(uint16_t eid) ;
 #endif
