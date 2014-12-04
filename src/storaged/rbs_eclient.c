@@ -143,7 +143,115 @@ char * rbs_get_cluster_list(rpcclt_t * clt, const char *export_host_list, int si
     }		
     return NULL;
 }
+/** Initialize a storage structure to reach a cid/sid by interogating
+ *  the exportd as well as the storaged
+ *
+ * @param clt: RPC connection to export server
+ * @param export_host_list: IP or hostname of export server
+ * @param site: the site identifier
+ * @param cid: the unique ID of cluster
+ * @param sid: the storage identifier
+ * @param stor: the storage structure to initialize
+ *
+ * @return: NULL on error, valid export host name on success
+ */
+int rbs_get_storage(rpcclt_t * clt, const char *export_host_list, int site, cid_t cid, sid_t sid, rb_stor_t * stor) {
+    epgw_cluster_ret_t *ret = 0;
+    epgw_cluster_arg_t arg;
+    int i = 0;
+    int export_idx;
+    char * pHost = NULL;
+    int retry;
+    int status = -1;
 
+    DEBUG_FUNCTION;
+
+    struct timeval timeo;
+    timeo.tv_sec  = 0; 
+    timeo.tv_usec = 100000;
+
+    clt->sock = -1;
+    memset(stor, 0, sizeof (rb_stor_t));
+    /*
+    ** Parse host list
+    */
+    if (rozofs_host_list_parse(export_host_list,'/') == 0) {
+        severe("rozofs_host_list_parse(%s)",export_host_list);
+	return -1;
+    }   
+     
+    
+    for (retry=10; retry > 0; retry--) {
+    
+        for (export_idx=0; export_idx<ROZOFS_HOST_LIST_MAX_HOST; export_idx++) {
+
+            // Free resources from previous loop
+            if (ret) xdr_free((xdrproc_t) xdr_ep_cluster_ret_t, (char *) ret);
+	    rpcclt_release(clt);
+
+	    pHost = rozofs_host_list_get_host(export_idx);
+	    if (pHost == NULL) break;
+
+
+	    // Initialize connection with exportd server
+	    if (rpcclt_initialize
+        	    (clt, pHost, EXPORT_PROGRAM, EXPORT_VERSION,
+        	    ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
+		    rozofs_get_service_port_export_master_eproto(), timeo) != 0)
+        	continue;
+
+	    // Send request
+	    arg.hdr.gateway_rank = site;
+	    arg.cid              = cid;
+
+	    ret = ep_list_cluster_1(&arg, clt->client);
+	    if (ret == 0) {
+        	errno = EPROTO;
+        	continue;
+	    }
+
+	    if (ret->status_gw.status == EP_FAILURE) {
+        	errno = ret->status_gw.ep_cluster_ret_t_u.error;
+        	continue;
+	    }
+
+	    // For each storage member
+	    for (i = 0; i < ret->status_gw.ep_cluster_ret_t_u.cluster.storages_nb; i++) {
+	    
+	        if (ret->status_gw.ep_cluster_ret_t_u.cluster.storages[i].sid != sid) continue;
+
+        	// Init storage
+        	strncpy(stor->host, ret->status_gw.ep_cluster_ret_t_u.cluster.storages[i].host,
+                	ROZOFS_HOSTNAME_MAX);
+        	stor->sid = ret->status_gw.ep_cluster_ret_t_u.cluster.storages[i].sid;
+        	stor->mclient.rpcclt.sock = -1;
+		
+                // Get connections for this storage
+                if (rbs_stor_cnt_initialize(stor,cid) != 0) {
+                  severe("rbs_stor_cnt_initialize cid/sid %d/%d failed: %s",
+                            cid, stor->sid, strerror(errno));
+		  goto out;	    
+                }                
+		status = 0;
+		goto out;
+	    }
+	}
+	
+	if (timeo.tv_usec == 100000) {
+	  timeo.tv_usec = 500000; 
+	}
+	else {
+	  timeo.tv_usec = 0;
+	  timeo.tv_sec++;	
+	}  
+    }
+    	
+out:
+    // Free resources from current loop
+    if (ret) xdr_free((xdrproc_t) xdr_ep_cluster_ret_t, (char *) ret);
+    rpcclt_release(clt);
+    return status;
+}
 /** Send a request to export server for get the list of member storages
  *  of cluster with a given cid and add this storage list to the list
  *  of clusters

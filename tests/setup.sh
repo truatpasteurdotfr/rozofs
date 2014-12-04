@@ -182,7 +182,15 @@ gen_storage_conf ()
 	  printf "threads = $NB_DISK_THREADS;\n" >> $STORAGE_CONF
 	  printf "nbcores = $NB_CORES;\n" >> $STORAGE_CONF
 	  printf "storio  = \"$STORIO_MODE\";\n" >> $STORAGE_CONF
-
+	  
+	  case "$DEV_SELF_HEALING" in
+	    "") ;;
+	    *) {
+	      printf "self-healing = $DEV_SELF_HEALING;\n" >> $STORAGE_CONF
+	      printf "export-hosts = \"${EXPORT_HOST}\";\n" >> $STORAGE_CONF
+	    }  
+	  esac 
+	  
 	  printf "listen = ( \n" >> $STORAGE_CONF
 	  printf "  {addr = \"192.168.2.$hid\"; port = 41000;}" >> $STORAGE_CONF
 
@@ -473,6 +481,9 @@ rebuild_storage_device()
 {
   hid=$1
   cid=$2
+  case "$cid" in
+    "") usage;;
+  esac  
   
   case "$3" in
     "")    dev="";;
@@ -488,11 +499,44 @@ rebuild_storage_device()
     return        	  
   fi
 
-  create_storage_device $storage_path $3
+  create_storage_dev $storage_path $3
   
   cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $4 $5 --sid $cid/$sid $dev"
   echo $cmd
   $cmd  
+  exit $?
+}
+# Input 
+# 1 : host number
+# 2 : cid
+# 3 : device num or all
+# 4&5 : -g site
+clear_storage_device() 
+{
+  hid=$1
+  cid=$2
+  case "$cid" in
+    "") usage;;
+  esac  
+  
+  case "$3" in
+    "")    dev="";;
+    "all") dev="";;
+    *)     dev="-d $3";;
+  esac  
+    
+  resolve_cid_hid $cid $hid
+
+  if [ ! -d ${storage_path} ];
+  then
+    echo "${storage_path} does not exist !!!" 
+    return        	  
+  fi
+  
+  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST}  --clear --sid $cid/$sid $dev"
+  echo $cmd
+  $cmd  
+  exit $?
 }
 # Input 
 # 1 : host number
@@ -504,7 +548,6 @@ relocate_storage_device()
   hid=$1
   cid=$2
   
-  echo $*
   case "$3" in
     "")    usage;;
     "all") usage;;
@@ -525,7 +568,8 @@ relocate_storage_device()
   
   cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $4 $5 --sid $cid/$sid -d $dev -R"
   echo $cmd
-  $cmd  
+  $cmd
+  exit $?  
 }
 # Input 
 # 1 : host number
@@ -538,12 +582,13 @@ rebuild_storage()
   do
       cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
       resolve_storage_path
-      create_storage_device $storage_path	  
+      create_storage_dev $storage_path	  
   done
   
   cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $2 $3"
   echo $cmd
   $cmd
+  exit $?
 }
 # Input 
 # 1 : host number
@@ -590,9 +635,11 @@ delete_storage_device()
   done   
 }
 # Input 
+
+# Input 
 # 1 : directory name
 # 2 : device num or all or ""
-create_storage_device() {		    
+create_storage_dev() {		    
 
     case "$2" in
       "")  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
@@ -604,6 +651,26 @@ create_storage_device() {
     do
       mkdir ${1}/${device} > /dev/null 2>&1
     done  
+}
+# 1 : host number
+# 2 : cid
+# 3 : device num or all or ""
+create_storage_device()  {
+  hid=$1
+  cid=$2
+  case "$cid" in
+    "") usage;;
+  esac  
+    
+  resolve_cid_hid $cid $hid
+
+  if [ ! -d ${storage_path} ];
+  then
+    echo "${storage_path} does not exist !!!" 
+    return        	  
+  fi
+
+  create_storage_dev $storage_path $3
 }
 stop_one_storage () {
    case $1 in
@@ -679,7 +746,7 @@ create_storages ()
             cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
 	    resolve_storage_path
             mkdir -p $storage_path
-	    create_storage_device $storage_path	  
+	    create_storage_dev $storage_path	  
           done
 	  
 
@@ -1297,7 +1364,8 @@ usage ()
     echo >&2 "$0 pause"
     echo >&2 "$0 resume"
     echo >&2 "$0 storage <hid>|all stop|start|reset"
-    echo >&2 "$0 storage <hid>|all device-delete|device-rebuild|device-relocate <cid> <device>|all"
+    echo >&2 "$0 storage <hid>|all device-delete|device-create <cid> <device>|all"  
+    echo >&2 "$0 storage <hid>|all device-rebuild|device-relocate|device-clear <cid> <device>|all"      
     echo >&2 "$0 storage <hid> delete|rebuild"
     echo >&2 "$0 storage <hid> fid-rebuild -s <cid>/<sid> -f <fid>"
     echo >&2 "$0 export stop|start|reset"
@@ -1452,7 +1520,10 @@ main ()
     SQUOTA=""
     HQUOTA=""
     
-    REBUILD_LOOP=4
+    REBUILD_LOOP=1
+    
+    # Device self-healing after 1 min
+    DEV_SELF_HEALING=1
     
     NB_DEVICE_PER_SID=6
     NB_DEVICE_MAPPER_PER_SID=3
@@ -1468,6 +1539,7 @@ main ()
     # Only one storio per storage or one storio per listening port ?
     STORIO_MODE="multiple"
     #STORIO_MODE="single"   
+    
     
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
@@ -1588,8 +1660,11 @@ main ()
 	device-relocate) relocate_storage_device $2 $4 $5 $6 $7;;	
 	# storage hid device-rebuild cid device -g site
 	device-rebuild)  rebuild_storage_device $2 $4 $5 $6 $7;;
+	# storage hid device-rebuild cid device -g site
+	device-clear)    clear_storage_device $2 $4 $5 $6 $7;;	
 	# storage hid device-delete cid device
 	device-delete)   delete_storage_device $2 $4 $5;; 
+	device-create)   create_storage_device $2 $4 $5;; 
 	# storage hid delete
 	delete)          delete_storage $2;;	
 	# storage hid rebuild -g site

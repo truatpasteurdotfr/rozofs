@@ -815,14 +815,71 @@ def relocate_one_dev() :
     hid=list_host[idx]
     cid=list_cid[idx]
     sid=list_sid[idx]
-        
-    ret = os.system("./setup.sh storage %d device-relocate %d 0 -g %s 1> /dev/null"%(hid,cid,site))
-    if ret != 0:
-      return ret
-                  
+
+    # Check wether self healing is configured
+    string="./build/src/rozodiag/rozodiag -i localhost%d -T storio:%d -c device"%(hid,cid)
+    parsed = shlex.split(string)
+    cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    for line in cmd.stdout:
+      if "self-healing" in line:
+        words=line.split()
+	selfHealing=words[2]
+	break; 
+     
+    # No self healing configured. Ask for a rebuild with relocation	      
+    if selfHealing == "No":
+    	      
+      ret = os.system("./setup.sh storage %d device-relocate %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+      if ret != 0:
+	return ret
+	
+    # Self healing is configured. Remove device and wait for automatic relocation	
+    else:
+    
+      ret = os.system("./setup.sh storage %d device-delete %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+      if ret != 0:
+	return ret
+	      	
+      count=int(18)	
+      status="INIT"
+      
+      while count != int(0):
+
+	if "OOS" in status:
+	  break        
+
+        count=count-1
+        time.sleep(10)
+	
+        # Check The status of the device
+	string="./build/src/rozodiag/rozodiag -i localhost%d -T storio:%d -c device"%(hid,cid)
+	parsed = shlex.split(string)
+	cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	for line in cmd.stdout:
+          words=line.split('|')
+          if len(words) < 4:
+	    continue
+	  try:
+	    if int(words[0]) != int(0):
+	      continue
+	    status=words[1]
+	    break
+	  except:
+	    pass    
+	    
+      if count == 0:
+        print "Relocate failed host %d cluster %d sid %d device 0 status %s"%(hid,cid,sid,status)
+	return 1
+		      
     ret = gruyere_one_reread()  
     if ret != 0:
       return ret 
+      
+    if selfHealing != "No":
+      ret = os.system("./setup.sh storage %d device-create %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+      ret = os.system("./setup.sh storage %d device-clear  %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+      
       
   ret = gruyere_reread()          
   return ret

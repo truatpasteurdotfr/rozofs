@@ -191,7 +191,6 @@ static inline void storio_disk_rebuild_stop(rozofs_disk_thread_ctx_t *thread_ctx
   sp_rebuild_stop_arg_t  * args;
   rozorpc_srv_ctx_t      * rpcCtx;
   sp_rebuild_stop_ret_t    ret;
-  int                      result;
   storio_device_mapping_t * fidCtx;
   int                       rebuildIdx;
   STORIO_REBUILD_T        * pRebuild;
@@ -272,9 +271,9 @@ static inline void storio_disk_rebuild_stop(rozofs_disk_thread_ctx_t *thread_ctx
   ** The rebuild is failed, so let's remove the newly created file 
   ** and restore the old device 
   */
-  result = storage_restore_chunk(st, fidCtx->device,(unsigned char*)args->fid, pRebuild->spare, 
+  storage_restore_chunk(st, fidCtx->device,(unsigned char*)args->fid, pRebuild->spare, 
                                  pRebuild->chunk, pRebuild->old_device);
-
+				 
 out:           
   
   storio_encode_rpc_response(rpcCtx,(char*)&ret);  

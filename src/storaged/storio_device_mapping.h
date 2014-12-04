@@ -131,16 +131,6 @@ typedef struct _storio_device_mapping_stat_t
 extern storio_device_mapping_stat_t storio_device_mapping_stat;
 
 
-/*
-**______________________________________________________________________________
-*/
-/**
-* Increment consistency (done when a total rebuild occurs)
-  
-*/
-static inline void storage_device_mapping_increment_consistency() {
-  //storio_device_mapping_stat.consistency++;
-}
 
 /*
 **______________________________________________________________________________

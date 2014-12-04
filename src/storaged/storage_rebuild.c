@@ -71,6 +71,7 @@
 static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
 sconfig_t   storaged_config;
+int         quiet=0;
 
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 
@@ -131,6 +132,9 @@ int rbs_device_number = -1;
 
 /* Does the rebuild requires a device relocation */
 int relocate=0;
+
+/* error clearing */
+int clear = 0;
 
 int current_file_index = 0;
 
@@ -275,7 +279,7 @@ int rbs_monitor_update(char * rebuild_status, int cid, int sid) {
       pt += sprintf(pt, "parallel  : %d\n", parallel); 
       header_msg_size = pt - header_msg;
     }
-    write(fd,header_msg,header_msg_size);
+    dprintf(fd,header_msg);
     
     if (cid == 0) {
       dprintf(fd, "status    : %s\n", rebuild_status);    
@@ -351,13 +355,16 @@ out:
 
     return status;
 }
-void rbs_monitor_display() {
-  char cmdString[256];
 
-  if (rbs_monitor_file_path[0] == 0) return;
+int rbs_monitor_display() {
+  char cmdString[256];
+  
+  if (quiet) return 0;
+
+  if (rbs_monitor_file_path[0] == 0) return 0;
 
   sprintf(cmdString,"cat %s",rbs_monitor_file_path);
-  system(cmdString);
+  return system(cmdString);
 }
     
 /*
@@ -665,7 +672,8 @@ int rbs_initialize(cid_t cid, sid_t sid, const char *storage_root,
     if (storage_initialize(storage_to_rebuild, cid, sid, storage_root,
 		dev,
 		dev_mapper,
-		dev_red) != 0)
+		dev_red,
+		-1,NULL) != 0)
         goto out;
 
     // Initialize the list of cluster(s)
@@ -743,7 +751,8 @@ static int storaged_initialize() {
                 sc->cid, sc->sid, sc->root,
 		sc->device.total,
 		sc->device.mapper,
-		sc->device.redundancy) != 0) {
+		sc->device.redundancy,
+		-1,NULL) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;
@@ -846,6 +855,19 @@ typedef struct rbs_stor_config {
     char root[PATH_MAX]; ///< absolute path.
 } rbs_stor_config_t;
 
+
+int rbs_storio_reinit(const char *export_host_list, int site, cid_t cid, sid_t sid, uint8_t dev, uint8_t reinit) {
+    int status = -1;
+    int ret;
+    rb_stor_t stor;
+
+    ret = rbs_get_storage(&rpcclt_export, export_host_list, site, cid, sid, &stor) ;
+    if (ret == 0) {
+      status = sclient_clear_error_rbs(&stor.sclients[0], cid, sid, dev, reinit);
+    } 
+    return status;
+}
+
 /** Retrieves the list of bins files to rebuild for a given storage
  *
  * @param cluster_entries: list of cluster(s).
@@ -914,23 +936,6 @@ out:
     return status;
 }
 
-/** Send a reload signal to the storio
- *
- * @param nb: Number of entries.
- * @param v: table of storages configurations to rebuild.
- */
-void send_reload_to_storio(int cid) {
-  char command[128];
-
-  if (storaged_hostname != NULL) {
-      sprintf(command, "storio_reload -H %s -i %d", storaged_hostname, cid);
-  } else {
-      sprintf(command, "storio_reload -i %d", cid);
-  } 
-  if (system(command) < 0) {
-      severe("%s %s",command, strerror(errno));
-  }
-}
 /** Build a list with just one FID
  *
  * @param cid: unique id of cluster that owns this storage.
@@ -1043,7 +1048,11 @@ int rbs_do_list_rebuild(int cid, int sid) {
     pid = fork();
     
     if (pid == 0) {
-      sprintf(cmd,"storage_list_rebuilder -f %s/%s", dirName, file->d_name);
+      char * pChar = cmd;
+      pChar += sprintf(pChar,"storage_list_rebuilder -f %s/%s", dirName, file->d_name);
+      if (quiet) {
+        pChar += sprintf(pChar," --quiet");
+      }
       status = system(cmd);
       if (status == 0) exit(0);
       exit(-1);
@@ -1391,7 +1400,7 @@ out:
  * @param nb: Number of entries.
  * @param v: table of storages configurations to rebuild.
  */
-static inline void rebuild_storage_thread(rbs_stor_config_t *stor_confs) {
+static inline int rebuild_storage_thread(rbs_stor_config_t *stor_confs) {
   int    result;
   int    delay=1;
   int    cid, sid;
@@ -1446,7 +1455,7 @@ static inline void rebuild_storage_thread(rbs_stor_config_t *stor_confs) {
                 		     cid, sid, stor_confs[rbs_index].root,
 				     stor_confs[rbs_index].device.total,
 				     stor_confs[rbs_index].device.mapper, 
-				     stor_confs[rbs_index].device.redundancy, 
+				     stor_confs[rbs_index].device.redundancy,
 				     rbs_device_number,
 				     storaged_config_file,
 				     fid2rebuild);   
@@ -1505,12 +1514,17 @@ static inline void rebuild_storage_thread(rbs_stor_config_t *stor_confs) {
 	    /*
 	    ** Remove cid/sid directory 
 	    */
-            rmdir(get_rebuild_sid_directory_name(cid,sid));
+            rmdir(get_rebuild_sid_directory_name(cid,sid));  
 	    /*
-	    ** Send reload signal. This will clear the error counters
+	    ** Clear errors
 	    */
-	    send_reload_to_storio(cid);
-	    continue;	      
+	    if (rbs_device_number>=0) {
+	      rbs_storio_reinit(rbs_export_hostname, storaged_geosite, cid, sid, rbs_device_number, 0);
+	    }   
+	    else {
+	      rbs_storio_reinit(rbs_export_hostname, storaged_geosite, cid, sid, 0xFF, 0); 
+	    }   
+	    continue;
 	  }
 
 	  /*
@@ -1538,13 +1552,14 @@ static inline void rebuild_storage_thread(rbs_stor_config_t *stor_confs) {
       ** Everything is finished 
       */
       rbs_monitor_update("completed",0,0);
-      return;
+      return 0;
     }
 
     rbs_monitor_update("failed",0,0);
   }  	    
 
   rbs_monitor_update("aborted",0,0);
+  return -1;
 }
 
 /*
@@ -1577,10 +1592,11 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
 }
 /** Start one rebuild process for each storage to rebuild
  */
-static inline void rbs_process_initialize() {
+static inline int rbs_process_initialize() {
     list_t *p = NULL;
     int found_cid_sid=0;
     int ret;
+    int status = -1;
 
     rbs_stor_config_t rbs_stor_configs[STORAGES_MAX_BY_STORAGE_NODE] ;
     memset(&rbs_stor_configs, 0,
@@ -1655,7 +1671,7 @@ static inline void rbs_process_initialize() {
     /*
     ** Process to the rebuild
     */    
-    rebuild_storage_thread(rbs_stor_configs);
+    status = rebuild_storage_thread(rbs_stor_configs);
     rbs_monitor_display();  
 
     /*
@@ -1669,7 +1685,9 @@ out:
     ** Purge excedent old rebuild result files
     */
     rbs_monitor_purge();
+    return status;
 }
+
 
 static void storaged_release() {
     DEBUG_FUNCTION;
@@ -1740,8 +1758,10 @@ void usage() {
     printf("   -p, --parallel            \tNumber of rebuild processes in parallel per cid/sid\n");
     printf("                             \t(default is %d, maximum is %d)\n",DEFAULT_PARALLEL_REBUILD_PER_SID,MAXIMUM_PARALLEL_REBUILD_PER_SID);   
     printf("   -g, --geosite             \tTo force site number in case of geo-replication\n");
-    printf("   -R, --relocate             \tTo force site number in case of geo-replication\n");
-    printf("   -l, --loop                 \tNumber of reloop in case of error (default infinite)\n");
+    printf("   -R, --relocate            \tTo force site number in case of geo-replication\n");
+    printf("   -l, --loop                \tNumber of reloop in case of error (default infinite)\n");
+    printf("   -q, --quiet               \tDo not display messages\n");
+    printf("   -C, --clear               \tClear errors on OOS devices before rebuilding\n");
     printf("\ne.g\n");
     printf("Rebuilding a whole storage node as fast as possible:\n");
     printf("storage_rebuild -r 192.168.0.201/192.168.0.202 -p %d\n\n",MAXIMUM_PARALLEL_REBUILD_PER_SID);
@@ -1750,13 +1770,17 @@ void usage() {
     printf("Rebuilding only device 3 of sid 2 of cluster 1:\n");
     printf("storage_rebuild -r 192.168.0.201/192.168.0.202 -s 1/2 -d 3\n\n");
     printf("Rebuilding by relocating device 3 of sid 2 of cluster 1 on other devices:\n");
-    printf("storage_rebuild -r 192.168.0.201/192.168.0.202 -s 1/2 -d 3 -R\n\n");
+    printf("storage_rebuild -r 192.168.0.201/192.168.0.202 -s 1/2 -d 3 --relocate\n\n");
+    printf("Puting a device back in service when it is out of service after\n");
+    printf("an automatic relocation (self healing)\n");
+    printf("storage_rebuild -r 192.168.0.201/192.168.0.202 -s 1/2 -d 3 --clear\n\n");    
     exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[]) {
     int c;
     int ret;
+    int status = -1;
     
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
@@ -1770,6 +1794,8 @@ int main(int argc, char *argv[]) {
         { "geosite", required_argument, 0, 'g'},
         { "relocate", no_argument, 0, 'R'},
         { "loop", required_argument, 0, 'l'},
+	{ "quiet", no_argument, 0, 'q'},
+	{ "clear", no_argument, 0, 'C'},
         { 0, 0, 0, 0}
     };
     
@@ -1792,7 +1818,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:r:d:H:s:f:p:g:l:R", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:r:d:H:s:f:p:g:l:qRC", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -1894,10 +1920,20 @@ int main(int argc, char *argv[]) {
 		  /* Relocation is required */
                   relocate = 1;
 		}
-                break;		
+                break;	
+                break;
+	    case 'C':
+	        {
+		  /* Clear error counters */
+                  clear = 1;
+		}
+                break;				
             case 'H':
                 storaged_hostname = optarg;
                 break;
+	    case 'q':
+	        quiet = 1;
+		break;
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);
@@ -1921,7 +1957,7 @@ int main(int argc, char *argv[]) {
     ** Check parameter consistency
     */
     if (rbs_start_process == 0){
-        REBUILD_FAILED("Missing manadtory option --rebuild");    
+        REBUILD_FAILED("Missing mandatory option --rebuild");    
         exit(EXIT_FAILURE);      
     } 
     /*
@@ -1946,7 +1982,30 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);      
       }
     }
-
+    
+    /*
+    ** Clear errors and reinitialize disk
+    */
+    if (clear) {
+    
+      /*
+      ** When clear is set cid/sid must too
+      */    
+      if ((cid==-1)&&(sid==-1)) {
+        REBUILD_FAILED("--clear option requires --sid option too.");
+        exit(EXIT_FAILURE);      
+      }
+      
+      if (rbs_storio_reinit(rbs_export_hostname, storaged_geosite, cid, sid, rbs_device_number, 1)!=0) {
+        REBUILD_MSG("Can't reset error on cid %d sid %d .",cid,sid);
+        exit(EXIT_FAILURE);  
+      }
+      
+      REBUILD_MSG("cid %d sid %d device %d re-initialization",cid,sid,rbs_device_number);
+    }
+    
+    
+    
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {
         REBUILD_FAILED("Can't initialize storaged config.");
@@ -1979,10 +2038,10 @@ int main(int argc, char *argv[]) {
     }
     
     // Start rebuild storage   
-    rbs_process_initialize();
-    on_stop();
+    status = rbs_process_initialize();
+    on_stop();  
+    if (status == 0) exit(EXIT_SUCCESS);
     
-    exit(0);
 error:
     REBUILD_MSG("Can't start storage_rebuild. See logs for more details.");
     exit(EXIT_FAILURE);

@@ -1,7 +1,6 @@
 /usr/bin/storaged
 /usr/bin/storio
 /usr/bin/storage_rebuild
-/usr/bin/storio_reload
 /usr/bin/storage_list_rebuilder
 /etc/rozofs/storage.conf.sample
 /etc/rozofs/storage.conf

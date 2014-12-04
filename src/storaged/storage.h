@@ -70,7 +70,6 @@
 ** Structure used to monitor device errors
 */
 typedef struct _storage_device_errors_t {
-  int      reset;   // a reset of the counters has been required
   int      active;  // active set of blocks
   uint32_t total[STORAGE_MAX_DEVICE_NB];
   uint32_t errors[2][STORAGE_MAX_DEVICE_NB];
@@ -86,6 +85,38 @@ typedef struct _storage_device_free_blocks_t {
 } storage_device_free_blocks_t;
 
 
+
+typedef enum _storage_device_status_e {
+  storage_device_status_undeclared=0,
+  storage_device_status_init,
+  storage_device_status_is,
+  storage_device_status_relocating,
+  storage_device_status_failed,
+  storage_device_status_oos
+} storage_device_status_e;
+
+static inline char * storage_device_status2string(storage_device_status_e status) {
+  switch(status) {
+    case storage_device_status_undeclared: return "NONE";
+    case storage_device_status_init:       return "INIT";
+    case storage_device_status_is:         return "IS";
+    case storage_device_status_relocating: return "RELOC";
+    case storage_device_status_failed:     return "FAILED";
+    case storage_device_status_oos:        return "OOS";
+    default:                               return "???";
+  }
+}
+
+#define STORAGE_DEVICE_NO_ACTION      0
+#define STORAGE_DEVICE_RESET_ERRORS   1
+#define STORAGE_DEVICE_REINIT         2
+typedef struct _storage_device_ctx_t {
+  storage_device_status_e     status;
+  uint64_t                    failure;
+  uint8_t                     action;
+} storage_device_ctx_t;
+
+
 /** Directory used to store bins files for a specific storage ID*/
 typedef struct storage {
     sid_t sid; ///< unique id of this storage for one cluster
@@ -94,8 +125,11 @@ typedef struct storage {
     uint32_t mapper_modulo; // Last device number that contains the fid to device mapping
     uint32_t device_number; // Number of devices to receive the data for this sid
     uint32_t mapper_redundancy; // Mapping file redundancy level
+    int      selfHealing;
+    char  *  export_hosts; /* For self healing purpose */
     storage_device_free_blocks_t device_free;    // available blocks on devices
     storage_device_errors_t      device_errors;  // To monitor errors on device
+    storage_device_ctx_t         device_ctx[STORAGE_MAX_DEVICE_NB];               
 } storage_t;
 
 /**
@@ -263,20 +297,6 @@ static inline uint64_t storage_periodic_error_on_device_monitoring(storage_t * s
   }  
   return bitmask;
 }
-/** API to be called to reset error counters
- *
- *
- */
-static inline void storage_device_mapping_reset_error_counters() {
-  storage_t * st;    
-  
-  st = NULL;
-  
-  while ((st=storaged_next(st)) != NULL) {
-    st->device_errors.reset = 1; 
-  }
-}
-
 static inline char * trace_device(uint8_t * device, char * pChar) {
   int  idx;
       
@@ -363,6 +383,18 @@ static inline int storage_build_bins_path(char * path,
  * @param errlog: whether an log is to be send on error
  */
 int storage_rm_data_chunk(storage_t * st, uint8_t device, fid_t fid, uint8_t spare, uint8_t chunk, int errlog) ;
+
+/** Restore a chunk of data as it was before the relocation attempt 
+ *
+ * @param st: the storage where the data file resides
+ * @param device: device where the data file resides
+ * @param fid: the fid of the file 
+ * @param spare: wheteher this is a spare file
+ * @param chunk: The chunk number that has to be removed
+ * @param old_device: previous device to be restored
+ */
+int storage_restore_chunk(storage_t * st, uint8_t * device,fid_t fid, uint8_t spare, 
+                           uint8_t chunk, uint8_t old_device);
 /** Compute the 
  *
  * @param fid: FID of the file
@@ -449,11 +481,15 @@ char *storage_map_projection(fid_t fid, char *path);
  * @param device_number: number of device for data storage
  * @param mapper_modulo: number of device for device mapping
  * @param mapper_redundancy: number of mapping device
+ * @param selfHealing The delay in min before repairing a device
+ *                    -1 when no self-healing
+ * @param export_hosts The export hosts list for self healing purpose 
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
 int storage_initialize(storage_t *st, cid_t cid, sid_t sid, const char *root,
-                       uint32_t device_number, uint32_t mapper_modulo, uint32_t mapper_redundancy);
+                       uint32_t device_number, uint32_t mapper_modulo, uint32_t mapper_redundancy,
+		       int selfHealing, char * export_hosts);
 
 /** Release a storage
  *

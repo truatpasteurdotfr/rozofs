@@ -357,3 +357,34 @@ out:
         xdr_free((xdrproc_t) xdr_sp_status_ret_t, (char *) ret);
     return status;
 }
+int sclient_clear_error_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t dev,uint8_t reinit) {
+    int                    status = -1;
+    sp_status_ret_t     *  ret = 0;
+    sp_clear_error_arg_t   args;
+
+    DEBUG_FUNCTION;
+
+    // Fill request
+    args.cid = cid;
+    args.sid = sid;
+    args.dev = dev;
+    args.reinit = reinit;
+    if (!(clt->rpcclt.client) ||
+            !(ret = sp_clear_error_1(&args, clt->rpcclt.client))) {
+        clt->status = 0;
+        warning("sclient_clear_error_rbs failed: "
+                "(no response from storage server: %s)", clt->host);
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status != 0) {
+      severe("sclient_clear_error_rbs failed (error from %s): (%s)",
+              clt->host, strerror(errno));
+      goto out;
+    }
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_sp_status_ret_t, (char *) ret);
+    return status;
+}

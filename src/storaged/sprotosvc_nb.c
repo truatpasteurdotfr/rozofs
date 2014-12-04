@@ -188,8 +188,14 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_status_ret_t;
       local = sp_remove_chunk_1_svc_disk_thread;
       size = sizeof (sp_remove_chunk_arg_t);
-      break;        
-
+      break;    
+          
+    case SP_CLEAR_ERROR:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_clear_error_arg_t;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_status_ret_t;
+      local = sp_clear_error_1_svc_disk_thread;
+      size = sizeof (sp_clear_error_arg_t);
+      break;    
 
     default:
       rozorpc_srv_ctx_p->xmitBuf = rozorpc_srv_ctx_p->recv_buf;

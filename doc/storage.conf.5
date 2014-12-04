@@ -1,7 +1,7 @@
 .\" Process this file with
 .\" groff -man -Tascii storage.conf.5
 .\"
-.TH STORAGE.CONF 5 "JUNE 2014" RozoFS "User Manuals"
+.TH STORAGE.CONF 5 "DECEMBER 2014" RozoFS "User Manuals"
 .SH NAME
 storage.conf \- RozoFS storage daemon configuration file
 .SH DESCRIPTION
@@ -18,14 +18,7 @@ Specifies number of threads that can process the disk requests. (default: 2)
 
 .SS nbcores (optional)
 
-Maximum number of core files to keep. (default: 2)
-
-.SS storio (optional)
-
-Specifies if storaged starts one or multiple storio process(es). (default: "single")
-       Valid values are :
-           - "single"; (one storio for all the listening port(s), it's the default value)
-           - "multiple"; (one storio per listening port)
+Maximum number of core files to keep (default: 2). The older core files are kept while the newest ones are removed. 
 
 .SS listen (mandatory)
 
@@ -37,6 +30,29 @@ Specifies list of IP(s) (or hostname(s)) and port(s) the storio process must lis
 
     port: (TCP port number (in decimal) to use for storio process)
 
+.SS storio (optional)
+
+Specifies if storaged starts one or multiple storio process(es). (default: "single")
+       Valid values are :
+           - "single"
+             only storio instance 0 is started. It takes care of every storage instance configured in this file by listening to the addresses and ports defined by 
+.B listen.
+           - "multiple"
+             one storio is started for each cluster declared in this configuration file. The storio instance is the cluster number. The storio listens on the addresses defined by 
+.B listen 
+and adds the cluster number to ports in
+.B listen 
+.
+.SS self-healing (optional)
+
+Gives the delay in minutes before starting an automatic rebuild of a broken device by relocating the data on the remaining devices. The lowest possible value is 1. When self-healing is configured, the 
+.I export-hosts 
+parameter must be configured too. 
+
+.SS export-hosts
+
+This parameter is only needed when self healing is configured. It gives the list of addresses (or dns names) where exportd daemon is running. When securing the exportd thanks to virtual IP address only the virtual IP address is declared (i.e "192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the exportd must be given (i.e "192.168.10.1/192.168.20.1").
+ 
 .SS storages (mandatory)
 
 It's the list of local storage managed by this storaged.
@@ -82,6 +98,11 @@ have some replica written on the devices following their main device.
 .nf
 .ta +3i
 # sample RozoFS storage configuration file
+threads = 4;
+nbcores = 2;
+storio  = "multiple";
+self-healing = 10;
+export-hosts = "192.168.0.1/192.168.0.2";
 
 listen = (
     {addr = "192.168.1.1"; port = 41001; },
@@ -89,9 +110,9 @@ listen = (
 );
 
 storages = (
-    {cid = 1; sid = 1; root = "/path/to/foo"; device-total = 6; device-mapper = 4; device-redundancy = 3;},
-    {cid = 1; sid = 2; root = "/path/to/bar"; device-total = 6; device-mapper = 4; device-redundancy = 3;},
-    {cid = 2; sid = 1; root = "/path/to/baz"; device-total = 4; device-mapper = 4; device-redundancy = 2;}
+    {cid = 1; sid = 1; root = "/etc/rozofs/c1_s1"; device-total = 6; device-mapper = 3; device-redundancy = 3;},
+    {cid = 1; sid = 2; root = "/etc/rozofs/c1_s2"; device-total = 6; device-mapper = 3; device-redundancy = 3;},
+    {cid = 2; sid = 1; root = "/etc/rozofs/c2_s1"; device-total = 3; device-mapper = 3; device-redundancy = 3;}
  );
 
 .SH FILES
