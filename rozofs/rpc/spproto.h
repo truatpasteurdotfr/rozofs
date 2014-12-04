@@ -44,6 +44,7 @@ struct spp_profiler_t {
 	uint64_t rebuild_start[3];
 	uint64_t rebuild_stop[3];
 	uint64_t remove_chunk[3];
+	uint64_t clear_error[3];
 };
 typedef struct spp_profiler_t spp_profiler_t;
 

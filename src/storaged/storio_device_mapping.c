@@ -27,7 +27,9 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 #include <sys/vfs.h> 
- 
+#include <pthread.h> 
+#include <sys/wait.h>
+
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
@@ -42,6 +44,7 @@
 #include "storaged.h"
 #include "storio_fid_cache.h"
 
+#define STORIO_DEVICE_PERIOD    5000
 
 extern sconfig_t storaged_config;
 
@@ -232,13 +235,27 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += sprintf(pChar,"    mapper_modulo     = %d\n",st->mapper_modulo);
     pChar += sprintf(pChar,"    mapper_redundancy = %d\n",st->mapper_redundancy);		          
     pChar += sprintf(pChar,"    device_number     = %d\n",st->device_number);
+    if (st->selfHealing == -1) {
+      pChar += sprintf(pChar,"    self-healing      = No\n");
+    }  
+    else {
+      pChar += sprintf(pChar,"    self-healing      = %d min (%d failures)\n",
+                             st->selfHealing,
+			     (st->selfHealing * 60)/(STORIO_DEVICE_PERIOD/1000));
+    }  
+      
+    pChar += sprintf(pChar,"\n    %6s | %6s | %8s | %12s | %12s |\n",
+             "device","status","failures","blocks", "errors");
+    pChar += sprintf(pChar,"    _______|________|__________|______________|______________|\n");
+	     
     for (dev = 0; dev < st->device_number; dev++) {
-      pChar += sprintf(pChar,"       device %2d     %12llu blocks   errors total/period %d/%d\n", 
-                       dev, 
+      pChar += sprintf(pChar,"    %6d | %6s | %8d | %12llu | %12llu |\n", 
+                       (int)dev, 
+		       storage_device_status2string(st->device_ctx[dev].status),
+		       (int)st->device_ctx[dev].failure,
 		       (long long unsigned int)st->device_free.blocks[st->device_free.active][dev], 
-                       st->device_errors.total[dev], 
-		       st->device_errors.errors[st->device_errors.active][dev]);
-      if (st->device_errors.total[dev] != 0) {
+                       (long long unsigned int)st->device_errors.total[dev]);
+      if ((st->device_ctx[dev].status != storage_device_status_is)||(st->device_errors.total[dev])) {
 	faulty_devices[fault++] = dev;
       }  			 
     }
@@ -370,13 +387,118 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   
   return choosen_device;
 }
+/*_____________________________________
+** Parameter of the relocate thread
+*/
+typedef struct _storio_relocate_ctx_t {
+  storage_t     * st;
+  int             dev;
+} storio_relocate_ctx_t;
+
 /*
 **____________________________________________________
+**  Start a thread for relocation a device
+**  
+**  @param st   The storage context
+**  @param dev  The device number to rebuild
+**   
+**  @retval 0 when the thread is succesfully started
 */
-/*
-  Periodic timer expiration
+extern char storaged_config_file[];
+extern char * storaged_hostname;
+void * storio_device_relocate_thread(void *arg) {
+  storio_relocate_ctx_t      *pRelocate = arg;
+  storage_device_ctx_t    *   pDev = &pRelocate->st->device_ctx[pRelocate->dev];
+  char            cmd[256];
+  int             status;
+  pid_t           pid;
+  int             ret;
   
-   @param param: Not significant
+  pid = fork();  
+  if (pid == 0) {
+    char * pChar = cmd;
+ 
+    pChar += sprintf(pChar,"storage_rebuild --quiet -c %s -R -l 4 -r %s --sid %d/%d --device %d",
+                     storaged_config_file,
+		     pRelocate->st->export_hosts,
+		     pRelocate->st->cid,
+		     pRelocate->st->sid,
+		     pRelocate->dev);
+
+    if (storaged_hostname != NULL) {
+      pChar += sprintf(pChar," -H %s",storaged_hostname);
+    }
+            
+    errno = 0;	
+    status = system(cmd);
+    exit(status);
+  }
+   
+  /* Check for rebuild sub processes status */    
+  ret = waitpid(pid,&status,0);
+  
+  if ((ret == pid)&&(WEXITSTATUS(status)==0)) {
+    /* Relocate is successfull. Let's put the device Out of service */
+    pDev->status = storage_device_status_oos;
+  }
+  else {
+    /* Relocate has failed. Let's retry later */
+    pDev->failure /= 2;
+    pDev->status   = storage_device_status_failed;
+  }
+  
+  free(pRelocate);
+  pthread_exit(NULL); 
+}
+/*
+**____________________________________________________
+**  Start a thread for relocation a device
+**  
+**  @param st  The storage context
+**  @param dev The device number to rebuild
+**   
+**  @retval 0 when the thread is succesfully started
+*/
+int storio_device_relocate(storage_t * st, int dev) {
+  pthread_attr_t             attr;
+  int                        err;
+  pthread_t                  thrdId;
+  storio_relocate_ctx_t    * pRelocate;
+
+  if (st->export_hosts == NULL) {
+    severe("storio_device_relocate cid %d sid %d no export hosts",st->cid, st->sid);
+    return -1;
+  }
+  
+  pRelocate = malloc(sizeof(storio_relocate_ctx_t));
+  if (pRelocate == NULL) {
+    severe("storio_device_relocate malloc(%d) %s",(int)sizeof(storio_relocate_ctx_t), strerror(errno));
+    return -1;
+  }  
+  pRelocate->st  = st;
+  pRelocate->dev = dev;
+
+  err = pthread_attr_init(&attr);
+  if (err != 0) {
+    severe("storio_device_relocate pthread_attr_init() %s",strerror(errno));
+    free(pRelocate);
+    return -1;
+  }  
+
+  err = pthread_create(&thrdId,&attr,storio_device_relocate_thread,pRelocate);
+  if (err != 0) {
+    severe("storio_device_relocate pthread_create() %s", strerror(errno));
+    free(pRelocate);
+    return -1;
+  }    
+  
+  return 0;
+}
+/*
+**____________________________________________________
+**  Periodic timer expiration
+** 
+**  @param param: Not significant
 */
 void storio_device_mapping_periodic_ticker(void * param) {
   struct statfs sfs;
@@ -385,12 +507,43 @@ void storio_device_mapping_periodic_ticker(void * param) {
   char          path[FILENAME_MAX];
   storage_t   * st;
   uint64_t      error_bitmask;
- 
+  int           failed=0;
+  storage_device_ctx_t *pDev;
+  int           max_failures;
+  int           rebuilding;
+   
+  /*
+  ** Loop on every storage managed by this storio
+  */ 
   st = NULL;
   while ((st = storaged_next(st)) != NULL) {
 
-  
-  
+
+    if (st->selfHealing == -1) {
+      /* No self healing configured */
+      max_failures = -1;
+      rebuilding   = 1; /* Prevents going on rebuilding */
+    }
+    else {
+    
+      /*
+      ** Compute the maximium number of failures before relocation
+      */
+      max_failures = (st->selfHealing * 60)/(STORIO_DEVICE_PERIOD/1000);
+      
+      /*
+      ** Check whether some device is already in relocating status
+      */
+      rebuilding = 0;       
+      for (dev = 0; dev < st->device_number; dev++) {
+        pDev = &st->device_ctx[dev];
+	if (pDev->status == storage_device_status_relocating) {
+	  rebuilding = 1; /* No more than 1 rebuild at a time */
+	  break;
+	}
+      }             
+    }  
+    
     /*
     ** Update the table of free block count on device to help
     ** for distribution of new files on devices 
@@ -399,26 +552,137 @@ void storio_device_mapping_periodic_ticker(void * param) {
 
     for (dev = 0; dev < st->device_number; dev++) {
 
+      pDev = &st->device_ctx[dev];
+      
       sprintf(path, "%s/%d/", st->root, dev); 
       st->device_free.blocks[passive][dev] = 0;
-      
+
       /*
-      ** Check the device is writable
+      ** Check whether re-init is required
       */
-      if (access(path,W_OK) == -1) {
-	storage_error_on_device(st,dev);
-	continue;
+      if (pDev->action==STORAGE_DEVICE_REINIT) {
+        /*
+	** Wait for the end of the relocation to re initialize the device
+	*/
+        if (pDev->status != storage_device_status_relocating) {
+	  pDev->status = storage_device_status_init;
+	  pDev->action = 0;
+	}
       }
 
-      if (statfs(path, &sfs) == -1) {
-	storage_error_on_device(st,dev);
-	continue;	
+      /*
+      ** Check wether errors must be reset
+      */
+      if (pDev->action==STORAGE_DEVICE_RESET_ERRORS) {
+        memset(&st->device_errors, 0, sizeof(storage_device_errors_t));
+        memset(storio_faulty_fid, 0, sizeof(storio_faulty_fid));      
+	pDev->action = 0;
       }
 
-      st->device_free.blocks[passive][dev] = sfs.f_bfree;
+      failed = 0;	        
+      switch(pDev->status) {
+      
+        /* 
+	** (re-)Initialization 
+	*/
+        case storage_device_status_init:
+	  /*
+	  ** Clear every thing
+	  */
+          memset(&st->device_errors, 0, sizeof(storage_device_errors_t));
+          memset(storio_faulty_fid, 0, sizeof(storio_faulty_fid));      
+	  pDev->failure = 0;
+	  pDev->status = storage_device_status_is;   
+	  // continue on next case 
+	  
+	  
+	/*
+	** Device In Service. No fault up to now
+	*/  
+        case storage_device_status_is:
+	
+	  /*
+	  ** Check whether the access to the device is still granted
+	  ** and get the number of free blocks
+	  */
+	  failed = 1;
+	  if ((access(path,W_OK) == 0)&&(statfs(path, &sfs) == 0)) {
+	    failed = 0; 	
+	  }	
+	  
+	  /*
+	  ** The device is failing !
+	  */
+	  if (failed) {
+	    pDev->status = storage_device_status_failed;
+	  }
+	  else {
+	    st->device_free.blocks[passive][dev] = sfs.f_bfree;
+	  }  
+	  break;
+	  
+	/*
+	** Device failed. Check whether the status is confirmed
+	*/  
+	case storage_device_status_failed:
+	
+	  /*
+	  ** Check whether the access to the device is still granted
+	  ** and get the number of free blocks
+	  */
+	  failed = 1;
+	  if ((access(path,W_OK) == 0)&&(statfs(path, &sfs) == 0)) {
+	    failed = 0; 	
+	  }	
+	  
+	  /*
+	  ** Still failed
+	  */	
+	  if (failed) {
+	    pDev->failure++;
+	    /*
+	    ** When self healing is configured and no other device
+	    ** is relocating on this storage and failure threashold
+	    ** has been crossed, relocation should take place
+	    */
+	    if ((rebuilding==0) && (pDev->failure >= max_failures)) {
+	      /*
+	      ** Let's start self healing
+	      */
+	      pDev->status = storage_device_status_relocating;
+	      if (storio_device_relocate(st,dev) == 0) {
+	        rebuilding = 1;
+	      }	
+	      else {
+	        pDev->status = storage_device_status_failed;	        
+	      }
+	    }
+	    break;
+	  }
+	  
+	  /*
+	  ** The device is repaired
+	  */
+	  pDev-> status = storage_device_status_is;
+	  pDev->failure = 0;	  
+	  st->device_free.blocks[passive][dev] = sfs.f_bfree;
+	  break;
+	  
+	  
+	case storage_device_status_relocating:  
+	  break;
+	  
+	case storage_device_status_oos:
+	  break;
+	  
+	default:
+	  break;    
+      }	
     }  
-
     
+    /*
+    ** Switch active and passive records
+    */
     st->device_free.active = passive; 
     
     
@@ -426,13 +690,6 @@ void storio_device_mapping_periodic_ticker(void * param) {
     /*
     ** Monitor errors on devices
     */
-    if (st->device_errors.reset) {
-      /* Reset error counters requested */
-      memset(&st->device_errors, 0, sizeof(storage_device_errors_t));
-      memset(storio_faulty_fid, 0, sizeof(storio_faulty_fid));      
-      continue;
-      
-    }
     error_bitmask = storage_periodic_error_on_device_monitoring(st);
     if (error_bitmask == 0) continue;
     
@@ -458,7 +715,7 @@ void storio_device_mapping_start_timer() {
     return;
   }
   ruc_periodic_timer_start (periodic_timer, 
-                            5000, // every 5 sec
+                            STORIO_DEVICE_PERIOD, // every 5 sec
  	                    storio_device_mapping_periodic_ticker,
  			    0);
 

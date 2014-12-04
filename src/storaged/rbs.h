@@ -37,7 +37,7 @@
 #define MAXIMUM_PARALLEL_REBUILD_PER_SID 16
 
 
-#define REBUILD_MSG(fmt, ...) { logmsg(EINFO, fmt, ##__VA_ARGS__); printf(fmt"\n", ##__VA_ARGS__); }
+#define REBUILD_MSG(fmt, ...) { logmsg(EINFO, fmt, ##__VA_ARGS__); if (!quiet) printf(fmt"\n", ##__VA_ARGS__); }
 #define REBUILD_FAILED(fmt, ...) { REBUILD_MSG("storage_rebuild failed !!!"); REBUILD_MSG(fmt, ##__VA_ARGS__); }
 
 /* Timeout in seconds for exportd requests */
@@ -87,6 +87,15 @@ typedef struct rb_cluster {
  */
 char * get_rebuild_directory_name() ;
 char * get_rebuild_sid_directory_name(int cid, int sid) ;
+
+/** Initialize connections (via mproto and sproto) to one storage
+ *
+ * @param rb_stor: storage to connect.
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int rbs_stor_cnt_initialize(rb_stor_t * rb_stor, int cid) ;
+
 /** Init connections for storage members of a given cluster but not for the 
  *  storage with sid=sid
  *

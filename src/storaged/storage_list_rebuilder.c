@@ -61,6 +61,7 @@
 
 sconfig_t   storaged_config;
 uint8_t prj_id_present[ROZOFS_SAFE_MAX];
+int         quiet=0;
 
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 static uint16_t storaged_nrstorages = 0;
@@ -99,7 +100,8 @@ static int storaged_initialize() {
                 sc->cid, sc->sid, sc->root,
 		sc->device.total,
 		sc->device.mapper,
-		sc->device.redundancy) != 0) {
+		sc->device.redundancy,
+		-1,NULL) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;
@@ -824,7 +826,9 @@ int storaged_rebuild_list(char * fid_list) {
       st2rebuild.counters.written += size_written;
       st2rebuild.counters.read    += size_read;       
     
-      pwrite(fd, &st2rebuild.counters, sizeof(st2rebuild.counters), 0);
+      if (pwrite(fd, &st2rebuild.counters, sizeof(st2rebuild.counters), 0)!= sizeof(st2rebuild.counters)) {
+        severe("pwrite %s %s",fid_list,strerror(errno));
+      }
 
       if ((nbSuccess % (16*1024)) == 0) {
         REBUILD_MSG("  ~ %s %d/%d",fid_list,nbSuccess,nbJobs);
@@ -858,7 +862,7 @@ int storaged_rebuild_list(char * fid_list) {
     ** Update input job file if any change
     */
     if (memcmp(&file_entry_saved,&file_entry, sizeof(file_entry)) != 0) {
-      if (pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry))<0) {
+      if (pwrite(fd, &file_entry, sizeof(file_entry), offset-sizeof(file_entry))!=sizeof(file_entry)) {
 	severe("pwrite size %lu offset %llu %s",(unsigned long int)sizeof(file_entry), 
                (unsigned long long int) offset-sizeof(file_entry), strerror(errno));
       }
@@ -899,6 +903,7 @@ void usage() {
     printf("Usage: %s [OPTIONS]\n\n",utility_name);
     printf("   -h, --help\t\t\tprint this message.\n");
     printf("   -f, --fids=<filename> \tA file name containing the fid list to rebuild.\n");    
+    printf("   -q, --quiet \tDo not print.\n");    
 }
 
 int main(int argc, char *argv[]) {
@@ -907,6 +912,7 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "fids", required_argument, 0, 'f'},	
+        { "quiet", no_argument, 0, 'q'},
         { 0, 0, 0, 0}
     };
 
@@ -919,7 +925,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:f:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:f:q:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -934,6 +940,9 @@ int main(int argc, char *argv[]) {
             case 'f':
 		input_file_name = optarg;
                 break;	
+	    case 'q':
+	        quiet = 1;
+		break;
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);

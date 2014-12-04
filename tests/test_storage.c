@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
 
     // Initialize the storage root ditectory
     fprintf(stdout, "Initialize storage with SID: %u\n", sid);
-    if (storage_initialize(&st, cid, sid, "/tmp",6,4,2) != 0) {
+    if (storage_initialize(&st, cid, sid, "/tmp",6,4,2,-1,NULL) != 0) {
         perror("failed to initialize storage");
         exit(-1);
     }

@@ -262,6 +262,22 @@ xdr_sp_remove_chunk_arg_t (XDR *xdrs, sp_remove_chunk_arg_t *objp)
 }
 
 bool_t
+xdr_sp_clear_error_arg_t (XDR *xdrs, sp_clear_error_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint8_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->dev))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->reinit))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_sp_device_e (XDR *xdrs, sp_device_e *objp)
 {
 	//register int32_t *buf;

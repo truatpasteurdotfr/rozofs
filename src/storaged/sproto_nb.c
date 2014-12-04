@@ -1142,7 +1142,7 @@ void sp_remove_chunk_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
     static sp_status_ret_t ret;
     sp_remove_chunk_arg_t   * remove_chunk_arg_p = (sp_remove_chunk_arg_t *) pt;
     storio_device_mapping_t * dev_map_p = NULL;
-    uint8_t                   nb_rebuild;
+    uint8_t                   nb_rebuild=0;
     uint8_t                   storio_rebuild_ref=0;
     STORIO_REBUILD_T        * pRebuild; 
     
@@ -1224,5 +1224,88 @@ out:
     ** (i.e running or inactive list)
     */
     storio_device_mapping_ctx_evaluate(dev_map_p);    
+    return ;
+}
+/*
+**___________________________________________________________
+*/
+
+void sp_clear_error_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    static sp_status_ret_t    ret;
+    sp_clear_error_arg_t    * clear_error_arg_p = (sp_clear_error_arg_t *) pt;
+    storage_t               * st = 0;
+    int                       idx;
+    uint8_t                   action;
+      
+    START_PROFILING(clear_error);
+    
+    /*
+    ** Use received buffer for the response
+    */    
+    req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
+    req_ctx_p->recv_buf = NULL;
+
+    /*
+    ** Only reset error counters, or re initializae device status automaton
+    */
+    if (clear_error_arg_p->reinit) {
+      action = STORAGE_DEVICE_REINIT;
+    }
+    else {
+      action = STORAGE_DEVICE_RESET_ERRORS;
+    }   
+
+    /*
+    ** Retrieve the storage context 
+    */
+    if ((st = storaged_lookup(clear_error_arg_p->cid, clear_error_arg_p->sid)) == 0) {
+      severe("sp_clear_error_1_svc_disk_thread cid %d sid %d", 
+	        clear_error_arg_p->cid, clear_error_arg_p->sid);    
+      ret.sp_status_ret_t_u.error = errno;
+      goto error;
+    }  
+
+    /*
+    ** All devices are to be processd
+    */
+    if (clear_error_arg_p->dev == 0xFF) {
+      for (idx=0; idx< st->device_number;idx++) {
+        if (st->device_ctx[idx].action < action) {
+	  st->device_ctx[idx].action = action;
+	}  
+      }
+    }
+    /*
+    ** Just one device
+    */
+    else {
+      idx = clear_error_arg_p->dev;
+      if (idx >= st->device_number) {
+        severe("sp_clear_error_1_svc_disk_thread cid %d sid %d dev %d max %d", 
+	        clear_error_arg_p->cid, clear_error_arg_p->sid,
+		idx, st->device_number);
+        goto error;
+      }
+      if (st->device_ctx[idx].action < action) {
+	st->device_ctx[idx].action = action;
+      }  
+    }
+    
+    ret.status = SP_SUCCESS;
+    goto out;
+    
+error:    
+    
+    ret.status                  = SP_FAILURE;            
+    ret.sp_status_ret_t_u.error = errno;
+
+out:    
+    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
+    /*
+    ** release the context
+    */
+    rozorpc_srv_release_context(req_ctx_p);
+
+    STOP_PROFILING(clear_error);
     return ;
 }

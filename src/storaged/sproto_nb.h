@@ -43,6 +43,8 @@ void sp_remove_1_svc_disk_thread(void *args,rozorpc_srv_ctx_t *req_ctx_p);
 void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
 void sp_rebuild_stop_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
 void sp_remove_chunk_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
+void sp_clear_error_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p);
+
 void detailed_counters_init(void) ;
 void update_write_detailed_counters(uint64_t delay);
 void update_read_detailed_counters(uint64_t delay) ;

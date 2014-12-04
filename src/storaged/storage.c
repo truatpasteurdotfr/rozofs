@@ -508,7 +508,9 @@ int storage_initialize(storage_t *st,
 		       const char *root, 
                        uint32_t device_number, 
 		       uint32_t mapper_modulo, 
-		       uint32_t mapper_redundancy) {
+		       uint32_t mapper_redundancy,
+		       int      selfHealing,
+		       char   * export_hosts) {
     int status = -1;
     char path[FILENAME_MAX];
     struct stat s;
@@ -531,12 +533,22 @@ int storage_initialize(storage_t *st,
     
     st->mapper_modulo     = mapper_modulo;
     st->device_number     = device_number; 
-    st->mapper_redundancy = mapper_redundancy; 
+    st->mapper_redundancy = mapper_redundancy;
+    st->selfHealing       = selfHealing; 
+    st->export_hosts      = export_hosts;
     
     st->device_free.active = 0;
     for (dev=0; dev<STORAGE_MAX_DEVICE_NB; dev++) {
       st->device_free.blocks[0][dev] = 20000;
       st->device_free.blocks[1][dev] = 20000;
+    }
+
+    /*
+    ** Initialize device status
+    */
+    for (dev=0; dev<device_number; dev++) {
+      st->device_ctx[dev].status = storage_device_status_init;
+      st->device_ctx[dev].failure = 0;
     }
 
     memset(&st->device_errors , 0,sizeof(st->device_errors));        
@@ -866,7 +878,6 @@ int storage_restore_chunk(storage_t * st, uint8_t * device,fid_t fid, uint8_t sp
     ** Header file has been read. 
     */
        
-    info("restore chunk %d old_device %d failed device %d", chunk, old_device, file_hdr.device[chunk]);   
     
     /*
     ** Remove new data file which rebuild has failed 

@@ -1,18 +1,18 @@
 .\" Process this file with
 .\" groff -man -Tascii storage_rebuild.8
 .\"
-.TH storaged_rebuild 8 "JUNE 2014" RozoFS "User Manuals"
+.TH storage_rebuild 8 "DECEMBER 2014" RozoFS "User Manuals"
 .SH NAME
-storaged_rebuild \- RozoFS storage rebuild process
+storage_rebuild \- RozoFS storage node device rebuild process
 .SH SYNOPSIS
-.B storaged_rebuild 
+.B storage_rebuild 
 [
 .I options
 ] 
 .B
 .SH DESCRIPTION
-.B storaged_rebuild
-rebuilds either a file, or a device, or all devices of a storage node.
+.B storage_rebuild
+rebuilds either a file or a device or all devices of a storage node.
 .SH OPTIONS
 .IP "-h, --help"
 .RS
@@ -22,7 +22,7 @@ Print help.
 .RS
 Use 
 .I file
-as configuration file. default is
+as configuration file. This parameter is optionnal and by default the configuration file used is
 .I /etc/rozofs/storage.conf
 (or
 .I /usr/local/etc/rozofs/storage.conf
@@ -32,38 +32,89 @@ according to install options)
 .RS
 Use
 .I export_host
-as the list of addresses (or dns names) where exportd daemon is running. When securing the exportd thanks to virtual IP address only the virtual IP address is declared (i.e "192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the exportd must be given (i.e "192.168.10.1/192.168.20.1"). 
+as the list of addresses (or dns names) where exportd daemon is running. When securing the exportd thanks to virtual IP address only the virtual IP address is declared (i.e "--rebuild 192.168.10.1"). When no virtual IP address is used the list of "physical" IP addresses of each host securing the exportd must be given (i.e "--rebuild 192.168.10.1/192.168.20.1"). This is a mandatory parameter. 
 .TP
 .RE
 .IP "-s, --sid cid/sid"
 .RE
 .RS
-Rebuilds only the storage identifier 
+Rebuilds only the storage instance 
 .I sid
 of cluster
-.I cid.
-Default behaviour is to rebuild every sid configured in the configuration file.
+.I cid 
+of the storage node.
+Default behaviour is to rebuild every storage instance configured in the configuration file.
 .RE
 .IP "-d, --device device-number"
 .RE
 .RS
 Rebuilds only 
-.I device-number.
-Default is to rebuild every device.
+.I device-number 
+of a storage instance. When this option is set option --sid must be set too. Default is to rebuild every device.
 .RE
 .IP "-f, --fid FID"
 .RE
 .RS
 Rebuilds only the file identified by
 .I FID.
-In this case --sid option is mandatory and -d option is ignored.
+In this case --sid option is mandatory and --device option is ignored.
 .RE
 .IP "-p, --parallel para"
 .RE
 .RS
 Use 
 .I para
-processes in parallel for rebuilding. Default value is 4.
+processes in parallel for rebuilding. Default should be 3.
+.RE
+.IP "-R, --relocate"
+.RE
+.RS
+Enables relocation of the rebuilt files on other devices. This is used for repairing data files of a broken device on the remaining in service devices. When not set the data files are not relocated and are so rebuilt on the same devices they used to be.
+.RE
+.IP "-l, --loop nb"
+.RE
+.RS
+re-attempt 
+.I nb
+times the rebuild in case it fails. Default is to retry infinitely.
+.RE
+.IP "-q, --quiet"
+.RE
+.RS
+Not to display any output on the terminal (for non interactive mode).
+.RE
+.IP "-C, --clear"
+.RE
+.RS
+To re-initialize the satus of a device that has been set out of service after an automatic relocation of the data on other devices (self healing) and then rebuild it.
+.RE
+.B
+.SH EXAMPLES
+.RE 
+
+Rebuilding a whole storage node as fast as possible:
+.RE
+.B storage_rebuild --rebuild 192.168.0.201/192.168.0.202 --parallel 16
+.RE 
+
+Rebuilding every device of storage instance 2 of cluster 1:
+.RE
+.B storage_rebuild --rebuild 192.168.0.201/192.168.0.202 --sid 1/2
+.RE
+
+Rebuilding only device 3 of storage instance 2 of cluster 1:
+.RE
+.B storage_rebuild --rebuild 192.168.0.201/192.168.0.202 --sid 1/2 --device 3
+.RE 
+
+Rebuilding by relocating device 3 of sid 2 of cluster 1 on other devices:
+.RE
+.B storage_rebuild --rebuild 192.168.0.201/192.168.0.202 --sid 1/2 --device 3 --relocate
+.RE 
+
+Putting device 3 of storage instance 2 of cluster 1 back in service when it has been set out of service by an automatic rebuild with relocation (self healing)
+.RE
+.B storage_rebuild --rebuild 192.168.0.201/192.168.0.202 --sid 1/2 --device 3 --clear
 .RE
 .SH FILES
 .I /etc/rozofs/storage.conf (/usr/local/etc/rozofs/storage.conf)

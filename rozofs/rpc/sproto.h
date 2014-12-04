@@ -139,6 +139,14 @@ struct sp_remove_chunk_arg_t {
 };
 typedef struct sp_remove_chunk_arg_t sp_remove_chunk_arg_t;
 
+struct sp_clear_error_arg_t {
+	uint8_t cid;
+	uint8_t sid;
+	uint8_t dev;
+	uint8_t reinit;
+};
+typedef struct sp_clear_error_arg_t sp_clear_error_arg_t;
+
 enum sp_device_e {
 	SP_SAME_DEVICE = 0,
 	SP_NEW_DEVICE = 1,
@@ -240,6 +248,9 @@ extern  sp_rebuild_stop_ret_t * sp_rebuild_stop_1_svc(sp_rebuild_stop_arg_t *, s
 #define SP_REMOVE_CHUNK 7
 extern  sp_status_ret_t * sp_remove_chunk_1(sp_remove_chunk_arg_t *, CLIENT *);
 extern  sp_status_ret_t * sp_remove_chunk_1_svc(sp_remove_chunk_arg_t *, struct svc_req *);
+#define SP_CLEAR_ERROR 8
+extern  sp_status_ret_t * sp_clear_error_1(sp_clear_error_arg_t *, CLIENT *);
+extern  sp_status_ret_t * sp_clear_error_1_svc(sp_clear_error_arg_t *, struct svc_req *);
 extern int storage_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -267,6 +278,9 @@ extern  sp_rebuild_stop_ret_t * sp_rebuild_stop_1_svc();
 #define SP_REMOVE_CHUNK 7
 extern  sp_status_ret_t * sp_remove_chunk_1();
 extern  sp_status_ret_t * sp_remove_chunk_1_svc();
+#define SP_CLEAR_ERROR 8
+extern  sp_status_ret_t * sp_clear_error_1();
+extern  sp_status_ret_t * sp_clear_error_1_svc();
 extern int storage_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -283,6 +297,7 @@ extern  bool_t xdr_sp_truncate_arg_no_bins_t (XDR *, sp_truncate_arg_no_bins_t*)
 extern  bool_t xdr_sp_truncate_arg_t (XDR *, sp_truncate_arg_t*);
 extern  bool_t xdr_sp_remove_arg_t (XDR *, sp_remove_arg_t*);
 extern  bool_t xdr_sp_remove_chunk_arg_t (XDR *, sp_remove_chunk_arg_t*);
+extern  bool_t xdr_sp_clear_error_arg_t (XDR *, sp_clear_error_arg_t*);
 extern  bool_t xdr_sp_device_e (XDR *, sp_device_e*);
 extern  bool_t xdr_sp_rebuild_start_arg_t (XDR *, sp_rebuild_start_arg_t*);
 extern  bool_t xdr_sp_rebuild_start_ret_t (XDR *, sp_rebuild_start_ret_t*);
@@ -303,6 +318,7 @@ extern bool_t xdr_sp_truncate_arg_no_bins_t ();
 extern bool_t xdr_sp_truncate_arg_t ();
 extern bool_t xdr_sp_remove_arg_t ();
 extern bool_t xdr_sp_remove_chunk_arg_t ();
+extern bool_t xdr_sp_clear_error_arg_t ();
 extern bool_t xdr_sp_device_e ();
 extern bool_t xdr_sp_rebuild_start_arg_t ();
 extern bool_t xdr_sp_rebuild_start_ret_t ();

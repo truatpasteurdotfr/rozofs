@@ -50,6 +50,8 @@
 #define SDEV_TOTAL      "device-total"
 #define SDEV_MAPPER     "device-mapper"
 #define SDEV_RED        "device-redundancy"
+#define SSELF_HEALING   "self-healing"
+#define SEXPORT_HOSTS   "export-hosts"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root, int dev, int dev_mapper, int dev_red) {
@@ -98,11 +100,11 @@ int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
     int threads, port, nb_cores;
-    int devices, mapper, redundancy;
+    int devices, mapper, redundancy, selfHealing;
     
 #else
     long int threads, port, nb_cores;
-    long int devices, mapper, redundancy;
+    long int devices, mapper, redundancy, selfHealing;
 #endif      
     DEBUG_FUNCTION;
 
@@ -139,7 +141,34 @@ int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
                     SSTORIO, char_value);
         }
     }
-
+    
+    /*
+    ** Check whether self-healing is configured 
+    */
+    config->selfHealing  = -1;
+    config->export_hosts = NULL;
+    selfHealing = -1;
+    
+    if (config_lookup_int(&cfg, SSELF_HEALING, &selfHealing)) {
+      if (selfHealing>0) {
+        /*
+	** Export hosts list has to be configured too
+	*/
+	if (config_lookup_string(&cfg, SEXPORT_HOSTS, &char_value)) {
+	  config->selfHealing  = selfHealing;
+	  config->export_hosts = strdup(char_value);
+	}
+	else {
+	  severe("%s must be configured along with %s",SEXPORT_HOSTS, SSELF_HEALING);
+	}
+      }	
+      else {
+        severe("Bad %s value %d",SSELF_HEALING,selfHealing);
+	selfHealing = -1;
+      }
+    }
+    
+    
     if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
         errno = ENOKEY;
         severe("can't fetch listen settings.");

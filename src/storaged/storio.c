@@ -61,7 +61,7 @@
 
 
 int     storio_instance = 0;
-static char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
+char storaged_config_file[PATH_MAX] = STORAGED_DEFAULT_CONFIG;
 
 sconfig_t storaged_config;
 
@@ -69,7 +69,7 @@ static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
     {0}
 };
 
-static char *storaged_hostname = NULL;
+char *storaged_hostname = NULL;
 
 static uint16_t storaged_nrstorages = 0;
 
@@ -109,7 +109,9 @@ static int storaged_initialize() {
                 sc->cid, sc->sid, sc->root, 
 		sc->device.total,
 		sc->device.mapper,
-		sc->device.redundancy) != 0) {
+		sc->device.redundancy,
+		storaged_config.selfHealing,
+		storaged_config.export_hosts) != 0) {
             severe("can't initialize storage (cid:%d : sid:%d) with path %s",
                     sc->cid, sc->sid, sc->root);
             goto out;
@@ -160,8 +162,7 @@ static void on_stop(int sig) {
 
  
 static void on_reload(int sig) {
-   storage_device_mapping_increment_consistency();
-   storage_device_mapping_reset_error_counters();
+   info("ignoring reload signal");
    return;
 }
 static void on_start(void) {

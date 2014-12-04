@@ -73,12 +73,6 @@ add_executable(storage_list_rebuilder
 )
 target_link_libraries(storage_list_rebuilder rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
-add_executable(storio_reload
-    storio_reload.c
-    storage.h
-)
-target_link_libraries(storio_reload )
-
 
 add_executable(storio
     spproto.c
@@ -135,12 +129,6 @@ install(TARGETS storage_list_rebuilder
     ARCHIVE DESTINATION lib
     COMPONENT storage_list_rebuilder
 )        
-install(TARGETS storio_reload
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    COMPONENT storio_reload
-)
 install(TARGETS storio
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib

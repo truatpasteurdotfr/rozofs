@@ -129,6 +129,13 @@ struct sp_remove_chunk_arg_t {
     uint32_t    chunk;
 };
 
+struct sp_clear_error_arg_t {
+    uint8_t     cid;
+    uint8_t     sid;
+    uint8_t     dev;
+    uint8_t     reinit;
+};
+
 enum sp_device_e {
     SP_SAME_DEVICE = 0,
     SP_NEW_DEVICE  = 1
@@ -208,6 +215,9 @@ program STORAGE_PROGRAM {
 			
         sp_status_ret_t
         SP_REMOVE_CHUNK(sp_remove_chunk_arg_t)  = 7;		
+			
+        sp_status_ret_t
+        SP_CLEAR_ERROR(sp_clear_error_arg_t)  = 8;		
 
     }=1;
 } = 0x20000002;

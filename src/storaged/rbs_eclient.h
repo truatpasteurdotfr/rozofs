@@ -24,6 +24,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/** Initialize a storage structure to reach a cid/sid by interogating
+ *  the exportd as well as the storaged
+ *
+ * @param clt: RPC connection to export server
+ * @param export_host_list: IP or hostname of export server
+ * @param site: the site identifier
+ * @param cid: the unique ID of cluster
+ * @param sid: the storage identifier
+ * @param stor: the storage structure to initialize
+ *
+ * @return: NULL on error, valid export host name on success
+ */
+int rbs_get_storage(rpcclt_t * clt, const char *export_host_list, int site, cid_t cid, sid_t sid, rb_stor_t * stor);
+
+
 /** Send a request to export server for get the list of member storages
  *  of cluster with a given cid and add this storage list to the list
  *  of clusters

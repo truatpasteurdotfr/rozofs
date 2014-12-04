@@ -129,3 +129,18 @@ sp_remove_chunk_1(sp_remove_chunk_arg_t *argp, CLIENT *clnt)
 	}
 	return (&clnt_res);
 }
+
+sp_status_ret_t *
+sp_clear_error_1(sp_clear_error_arg_t *argp, CLIENT *clnt)
+{
+	static sp_status_ret_t clnt_res;
+
+	memset((char *)&clnt_res, 0, sizeof(clnt_res));
+	if (clnt_call (clnt, SP_CLEAR_ERROR,
+		(xdrproc_t) xdr_sp_clear_error_arg_t, (caddr_t) argp,
+		(xdrproc_t) xdr_sp_status_ret_t, (caddr_t) &clnt_res,
+		TIMEOUT) != RPC_SUCCESS) {
+		return (NULL);
+	}
+	return (&clnt_res);
+}
