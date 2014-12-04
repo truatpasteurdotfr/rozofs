@@ -774,9 +774,11 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
         severe("open failure for %s : %s",fstat_path,strerror(errno));
         return -1;
     }
+#if 0    
     if (pread(e->fdstat, &e->fstat, sizeof (export_fstat_t), 0)
             != sizeof (export_fstat_t))
         return -1;
+#endif	
     /*
     ** register the export with the periodic quota thread
     */
@@ -843,6 +845,9 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     struct statfs stfs;
     volume_stat_t vstat;
     START_PROFILING_EID(export_stat,e->eid);
+    
+    export_fstat_t * estats = export_fstat_get_stat(e->eid);
+    if (estats == NULL) goto out;
 
     st->bsize = ROZOFS_BSIZE_BYTES(e->bsize);
     if (statfs(e->root, &stfs) != 0)
@@ -852,7 +857,7 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     //st->namemax = stfs.f_namelen;
     st->namemax = ROZOFS_FILENAME_MAX;
     st->ffree = stfs.f_ffree;
-    st->blocks = e->fstat.blocks;
+    st->blocks = estats->blocks;
     volume_stat(e->volume, &vstat);
 
     /* Volume statistics are given on 1024 block units */
@@ -873,7 +878,7 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     // rozofs does not have a constant total number of blocks
     // it depends on usage made of storage (through other services)
     st->blocks += st->bfree;
-    st->files = e->fstat.files;
+    st->files = estats->files;
 
     status = 0;
 out:
@@ -1335,9 +1340,10 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
     ** Check that some space os left for the new file in case a hard quota is set
     */
     if (e->hquota) {
-      if (e->fstat.blocks >= e->hquota) {
+      export_fstat_t * estats = export_fstat_get_stat(e->eid);
+      if ((estats != NULL)&&(estats->blocks >= e->hquota)) {
         errno = ENOSPC;
-       goto error;
+        goto error;
       }
     }
     /*
@@ -1608,9 +1614,10 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     ** Check that some space os left for the new file in case a hard quota is set
     */
     if (e->hquota) {
-      if (e->fstat.blocks >= e->hquota) {
+      export_fstat_t * estats = export_fstat_get_stat(e->eid);    
+      if ((estats!=NULL) && (estats->blocks >= e->hquota)) {
         errno = ENOSPC;
-       goto error;
+        goto error;
       }
     }
     /*
@@ -1798,7 +1805,8 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     ** Check that some space is left for the new file in case a hard quota is set
     */
     if (e->hquota) {
-      if (e->fstat.blocks >= e->hquota) {
+      export_fstat_t * estats = export_fstat_get_stat(e->eid);    
+      if ((estats!=NULL) && (estats->blocks >= e->hquota)) {
         errno = ENOSPC;
        goto error;
       }
@@ -4198,10 +4206,13 @@ static inline int get_rozofs_xattr_max_size(export_t *e, lv2_entry_t *lv2, char 
   ** Respect the hard quota
   */	
   if (e->hquota > 0) {
-    uint64_t quota_left = (e->hquota - e->fstat.blocks);
-    if (free > quota_left) {
-      free = quota_left;
-      quota =1;
+    export_fstat_t * estats = export_fstat_get_stat(e->eid);    
+    if (estats!=NULL) {  
+      uint64_t quota_left = (e->hquota - estats->blocks);
+      if (free > quota_left) {
+        free = quota_left;
+        quota = 1;
+      }
     }
   }
   

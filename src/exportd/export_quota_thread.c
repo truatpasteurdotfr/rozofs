@@ -238,7 +238,44 @@ void show_export_fstat_thread(char * argv[], uint32_t tcpRef, void *bufRef) {
     return;
 }
 
+/*
+**__________________________________________________________________
+*/
+/** Get pointer to the export statistics in memory
+ *
+ * @param eid: the export to get statistics from
+ *
+ * @return the pointer to the statitics of NULL 
+ */
+export_fstat_t * export_fstat_get_stat(uint16_t eid)
+{
+    export_fstat_ctx_t *tab_p;
+    
+   if (export_fstat_init_done == 0)
+   {
+      return NULL;
+   }
+   /*
+   ** check the index of the eid
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      export_fstat_stats.eid_out_of_range_err++;
+      return NULL;
+   }
 
+   tab_p = export_fstat_table[eid];
+   if (tab_p== NULL)  
+   {
+      export_fstat_stats.no_eid_err++;
+      return NULL;   
+   } 
+
+   return &tab_p->memory;
+}
 /*
 **__________________________________________________________________
 */
