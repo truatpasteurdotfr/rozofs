@@ -1662,11 +1662,10 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     }
     return 0;
 }      
-
 int storage_stat(storage_t * st, sstat_t * sstat) {
-    int status = -1;
     struct statfs sfs;
-    char path[256];
+    char          path[FILENAME_MAX];
+    char        * pChar = path;
     int    device;
     DEBUG_FUNCTION;
     
@@ -1675,40 +1674,38 @@ int storage_stat(storage_t * st, sstat_t * sstat) {
 
     for (device=0; device < st->device_number;device++) {
 
-      sprintf(path,"%s/%d",st->root,device);
+	pChar += sprintf(path, "%s/%d", st->root, device); 
 
-      /*
-      ** Check the device is writable
-      */
-      if (access(path,W_OK) == -1) {
-	storage_error_on_device(st,device);
-	continue;
-      }
-      
-      if (statfs(path, &sfs) == -1) {
-        storage_error_on_device(st,device);
-        continue;
-      }	
+	/*
+	** Check that the device is writable
+	*/
+	if (access(path,W_OK) != 0) {
+	  continue;
+	}
 
-      /*
-      ** Privileged process can use the whole free space
-      */
-      if (getuid() == 0) {
-	sstat->free += (uint64_t) sfs.f_bfree * (uint64_t) sfs.f_bsize;
-      }
-      /*
-      ** non privileged process can not use root reserved space
-      */
-      else {
-	sstat->free += (uint64_t) sfs.f_bavail * (uint64_t) sfs.f_bsize;
-      }
-      
-      sstat->size += (uint64_t) sfs.f_blocks * (uint64_t) sfs.f_bsize;
-      
-    }
-    
-    status = 0;
-    return status;
+	/*
+	** Get statistics
+	*/
+	if (statfs(path, &sfs) != 0) {
+	  continue;
+	}  
+
+	/*
+	** Check we can see an X file. 
+	** This would mean that the device is not mounted
+	*/
+	pChar += sprintf(pChar, "/X");
+	if (access(path,F_OK) == 0) {
+	  continue;
+	}
+
+	/*
+	** Increment free and size from the device statistics
+	*/
+	sstat->free += ((uint64_t)sfs.f_bfree)  * ((uint64_t)sfs.f_bsize);
+	sstat->size += ((uint64_t)sfs.f_blocks) * ((uint64_t)sfs.f_bsize);
+    }  
+    return 0;
 }
 
 bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t device_id, 
