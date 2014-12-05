@@ -44,7 +44,7 @@
 #include "storaged.h"
 #include "storio_fid_cache.h"
 
-#define STORIO_DEVICE_PERIOD    5000
+#define STORIO_DEVICE_PERIOD    6000
 
 extern sconfig_t storaged_config;
 
@@ -495,19 +495,53 @@ int storio_device_relocate(storage_t * st, int dev) {
   return 0;
 }
 /*
+** Check whether the access to the device is still granted
+** and get the number of free blocks
+** 
+*/
+static inline uint64_t storio_device_get_free_space(char *root, int dev) {
+  struct statfs sfs;
+  char          path[FILENAME_MAX];
+  char        * pChar = path;
+  
+  pChar += sprintf(pChar, "%s/%d", root, dev); 
+
+  /*
+  ** Check that the device is writable
+  */
+  if (access(path,W_OK) != 0) {
+    return 0;
+  }
+  
+  /*
+  ** Get statistics
+  */
+  if (statfs(path, &sfs) != 0) {
+    return 0;
+  }  
+  
+  /*
+  ** Check we can see an X file. 
+  ** This would mean that the device is not mounted
+  */
+  pChar += sprintf(pChar, "/X");
+  if (access(path,F_OK) == 0) {
+    return 0;
+  }
+
+  return sfs.f_bfree;
+}
+/*
 **____________________________________________________
 **  Periodic timer expiration
 ** 
 **  @param param: Not significant
 */
 void storio_device_mapping_periodic_ticker(void * param) {
-  struct statfs sfs;
   int           dev;
   int           passive;
-  char          path[FILENAME_MAX];
   storage_t   * st;
   uint64_t      error_bitmask;
-  int           failed=0;
   storage_device_ctx_t *pDev;
   int           max_failures;
   int           rebuilding;
@@ -554,9 +588,6 @@ void storio_device_mapping_periodic_ticker(void * param) {
 
       pDev = &st->device_ctx[dev];
       
-      sprintf(path, "%s/%d/", st->root, dev); 
-      st->device_free.blocks[passive][dev] = 0;
-
       /*
       ** Check whether re-init is required
       */
@@ -578,8 +609,7 @@ void storio_device_mapping_periodic_ticker(void * param) {
         memset(storio_faulty_fid, 0, sizeof(storio_faulty_fid));      
 	pDev->action = 0;
       }
-
-      failed = 0;	        
+      
       switch(pDev->status) {
       
         /* 
@@ -605,20 +635,13 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  failed = 1;
-	  if ((access(path,W_OK) == 0)&&(statfs(path, &sfs) == 0)) {
-	    failed = 0; 	
-	  }	
-	  
-	  /*
-	  ** The device is failing !
-	  */
-	  if (failed) {
+	  st->device_free.blocks[passive][dev] = storio_device_get_free_space(st->root, dev);
+	  if (st->device_free.blocks[passive][dev] == 0) {
+	    /*
+	    ** The device is failing !
+	    */
 	    pDev->status = storage_device_status_failed;
 	  }
-	  else {
-	    st->device_free.blocks[passive][dev] = sfs.f_bfree;
-	  }  
 	  break;
 	  
 	/*
@@ -630,15 +653,11 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  failed = 1;
-	  if ((access(path,W_OK) == 0)&&(statfs(path, &sfs) == 0)) {
-	    failed = 0; 	
-	  }	
-	  
-	  /*
-	  ** Still failed
-	  */	
-	  if (failed) {
+	  st->device_free.blocks[passive][dev] = storio_device_get_free_space(st->root, dev);
+	  if (st->device_free.blocks[passive][dev] == 0) {	  
+	    /*
+	    ** Still failed
+	    */	
 	    pDev->failure++;
 	    /*
 	    ** When self healing is configured and no other device
@@ -651,7 +670,7 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	      */
 	      pDev->status = storage_device_status_relocating;
 	      if (storio_device_relocate(st,dev) == 0) {
-	        rebuilding = 1;
+	        rebuilding = 1; /* On rebuild at a time */
 	      }	
 	      else {
 	        pDev->status = storage_device_status_failed;	        
@@ -665,17 +684,19 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	  */
 	  pDev-> status = storage_device_status_is;
 	  pDev->failure = 0;	  
-	  st->device_free.blocks[passive][dev] = sfs.f_bfree;
 	  break;
 	  
 	  
 	case storage_device_status_relocating:  
+          st->device_free.blocks[passive][dev] = 0;
 	  break;
 	  
 	case storage_device_status_oos:
+          st->device_free.blocks[passive][dev] = 0;
 	  break;
 	  
 	default:
+          st->device_free.blocks[passive][dev] = 0;
 	  break;    
       }	
     }  
