@@ -499,7 +499,7 @@ int storio_device_relocate(storage_t * st, int dev) {
 ** and get the number of free blocks
 ** 
 */
-static inline uint64_t storio_device_get_free_space(char *root, int dev) {
+static inline int storio_device_get_free_space(char *root, int dev, uint64_t * free, uint64_t * size, uint64_t * bs) {
   struct statfs sfs;
   char          path[FILENAME_MAX];
   char        * pChar = path;
@@ -510,14 +510,14 @@ static inline uint64_t storio_device_get_free_space(char *root, int dev) {
   ** Check that the device is writable
   */
   if (access(path,W_OK) != 0) {
-    return 0;
+    return -1;
   }
   
   /*
   ** Get statistics
   */
   if (statfs(path, &sfs) != 0) {
-    return 0;
+    return -1;
   }  
   
   /*
@@ -526,10 +526,13 @@ static inline uint64_t storio_device_get_free_space(char *root, int dev) {
   */
   pChar += sprintf(pChar, "/X");
   if (access(path,F_OK) == 0) {
-    return 0;
+    return -1;
   }
 
-  return sfs.f_bfree;
+  *free = sfs.f_bfree;
+  *size = sfs.f_blocks;
+  *bs   = sfs.f_bsize;
+  return 0;
 }
 /*
 **____________________________________________________
@@ -545,6 +548,8 @@ void storio_device_mapping_periodic_ticker(void * param) {
   storage_device_ctx_t *pDev;
   int           max_failures;
   int           rebuilding;
+  storage_device_info_t info[STORAGE_MAX_DEVICE_NB];
+  uint64_t      bfree,bmax,bsz;
    
   /*
   ** Loop on every storage managed by this storio
@@ -587,6 +592,8 @@ void storio_device_mapping_periodic_ticker(void * param) {
     for (dev = 0; dev < st->device_number; dev++) {
 
       pDev = &st->device_ctx[dev];
+      bfree = 0;
+      bmax  = 0;
       
       /*
       ** Check whether re-init is required
@@ -635,8 +642,7 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  st->device_free.blocks[passive][dev] = storio_device_get_free_space(st->root, dev);
-	  if (st->device_free.blocks[passive][dev] == 0) {
+	  if (storio_device_get_free_space(st->root, dev, &bfree, &bmax, &bsz) != 0) {
 	    /*
 	    ** The device is failing !
 	    */
@@ -653,8 +659,7 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  st->device_free.blocks[passive][dev] = storio_device_get_free_space(st->root, dev);
-	  if (st->device_free.blocks[passive][dev] == 0) {	  
+	  if (storio_device_get_free_space(st->root, dev, &bfree, &bmax, &bsz) != 0) {
 	    /*
 	    ** Still failed
 	    */	
@@ -688,25 +693,33 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	  
 	  
 	case storage_device_status_relocating:  
-          st->device_free.blocks[passive][dev] = 0;
 	  break;
 	  
 	case storage_device_status_oos:
-          st->device_free.blocks[passive][dev] = 0;
 	  break;
 	  
 	default:
-          st->device_free.blocks[passive][dev] = 0;
 	  break;    
       }	
-    }  
-    
+      
+      st->device_free.blocks[passive][dev] = bfree;  
+          
+      info[dev].status  = pDev->status;
+      info[dev].padding = 0;
+      info[dev].free    = bfree * bsz;
+      info[dev].size    = bmax  * bsz;
+    } 
+     
+    /*
+    ** Write status file on disk 
+    */
+    storage_write_device_status(st->root, info, st->device_number);
+        
     /*
     ** Switch active and passive records
     */
     st->device_free.active = passive; 
-    
-    
+     
     
     /*
     ** Monitor errors on devices

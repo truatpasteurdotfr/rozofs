@@ -1661,49 +1661,45 @@ int storage_rm_file(storage_t * st, fid_t fid) {
                
     }
     return 0;
-}      
-int storage_stat(storage_t * st, sstat_t * sstat) {
-    struct statfs sfs;
+} 
+int storage_write_device_status(char * root, storage_device_info_t * info, int nbElement) {
     char          path[FILENAME_MAX];
-    char        * pChar = path;
-    int    device;
+    FILE *        fd; 
+
+    sprintf(path,"%s/status",root);
+    fd = fopen(path,"w");
+    fwrite(info,sizeof(storage_device_info_t),nbElement,fd);
+    fclose(fd);
+}
+int storage_read_device_status(char * root, storage_device_info_t * info) {
+    char          path[FILENAME_MAX];
+    FILE *        fd; 
+    int           read;
+
+    sprintf(path,"%s/status",root);
+    fd = fopen(path,"r");
+    read = fread(info,sizeof(storage_device_info_t),STORAGE_MAX_DEVICE_NB,fd);
+    fclose(fd);
+    return read;
+}
+
+int storage_stat(storage_t * st, sstat_t * sstat) {
+    storage_device_info_t info[STORAGE_MAX_DEVICE_NB];
+    int                   device;
+    int                   nb;
     DEBUG_FUNCTION;
     
-    sstat->free = 0;
+    sstat->free  = 0;
     sstat->size  = 0;
+    
+    /*
+    ** Read statistics from status file on disk
+    */
+    nb = storage_read_device_status(st->root,info);
 
-    for (device=0; device < st->device_number;device++) {
-
-	pChar += sprintf(path, "%s/%d", st->root, device); 
-
-	/*
-	** Check that the device is writable
-	*/
-	if (access(path,W_OK) != 0) {
-	  continue;
-	}
-
-	/*
-	** Get statistics
-	*/
-	if (statfs(path, &sfs) != 0) {
-	  continue;
-	}  
-
-	/*
-	** Check we can see an X file. 
-	** This would mean that the device is not mounted
-	*/
-	pChar += sprintf(pChar, "/X");
-	if (access(path,F_OK) == 0) {
-	  continue;
-	}
-
-	/*
-	** Increment free and size from the device statistics
-	*/
-	sstat->free += ((uint64_t)sfs.f_bfree)  * ((uint64_t)sfs.f_bsize);
-	sstat->size += ((uint64_t)sfs.f_blocks) * ((uint64_t)sfs.f_bsize);
+    for (device=0; device < nb; device++) {
+	sstat->free += info[device].free;
+	sstat->size += info[device].size;
     }  
     return 0;
 }

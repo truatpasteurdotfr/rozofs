@@ -107,6 +107,14 @@ static inline char * storage_device_status2string(storage_device_status_e status
   }
 }
 
+typedef struct _storage_device_info_t {
+  storage_device_status_e    status;
+  uint32_t                   padding;
+  uint64_t                   free;
+  uint64_t                   size;    
+} storage_device_info_t;
+
+
 #define STORAGE_DEVICE_NO_ACTION      0
 #define STORAGE_DEVICE_RESET_ERRORS   1
 #define STORAGE_DEVICE_REINIT         2
