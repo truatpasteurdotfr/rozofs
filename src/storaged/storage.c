@@ -536,6 +536,7 @@ int storage_initialize(storage_t *st,
     st->mapper_redundancy = mapper_redundancy;
     st->selfHealing       = selfHealing; 
     st->export_hosts      = export_hosts;
+    st->device_info_cache = NULL;
     
     st->device_free.active = 0;
     for (dev=0; dev<STORAGE_MAX_DEVICE_NB; dev++) {
@@ -668,6 +669,9 @@ void storage_release(storage_t * st) {
     st->sid = 0;
     st->cid = 0;
     st->root[0] = 0;
+    if (st->device_info_cache != NULL) free(st->device_info_cache);
+    st->device_info_cache = NULL;
+
 }
 static inline void storage_get_projection_size(uint8_t spare, 
                                                sid_t sid, 
@@ -1681,27 +1685,6 @@ int storage_read_device_status(char * root, storage_device_info_t * info) {
     read = fread(info,sizeof(storage_device_info_t),STORAGE_MAX_DEVICE_NB,fd);
     fclose(fd);
     return read;
-}
-
-int storage_stat(storage_t * st, sstat_t * sstat) {
-    storage_device_info_t info[STORAGE_MAX_DEVICE_NB];
-    int                   device;
-    int                   nb;
-    DEBUG_FUNCTION;
-    
-    sstat->free  = 0;
-    sstat->size  = 0;
-    
-    /*
-    ** Read statistics from status file on disk
-    */
-    nb = storage_read_device_status(st->root,info);
-
-    for (device=0; device < nb; device++) {
-	sstat->free += info[device].free;
-	sstat->size += info[device].size;
-    }  
-    return 0;
 }
 
 bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t device_id, 

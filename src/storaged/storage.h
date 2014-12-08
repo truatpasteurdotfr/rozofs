@@ -90,6 +90,7 @@ typedef enum _storage_device_status_e {
   storage_device_status_undeclared=0,
   storage_device_status_init,
   storage_device_status_is,
+  storage_device_status_degraded,
   storage_device_status_relocating,
   storage_device_status_failed,
   storage_device_status_oos
@@ -100,6 +101,7 @@ static inline char * storage_device_status2string(storage_device_status_e status
     case storage_device_status_undeclared: return "NONE";
     case storage_device_status_init:       return "INIT";
     case storage_device_status_is:         return "IS";
+    case storage_device_status_degraded:    return "DEG";
     case storage_device_status_relocating: return "RELOC";
     case storage_device_status_failed:     return "FAILED";
     case storage_device_status_oos:        return "OOS";
@@ -114,6 +116,11 @@ typedef struct _storage_device_info_t {
   uint64_t                   size;    
 } storage_device_info_t;
 
+typedef struct _storage_device_info_cache_t {
+  time_t                 time;
+  int                    nb_dev;
+  storage_device_info_t  device[STORAGE_MAX_DEVICE_NB];
+} storage_device_info_cache_t;
 
 #define STORAGE_DEVICE_NO_ACTION      0
 #define STORAGE_DEVICE_RESET_ERRORS   1
@@ -137,7 +144,8 @@ typedef struct storage {
     char  *  export_hosts; /* For self healing purpose */
     storage_device_free_blocks_t device_free;    // available blocks on devices
     storage_device_errors_t      device_errors;  // To monitor errors on device
-    storage_device_ctx_t         device_ctx[STORAGE_MAX_DEVICE_NB];               
+    storage_device_ctx_t         device_ctx[STORAGE_MAX_DEVICE_NB];  
+    storage_device_info_cache_t *device_info_cache;             
 } storage_t;
 
 /**

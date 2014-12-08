@@ -37,13 +37,42 @@ void mp_null_1_svc_nb(void * pt_req,
                        void * pt_resp) { 
 }
 
+int storaged_update_device_info(storage_t * st) {
+  time_t          t;
+
+  /* 
+  ** Let's allocate memory to cache device info
+  */
+  if (st->device_info_cache == NULL) {
+  
+    st->device_info_cache = xmalloc(sizeof(storage_device_info_cache_t));
+    if (st->device_info_cache == NULL) {
+      return ENOMEM;
+    }
+    st->device_info_cache->time   = 0;
+    st->device_info_cache->nb_dev = 0;
+  }
+
+  /*
+  ** Read statistics from disk if cache is out dated
+  */
+  t = time(NULL);
+  if ((t-st->device_info_cache->time)>3) {
+    st->device_info_cache->nb_dev = storage_read_device_status(st->root,st->device_info_cache->device); 
+    st->device_info_cache->time   = t;
+  }
+  
+  return 0;
+}
 void mp_stat_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
         void * pt_resp) {
 
     mp_stat_arg_t * args = (mp_stat_arg_t *) pt_req;
     mp_stat_ret_t * ret = (mp_stat_ret_t *) pt_resp;
-    storage_t *st = 0;
-    sstat_t sstat;
+    storage_t     * st = 0;
+    uint64_t        ssize;
+    uint64_t        sfree;
+    int             device;
 
     DEBUG_FUNCTION;
 
@@ -56,13 +85,23 @@ void mp_stat_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
         goto out;
     }
 
-    if (storage_stat(st, &sstat) != 0) {
-        ret->mp_stat_ret_t_u.error = errno;
-        goto out;
-    }
+    sfree = 0;
+    ssize = 0;
 
-    ret->mp_stat_ret_t_u.sstat.size = sstat.size;
-    ret->mp_stat_ret_t_u.sstat.free = sstat.free;
+    /* 
+    ** Let's update device info
+    */
+    ret->mp_stat_ret_t_u.error = storaged_update_device_info(st);
+    if (ret->mp_stat_ret_t_u.error != 0) goto out;
+    
+
+    for (device=0; device < st->device_info_cache->nb_dev; device++) {
+      sfree += st->device_info_cache->device[device].free;
+      ssize += st->device_info_cache->device[device].size;
+    }  
+    
+    ret->mp_stat_ret_t_u.sstat.size = ssize;
+    ret->mp_stat_ret_t_u.sstat.free = sfree;
 
     ret->status = MP_SUCCESS;
 

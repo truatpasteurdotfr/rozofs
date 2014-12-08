@@ -40,7 +40,6 @@ int main(int argc, char **argv) {
     storage_t st;
     sid_t sid = 1;
     cid_t cid = 1;
-    sstat_t sst;
     bin_t *bins_write_1;
     bin_t *bins_write_2;
     bin_t *bins_read_1;
@@ -70,12 +69,6 @@ int main(int argc, char **argv) {
         exit(-1);
     }
 
-    // Stat the storage
-    if (storage_stat(&st, &sst) != 0) {
-        perror("failed to stat storage");
-        exit(-1);
-    }
-    fprintf(stdout, "Stats for storage with SID: %u\n size: %" PRIu64 "\n free: %" PRIu64 "\n", sid, sst.size, sst.free);
 
     // Prepare parameters
     uuid_generate(fid);

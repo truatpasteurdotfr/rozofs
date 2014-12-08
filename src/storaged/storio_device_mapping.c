@@ -255,7 +255,7 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 		       (int)st->device_ctx[dev].failure,
 		       (long long unsigned int)st->device_free.blocks[st->device_free.active][dev], 
                        (long long unsigned int)st->device_errors.total[dev]);
-      if ((st->device_ctx[dev].status != storage_device_status_is)||(st->device_errors.total[dev])) {
+      if (st->device_ctx[dev].status != storage_device_status_is) {
 	faulty_devices[fault++] = dev;
       }  			 
     }
@@ -582,7 +582,12 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	}
       }             
     }  
-    
+
+    /*
+    ** Monitor errors on devices
+    */
+    error_bitmask = storage_periodic_error_on_device_monitoring(st);
+     
     /*
     ** Update the table of free block count on device to help
     ** for distribution of new files on devices 
@@ -616,7 +621,8 @@ void storio_device_mapping_periodic_ticker(void * param) {
         memset(storio_faulty_fid, 0, sizeof(storio_faulty_fid));      
 	pDev->action = 0;
       }
-      
+
+     
       switch(pDev->status) {
       
         /* 
@@ -636,9 +642,37 @@ void storio_device_mapping_periodic_ticker(void * param) {
 	/*
 	** Device In Service. No fault up to now
 	*/  
-        case storage_device_status_is:
+        case storage_device_status_is:	
+	  /*
+	  ** When some errors have occured the device goes to degraded
+	  ** which is equivallent to IS but with some errors
+	  */
+	  if (st->device_errors.total[dev] != 0 ) {
+	    pDev->status = storage_device_status_degraded;
+	  }
 	
 	  /*
+	  ** Check whether the access to the device is still granted
+	  ** and get the number of free blocks
+	  */
+	  if (storio_device_get_free_space(st->root, dev, &bfree, &bmax, &bsz) != 0) {
+	    /*
+	    ** The device is failing !
+	    */
+	    pDev->status = storage_device_status_failed;
+	  }
+	  break;
+	  	  
+	case storage_device_status_degraded:
+	
+	  /*
+	  ** When some errors have occured the device goes to degraded
+	  ** which is equivallent to IS but with some errors
+	  */
+	  if (st->device_errors.total[dev] == 0 ) {
+	    pDev->status = storage_device_status_is;
+	  }
+	  	  /*
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
@@ -720,14 +754,6 @@ void storio_device_mapping_periodic_ticker(void * param) {
     */
     st->device_free.active = passive; 
      
-    
-    /*
-    ** Monitor errors on devices
-    */
-    error_bitmask = storage_periodic_error_on_device_monitoring(st);
-    if (error_bitmask == 0) continue;
-    
-    /* Some errors occured */
   }         
 }
 

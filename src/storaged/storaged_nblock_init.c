@@ -58,6 +58,7 @@
 
 #include "storaged_nblock_init.h"
 #include "storaged_north_intf.h"
+#include "storage.h"
 
 uint32_t storio_nb = 0;
 DECLARE_PROFILING(spp_profiler_t);
@@ -243,7 +244,47 @@ static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
    
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
+static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char                * pChar = uma_dbg_get_buffer();
+    storage_t           * st=NULL;
+    storage_device_info_t info[STORAGE_MAX_DEVICE_NB];
+    int                   device;
+    int                   nb; 
+    
+    pChar += sprintf(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
+    pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  |  \%  |\n");
+           
+    while((st = storaged_next(st)) != NULL) {
+      uint64_t sumfree=0;
+      uint64_t sumsize=0;
 
+      pChar += sprintf(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
+
+      /*
+      ** Let's update device info in cache
+      */
+      if (storaged_update_device_info(st)==0) {
+	for (device=0; device < st->device_info_cache->nb_dev; device++) {
+	  storage_device_info_t *pdev = &st->device_info_cache->device[device];
+	  sumfree += pdev->free;
+	  sumsize += pdev->size;
+          pChar += sprintf(pChar,"| %3d | %3d | %3d | %6s | %14llu | %14llu | %2.2d |\n",
+	                    st->cid, st->sid, device,
+			    storage_device_status2string(pdev->status),
+			    pdev->free, pdev->size,
+			    (pdev->size==0)?0:pdev->free*100/pdev->size);
+	}
+        pChar += sprintf(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
+
+	pChar += sprintf(pChar,"                           | %14llu | %14llu | %2.2d |\n",
+				    sumfree, sumsize,
+				    (sumsize==0)?0:sumfree*100/sumsize);	
+      } 
+
+    }
+    pChar += sprintf(pChar,"                           |________________|________________|____|\n");   
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
 // For trace purpose
 struct timeval Global_timeDay;
 unsigned long long Global_timeBefore, Global_timeAfter;
@@ -511,8 +552,8 @@ int storaged_start_nb_th(void *args) {
     
     storio_nb = args_p->nb_storio;
     uma_dbg_addTopic("storio_nb", show_storio_nb);
-
-
+    uma_dbg_addTopic("device",show_storage_device_status);
+    
     if ((args_p->hostname[0] != 0)) {
         info("storaged non-blocking thread started (host: %s, dbg port: %d).",
                 args_p->hostname, args_p->debug_port);
