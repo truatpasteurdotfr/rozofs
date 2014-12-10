@@ -146,5 +146,10 @@ static inline int storcli_get_site_number()
 ** from the storaged
  */
 int rozofs_storcli_setup_all_lbg_of_storage(mstorage_t *s);
+/**
+* get the owner of the storcli
 
+  @retval : pointer to the owner
+*/
+char *storcli_get_owner();
 #endif

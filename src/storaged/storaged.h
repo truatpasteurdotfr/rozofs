@@ -31,7 +31,7 @@ extern uint32_t storaged_storage_ports[STORAGE_NODE_PORTS_MAX];
 extern uint8_t storaged_nb_ports;
 
 /* public API */
-
+int storage_write_device_status(char * root, storage_device_info_t * info, int nbElement);
 /**
  *  Get a storage with the given cid and sid
  *

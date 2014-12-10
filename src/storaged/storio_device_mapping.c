@@ -549,7 +549,9 @@ void storio_device_mapping_periodic_ticker(void * param) {
   int           max_failures;
   int           rebuilding;
   storage_device_info_t info[STORAGE_MAX_DEVICE_NB];
-  uint64_t      bfree,bmax,bsz;
+  uint64_t      bfree=0;
+  uint64_t      bmax=0;
+  uint64_t      bsz=0;
    
   /*
   ** Loop on every storage managed by this storio

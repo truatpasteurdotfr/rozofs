@@ -65,6 +65,7 @@ DECLARE_PROFILING(spp_profiler_t);
 
 extern sconfig_t storaged_config;
 
+int storaged_update_device_info(storage_t * st);
 /*
  **_________________________________________________________________________
  *      PUBLIC FUNCTIONS
@@ -247,12 +248,10 @@ static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
 static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *bufRef) {
     char                * pChar = uma_dbg_get_buffer();
     storage_t           * st=NULL;
-    storage_device_info_t info[STORAGE_MAX_DEVICE_NB];
     int                   device;
-    int                   nb; 
     
     pChar += sprintf(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
-    pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  |  \%  |\n");
+    pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  | /100|\n");
            
     while((st = storaged_next(st)) != NULL) {
       uint64_t sumfree=0;
@@ -271,14 +270,16 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
           pChar += sprintf(pChar,"| %3d | %3d | %3d | %6s | %14llu | %14llu | %2.2d |\n",
 	                    st->cid, st->sid, device,
 			    storage_device_status2string(pdev->status),
-			    pdev->free, pdev->size,
-			    (pdev->size==0)?0:pdev->free*100/pdev->size);
+			    (long long unsigned int) pdev->free, 
+			    (long long unsigned int) pdev->size,
+			    (pdev->size==0)?0:(int)(pdev->free*100/pdev->size));
 	}
         pChar += sprintf(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
 
 	pChar += sprintf(pChar,"                           | %14llu | %14llu | %2.2d |\n",
-				    sumfree, sumsize,
-				    (sumsize==0)?0:sumfree*100/sumsize);	
+				    (long long unsigned int)sumfree, 
+				    (long long unsigned int)sumsize,
+				    (sumsize==0)?0:(int)(sumfree*100/sumsize));	
       } 
 
     }
