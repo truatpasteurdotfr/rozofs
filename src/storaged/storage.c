@@ -43,7 +43,8 @@
 #include "storio_cache.h"
 #include "storio_bufcache.h"
 #include "storio_device_mapping.h"
-
+#include "storio_device_mapping.h"
+#include "storio_crc32.h"
 
 /*
 ** API to be called when an error occurs on a device
@@ -1020,6 +1021,12 @@ open:
     ** Writting the projection as received directly on disk
     */
     if (rozofs_msg_psize == rozofs_disk_psize) {
+    
+      /*
+      ** generate the crc32c for each projection block
+      */
+      storio_gen_crc32((char*)bins,nb_proj,rozofs_disk_psize);
+
       nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
     }
 
@@ -1043,6 +1050,12 @@ open:
         vector[i].iov_len  = rozofs_disk_psize;
 	pMsg += rozofs_msg_psize;
       }
+      
+      /*
+      ** generate the crc32c for each projection block
+      */
+      storio_gen_crc32_vect(vector,nb_proj,rozofs_disk_psize);
+      
       nb_write = pwritev(fd, vector, nb_proj, bins_file_offset);      
     } 
 
@@ -1078,6 +1091,131 @@ out:
     if (fd != -1) close(fd);
     return status;
 }
+int storage_write_repair_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, uint8_t chunk, bid_t bid, uint32_t nb_proj, uint64_t bitmap, uint8_t version,
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty) {
+    int status = -1;
+    char path[FILENAME_MAX];
+    int fd = -1;
+    size_t nb_write = 0;
+    off_t bins_file_offset = 0;
+    uint16_t rozofs_msg_psize;
+    uint16_t rozofs_disk_psize;
+    struct stat sb;
+    int open_flags;
+    int    device_id_is_given;
+
+    // No specific fault on this FID detected
+    *is_fid_faulty = 0; 
+
+    MYDBGTRACE_DEV(device,"%d/%d repair chunk %d : ", st->cid, st->sid, chunk);
+   
+open:    
+    // If the device id is given as input, that proves that the file
+    // has been existing with that name on this device sometimes ago. 
+    if ((device[chunk] != ROZOFS_EOF_CHUNK)&&(device[chunk] != ROZOFS_EMPTY_CHUNK)&&(device[chunk] != ROZOFS_UNKNOWN_CHUNK)) {
+      device_id_is_given = 1;
+      open_flags = ROZOFS_ST_NO_CREATE_FILE_FLAG;
+    }
+    // The file location is not known. It may not exist and should be created 
+    else {
+      device_id_is_given = 0;
+      open_flags = ROZOFS_ST_BINS_FILE_FLAG;
+    }        
+ 
+    // Build the full path of directory that contains the bins file
+    if (storage_dev_map_distribution_write(st, device, chunk, bsize, 
+                                          fid, layout, dist_set, 
+					  spare, path, 0) == NULL) {
+      severe("storage_write storage_dev_map_distribution");
+      goto out;      
+    }  
+    
+    // Check that this directory already exists, otherwise it must be created
+    if (storage_create_dir(path) < 0) {
+      storage_error_on_device(st,device[chunk]);
+      goto out;
+    }
+
+    // Build the path of bins file
+    storage_complete_path_with_fid(fid, path);
+    storage_complete_path_with_chunk(chunk,path);
+
+    // Open bins file
+    fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
+    if (fd < 0) {
+    
+        // Something definitively wrong on device
+        if (errno != ENOENT) {
+	  storage_error_on_device(st,device[chunk]); 
+	  goto out;
+	}
+	
+        // If device id was not given as input, the file path has been deduced from 
+	// the header files or should have been allocated. This is a definitive error !!!
+	if (device_id_is_given == 0) {
+	  storage_error_on_device(st,device[chunk]); 
+	  goto out;
+	}
+	
+	// The device id was given as input so the file did exist some day,
+	// but the file may have been deleted without storio being aware of it.
+	// Let's try to find the file again without using the given device id.
+	device[chunk] = ROZOFS_EOF_CHUNK;
+	goto open;    
+    }
+
+    /*
+    ** Retrieve the projection size in the message
+    ** and the projection size on disk 
+    */
+    storage_get_projection_size(spare, st->sid, layout, bsize, dist_set,
+                                &rozofs_msg_psize, &rozofs_disk_psize); 
+	       
+    char *data_p = (char *)bins;
+    int block_idx = 0;
+    int block_count = 0;
+    int error = 0;           
+    for (block_idx = 0; block_idx < nb_proj; block_idx++)
+    {
+       if ((bitmap & (1 << block_idx)) == 0) continue;
+       /*
+       ** generate the crc32c for each projection block
+       */
+       storio_gen_crc32((char*)data_p,1,rozofs_disk_psize);
+       /* 
+       **  write the projection on disk
+       */
+       bins_file_offset = (bid+block_idx) * rozofs_disk_psize;
+       nb_write = pwrite(fd, data_p, rozofs_disk_psize, bins_file_offset);
+       if (nb_write != rozofs_disk_psize) {
+           severe("pwrite failed: %s", strerror(errno));
+	   error +=1;
+       }
+       /*
+       ** update the data pointer for the next write
+       */
+       data_p+=rozofs_msg_psize;
+       block_count += rozofs_msg_psize;
+    }
+    if (error != 0) goto out;
+    
+
+    // Stat file for return the size of bins file after the write operation
+    if (fstat(fd, &sb) == -1) {
+        severe("fstat failed: %s", strerror(errno));
+        goto out;
+    }
+    *file_size = sb.st_size;
+
+
+    // Write is successful
+    status = block_count;
+
+out:
+    if (fd != -1) close(fd);
+    return status;
+}
 
 uint64_t buf_ts_storage_before_read[STORIO_CACHE_BCOUNT];
 uint64_t buf_ts_storage_after_read[STORIO_CACHE_BCOUNT];
@@ -1099,6 +1237,7 @@ int storage_read_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_
     uint16_t rozofs_disk_psize;
     int    device_id_is_given = 1;
     int                       storage_slice;
+    struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG]; 
 
 
     MYDBGTRACE_DEV(device,"%d/%d Read chunk %d : ", st->cid, st->sid, chunk);
@@ -1221,13 +1360,12 @@ retry:
     */
     if (rozofs_msg_psize == rozofs_disk_psize) {    
       // Read nb_proj * (projection + header)
-      nb_read = pread(fd, bins, length_to_read, bins_file_offset);
+      nb_read = pread(fd, bins, length_to_read, bins_file_offset);       
     }
     /*
     ** Projections are smaller on disk than in message
     */
     else {
-      struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG]; 
       int          i;
       char *       pMsg;
       
@@ -1255,6 +1393,7 @@ retry:
         goto out;
     }
 
+
     // Check the length read
     if ((nb_read % rozofs_disk_psize) != 0) {
         char fid_str[37];
@@ -1263,6 +1402,26 @@ retry:
 	       fid_str,layout,bsize,chunk, (int) bid,(int)nb_read,rozofs_disk_psize);
 	nb_read = (nb_read / rozofs_disk_psize) * rozofs_disk_psize;
     }
+
+    int nb_proj_effective;
+    nb_proj_effective = nb_read /rozofs_disk_psize ;
+
+    /*
+    ** check the crc32c for each projection block
+    */
+    if (rozofs_msg_psize == rozofs_disk_psize) {        
+      storio_check_crc32((char*)bins,
+                         nb_proj_effective,
+                	 rozofs_disk_psize,
+			 &st->crc_error);
+    }
+    else {
+      storio_check_crc32_vect(vector,
+                         nb_proj_effective,
+                	 rozofs_disk_psize,
+			 &st->crc_error);      
+    }
+
 
     // Update the length read
     *len_read = (nb_read/rozofs_disk_psize)*rozofs_msg_psize;
@@ -1674,6 +1833,7 @@ int storage_write_device_status(char * root, storage_device_info_t * info, int n
     fd = fopen(path,"w");
     fwrite(info,sizeof(storage_device_info_t),nbElement,fd);
     fclose(fd);
+    return 0;
 }
 int storage_read_device_status(char * root, storage_device_info_t * info) {
     char          path[FILENAME_MAX];

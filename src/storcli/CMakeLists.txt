@@ -50,7 +50,7 @@ add_executable(storcli
     rozofs_storcli_mojette_thread_intf.c 
     rozofs_storcli_mojette_thread_intf.h
     rozofs_storcli_delete.c
-
+    rozofs_storcli_wr_repair.c
 )
 #pthread need by fuse
 target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY})

@@ -84,6 +84,11 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
 	}  
 
         prjid = rozofs_bins_hdr_p->s.projection_id;
+	/*
+	** check the case of the crc error
+	*/
+	if (prjid == 0xff) continue;
+	
         // Case of ts = 0
         if (rozofs_bins_hdr_p->s.timestamp == 0) {
                 // Update count
@@ -219,6 +224,10 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, int spare_idx, uint8
 	}  
         prjid = rozofs_bins_hdr_p->s.projection_id;		
 
+	/*
+	** check the case of the crc error
+	*/
+	if (prjid == 0xff) continue;
         // First valid projection
         if (rbs_timestamp_next_free_idx == 0) {
             ts_ctx_p = &rbs_timestamp_tb[rbs_timestamp_next_free_idx];

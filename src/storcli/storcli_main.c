@@ -235,6 +235,10 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE_BYTE(truncate_prj);
 	RESET_PROFILER_PROBE(truncate_prj_tmo);
 	RESET_PROFILER_PROBE(truncate_prj_err);  
+        RESET_PROFILER_PROBE_BYTE(repair)
+	RESET_PROFILER_PROBE_BYTE(repair_prj);
+	RESET_PROFILER_PROBE(repair_prj_tmo);
+	RESET_PROFILER_PROBE(repair_prj_err);    
 	RESET_PROFILER_PROBE(delete);
 	RESET_PROFILER_PROBE_BYTE(delete_prj);
 	RESET_PROFILER_PROBE(delete_prj_tmo);
@@ -283,7 +287,11 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(truncate_prj);
     SHOW_PROFILER_PROBE_COUNT(truncate_prj_tmo);
     SHOW_PROFILER_PROBE_COUNT(truncate_prj_err);
-     SHOW_PROFILER_PROBE_BYTE(delete);
+    SHOW_PROFILER_PROBE_BYTE(repair)
+    SHOW_PROFILER_PROBE_BYTE(repair_prj);
+    SHOW_PROFILER_PROBE_COUNT(repair_prj_tmo);
+    SHOW_PROFILER_PROBE_COUNT(repair_prj_err);
+    SHOW_PROFILER_PROBE_BYTE(delete);
     SHOW_PROFILER_PROBE_BYTE(delete_prj);
     SHOW_PROFILER_PROBE_COUNT(delete_prj_tmo);
     SHOW_PROFILER_PROBE_COUNT(delete_prj_err);

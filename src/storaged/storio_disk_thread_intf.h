@@ -53,6 +53,12 @@ typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            truncate_badCidSid;  
   uint64_t            truncate_time;  
 
+  uint64_t            diskRepair_count;
+  uint64_t            diskRepair_Byte_count;
+  uint64_t            diskRepair_error;
+  uint64_t            diskRepair_badCidSid;  
+  uint64_t            diskRepair_time;
+
   uint64_t            remove_count;
   uint64_t            remove_error;
   uint64_t            remove_badCidSid;  
@@ -96,6 +102,7 @@ typedef enum _storio_disk_thread_request_e {
   STORIO_DISK_THREAD_READ=1,
   STORIO_DISK_THREAD_WRITE,
   STORIO_DISK_THREAD_TRUNCATE,
+  STORIO_DISK_THREAD_WRITE_REPAIR,
   STORIO_DISK_THREAD_REMOVE,
   STORIO_DISK_THREAD_REMOVE_CHUNK,
   STORIO_DISK_REBUILD_START,

@@ -137,6 +137,7 @@ typedef struct storage {
     sid_t sid; ///< unique id of this storage for one cluster
     cid_t cid; //< unique id of cluster that owns this storage
     char root[FILENAME_MAX]; ///< absolute path.
+   uint64_t  crc_error;   ///> CRC32C error counter
     uint32_t mapper_modulo; // Last device number that contains the fid to device mapping
     uint32_t device_number; // Number of devices to receive the data for this sid
     uint32_t mapper_redundancy; // Mapping file redundancy level
@@ -605,6 +606,99 @@ static inline int storage_write(storage_t * st, uint8_t * device, uint8_t layout
     
     return ret2+ret1;
 }
+/** Write nb_proj projections
+ *
+ * @param st: the storage to use.
+ * @param device: Array of device allocated for the 128 chunks
+ * @param layout: layout used for store this file.
+ * @param bsize: Block size from enum ROZOFS_BSIZE_E
+ * @param dist_set: storages nodes used for store this file.
+ * @param spare: indicator on the status of the projection.
+ * @param fid: unique file id.
+ * @param bid: first block idx (offset).
+ * @param nb_proj: nb of projections to write.
+ * @param version: version of rozofs used by the client. (not used yet)
+ * @param *file_size: size of file after the write operation.
+ * @param *bins: bins to store.
+ * @param *is_fid_faulty: returns whether a fault is localized in the file
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+
+int storage_write_repair_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, uint8_t chunk, bid_t bid, uint32_t nb_proj, uint64_t bitmap, uint8_t version,
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty);
+
+static inline int storage_write_repair(storage_t * st, uint8_t * device, uint8_t layout, uint32_t bsize, sid_t * dist_set,
+        uint8_t spare, fid_t fid, bid_t input_bid, uint32_t input_nb_proj, uint64_t bitmap, uint8_t version,
+        uint64_t *file_size, const bin_t * bins, int * is_fid_faulty) {
+    int ret1,ret2;
+    bid_t      bid;
+    uint32_t   nb_proj;
+    char     * pBins;
+    
+    int block_per_chunk         = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(bsize);
+    int chunk                   = input_bid/block_per_chunk;
+
+    
+    if (chunk>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) { 
+      errno = EFBIG;
+      return -1;
+    }  
+    
+    bid = input_bid - (chunk * block_per_chunk);
+           
+    if ((bid+input_nb_proj) <= block_per_chunk){ 
+      /*
+      ** Every block can be written in one time in the same chunk
+      */
+      ret1 = storage_write_repair_chunk(st, device, layout, bsize, dist_set,
+        			 spare, fid, chunk, bid, input_nb_proj,bitmap, version,
+        			 file_size, bins, is_fid_faulty);
+      if (ret1 == -1) {
+        MYDBGTRACE("write errno %s",strerror(errno));			     
+      }
+      return ret1;	 
+    }  
+
+    /* 
+    ** We have to write two chunks
+    */ 
+    
+    if ((chunk+1)>=ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) { 
+      errno = EFBIG;
+      return -1;
+    }        
+    
+    // 1rst chunk
+    nb_proj = block_per_chunk-bid;
+    pBins = (char *) bins;    
+    ret1 = storage_write_repair_chunk(st, device, layout, bsize, dist_set,
+        			 spare, fid, chunk, bid, nb_proj, bitmap, version,
+        			 file_size, (bin_t*)pBins, is_fid_faulty);    
+    if (ret1 == -1) {
+      MYDBGTRACE("write errno %s",strerror(errno));
+      return -1;			     
+    }
+	    
+      
+    // 2nd chunk
+    chunk++;         
+    bid     = 0;
+    nb_proj = input_nb_proj - nb_proj;
+    bitmap = bitmap>>nb_proj;
+    pBins += ret1;  
+    ret2 = storage_write_repair_chunk(st, device, layout, bsize, dist_set,
+        			 spare, fid, chunk, bid, nb_proj, bitmap, version,
+        			 file_size, (bin_t*)pBins, is_fid_faulty);    
+    if (ret2 == -1) {
+      MYDBGTRACE("write errno %s",strerror(errno));
+      return -1;			     
+    }
+    
+    return ret2+ret1;
+}
+
 /** Read nb_proj projections
  *
  * @param st: the storage to use.

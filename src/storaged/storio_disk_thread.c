@@ -622,6 +622,139 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   gettimeofday(&timeDay,(struct timezone *)0);  
   timeAfter = MICROLONG(timeDay);
   thread_ctx_p->stat.write_time +=(timeAfter-timeBefore);  
+} 
+/*__________________________________________________________________________
+*/
+/**
+*  repair data of a file
+
+  @param thread_ctx_p: pointer to the thread context
+  @param msg         : address of the message received
+  
+  @retval: none
+*/
+static inline void storio_disk_write_repair(rozofs_disk_thread_ctx_t *thread_ctx_p,storio_disk_thread_msg_t * msg) {
+  struct timeval     timeDay;
+  unsigned long long timeBefore, timeAfter;
+  storage_t *st = 0;
+  sp_write_repair_arg_no_bins_t * args;
+  rozorpc_srv_ctx_t      * rpcCtx;
+  sp_write_ret_t           ret;
+  uint8_t                  version = 0;
+  int                      size;
+  int                      is_fid_faulty;
+  storio_device_mapping_t * fidCtx;
+    
+  
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeBefore = MICROLONG(timeDay);
+
+  ret.status = SP_FAILURE;          
+  
+  /*
+  ** update statistics
+  */
+  thread_ctx_p->stat.diskRepair_count++;
+  
+  rpcCtx = msg->rpcCtx;
+  args   = (sp_write_repair_arg_no_bins_t*) ruc_buf_getPayload(rpcCtx->decoded_arg);
+
+  fidCtx = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  if (fidCtx == NULL) {
+    ret.sp_write_ret_t_u.error = EIO;
+    severe("Bad FID ctx index %d",msg->fidIdx); 
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRepair_error++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }  
+    
+  /*
+  ** set the pointer to the bins that are in the xmit buffer
+  ** since received bufer is also used for the response
+  */
+  char *pbuf = ruc_buf_getPayload(rpcCtx->xmitBuf); 
+  pbuf += rpcCtx->position;
+
+
+#if 0
+  /*
+  ** Check that the received data length is consistent with the bins length
+  */
+  size = ruc_buf_getPayloadLen(rpcCtx->xmitBuf) - rpcCtx->position;
+  if (size != args->len) {
+    severe("Inconsistent bins length %d > %d = payloadLen(%d) - position(%d)",
+            args->len, size, ruc_buf_getPayloadLen(rpcCtx->xmitBuf), rpcCtx->position);
+    ret.sp_write_ret_t_u.error = EPIPE;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRepair_error++; 
+    storio_send_response(thread_ctx_p,msg,-1); 
+    return;   
+  }
+
+  /*
+  ** Check number of projection is consistent with the bins length
+  */
+  {
+     uint16_t proj_psize = rozofs_get_max_psize(args->layout,args->bsize)* sizeof (bin_t)
+            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);  
+     size =  args->nb_proj * proj_psize;
+	    
+     if (size > args->len) {
+       severe("Inconsistent bins length %d < %d = nb_proj(%d) x proj_size(%d)",
+               args->len, size, args->nb_proj, proj_psize);
+       ret.sp_write_ret_t_u.error = EIO;
+       storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+       thread_ctx_p->stat.diskRepair_error++; 
+       storio_send_response(thread_ctx_p,msg,-1); 
+       return;         
+     }	        
+  } 
+#endif
+  
+
+  // Get the storage for the couple (cid;sid)
+  if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    ret.sp_write_ret_t_u.error = errno;
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    thread_ctx_p->stat.diskRepair_badCidSid++ ;   
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }
+  
+  
+  // Write projections
+  size =  storage_write_repair(st, fidCtx->device, args->layout, args->bsize, (sid_t *) args->dist_set, args->spare,
+          (unsigned char *) args->fid, args->bid, args->nb_proj, args->bitmap, version,
+          &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
+  if (size <= 0)  {
+    ret.sp_write_ret_t_u.error = errno;
+    thread_ctx_p->stat.diskRepair_error++; 
+    if (is_fid_faulty) {
+      storio_register_faulty_fid(thread_ctx_p->thread_idx,
+				 args->cid,
+				 args->sid,
+				 (uint8_t*)args->fid);
+    }       
+    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+    storio_send_response(thread_ctx_p,msg,-1);
+    return;
+  }
+  msg->size = size;   
+    
+  ret.status = SP_SUCCESS;  
+  ret.sp_write_ret_t_u.file_size = 0;
+           
+  storio_encode_rpc_response(rpcCtx,(char*)&ret);  
+  thread_ctx_p->stat.diskRepair_Byte_count += size;
+  storio_send_response(thread_ctx_p,msg,0);
+
+  /*
+  ** Update statistics
+  */
+  gettimeofday(&timeDay,(struct timezone *)0);  
+  timeAfter = MICROLONG(timeDay);
+  thread_ctx_p->stat.diskRepair_time +=(timeAfter-timeBefore);  
 }    
 /**
 *  Truncate a file
@@ -906,6 +1039,10 @@ void *storio_disk_thread(void *arg) {
 	
       case STORIO_DISK_THREAD_TRUNCATE:
         storio_disk_truncate(ctx_p,&msg);
+        break;
+
+      case STORIO_DISK_THREAD_WRITE_REPAIR:
+        storio_disk_write_repair(ctx_p,&msg);
         break;
 
       case STORIO_DISK_THREAD_REMOVE:

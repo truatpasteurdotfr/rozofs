@@ -1226,6 +1226,109 @@ out:
     storio_device_mapping_ctx_evaluate(dev_map_p);    
     return ;
 }
+
+
+/*
+**___________________________________________________________
+*/
+
+void sp_write_repair_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
+    static sp_write_ret_t ret;
+    storio_device_mapping_t * dev_map_p = NULL;
+    sp_write_repair_arg_no_bins_t * repair_arg_p = (sp_write_repair_arg_no_bins_t *) pt;
+    uint8_t                   nb_rebuild;
+    uint8_t                   storio_rebuild_ref;
+    STORIO_REBUILD_T        * pRebuild; 
+    
+    START_PROFILING(repair);
+
+    /*
+    ** Use received buffer for the response
+    */
+    req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
+    req_ctx_p->recv_buf = NULL;
+  
+    /*
+    ** Lookup for the FID context in the lookup table
+    */ 
+    dev_map_p = storio_device_mapping_search(repair_arg_p->fid);
+    if (dev_map_p == NULL) { 
+      dev_map_p = storio_device_mapping_insert (repair_arg_p->fid);
+      if (dev_map_p == NULL) { 
+        goto error;
+      }
+    }  
+    
+    /*
+    ** Check whether this write breaks a running rebuild
+    */
+    if (dev_map_p->storio_rebuild_ref.u32 != 0xFFFFFFFF) {
+      /*
+      ** Check for compatibility with the already running rebuilds
+      */    
+      for (nb_rebuild=0; nb_rebuild < MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
+
+	storio_rebuild_ref = dev_map_p->storio_rebuild_ref.u8[nb_rebuild];
+
+	/* This context is free */
+	if (storio_rebuild_ref == 0xFF) {
+	  continue;
+	}
+
+	/*
+	** Retrieve the rebuild context  
+	*/
+        pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)repair_arg_p->fid);
+	if (pRebuild == NULL) {
+	  /* This context is not allocated for this FID */
+	  dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;
+          continue;
+	}
+
+	if ((repair_arg_p->bid <= pRebuild->stop_block)
+	&&  ((repair_arg_p->bid+repair_arg_p->nb_proj-1) >=  pRebuild->start_block)) {
+	  /* Incompatible entries. Free the rebuild context */
+	  storio_rebuild_ctx_free(pRebuild);
+	  dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF;	      
+	}  
+      }         
+    }
+            
+    req_ctx_p->opcode = STORIO_DISK_THREAD_WRITE_REPAIR;
+        
+    /*
+    ** If any request is already running, chain this request on the FID context
+    */
+    if (!storio_serialization_begin(dev_map_p,req_ctx_p)){
+      goto out;
+    }   
+
+    if (storio_disk_thread_intf_send(dev_map_p, req_ctx_p, tic) == 0) {
+      goto out;
+    }  
+    severe("storio_disk_thread_intf_send %s", strerror(errno));
+
+
+error:    
+    
+    ret.status                = SP_FAILURE;            
+    ret.sp_write_ret_t_u.error = errno;
+    
+    rozorpc_srv_forward_reply(req_ctx_p,(char*)&ret); 
+    /*
+    ** release the context
+    */
+    rozorpc_srv_release_context(req_ctx_p);
+    STOP_PROFILING(repair);
+
+out:
+    /*
+    ** Put the FID context in the correct list
+    ** (i.e running or inactive list)
+    */
+    storio_device_mapping_ctx_evaluate(dev_map_p);
+    return;
+}
 /*
 **___________________________________________________________
 */

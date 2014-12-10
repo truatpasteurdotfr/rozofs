@@ -183,6 +183,21 @@ gen_storage_conf ()
 	  printf "nbcores = $NB_CORES;\n" >> $STORAGE_CONF
 	  printf "storio  = \"$STORIO_MODE\";\n" >> $STORAGE_CONF
 	  
+	  case "$CRC32_CHECK" in
+	    "");;
+	    *) printf "crc32c_check = $CRC32_CHECK;\n";;
+	  esac   >> $STORAGE_CONF
+	  
+	  case "$CRC32_GENERATE" in
+	    "");;
+	    *) printf "crc32c_generate = $CRC32_GENERATE;\n";;
+	  esac  >> $STORAGE_CONF
+
+	  case "$CRC32_HW" in
+	    "");;
+	    *) printf "crc32c_hw_forced = $CRC32_HW;\n";;
+	  esac  >> $STORAGE_CONF	
+	    	  
 	  case "$DEV_SELF_HEALING" in
 	    "") ;;
 	    *) {
@@ -1519,8 +1534,12 @@ main ()
     ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=1
     SQUOTA=""
     HQUOTA=""
-    
+   
     REBUILD_LOOP=1
+    
+    CRC32_GENERATE=True
+    CRC32_CHECK=True
+    CRC32_HW=True
     
     # Device self-healing after 1 min
     DEV_SELF_HEALING=1

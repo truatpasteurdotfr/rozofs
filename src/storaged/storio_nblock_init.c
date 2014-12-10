@@ -67,6 +67,7 @@
 #include "config.h"
 #include "sconfig.h"
 #include "storage.h"
+#include "storio_crc32.h"
 #include "storio_device_mapping.h"
 
 extern sconfig_t storaged_config;
@@ -157,6 +158,7 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
 	sp_clear_io_probe(gprofiler, read);
 	sp_clear_io_probe(gprofiler, write);
 	sp_clear_io_probe(gprofiler, truncate);
+	sp_clear_io_probe(gprofiler, repair);
 	sp_clear_io_probe(gprofiler, remove);
 	sp_clear_io_probe(gprofiler, rebuild_start);
 	sp_clear_io_probe(gprofiler, rebuild_stop);
@@ -191,6 +193,7 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
     sp_display_io_probe(gprofiler, read);
     sp_display_io_probe(gprofiler, write);
     sp_display_io_probe_cond(gprofiler, truncate);
+    sp_display_io_probe_cond(gprofiler, repair);
     sp_display_io_probe_cond(gprofiler, remove);
     sp_display_io_probe_cond(gprofiler, rebuild_start);
     sp_display_io_probe_cond(gprofiler, rebuild_stop);
@@ -375,6 +378,8 @@ int storio_start_nb_th(void *args) {
   if (size < sizeof(sp_rebuild_stop_arg_t)) size = sizeof(sp_rebuild_stop_arg_t);
   if (size < sizeof(sp_remove_chunk_arg_t)) size = sizeof(sp_remove_chunk_arg_t);
   if (size < sizeof(sp_clear_error_arg_t)) size = sizeof(sp_clear_error_arg_t);
+  if (size < sizeof(sp_write_repair_arg_no_bins_t)) size = sizeof(sp_write_repair_arg_no_bins_t);
+
 
   decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
   if (decoded_rpc_buffer_pool == NULL) {

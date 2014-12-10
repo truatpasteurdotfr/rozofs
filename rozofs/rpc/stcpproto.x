@@ -66,6 +66,11 @@ struct stcpp_profiler_t {
     uint64_t    read_sid_miss[2];
     uint64_t    write_sid_miss[2];
     uint64_t    truncate_sid_miss[2];
+    uint64_t    repair[3];
+    uint64_t    repair_prj[3];
+    uint64_t    repair_prj_tmo[2];
+    uint64_t    repair_prj_err[2];
+    
     uint16_t    io_process_ports[32];
 };
 

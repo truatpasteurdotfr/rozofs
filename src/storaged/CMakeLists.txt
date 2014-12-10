@@ -34,6 +34,8 @@ add_executable(storaged
     storaged_nblock_init.c
     storaged_north_intf.c
     storaged_north_intf.h
+    storio_crc32.c
+    storio_crc32.h
 )
 target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -51,6 +53,8 @@ add_executable(storage_rebuild
     rbs_eclient.c
     rbs.c
     storaged.h
+    storio_crc32.c
+    storio_crc32.h    
     storage_rebuild.c
 )
 target_link_libraries(storage_rebuild rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
@@ -70,6 +74,8 @@ add_executable(storage_list_rebuilder
     rbs.c
     storaged.h
     storage_list_rebuilder.c       
+    storio_crc32.c
+    storio_crc32.h
 )
 target_link_libraries(storage_list_rebuilder rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -104,6 +110,8 @@ add_executable(storio
     storio_serialization.c
     storio_fid_cache.c
     storio_fid_cache.h
+    storio_crc32.c
+    storio_crc32.h
 )
 
 target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})

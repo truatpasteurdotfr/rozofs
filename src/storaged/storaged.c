@@ -53,6 +53,7 @@
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/core/rozo_launcher.h>
 #include <rozofs/rozofs_timer_conf.h>
+#include "storio_crc32.h"
 
 #include "config.h"
 #include "sconfig.h"
@@ -433,6 +434,13 @@ int main(int argc, char *argv[]) {
                 strerror(errno));
         goto error;
     }
+    /*
+    ** init of the crc32c
+    */
+    crc32c_init(storaged_config.crc32c_generate,
+                storaged_config.crc32c_check,
+                storaged_config.crc32c_hw_forced);
+
 
     char *pid_name_p = pid_name;
     if (storaged_hostname != NULL) {
