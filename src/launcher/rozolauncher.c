@@ -171,11 +171,10 @@ void rozolauncher_write_pid_file(char * pid_file) {
     return;
   }
   sprintf(process_id_string,"%d",getpid());  
-  pwrite(fd,&process_id_string, strlen(process_id_string),0);
-  close(fd);
-  
-  pid_file_name = strdup(pid_file);
-
+  if (pwrite(fd,&process_id_string, strlen(process_id_string),0)>0) {
+    pid_file_name = strdup(pid_file);
+  }
+  close(fd);  
 }
 /*
  *_______________________________________________________________________

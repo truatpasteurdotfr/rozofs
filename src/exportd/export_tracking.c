@@ -782,7 +782,6 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     /*
     ** register the export with the periodic quota thread
     */
-    void *ptr;
     if (export_fstat_alloc_context(e->eid,fstat_path,hquota,squota,0) == NULL)
     {
        severe("cannot allocate context for eid in quota thread");

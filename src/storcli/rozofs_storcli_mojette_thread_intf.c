@@ -33,6 +33,7 @@
 #include "rozofs_storcli_mojette_thread_intf.h"
 #include "config.h"
 #include "rozofs_storcli.h"
+#include "storcli_main.h"
 
 DECLARE_PROFILING(spp_profiler_t); 
  

@@ -33,6 +33,7 @@
 #include <rozofs/core/uma_dbg_api.h>
 #include "rozofs_storcli_mojette_thread_intf.h" 
 #include "rozofs_storcli.h"
+#include "storcli_main.h"
 
 int af_unix_disk_socket_ref = -1;
  
