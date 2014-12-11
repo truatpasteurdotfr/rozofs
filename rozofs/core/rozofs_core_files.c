@@ -253,6 +253,9 @@ void rozofs_catch_error(int sig){
   if  (rozofs_fatal_error_processing != 0) raise (sig);
   rozofs_fatal_error_processing++;
 
+  signal (SIGTERM, SIG_IGN);
+
+
   /* Write the information in the trace file */
   info("Receive signal %d = %s", sig, rozofs_signal(sig));
 
