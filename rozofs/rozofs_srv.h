@@ -144,6 +144,19 @@ static inline int rozofs_get_angles_q(uint8_t layout, uint8_t projection_id) {
 static inline int rozofs_get_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    return 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes[projection_id];
+}
+/**
+  Get the projection size for a given projection_id in the layout 
+  
+  @param layout : layout association with the file
+  @param projection_id : projection index in the layout
+  
+  @retval projection size
+ */ 
+static inline int rozofs_get_legacy_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
+    if (layout >= LAYOUT_MAX) return 0;
+    if (bsize > ROZOFS_BSIZE_MAX) return 0;
     return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes[projection_id];
 }
 /**
@@ -159,7 +172,7 @@ static inline int rozofs_get_psizes_on_disk(uint8_t layout, uint32_t bsize, uint
     
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
-    sz = rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes[projection_id] * sizeof (bin_t) 
+    sz = 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes[projection_id] * sizeof (bin_t) 
           + sizeof (rozofs_stor_bins_hdr_t) 
           + sizeof(rozofs_stor_bins_footer_t);
     return sz;	  
@@ -174,7 +187,7 @@ static inline int rozofs_get_psizes_on_disk(uint8_t layout, uint32_t bsize, uint
 static inline int rozofs_get_max_psize(uint8_t layout, uint32_t bsize) {
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;    
-    return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes_max;
+    return 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes_max;
 }
 /**
   Get the projection max size for a given  layout 
@@ -188,7 +201,7 @@ static inline int rozofs_get_max_psize_in_msg(uint8_t layout, uint32_t bsize) {
  
      if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;    
-    sz = rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes_max * sizeof (bin_t) 
+    sz = 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes_max * sizeof (bin_t) 
           + sizeof (rozofs_stor_bins_hdr_t) 
           + sizeof(rozofs_stor_bins_footer_t);
     if (sz%16) {	  
@@ -208,7 +221,7 @@ static inline int rozofs_get_max_psize_on_disk(uint8_t layout, uint32_t bsize) {
  
      if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;    
-    sz = rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes_max * sizeof (bin_t) 
+    sz = 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes_max * sizeof (bin_t) 
           + sizeof (rozofs_stor_bins_hdr_t) 
           + sizeof(rozofs_stor_bins_footer_t);
     return sz;	  

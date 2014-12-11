@@ -621,7 +621,7 @@ static __inline__ unsigned long long rdtsc(void)
            projection_id = rozofs_bins_hdr_p->s.projection_id;
            projections[prj_count].angle.p = rozofs_get_angles_p(layout,projection_id);
            projections[prj_count].angle.q = rozofs_get_angles_q(layout,projection_id);
-           projections[prj_count].size = rozofs_get_psizes(layout,bsize, projection_id);
+           projections[prj_count].size = rozofs_get_legacy_psizes(layout,bsize, projection_id);
            projections[prj_count].bins = (bin_t*)(rozofs_bins_hdr_p+1);                   
         }
         
@@ -720,7 +720,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
     for (projection_id = 0; projection_id < rozofs_forward; projection_id++) {
         projections[projection_id].angle.p =  rozofs_get_angles_p(layout,projection_id);
         projections[projection_id].angle.q =  rozofs_get_angles_q(layout,projection_id);
-        projections[projection_id].size    =  rozofs_get_psizes(layout, bsize,projection_id);
+        projections[projection_id].size    =  rozofs_get_legacy_psizes(layout, bsize,projection_id);
     }
 
     /* Transform the data */
@@ -757,7 +757,6 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           */
           rozofs_bins_hdr_p->s.projection_id = projection_id;
           rozofs_bins_hdr_p->s.timestamp     = timestamp;
-          rozofs_bins_foot_p->timestamp      = timestamp;
           rozofs_bins_hdr_p->s.filler = 0;    
           rozofs_bins_hdr_p->s.version = 0; 
 	     
@@ -789,8 +788,20 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           transform128_forward((pxl_t *) (data + (i * bbytes)),
                   rozofs_inverse,
                   bbytes / rozofs_inverse / sizeof (pxl_t),
-                  rozofs_forward, projections);		  
+                  rozofs_forward, projections);	
+		  
+          for (projection_id = 0; projection_id < rozofs_forward; projection_id++) 
+          {
+            /*
+            ** Indicates the memory area where the transformed data must be stored
+            */
+            rozofs_stor_bins_footer_t *rozofs_bins_foot_p;
+	    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) (projections[projection_id].bins
+	                                                      + rozofs_get_psizes(layout,bsize,projection_id));
+            rozofs_bins_foot_p->timestamp      = timestamp;	    
+          }		  	  
         }
+	
     }
 
     return 0;

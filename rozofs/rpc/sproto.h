@@ -128,8 +128,6 @@ struct sp_truncate_arg_no_bins_t {
 	uint16_t last_seg;
 	uint64_t last_timestamp;
 	uint64_t bid;
-	uint32_t alignment1;
-	uint32_t alignment2;
 	uint32_t len;
 };
 typedef struct sp_truncate_arg_no_bins_t sp_truncate_arg_no_bins_t;
@@ -146,8 +144,6 @@ struct sp_truncate_arg_t {
 	uint32_t last_seg;
 	uint64_t last_timestamp;
 	uint64_t bid;
-	uint32_t alignment1;
-	uint32_t alignment2;
 	struct {
 		u_int bins_len;
 		char *bins_val;

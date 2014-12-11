@@ -123,8 +123,6 @@ struct sp_truncate_arg_no_bins_t {
     uint16_t    last_seg;
     uint64_t    last_timestamp; 
     uint64_t    bid; 
-    uint32_t    alignment1;
-    uint32_t    alignment2;
     uint32_t    len;
 };
     
@@ -139,9 +137,7 @@ struct sp_truncate_arg_t {
     uint8_t     proj_id;
     uint32_t    last_seg;
     uint64_t    last_timestamp; 
-    uint64_t    bid; 
-    uint32_t    alignment1;
-    uint32_t    alignment2;      
+    uint64_t    bid;     
     opaque      bins<>;    
 };
 

@@ -242,10 +242,6 @@ xdr_sp_truncate_arg_no_bins_t (XDR *xdrs, sp_truncate_arg_no_bins_t *objp)
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bid))
 		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->alignment1))
-		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->alignment2))
-		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->len))
 		 return FALSE;
 	return TRUE;
@@ -279,10 +275,6 @@ xdr_sp_truncate_arg_t (XDR *xdrs, sp_truncate_arg_t *objp)
 	 if (!xdr_uint64_t (xdrs, &objp->last_timestamp))
 		 return FALSE;
 	 if (!xdr_uint64_t (xdrs, &objp->bid))
-		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->alignment1))
-		 return FALSE;
-	 if (!xdr_uint32_t (xdrs, &objp->alignment2))
 		 return FALSE;
 	 if (!xdr_bytes (xdrs, (char **)&objp->bins.bins_val, (u_int *) &objp->bins.bins_len, ~0))
 		 return FALSE;
