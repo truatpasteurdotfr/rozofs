@@ -1838,12 +1838,14 @@ int storage_write_device_status(char * root, storage_device_info_t * info, int n
 int storage_read_device_status(char * root, storage_device_info_t * info) {
     char          path[FILENAME_MAX];
     FILE *        fd; 
-    int           read;
+    int           read=-1;
 
     sprintf(path,"%s/status",root);
     fd = fopen(path,"r");
-    read = fread(info,sizeof(storage_device_info_t),STORAGE_MAX_DEVICE_NB,fd);
-    fclose(fd);
+    if (fd != NULL) {
+      read = fread(info,sizeof(storage_device_info_t),STORAGE_MAX_DEVICE_NB,fd);
+      fclose(fd);
+    }  
     return read;
 }
 
