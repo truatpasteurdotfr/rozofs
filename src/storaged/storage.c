@@ -689,9 +689,7 @@ static inline void storage_get_projection_size(uint8_t spare,
   char * p = mylog;
     
   /* Size of a block in a message received from the client */  
-  *msg = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t) 
-       + sizeof (rozofs_stor_bins_hdr_t) 
-       + sizeof(rozofs_stor_bins_footer_t);
+  *msg = rozofs_get_max_psize_in_msg(layout,bsize);
   
   /*
   ** On a spare storage, we store the projections as received.
@@ -716,9 +714,7 @@ static inline void storage_get_projection_size(uint8_t spare,
   
   /* The sid is within the forward 1rst sids : this is what we expected */
   if (prj_id < forward) {
-    *disk = rozofs_get_psizes(layout,bsize,prj_id) * sizeof (bin_t) 
-          + sizeof (rozofs_stor_bins_hdr_t) 
-          + sizeof(rozofs_stor_bins_footer_t);
+    *disk = rozofs_get_psizes_on_disk(layout,bsize,prj_id);
     return;
   }	  
 
@@ -747,9 +743,7 @@ static inline void storage_get_projid_size(uint8_t spare,
 					   uint16_t * msg,
 				    	   uint16_t * disk) { 
 
-  *msg = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t) 
-       + sizeof (rozofs_stor_bins_hdr_t) 
-       + sizeof(rozofs_stor_bins_footer_t);
+  *msg = rozofs_get_max_psize_in_msg(layout,bsize);
   
   /*
   ** On a spare storage, we store the projections as received.
@@ -763,9 +757,7 @@ static inline void storage_get_projid_size(uint8_t spare,
   /*
   ** On a non spare storage, we store the projections on its exact size.
   */
-  *disk = rozofs_get_psizes(layout,bsize,prj_id) * sizeof (bin_t) 
-        + sizeof (rozofs_stor_bins_hdr_t) 
-        + sizeof(rozofs_stor_bins_footer_t);		
+  *disk = rozofs_get_psizes_on_disk(layout,bsize,prj_id);		
 } 
 uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
 

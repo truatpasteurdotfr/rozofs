@@ -564,8 +564,7 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
   ** Check number of projection is consistent with the bins length
   */
   {
-     uint16_t proj_psize = rozofs_get_max_psize(args->layout,args->bsize)* sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);  
+     uint16_t proj_psize = rozofs_get_max_psize_in_msg(args->layout,args->bsize);  
      size =  args->nb_proj * proj_psize;
 	    
      if (size > args->len) {
@@ -675,42 +674,6 @@ static inline void storio_disk_write_repair(rozofs_disk_thread_ctx_t *thread_ctx
   */
   char *pbuf = ruc_buf_getPayload(rpcCtx->xmitBuf); 
   pbuf += rpcCtx->position;
-
-
-#if 0
-  /*
-  ** Check that the received data length is consistent with the bins length
-  */
-  size = ruc_buf_getPayloadLen(rpcCtx->xmitBuf) - rpcCtx->position;
-  if (size != args->len) {
-    severe("Inconsistent bins length %d > %d = payloadLen(%d) - position(%d)",
-            args->len, size, ruc_buf_getPayloadLen(rpcCtx->xmitBuf), rpcCtx->position);
-    ret.sp_write_ret_t_u.error = EPIPE;
-    storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-    thread_ctx_p->stat.diskRepair_error++; 
-    storio_send_response(thread_ctx_p,msg,-1); 
-    return;   
-  }
-
-  /*
-  ** Check number of projection is consistent with the bins length
-  */
-  {
-     uint16_t proj_psize = rozofs_get_max_psize(args->layout,args->bsize)* sizeof (bin_t)
-            + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);  
-     size =  args->nb_proj * proj_psize;
-	    
-     if (size > args->len) {
-       severe("Inconsistent bins length %d < %d = nb_proj(%d) x proj_size(%d)",
-               args->len, size, args->nb_proj, proj_psize);
-       ret.sp_write_ret_t_u.error = EIO;
-       storio_encode_rpc_response(rpcCtx,(char*)&ret);  
-       thread_ctx_p->stat.diskRepair_error++; 
-       storio_send_response(thread_ctx_p,msg,-1); 
-       return;         
-     }	        
-  } 
-#endif
   
 
   // Get the storage for the couple (cid;sid)

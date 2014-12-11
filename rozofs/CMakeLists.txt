@@ -20,6 +20,7 @@ set (librozofs_sources
     common/mattr.c
     common/transform.h
     common/transform.c
+    common/mojette_transform128.c
     common/xmalloc.h
     common/xmalloc.c
     common/exp_trck_inode_srv_v2.c

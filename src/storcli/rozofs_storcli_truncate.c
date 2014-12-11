@@ -729,7 +729,7 @@ void rozofs_storcli_truncate_req_processing_exec(rozofs_storcli_ctx_t *working_c
                                      storcli_truncate_rq_p->last_seg,
                                      data);  
     STORCLI_STOP_KPI(storcli_kpi_transform_forward,0);
-    working_ctx_p->truncate_bins_len = rozofs_get_max_psize(layout,bsize)*sizeof(bin_t) + sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t);
+    working_ctx_p->truncate_bins_len = rozofs_get_max_psize_in_msg(layout,bsize);
 ;
   } 
   

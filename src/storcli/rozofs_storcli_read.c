@@ -1077,7 +1077,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    sp_status_ret_t   rozofs_status;
    int error = 0;
    struct rpc_msg  rpc_reply;
-   uint16_t rozofs_max_psize = 0;
+   uint16_t rozofs_max_psize_in_msg = 0;
    uint32_t nb_projection_blocks_returned = 0;
    bin_t   *bins_p;
    uint64_t raw_file_size;
@@ -1097,7 +1097,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    uint8_t rozofs_safe    = rozofs_get_rozofs_safe(layout);
    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
-   rozofs_max_psize       = rozofs_get_max_psize(layout,bsize);
+   rozofs_max_psize_in_msg= rozofs_get_max_psize_in_msg(layout,bsize);
     /*
     ** get the sequence number and the reference of the projection id form the opaque user array
     ** of the transaction context
@@ -1269,13 +1269,13 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
       /*
       ** The system MUST always returns a length that is a multiple of a projection block size
       */
-      nb_projection_blocks_returned = bins_len / (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
-      if ((bins_len % (rozofs_max_psize * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t))) != 0) 
+      nb_projection_blocks_returned = bins_len / rozofs_max_psize_in_msg;
+      if ((bins_len % rozofs_max_psize_in_msg) != 0) 
       {
           errno = EPROTO;
           STORCLI_ERR_PROF(read_prj_err);       
           error = 1;
-          severe("bad bins len %d  projection sz :%d\n",bins_len,rozofs_max_psize);
+          severe("bad bins len %d  projection sz :%d\n",bins_len,rozofs_max_psize_in_msg);
           break;          
       }
       if (nb_projection_blocks_returned > working_ctx_p->nb_projections2read)

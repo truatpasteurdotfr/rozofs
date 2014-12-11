@@ -4194,10 +4194,7 @@ static inline int get_rozofs_xattr_max_size(export_t *e, lv2_entry_t *lv2, char 
   ** This is the max number of blocks that we can still write
   ** for this distribution
   */
-  rozofs_psize = rozofs_get_max_psize(e->layout,e->bsize)*sizeof (bin_t)
-               + sizeof (rozofs_stor_bins_hdr_t)
-	           + sizeof (rozofs_stor_bins_footer_t)
-	       ;
+  rozofs_psize = rozofs_get_max_psize_on_disk(e->layout,e->bsize);
   
   free /= rozofs_psize;
         

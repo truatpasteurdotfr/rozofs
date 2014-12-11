@@ -204,7 +204,7 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
     storcli_read_arg_t *storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
     uint8_t  bsize  = storcli_read_rq_p->bsize;
     uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
-    
+    int prj_size_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
        
     projections = rozofs_fwd_projections;
 
@@ -255,8 +255,7 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
 	  * regenerate the projection for the block for which a crc error has been detected
 	  */
           projections[moj_prj_id].bins = prj_ctx_p[moj_prj_id].bins +
-                                         ((rozofs_get_max_psize(layout,bsize)+
-					 (sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t)))* (0+block_idx));
+                                         (prj_size_in_msg/sizeof(bin_t)* (0+block_idx));
           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[moj_prj_id].bins;	    
           /*
           ** check if the user data block is empty: if the data block is empty no need to transform
@@ -513,6 +512,7 @@ void rozofs_storcli_write_repair_req_processing(rozofs_storcli_ctx_t *working_ct
   int       ret;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
   uint8_t  bsize  = storcli_read_rq_p->bsize;
+  int prj_size_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
       
   rozofs_forward = rozofs_get_rozofs_forward(layout);
   
@@ -609,7 +609,7 @@ void rozofs_storcli_write_repair_req_processing(rozofs_storcli_ctx_t *working_ct
         if (request->bitmap & (1<<k)) nb_blocks++;
      
      } 
-     int bins_len = ((rozofs_get_max_psize(layout,bsize)+(sizeof(rozofs_stor_bins_hdr_t)/sizeof(bin_t)))* nb_blocks)*sizeof(bin_t);
+     int bins_len = (prj_size_in_msg * nb_blocks);
      request->len = bins_len; /**< bins length MUST be in bytes !!! */
      uint32_t  lbg_id = rozofs_storcli_lbg_prj_get_lbg(working_ctx_p->lbg_assoc_tb,prj_cxt_p[projection_id].stor_idx);
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),repair_prj,bins_len);

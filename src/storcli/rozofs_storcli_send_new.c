@@ -214,11 +214,10 @@ int rozofs_sorcli_send_rq_common(uint32_t lbg_id,uint32_t timeout_sec, uint32_t 
     if (opcode == SP_READ)
     {
       sp_read_arg_t *request = (sp_read_arg_t*)msg2encode_p;
-      uint32_t rozofs_max_psize = (uint32_t) rozofs_get_max_psize(request->layout,request->bsize); 
+      uint32_t rozofs_max_psize_in_msg = (uint32_t) rozofs_get_max_psize_in_msg(request->layout,request->bsize); 
 
-      uint32_t rsp_size = request->nb_proj*rozofs_max_psize*sizeof(bin_t);
+      uint32_t rsp_size = request->nb_proj*rozofs_max_psize_in_msg;
       uint32_t disk_time = 0;
-//      info("FDL nb_proj %d rozofs_max_psize %d rsp_size %d",request->nb_proj,rozofs_max_psize,rsp_size);
       ret = north_lbg_send_with_shaping(lbg_id,xmit_buf,rsp_size,disk_time);
     }
     else

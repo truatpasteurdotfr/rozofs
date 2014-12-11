@@ -206,7 +206,7 @@ void transform128_forward(bin_t * support, int rows, int cols, int np,
 	/*
 	** always add 3 extra bins to avoid issue related to the usage 128 bits bins
 	*/
-        memset(projections[i].bins, 0, (projections[i].size+3) * sizeof (bin_t));
+        memset(projections[i].bins, 0, (projections[i].size) * sizeof (bin_t));
     }
     for (i = 0; i < np; i++) {
         projection_t *p = projections + i;

@@ -71,6 +71,7 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
     prj_ctx_p->raw_file_size = raw_file_size;
     uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
     rozofs_stor_bins_hdr_t* rozofs_bins_hdr_p;
+    int prj_size_in_msg =  rozofs_get_max_psize_in_msg(layout,bsize); 
                        
     for (block_idx = 0; block_idx < number_of_blocks_returned; block_idx++) 
     {
@@ -78,7 +79,7 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
       ** Get the pointer to the beginning of the block and extract its header
       */
       rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p->bins +
-      ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
+      (prj_size_in_msg/sizeof(bin_t)) * block_idx);
       if ((rozofs_bins_hdr_p->s.timestamp == 0) && (rozofs_bins_hdr_p->s.projection_id !=0xff))
        {
         prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      
@@ -529,6 +530,8 @@ static __inline__ unsigned long long rdtsc(void)
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     
     projections = rozofs_inv_projections;
+    
+    int prj_size_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
         
     /*
     ** Proceed the inverse data transform for the nb_projections2read blocks.
@@ -607,7 +610,7 @@ static __inline__ unsigned long long rdtsc(void)
            */
            prj_ctx_idx = rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*block_idx+prj_count];
            rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins +
-	   ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
+	   (prj_size_in_msg/sizeof(bin_t)) * block_idx);
             
                                                  
            /*
@@ -624,7 +627,7 @@ static __inline__ unsigned long long rdtsc(void)
         
 
         // Inverse data for the block (first_block_idx + block_idx)
-        transform_inverse_inline((pxl_t *) (data + (bbytes * (first_block_idx + block_idx))),
+        transform128_inverse((pxl_t *) (data + (bbytes * (first_block_idx + block_idx))),
                 rozofs_inverse,
                 bbytes / rozofs_inverse / sizeof (pxl_t),
                 rozofs_inverse, projections);
@@ -722,6 +725,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
 
     /* Transform the data */
     // For each block to send
+    int prj_size_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
     for (i = 0; i < number_of_blocks; i++) 
     {
          empty_block = rozofs_data_block_check_empty(data + (i * bbytes), bbytes);
@@ -732,8 +736,8 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           /*
           ** Indicates the memory area where the transformed data must be stored
           */
-          projections[projection_id].bins = prj_ctx_p[projection_id].bins +
-                                           ((rozofs_get_max_psize(layout,bsize)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t)))* (first_block_idx+i));
+          projections[projection_id].bins = prj_ctx_p[projection_id].bins 
+	                                  + (prj_size_in_msg/sizeof(bin_t)) * (first_block_idx+i);
           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[projection_id].bins;
           rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,projection_id));
           /*
@@ -755,7 +759,8 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           rozofs_bins_hdr_p->s.timestamp     = timestamp;
           rozofs_bins_foot_p->timestamp      = timestamp;
           rozofs_bins_hdr_p->s.filler = 0;    
-          rozofs_bins_hdr_p->s.version = 0;    
+          rozofs_bins_hdr_p->s.version = 0; 
+	     
           /*
           ** set the effective size of the block. It is always ROZOFS_BSIZE except for the last block
           */
@@ -781,10 +786,10 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
           /*
           ** Apply the erasure code transform for the block i+first_block_idx
           */
-          transform_forward((pxl_t *) (data + (i * bbytes)),
+          transform128_forward((pxl_t *) (data + (i * bbytes)),
                   rozofs_inverse,
                   bbytes / rozofs_inverse / sizeof (pxl_t),
-                  rozofs_forward, projections);
+                  rozofs_forward, projections);		  
         }
     }
 
