@@ -321,7 +321,7 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
       position =  sizeof(uint32_t); /* length header of the rpc message */
       position += rozofs_storcli_get_min_rpc_reply_hdr_len();
       position += sizeof(uint32_t);   /* length of the storage status field */
-      position += sizeof(uint32_t);   /* length of the alignment field (FDL) */
+      position += (3*sizeof(uint32_t));   /* length of the alignment field (FDL) */
       position += sizeof(uint32_t);   /* length of the bins len field */
       pbuf +=position;      
       working_ctx_p->data_read_p        = pbuf;
@@ -346,7 +346,7 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
        uint32_t buf_offset = storcli_read_rq_p->proj_id*storcli_rozofsmount_shared_mem[SHAREMEM_IDX_READ].buf_sz;
        uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
        pbuffer[1] = 0; /** bin_len */
-       working_ctx_p->data_read_p  = (char*)&pbuffer[2];
+       working_ctx_p->data_read_p  = (char*)&pbuffer[2+2];
        working_ctx_p->shared_mem_p = pbuffer;           
      }   
    }
@@ -1228,17 +1228,21 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
         break;    
       }
       {
-       int alignment;
-       /*
-       ** skip the alignment
-       */
-       if (xdr_int(&xdrs, &alignment) != TRUE)
-       {
-         errno = EPROTO;
-         STORCLI_ERR_PROF(read_prj_err);       
-         error = 1;
-         break;          
-       }
+	int alignment;
+	int k;
+	/*
+	** skip the alignment
+	*/
+	for (k=0; k<3; k++) {
+          if (xdr_int(&xdrs, &alignment) != TRUE)
+	  {
+            errno = EPROTO;
+            STORCLI_ERR_PROF(read_prj_err);       
+            error = 1;
+            break;          
+	  }
+	}
+	if (error==1) break;
       }
 
       /*

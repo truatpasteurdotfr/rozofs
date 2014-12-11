@@ -805,7 +805,18 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
 	     ** get the length to copy from the sshared memory
 	     */
 	     int len = share_p[1];
-	     memcpy(&share_p[2],wr_args->data.data_val,len);	  
+	     /*
+	     ** Compute and write data offset considering 128bits alignment
+	     */
+	     int alignment = wr_args->off%16;
+	     share_p[2] = alignment;
+	     /*
+	     ** Set pointer to the buffer start and adjust with alignment
+	     */
+	     uint8_t * buf_start = (uint8_t *)&share_p[4];
+	     buf_start += alignment;
+	     
+	     memcpy(buf_start,wr_args->data.data_val,len);	  
 	  }
         }
     }

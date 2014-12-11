@@ -82,7 +82,6 @@ int rozofs_storcli_fake_encode(xdrproc_t encode_fct,void *msg2encode_p)
     XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
     XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
     XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
-        
     /*
     ** ok now call the procedure to encode the message
     */

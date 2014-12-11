@@ -37,7 +37,7 @@ struct sp_write_arg_t {
 	uint8_t layout;
 	uint8_t spare;
 	uint32_t rebuild_ref;
-	uint32_t alignement;
+	uint32_t alignment1;
 	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint8_t proj_id;
@@ -57,7 +57,7 @@ struct sp_write_arg_no_bins_t {
 	uint8_t layout;
 	uint8_t spare;
 	uint32_t rebuild_ref;
-	uint32_t alignement;
+	uint32_t alignment1;
 	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint8_t proj_id;
@@ -122,13 +122,14 @@ struct sp_truncate_arg_no_bins_t {
 	uint8_t layout;
 	uint8_t bsize;
 	uint8_t spare;
-	uint8_t padding;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint8_t proj_id;
 	uint16_t last_seg;
 	uint64_t last_timestamp;
 	uint64_t bid;
+	uint32_t alignment1;
+	uint32_t alignment2;
 	uint32_t len;
 };
 typedef struct sp_truncate_arg_no_bins_t sp_truncate_arg_no_bins_t;
@@ -139,13 +140,14 @@ struct sp_truncate_arg_t {
 	uint8_t layout;
 	uint8_t bsize;
 	uint8_t spare;
-	uint8_t padding;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint8_t proj_id;
 	uint32_t last_seg;
 	uint64_t last_timestamp;
 	uint64_t bid;
+	uint32_t alignment1;
+	uint32_t alignment2;
 	struct {
 		u_int bins_len;
 		char *bins_val;
@@ -167,7 +169,7 @@ struct sp_remove_chunk_arg_t {
 	uint8_t layout;
 	uint8_t bsize;
 	uint8_t spare;
-	uint8_t dist_set[ROZOFS_SAFE_MAX];
+	uint32_t dist_set[ROZOFS_SAFE_MAX_RPC];
 	sp_uuid_t fid;
 	uint32_t rebuild_ref;
 	uint32_t chunk;
@@ -229,6 +231,8 @@ typedef struct sp_rebuild_stop_ret_t sp_rebuild_stop_ret_t;
 
 struct sp_read_t {
 	uint32_t filler;
+	uint32_t filler1;
+	uint32_t filler2;
 	struct {
 		u_int bins_len;
 		char *bins_val;

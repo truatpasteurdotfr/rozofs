@@ -428,6 +428,7 @@ int rozofs_storcli_internal_read_before_truncate_rsp_cbk(void *buffer,uint32_t s
        error = 1;
        break;
      }
+     
      /*
      ** decode the status of the operation
      */
@@ -447,17 +448,22 @@ int rozofs_storcli_internal_read_before_truncate_rsp_cbk(void *buffer,uint32_t s
      }
      {
        int alignment;
+       int k;
        /*
        ** skip the alignment
        */
-       if (xdr_int(&xdrs, &alignment) != TRUE)
+       for (k=0; k<3; k++) 
        {
-         errno = EPROTO;
-         STORCLI_ERR_PROF(read_prj_err);       
-         error = 1;
-         break;          
+	 if (xdr_int(&xdrs, &alignment) != TRUE)
+	 {
+           errno = EPROTO;
+           STORCLI_ERR_PROF(read_prj_err);       
+           error = 1;
+           break;          
+	 }
        }
-      }
+       if (error==1) break;
+     }
      /*
      ** Now get the length of the part that has been read
      */

@@ -31,9 +31,12 @@
 #define LAYOUT_MAX 3
 
 typedef struct _rozofs_conf_psizes_t {
-    float    redundancyCoeff;   /**< Redundacny coefficient for the given layout and block size (>1)*/
-    uint16_t rozofs_psizes_max; /**< size of the larger projection           */
-    uint16_t *rozofs_psizes; /**< size in bins of each projection         */
+    float    redundancyCoeff;    /**< Redundacny coefficient for the given layout and block size (>1)*/
+    float    redundancyCoeff_128;    /**< Redundacny coefficient for the given layout and block size (>1) for bins of 128 bits*/
+    uint16_t rozofs_psizes_max;  /**< size of the larger projection                     */
+    uint16_t rozofs_eff_psizes_max;  /**< size of the larger projection (optimized)     */
+    uint16_t *rozofs_psizes;     /**< size in bins of each projection                   */
+    uint16_t *rozofs_eff_psizes; /**< effective size in bins of each projection         */
 } rozofs_conf_psizes_t;  
 /**
  * structure used to store the parameters relative to a given layout
@@ -205,7 +208,10 @@ static inline char * rozofs_display_size(char * p, uint8_t layout, uint32_t bsiz
   
   
   pLayout = &rozofs_conf_layout_table[layout];
-  p += sprintf(p,"/ redundancy factor %1.2f\n",  pLayout->sizes[bsize].redundancyCoeff);
+  p += sprintf(p,"/ redundancy factor %1.2f (%1.2f)\n",  
+               pLayout->sizes[bsize].redundancyCoeff_128,
+               pLayout->sizes[bsize].redundancyCoeff
+	       );
   
 
   p += sprintf(p,"  prj |   p |   q | size in bytes\n");
@@ -213,10 +219,11 @@ static inline char * rozofs_display_size(char * p, uint8_t layout, uint32_t bsiz
   p += sprintf(p,"------+-----+-----+--------------\n");
   
   for (prj_id=0; prj_id < pLayout->rozofs_forward; prj_id++) {
-    p += sprintf(p,"   %2d | %3d | %3d | %5d\n", 
+    p += sprintf(p,"   %2d | %3d | %3d | %5d| %5d\n", 
                 prj_id,
 		pLayout->rozofs_angles[prj_id].p,
 		pLayout->rozofs_angles[prj_id].q,
+		pLayout->sizes[bsize].rozofs_eff_psizes[prj_id]*8*2,
 		pLayout->sizes[bsize].rozofs_psizes[prj_id]*8);
   }
   return p;

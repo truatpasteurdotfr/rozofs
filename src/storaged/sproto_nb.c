@@ -263,7 +263,7 @@ int storage_get_position_of_first_byte2write_from_read_req()
       position =  sizeof(uint32_t); /* length header of the rpc message */
       position += rozofs_rpc_get_min_rpc_reply_hdr_len();
       position += sizeof(uint32_t);   /* length of the storage status field */
-      position += sizeof(uint32_t);   /* length of the alignment field (FDL) */
+      position += (3*sizeof(uint32_t));   /* length of the alignment field (FDL) */
       position += sizeof(uint32_t);   /* length of the bins len field */
 
       storage_bin_read_first_bin_to_write = position;

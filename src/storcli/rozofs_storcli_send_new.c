@@ -318,6 +318,8 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
        alignment = 0x53535353;
        data_len   = 0;
        XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+       XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+       XDR_PUTINT32(&xdrs, (int32_t *)&alignment);       
        XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
        /*
        ** insert the length in the shared memory
@@ -338,6 +340,8 @@ void rozofs_storcli_read_reply_success(rozofs_storcli_ctx_t *p)
       ** skip the alignment
       */
       alignment = 0;
+      XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
+      XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
       XDR_PUTINT32(&xdrs, (int32_t *)&alignment);
       XDR_PUTINT32(&xdrs, (int32_t *)&data_len);
       /*

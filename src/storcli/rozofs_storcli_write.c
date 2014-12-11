@@ -738,7 +738,11 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
        ** restore the length of the data to write in the write interface
        */
        storcli_write_rq_p->len = pbuffer[1];
-       working_ctx_p->data_write_p  = (char*)&pbuffer[2]; 
+       working_ctx_p->data_write_p  = (char*)&pbuffer[2+2]; 
+       /*
+       ** Add alignment (stored in pbuffer[2] by rozofsmount)
+       */
+       working_ctx_p->data_write_p += pbuffer[2];
        /*
        ** store the pointer to the beginning of the shared memory
        **  needed to control the timestamp just before sending the 
@@ -836,7 +840,7 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
      int position = rozofs_storcli_get_position_of_first_byte2write();
      uint8_t *pbuf = (uint8_t*)ruc_buf_getPayload(working_ctx_p->prj_ctx[i].prj_buf); 
 
-     working_ctx_p->prj_ctx[i].bins       = (bin_t*)(pbuf+position);   
+     working_ctx_p->prj_ctx[i].bins       = (bin_t*)(pbuf+position); 
    }
    /*
    ** OK, now split the input buffer to figure out if we need either to read the first and/or last block
@@ -1050,7 +1054,12 @@ retry:
      */
      working_ctx_p->write_ctx_lock = 1;
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_WR_IN_PRG;
-     
+
+#if 0     
+     if (request->nb_proj==3) {
+       info("bins len %d prj %d ", request->len, request->proj_id);
+     }
+#endif
      ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
                                          (xdrproc_t) xdr_sp_write_arg_no_bins_t, (caddr_t) request,
                                           xmit_buf,
@@ -1243,7 +1252,13 @@ retry:
      */
      working_ctx_p->write_ctx_lock++;
      prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_WR_IN_PRG;
-     
+
+#if 0     
+     if (request->nb_proj==3) {
+       info("retry bins len %d prj %d ", request->len, request->proj_id);
+     }
+#endif
+        
      STORCLI_START_NORTH_PROF((&working_ctx_p->prj_ctx[projection_id]),write_prj,bins_len);
      ret =  rozofs_sorcli_send_rq_common(lbg_id,ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM),STORAGE_PROGRAM,STORAGE_VERSION,SP_WRITE,
                                          (xdrproc_t) xdr_sp_write_arg_no_bins_t, (caddr_t) request,
@@ -1694,17 +1709,22 @@ int rozofs_storcli_internal_read_rsp_cbk(void *buffer,uint32_t socket_ref,void *
      }
      {
        int alignment;
+       int k;
        /*
        ** skip the alignment
        */
-       if (xdr_int(&xdrs, &alignment) != TRUE)
+       for (k=0; k<3;k++) 
        {
-         errno = EPROTO;
-         STORCLI_ERR_PROF(read_prj_err);       
-         error = 1;
-         break;          
+	 if (xdr_int(&xdrs, &alignment) != TRUE)
+	 {
+           errno = EPROTO;
+           STORCLI_ERR_PROF(read_prj_err);       
+           error = 1;
+           break;          
+	 }
        }
-      }
+       if (error==1) break;
+     }
      /*
      ** Now get the length of the part that has been read
      */

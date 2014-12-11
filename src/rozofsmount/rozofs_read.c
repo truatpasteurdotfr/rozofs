@@ -773,7 +773,7 @@ void rozofs_ll_read_cbk(void *this,void *param)
       uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(shared_buf_ref);;
       received_len = p32[1];
       position = 0;
-      payload = (uint8_t*)&p32[2];
+      payload = (uint8_t*)&p32[2+2];
     }
     else
     { 

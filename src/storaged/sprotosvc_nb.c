@@ -31,6 +31,13 @@ xdr_sp_read_no_bins_t (XDR *xdrs, sp_read_t *objp)
 
 	 if (!xdr_uint32_t (xdrs, &objp->filler))
 		 return FALSE;
+
+	 if (!xdr_uint32_t (xdrs, &objp->filler1))
+		 return FALSE;
+
+	 if (!xdr_uint32_t (xdrs, &objp->filler2))
+		 return FALSE;
+		 		 		 
 	 if (!xdr_uint32_t (xdrs, &objp->bins.bins_len))
 		 return FALSE;
 	 position = xdr_getpos(xdrs);

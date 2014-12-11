@@ -198,4 +198,39 @@ static inline void transform_inverse_inline(pxl_t * support, int rows, int cols,
 #endif
 }
 
+/*
+**____________________________________________________________________________
+*/
+/**
+* Perform a Mojette transform inverse in 128 bits mode to decode a buffer
+
+  @param support: pointer to the decoded buffer
+  @param rows: number of rows
+  @param cols: number of colunms in the buffer
+  @param np: number of projections involved in the inverse procedure
+  @param projections: pointer to the projections contexts
+  
+*/
+void transform128_inverse (pxl_t * support, int rows, int cols, int np,
+        projection_t * projections);
+	
+/*
+**____________________________________________________________________________
+*/
+/**
+*   perform a Mojette forward transform on 128 bits. The input parameters are 
+    still the one computed for the 64 bits case
+    
+    @param support: pointer to the buffer to encode
+    @param rows: numbers of rows in which the buffer is divided
+    @param cols: numbers of colunms
+    @param np: number of projections to generate
+    @param projections: projection contexts
+*/
+void transform128_forward(bin_t * support, int rows, int cols, int np,
+        projection_t * projections);	
+
+
+void transform128_forward_one_proj(bin_t * support, int rows, int cols,
+        uint8_t proj_id, projection_t * projections);
 #endif

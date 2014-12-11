@@ -24,6 +24,44 @@
 #include "rozofs.h"
 #include "rozofs_srv.h"
 
+/**
+*  Layout for bins of 128bits
+*/
+static int prj_sz_2048_layout0_128bits[] = {  64, 64, 64};
+static int prj_sz_4096_layout0_128bits[] = {  128, 128, 128};
+static int prj_sz_8192_layout0_128bits[] = {  256, 256, 256};
+
+static int prj_sz_2048_layout1_128bits[] = {  32, 34, 34, 32, 33, 32};
+static int prj_sz_4096_layout1_128bits[] = {  64, 66, 66, 64, 65, 64};
+static int prj_sz_8192_layout1_128bits[] = {  128, 130, 130, 128, 129, 128};
+
+static int prj_sz_2048_layout2_128bits[] = {  16, 21, 24, 25, 24, 21, 16, 20, 22, 22, 20, 16};
+static int prj_sz_4096_layout2_128bits[] = {  32, 37, 40, 41, 40, 37, 32, 36, 38, 38, 36, 32};
+static int prj_sz_8192_layout2_128bits[] = {  64, 69, 72, 73, 72, 69, 64, 68, 70, 70, 68, 64};
+
+static int *layout0_128bits_tb[] =
+{
+  prj_sz_2048_layout0_128bits,
+  prj_sz_4096_layout0_128bits,
+  prj_sz_8192_layout0_128bits,
+  
+};
+
+static int *layout1_128bits_tb[] =
+{
+  prj_sz_2048_layout1_128bits,
+  prj_sz_4096_layout1_128bits,
+  prj_sz_8192_layout1_128bits,
+  
+};
+
+static int *layout2_128bits_tb[] =
+{
+  prj_sz_2048_layout2_128bits,
+  prj_sz_4096_layout2_128bits,
+  prj_sz_8192_layout2_128bits,
+  
+};
 rozofs_conf_layout_t rozofs_conf_layout_table[LAYOUT_MAX]={{0}};
 
 void rozofs_layout_initialize() {
@@ -32,6 +70,9 @@ void rozofs_layout_initialize() {
     rozofs_conf_layout_t *p;
     uint32_t bsize;
     float sum;
+    float sum_128;
+    int **local_tb;
+    int *cur_prj_sz_tb = NULL;
 
     p = rozofs_conf_layout_table;
     memset(p, 0, sizeof (rozofs_conf_layout_t) * LAYOUT_MAX);
@@ -41,16 +82,19 @@ void rozofs_layout_initialize() {
                 p->rozofs_safe = 4;
                 p->rozofs_forward = 3;
                 p->rozofs_inverse = 2;
+                local_tb = layout0_128bits_tb;
                 break;
             case LAYOUT_4_6_8:
                 p->rozofs_safe = 8;
                 p->rozofs_forward = 6;
                 p->rozofs_inverse = 4;
+                local_tb = layout1_128bits_tb;
                 break;
             case LAYOUT_8_12_16:
                 p->rozofs_safe = 16;
                 p->rozofs_forward = 12;
                 p->rozofs_inverse = 8;
+                local_tb = layout2_128bits_tb;
                 break;
             default:
                 break;
@@ -69,20 +113,51 @@ void rozofs_layout_initialize() {
         /* Compute block sizes */
 	for (bsize=ROZOFS_BSIZE_MIN; bsize<=ROZOFS_BSIZE_MAX; bsize++) {
 	
-            p->sizes[bsize].rozofs_psizes = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
+            p->sizes[bsize].rozofs_psizes     = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
+            p->sizes[bsize].rozofs_eff_psizes = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
 	    
 	    sum = 0;
+	    sum_128 = 0;
+	    /*
+	    ** need to index at bsize+1 since the Optimized Mojette starts at 2048 bytes
+	    */
+            cur_prj_sz_tb = local_tb[bsize+1];
             for (i = 0; i < p->rozofs_forward; i++) {	    
         	p->sizes[bsize].rozofs_psizes[i] = abs(i - p->rozofs_forward / 2) * (p->rozofs_inverse - 1)
                 	+ (ROZOFS_BSIZE_BYTES(bsize) / sizeof (pxl_t) / p->rozofs_inverse - 1) + 1;
+		/*
+		** make sure that the total size is modulo 128 bits, otherwise need adjustment
+		*/
+		int modulo = (p->sizes[bsize].rozofs_psizes[i]*sizeof (pxl_t))%(2*sizeof(uint64_t));
+		if (modulo != 0) p->sizes[bsize].rozofs_psizes[i]+=1;
         	if (p->sizes[bsize].rozofs_psizes[i] > p->sizes[bsize].rozofs_psizes_max) {
 		    p->sizes[bsize].rozofs_psizes_max = p->sizes[bsize].rozofs_psizes[i];
 		} 
 		sum += (p->sizes[bsize].rozofs_psizes[i] * 8
 		       +sizeof(rozofs_stor_bins_footer_t)
 		       +sizeof(rozofs_stor_bins_hdr_t));
+		/*
+		** compute the effective size
+		*/
+		if (bsize > ROZOFS_BSIZE_8K)
+		{
+		  /*
+		  ** value greater than 8K are not supported with optimized Mojette
+		  */
+		  p->sizes[bsize].rozofs_eff_psizes[i] = 0;
+		  p->sizes[bsize].rozofs_eff_psizes_max = 0;
+		  continue;		
+		}
+
+		p->sizes[bsize].rozofs_eff_psizes[i] = cur_prj_sz_tb[i];
+                if (p->sizes[bsize].rozofs_eff_psizes[i] > p->sizes[bsize].rozofs_eff_psizes_max) 
+		    p->sizes[bsize].rozofs_eff_psizes_max = p->sizes[bsize].rozofs_eff_psizes[i];
+	       	sum_128 += (p->sizes[bsize].rozofs_eff_psizes[i] * (8*2)
+		           +sizeof(rozofs_stor_bins_footer_t)
+		           +sizeof(rozofs_stor_bins_hdr_t));
 	    }
-	    
+	    p->sizes[bsize].redundancyCoeff_128 = sum_128 ;
+	    p->sizes[bsize].redundancyCoeff_128 /= ROZOFS_BSIZE_BYTES(bsize);	    
 	    p->sizes[bsize].redundancyCoeff = sum ;
 	    p->sizes[bsize].redundancyCoeff /= ROZOFS_BSIZE_BYTES(bsize);
         }
@@ -107,6 +182,10 @@ void rozofs_layout_release() {
 	        free(p->sizes[bsize].rozofs_psizes);
 		p->sizes[bsize].rozofs_psizes = NULL;
 	    }    
+            if (p->sizes[bsize].rozofs_eff_psizes) {
+	        free(p->sizes[bsize].rozofs_eff_psizes);
+		p->sizes[bsize].rozofs_eff_psizes = NULL;
+	    }   
 	}
     }
 }

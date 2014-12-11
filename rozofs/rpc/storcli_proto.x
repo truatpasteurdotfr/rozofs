@@ -37,7 +37,6 @@ struct storcli_write_arg_t {
     uint8_t     empty_file;           
     uint8_t     layout;
     uint8_t     bsize; /* Block size as define in enum ROZOFS_BSIZE_E */
-    uint32_t    padding;
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
     storcli_uuid_t   fid;        
     uint64_t    off;
@@ -50,7 +49,6 @@ struct storcli_write_arg_no_data_t {
     uint8_t     empty_file;                         
     uint8_t     layout;
     uint8_t     bsize; /* Block size as define in enum ROZOFS_BSIZE_E */   
-    uint32_t    padding;
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
     storcli_uuid_t   fid;        
     uint64_t    off;
@@ -96,6 +94,8 @@ struct storcli_delete_arg_t {
 struct storcli_read_no_data_ret_t
 {
    uint32_t alignment;
+   uint32_t alignment1;
+   uint32_t alignment2;   
    uint32_t len;
 };
 
@@ -108,6 +108,8 @@ union storcli_read_ret_no_data_t switch (storcli_status_t status) {
 struct storcli_read_data_ret_t
 {
    uint32_t alignment;
+   uint32_t alignment1;
+   uint32_t alignment2;      
    opaque  dara<>;
 };
 
