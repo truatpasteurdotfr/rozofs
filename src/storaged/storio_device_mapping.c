@@ -544,7 +544,6 @@ void storio_device_mapping_periodic_ticker(void * param) {
   int           dev;
   int           passive;
   storage_t   * st;
-  uint64_t      error_bitmask;
   storage_device_ctx_t *pDev;
   int           max_failures;
   int           rebuilding;
@@ -588,7 +587,7 @@ void storio_device_mapping_periodic_ticker(void * param) {
     /*
     ** Monitor errors on devices
     */
-    error_bitmask = storage_periodic_error_on_device_monitoring(st);
+    storage_periodic_error_on_device_monitoring(st);
      
     /*
     ** Update the table of free block count on device to help
