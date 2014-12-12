@@ -1819,17 +1819,19 @@ int storage_rm_file(storage_t * st, fid_t fid) {
 } 
 int storage_write_device_status(char * root, storage_device_info_t * info, int nbElement) {
     char          path[FILENAME_MAX];
-    FILE *        fd; 
+    FILE *        fd=NULL; 
 
     sprintf(path,"%s/status",root);
     fd = fopen(path,"w");
-    fwrite(info,sizeof(storage_device_info_t),nbElement,fd);
-    fclose(fd);
+    if (fd != NULL) {
+      fwrite(info,sizeof(storage_device_info_t),nbElement,fd);
+      fclose(fd);
+    }  
     return 0;
 }
 int storage_read_device_status(char * root, storage_device_info_t * info) {
     char          path[FILENAME_MAX];
-    FILE *        fd; 
+    FILE *        fd=NULL; 
     int           read=-1;
 
     sprintf(path,"%s/status",root);
