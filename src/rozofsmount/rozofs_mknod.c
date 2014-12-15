@@ -21,6 +21,202 @@
 #include "rozofs_fuse_api.h"
 
 DECLARE_PROFILING(mpp_profiler_t);
+
+
+int rozofs_expgateway_send_routing_common_mknod(uint32_t eid,fid_t fid,uint32_t prog,uint32_t vers,
+                              int opcode,xdrproc_t encode_fct,void *msg2encode_p,
+                              sys_recv_pf_t recv_cbk,void *fuse_buffer_ctx_p) 
+{
+    DEBUG_FUNCTION;
+   
+    uint8_t           *arg_p;
+    uint32_t          *header_size_p;
+    rozofs_tx_ctx_t   *rozofs_tx_ctx_p = NULL;
+    void              *xmit_buf = NULL;
+    int               bufsize;
+    int               ret;
+    int               position;
+    XDR               xdrs;    
+	struct rpc_msg   call_msg;
+    uint32_t         null_val = 0;
+    int lbg_id;
+    expgw_tx_routing_ctx_t local_routing_ctx;
+    expgw_tx_routing_ctx_t  *routing_ctx_p;
+    
+    rozofs_fuse_save_ctx_t *fuse_ctx_p=NULL;
+    
+
+    if (fuse_buffer_ctx_p != NULL) {
+      GET_FUSE_CTX_P(fuse_ctx_p,fuse_buffer_ctx_p);
+    }  
+    if (fuse_ctx_p != NULL) {    
+      routing_ctx_p = &fuse_ctx_p->expgw_routing_ctx ;
+    }
+    else {
+      routing_ctx_p = &local_routing_ctx;
+    }  
+
+    /*
+    ** get the available load balancing group(s) for routing the request 
+    */    
+    ret  = expgw_get_export_routing_lbg_info(eid,fid,routing_ctx_p);
+    if (ret < 0)
+    {
+      /*
+      ** no load balancing group available
+      */
+      errno = EPROTO;
+      goto error;    
+    }
+
+    /*
+    ** allocate a transaction context
+    */
+    rozofs_tx_ctx_p = rozofs_tx_alloc();  
+    if (rozofs_tx_ctx_p == NULL) 
+    {
+       /*
+       ** out of context
+       ** --> put a pending list for the future to avoid repluing ENOMEM
+       */
+       TX_STATS(ROZOFS_TX_NO_CTX_ERROR);
+       errno = ENOMEM;
+       goto error;
+    }    
+    /*
+    ** allocate an xmit buffer
+    */  
+    xmit_buf = ruc_buf_getBuffer(ROZOFS_TX_SMALL_TX_POOL);
+    if (xmit_buf == NULL)
+    {
+      /*
+      ** something rotten here, we exit we an error
+      ** without activating the FSM
+      */
+      TX_STATS(ROZOFS_TX_NO_BUFFER_ERROR);
+      errno = ENOMEM;
+      goto error;
+    } 
+
+    /*
+    ** The system attempts first to forward the message toward load balancing group
+    ** of an export gateway and then to the master export if the load balancing group
+    ** of the export gateway is not available
+    */
+    lbg_id = expgw_routing_get_next(routing_ctx_p,xmit_buf);
+    /*
+    ** store the reference of the xmit buffer in the transaction context: might be useful
+    ** in case we want to remove it from a transmit list of the underlying network stacks
+    */
+    rozofs_tx_save_xmitBuf(rozofs_tx_ctx_p,xmit_buf);
+    /*
+    ** get the pointer to the payload of the buffer
+    */
+    header_size_p  = (uint32_t*) ruc_buf_getPayload(xmit_buf);
+    arg_p = (uint8_t*)(header_size_p+1);  
+    /*
+    ** create the xdr_mem structure for encoding the message
+    */
+    bufsize = rozofs_tx_get_small_buffer_size();
+    xdrmem_create(&xdrs,(char*)arg_p,bufsize,XDR_ENCODE);
+    /*
+    ** fill in the rpc header
+    */
+    call_msg.rm_direction = CALL;
+    /*
+    ** allocate a xid for the transaction 
+    */
+	call_msg.rm_xid             = rozofs_tx_alloc_xid(rozofs_tx_ctx_p); 
+	call_msg.rm_call.cb_rpcvers = RPC_MSG_VERSION;
+	/* XXX: prog and vers have been long historically :-( */
+	call_msg.rm_call.cb_prog = (uint32_t)prog;
+	call_msg.rm_call.cb_vers = (uint32_t)vers;
+	if (! xdr_callhdr(&xdrs, &call_msg))
+    {
+       /*
+       ** THIS MUST NOT HAPPEN
+       */
+       TX_STATS(ROZOFS_TX_ENCODING_ERROR);
+       errno = EPROTO;
+       goto error;	
+    }
+    /*
+    ** insert the procedure number, NULL credential and verifier
+    */
+    XDR_PUTINT32(&xdrs, (int32_t *)&opcode);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+    XDR_PUTINT32(&xdrs, (int32_t *)&null_val);
+        
+    /*
+    ** ok now call the procedure to encode the message
+    */
+    if ((*encode_fct)(&xdrs,msg2encode_p) == FALSE)
+    {
+       TX_STATS(ROZOFS_TX_ENCODING_ERROR);
+       errno = EPROTO;
+       goto error;
+    }
+    /*
+    ** Now get the current length and fill the header of the message
+    */
+    position = XDR_GETPOS(&xdrs);
+    /*
+    ** update the length of the message : must be in network order
+    */
+    *header_size_p = htonl(0x80000000 | position);
+    /*
+    ** set the payload length in the xmit buffer
+    */
+    int total_len = sizeof(*header_size_p)+ position;
+    ruc_buf_setPayloadLen(xmit_buf,total_len);
+    /*
+    ** store the receive call back and its associated parameter
+    */
+    rozofs_tx_ctx_p->recv_cbk   = recv_cbk;
+    rozofs_tx_ctx_p->user_param = fuse_buffer_ctx_p;    
+    /*
+    ** now send the message
+    */
+
+reloop:
+    ret = north_lbg_send(lbg_id,xmit_buf);
+#warning stop profiling
+    STOP_PROFILING_NB(fuse_buffer_ctx_p,rozofs_ll_mknod);
+    if (ret < 0)
+    {
+       TX_STATS(ROZOFS_TX_SEND_ERROR);
+       /*
+       ** attempt to get the next available load balancing group
+       */
+       lbg_id = expgw_routing_get_next(routing_ctx_p,xmit_buf);
+       if (lbg_id >= 0) goto reloop;
+       
+       errno = EFAULT;
+      goto error;  
+    }
+    TX_STATS(ROZOFS_TX_SEND);
+
+    /*
+    ** OK, so now finish by starting the guard timer
+    */
+    if (opcode == EP_STATFS) {
+      /* df must give a response (even negative) in less than 2 seconds !!! */
+      rozofs_tx_start_timer(rozofs_tx_ctx_p, 2);    
+    }
+    else {
+      rozofs_tx_start_timer(rozofs_tx_ctx_p, ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM));
+    }  
+    return 0;  
+    
+  error:
+    if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);
+    return -1;    
+}
+
+
+
 /*
 **__________________________________________________________________
 */
@@ -94,7 +290,6 @@ void rozofs_ll_mknod_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
     arg.arg_gw.gid  = ctx->gid;
     arg.arg_gw.mode = mode;
     arg.hdr.gateway_rank = rozofs_get_site_number();     
-
     /*
     ** now initiates the transaction towards the remote end
     */
@@ -109,9 +304,12 @@ void rozofs_ll_mknod_nb(fuse_req_t req, fuse_ino_t parent, const char *name,
 #endif
     if (ret < 0) goto error;
     
+
     /*
     ** no error just waiting for the answer
     */
+
+
     return;
 error:
     rozofs_trc_rsp(srv_rozofs_ll_mknod,parent,NULL,1,trc_idx);
@@ -319,6 +517,7 @@ out:
     ** release the transaction context and the fuse context
     */
     rozofs_trc_rsp(srv_rozofs_ll_mknod,(nie==NULL)?0:nie->inode,(nie==NULL)?NULL:nie->attrs.fid,status,trc_idx);
+
     STOP_PROFILING_NB(param,rozofs_ll_mknod);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);        

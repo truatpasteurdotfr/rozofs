@@ -228,6 +228,34 @@ typedef struct child {
 } child_t;
 
 #include "common/transform.h"
+/**
+* data structure related to optimized Mojette Usage
+*/
+typedef struct _projection_opt_t {
+    bin_t *bins;
+    int    projection_id;;
+} projection_opt_t; 
+
+typedef struct _trans_lk_table_t
+{
+   int min;
+   int max;
+   void *data[];
+} trans_lk_table_t;
+
+typedef void (*inverse_prog)(pxl_t *support,projection_opt_t * projections);
+/**
+* structure used to define the encoding rule of the lookup table
+*/
+typedef struct encode_t
+{
+  int nb_bits;   /**< number of bits that must be taken for the index */
+  int nb_proj_per_grp;  /**< number of projections taken a each level */
+  int nb_level;         /**< number of levels */
+} encode_t;
+/**
+*  end of Mojette Optimized data structure
+*/
 
 /**
  *  By default the system uses 256 slices with 4096 subslices per slice

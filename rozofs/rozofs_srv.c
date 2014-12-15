@@ -114,6 +114,7 @@ void rozofs_layout_initialize() {
 	for (bsize=ROZOFS_BSIZE_MIN; bsize<=ROZOFS_BSIZE_MAX; bsize++) {
 	
             p->sizes[bsize].rozofs_psizes     = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
+            p->sizes[bsize].rozofs_128bits_psizes     = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
             p->sizes[bsize].rozofs_eff_psizes = xmalloc(sizeof (uint16_t) * p->rozofs_forward);
 	    
 	    sum = 0;
@@ -125,6 +126,13 @@ void rozofs_layout_initialize() {
             for (i = 0; i < p->rozofs_forward; i++) {	    
         	p->sizes[bsize].rozofs_psizes[i] = abs(i - p->rozofs_forward / 2) * (p->rozofs_inverse - 1)
                 	+ (ROZOFS_BSIZE_BYTES(bsize) / sizeof (pxl_t) / p->rozofs_inverse - 1) + 1;
+
+        	p->sizes[bsize].rozofs_128bits_psizes[i] = abs(i - p->rozofs_forward / 2) * (p->rozofs_inverse - 1)
+                	+ (ROZOFS_BSIZE_BYTES(bsize) / (2*sizeof (pxl_t)) / p->rozofs_inverse - 1) + 1;
+			
+        	if (p->sizes[bsize].rozofs_128bits_psizes[i] > p->sizes[bsize].rozofs_128bits_psizes_max) {
+		    p->sizes[bsize].rozofs_128bits_psizes_max = p->sizes[bsize].rozofs_128bits_psizes[i];
+		}
 		/*
 		** make sure that the total size is modulo 128 bits, otherwise need adjustment
 		*/

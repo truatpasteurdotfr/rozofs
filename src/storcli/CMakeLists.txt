@@ -29,8 +29,8 @@ add_executable(storcli
     storcli_main.h
     rozofs_storcli_send_new.c
     rozofs_storcli_lbg_cnf_supervision.c
+    rozofs_storcli_transform_utility.c
     rozofs_storcli_transform.c
-#    rozofs_storcli_transform_opt.c
     rozofs_storcli_mgt.c
     rozofs_storcli_write.c
     rozofs_storcli_nblock_init.c

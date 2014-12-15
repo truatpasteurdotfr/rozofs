@@ -25,6 +25,7 @@
 #include <mmintrin.h> /* MMX instrinsics  __m64 integer type  */
 #include <xmmintrin.h> /* SSE  __m128  float */
 #include "transform.h"
+#include <rozofs/common/log.h>
 
 
 #define BIN_UPDATE ((k + k_offsets[l])/* * updated->angle.q */+ l * updated->angle.p - offsets[i])
@@ -176,6 +177,120 @@ void transform128_inverse (pxl_t * support, int rows, int cols, int np,
     }
 }
 
+void transform128_inverse_copy (pxl_t * support, int rows, int cols, int np,
+        projection_t * projections,int max_prj_sz_intf) {
+    int s_minus, s_plus, s, i, rdv, k, l;
+    //double tmp;
+    int *k_offsets, *offsets;
+    int transform_buf_offset[1024];
+    int transform_buf_k_offsets[1024];    
+    k_offsets = transform_buf_k_offsets;
+    offsets = transform_buf_offset;
+        
+    char buff_all_bins[1024*18];
+    int bufsz = 0;
+    int max_prj_sz;
+    
+    max_prj_sz = max_prj_sz_intf+512/*+256*/;
+    char *buff_all_bins_p;
+
+    cols = (cols)/2;
+    
+    buff_all_bins_p = buff_all_bins;
+    buff_all_bins_p +=64;
+    uint64_t aligned128 = (uint64_t)(buff_all_bins_p);
+    aligned128 = ((aligned128>>5)<<5);
+    buff_all_bins_p = (char*)aligned128;
+    /*
+    ** copy the projection in the local buffer: to avoid corruption of the next
+    ** projection in sequence
+    */
+    for (i = 0; i < np; i++) {
+	char *src = (char *) projections[i].bins;
+	char *dst = buff_all_bins_p;
+        memcpy(dst,src,projections[i].size*16);
+	projections[i].bins = (bin_t *)buff_all_bins_p;
+	buff_all_bins_p += max_prj_sz;
+	bufsz += max_prj_sz;
+
+    }    
+    /*
+    ** sort the projection in the increasing order of angle p
+    */ 
+    qsort((void *) projections, np, sizeof (projection_t), compare_slope_inline);
+    for (i = 0; i < np; i++) {
+        offsets[i] =
+                projections[i].angle.p <
+                0 ? (rows - 1) * projections[i].angle.p : 0;
+
+    }
+    
+    // compute s_minus, s_plus, and finally s
+    s_minus = s_plus = s = 0;
+    for (i = 1; i < rows - 1; i++) {
+        s_minus += max_inline(0, -projections[i].angle.p);
+        s_plus += max_inline(0, projections[i].angle.p);
+    }
+    s = s_minus - s_plus;
+
+    // compute the rendez-vous row rdv
+    rdv = rows - 1;
+
+    // Determine the initial image column offset for each projection
+    k_offsets[rdv] =
+            max_inline(max_inline(0, -projections[rdv].angle.p) + s_minus,
+            max_inline(0, projections[rdv].angle.p) + s_plus);
+    for (i = rdv + 1; i < rows; i++) {
+        k_offsets[i] = k_offsets[i - 1] + projections[i - 1].angle.p;
+    }
+    for (i = rdv - 1; i >= 0; i--) {
+        k_offsets[i] = k_offsets[i + 1] + projections[i + 1].angle.p;
+    }
+
+    // Reconstruct
+    // While all projections aren't needed (avoid if statement in general case)
+    for (k = -max_inline(k_offsets[0], k_offsets[rows - 1]); k < 0; k++) {
+        for (l = 0; l <= rdv; l++) {
+            if (k + k_offsets[l] >= 0) {
+                projection_t *p = projections + l;
+                __m128 bin = write128_1_ret(&support[2*SUP_IDX],&projections[l].bins[2*BIN_SET]);
+                for (i = 0; i < rows; i++) {
+		    if (i==l) continue;
+                    projection_t *updated = projections + i;
+                    xor128_1(&updated->bins[2*BIN_UPDATE],bin);
+                }
+            }
+        }
+    }
+    // scan the reconstruction path while every projections are used
+    for (k = 0; k < cols - max_inline(k_offsets[0], k_offsets[rows - 1]); k++) {
+        for (l = 0; l <= rdv; l++) {
+            projection_t *p = projections + l;
+            __m128 bin = write128_1_ret(&support[2*SUP_IDX],&projections[l].bins[2*BIN_SET]);
+            for (i = 0; i < rows; i++) {
+		if (i==l) continue;
+                projection_t *updated = projections + i;
+                xor128_1(&updated->bins[2*BIN_UPDATE],bin);
+            }
+        }
+    }
+    // finish the work
+    for (k = cols - max_inline(k_offsets[0], k_offsets[rows - 1]); k < cols; k++) {
+        for (l = 0; l <= rdv; l++) {
+            if (k + k_offsets[l] < cols) {
+                projection_t *p = projections + l;
+                __m128 bin = write128_1_ret(&support[2*SUP_IDX],&projections[l].bins[2*BIN_SET]);
+                for (i = 0; i < rows; i++) {
+		    if (i==l) continue;
+                    projection_t *updated = projections + i;
+                    xor128_1(&updated->bins[2*BIN_UPDATE],bin);
+                }
+            }
+        }
+    }
+}
+
+
 /*
 **____________________________________________________________________________
 */
@@ -197,16 +312,14 @@ void transform128_forward(bin_t * support, int rows, int cols, int np,
     cols = (cols)/2;
 
     offsets = transform_buf_offset;
-    int size;
     for (i = 0; i < np; i++) {
         offsets[i] =
                 projections[i].angle.p <
                 0 ? (rows - 1) * projections[i].angle.p : 0;
-	size = projections[i].size;
 	/*
 	** always add 3 extra bins to avoid issue related to the usage 128 bits bins
 	*/
-        memset(projections[i].bins, 0, (projections[i].size) * sizeof (bin_t));
+        memset(projections[i].bins, 0, (projections[i].size) * 2*sizeof (bin_t));
     }
     for (i = 0; i < np; i++) {
         projection_t *p = projections + i;
@@ -242,8 +355,8 @@ void transform128_forward_one_proj(bin_t * support, int rows, int cols,
 
     offset = projections[proj_id].angle.p < 0 ? (rows - 1) *
             projections[proj_id].angle.p : 0;
-    memset(projections[proj_id].bins, 0, (projections[proj_id].size+3)
-            * sizeof (bin_t));
+     
+     memset(projections[proj_id].bins, 0, (projections[proj_id].size) * 2*sizeof (bin_t));
 
 
     projection_t *p = projections + proj_id;

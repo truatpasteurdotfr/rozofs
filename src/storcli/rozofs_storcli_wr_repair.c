@@ -110,30 +110,6 @@ int rozofs_storcli_repair_get_position_of_first_byte2write()
   return storcli_write_repair_bin_first_byte;
 
 }
-/**
-*  That function check if the user data block to transform is empty
-
-   @param data: pointer to the user data block : must be aligned on a 8 byte boundary
-   @param size: size of the data block (must be blocksize aligned)
-  
-   @retval 0 non empty
-   @retval 1 empty
-*/
-static inline int rozofs_data_block_check_empty(char *data, int size)
-{
-  uint64_t *p64;
-  int i;
-
-  p64 = (uint64_t*) data;
-  for (i = 0; i < (size/sizeof(uint64_t));i++,p64++)
-  {
-    if (*p64 != 0) return 0;
-  }
-  ROZOFS_STORCLI_STATS(ROZOFS_STORCLI_EMPTY_WRITE);
-  return 1;
-}
-
-
 /*
 **__________________________________________________________________________
 */
@@ -212,7 +188,7 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
     for (projection_id = 0; projection_id < rozofs_forward; projection_id++) {
         projections[projection_id].angle.p =  rozofs_get_angles_p(layout,projection_id);
         projections[projection_id].angle.q =  rozofs_get_angles_q(layout,projection_id);
-        projections[projection_id].size    =  rozofs_get_psizes(layout,bsize,projection_id);
+        projections[projection_id].size    =  rozofs_get_128bits_psizes(layout,bsize,projection_id);
     }
     /*
     ** now go through all projection set to find out if there is something to regenerate
@@ -290,10 +266,17 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
             /*
             ** Apply the erasure code transform for the block i
             */
-            transform_forward_one_proj((pxl_t *) (data + (i * bbytes)),
+            transform128_forward_one_proj((pxl_t *) (data + (i * bbytes)),
                     rozofs_inverse,
                     bbytes / rozofs_inverse / sizeof (pxl_t),
                     moj_prj_id, projections);
+            /*
+	    ** add the footer at the end of the repaired projection
+	    */
+            rozofs_stor_bins_footer_t *rozofs_bins_foot_p;
+	    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) (projections[moj_prj_id].bins
+	                                                      + rozofs_get_psizes(layout,bsize,moj_prj_id));
+            rozofs_bins_foot_p->timestamp      = working_ctx_p->block_ctx_table[block_idx].timestamp;	
           }
 	  block_idx++;    	  
         }

@@ -1002,6 +1002,7 @@ int rozofs_storcli_setup_all_lbg_of_storage(mstorage_t *s) {
   @retval 0 on success
   @retval -1 on error
  */
+extern int  transform_libinit(void);
 int rozofs_storcli_get_export_config(storcli_conf *conf) {
     int i = 0;
     int ret;
@@ -1010,7 +1011,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     char * pHost;
 	  
     /* Initialize rozofs */
-    rozofs_layout_initialize();
+    transform_libinit();
+//    rozofs_layout_initialize();
 
     struct timeval timeout_exportd;
     timeout_exportd.tv_sec  = 0; //ROZOFS_TMR_GET(TMR_EXPORT_PROGRAM);

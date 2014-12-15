@@ -37,6 +37,8 @@ typedef struct _rozofs_conf_psizes_t {
     uint16_t rozofs_eff_psizes_max;  /**< size of the larger projection (optimized)     */
     uint16_t *rozofs_psizes;     /**< size in bins of each projection                   */
     uint16_t *rozofs_eff_psizes; /**< effective size in bins of each projection         */
+    uint16_t *rozofs_128bits_psizes; /**< effective size in bins of each projection         */
+    uint16_t rozofs_128bits_psizes_max; /**< effective size in bins of each projection         */
 } rozofs_conf_psizes_t;  
 /**
  * structure used to store the parameters relative to a given layout
@@ -159,6 +161,20 @@ static inline int rozofs_get_legacy_psizes(uint8_t layout, uint32_t bsize, uint8
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
     return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes[projection_id];
 }
+
+/**
+  Get the projection size for a given projection_id in the layout 
+  
+  @param layout : layout association with the file
+  @param projection_id : projection index in the layout
+  
+  @retval projection size
+ */ 
+static inline int rozofs_get_128bits_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
+    if (layout >= LAYOUT_MAX) return 0;
+    if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes[projection_id];
+}
 /**
   Get the projection size for a given projection_id in the layout 
   
@@ -188,6 +204,19 @@ static inline int rozofs_get_max_psize(uint8_t layout, uint32_t bsize) {
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;    
     return 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes_max;
+}
+
+/**
+  Get the projection max size for a given  layout 
+  
+  @param layout : layout association with the file
+  
+  @retval projection size
+ */
+static inline int rozofs_get_max_psize_128bits(uint8_t layout, uint32_t bsize) {
+    if (layout >= LAYOUT_MAX) return 0;
+    if (bsize > ROZOFS_BSIZE_MAX) return 0;    
+    return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_128bits_psizes_max;
 }
 /**
   Get the projection max size for a given  layout 

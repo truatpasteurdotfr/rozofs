@@ -1404,4 +1404,31 @@ int rozofs_storcli_get_mojette_proj_id(uint8_t *dist_p,uint8_t sid,uint8_t fwd);
   @retval : FALSE-> xmit  ready event not expected
 */
 void rozofs_storcli_repair_req_init(rozofs_storcli_ctx_t *working_ctx_p);
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  That function check if the user data block to transform is empty
+
+   @param data: pointer to the user data block : must be aligned on a 8 byte boundary
+   @param size: size of the data block (must be blocksize aligned)
+  
+   @retval 0 non empty
+   @retval 1 empty
+*/
+static inline int rozofs_data_block_check_empty(char *data, int size)
+{
+  uint64_t *p64;
+  int i;
+
+  p64 = (uint64_t*) data;
+  for (i = 0; i < (size/sizeof(uint64_t));i++,p64++)
+  {
+    if (*p64 != 0) return 0;
+  }
+  ROZOFS_STORCLI_STATS(ROZOFS_STORCLI_EMPTY_WRITE);
+  return 1;
+}
+
 #endif
