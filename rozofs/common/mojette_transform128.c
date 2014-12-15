@@ -309,6 +309,7 @@ void transform128_forward(bin_t * support, int rows, int cols, int np,
     int *offsets;
     int i, l, k;
     int transform_buf_offset[1024];
+    
     cols = (cols)/2;
 
     offsets = transform_buf_offset;
@@ -324,12 +325,19 @@ void transform128_forward(bin_t * support, int rows, int cols, int np,
     for (i = 0; i < np; i++) {
         projection_t *p = projections + i;
         pxl_t *ppix = support;
+        pxl_t *ppix_ref = support;
+        int row_size = cols*2;
         int support_idx = 0;
         bin_t *pbin; // = p->bins - offsets[i];
+	int last_pbin_idx = p->size*2;
 
         for (l = 0; l < rows; l++) {
             pbin = p->bins + 2*(l * p->angle.p - offsets[i]);
-            for (k = cols / 8; k > 0; k--) {
+            support_idx = 2*(l * p->angle.p - offsets[i]);
+	    int loop = last_pbin_idx - support_idx;
+            loop = loop/2;
+	    if (loop > cols) loop=cols;
+            for (k = loop / 8; k > 0; k--) {
                 xor128_1_ptr(&pbin[0],&ppix[2*0]);
                 xor128_1_ptr(&pbin[2],&ppix[2*1]);
                 xor128_1_ptr(&pbin[4],&ppix[2*2]);
@@ -338,12 +346,19 @@ void transform128_forward(bin_t * support, int rows, int cols, int np,
                 xor128_1_ptr(&pbin[10],&ppix[2*5]);
                 xor128_1_ptr(&pbin[12],&ppix[2*6]);
                 xor128_1_ptr(&pbin[14],&ppix[2*7]);
-		support_idx +=8*2;
+//		support_idx +=8*2;
                 pbin += 8*2;
                 ppix += 8*2;
             }
+            for (k = loop % 8; k > 0; k--) {
+                xor128_1_ptr(&pbin[0],&ppix[2*0]);
+//		support_idx +=1*2;
+                pbin += 1*2;
+                ppix += 1*2;
+            }
+	    ppix = ppix_ref+(l+1)*row_size;
         }
-    }
+    }            
 }
 
 
