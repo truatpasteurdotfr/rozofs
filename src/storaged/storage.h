@@ -339,18 +339,13 @@ static inline char * trace_device(uint8_t * device, char * pChar) {
 /*
 ** FID storage slice computing
 */
-
-#ifdef STORAGE_C
-#warning FID_STORAGE_SLICE_SIZE should be set to a correct value
-#endif
-
 #define FID_STORAGE_SLICE_SIZE 8
 static inline unsigned int rozofs_storage_fid_slice(void * fid) {
 #if FID_STORAGE_SLICE_SIZE == 1
   return 0;
 #else  
-  rozofs_inode_t *pFid = (rozofs_inode_t*) fid;
-  return pFid->s.idx % FID_STORAGE_SLICE_SIZE;
+  rozofs_inode_t *fake_inode = (rozofs_inode_t *) fid;
+  return fake_inode->s.usr_id % FID_STORAGE_SLICE_SIZE;
 } 
 #endif
 /*
