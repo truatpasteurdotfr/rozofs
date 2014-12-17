@@ -19,7 +19,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
+#include <malloc.h>
+ 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
@@ -213,8 +214,7 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
     int ret = 0;
     uint8_t spare = 0;
     uint64_t size;
-    uint64_t prjSize;
-
+    uint16_t rozofs_max_psize_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
     DEBUG_FUNCTION;
     
     proj_ctx_p->nbBlocks = 0;
@@ -226,13 +226,11 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
     }
 
     // Memory allocation for store response
-    prjSize = rozofs_get_max_psize(layout,bsize) * sizeof (bin_t);
-    prjSize += sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t);
-    size = prjSize * nb_blocks_2_read;
+    size = rozofs_max_psize_in_msg * nb_blocks_2_read;
 	    
-    bin_t * bins = xmalloc(size);
+    bin_t * bins = memalign(32,size);
     memset(bins, 0, size);
-
+    
 
     // Is-it a spare storage ?
     if (stor_idx >= rozofs_get_rozofs_forward(layout)) {
@@ -254,7 +252,7 @@ int rbs_read_proj(sclient_t *storage, cid_t cid, sid_t sid, uint8_t stor_idx,
     proj_ctx_p->prj_state = PRJ_READ_DONE;
     proj_ctx_p->nbBlocks = *nb_blocks_read;
     
-    *size_read += (proj_ctx_p->nbBlocks * prjSize);
+    *size_read += (proj_ctx_p->nbBlocks * rozofs_max_psize_in_msg);
 
     status = 0;
 out:
@@ -517,8 +515,7 @@ int rbs_read_blocks(sclient_t **storages, int local_idx, uint8_t layout, uint32_
     }
 
     // Memory allocation for store reconstructed blocks
-    working_ctx_p->data_read_p = xmalloc(real_nb_blocks_read
-            * (ROZOFS_BSIZE_BYTES(bsize) * sizeof (char)));
+    working_ctx_p->data_read_p = memalign(32,real_nb_blocks_read * ROZOFS_BSIZE_BYTES(bsize));
 
 transform_inverse:
 

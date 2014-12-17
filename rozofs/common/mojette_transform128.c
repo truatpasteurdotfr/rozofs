@@ -361,8 +361,57 @@ void transform128_forward(bin_t * support, int rows, int cols, int np,
     }            
 }
 
-
 void transform128_forward_one_proj(bin_t * support, int rows, int cols,
+        uint8_t proj_id, projection_t * projections) {
+    int offset;
+    int l, k;
+    cols = (cols)/2;
+
+    offset = projections[proj_id].angle.p < 0 ? (rows - 1) *
+            projections[proj_id].angle.p : 0;
+     
+     memset(projections[proj_id].bins, 0, (projections[proj_id].size) * 2*sizeof (bin_t));
+
+
+    projection_t *p = projections + proj_id;
+    pxl_t *ppix = support;
+    int support_idx = 0;
+    pxl_t *ppix_ref = support;
+    int row_size = cols*2;
+    bin_t *pbin; // = p->bins - offset;
+    int last_pbin_idx = p->size*2;
+
+    for (l = 0; l < rows; l++) {
+        pbin = p->bins + 2*(l * p->angle.p - offset);
+        support_idx = 2*(l * p->angle.p - offset);
+	int loop = last_pbin_idx - support_idx;
+        loop = loop/2;
+	if (loop > cols) loop=cols;
+        for (k = loop / 8; k > 0; k--) {
+            xor128_1_ptr(&pbin[0],&ppix[2*0]);
+            xor128_1_ptr(&pbin[2],&ppix[2*1]);
+            xor128_1_ptr(&pbin[4],&ppix[2*2]);
+            xor128_1_ptr(&pbin[6],&ppix[2*3]);
+            xor128_1_ptr(&pbin[8],&ppix[2*4]);
+            xor128_1_ptr(&pbin[10],&ppix[2*5]);
+            xor128_1_ptr(&pbin[12],&ppix[2*6]);
+            xor128_1_ptr(&pbin[14],&ppix[2*7]);
+//		support_idx +=8*2;
+            pbin += 8*2;
+            ppix += 8*2;
+        }
+        for (k = loop % 8; k > 0; k--) {
+            xor128_1_ptr(&pbin[0],&ppix[2*0]);
+//		support_idx +=1*2;
+            pbin += 1*2;
+            ppix += 1*2;
+        }
+	ppix = ppix_ref+(l+1)*row_size;
+    }
+}
+
+
+void transform128_forward_one_proj_old(bin_t * support, int rows, int cols,
         uint8_t proj_id, projection_t * projections) {
     int offset;
     int l, k;

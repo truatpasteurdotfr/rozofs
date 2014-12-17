@@ -46,7 +46,8 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
-
+    uint16_t rozofs_max_psize_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
+    
     *timestamp_p = 0;
     rbs_timestamp_next_free_idx = 0;
 
@@ -64,10 +65,8 @@ int rbs_check_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint
 
         // Get the pointer to the projection header
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
-                (prj_ctx_p[prj_ctx_idx].bins
-                + ((rozofs_get_max_psize(layout,bsize)+
-                ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
-                * block_idx));
+                (prj_ctx_p[prj_ctx_idx].bins + ((rozofs_max_psize_in_msg/sizeof(bin_t)) * block_idx));
+		
         if (rozofs_bins_hdr_p->s.projection_id < rozofs_forward) {	
 
           rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)
@@ -186,6 +185,7 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, int spare_idx, uint8
     uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
     uint8_t and_the_winner_is = -1;
     uint8_t prjid;    
+    uint16_t rozofs_max_psize_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
 
     *timestamp_p = 0;
     rbs_timestamp_next_free_idx = 0;
@@ -203,10 +203,7 @@ int rbs_count_timestamp_tb(rbs_projection_ctx_t *prj_ctx_p, int spare_idx, uint8
 
         // Get the pointer to the projection header
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
-                (prj_ctx_p[prj_ctx_idx].bins
-                + ((rozofs_get_max_psize(layout,bsize)+
-                ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
-                * block_idx));
+                (prj_ctx_p[prj_ctx_idx].bins + ((rozofs_max_psize_in_msg/sizeof(bin_t)) * block_idx));
 		
         if (rozofs_bins_hdr_p->s.projection_id < rozofs_forward) {	
 
@@ -303,6 +300,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint3
     int prj_ctx_idx = 0;
     int ret = -1;
     int bbytes = ROZOFS_BSIZE_BYTES(bsize);
+    uint16_t rozofs_max_psize_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
 
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
 
@@ -361,10 +359,7 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint3
             prj_ctx_idx = rbs_prj_idx_table[prj_count];
 
             rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p =
-                    (rozofs_stor_bins_hdr_t*) (prj_ctx_p[prj_ctx_idx].bins
-                    + ((rozofs_get_max_psize(layout,bsize)+
-                    ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))
-                    * block_idx));
+                    (rozofs_stor_bins_hdr_t*) (prj_ctx_p[prj_ctx_idx].bins + ((rozofs_max_psize_in_msg/sizeof(bin_t)) * block_idx));
 
             // Extract the projection_id from the header and fill the table
             // of projections for the block block_idx for each projection
@@ -380,11 +375,11 @@ int rbs_transform_inverse(rbs_projection_ctx_t *prj_ctx_p, uint8_t layout, uint3
 
 
         // Inverse data for the block (first_block_idx + block_idx)
-        transform_inverse((pxl_t *) (data + (bbytes *
-                (first_block_idx + block_idx))),
+        transform128_inverse_copy((pxl_t *) (data + (bbytes *(first_block_idx + block_idx))),
                 rozofs_inverse,
                 bbytes / rozofs_inverse / sizeof (pxl_t),
-                rozofs_inverse, projections);
+                rozofs_inverse, projections,
+		rozofs_get_max_psize(layout,bsize)*sizeof(bin_t));
 
         // Indicate that transform has been done for the projection
         block_ctx_p[block_idx].state = BLK_TRANSFORM_DONE;
@@ -401,6 +396,7 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
 
     projection_t *projections = NULL; // Table of projections used
     uint32_t i = 0;
+    uint16_t rozofs_max_psize_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
 
     int bbytes = ROZOFS_BSIZE_BYTES(bsize);
     uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
@@ -409,16 +405,14 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
             projection_id);
     projections[projection_id].angle.q = rozofs_get_angles_q(layout,
             projection_id);
-    projections[projection_id].size = rozofs_get_psizes(layout, bsize, projection_id);
+    projections[projection_id].size = rozofs_get_128bits_psizes(layout, bsize, projection_id);
 
     // For each block to send
     for (i = 0; i < number_of_blocks; i++) {
 
         // Indicates the memory area where the transformed data must be stored
         projections[projection_id].bins = prj_ctx_p[projection_id].bins +
-                ((rozofs_get_max_psize(layout,bsize)+
-                ((sizeof (rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t)) / sizeof (bin_t)))*
-                (first_block_idx + i));
+                ((rozofs_max_psize_in_msg/sizeof(bin_t))*(first_block_idx + i));
 
         rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)
                 projections[projection_id].bins;
@@ -432,9 +426,6 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
         rozofs_bins_hdr_p->s.version = 0;
         rozofs_bins_hdr_p->s.filler = 0;
 
-        rozofs_bins_foot_p->timestamp =
-                block_ctx_p[first_block_idx + i].timestamp;
-
         // Set the effective size for this block
         rozofs_bins_hdr_p->s.effective_length =
                 block_ctx_p[first_block_idx + i].effective_length;
@@ -443,10 +434,17 @@ int rbs_transform_forward_one_proj(rbs_projection_ctx_t * prj_ctx_p,
         projections[projection_id].bins +=
                 (sizeof (rozofs_stor_bins_hdr_t) / sizeof (bin_t));
 
-        transform_forward_one_proj((pxl_t *) (data + (i * bbytes)),
+        transform128_forward_one_proj((pxl_t *) (data + (i * bbytes)),
                 rozofs_inverse,
                 bbytes / rozofs_inverse / sizeof (pxl_t),
                 projection_id, projections);
+
+        // Write footer after transform
+        rozofs_bins_foot_p->timestamp =
+                block_ctx_p[first_block_idx + i].timestamp;
+
+
+
     }
     return 0;
 }

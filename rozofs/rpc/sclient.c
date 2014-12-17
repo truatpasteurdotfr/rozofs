@@ -90,8 +90,7 @@ int sclient_write_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uin
     memcpy(args.fid, fid, sizeof (uuid_t));
     args.bid         = bid;
     args.nb_proj     = nb_proj;
-    args.bins.bins_len = nb_proj * (rozofs_get_max_psize(layout,bsize)
-            * sizeof (bin_t) + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t));
+    args.bins.bins_len = nb_proj * rozofs_get_max_psize_in_msg(layout,bsize);
     args.bins.bins_val = (char *) bins;
 
     if (!(clt->rpcclt.client) ||
@@ -122,7 +121,7 @@ int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint
     int status = -1;
     sp_read_ret_t *ret = 0;
     sp_read_arg_t args;
-
+    uint16_t rozofs_max_psize_in_msg = rozofs_get_max_psize_in_msg(layout,bsize);
     DEBUG_FUNCTION;
     
     *nb_proj_recv = 0;
@@ -157,9 +156,7 @@ int sclient_read_rbs(sclient_t * clt, cid_t cid, sid_t sid, uint8_t layout, uint
       memcpy(bins, ret->sp_read_ret_t_u.rsp.bins.bins_val,
               ret->sp_read_ret_t_u.rsp.bins.bins_len);
 
-      *nb_proj_recv = ret->sp_read_ret_t_u.rsp.bins.bins_len /
-              ((rozofs_get_max_psize(layout,bsize) * sizeof (bin_t))
-              + sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t));
+      *nb_proj_recv = ret->sp_read_ret_t_u.rsp.bins.bins_len / rozofs_max_psize_in_msg;
     }
     status = 0;
 out:

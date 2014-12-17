@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/vfs.h>
+#include <malloc.h>
 
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/log.h>
@@ -197,15 +198,13 @@ int rbs_restore_one_spare_entry(storage_t       * st,
     uint8_t  rozofs_safe       = rozofs_get_rozofs_safe(layout);
     uint8_t  rozofs_forward    = rozofs_get_rozofs_forward(layout);
     uint8_t  rozofs_inverse    = rozofs_get_rozofs_inverse(layout);
-    uint16_t disk_block_size   = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t)) 
-                               + sizeof (rozofs_stor_bins_hdr_t) 
-			       + sizeof(rozofs_stor_bins_footer_t);
-    uint16_t disk_block_bins_size   = disk_block_size/sizeof(bin_t);
+    uint16_t disk_block_size   = rozofs_get_max_psize_on_disk(layout,bsize);
     uint32_t requested_blocks  = ROZOFS_BLOCKS_IN_BUFFER(re->bsize);
     uint32_t nb_blocks_read_distant = requested_blocks;
     uint32_t block_per_chunk = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(re->bsize);
     uint32_t chunk_stop;
     uint32_t chunk;
+    uint16_t rozofs_msg_psize  = rozofs_get_max_psize_in_msg(layout,bsize);
 
     // Clear the working context
     memset(&working_ctx, 0, sizeof (working_ctx));
@@ -292,36 +291,13 @@ int rbs_restore_one_spare_entry(storage_t       * st,
 	      if (count >= rozofs_forward) continue;
 
 
-              // Enough projection read to regenerate data, but not all existing projections   
-
-#if 0
-              // Is this block already written on local disk
-              bins_hdr_local_p = (rozofs_stor_bins_hdr_t *) working_ctx.prj_ctx[spare_idx].bins;
-	      if ((bins_hdr_local_p != NULL)&&(working_ctx.prj_ctx[spare_idx].nbBlocks>block_idx)) {
-		   bins_hdr_local_p = (bins_hdr_local_p*) ((char*)bins_hdr_local_p + (disk_block_size * block_idx));  
-		   if (bins_hdr_local_p->s.timestamp == pBlock->timestamp) {
-		       // Check footer too
-		       projection_id = bins_hdr_local_p->s.projection_id;
-		       if (projection_id < rozofs_forward) {
-			 rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(bins_hdr_local_p+1)+rozofs_get_psizes(layout,bsize,projection_id));	
-
-        		 // Compare timestamp of local and distant block
-        		 if (rozofs_bins_foot_p->timestamp == bins_hdr_local_p->s.timestamp) {
-                	    remove_file = 0;// This file must exist
-                	    continue; // Check next block
-        		 }
-		       }	 
-		   }	 
-	      }
-#endif
-
               // Case of the empty block
               if (pBlock->timestamp == 0) {
 
 		 prj_ctx_idx = rbs_prj_idx_table[0];
 		 
-	         if (pforward == NULL) pforward = xmalloc(disk_block_size);
-                 memset(pforward,0,disk_block_size);
+	         if (pforward == NULL) pforward = memalign(32,rozofs_msg_psize);
+                 memset(pforward,0,rozofs_msg_psize);
 		 
         	 // Store the projection localy	
         	 ret = sclient_write_rbs(re->storages[spare_idx], st->cid, st->sid,
@@ -342,7 +318,7 @@ int rbs_restore_one_spare_entry(storage_t       * st,
 
 	      // Allocate memory for initial data
               if (working_ctx.data_read_p == NULL) {
-		working_ctx.data_read_p = xmalloc(bbytes);
+		working_ctx.data_read_p = memalign(32,bbytes);
 	      }		
 
 
@@ -356,7 +332,7 @@ int rbs_restore_one_spare_entry(storage_t       * st,
 
         	  rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p =
                 	  (rozofs_stor_bins_hdr_t*) (working_ctx.prj_ctx[prj_ctx_idx].bins
-                	  + (disk_block_bins_size * block_idx));
+                	  + (rozofs_msg_psize/sizeof(bin_t) * block_idx));
 
         	  // Extract the projection_id from the header and fill the table
         	  // of projections for the block block_idx for each projection
@@ -373,10 +349,11 @@ int rbs_restore_one_spare_entry(storage_t       * st,
               }
 
               // Inverse data for the block (first_block_idx + block_idx)
-              transform_inverse((pxl_t *) working_ctx.data_read_p,
+              transform128_inverse_copy((pxl_t *) working_ctx.data_read_p,
                 		rozofs_inverse,
                 		bbytes / rozofs_inverse / sizeof (pxl_t),
-                		rozofs_inverse, rbs_projections);
+                		rozofs_inverse, rbs_projections,
+				rozofs_get_max_psize(layout,bsize)*sizeof(bin_t));
 
 	      // Find out which projection id to regenerate
               for (projection_id = 0; projection_id < rozofs_safe; projection_id++) {
@@ -384,18 +361,20 @@ int rbs_restore_one_spare_entry(storage_t       * st,
 	      }
 
 	      // Allocate memory for regenerated projection
-	      if (pforward == NULL) pforward = xmalloc(disk_block_size);
+	      if (pforward == NULL) {
+	        pforward = memalign(32,rozofs_msg_psize);
+	      }	
 	      rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *) pforward;
 	      rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*)((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,projection_id));	
 
 	      // Describe projection to rebuild 
               rbs_projections[projection_id].angle.p = rozofs_get_angles_p(layout,projection_id);
               rbs_projections[projection_id].angle.q = rozofs_get_angles_q(layout,projection_id);
-              rbs_projections[projection_id].size    = rozofs_get_psizes(layout,bsize,projection_id);
+              rbs_projections[projection_id].size    = rozofs_get_128bits_psizes(layout,bsize,projection_id);
               rbs_projections[projection_id].bins    = (bin_t*) (rozofs_bins_hdr_p + 1);
 
               // Generate projections to rebuild
-              transform_forward_one_proj((const bin_t *)working_ctx.data_read_p, 
+              transform128_forward_one_proj((bin_t *)working_ctx.data_read_p, 
 	                        	 rozofs_inverse, 
 	                        	 bbytes / rozofs_inverse / sizeof (pxl_t),
 					 projection_id, 
@@ -517,7 +496,7 @@ int rbs_restore_one_rb_entry(storage_t       * st,
     uint32_t bsize                  = re->bsize;
     uint16_t rozofs_disk_psize      = rozofs_get_psizes(layout,bsize,proj_id_to_rebuild);
     uint8_t  rozofs_safe            = rozofs_get_rozofs_safe(layout);
-    uint16_t rozofs_max_psize       = rozofs_get_max_psize(layout,bsize);
+    uint16_t rozofs_max_psize       = rozofs_get_max_psize_in_msg(layout,bsize);
     uint32_t requested_blocks       = ROZOFS_BLOCKS_IN_BUFFER(re->bsize);
     uint32_t nb_blocks_read_distant = requested_blocks;
     bin_t * saved_bins = NULL;
@@ -566,16 +545,10 @@ int rbs_restore_one_rb_entry(storage_t       * st,
 	
 	if (working_ctx.prj_ctx[proj_id_to_rebuild].bins == NULL) {
           // Allocate memory to store projection
-          working_ctx.prj_ctx[proj_id_to_rebuild].bins =
-                  xmalloc((rozofs_max_psize * sizeof (bin_t) 
-		  + sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) * 
-		  nb_blocks_read_distant);
+          working_ctx.prj_ctx[proj_id_to_rebuild].bins = memalign(32,rozofs_max_psize * requested_blocks);
         }		  
 
-        memset(working_ctx.prj_ctx[proj_id_to_rebuild].bins, 0,
-                (rozofs_max_psize * sizeof (bin_t) +
-                sizeof (rozofs_stor_bins_hdr_t) + sizeof(rozofs_stor_bins_footer_t)) *
-                nb_blocks_read_distant);
+        memset(working_ctx.prj_ctx[proj_id_to_rebuild].bins, 0,rozofs_max_psize * requested_blocks);
 
         // Generate projections to rebuild
         ret = rbs_transform_forward_one_proj(working_ctx.prj_ctx,
@@ -592,6 +565,7 @@ int rbs_restore_one_rb_entry(storage_t       * st,
 	/*
 	** Compare to read bins
 	*/
+#if 0		
 	if ((saved_bins) 
 	&&  (memcmp(working_ctx.prj_ctx[proj_id_to_rebuild].bins,
 	             saved_bins,
@@ -601,6 +575,7 @@ int rbs_restore_one_rb_entry(storage_t       * st,
 	    *block_start += nb_blocks_read_distant;
 	    continue;
 	}
+#endif
 	
         // Store the projection localy	
         ret = sclient_write_rbs(re->storages[local_idx], st->cid, st->sid,
