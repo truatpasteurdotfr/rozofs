@@ -89,7 +89,7 @@ int export_fstat_thread_period_count;
 export_fstat_ctx_t *export_fstat_table[EXPGW_EID_MAX_IDX+1] = {0};
 int export_fstat_init_done = 0;
 uint64_t export_fstat_poll_stats[2];
-
+int export_fstat_init();
 static pthread_t export_fstat_ctx_thread;
 
 #define SHOW_STATS(probe) if (export_fstat_stats.probe) pChar += sprintf(pChar,"   %-24s:%llu\n",\
@@ -444,7 +444,6 @@ void *export_fstat_alloc_context(uint16_t eid, char *root_path,uint64_t hquota,u
 {
    export_fstat_ctx_t *tab_p = NULL; 
    int ret; 
-   int i;
    int fd;
    
    /*
@@ -596,7 +595,6 @@ static void *export_fstat_thread(void *v) {
     export_fstat_poll_stats[0] = 0;
     export_fstat_poll_stats[1] = 0;
     info("quota periodic thread started ");
-    int nb_eid = -1;
 
     for (;;) {
 	if (export_fstat_init_done == 0)  nanosleep(&ts, NULL);
@@ -631,7 +629,6 @@ static void *export_fstat_thread(void *v) {
 */
 int export_fstat_init()
 {
-    int ret;
 
     if (export_fstat_init_done == 1) return 0;
     memset(&export_fstat_stats,0,sizeof(export_fstat_stats));

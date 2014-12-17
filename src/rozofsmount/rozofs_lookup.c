@@ -70,6 +70,7 @@ int rozofs_parse_object_name(char *name,mattr_obj_t *attr_p)
 {
   int ret;
   int layout;
+  int eid;
   int cid;
   int sid;
   int i;
@@ -88,7 +89,8 @@ int rozofs_parse_object_name(char *name,mattr_obj_t *attr_p)
     ** get the eid
     */
     errno = 0;
-    strtoul(name,&pnext,10);
+    eid = strtoul(name,&pnext,10);
+    if (eid == ULONG_MAX) break;
     if (errno != 0) break;
     if (*pnext !='-') 
     {

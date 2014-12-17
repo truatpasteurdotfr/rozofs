@@ -940,7 +940,6 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
 
   storcli_write_arg_no_data_t *storcli_write_rq_p = (storcli_write_arg_no_data_t*)&working_ctx_p->storcli_write_arg;
   uint8_t layout = storcli_write_rq_p->layout;
-  uint8_t bsize = storcli_write_rq_p->bsize;
   uint8_t   rozofs_forward;
   uint8_t   rozofs_safe;
   uint8_t   projection_id;

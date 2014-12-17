@@ -870,7 +870,7 @@ error:
  */
 void rozofs_ll_unlink_cbk(void *this,void *param)
 {
-   fuse_req_t req; 
+//   fuse_req_t req; 
    epgw_fid_ret_t ret ;
    int status;
    ientry_t *pie = 0;
@@ -891,7 +891,7 @@ void rozofs_ll_unlink_cbk(void *this,void *param)
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-   RESTORE_FUSE_PARAM(param,req);
+   //RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,parent);
    RESTORE_FUSE_PARAM(param,trc_idx);
     /*

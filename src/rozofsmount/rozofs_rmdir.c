@@ -127,7 +127,7 @@ error:
 
 void rozofs_ll_rmdir_cbk(void *this,void *param) 
 {
-   fuse_req_t req; 
+//   fuse_req_t req; 
    epgw_fid_ret_t ret ;
    fid_t fid;
    ientry_t *ie2 = 0;
@@ -150,7 +150,7 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
    int      bufsize;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-   RESTORE_FUSE_PARAM(param,req);
+//   RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_PARAM(param,parent);
     /*

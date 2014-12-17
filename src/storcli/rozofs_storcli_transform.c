@@ -268,7 +268,6 @@ int transform_libinit()
           projections[projection_id].bins = prj_ctx_p[projection_id].bins 
 	                                  + (prj_size_in_msg/sizeof(bin_t)) * (first_block_idx+i);
           rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[projection_id].bins;
-          rozofs_stor_bins_footer_t *rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,projection_id));
           /*
           ** check if the user data block is empty: if the data block is empty no need to transform
           */

@@ -71,7 +71,7 @@ void rozofs_layout_initialize() {
     uint32_t bsize;
     float sum;
     float sum_128;
-    int **local_tb;
+    int **local_tb = layout0_128bits_tb;
     int *cur_prj_sz_tb = NULL;
 
     p = rozofs_conf_layout_table;
@@ -97,6 +97,7 @@ void rozofs_layout_initialize() {
                 local_tb = layout2_128bits_tb;
                 break;
             default:
+	        fatal("Unexpected layout %d",layout);
                 break;
         }
 

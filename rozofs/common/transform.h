@@ -213,7 +213,22 @@ static inline void transform_inverse_inline(pxl_t * support, int rows, int cols,
 */
 void transform128_inverse (pxl_t * support, int rows, int cols, int np,
         projection_t * projections);
-	
+/*
+**____________________________________________________________________________
+*/
+/**
+* Perform a Mojette transform inverse in 128 bits mode to decode a buffer
+
+  @param support: pointer to the decoded buffer
+  @param rows: number of rows
+  @param cols: number of colunms in the buffer
+  @param np: number of projections involved in the inverse procedure
+  @param projections: pointer to the projections contexts
+  @param max_prj_sz_intf: max projections size in bytes (without header&footer)
+  
+*/
+void transform128_inverse_copy (pxl_t * support, int rows, int cols, int np,
+        projection_t * projections,int max_prj_sz_intf);	
 /*
 **____________________________________________________________________________
 */

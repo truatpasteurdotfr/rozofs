@@ -932,7 +932,7 @@ static inline void storio_disk_remove_chunk(rozofs_disk_thread_ctx_t *thread_ctx
   // remove chunk file
   result = storage_rm_chunk(st, fidCtx->device, 
                             args->layout, args->bsize, args->spare,
-			    args->dist_set, (unsigned char*)args->fid,
+			    (sid_t *)args->dist_set, (unsigned char*)args->fid,
 			    args->chunk, &is_fid_faulty);
   if (result != 0) {
     if (is_fid_faulty) {

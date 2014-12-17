@@ -303,7 +303,7 @@ void show_trash(char * argv[], uint32_t tcpRef, void *bufRef) {
     if (strcmp(argv[1],"limit")==0) {
 
       if (argv[2] == NULL) {
-        export_limit_rm_files = limit;
+        export_limit_rm_files = RM_FILES_MAX;
 	sprintf(pChar," revert to default (%d) \n",RM_FILES_MAX);
 	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
 	return;	 

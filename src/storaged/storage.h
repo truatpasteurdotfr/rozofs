@@ -272,6 +272,9 @@ typedef struct _rozofs_rebuild_entry_file_t {
 #define MYDBGTRACE_DEV(device,fmt,...)
 #endif 
 
+int storage_write_device_status(char * root, storage_device_info_t * info, int nbElement);
+int storage_read_device_status(char * root, storage_device_info_t * info);
+
 /**
  *  Get the next storage 
  *
