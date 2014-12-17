@@ -786,14 +786,14 @@ def rebuild_one_dev() :
     
     dev=hid%int(mapper_modulo)
     os.system("./setup.sh storage %d device-delete %d %d 1> /dev/null"%(hid,cid,dev))
-    ret = os.system("./setup.sh storage %d device-rebuild %d %d -g %s 1> /dev/null"%(hid,cid,dev,site))
+    ret = os.system("./setup.sh storage %d device-rebuild %d %d -g %s -o one_cid%d_sid%d_dev%d 1> /dev/null"%(hid,cid,dev,site,cid,sid,dev))
     if ret != 0:
       return ret
       
     if int(mapper_modulo) > 1:
       dev=(dev+2)%int(mapper_modulo)
       os.system("./setup.sh storage %d device-delete %d %d 1> /dev/null"%(hid,cid,dev))
-      ret = os.system("./setup.sh storage %d device-rebuild %d %d -g %s 1> /dev/null"%(hid,cid,dev,site))
+      ret = os.system("./setup.sh storage %d device-rebuild %d %d -g %s -o one_cid%d_sid%d_dev%d 1> /dev/null"%(hid,cid,dev,site,cid,sid,dev))
       if ret != 0:
 	return ret
             
@@ -830,7 +830,7 @@ def relocate_one_dev() :
     # No self healing configured. Ask for a rebuild with relocation	      
     if selfHealing == "No":
     	      
-      ret = os.system("./setup.sh storage %d device-relocate %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+      ret = os.system("./setup.sh storage %d device-relocate %d 0 -g %s -o reloc_cid%s_sid%s_dev0 1> /dev/null"%(hid,cid,site,cid,sid))
       if ret != 0:
 	return ret
 	
@@ -878,7 +878,7 @@ def relocate_one_dev() :
       
     if selfHealing != "No":
       ret = os.system("./setup.sh storage %d device-create %d 0 -g %s 1> /dev/null"%(hid,cid,site))
-      ret = os.system("./setup.sh storage %d device-clear  %d 0 -g %s 1> /dev/null"%(hid,cid,site))
+      ret = os.system("./setup.sh storage %d device-clear  %d 0 -g %s -o clear_cid%s_sid%s_dev0 1> /dev/null"%(hid,cid,site,cid,sid))
       
       
   ret = gruyere_reread()          
@@ -896,8 +896,8 @@ def rebuild_all_dev() :
     cid=list_cid[idx]
     sid=list_sid[idx]
 
-    os.system("./setup.sh storage %d device-delete %d all  1> /dev/null"%(hid,cid))
-    ret = os.system("./setup.sh storage %d device-rebuild %d all -g %s 1> /dev/null"%(hid,cid,site))
+    os.system("./setup.sh storage %d device-delete %d all 1> /dev/null"%(hid,cid))
+    ret = os.system("./setup.sh storage %d device-rebuild %d all -g %s -o all_cid%s_sid%s 1> /dev/null"%(hid,cid,site,cid,sid))
     if ret != 0:
       return ret
 
@@ -919,7 +919,7 @@ def rebuild_one_node() :
   for hid in hunic:
 
     os.system("./setup.sh storage %d delete  1> /dev/null"%(hid))
-    ret = os.system("./setup.sh storage %d rebuild -g %s 1> /dev/null"%(hid,site))
+    ret = os.system("./setup.sh storage %d rebuild -g %s -o node_%s 1> /dev/null"%(hid,site,hid))
     if ret != 0:
       return ret
 
@@ -1002,7 +1002,7 @@ def rebuild_fid() :
         print "No such cid/sid %d/%d\n"%(cid,sid)
 	continue;
 	
-      string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s 1> /dev/null"%(hid,site,cid,sid,fid)
+      string="./setup.sh storage %s fid-rebuild -g %s -s %s/%s -f %s -o fid%s_cid%s_sid%s 1> /dev/null"%(hid,site,cid,sid,fid,fid,cid,sid)
       parsed = shlex.split(string)
       cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
       cmd.wait()

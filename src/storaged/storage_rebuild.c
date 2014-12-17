@@ -151,7 +151,7 @@ typedef struct rbs_monitor_file_list_s {
   uint64_t      mtime;
 } RBS_MONITOR_FILE_LIST_S;
 
-#define RBS_MONITOR_MAX_FILES   32
+#define RBS_MONITOR_MAX_FILES   128
 static RBS_MONITOR_FILE_LIST_S rbs_monitor_file_list[RBS_MONITOR_MAX_FILES];
 /*
 **____________________________________________________
@@ -232,13 +232,39 @@ void rbs_monitor_purge(void) {
 time_t loc_time;
 char   initial_date[80];
 
+void static inline rbs_status_file_name(char * given_name) {
+  struct tm date;
+
+  char * pChar = rbs_monitor_file_path;
+  if (*pChar != 0) return;
+    
+  pChar += sprintf(pChar, "%s/storage_rebuild/", DAEMON_PID_DIRECTORY);
+  if (access(rbs_monitor_file_path,W_OK) == -1) {
+    mkdir(rbs_monitor_file_path,S_IRWXU | S_IROTH);
+  }	
+
+  loc_time=time(NULL);
+  localtime_r(&loc_time,&date); 
+
+  if (given_name != NULL) {
+    pChar += sprintf(pChar, "%s", given_name);  
+  }
+  else {
+    pChar += sprintf(pChar, "%4.4d:%2.2d:%2.2d_%2.2d:%2.2d:%2.2d_%d", 
+                   date.tm_year+1900,date.tm_mon+1,date.tm_mday,
+		   date.tm_hour, date.tm_min, date.tm_sec,
+		   getpid());
+  }		   
+  ctime_r(&loc_time,initial_date);  
+  info("%s",rbs_monitor_file_path);
+}
+
 int rbs_monitor_update(char * rebuild_status, int cid, int sid) {
     int status = -1;
     int fd = -1;
     char str1[32];
     char str2[32];
     char * pChar;
-    struct tm date;
     int i;
     uint32_t nb_files=0;
     uint32_t done_files=0;
@@ -247,24 +273,7 @@ int rbs_monitor_update(char * rebuild_status, int cid, int sid) {
     uint64_t read_spare=0;
     uint64_t read=0;
       
-    if (rbs_monitor_file_path[0] == 0) {
-    
-      pChar = rbs_monitor_file_path;
-      pChar += sprintf(pChar, "%s/storage_rebuild/", DAEMON_PID_DIRECTORY);
-
-      if (access(rbs_monitor_file_path,W_OK) == -1) {
-        mkdir(rbs_monitor_file_path,S_IRWXU | S_IROTH);
-      }	
-
-      loc_time=time(NULL);
-      localtime_r(&loc_time,&date); 
-      
-      pChar += sprintf(pChar, "%4.4d:%2.2d:%2.2d_%2.2d:%2.2d:%2.2d_%d", 
-                       date.tm_year+1900,date.tm_mon+1,date.tm_mday,
-		       date.tm_hour, date.tm_min, date.tm_sec,
-		       getpid());
-      ctime_r(&loc_time,initial_date);      
-    } 
+    rbs_status_file_name(NULL);
     
     if ((fd = open(rbs_monitor_file_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IROTH)) < 0) {
         severe("can't open %s", rbs_monitor_file_path);
@@ -1762,6 +1771,7 @@ void usage() {
     printf("   -l, --loop                \tNumber of reloop in case of error (default infinite)\n");
     printf("   -q, --quiet               \tDo not display messages\n");
     printf("   -C, --clear               \tClear errors on OOS devices before rebuilding\n");
+    printf("   -o, --output              \tTo give the name of the rebuild status file (under %s/storage_rebuild)\n",DAEMON_PID_DIRECTORY);
     printf("\ne.g\n");
     printf("Rebuilding a whole storage node as fast as possible:\n");
     printf("storage_rebuild -r 192.168.0.201/192.168.0.202 -p %d\n\n",MAXIMUM_PARALLEL_REBUILD_PER_SID);
@@ -1794,6 +1804,7 @@ int main(int argc, char *argv[]) {
         { "geosite", required_argument, 0, 'g'},
         { "relocate", no_argument, 0, 'R'},
         { "loop", required_argument, 0, 'l'},
+        { "output", required_argument, 0, 'o'},
 	{ "quiet", no_argument, 0, 'q'},
 	{ "clear", no_argument, 0, 'C'},
         { 0, 0, 0, 0}
@@ -1818,7 +1829,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hc:r:d:H:s:f:p:g:l:qRC", long_options, &option_index);
+        c = getopt_long(argc, argv, "hc:r:d:H:s:f:p:g:l:o:qRC", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -1866,6 +1877,10 @@ int main(int argc, char *argv[]) {
 		  rbs_device_number = -2; // To tell one FID to rebuild 
                 }
                 break;
+            case 'o':
+		rbs_status_file_name(optarg);	  
+                break;		
+		
             case 'l':
 	        {
 		  int ret;

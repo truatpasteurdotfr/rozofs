@@ -418,9 +418,12 @@ void * storio_device_relocate_thread(void *arg) {
   if (pid == 0) {
     char * pChar = cmd;
  
-    pChar += sprintf(pChar,"storage_rebuild --quiet -c %s -R -l 4 -r %s --sid %d/%d --device %d",
+    pChar += sprintf(pChar,"storage_rebuild --quiet -c %s -R -l 4 -r %s --sid %d/%d --device %d -o selfhealing_cid%d_sid%d_dev%d",
                      storaged_config_file,
 		     pRelocate->st->export_hosts,
+		     pRelocate->st->cid,
+		     pRelocate->st->sid,
+		     pRelocate->dev,
 		     pRelocate->st->cid,
 		     pRelocate->st->sid,
 		     pRelocate->dev);

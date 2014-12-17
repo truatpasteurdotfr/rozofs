@@ -467,10 +467,10 @@ gen_geomgr_conf ()
 }
 rebuild_storage_fid() 
 {
-    hid=$2
+    hid=$1
     # Resolve STORAGE_CONF as well as gid, hid, cid, sid   
     resolve_host_storage $hid
-    shift 3
+    shift 1
 
     for localcid in $(seq $NB_CLUSTERS_BY_VOLUME)
     do
@@ -505,6 +505,9 @@ rebuild_storage_device()
     "all") dev="";;
     *)     dev="-d $3";;
   esac  
+  d=$3
+    
+  shift 3
     
   resolve_cid_hid $cid $hid
 
@@ -514,9 +517,9 @@ rebuild_storage_device()
     return        	  
   fi
 
-  create_storage_dev $storage_path $3
+  create_storage_dev $storage_path $d
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $4 $5 --sid $cid/$sid $dev"
+  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid $dev $*"
   echo $cmd
   $cmd  
   exit $?
@@ -539,6 +542,7 @@ clear_storage_device()
     "all") dev="";;
     *)     dev="-d $3";;
   esac  
+  shift 3  
     
   resolve_cid_hid $cid $hid
 
@@ -548,7 +552,7 @@ clear_storage_device()
     return        	  
   fi
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST}  --clear --sid $cid/$sid $dev"
+  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST}  --clear --sid $cid/$sid $dev $*"
   echo $cmd
   $cmd  
   exit $?
@@ -568,6 +572,8 @@ relocate_storage_device()
     "all") usage;;
     *)     dev=$3;;
   esac  
+  
+  shift 3
 
   resolve_cid_hid $cid $hid
 
@@ -581,7 +587,7 @@ relocate_storage_device()
   delete_storage_device $hid $cid $dev
   sleep 5
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $4 $5 --sid $cid/$sid -d $dev -R"
+  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid -d $dev -R $*"
   echo $cmd
   $cmd
   exit $?  
@@ -592,6 +598,7 @@ relocate_storage_device()
 rebuild_storage() 
 {
   resolve_host_storage $1
+  shift 1
     
   for cid in $(seq ${NB_CLUSTERS_BY_VOLUME})
   do
@@ -600,7 +607,7 @@ rebuild_storage()
       create_storage_dev $storage_path	  
   done
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $2 $3"
+  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $*"
   echo $cmd
   $cmd
   exit $?
@@ -1669,27 +1676,32 @@ main ()
         *)          usage;;
       esac      
     elif [ "$1" == "storage" ]
-    then  	
-      case "$3" in 
+    then 
+    
+      stid=$2
+      action=$3
+      shift 3
+
+      case "$action" in 
         # storage hid stop
-        stop)            stop_one_storage $2;;
+        stop)            stop_one_storage ${stid};;
 	# storage hid start
-	start)           start_one_storage $2;;
+	start)           start_one_storage ${stid};;
 	# storage hid device-relocate cid device -g site
-	device-relocate) relocate_storage_device $2 $4 $5 $6 $7;;	
+	device-relocate) relocate_storage_device ${stid} $*;;	
 	# storage hid device-rebuild cid device -g site
-	device-rebuild)  rebuild_storage_device $2 $4 $5 $6 $7;;
+	device-rebuild)  rebuild_storage_device ${stid} $*;;
 	# storage hid device-rebuild cid device -g site
-	device-clear)    clear_storage_device $2 $4 $5 $6 $7;;	
+	device-clear)    clear_storage_device ${stid} $*;;	
 	# storage hid device-delete cid device
-	device-delete)   delete_storage_device $2 $4 $5;; 
-	device-create)   create_storage_device $2 $4 $5;; 
+	device-delete)   delete_storage_device ${stid} $*;; 
+	device-create)   create_storage_device ${stid} $*;; 
 	# storage hid delete
-	delete)          delete_storage $2;;	
+	delete)          delete_storage ${stid};;	
 	# storage hid rebuild -g site
-	rebuild)         rebuild_storage $2 $4 $5;;
-        fid-rebuild)     rebuild_storage_fid $*;;
-	reset)           reset_one_storage $2;;
+	rebuild)         rebuild_storage ${stid} $*;;
+        fid-rebuild)     rebuild_storage_fid ${stid} $*;;
+	reset)           reset_one_storage ${stid};;
         *)               usage;;
       esac
     elif [ "$1" == "storio" ]
