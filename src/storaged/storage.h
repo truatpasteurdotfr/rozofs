@@ -1012,9 +1012,7 @@ void static inline storage_dev_map_distribution_remove(storage_t * st, fid_t fid
        if (access(path, F_OK) == -1) continue;
 
        // The file exist, let's remove it
-       if (unlink(path) < 0) {
-	   severe("unlink %s - %s", path, strerror(errno));
-       }
+       unlink(path);
    }
 }
 /*

@@ -487,8 +487,17 @@ char *storage_dev_map_distribution_write(storage_t * st,
     /*
     ** Failure on every write operation
     */ 
-    if (result == 0) return NULL;
-           
+    if (result == 0) {
+      /*
+      ** Header file was not existing, so let's remove it from every
+      ** device. The inode may have been created although the file
+      ** data can not be written
+      */
+      if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) {
+        storage_dev_map_distribution_remove(st, fid, spare);
+      }
+      return NULL;
+    }       
     
 success: 
     storage_slice = rozofs_storage_fid_slice(fid);
@@ -957,7 +966,6 @@ open:
     if (storage_dev_map_distribution_write(st, device, chunk, bsize, 
                                           fid, layout, dist_set, 
 					  spare, path, 0) == NULL) {
-      severe("storage_write storage_dev_map_distribution");
       goto out;      
     }  
     
@@ -1131,7 +1139,6 @@ open:
     if (storage_dev_map_distribution_write(st, device, chunk, bsize, 
                                           fid, layout, dist_set, 
 					  spare, path, 0) == NULL) {
-      severe("storage_write storage_dev_map_distribution");
       goto out;      
     }  
     
@@ -1535,9 +1542,6 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
     if (storage_dev_map_distribution_write(st, file_hdr.device, chunk, bsize, 
                                           fid, layout, dist_set, 
 					  spare, path, 0) == NULL) {
-      char fid_str[37];
-      uuid_unparse(fid, fid_str);    
-      severe("storage_truncate storage_dev_map_distribution spare:%d FID:%s",spare,fid_str);
       goto out;      
     }   
 
