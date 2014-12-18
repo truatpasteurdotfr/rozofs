@@ -185,10 +185,9 @@ int read_data_file() {
        }
        
        if (idx >= forward)
-          disk_block_size = (rozofs_get_max_psize(layout,bsize)*sizeof (bin_t));
+          disk_block_size = rozofs_get_max_psize_in_msg(layout, bsize);
        else
-          disk_block_size = (rozofs_get_psizes(layout,bsize,idx)*sizeof (bin_t));          
-       disk_block_size += sizeof (rozofs_stor_bins_hdr_t) + sizeof (rozofs_stor_bins_footer_t);
+          disk_block_size = rozofs_get_psizes_on_disk(layout,bsize,idx);          
        
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_idx*disk_block_size);
        
