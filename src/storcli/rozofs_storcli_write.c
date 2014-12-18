@@ -1484,6 +1484,12 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
       if ( rozofs_status.status != SP_SUCCESS )
       {
          errno = rozofs_status.sp_status_ret_t_u.error;
+	 if (errno == ENOSPC) {
+           STORCLI_ERR_PROF(write_prj_nospace);       
+	 }
+	 else {
+           STORCLI_ERR_PROF(write_prj_sid_err);
+	 }  
          error = 1;
         break;    
       }

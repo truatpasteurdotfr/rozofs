@@ -1019,6 +1019,7 @@ open:
       */
       storio_gen_crc32((char*)bins,nb_proj,rozofs_disk_psize);
 
+      errno = 0;
       nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
     }
 
@@ -1048,14 +1049,25 @@ open:
       */
       storio_gen_crc32_vect(vector,nb_proj,rozofs_disk_psize);
       
+      errno = 0;      
       nb_write = pwritev(fd, vector, nb_proj, bins_file_offset);      
     } 
 
     if (nb_write != length_to_write) {
+        
+	/*
+	** Only few bytes written since no space left on device 
+	*/
+        if ((errno==0)||(errno==ENOSPC)) {
+	  errno = ENOSPC;
+	  goto out;
+        }
+	
 	storage_error_on_device(st,device[chunk]);
 	// A fault probably localized to this FID is detected   
 	*is_fid_faulty = 1;  
-        severe("pwrite size %llu offset %llu failed: %s", 
+        severe("pwrite(%s) size %llu expecting %llu offset %llu : %s",
+	        path, (unsigned long long)nb_write,
 	        (unsigned long long)length_to_write, 
 		(unsigned long long)bins_file_offset, 
 		strerror(errno));

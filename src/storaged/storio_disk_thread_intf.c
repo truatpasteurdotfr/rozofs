@@ -162,6 +162,7 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     display_line_val("   number", write_count);
     display_line_val("!! Unknown cid/sid",write_badCidSid);  
     display_line_val("!! error",write_error);  
+    display_line_val("!! no space left",write_nospace);  
     display_line_val("   Bytes",write_Byte_count);      
     display_line_val("   Cumulative Time (us)",write_time);
     display_line_div("   Average Bytes",write_Byte_count,write_count); 

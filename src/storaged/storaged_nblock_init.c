@@ -251,7 +251,7 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
     int                   device;
     
     pChar += sprintf(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
-    pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  | /100|\n");
+    pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  |  %c |\n",'%');
            
     while((st = storaged_next(st)) != NULL) {
       uint64_t sumfree=0;

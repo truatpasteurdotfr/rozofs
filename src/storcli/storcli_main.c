@@ -175,25 +175,35 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
    gprofiler.probe[P_BYTES] = 0; \
 }
 
-#define SHOW_PROFILER_PROBE_COUNT(probe) pChar += sprintf(pChar," %-18s | %15"PRIu64"  | %9s  | %18s  | %15s |\n",\
-					#probe,gprofiler.probe[P_COUNT]," "," "," ");
+#define SHOW_PROFILER_PROBE_COUNT(probe) {\
+  if (gprofiler.probe[P_COUNT]) {\
+    pChar += sprintf(pChar," %-18s | %15"PRIu64"  | %9s  | %18s  | %15s |\n",\
+                     #probe,gprofiler.probe[P_COUNT]," "," "," ");\
+  }\
+}
 
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) pChar += sprintf(pChar," %-18s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
-					#probe,\
-					gprofiler.probe[P_COUNT],\
-					gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
-					gprofiler.probe[P_ELAPSE],\
-                    gprofiler.probe[P_BYTES]);
+#define SHOW_PROFILER_PROBE_BYTE(probe) {\
+  if (gprofiler.probe[P_COUNT]) {\
+    pChar += sprintf(pChar," %-18s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
+		     #probe,\
+		     gprofiler.probe[P_COUNT],\
+		     gprofiler.probe[P_COUNT]?gprofiler.probe[P_ELAPSE]/gprofiler.probe[P_COUNT]:0,\
+		     gprofiler.probe[P_ELAPSE],\
+                     gprofiler.probe[P_BYTES]);\
+  }\
+}
 
-
-#define SHOW_PROFILER_KPI_BYTE(probe,kpi_buf) pChar += sprintf(pChar," %-18s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
-					#probe,\
-					kpi_buf.count,\
-					kpi_buf.count?kpi_buf.elapsed_time/kpi_buf.count:0,\
-					kpi_buf.elapsed_time,\
-                    kpi_buf.bytes_count);
-                    
+#define SHOW_PROFILER_KPI_BYTE(probe,kpi_buf) {\
+  if (kpi_buf.count) {\
+    pChar += sprintf(pChar," %-18s | %15"PRIu64"  | %9"PRIu64"  | %18"PRIu64"  | %15"PRIu64" |\n",\
+		     #probe,\
+		     kpi_buf.count,\
+		     kpi_buf.count?kpi_buf.elapsed_time/kpi_buf.count:0,\
+		     kpi_buf.elapsed_time,\
+                     kpi_buf.bytes_count);\
+  }\
+}                    
 
 #define RESET_PROFILER_KPI_BYTE(probe,kpi_buf) \
 { \
@@ -230,6 +240,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE_BYTE(write_prj);
 	RESET_PROFILER_PROBE(write_prj_tmo);
 	RESET_PROFILER_PROBE(write_prj_err);    
+	RESET_PROFILER_PROBE(write_prj_nospace);    
+	RESET_PROFILER_PROBE(write_prj_sid_err);    
 	RESET_PROFILER_PROBE(truncate);
 	RESET_PROFILER_PROBE(truncate_sid_miss);		
 	RESET_PROFILER_PROBE_BYTE(truncate_prj);
@@ -282,6 +294,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(write_prj);
     SHOW_PROFILER_PROBE_COUNT(write_prj_tmo);
     SHOW_PROFILER_PROBE_COUNT(write_prj_err);
+    SHOW_PROFILER_PROBE_COUNT(write_prj_nospace);
+    SHOW_PROFILER_PROBE_COUNT(write_prj_sid_err);
     SHOW_PROFILER_PROBE_BYTE(truncate);
     SHOW_PROFILER_PROBE_COUNT(truncate_sid_miss);
     SHOW_PROFILER_PROBE_BYTE(truncate_prj);

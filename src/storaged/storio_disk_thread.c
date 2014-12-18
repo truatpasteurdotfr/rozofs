@@ -595,7 +595,10 @@ static inline void storio_disk_write(rozofs_disk_thread_ctx_t *thread_ctx_p,stor
           &ret.sp_write_ret_t_u.file_size,(bin_t *) pbuf, &is_fid_faulty);
   if (size <= 0)  {
     ret.sp_write_ret_t_u.error = errno;
-    thread_ctx_p->stat.write_error++; 
+    if (errno == ENOSPC)
+      thread_ctx_p->stat.write_nospace++;
+    else   
+      thread_ctx_p->stat.write_error++; 
     if (is_fid_faulty) {
       storio_register_faulty_fid(thread_ctx_p->thread_idx,
 				 args->cid,

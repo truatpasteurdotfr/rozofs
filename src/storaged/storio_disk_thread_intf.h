@@ -45,7 +45,8 @@ typedef struct _rozofs_disk_thread_stat_t {
   uint64_t            write_count;
   uint64_t            write_Byte_count;
   uint64_t            write_error;
-  uint64_t            write_badCidSid;  
+  uint64_t            write_badCidSid; 
+  uint64_t            write_nospace; 
   uint64_t            write_time;
 
   uint64_t            truncate_count;
