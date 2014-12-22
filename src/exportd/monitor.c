@@ -112,6 +112,7 @@ int monitor_volume(volume_t *volume) {
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].cid = cluster->cid;
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].sid = storage->sid;
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].status = storage->status;
+	    strcpy(gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].host,storage->host);
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].size = storage->stat.size;
             gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].free = storage->stat.free;
             nb_storages++;
@@ -139,6 +140,7 @@ int monitor_volume(volume_t *volume) {
               gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].cid = cluster->cid;
               gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].sid = storage->sid;
               gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].status = storage->status;
+	      strcpy(gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].host,storage->host);	      
               gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].size = storage->stat.size;
               gprofiler.vstats[gprofiler.nb_volumes].sstats[nb_storages].free = storage->stat.free;
               nb_storages++;

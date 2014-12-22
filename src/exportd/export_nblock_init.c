@@ -479,7 +479,46 @@ void show_vfstat_stor(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
+/*
+*_______________________________________________________________________
+*/
+/**
+*   Storage statistics
 
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_vstor(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pbuf = uma_dbg_get_buffer();
+    int i,j;
+
+    for (i = 0; i < gprofiler.nb_volumes; i++) {
+ 
+        pbuf+=sprintf(pbuf, "\n%4s| %-3s | %-3s | %-3s | %s\n","Site","Vid", "Cid", "Sid", "host");
+        pbuf+=sprintf(pbuf, "----+-----+-----+-----+----------------------\n");
+        for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, " %2d | %3d | %3d | %3d | %s\n", 0,
+                   gprofiler.vstats[i].vid,gprofiler.vstats[i].sstats[j].cid,
+                   gprofiler.vstats[i].sstats[j].sid,
+                   gprofiler.vstats[i].sstats[j].host);
+        }
+	if (gprofiler.vstats[i].georep) {
+        pbuf+=sprintf(pbuf, "----+-----+-----+-----+----------------------\n");
+	  int k = gprofiler.vstats[i].nb_storages;
+          for (j = 0; j < gprofiler.vstats[i].nb_storages; j++) {
+            pbuf+=sprintf(pbuf, " %2d | %3d | %3d | %3d | %s\n", 1,
+                   gprofiler.vstats[i].vid,gprofiler.vstats[i].sstats[j+k].cid,
+                   gprofiler.vstats[i].sstats[j+k].sid,
+		   gprofiler.vstats[i].sstats[j+k].host);
+          }
+	}
+        pbuf+=sprintf(pbuf, "\n");
+    }
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
 /*
 *_______________________________________________________________________
 */
@@ -920,6 +959,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     {
       uma_dbg_addTopic("vfstat", show_vfstat);
       uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
+      uma_dbg_addTopic("vstor",show_vstor);
       uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
       uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
       uma_dbg_addTopic("exp_slave", show_export_slave);

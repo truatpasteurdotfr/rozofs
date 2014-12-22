@@ -43,6 +43,7 @@ typedef struct epp_estat_t epp_estat_t;
 struct epp_sstat_t {
 	uint16_t cid;
 	uint16_t sid;
+	char host[ROZOFS_HOSTNAME_MAX];
 	uint8_t status;
 	uint64_t size;
 	uint64_t free;
