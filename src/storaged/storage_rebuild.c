@@ -288,7 +288,7 @@ int rbs_monitor_update(char * rebuild_status, int cid, int sid) {
       pt += sprintf(pt, "parallel  : %d\n", parallel); 
       header_msg_size = pt - header_msg;
     }
-    dprintf(fd,header_msg);
+    dprintf(fd,"%s",header_msg);
     
     if (cid == 0) {
       dprintf(fd, "status    : %s\n", rebuild_status);    
