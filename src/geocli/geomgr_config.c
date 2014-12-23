@@ -143,9 +143,14 @@ geomgr_config_t * geomgr_config_read(const char *fname) {
     long int valint,status;
 #endif      
     DEBUG_FUNCTION;
-
+      
+    if (access(fname,R_OK) == -1) {
+      return NULL;
+    }
+    
     config_init(&cfg);
     
+          
     if (config_read_file(&cfg, fname) == CONFIG_FALSE) {
       severe("can't read %s line %d: %s.", fname, config_error_line(&cfg), config_error_text(&cfg));
       goto out;
