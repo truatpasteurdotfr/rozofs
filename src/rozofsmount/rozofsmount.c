@@ -1989,7 +1989,7 @@ int main(int argc, char *argv[]) {
     conf.attr_timeout = 10;
     conf.entry_timeout = 10;
     conf.nbstorcli = 0;
-    conf.shaper = 1; // Default traffic shaper value
+    conf.shaper = 0; // Default traffic shaper value
     conf.rotate = 0;
     conf.posix_file_lock = 0; // No posix file lock until explicitly activated  man 2 fcntl)
     conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
