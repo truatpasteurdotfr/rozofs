@@ -1480,55 +1480,61 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
     /*
     ** When no device id is given as input, let's read the header file 
     */      
-    read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
+    if (device[0] == ROZOFS_UNKNOWN_CHUNK) {
+   
+      read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
 
-    /*
-    ** File is unreadable
-    */
-    if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
-      return -1;
-    }
-    
-
-    /*
-    ** This is a file creation
-    */    
-    if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) {
-      MYDBGTRACE("%s","Truncate create");
-      rewrite_file_hdr = 1;
       /*
-      ** Prepare file header
+      ** File is unreadable
+      */
+      if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
+	return -1;
+      }
+
+      /*
+      ** This is a file creation
+      */    
+      if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) {
+	MYDBGTRACE("%s","Truncate create");
+	rewrite_file_hdr = 1;
+	/*
+	** Prepare file header
+	*/
+	memcpy(file_hdr.dist_set_current, dist_set, ROZOFS_SAFE_MAX * sizeof (sid_t));
+	file_hdr.layout = layout;
+	file_hdr.bsize  = bsize;
+	file_hdr.version = 0;
+	memcpy(file_hdr.fid, fid,sizeof(fid_t)); 
+	memset(file_hdr.device,ROZOFS_EMPTY_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+      }
+    }
+    /*
+    ** distribution upon the devices is given as input
+    */
+    else {
+      /*
+      ** Prepare file header from input information
       */
       memcpy(file_hdr.dist_set_current, dist_set, ROZOFS_SAFE_MAX * sizeof (sid_t));
       file_hdr.layout = layout;
       file_hdr.bsize  = bsize;
       file_hdr.version = 0;
       memcpy(file_hdr.fid, fid,sizeof(fid_t)); 
-      for (chunk_idx=0; chunk_idx <= chunk; chunk_idx++) {
-	file_hdr.device[chunk_idx] = ROZOFS_EMPTY_CHUNK;
-      }
-      for (;chunk_idx<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE; chunk_idx++) {
-	file_hdr.device[chunk_idx] = ROZOFS_EOF_CHUNK;      
-      }      
+      memcpy(file_hdr.device, device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE); 
     }
    
     /*
-    ** This is a file modification.
-    ** For the case of the extension set to EMPTY, the chunks that where 
-    ** after the end of the file and that are now before the current chunk.
+    ** Set previous chunks to empty when they where EOF
     */
-    else {
-      MYDBGTRACE("%s","Truncate modification");    
-      for (chunk_idx=0; chunk_idx<chunk; chunk_idx++) {
-	if (file_hdr.device[chunk_idx] == ROZOFS_EOF_CHUNK) {
-          rewrite_file_hdr = 1;
-          file_hdr.device[chunk_idx] = ROZOFS_EMPTY_CHUNK;
-	}
+    for (chunk_idx=0; chunk_idx<chunk; chunk_idx++) {
+      if (file_hdr.device[chunk_idx] == ROZOFS_EOF_CHUNK) {
+        rewrite_file_hdr = 1;
+        file_hdr.device[chunk_idx] = ROZOFS_EMPTY_CHUNK;
       }
     }
-    
+     
     /*
-    ** We must allocate a device for the current truncated chunk
+    ** We may allocate a device for the current truncated chunk
     */ 
     if ((file_hdr.device[chunk] == ROZOFS_EOF_CHUNK)||(file_hdr.device[chunk] == ROZOFS_EMPTY_CHUNK)) {
       rewrite_file_hdr = 1;    
@@ -1598,6 +1604,12 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
       {
 
         length_to_write = rozofs_disk_psize;
+	
+	/*
+	** generate the crc32c for each projection block
+	*/
+	storio_gen_crc32(data,1,rozofs_disk_psize);	
+	
 	nb_write = pwrite(fd, data, length_to_write, bins_file_offset);
 	if (nb_write != length_to_write) {
             status = -1;
