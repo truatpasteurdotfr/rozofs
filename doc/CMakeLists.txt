@@ -29,7 +29,7 @@ install(FILES rozodiag.8 DESTINATION share/man/man8 COMPONENT rozodiag)
 install(FILES rozolauncher.8 DESTINATION share/man/man8 COMPONENT rozodiag)
 install(FILES rozo_warnquota.8 DESTINATION share/man/man8 COMPONENT export)
 install(FILES rozo_setquota.8 DESTINATION share/man/man8 COMPONENT export)
-install(FILES rozo_setquota.8 DESTINATION share/man/man8 COMPONENT export)
+install(FILES rozo_quotaon.8 DESTINATION share/man/man8 COMPONENT export)
 
 #
 # add doxygen target
