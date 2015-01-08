@@ -138,6 +138,7 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
     SHOW_PROFILER_PROBE(ep_getxattr);
     SHOW_PROFILER_PROBE(ep_removexattr);
     SHOW_PROFILER_PROBE(ep_listxattr);
+
     if (short_display == 0) {
       SHOW_PROFILER_PROBE(export_lv1_resolve_entry);
       SHOW_PROFILER_PROBE(export_lv2_resolve_path);
@@ -211,6 +212,9 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
     SHOW_PROFILER_PROBE(ep_get_file_lock);
     SHOW_PROFILER_PROBE(ep_poll_file_lock);
     SHOW_PROFILER_PROBE(ep_geo_poll);
+    SHOW_PROFILER_PROBE(quota_set);
+    SHOW_PROFILER_PROBE(quota_get);
+    SHOW_PROFILER_PROBE(quota_setinfo);
     return pChar;
 }
 
@@ -980,7 +984,21 @@ int expgwc_start_nb_blocking_th(void *args) {
       }
       uma_dbg_addTopic_option("geo_profiler", show_geo_profiler,UMA_DBG_OPTION_RESET);
     }
-    
+    /*
+    ** init of the quota module
+    */
+    ret = rozofs_qt_init();
+    if (ret < 0)
+    {
+      severe("error on quota module init\n");
+      return -1;
+    }  
+    ret = rozofs_qt_thread_intf_create(args_p->instance);
+    if (ret < 0)
+    {
+      severe("error on af_unix quota socket creation\n");
+      return -1;
+    }        
     ret = geo_proc_module_init(GEO_REP_SRV_CLI_CTX_MAX);
     if (ret < 0)
     {

@@ -27,6 +27,9 @@ install(FILES geocli.8 DESTINATION share/man/man8 COMPONENT geomgr)
 install(FILES geomgr.conf.5 DESTINATION share/man/man5 COMPONENT geomgr)
 install(FILES rozodiag.8 DESTINATION share/man/man8 COMPONENT rozodiag)
 install(FILES rozolauncher.8 DESTINATION share/man/man8 COMPONENT rozodiag)
+install(FILES rozo_warnquota.8 DESTINATION share/man/man8 COMPONENT export)
+install(FILES rozo_setquota.8 DESTINATION share/man/man8 COMPONENT export)
+install(FILES rozo_setquota.8 DESTINATION share/man/man8 COMPONENT export)
 
 #
 # add doxygen target

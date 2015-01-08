@@ -44,6 +44,7 @@ typedef enum _rozofs_socket_family_e
 #define ROZOFS_SOCK_FAMILY_EXPORT_SOUTH "/tmp/rozofs_export_south"
 #define ROZOFS_SOCK_FAMILY_DISK_SOUTH "/tmp/rozofs_disk_south"
 #define ROZOFS_SOCK_FAMILY_DISK_NORTH "/tmp/rozofs_disk_north"
+#define ROZOFS_SOCK_FAMILY_QUOTA_NORTH_SUNPATH "/tmp/rozofs_quota"
 /**
 * socket type
 */

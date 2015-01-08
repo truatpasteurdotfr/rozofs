@@ -53,6 +53,7 @@
         the_probe[P_ELAPSE] += (toc - tic);\
     }
 
+int export_fstat_init();
 
 typedef struct _export_fstat_stats_t
 {
@@ -89,7 +90,7 @@ int export_fstat_thread_period_count;
 export_fstat_ctx_t *export_fstat_table[EXPGW_EID_MAX_IDX+1] = {0};
 int export_fstat_init_done = 0;
 uint64_t export_fstat_poll_stats[2];
-int export_fstat_init();
+
 static pthread_t export_fstat_ctx_thread;
 
 #define SHOW_STATS(probe) if (export_fstat_stats.probe) pChar += sprintf(pChar,"   %-24s:%llu\n",\
@@ -319,12 +320,7 @@ int export_fstat_update_files(uint16_t eid, int32_t n)
       */
       if (n > tab_p->memory.files) {
          export_fstat_stats.negative_file_count_err++;
-#warning do not send the severe on fstats.files
-#if 0
-        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %d files",
-	       tab_p->pathname, tab_p->memory.blocks, tab_p->memory.files, n); 
-#endif
-        n = tab_p->memory.files;
+         n = tab_p->memory.files;
       }
       tab_p->memory.files -= n;
     }
@@ -538,7 +534,7 @@ void *export_fstat_alloc_context(uint16_t eid, char *root_path,uint64_t hquota,u
    return (void*)tab_p;
 
 error:
-#warning    export_fstat_release_context(tab_p) not yet implemented
+  warning("export_fstat_release_context(tab_p) not yet implemented");
    return NULL;
 }
 /*

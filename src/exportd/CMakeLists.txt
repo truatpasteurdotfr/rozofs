@@ -106,7 +106,8 @@ add_executable(exportd
     rozofs_quota_api.h
     rozofs_quota.c
     quota_writeback_cache.c
-    export_quota_thread.c    
+    export_quota_thread.c
+    rozofs_quota_intf_srv_thread.c        
 )
 target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
@@ -137,7 +138,7 @@ target_link_libraries(exportd rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG
 #target_link_libraries(expgateway rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 
-add_executable(rozofs_repquota
+add_executable(rozo_repquota
     rozofs_quota.h
     rozofs_quota.c
     rozofs_quota_api.h
@@ -146,8 +147,47 @@ add_executable(rozofs_repquota
     econfig.h
     econfig.c
 )
-target_link_libraries(rozofs_repquota rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+target_link_libraries(rozo_repquota rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
+add_executable(rozo_setquota
+    rozofs_quota.h
+    rozofs_quota.c
+    rozofs_quota_api.h
+    quota_writeback_cache.c
+    rozofs_setquota.c
+    rozofs_quota_intf.h
+    rozofs_quota_util.c
+    econfig.h
+    econfig.c
+)
+target_link_libraries(rozo_setquota rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+
+add_executable(rozo_quotaon
+    rozofs_quota.h
+    rozofs_quota.c
+    rozofs_quota_api.h
+    quota_writeback_cache.c
+    rozofs_quotaon.c
+    rozofs_quota_intf.h
+    rozofs_quota_util.c
+    econfig.h
+    econfig.c
+)
+target_link_libraries(rozo_quotaon rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+
+add_executable(rozo_warnquota
+    rozofs_quota.h
+    rozofs_quota.c
+    rozofs_quota_api.h
+    quota_writeback_cache.c
+    rozofs_warnquota.c
+    rozofs_quota_intf.h
+    rozofs_quota_util.c
+    econfig.h
+    econfig.c
+)
+target_link_libraries(rozo_warnquota rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 # Install
 install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT export)

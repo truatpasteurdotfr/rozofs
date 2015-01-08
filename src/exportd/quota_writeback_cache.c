@@ -26,8 +26,10 @@
 #include <unistd.h>
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/common/xmalloc.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include "rozofs_quota.h"
+#include <malloc.h>
 
 /*
 ** pointer to the dirent write back cache
@@ -545,7 +547,7 @@ int quota_wbcache_write(disk_table_header_t  *disk_p,rozofs_dquot_t *buf,int cou
 	*/
 	if (chunk_p[i].chunk_p == NULL)
 	{
-           chunk_p[i].chunk_p = malloc(count);
+           chunk_p[i].chunk_p = memalign(32,count);
 	   if (chunk_p[i].chunk_p== NULL) goto error;
 	} 
 	memcpy(chunk_p[i].chunk_p,buf,count);
@@ -570,7 +572,7 @@ reloop:
   {
     if (chunk_p[free_chunk].chunk_p == NULL)
     {
-       chunk_p[free_chunk].chunk_p = malloc(count);
+       chunk_p[free_chunk].chunk_p = memalign(32,count);
        if (chunk_p[free_chunk].chunk_p== NULL) return -1;
     } 
     memcpy(chunk_p[free_chunk].chunk_p,buf,count);
@@ -624,7 +626,7 @@ int quota_wbcache_init()
   int i;
 
   if (quota_wbcache_cache_initialized) return 0;
-  quota_wbcache_cache_p = malloc(sizeof(quota_wbcache_entry_t)*QUOTA_CACHE_MAX_ENTRY);
+  quota_wbcache_cache_p = xmalloc(sizeof(quota_wbcache_entry_t)*QUOTA_CACHE_MAX_ENTRY);
   if (quota_wbcache_cache_p != NULL)
   {
     memset(quota_wbcache_cache_p,0,sizeof(quota_wbcache_entry_t)*QUOTA_CACHE_MAX_ENTRY);

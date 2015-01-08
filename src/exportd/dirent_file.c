@@ -2269,28 +2269,6 @@ get_next_collidx:
                 continue;	    
 	    
 	    }
-#warning do not control the compute_root_idx since it is useless 
-#if 0
-            {
-	      uint32_t hash1;
-	      uint32_t hash2;
-	      int computed_root_idx;
-	      int len = name_entry_p->len;
-	      
-	      
-              hash1 = filename_uuid_hash_fnv_with_len(0, name_entry_p->name, fid_parent, &hash2, len);
-              /*
-              ** attempt to get the root dirent file from cache: check if there is match with the root idx
-	      ** the hash of the hash_entry-> no match: skip the entry	     
-              */
-              computed_root_idx = hash1 & DIRENT_ROOT_FILE_IDX_MASK;	      
-              if ((computed_root_idx != root_idx) ||(hash_entry_p->hash != (hash2 &DIRENT_ENTRY_HASH_MASK)))
-	      {
-                hash_entry_idx++;
-                continue;	   	      	      	      
-	      }
-            }
-#endif
             *iterator = xmalloc(sizeof (child_t));
             memset(*iterator, 0, sizeof (child_t));
             memcpy((*iterator)->fid, name_entry_p->fid, sizeof (fid_t));

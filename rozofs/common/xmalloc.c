@@ -24,6 +24,7 @@
 
 #include "xmalloc.h"
 #include "log.h"
+#include <malloc.h>
 
 
 typedef struct _xmalloc_stats_t
@@ -64,11 +65,11 @@ void *xmalloc(size_t n) {
     void *p = 0;
     if (xmalloc_size_table_p == NULL)
     {
-      xmalloc_size_table_p = malloc(sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);
+      xmalloc_size_table_p = memalign(32,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);
       memset(xmalloc_size_table_p,0,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);    
     }
     xmalloc_stats_insert((int)n);
-    p = malloc(n);
+    p = memalign(32,n);
     check_memory(p);
     return p;
 }

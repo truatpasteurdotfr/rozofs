@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <malloc.h>
 #include "disk_table_service.h"
 
 
@@ -80,7 +81,7 @@ int disk_tb_load_bitmap_file(disk_table_header_t *ctx_p)
    /*
    ** allocate the memory
    */
-   ctx_p->file_btmap_p = malloc(sizeof(disk_tb_bitmap_file_t)+ctx_p->bitmap_size-1);
+   ctx_p->file_btmap_p = memalign(32,sizeof(disk_tb_bitmap_file_t)+ctx_p->bitmap_size-1);
    if (ctx_p->file_btmap_p == NULL) goto error;
    bitmap_p = (disk_tb_bitmap_file_t*)ctx_p->file_btmap_p;
    /*
@@ -400,7 +401,7 @@ recreate:
        /**
        *   write an empty bitmap
        */
-       uint16_t *bufall = malloc(DISK_TB_HEADER_SZ);
+       uint16_t *bufall = memalign(32,DISK_TB_HEADER_SZ);
        if (bufall == NULL)
        {
           errno = ENOMEM;
@@ -615,7 +616,7 @@ disk_table_header_t *disk_tb_ctx_allocate(char *root_path,char *name,int entry_s
 
    disk_table_header_t *ctx_p = NULL;
    
-   ctx_p = malloc(sizeof(disk_table_header_t));
+   ctx_p = memalign(32,sizeof(disk_table_header_t));
    if (ctx_p == NULL)
    {
       /*

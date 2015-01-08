@@ -287,7 +287,7 @@ void * ruc_buf_poolCreate(uint32_t nbBuf,uint32 bufsize)
     }
   }
 
-   pusrData = (char*)malloc(bufsize*nbBuf);
+   pusrData = (char*)memalign(32,bufsize*nbBuf);
    if (pusrData == (char *) NULL)
    {
      /*

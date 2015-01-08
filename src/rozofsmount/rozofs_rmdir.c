@@ -94,15 +94,9 @@ void rozofs_ll_rmdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     if (ret < 0) goto error;
     
     /*
-    ** no error just waiting for the answer
+    ** no error:anticipate rmdir response
     */
-#if 1
-#warning anticipate rmdir response
-
     fuse_reply_err(req, 0);
-
-
-#endif
     return;
 
 error:
@@ -276,12 +270,8 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
       */
       pie->timestamp = rozofs_get_ticker_us();
     }   
-#warning do not answer to fuse for rmdir
-
-//    fuse_reply_err(req, 0);
     goto out;
 error:
-//    fuse_reply_err(req, errno);
 out:
 
     /*

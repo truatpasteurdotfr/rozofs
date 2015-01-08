@@ -1,7 +1,13 @@
 /usr/bin/exportd
+/usr/bin/rozo_quotaon
+/usr/bin/rozo_warnquota
+/usr/bin/rozo_setquota
 /etc/rozofs/export.conf.sample
 /etc/rozofs/export.conf
 /usr/share/man/man5/export.conf.5
 /usr/share/man/man7/rozofs.7
 /usr/share/man/man8/exportd.8
+/usr/share/man/man8/rozo_quotaon.8
+/usr/share/man/man8/rozo_warnquota.8
+/usr/share/man/man8/rozo_setquota.8
 contrib/heartbeat/* /usr/lib/ocf/resource.d/heartbeat/

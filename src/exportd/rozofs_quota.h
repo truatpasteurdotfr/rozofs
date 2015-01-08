@@ -32,6 +32,18 @@
 #include <rozofs/common/log.h>
 #include <rozofs/core/disk_table_service.h>
 #include <linux/quota.h>
+#include "rozofs_quota_intf.h"
+
+
+/* Size of blocks in which are counted size limits in generic utility parts */
+#define ROZOFS_QUOTABLOCK_BITS 10
+#define ROZOFS_QUOTABLOCK_SIZE (1 << ROZOFS_QUOTABLOCK_BITS)
+
+/* Conversion routines from and to quota blocks */
+#define rozofs_qb2kb(x) ((x) << (ROZOFS_QUOTABLOCK_BITS-10))
+#define rozofs_kb2qb(x) ((x) >> (ROZOFS_QUOTABLOCK_BITS-10))
+#define rozofs_toqb(x) (((x) + ROZOFS_QUOTABLOCK_SIZE - 1) >> ROZOFS_QUOTABLOCK_BITS)
+
 
 #define ROZOFS_QT_BUKETS (32*1024)
 #define ROZOFS_QT_MAX_ENTRIES (64*1024)
@@ -98,6 +110,7 @@ typedef struct rozofs_qt_cache {
     htable_t htable;    ///< entries hashing
 } rozofs_qt_cache_t;
 
+#define ROZOFS_QUOTA_INFO_NAME "quotainfo"
 /**
 *  quota information for each exported filesystem
 */
@@ -270,5 +283,126 @@ int quota_wbcache_write(disk_table_header_t  *disk_p,rozofs_dquot_t *buf,int cou
 
 */
 int quota_wbcache_read(disk_table_header_t  *disk_p,rozofs_dquot_t *buf,int count);
+/*
+**__________________________________________________________________
+*/
+/**
+*   Set the quota information related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param identifier :identifier within the type
+    @param sqa_qcmd : bitmap of the information to modify
+    @param src : quota parameters
+    
+    @retval 0 on success
+    @retval-1 on error: see errno for details
+ */
+int rozofs_qt_set_quota(int eid,int type,int identifier,int sqa_cmd, sq_dqblk *src );
+/*
+**__________________________________________________________________
+*/
+/**
+*   Get the quota information related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param identifier :identifier within the type
+    
+    @retval <> NULL on success
+    @retval NULL on error: see errno for details
+ */
+rozofs_qt_cache_entry_t *rozofs_qt_get_quota(int eid,int type,int identifier);
+/*__________________________________________________________________________
+* Initialize the quota thread interface
+*
+* @param slave_id : reference of the slave exportd
+*
+*  @retval 0 on success -1 in case of error
+*/
+int rozofs_qt_thread_intf_create(int slave_id);
+/*
+**__________________________________________________________________
+*/
+/**
+*  update the grace time when there is a change in the quota limits
 
+  @param q: user or group quota
+  @param quota_info_p : pointer to the quota info associated with the type
+  
+  @retval none
+*/
+ void rozofs_quota_update_grace_times(rozo_mem_dqblk *q,rozofs_quota_info_t *quota_info_p);
+
+/*
+**__________________________________________________________________
+*/
+/**
+*  update the blocks grace time when there is a change in the quota limits
+
+  @param q: user or group quota
+  @param quota_info_p : pointer to the quota info associated with the type  
+  
+  @retval none
+*/
+ void rozofs_quota_update_grace_times_blocks(rozo_mem_dqblk *q,rozofs_quota_info_t *quota_info_p);
+/*
+**__________________________________________________________________
+*/
+/**
+*  update the inode grace time when there is a change in the quota limits
+
+  @param q: user or group quota
+  @param quota_info_p : pointer to the quota info associated with the type
+    
+  @retval none
+*/
+ void rozofs_quota_update_grace_times_inodes(rozo_mem_dqblk *q,rozofs_quota_info_t *quota_info_p);
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   check quota upon file creation
+    
+    @param eid: export identifier
+    
+    @param usr_id : user quota
+    @param grp_id : group quota
+    
+    @retval : 0 on success
+    @retval < 0 on error
+ */
+int rozofs_qt_check_quota(int eid,int user_id,int grp_id);
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   Set the quota information related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param identifier :identifier within the type
+    @param sqa_qcmd : bitmap of the information to modify
+    @param src : quota parameters
+    
+    @retval 0 on success
+    @retval-1 on error: see errno for details
+ */
+int rozofs_qt_set_quotainfo(int eid,int type,int identifier,int sqa_cmd, sq_dqblk *src );
+/*
+**__________________________________________________________________
+*/
+/**
+*   Set the quota state related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param cmd : ROZOFS_QUOTA_ON or ROZOFS_QUOTA_OFF
+    
+    @retval 0 on success
+    @retval-1 on error: see errno for details
+ */
+int rozofs_qt_set_quotastate(int eid,int type,int cmd);
 #endif

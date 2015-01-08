@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <uuid/uuid.h>
+#include <malloc.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -238,7 +239,7 @@ com_cache_main_t *com_cache_create(uint32_t level0_sz, uint32_t max,com_cache_us
     com_cache_main_t *cache;
     int i;
     
-    cache = malloc(sizeof(com_cache_main_t));
+    cache = memalign(32,sizeof(com_cache_main_t));
     if (cache == NULL)
     {
       severe(" out of memory (%u)", (unsigned int) sizeof(com_cache_main_t));   
@@ -389,7 +390,7 @@ reloop:
          */
         cache_bucket_entry_p = bucket_p->entry_tb[bucket_entry_arrray_idx];
         if (cache_bucket_entry_p == (com_cache_bucket_entry_t*) NULL) {
-            cache_bucket_entry_p = (com_cache_bucket_entry_t*) malloc(sizeof (com_cache_bucket_entry_t));
+            cache_bucket_entry_p = (com_cache_bucket_entry_t*) memalign(32,sizeof (com_cache_bucket_entry_t));
             if (cache_bucket_entry_p == NULL) {
                 warning(" out of memory");
                 return -1;

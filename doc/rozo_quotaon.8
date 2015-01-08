@@ -1,0 +1,142 @@
+.TH ROZO_QUOTAON 8
+.SH NAME
+rozo_quotaon, rozo_quotaoff \- turn filesystem quotas on and off
+.SH SYNOPSIS
+.B /usr/sbin/rozo_quotaon
+[
+.B \-vugfp
+] [
+.B \-e
+.I exportconf-name
+]
+.IR filesystem-id .\|.\|.
+.br
+.B /usr/sbin/rozo_quotaon
+[
+.B \-avugfp
+] [
+.B \-e
+.I  exportconf-name
+]
+.LP
+.B /usr/sbin/rozo_quotaoff
+[
+.B \-vugp
+]
+.IR filesystem-id .\|.\|.
+.br
+.B /usr/sbin/rozo_quotaoff
+[
+.B \-avugp
+]
+.SH DESCRIPTION
+.SS rozo_quotaon
+.IX  "rozo_quotaon command"  ""  "\fLrozo_quotaon\fP \(em turn filesystem quotas on"
+.IX  "user quotas"  "rozo_quotaon command"  ""  "\fLrozo_quotaon\fP \(em turn filesystem quotas on"
+.IX  "disk quotas"  "rozo_quotaon command"  ""  "\fLrozo_quotaon\fP \(em turn filesystem quotas on"
+.IX  "quotas"  "rozo_quotaon command"  ""  "\fLrozo_quotaon\fP \(em turn filesystem quotas on"
+.IX  "filesystem"  "rozo_quotaon command"  ""  "\fLrozo_quotaon\fP \(em turn filesystem quotas on"
+.LP
+.B rozo_quotaon
+announces to the system that disk quotas should be enabled on one or
+more filesystems.
+There are two components to the RozoFS disk quota system:
+accounting and limit enforcement.
+RozoFS filesystems require that quota accounting be turned on at mount time.
+It is possible to enable and disable limit enforcement on an RozoFS
+filesystem after quota accounting is already turned on.
+The default is to turn on both accounting and enforcement.
+.PP
+The RozoFS quota implementation does not maintain quota information in
+user-visible files, but rather stores this information internally.
+.SS rozo_quotaoff
+.IX  "rozo_quotaoff command"  ""  "\fLrozo_quotaoff\fP \(em turn filesystem quotas off"
+.IX  "user quotas"  "rozo_quotaoff command"  ""  "\fLrozo_quotaoff\fP \(em turn filesystem quotas off"
+.IX  "disk quotas"  "rozo_quotaoff command"  ""  "\fLrozo_quotaoff\fP \(em turn filesystem quotas off"
+.IX  "quotas"  "rozo_quotaoff command"  ""  "\fLrozo_quotaoff\fP \(em turn filesystem quotas off"
+.IX  "filesystem"  "rozo_quotaoff command"  ""  "\fLrozo_quotaoff\fP \(em turn filesystem quotas off"
+.LP
+.B rozo_quotaoff
+announces to the system that the specified filesystems should
+have any disk quotas turned off.
+.SH OPTIONS
+.SS rozo_quotaon
+.TP
+.B -e,--exportconf=\f2exportconf-name\f1
+Full pathname of the exportd configuration file that contains all the filesystem identifiers associated with the
+exportd.
+.TP
+.B -a, --all
+All the filesystems referenced within the exportd.conf configuration file/
+.TP
+.B -v, --verbose
+Display a message for each filesystem where quotas are turned on.
+.TP
+.B -u, --user
+Manipulate user quotas. This is the default.
+.TP
+.B -g, --group
+Manipulate group quotas.
+.TP
+.B -p, --print-state
+Instead of turning quotas on just print state of quotas (ie. whether. quota is on or off)
+.TP
+.B -f, --off
+Make
+.B rozo_quotaon
+behave like being called as
+.BR rozo_quotaoff .
+.SS rozo_quotaoff
+.TP
+.B -e,--exportconf=\f2exportconf-name\f1
+Full pathname of the exportd configuration file that contains all the filesystem identifiers associated with the
+exportd.
+.TP
+.B -a, --all
+Force all filesystems in
+.B exportd.conf
+to have their quotas disabled.
+.TP
+.B -v, --verbose
+Display a message for each filesystem affected.
+.TP
+.B -u, --user
+Manipulate user quotas. This is the default.
+.TP
+.B -g, --group
+Manipulate group quotas.
+.TP
+.B -p, --print-state
+Instead of turning quotas off just print state of quotas (ie. whether. quota is on or off)
+.TP
+
+.SH "NOTES ON ROZOFS FILESYSTEMS"
+.PP
+By default the quota accounting is enabled for all the filesystem described within the
+exportd configuration
+.PP
+Turning on quotas on an RozoFS  filesystem is equivalent o turnon quota limit enforcement.
+.PP
+To turn off quota limit enforcement on any RozoFS filesystem, first make
+sure that quota accounting and enforcement are both turned on using
+.B "rozofs_repquota -v"
+.IR filesystem-id .
+Then, use
+.B "rozo_quotaoff -v
+.I filesystem
+to disable limit enforcement.
+This may be done while the filesystem is mounted.
+.PP
+Turning on quota limit enforcement on an RozoFS filesystem is
+achieved using
+.B "rozo_quotaon -v"
+.IR filesystem-id .
+This may be done while the filesystem is mounted.
+.SH FILES
+.TP
+.B /etc/rozofs/exportd.conf
+default exportd configuration file
+.PD
+.SH "SEE ALSO"
+.BR rozo_repquota (8),
+.BR rozo_warnquota (8)

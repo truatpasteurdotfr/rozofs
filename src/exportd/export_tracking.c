@@ -123,7 +123,7 @@ int export_dir_load_root_idx_bitmap(export_t *e,fid_t fid,lv2_entry_t *lvl2)
    /*
    ** allocate the memory
    */
-   lvl2->dirent_root_idx_p = malloc(sizeof(dirent_dir_root_idx_bitmap_t));
+   lvl2->dirent_root_idx_p = memalign(32,sizeof(dirent_dir_root_idx_bitmap_t));
    if (lvl2->dirent_root_idx_p == NULL) goto error;
    bitmap_p = (dirent_dir_root_idx_bitmap_t*)lvl2->dirent_root_idx_p;
    /*
@@ -525,9 +525,10 @@ int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache) {
     if (!realpath(root, path))
         return -1;
     /*
-    ** set the eid and the root path in the associated global varoiables
+    ** set the eid and the root path in the associated global variables
     */
-    realpath(root, e->root);
+    if (!realpath(root, e->root))
+        return -1;
     export_open_parent_directory(e,NULL);
 	
     if ( expgwc_non_blocking_conf.slave == 0)
@@ -627,10 +628,8 @@ int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache) {
       dirent_cache_level0_initialize();
       dirent_wbcache_init();
       dirent_wbcache_disable();
-#if 1
-#warning push the mknod attribute in cache
+
      lv2_cache_put_forced(e->lv2_cache,ext_attrs.s.attrs.fid,&ext_attrs);
-#endif
       /*
       ** write root idx bitmap on disk
       */
@@ -1051,11 +1050,11 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
         nrb_old = ((lv2->attributes.s.attrs.size + bbytes - 1) / bbytes);
 	if (nrb_new > nrb_old)
 	{
-          rozofs_qt_block_update(e->eid,lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid,(nrb_new-nrb_old),ROZOFS_QT_INC); 
+          rozofs_qt_block_update(e->eid,lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid,(nrb_new-nrb_old)*bbytes,ROZOFS_QT_INC); 
 	}
 	else
 	{
-          rozofs_qt_block_update(e->eid,lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid,(nrb_old-nrb_new),ROZOFS_QT_DEC); 	
+          rozofs_qt_block_update(e->eid,lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid,(nrb_old-nrb_new)*bbytes,ROZOFS_QT_DEC); 	
 	}      		
         if (export_update_blocks(e, ((int32_t) nrb_new - (int32_t) nrb_old))!= 0)
             goto out;
@@ -1292,7 +1291,7 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
     /*
     ** allocate the buffer
     */
-    buf_attr_p = malloc(sizeof(ext_mattr_t)*(filecount+1));
+    buf_attr_p = memalign(32,sizeof(ext_mattr_t)*(filecount+1));
     if (buf_attr_p == NULL)
     {
       xerrno=ENOMEM;
@@ -1344,6 +1343,19 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
         errno = ENOSPC;
         goto error;
       }
+    }
+    /*
+    **  check user and group quota
+    */
+    {
+       int ret;
+       
+       ret = rozofs_qt_check_quota(e->eid,uid,gid);
+       if (ret < 0)
+       {
+         errno = ENOSPC;
+         goto error;
+       }         
     }
     /*
     ** get the slice of the parent
@@ -1479,12 +1491,10 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
     plv2->attributes.s.attrs.mtime = plv2->attributes.s.attrs.ctime = time(NULL);
     if (export_lv2_write_attributes(e->trk_tb_p,plv2) != 0) {
         goto error;
-    }
-//#warning fdl test
-#if 1 
+    } 
     // update export files
     export_update_files(e, filecount+1);
-#endif
+    
     rozofs_qt_inode_update(e->eid,uid,gid,filecount+1,ROZOFS_QT_INC);
     status = 0;
     /*
@@ -1620,6 +1630,19 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
       }
     }
     /*
+    **  check user and group quota
+    */
+    {
+       int ret;
+       
+       ret = rozofs_qt_check_quota(e->eid,uid,gid);
+       if (ret < 0)
+       {
+         errno = ENOSPC;
+         goto error;
+       }         
+    }
+    /*
     ** get the slice of the parent
     */
     exp_trck_get_slice(pfid,&pslice);
@@ -1693,21 +1716,16 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     { 
       goto error;
     }  
-#if 0
-#warning push the mknod attribute in cache
     lv2_cache_put_forced(e->lv2_cache,ext_attrs.s.attrs.fid,&ext_attrs);
-#endif
     // Update children nb. and times of parent
     plv2->attributes.s.attrs.children++;
     plv2->attributes.s.attrs.mtime = plv2->attributes.s.attrs.ctime = time(NULL);
     if (export_lv2_write_attributes(e->trk_tb_p,plv2) != 0) {
         goto error;
     }
-//#warning fdl test +quota
-#if 1 
     // update export files
     export_update_files(e, 1);
-#endif
+
     rozofs_qt_inode_update(e->eid,uid,gid,1,ROZOFS_QT_INC);
     status = 0;
     /*
@@ -1810,6 +1828,19 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
        goto error;
       }
     }    
+    /*
+    **  check user and group quota
+    */
+    {
+       int ret;
+       
+       ret = rozofs_qt_check_quota(e->eid,uid,gid);
+       if (ret < 0)
+       {
+         errno = ENOSPC;
+         goto error;
+       }         
+    }
     /*
     ** get the slice of the parent
     */
@@ -4383,7 +4414,6 @@ reloop:
       */
       if ((lock_elt->lock.client_ref != lock_requested->client_ref) 
       ||  (lock_elt->lock.owner_ref != lock_requested->owner_ref)) { 
-      
 	if (!are_file_locks_compatible(&lock_elt->lock,lock_requested)) {
 	  memcpy(blocking_lock,&lock_elt->lock,sizeof(ep_lock_t));     
           errno = EWOULDBLOCK;
@@ -4405,7 +4435,10 @@ reloop:
 	}  
         continue;
       }
-      
+      /*
+      ** do not check when client and process match.
+      */
+#if 0      
       /*
       ** One read and one write
       */
@@ -4414,6 +4447,7 @@ reloop:
         errno = EWOULDBLOCK;
 	goto out;      
       }     
+#endif
       continue; 			  
     }
 
@@ -4462,6 +4496,7 @@ out:
       info("%s",BuF);
     }
 #endif      
+
     if (lv2) lv2_cache_update_lru(e->lv2_cache, lv2);	
     STOP_PROFILING(export_set_file_lock);
     return status;

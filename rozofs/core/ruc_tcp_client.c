@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <malloc.h>
 
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
@@ -716,7 +717,7 @@ uint32_t ruc_tcp_client_init(uint32_t nbElements)
     /*
     ** init of the active list
     */
-    ruc_tcp_clientactiveList = (ruc_tcp_client_t*)malloc(sizeof(ruc_tcp_client_t));
+    ruc_tcp_clientactiveList = (ruc_tcp_client_t*)memalign(32,sizeof(ruc_tcp_client_t));
     if (ruc_tcp_clientactiveList == (ruc_tcp_client_t*)NULL)
     {
       /*

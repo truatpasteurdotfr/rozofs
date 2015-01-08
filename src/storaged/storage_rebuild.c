@@ -264,7 +264,6 @@ int rbs_monitor_update(char * rebuild_status, int cid, int sid) {
     int fd = -1;
     char str1[32];
     char str2[32];
-    char * pChar;
     int i;
     uint32_t nb_files=0;
     uint32_t done_files=0;

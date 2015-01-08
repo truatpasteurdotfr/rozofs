@@ -792,6 +792,21 @@ static inline int exportd_is_eid_match_with_instance(int eid)
 }   
 
 /*
+**______________________________________________________________________________
+*/
+/**
+*  check if the eid matches the instance
+
+   @param eid: export identifier
+   @retval instance_id of the exportd
+*/
+static inline int exportd_get_instance_id_from_eid(int eid)
+{
+
+    int idx = (eid-1)%EXPORT_SLICE_PROCESS_NB +1;
+    return idx;
+}   
+/*
 **_______________________________________________________________________________
 */
 /**

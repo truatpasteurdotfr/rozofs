@@ -1,0 +1,155 @@
+.TH ROZO_SETQUOTA 8
+.SH NAME
+rozo_setquota \- set disk quotas
+.SH SYNOPSIS
+.B rozo_setquota
+[
+.B \-u
+|
+.B \-g
+]
+[
+.B \-f
+.I exportconf
+]
+.I name
+.I block-softlimit
+.I block-hardlimit
+.I inode-softlimit
+.I inode-hardlimit
+.B \-a
+|
+.I filesystem...
+.LP
+.B rozo_setquota
+[
+.B \-u
+|
+.B \-g
+]
+[
+.B \-f
+.I exportconf
+]
+.I name
+.B \-a
+|
+.I filesystem_id...
+.LP
+.B rozo_setquota
+.B \-b
+[
+.B \-u
+|
+.B \-g
+]
+[
+.B \-f
+.I exportconf
+]
+.B \-a
+|
+.I filesystem_id...
+.LP
+.B rozo_setquota
+.B \-t
+[
+.B \-u
+|
+.B \-g
+]
+[
+.B \-f
+.I exportconf
+]
+.I block-grace
+.I inode-grace
+.B \-a
+|
+.I filesystem_id...
+.LP
+.B rozo_setquota
+.B \-T
+[
+.B \-u
+|
+.B \-g
+]
+[
+.B \-f
+.I exportconf
+]
+.I name
+.I block-grace
+.I inode-grace
+.B \-a
+|
+.I filesystem_id...
+.SH DESCRIPTION
+.IX  "rozo_setquota command"  ""  "\fLrozo_setquota\fP \(em set disk quotas"
+.IX  set "disk quotas \(em \fLrozo_setquota\fP"
+.IX  "disk quotas"  "rozo_setquota command"  ""  "\fLrozo_setquota\fP \(em set disk quotas"
+.IX  "disk quotas"  "rozo_setquota command"  ""  "\fLrozo_setquota\fP \(em set disk quotas"
+.IX  "quotas"  "rozo_setquota command"  ""  "\fLrozo_setquota\fP \(em set disk quotas"
+.IX  "filesystem"  "rozo_setquota command"  ""  "\fLrozo_setquota\fP \(em set disk quotas"
+.B rozo_setquota
+is a command line quota editor.
+The filesystem identifier, user/group name and new quotas for this
+filesystem identifier can be specified on the command line. Note that if a number is
+given in the place of a user/group name it is treated as an UID/GID.
+
+.TP
+.B -f, --file=\f2exportconf\f1
+Full pathname of the exportd configuration file that contains all the filesystem identifiers associated with the
+exportd.
+.TP
+.B -u, --user
+Set user quotas for named user. This is the default.
+.TP
+.B -g, --group
+Set group quotas for named group.
+.TP
+.B --always-resolve
+Always try to translate user / group name to uid / gid even if the name
+is composed of digits only.
+.TP
+.B -b, --batch
+Read information to set from stdin (input format is
+.I name block-softlimit block-hardlimit inode-softlimit inode-hardlimit
+). Empty lines and lines starting with # are ignored.
+.TP
+.B -c, --continue-batch
+If parsing of an input line in batch mode fails, continue with processing the next line.
+.TP
+.B -t, --edit-period
+Set grace times for users/groups. Times
+.B block-grace
+and
+.B inode-grace
+are specified in seconds.
+.TP
+.B -T, --edit-times
+Alter times for individual user/group when softlimit is enforced. Times
+.B block-grace
+and
+.B inode-grace
+are specified in seconds or can be string 'unset'.
+.TP
+.B -a, --all
+Go through all filesystems with quota in
+.B /etc/rozofs/exportd.conf 
+(default configuration file)
+and perform setting.
+.PP
+To disable a quota, set the corresponding parameter to 0. To change quotas
+for several filesystems, invoke once for each filesystem.
+.PP
+Only the super-user may edit quotas.
+.SH FILES
+.TP
+.B /etc/rozofs/exportd.conf
+default exportd configuration file
+.PD
+.SH SEE ALSO
+.BR rozo_quotaon (8),
+.BR rozo_repquota (8)

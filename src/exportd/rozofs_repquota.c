@@ -27,7 +27,7 @@
 #include "export.h"
 #include "monitor.h"
 #include "econfig.h"
-
+#include <rozofs/rpc/export_profiler.h>
 
 #define PRINTNAMELEN 9	/* Number of characters to be reserved for name on screen */
 #define MAX_CACHE_DQUOTS 1024	/* Number of dquots in cache */
@@ -74,6 +74,9 @@ char *confname=NULL;
 econfig_t exportd_config;
 int rozofs_no_site_file = 0;
 static char extensions[MAXQUOTAS + 2][20] = INITQFNAMES;
+
+export_one_profiler_t * export_profiler[1];
+uint32_t                export_profiler_eid;
 
 /*
  *	Convert type of quota to written representation
@@ -595,26 +598,40 @@ void dump_quota(disk_table_header_t *ctx_p,int type,int eid,char *path)
 	    }
 	    if (type == USRQUOTA)
 	    {
-	        usr_p= getpwuid(data.key.s.qid);
-		if (usr_p != NULL)
-		{
-		  strcpy(name,usr_p->pw_name);
-		}
-		else
+	        if (flags & FL_NONAME)
 		{
 		  sprintf(name, "#%u",data.key.s.qid); 
+		}
+		else
+		{	        
+		  usr_p= getpwuid(data.key.s.qid);
+		  if (usr_p != NULL)
+		  {
+		    strcpy(name,usr_p->pw_name);
+		  }
+		  else
+		  {
+		    sprintf(name, "#%u",data.key.s.qid); 
+		  }
 		}	    	    
 	    }
 	    else
 	    {
-	        grp_p= getgrgid(data.key.s.qid);
-		if (grp_p != NULL)
-		{
-		  strcpy(name,grp_p->gr_name);
-		}
-		else
+	        if (flags & FL_NONAME)
 		{
 		  sprintf(name, "#%u",data.key.s.qid); 
+		}	        
+		else
+		{
+		  grp_p= getgrgid(data.key.s.qid);
+		  if (grp_p != NULL)
+		  {
+		    strcpy(name,grp_p->gr_name);
+		  }
+		  else
+		  {
+		    sprintf(name, "#%u",data.key.s.qid); 
+		  }
 		}
 	    
 	    }
@@ -651,6 +668,11 @@ int main(int argc, char **argv)
 	   printf("Error on reading exportd configuration: %s -> %s\n",confname,strerror(errno));
 	   exit(0);
 	}
+	/*
+	** init of the data strcuture needed by quota manager
+	*/
+	rozofs_qt_init();
+	
 	for (i = 0; i <mntcnt; i++)
 	{
 	   errch = NULL;
@@ -682,7 +704,7 @@ int main(int argc, char **argv)
 
 	  if (flags & FL_GROUP)
 		  dump_quota(quota_ctx_p->quota_inode[GRPQUOTA],GRPQUOTA,eid,pathname);
-	  }
+	}
 
 	return 0;
 }

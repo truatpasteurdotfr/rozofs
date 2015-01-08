@@ -31,6 +31,7 @@
 #include <rozofs/core/disk_table_service.h>
 #include <rozofs/common/types.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/rpc/export_profiler.h>
  
 /*
 ** quota file default names
@@ -324,7 +325,7 @@ void rozofs_qt_cache_release(rozofs_qt_cache_t *cache) {
 **__________________________________________________________________
 */
 /**
-*   Get an enry from the quota cache
+*   Get an entry from the quota cache
 
     @param: pointer to the cache context
     @param disk_p: quota disk table associated with the type
@@ -425,6 +426,194 @@ rozofs_qt_cache_entry_t *rozofs_qt_cache_put(rozofs_qt_cache_t *cache,
     }
     return entry;
 }
+/*
+**__________________________________________________________________
+*/
+/**
+*   Write the quota info on disk
+
+   @param root_path : root path of the exportd
+   @param quota_info_p : pointer to the quota info
+   @param type : quota type: USRQUOTA or GRPQUOTA
+
+  @retval 0 on success
+  @retval -1 on error (see erno for details
+*/
+int rozofs_qt_write_quota_info(char *root_path,rozofs_quota_info_t *quota_info_p,int type)
+{
+
+   char pathname[ROZOFS_PATH_MAX];
+   int fd;
+   
+   sprintf(pathname,"%s/%s_%s",root_path,ROZOFS_QUOTA_INFO_NAME,(type==USRQUOTA)?"usr":"grp");
+   if ((fd = open(pathname, O_RDWR/* | NO_ATIME */| O_CREAT, S_IRWXU)) < 1) 
+   {
+      severe("cannot open quota info file %s: %s",pathname,strerror(errno));
+      return -1;
+   }
+   if (write(fd, quota_info_p, sizeof (rozofs_quota_info_t)) != sizeof (rozofs_quota_info_t)) 
+   {
+      severe("write error of quota info file %s: %s",pathname,strerror(errno));
+       close(fd);
+       return -1;
+   }
+   close(fd);
+   return 0;
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   Read the quota info from disk
+
+   @param root_path : root path of the exportd
+   @param quota_info_p : pointer to the quota info
+   @param type : quota type: USRQUOTA or GRPQUOTA
+
+  @retval 0 on success
+  @retval -1 on error (see erno for details
+*/
+int rozofs_qt_read_quota_info(char *root_path,rozofs_quota_info_t *quota_info_p,int type)
+{
+
+   char pathname[ROZOFS_PATH_MAX];
+   int fd;
+   
+   sprintf(pathname,"%s/%s_%s",root_path,ROZOFS_QUOTA_INFO_NAME,(type==USRQUOTA)?"usr":"grp");
+   if ((fd = open(pathname, O_RDWR,S_IRWXU)) < 1) 
+   {
+      severe("cannot open quota info file %s: %s",pathname,strerror(errno));
+      return -1;
+   }
+   if (read(fd, quota_info_p, sizeof (rozofs_quota_info_t)) != sizeof (rozofs_quota_info_t)) 
+   {
+      severe("write error of quota info file %s: %s",pathname,strerror(errno));
+       close(fd);
+       return -1;
+   }
+   close(fd);
+   return 0;
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   Set the quota information related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param identifier :identifier within the type
+    @param sqa_qcmd : bitmap of the information to modify
+    @param src : quota parameters
+    
+    @retval 0 on success
+    @retval-1 on error: see errno for details
+ */
+int rozofs_qt_set_quotainfo(int eid,int type,int identifier,int sqa_cmd, sq_dqblk *src )
+{
+   rozofs_qt_export_t *p;
+   int ret;
+   
+   export_profiler_eid = 0;
+   
+   /*
+   ** check if the entry already exists: this is done to address the case of the exportd reload
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      errno = ERANGE;
+      return  -1;
+   }
+   export_profiler_eid = eid;
+   START_PROFILING(quota_setinfo);   
+
+   if (export_quota_table[eid]== NULL)
+   {
+     errno = ENOENT;
+     goto error;
+   }
+   p = export_quota_table[eid];
+   
+   p->quota_super[type].dqi_bgrace = src->rq_btimeleft;
+   p->quota_super[type].dqi_igrace = src->rq_ftimeleft;
+   /*
+   ** write data back on disk
+   */
+   ret = rozofs_qt_write_quota_info(p->root_path,&p->quota_super[type],type);
+   if (ret < 0) goto error;
+
+   STOP_PROFILING(quota_setinfo);
+   return 0;
+
+error:
+  STOP_PROFILING(quota_setinfo);
+  return -1;
+  
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   Set the quota state related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param cmd : ROZOFS_QUOTA_ON or ROZOFS_QUOTA_OFF
+    
+    @retval 0 on success
+    @retval-1 on error: see errno for details
+ */
+int rozofs_qt_set_quotastate(int eid,int type,int cmd)
+{
+   rozofs_qt_export_t *p;
+   int ret;
+   
+   export_profiler_eid = 0;
+   
+   /*
+   ** check if the entry already exists: this is done to address the case of the exportd reload
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      errno = ERANGE;
+      return  -1;
+   }
+   export_profiler_eid = eid;
+   START_PROFILING(quota_setinfo);   
+
+   if (export_quota_table[eid]== NULL)
+   {
+     errno = ENOENT;
+     goto error;
+   }
+   p = export_quota_table[eid];
+   
+   p->quota_super[type].enable = cmd;
+   /*
+   ** write data back on disk
+   */
+   ret = rozofs_qt_write_quota_info(p->root_path,&p->quota_super[type],type);
+   if (ret < 0) goto error;
+
+   STOP_PROFILING(quota_setinfo);
+   return 0;
+
+error:
+  STOP_PROFILING(quota_setinfo);
+  return -1;
+  
+}
+
+
 
 
 /*
@@ -455,8 +644,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
 
    if (rozofs_qt_init_done == 0)
    {
-     ret = rozofs_qt_init();
-     if (ret < 0) return NULL;
+     return NULL;
    }
    /*
    ** check if the entry already exists: this is done to address the case of the exportd reload
@@ -496,6 +684,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
      severe("out of memory");
      goto error;
    }
+
    /*
    ** set the limit in quota_info
    */
@@ -506,6 +695,29 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
       tab_p->quota_super[i].dqi_bgrace = ROZOFS_MAX_DQ_TIME;
       tab_p->quota_super[i].dqi_igrace = ROZOFS_MAX_IQ_TIME;
       tab_p->quota_super[i].enable = 1;
+   }
+   for (i = 0; i < MAXQUOTAS; i++)
+   {
+     /*
+     ** read the quota info file from disk
+     */
+     ret = rozofs_qt_read_quota_info(root_path,&tab_p->quota_super[i],i);
+     if (ret < 0)
+     {
+	if (errno == ENOENT)
+	{
+           /*
+	   ** create the file
+	   */
+	   ret = rozofs_qt_write_quota_info(root_path,&tab_p->quota_super[i],i);
+	   if (ret < 0)
+	   {
+	     severe("fail to create quotainfo file for eid %d, quota is disabled by default",eid);
+	     tab_p->quota_super[i].enable = 0;
+           }
+	}
+
+     }
    }
    for (i = 0; i < MAXQUOTAS; i++)
    {
@@ -521,7 +733,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
    return (void*)tab_p;
 
 error:
-#warning    rozofs_qt_release_context(tab_p) not yet implemented
+   warning("rozofs_qt_release_context(tab_p) not yet implemented");
    return NULL;
 }
 
@@ -529,7 +741,10 @@ error:
 **__________________________________________________________________
 */
 
-static inline int rozofs_qt_dqot_inode_update(disk_table_header_t *disk_p,int eid,int type,int qid,uint64_t count,int action)
+static inline int rozofs_qt_dqot_inode_update(disk_table_header_t *disk_p,
+                                              int eid,int type,int qid,
+					      uint64_t count,int action,
+                                              rozofs_quota_info_t *quota_info_p)
 {
     rozofs_qt_cache_entry_t *dquot;
     rozofs_quota_key_t key;
@@ -562,6 +777,10 @@ static inline int rozofs_qt_dqot_inode_update(disk_table_header_t *disk_p,int ei
 	  dquot->dquot.quota.dqb_curinodes =0; 
 	} 
       } 
+      /*
+      ** update the grace period if needed
+      */
+       rozofs_quota_update_grace_times_inodes(&dquot->dquot.quota,quota_info_p);      
       /*
       ** let's write qota on disk
       */ 
@@ -613,11 +832,13 @@ int rozofs_qt_inode_update(int eid,int user_id,int grp_id,int nb_inode,int actio
    */
    if (user_id != -1)
    {
-      rozofs_qt_dqot_inode_update(p->quota_inode[USRQUOTA],eid,USRQUOTA,user_id,nb_inode,action);
+      rozofs_qt_dqot_inode_update(p->quota_inode[USRQUOTA],eid,USRQUOTA,user_id,nb_inode,action,
+                                  &p->quota_super[USRQUOTA]);
    }
    if (grp_id != -1)
    {
-      rozofs_qt_dqot_inode_update(p->quota_inode[GRPQUOTA],eid,GRPQUOTA,user_id,nb_inode,action);
+      rozofs_qt_dqot_inode_update(p->quota_inode[GRPQUOTA],eid,GRPQUOTA,grp_id,nb_inode,action,
+                                  &p->quota_super[GRPQUOTA]);
    }
    return 0;
 
@@ -627,7 +848,11 @@ int rozofs_qt_inode_update(int eid,int user_id,int grp_id,int nb_inode,int actio
 **__________________________________________________________________
 */
 
-static inline int rozofs_qt_dqot_block_update(disk_table_header_t *disk_p,int eid,int type,int qid,uint64_t count,int action)
+static inline int rozofs_qt_dqot_block_update(disk_table_header_t *disk_p,
+                                              int eid,int type,int qid,
+					      uint64_t count,int action,
+					      rozofs_quota_info_t *quota_info_p
+					      )
 {
     rozofs_qt_cache_entry_t *dquot;
     rozofs_quota_key_t key;
@@ -660,6 +885,10 @@ static inline int rozofs_qt_dqot_block_update(disk_table_header_t *disk_p,int ei
 	  dquot->dquot.quota.dqb_curspace =0; 
 	} 
       } 
+      /*
+      ** update the grace period if needed
+      */
+      rozofs_quota_update_grace_times_blocks(&dquot->dquot.quota,quota_info_p);  
       /*
       ** let's write qota on disk
       */ 
@@ -712,11 +941,13 @@ int rozofs_qt_block_update(int eid,int user_id,int grp_id,uint64_t size,int acti
    */
    if (user_id != -1)
    {
-      rozofs_qt_dqot_block_update(p->quota_inode[USRQUOTA],eid,USRQUOTA,user_id,size,action);
+      rozofs_qt_dqot_block_update(p->quota_inode[USRQUOTA],eid,USRQUOTA,user_id,size,action,
+                                  &p->quota_super[USRQUOTA]);
    }
    if (grp_id != -1)
    {
-      rozofs_qt_dqot_block_update(p->quota_inode[GRPQUOTA],eid,GRPQUOTA,user_id,size,action);
+      rozofs_qt_dqot_block_update(p->quota_inode[GRPQUOTA],eid,GRPQUOTA,user_id,size,action,
+                                  &p->quota_super[GRPQUOTA]);
    }
    return 0;
 
@@ -726,9 +957,377 @@ int rozofs_qt_block_update(int eid,int user_id,int grp_id,uint64_t size,int acti
 **__________________________________________________________________
 */
 /**
-*   Init of the quota module of RozoFS
+*   Get the quota information related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param identifier :identifier within the type
+    
+    @retval <> NULL on success
+    @retval NULL on error: see errno for details
+ */
+rozofs_qt_cache_entry_t *rozofs_qt_get_quota(int eid,int type,int identifier)
+{
+   rozofs_qt_export_t *p;
+   rozofs_qt_cache_entry_t *dquot= NULL;
+   rozofs_quota_key_t key;
+   
+   /*
+   ** check if the entry already exists: this is done to address the case of the exportd reload
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      errno = ERANGE;
+      return  dquot;
+   }
+   
+   export_profiler_eid = eid;
+   START_PROFILING(quota_get);  
+    
+   if (export_quota_table[eid]== NULL)
+   {
+      errno = ENOENT;
+      goto error;
+   }
+   p = export_quota_table[eid];
 
-    @param none
+   key.u64 = 0;
+   key.s.qid = identifier;
+   key.s.eid = eid;
+   key.s.type = type;
+   dquot = rozofs_qt_cache_get (&rozofs_qt_cache,p->quota_inode[type],&key);
+   if (dquot == NULL)
+   {
+     errno = EFAULT;
+   }
+error:
+   STOP_PROFILING(quota_get);   
+   return dquot;
+}
+/*
+**__________________________________________________________________
+*/
+/**
+*  check grace time and hard limit upon file/directory creation
+
+  @param dqot
+  
+  @retval 0 : if grace time or hardlimit not exceeded
+  @retval -1: one of the limits is exhausted
+*/
+int rozofs_quota_check_grace_times(rozo_mem_dqblk *q)
+{
+    time_t now;
+
+    time(&now);
+    /*
+    ** check hard limit: blocks
+    */
+    if (q->dqb_bhardlimit && rozofs_toqb(q->dqb_curspace) > q->dqb_bhardlimit) 
+    {
+       return -1 ;
+    }
+    /*
+    ** check soft limit
+    */
+    if (q->dqb_bsoftlimit && rozofs_toqb(q->dqb_curspace) > q->dqb_bsoftlimit) 
+    {
+      if (q->dqb_btime < now )
+      {
+	 return -1 ;
+      }
+    }
+    /*
+    ** check hard limit: files
+    */
+    if (q->dqb_ihardlimit && q->dqb_curinodes > q->dqb_ihardlimit) 
+    {
+       return -1 ;
+    }
+    /*
+    ** check the soft limit
+    */
+    if (q->dqb_isoftlimit && q->dqb_curinodes > q->dqb_isoftlimit) {
+      if (q->dqb_itime < now )
+      {
+	return -1;
+      }
+    }
+    return 0;
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   check quota upon file creation
+    
+    @param eid: export identifier
+    
+    @param usr_id : user quota
+    @param grp_id : group quota
+    
+    @retval : 0 on success
+    @retval < 0 on error
+ */
+int rozofs_qt_check_quota(int eid,int user_id,int grp_id)
+{
+   rozofs_qt_export_t *p;
+   rozofs_qt_cache_entry_t *dquot_usr= NULL;
+   rozofs_qt_cache_entry_t *dquot_grp= NULL;
+   rozofs_quota_key_t key;
+   int ret;
+   /*
+   ** get the pointer to the quota context associated with the eid
+   */
+   /*
+   ** check if the entry already exists: this is done to address the case of the exportd reload
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      return  -1;
+   }
+   if (export_quota_table[eid]== NULL)
+   {
+      return -1;
+   }
+   p = export_quota_table[eid];
+   /*
+   ** check if quota is enable for that exported filesystem
+   */
+   if (p->quota_super[USRQUOTA].enable == 0) 
+   {
+     /*
+     ** no quota
+     */
+     return 0;
+   }
+   /*
+   ** THere is quota : get user  and group account
+   */
+   key.u64 = 0;
+   key.s.qid = grp_id;
+   key.s.eid = eid;
+   key.s.type = USRQUOTA;
+   dquot_usr = rozofs_qt_cache_get (&rozofs_qt_cache,p->quota_inode[USRQUOTA],&key);
+   if (dquot_usr == NULL)
+   {
+     errno = EFAULT;
+     goto error;
+   }
+   ret = rozofs_quota_check_grace_times(&dquot_usr->dquot.quota);
+   if (ret < 0)
+   {
+     return -1;
+   }
+   /*
+   ** check if quota is enable for that exported filesystem
+   */
+   if (p->quota_super[GRPQUOTA].enable == 0) 
+   {
+     /*
+     ** no quota
+     */
+     return 0;
+   }
+   /*
+   ** get group account
+   */
+   key.u64 = 0;
+   key.s.qid = user_id;
+   key.s.eid = eid;
+   key.s.type = GRPQUOTA;
+   dquot_grp = rozofs_qt_cache_get (&rozofs_qt_cache,p->quota_inode[GRPQUOTA],&key);
+   if (dquot_grp == NULL)
+   {
+     errno = EFAULT;
+     goto error;
+   }
+   ret = rozofs_quota_check_grace_times(&dquot_grp->dquot.quota);
+   if (ret < 0)
+   {
+     return -1;
+   }
+   return 0;
+error:
+
+   return -1;
+
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*  update the blocks grace time when there is a change in the quota limits
+
+  @param q: user or group quota
+  @param quota_info_p : pointer to the quota info associated with the type  
+  
+  @retval none
+*/
+ void rozofs_quota_update_grace_times_blocks(rozo_mem_dqblk *q,rozofs_quota_info_t *quota_info_p)
+{
+     time_t now;
+
+     time(&now);
+     if (q->dqb_bsoftlimit && rozofs_toqb(q->dqb_curspace)> q->dqb_bsoftlimit) {
+	     if (!q->dqb_btime)
+		     q->dqb_btime = now +  quota_info_p->dqi_bgrace ;
+     }
+     else
+	     q->dqb_btime = 0;
+}
+/*
+**__________________________________________________________________
+*/
+/**
+*  update the inode grace time when there is a change in the quota limits
+
+  @param q: user or group quota
+  @param quota_info_p : pointer to the quota info associated with the type
+    
+  @retval none
+*/
+ void rozofs_quota_update_grace_times_inodes(rozo_mem_dqblk *q,rozofs_quota_info_t *quota_info_p)
+{
+    time_t now;
+
+    time(&now);
+    if (q->dqb_isoftlimit && q->dqb_curinodes > q->dqb_isoftlimit) {
+	    if (!q->dqb_itime)
+		    q->dqb_itime = now + quota_info_p->dqi_igrace;
+    }
+    else
+	    q->dqb_itime = 0;
+}
+/*
+**__________________________________________________________________
+*/
+/**
+*  update the grace time when there is a change in the quota limits
+
+  @param q: user or group quota
+  @param quota_info_p : pointer to the quota info associated with the type
+  
+  @retval none
+*/
+ void rozofs_quota_update_grace_times(rozo_mem_dqblk *q,rozofs_quota_info_t *quota_info_p)
+{
+   rozofs_quota_update_grace_times_inodes(q,quota_info_p);
+   rozofs_quota_update_grace_times_blocks(q,quota_info_p);
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   Set the quota information related to either a group or a user
+    
+    @param eid: export identifier    
+    @param type : user or group
+    @param identifier :identifier within the type
+    @param sqa_qcmd : bitmap of the information to modify
+    @param src : quota parameters
+    
+    @retval 0 on success
+    @retval-1 on error: see errno for details
+ */
+int rozofs_qt_set_quota(int eid,int type,int identifier,int sqa_cmd, sq_dqblk *src )
+{
+   rozofs_qt_export_t *p;
+   rozofs_qt_cache_entry_t *dquot= NULL;
+   rozofs_quota_key_t key;
+   
+   export_profiler_eid = 0;
+   
+   /*
+   ** check if the entry already exists: this is done to address the case of the exportd reload
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      errno = ERANGE;
+      return  -1;
+   }
+   export_profiler_eid = eid;
+   START_PROFILING(quota_set);   
+
+   if (export_quota_table[eid]== NULL)
+   {
+     errno = ENOENT;
+     goto error;
+   }
+   p = export_quota_table[eid];
+
+   key.u64 = 0;
+   key.s.qid = identifier;
+   key.s.eid = eid;
+   key.s.type = type;
+
+   dquot = rozofs_qt_cache_get (&rozofs_qt_cache,p->quota_inode[type],&key);
+   if (dquot == NULL)
+   {
+     errno = EFAULT;
+     goto error;
+   }
+   /*
+   ** update the information in the quota context 
+   */
+   if (sqa_cmd & QIF_BLIMITS) 
+   /* FS_DQ_BSOFT | FS_DQ_BHARD */
+   {
+      dquot->dquot.quota.dqb_bhardlimit = src->rq_bhardlimit;
+      dquot->dquot.quota.dqb_bsoftlimit = src->rq_bsoftlimit;	
+   }
+#if 0
+   if (sqa_cmd & QIF_SPACE)
+	   dst->d_fieldmask |= FS_DQ_BCOUNT;
+#endif
+   if (sqa_cmd & QIF_ILIMITS)
+   /* FS_DQ_ISOFT | FS_DQ_IHARD */
+   {
+      dquot->dquot.quota.dqb_ihardlimit = src->rq_fhardlimit;
+      dquot->dquot.quota.dqb_isoftlimit = src->rq_fsoftlimit;	
+   }
+#if 0
+   if (sqa_cmd & QIF_INODES)
+	   dst->d_fieldmask |= FS_DQ_ICOUNT;
+   if (sqa_cmd & QIF_BTIME)
+	   dst->d_fieldmask |= FS_DQ_BTIMER;
+   if (sqa_cmd & QIF_ITIME)
+	   dst->d_fieldmask |= FS_DQ_ITIMER;
+#endif
+   /*
+   ** update the grace time if needed
+   */
+   rozofs_quota_update_grace_times(&dquot->dquot.quota,&p->quota_super[type]);
+   /*
+   ** let's write qota on disk
+   */ 
+   rozofs_qt_cache_put(&rozofs_qt_cache,p->quota_inode[type],dquot);  
+   STOP_PROFILING(quota_set);
+   return 0;
+
+error:
+  STOP_PROFILING(quota_set);
+  return -1;
+  
+}
+
+/*
+**__________________________________________________________________
+*/
+/**
+*   Init of the quota module of RozoFS
     
     @retval 0 on success
     @retval -1 on error
@@ -751,7 +1350,7 @@ int rozofs_qt_init()
     {
       severe("error on writeback quota cache init\n");
       return -1;
-    }
+    } 
     rozofs_qt_init_done = 1;
   return 0;    
 }

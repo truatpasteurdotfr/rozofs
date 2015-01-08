@@ -82,13 +82,23 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create);
 /**
 *   Init of the quota module of RozoFS
 
-    @param none
     
     @retval 0 on success
     @retval -1 on error
 */
 int rozofs_qt_init();
+/*
+**__________________________________________________________________
+*/
+/**
+*   Init of the quota module of RozoFS
 
+    @param instance: instance id of the exportd slave
+    
+    @retval 0 on success
+    @retval -1 on error
+*/
+int rozofs_qt_thread_intf_create(int instance);
 
 /*
  *_______________________________________________________________________

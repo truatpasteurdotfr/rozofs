@@ -274,8 +274,10 @@ void rozofs_flock_service_periodic(void * ns) {
   file_t            * file;
   ruc_obj_desc_t    * link, * linkNext;
   int                 nbTxCredits;
+  fid_t               fake_fid;
  
   loop_count++;  
+  memset(fake_fid,0,sizeof(fid_t));
   
   /*
   ** Check there is some Tx credits to start a transaction
@@ -333,7 +335,7 @@ void rozofs_flock_service_periodic(void * ns) {
   ** now initiates the transaction towards the remote end
   */
 #if 1
-  rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)file->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+  rozofs_expgateway_send_routing_common(arg.arg_gw.eid,(unsigned char*)fake_fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_POLL_FILE_LOCK,(xdrproc_t) xdr_epgw_lock_arg_t,(void *)&arg,
                               rozofs_poll_cbk,NULL); 
 #else
@@ -629,6 +631,7 @@ int prepare_lock_for_pending_list(fuse_req_t              req,
   file->lock_sleep      = sleep;
   file->lock_start      = start;
   file->lock_stop       = stop;
+//  info("FDL lock start %llu end %llu ",(unsigned long long int)start,(unsigned long long int)stop);
     
   switch(flock->l_type) {
     case F_WRLCK: 
@@ -722,6 +725,42 @@ void rozofs_ll_flock_nb(fuse_req_t req,
 void rozofs_ll_setlk_after_flush(void *this,void *param);
 void rozofs_ll_setlk_after_write_block(void *this,void *param) ;
 
+
+char *print_whence(int whence)
+{
+    switch(whence) {
+      case SEEK_SET:
+        return "SEEK_SET";
+	break;
+      case SEEK_CUR:
+        return "SEEK_CUR";
+	break;	
+      case SEEK_END:
+        return "SEEK_END";
+        break;
+      default:
+        break;
+    }
+        return "Unknown";
+}
+
+char *print_lock_type(int type)
+{
+    switch(type) {
+      case F_RDLCK:
+        return "EP_LOCK_READ";
+	break;
+      case F_WRLCK:
+        return "EP_LOCK_WRITE";
+	break;	
+      case F_UNLCK:
+        return "EP_LOCK_FREE";
+        break;
+      default:
+        break;
+    }
+        return "Unknown";
+}
 void rozofs_ll_setlk_nb(fuse_req_t req, 
                         fuse_ino_t ino, 
                         struct fuse_file_info *fi,
@@ -732,6 +771,8 @@ void rozofs_ll_setlk_nb(fuse_req_t req,
     void *buffer_p = NULL;
     file_t      * f;
 
+//    severe("FDL lock : type %s whence %s start %llu len %llu",print_lock_type(flock->l_type),print_whence(flock->l_whence),
+//           (unsigned long long int)flock->l_start,flock->l_len);
     if (sleep) lock_stat.posix_set_blocking_lock++;   
     else       lock_stat.posix_set_passing_lock++; 
 
@@ -1221,13 +1262,21 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
     ** get the status of the transaction -> 0 OK, -1 error (need to get errno for source cause
     */
     status = rozofs_tx_get_status(this);
-    if (status < 0) goto again; 
+    if (status < 0) 
+    {
+       info("FDL lock line %d",__LINE__);
+       goto again; 
+    }
 
     /*
     ** get the pointer to the receive buffer payload
     */
     recv_buf = rozofs_tx_get_recvBuf(this);
-    if (recv_buf == NULL) goto again;         
+    if (recv_buf == NULL) 
+    {
+      info("FDL lock line %d",__LINE__);
+      goto again;   
+    }      
 
     payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
     payload += sizeof(uint32_t); /* skip length*/
@@ -1256,9 +1305,7 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        goto error;
     }   
-    
-        
-    if (ret.gw_status.status == EP_SUCCESS) {
+        if (ret.gw_status.status == EP_SUCCESS) {
       fuse_reply_err(file->fuse_req, 0);
       file->fuse_req = NULL;      
       xdr_free((xdrproc_t) decode_proc, (char *) &ret);   
@@ -1276,7 +1323,19 @@ void rozofs_ll_setlk_internal_cbk(void *this,void * param)
       xdr_free((xdrproc_t) decode_proc, (char *) &ret); 
       goto error;
     }
-    
+    /*
+    ** we got EAGAIN, check if a "sleep" was requested. When it is
+    ** no requested, then report the EAGAIN error
+    */
+    if (file->lock_sleep== 0) 
+    {
+      fuse_reply_err(file->fuse_req, EAGAIN);
+      file->fuse_req = NULL;      
+      xdr_free((xdrproc_t) decode_proc, (char *) &ret);   
+      lock_stat.set_lock_refused++;    
+      goto  out;  
+    }
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);   
 again:
     /* Rechain the lock request  */
     ruc_objInsertTail(&pending_lock_list,&file->pending_lock);    

@@ -21,6 +21,7 @@
 
 #include <string.h>
 #include <pthread.h>
+#include <malloc.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -108,7 +109,7 @@ static inline void *dirent_malloc(int size, int line) {
 
     idx = (size - 1) / 64 + 1;
     malloc_size_tb[idx] += 1;
-    p = malloc(size + 8);
+    p = memalign(32,size + 8);
     if (p == NULL )
         printf("Out of memory at line %d\n", line);
     malloc_size += (uint64_t) size;

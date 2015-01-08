@@ -108,6 +108,9 @@ struct export_one_profiler_t {
   uint64_t ep_get_file_lock[2];
   uint64_t ep_poll_file_lock[2];
   uint64_t ep_geo_poll[2];
+  uint64_t quota_get[2];
+  uint64_t quota_set[2];
+  uint64_t quota_setinfo[2];
 };
 typedef struct export_one_profiler_t export_one_profiler_t;
 
