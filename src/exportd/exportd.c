@@ -1227,16 +1227,6 @@ static void on_start() {
     if ((errno = pthread_create(&thread, NULL, (void*) expgwc_start_nb_blocking_th, &expgwc_non_blocking_conf)) != 0) {
         severe("can't create non blocking thread: %s", strerror(errno));
     }
-
-    if (exportd_initialize() != 0) {
-        fatal("can't initialize exportd.");
-    }
-    
-    /*
-    ** Configuration has been processes and data structures have been set up
-    ** so non blocking thread can now process safely incoming messages
-    */
-    export_non_blocking_thread_can_process_messages = 1;
     
     /*
     ** wait for end of init of the non blocking thread
@@ -1247,6 +1237,17 @@ static void on_start() {
        loop_count++;
        if (loop_count > 5) fatal("Non Blocking thread does not answer");
     }
+
+
+    if (exportd_initialize() != 0) {
+        fatal("can't initialize exportd.");
+    }
+    
+    /*
+    ** Configuration has been processes and data structures have been set up
+    ** so non blocking thread can now process safely incoming messages
+    */
+    export_non_blocking_thread_can_process_messages = 1;
 
      /*
      ** build the structure for sending out an exportd gateway configuration message

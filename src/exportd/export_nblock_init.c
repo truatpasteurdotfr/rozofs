@@ -1029,6 +1029,9 @@ int expgwc_start_nb_blocking_th(void *args) {
     while (export_non_blocking_thread_can_process_messages==0) {
       sleep(1);
     }
+
+    info("exportd non-blocking thread running (instance: %d, port: %d).",
+            args_p->instance, args_p->debug_port);
     
     /*
      ** main loop
