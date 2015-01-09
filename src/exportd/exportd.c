@@ -1221,8 +1221,9 @@ static void on_start() {
 
     /**
     * start the non blocking thread
-    */
+    */ 
     expgwc_non_blocking_thread_started = 0;
+    export_non_blocking_thread_can_process_messages = 0;
     if ((errno = pthread_create(&thread, NULL, (void*) expgwc_start_nb_blocking_th, &expgwc_non_blocking_conf)) != 0) {
         severe("can't create non blocking thread: %s", strerror(errno));
     }
@@ -1230,6 +1231,13 @@ static void on_start() {
     if (exportd_initialize() != 0) {
         fatal("can't initialize exportd.");
     }
+    
+    /*
+    ** Configuration has been processes and data structures have been set up
+    ** so non blocking thread can now process safely incoming messages
+    */
+    export_non_blocking_thread_can_process_messages = 1;
+    
     /*
     ** wait for end of init of the non blocking thread
     */

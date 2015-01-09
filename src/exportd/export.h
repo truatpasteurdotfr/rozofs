@@ -575,6 +575,12 @@ ssize_t export_listxattr(export_t *e, fid_t fid, void *list, size_t size);
 
 extern volatile int expgwc_non_blocking_thread_started; /**< clear on start, and asserted by non blocking thread when ready */
 
+/*
+** Set to 0 before starting the non blocking thread
+** and then set to 1 when blocking thread has finished reading the configuration
+*/
+extern int volatile export_non_blocking_thread_can_process_messages;
+
 typedef struct _exportd_start_conf_param_t
 {
    uint16_t debug_port;   /**< port value to be used by rmonitor  */

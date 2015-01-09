@@ -627,6 +627,7 @@ struct timeval     Global_timeDay;
 unsigned long long Global_timeBefore, Global_timeAfter;
 
 int volatile expgwc_non_blocking_thread_started;
+int volatile export_non_blocking_thread_can_process_messages;
 
 /*
 **
@@ -1018,6 +1019,17 @@ int expgwc_start_nb_blocking_th(void *args) {
     {
       severe("quota period thread is unavailable: %s",strerror(errno));
     }    
+    
+    /*
+    ** Wait for end of initialization on blocking exportd 
+    ** to process incoming messages. 
+    ** Processing incoming messages while configuration 
+    ** has not been completly processed could lead to some crash... 
+    */
+    while (export_non_blocking_thread_can_process_messages==0) {
+      sleep(1);
+    }
+    
     /*
      ** main loop
      */
