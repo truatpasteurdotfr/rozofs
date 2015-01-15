@@ -1109,7 +1109,7 @@ do_cou() {
 }
 do_one_cou () 
 {
-  COUFILE=/tmp/.cou
+  COUFILE=/tmp/.cou.$$
 
   
   case "$1" in

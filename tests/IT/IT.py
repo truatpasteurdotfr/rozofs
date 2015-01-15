@@ -150,6 +150,33 @@ def get_sid_nb():
 
   return export_sid,storcli_sid    
 #___________________________________________________
+def reset_storcli_counter():
+# Use debug interface to get the number of sid from exportd
+#___________________________________________________
+
+  inst=get_rozofmount_instance()
+
+  string="./build/src/rozodiag/rozodiag -T mount:%d:1 -c counter reset"%(inst)       
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#___________________________________________________
+def check_storcli_crc():
+# Use debug interface to get the number of sid from exportd
+#___________________________________________________
+
+  inst=get_rozofmount_instance()
+
+  string="./build/src/rozodiag/rozodiag -T mount:%d:1 -c profile"%(inst)       
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+  for line in cmd.stdout:
+    if "read_blk_crc" in line:
+      return True
+     
+  return False    
+   
+#___________________________________________________
 def get_layout():
 # Get the inverse forward and safe values
 #___________________________________________________

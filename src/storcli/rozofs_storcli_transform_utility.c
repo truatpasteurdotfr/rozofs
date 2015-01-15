@@ -71,46 +71,77 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
     prj_ctx_p->raw_file_size = raw_file_size;
     uint32_t bbytes = ROZOFS_BSIZE_BYTES(bsize);
     rozofs_stor_bins_hdr_t* rozofs_bins_hdr_p;
-    int prj_size_in_msg =  rozofs_get_max_psize_in_msg(layout,bsize); 
+    int prj_size_in_msg =  rozofs_get_max_psize_in_msg(layout,bsize);
+    int prj_effective_size = 0; 
                        
     for (block_idx = 0; block_idx < number_of_blocks_returned; block_idx++) 
     {
       /*
       ** Get the pointer to the beginning of the block and extract its header
       */
-      rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p->bins +
-      (prj_size_in_msg/sizeof(bin_t)) * block_idx);
-      if ((rozofs_bins_hdr_p->s.timestamp == 0) && (rozofs_bins_hdr_p->s.projection_id !=0xff))
-       {
-        prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      
-        prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
-        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;          
-      }
-      else {
-        rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) 
-	       ((bin_t*)(rozofs_bins_hdr_p+1)+rozofs_get_psizes(layout,bsize,rozofs_bins_hdr_p->s.projection_id));
-      
-	if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) 
-	{
-          prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      	
-          prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
-          prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;
-	  STORCLI_ERR_PROF(read_blk_footer);        
-	}
-	else 
-	{
-          prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = rozofs_bins_hdr_p->s.projection_id;      	
-          prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
-          prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = rozofs_bins_hdr_p->s.effective_length;                 
-	}
-      }  
+      rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*) (prj_ctx_p->bins 
+                        + (prj_size_in_msg/sizeof(bin_t)) * block_idx);
+
       /*
       ** take care of the crc errors
       */
-      if (rozofs_bins_hdr_p->s.projection_id ==0xff)
+      if (rozofs_bins_hdr_p->s.projection_id == 0xff)
       {
         prj_ctx_p->crc_err_bitmap |= (1<<block_idx);
+        prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      	
+        prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
+        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;
+	STORCLI_ERR_PROF(read_blk_crc); 
+	continue;	  
       }
+            
+      /*
+      ** Empty block
+      */	    
+      if (rozofs_bins_hdr_p->s.timestamp == 0)
+      {
+        prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      
+        prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
+        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes; 
+	continue;         
+      }
+      /*
+      ** Retrieve effective projection size from the projection id
+      ** Should only occur when CRC32 feature is not enabled since prj id is protected by CRC
+      */
+      prj_effective_size = rozofs_get_psizes(layout,bsize,rozofs_bins_hdr_p->s.projection_id);
+      
+      /*
+      ** Out of range projection id
+      */
+      if (prj_effective_size == 0) {
+        prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      	
+        prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
+        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;
+	STORCLI_ERR_PROF(read_blk_prjid);         
+        continue;
+      }
+      	
+      rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) ((bin_t*)(rozofs_bins_hdr_p+1)+prj_effective_size);
+
+      /*
+      ** Not consistent Header and footer
+      ** Should only occur when CRC32 feature is not enabled
+      */
+      if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) 
+      {
+        prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      	
+        prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
+        prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;
+	STORCLI_ERR_PROF(read_blk_footer);  
+	continue;      
+      }
+      /*
+      ** Normal case
+      */
+      prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = rozofs_bins_hdr_p->s.projection_id;      	
+      prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = rozofs_bins_hdr_p->s.timestamp;
+      prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = rozofs_bins_hdr_p->s.effective_length;                 
     }
     /*
     ** clear the part that is after number of returned block (assume end of file)

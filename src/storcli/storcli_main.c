@@ -234,6 +234,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE(read_prj_err);
 	RESET_PROFILER_PROBE(read_prj_tmo);
 	RESET_PROFILER_PROBE(read_blk_footer);
+	RESET_PROFILER_PROBE(read_blk_crc);
+	RESET_PROFILER_PROBE(read_blk_prjid);
 	RESET_PROFILER_PROBE_BYTE(write)
 	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
 	RESET_PROFILER_PROBE(write_sid_miss);		
@@ -288,6 +290,8 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_COUNT(read_prj_err);
     SHOW_PROFILER_PROBE_COUNT(read_prj_tmo);
     SHOW_PROFILER_PROBE_COUNT(read_blk_footer);
+    SHOW_PROFILER_PROBE_COUNT(read_blk_crc);
+    SHOW_PROFILER_PROBE_COUNT(read_blk_prjid);
     SHOW_PROFILER_PROBE_BYTE(write)
     SHOW_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);
     SHOW_PROFILER_PROBE_COUNT(write_sid_miss)    

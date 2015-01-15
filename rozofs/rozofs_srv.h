@@ -119,6 +119,7 @@ static inline uint8_t rozofs_get_rozofs_safe(uint8_t layout) {
  */
 static inline int rozofs_get_angles_p(uint8_t layout, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
+    if (projection_id >= rozofs_conf_layout_table[layout].rozofs_forward) return 0;    
     return rozofs_conf_layout_table[layout].rozofs_angles[projection_id].p;
 }
 
@@ -132,6 +133,7 @@ static inline int rozofs_get_angles_p(uint8_t layout, uint8_t projection_id) {
  */
 static inline int rozofs_get_angles_q(uint8_t layout, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
+    if (projection_id >= rozofs_conf_layout_table[layout].rozofs_forward) return 0;    
     return rozofs_conf_layout_table[layout].rozofs_angles[projection_id].q;
 }
 
@@ -146,6 +148,7 @@ static inline int rozofs_get_angles_q(uint8_t layout, uint8_t projection_id) {
 static inline int rozofs_get_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    if (projection_id >= rozofs_conf_layout_table[layout].rozofs_forward) return 0;
     return 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes[projection_id];
 }
 /**
@@ -159,6 +162,7 @@ static inline int rozofs_get_psizes(uint8_t layout, uint32_t bsize, uint8_t proj
 static inline int rozofs_get_legacy_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    if (projection_id >= rozofs_conf_layout_table[layout].rozofs_forward) return 0;
     return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_psizes[projection_id];
 }
 
@@ -173,6 +177,7 @@ static inline int rozofs_get_legacy_psizes(uint8_t layout, uint32_t bsize, uint8
 static inline int rozofs_get_128bits_psizes(uint8_t layout, uint32_t bsize, uint8_t projection_id) {
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    if (projection_id >= rozofs_conf_layout_table[layout].rozofs_forward) return 0;
     return rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes[projection_id];
 }
 /**
@@ -188,6 +193,7 @@ static inline int rozofs_get_psizes_on_disk(uint8_t layout, uint32_t bsize, uint
     
     if (layout >= LAYOUT_MAX) return 0;
     if (bsize > ROZOFS_BSIZE_MAX) return 0;
+    if (projection_id >= rozofs_conf_layout_table[layout].rozofs_forward) return 0;
     sz = 2*rozofs_conf_layout_table[layout].sizes[bsize].rozofs_eff_psizes[projection_id] * sizeof (bin_t) 
           + sizeof (rozofs_stor_bins_hdr_t) 
           + sizeof(rozofs_stor_bins_footer_t);
