@@ -669,7 +669,23 @@ def read_parallel ():
   prepare_file_to_read(zefile,fileSize) 
   ret=os.system("./IT/read_parallel -process %s -loop %s -file %s"%(process,loop,zefile)) 
   return ret   
+#___________________________________________________
+def crc32():
+#___________________________________________________
 
+  # Clear error counter
+  reset_storcli_counter()
+  # Check CRC errors 
+  if check_storcli_crc():
+    return 1 
+    
+  # Create CRC32 errors  
+  os.system("./IT/test_crc32 -process %d -mount %s"%(process,mnt))
+  
+  # Check CRC errors 
+  if check_storcli_crc():
+    return 0
+  return 1  
 #___________________________________________________
 def xattr():
 #___________________________________________________
@@ -1277,7 +1293,7 @@ parser.add_option("-m","--mount", action="store", type="string", dest="mount", h
 # Read/write test list
 TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_rd_total_close','wr_rd_partial_close','wr_rd_random_close','wr_close_rd_total','wr_close_rd_partial','wr_close_rd_random','wr_close_rd_total_close','wr_close_rd_partial_close','wr_close_rd_random_close']
 # Basic test list
-TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking']
+TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking','crc32']
 # Rebuild test list
 TST_REBUILD=['gruyere','rebuild_fid','rebuild_one_dev','relocate_one_dev','rebuild_all_dev','rebuild_one_node']
 
