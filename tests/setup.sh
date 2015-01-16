@@ -20,6 +20,12 @@
 #
 . env.sh 2> /dev/null
 
+BS4K=0
+BS8K=1
+BS16K=2
+BS32K=3
+REBUILD_LOOP=2
+    
 COREDIR="/var/run/rozofs_core"
 # $1 is the site number
 create_site() {
@@ -482,7 +488,7 @@ rebuild_storage_fid()
 	echo "${storage_path} does not exist !!!" 
 	continue        	  
       fi
-      cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $*"
+      cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $*"
       echo $cmd
       $cmd
     done
@@ -519,7 +525,7 @@ rebuild_storage_device()
 
   create_storage_dev $storage_path $d
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid $dev $*"
+  cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid $dev $*"
   echo $cmd
   $cmd  
   exit $?
@@ -552,7 +558,7 @@ clear_storage_device()
     return        	  
   fi
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST}  --clear --sid $cid/$sid $dev $*"
+  cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST}  --clear --sid $cid/$sid $dev $*"
   echo $cmd
   $cmd  
   exit $?
@@ -587,7 +593,7 @@ relocate_storage_device()
   delete_storage_device $hid $cid $dev
   sleep 5
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid -d $dev -R $*"
+  cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid -d $dev -R $*"
   echo $cmd
   $cmd
   exit $?  
@@ -607,7 +613,7 @@ rebuild_storage()
       create_storage_dev $storage_path	  
   done
   
-  cmd="${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $*"
+  cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $*"
   echo $cmd
   $cmd
   exit $?
@@ -712,7 +718,7 @@ start_one_storage()
     resolve_storage_conf_file
 
     #echo "Start storage cid: $cid sid: $sid"
-    rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$hid.pid  ${LOCAL_BINARY_DIR}/$storaged_dir/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid &
+    rozolauncher start /var/run/launcher_storaged_${LOCAL_STORAGE_NAME_BASE}$hid.pid  ${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_DAEMON} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid &
     #sleep 1
 }
 reset_one_storage () {
@@ -1026,7 +1032,7 @@ clean_all ()
 
 get_bin_complete_name () {
   case "$1" in
-  storaged|storio) bin=${LOCAL_BINARY_DIR}/$storaged_dir/$1;;
+  storaged|storio) bin=${LOCAL_BINARY_DIR}/storaged/$1;;
   export*)   bin=${LOCAL_BINARY_DIR}/exportd/exportd;;
   geomgr)     bin=${LOCAL_BINARY_DIR}/geocli/geomgr;;
   *)               bin=${LOCAL_BINARY_DIR}/$1/$1;;
@@ -1408,48 +1414,6 @@ usage ()
     exit 0
 }
 
-# $1 -> Layout to use
-set_layout () {
-
-  if [ ! -f ${WORKING_DIR}/layout.saved ];
-  then
-    echo 0 > ${WORKING_DIR}/layout.saved   
-  fi
-  
-  # Get default layout from /tmp/rozo.layout if not given as parameter
-  
-  case "$1" in
-    "") {
-      ROZOFS_LAYOUT=0
-      if [ -f ${WORKING_DIR}/layout.saved ];
-      then
-        ROZOFS_LAYOUT=`cat ${WORKING_DIR}/layout.saved`    
-      fi
-    };;   
-    *) ROZOFS_LAYOUT=$1;;
-  esac
-
-  case "$ROZOFS_LAYOUT" in
-    0) {
-      STORAGES_BY_CLUSTER=4
-      NB_EXPGATEWAYS=4	
-    };;
-    1) {        
-      STORAGES_BY_CLUSTER=8
-      NB_EXPGATEWAYS=4
-    };;   
-    2) {
-      STORAGES_BY_CLUSTER=16
-      NB_EXPGATEWAYS=4
-    };;
-    *) {
-      echo >&2 "Rozofs layout must be equal to 0, 1 or 2."
-      exit 1
-    };
-  esac  
-  # Save layout
-  echo $ROZOFS_LAYOUT > ${WORKING_DIR}/layout.saved
-}
 
 display_process() {
   local header=$2
@@ -1497,12 +1461,30 @@ show_process () {
 }
 main ()
 {
-    storaged_dir="storaged"
-
-        
     [ $# -lt 1 ] && usage
 
-    # to reach executables
+    #____________________________________________________
+    # C O N F I G U R A T I O N
+    #____________________________________________________    
+    # Read either personal configuration file (setup.cfg)
+    # or default configuration file (setup.default.cfg
+    if [ -f setup.cfg ];
+    then
+      . setup.cfg  
+    else
+      if [ -f setup.default.cfg ];
+      then
+        . setup.default.cfg
+      else
+        echo "!!!"
+        echo "!!! Neither setup.cfg nor setup.default.cfg exist !!!"
+	echo "!!!"
+	exit 1
+      fi
+    fi
+        
+
+    # Modify path to reach every generated executable
     for dir in ${LOCAL_BUILD_DIR}/src/*
     do
       if [ -d $dir ];
@@ -1511,61 +1493,29 @@ main ()
       fi
     done  
 
-    # Set new layout when given on start command
-    # or read saved layout 
-    if [ "$1" == "start" -a $# -ge 2 ];
-    then
-        # Set layout and save it
-        set_layout $2  
-    else
-        # Read saved layout
-        set_layout
-    fi
     
-    NB_EXPORTS=2
-    # BSIZE 0=4K 1=8K 2=16K 3=32K 
-    BS4K=0
-    BS8K=1
-    BS16K=2
-    BS32K=3
-    declare -a EXPORT_BSIZE=($BS4K $BS8K $BS16K $BS32K)
+    # Storage per cluster depends on layout
+    case "$ROZOFS_LAYOUT" in
+      0) {
+	STORAGES_BY_CLUSTER=4
+      };;
+      1) {        
+	STORAGES_BY_CLUSTER=8
+      };;   
+      2) {
+	STORAGES_BY_CLUSTER=16
+      };;
+      *) {
+	echo >&2 "Rozofs layout must be equal to 0, 1 or 2."
+	exit 1
+      };
+    esac      
 
-    NB_VOLUMES=1
-    NB_CLUSTERS_BY_VOLUME=1
-    NB_PORTS_PER_STORAGE_HOST=2
-    NB_DISK_THREADS=4
-    NB_CORES=2
-    WRITE_FILE_BUFFERING_SIZE=256
-    NB_STORCLI=1
-    SHAPER=0
-    ROZOFSMOUNT_CLIENT_NB_BY_EXPORT_FS=1
-    SQUOTA=""
-    HQUOTA=""
-   
-    REBUILD_LOOP=1
-    
-    CRC32_GENERATE=True
-    CRC32_CHECK=True
-    CRC32_HW=True
-    
-    # Device self-healing after 1 min
-    DEV_SELF_HEALING=1
-    
-    NB_DEVICE_PER_SID=6
-    NB_DEVICE_MAPPER_PER_SID=3
-    NB_DEVICE_MAPPER_RED_PER_SID=3
-    # GEOREP = 1 (1 site) or 2 (2 georeplicated sites)
-    GEOREP=1
 
     STORAGES_PER_SITE=$((NB_VOLUMES*STORAGES_BY_CLUSTER))
     SID_PER_SITE=$((STORAGES_PER_SITE*NB_CLUSTERS_BY_VOLUME))
     STORAGES_TOTAL=$((STORAGES_PER_SITE*GEOREP))
     SID_TOTAL=$((SID_PER_SITE*GEOREP))
-
-    # Only one storio per storage or one storio per listening port ?
-    STORIO_MODE="multiple"
-    #STORIO_MODE="single"   
-    
     
     #READ_FILE_MINIMUM_SIZE=8
     READ_FILE_MINIMUM_SIZE=$WRITE_FILE_BUFFERING_SIZE
@@ -1574,6 +1524,7 @@ main ()
 
     ulimit -c unlimited
     ${WORKING_DIR}/conf_local_addr.sh set $STORAGES_TOTAL eth0 > /dev/null 2>&1 
+
     if [ "$1" == "site" ]
     then    
         [ $# -lt 2 ] && usage
@@ -1716,7 +1667,6 @@ main ()
        show_process $2
     elif [ "$1" == "monitor" ]
     then 
-       set_layout
        do_monitor $2       
     elif [ "$1" == "clean" ]
     then
