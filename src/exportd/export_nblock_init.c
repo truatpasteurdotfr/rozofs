@@ -621,6 +621,22 @@ void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
   display_file_lock(uma_dbg_get_buffer());
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
+/*
+ *_______________________________________________________________________
+ */
+/**
+*   file lock
+
+  @param argv : standard argv[] params of debug callback
+  @param tcpRef : reference of the TCP debug connection
+  @param bufRef : reference of an output buffer 
+  
+  @retval none
+*/
+void show_flock_clients(char * argv[], uint32_t tcpRef, void *bufRef) {
+  display_file_lock_clients(uma_dbg_get_buffer());
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+}
 
 // For trace purpose
 struct timeval     Global_timeDay;
@@ -970,7 +986,8 @@ int expgwc_start_nb_blocking_th(void *args) {
       uma_dbg_addTopic("exp_slave", show_export_slave);
     }
     uma_dbg_addTopic("lv2_cache",show_lv2_attribute_cache);
-    uma_dbg_addTopic("flock",    show_flock);    
+    uma_dbg_addTopic("flock",    show_flock);  
+    uma_dbg_addTopic("clients",show_flock_clients); 
     uma_dbg_addTopic_option("trk_thread", show_tracking_thread,UMA_DBG_OPTION_RESET);
     
     if (args_p->slave == 0)

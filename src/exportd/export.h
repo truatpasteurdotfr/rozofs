@@ -685,7 +685,7 @@ void ep_expgw_init_configuration_message(char *exportd_hostname);
  * @return: On success, the size of the extended attribute value.
  * On failure, -1 is returned and errno is set appropriately.
  */
-int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock) ;
+int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_lock_t * blocking_lock, ep_client_info_t * info) ;
 /*
 **______________________________________________________________________________
 */
@@ -697,7 +697,7 @@ int export_set_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_
  * @return: On success, the size of the extended attribute value.
  * On failure, -1 is returned and errno is set appropriately.
  */
-int export_clear_client_file_lock(export_t *e, ep_lock_t * lock_requested);
+int export_clear_client_file_lock(export_t *e, ep_lock_t * lock_requested, ep_client_info_t * info);
 /*
 **______________________________________________________________________________
 */
@@ -734,7 +734,7 @@ int export_get_file_lock(export_t *e, fid_t fid, ep_lock_t * lock_requested, ep_
  * @return: On success, the size of the extended attribute value.
  * On failure, -1 is returned and errno is set appropriately.
  */
-int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested) ;
+int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested, ep_client_info_t * info) ;
 /*
 **______________________________________________________________________________
 */

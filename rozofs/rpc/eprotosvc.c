@@ -16,6 +16,7 @@
 #define SIG_PF void(*)(int)
 #endif
 #include <rozofs/rozofs.h>
+#define ROZOFS_VERSION_STRING_LENGTH 32
 
 void
 export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)

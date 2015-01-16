@@ -36,6 +36,9 @@ typedef char ep_md5_t[ROZOFS_MD5_SIZE];
 typedef char *ep_st_host_t;
 
 typedef char *ep_epgw_host_t;
+#define ROZOFS_VERSION_STRING_LENGTH 32
+
+typedef char ep_sftw_vers_t[ROZOFS_VERSION_STRING_LENGTH];
 
 struct ep_gateway_t {
 	uint32_t eid;
@@ -271,9 +274,17 @@ struct ep_lock_t {
 };
 typedef struct ep_lock_t ep_lock_t;
 
+struct ep_client_info_t {
+	ep_sftw_vers_t vers;
+	uint16_t diag_port;
+	uint32_t socketRef;
+};
+typedef struct ep_client_info_t ep_client_info_t;
+
 struct ep_lock_request_arg_t {
 	uint32_t eid;
 	ep_uuid_t fid;
+	ep_client_info_t client_info;
 	ep_lock_t lock;
 };
 typedef struct ep_lock_request_arg_t ep_lock_request_arg_t;
@@ -971,6 +982,7 @@ extern  bool_t xdr_ep_host_t (XDR *, ep_host_t);
 extern  bool_t xdr_ep_md5_t (XDR *, ep_md5_t);
 extern  bool_t xdr_ep_st_host_t (XDR *, ep_st_host_t*);
 extern  bool_t xdr_ep_epgw_host_t (XDR *, ep_epgw_host_t*);
+extern  bool_t xdr_ep_sftw_vers_t (XDR *, ep_sftw_vers_t);
 extern  bool_t xdr_ep_gateway_t (XDR *, ep_gateway_t*);
 extern  bool_t xdr_ep_status_t (XDR *, ep_status_t*);
 extern  bool_t xdr_ep_status_ret_t (XDR *, ep_status_ret_t*);
@@ -999,6 +1011,7 @@ extern  bool_t xdr_ep_lock_mode_t (XDR *, ep_lock_mode_t*);
 extern  bool_t xdr_ep_lock_size_t (XDR *, ep_lock_size_t*);
 extern  bool_t xdr_ep_lock_range_t (XDR *, ep_lock_range_t*);
 extern  bool_t xdr_ep_lock_t (XDR *, ep_lock_t*);
+extern  bool_t xdr_ep_client_info_t (XDR *, ep_client_info_t*);
 extern  bool_t xdr_ep_lock_request_arg_t (XDR *, ep_lock_request_arg_t*);
 extern  bool_t xdr_epgw_lock_arg_t (XDR *, epgw_lock_arg_t*);
 extern  bool_t xdr_ep_lock_ret_t (XDR *, ep_lock_ret_t*);
@@ -1077,6 +1090,7 @@ extern bool_t xdr_ep_host_t ();
 extern bool_t xdr_ep_md5_t ();
 extern bool_t xdr_ep_st_host_t ();
 extern bool_t xdr_ep_epgw_host_t ();
+extern bool_t xdr_ep_sftw_vers_t ();
 extern bool_t xdr_ep_gateway_t ();
 extern bool_t xdr_ep_status_t ();
 extern bool_t xdr_ep_status_ret_t ();
@@ -1105,6 +1119,7 @@ extern bool_t xdr_ep_lock_mode_t ();
 extern bool_t xdr_ep_lock_size_t ();
 extern bool_t xdr_ep_lock_range_t ();
 extern bool_t xdr_ep_lock_t ();
+extern bool_t xdr_ep_client_info_t ();
 extern bool_t xdr_ep_lock_request_arg_t ();
 extern bool_t xdr_epgw_lock_arg_t ();
 extern bool_t xdr_ep_lock_ret_t ();

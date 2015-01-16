@@ -1651,7 +1651,11 @@ epgw_lock_ret_t * ep_set_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_req *
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
-    res = export_set_file_lock(exp, (unsigned char *) arg->arg_gw.fid, &arg->arg_gw.lock, &ret.gw_status.ep_lock_ret_t_u.lock);
+    res = export_set_file_lock(exp, 
+                               (unsigned char *) arg->arg_gw.fid, 
+			       &arg->arg_gw.lock, 
+			       &ret.gw_status.ep_lock_ret_t_u.lock,  
+			       &arg->arg_gw.client_info);
     if(res == 0) {
         ret.gw_status.status = EP_SUCCESS;
 	memcpy(&ret.gw_status.ep_lock_ret_t_u.lock,&arg->arg_gw.lock, sizeof(ep_lock_t));
@@ -1692,7 +1696,7 @@ epgw_status_ret_t * ep_clear_client_file_lock_1_svc(epgw_lock_arg_t * arg, struc
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
-    if (export_clear_client_file_lock(exp, &arg->arg_gw.lock) != 0) {
+    if (export_clear_client_file_lock(exp, &arg->arg_gw.lock, &arg->arg_gw.client_info) != 0) {
         goto error;
     }
 
@@ -1808,7 +1812,7 @@ epgw_status_ret_t * ep_poll_file_lock_1_svc(epgw_lock_arg_t * arg, struct svc_re
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
-    if (export_poll_file_lock(exp, &arg->arg_gw.lock) != 0) {
+    if (export_poll_file_lock(exp, &arg->arg_gw.lock, &arg->arg_gw.client_info) != 0) {
         goto error;
     }
 

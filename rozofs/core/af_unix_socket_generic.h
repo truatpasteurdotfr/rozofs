@@ -949,4 +949,16 @@ static inline void af_inet_attach_application_availability_callback(af_unix_ctx_
  @retval < 0 error on at least one socket creation
 */
 int af_unix_socket_set_datagram_socket_len(int len);
+
+/**
+*/
+static inline uint32_t af_unix_get_remote_ip(uint32_t af_unix_ctx_id) {
+    af_unix_ctx_generic_t *p;
+
+    p = af_unix_getObjCtx_p(af_unix_ctx_id);
+    if (p == NULL)               return 1;
+    if (p->af_family != AF_INET) return 2;    
+    return p->remote_ipaddr_host;
+    
+}
 #endif

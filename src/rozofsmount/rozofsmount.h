@@ -46,6 +46,7 @@ extern int rozofs_cache_mode;
 extern int rozofs_mode;
 extern int rozofs_rotation_read_modulo;
 extern int rozofs_bugwatch;
+extern uint16_t rozofsmount_diag_port;
 
 typedef struct rozofsmnt_conf {
     char *host;

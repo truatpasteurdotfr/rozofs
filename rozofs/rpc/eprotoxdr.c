@@ -119,6 +119,18 @@ xdr_ep_epgw_host_t (XDR *xdrs, ep_epgw_host_t *objp)
 		 return FALSE;
 	return TRUE;
 }
+#define ROZOFS_VERSION_STRING_LENGTH 32
+
+bool_t
+xdr_ep_sftw_vers_t (XDR *xdrs, ep_sftw_vers_t objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_vector (xdrs, (char *)objp, ROZOFS_VERSION_STRING_LENGTH,
+		sizeof (char), (xdrproc_t) xdr_char))
+		 return FALSE;
+	return TRUE;
+}
 
 bool_t
 xdr_ep_gateway_t (XDR *xdrs, ep_gateway_t *objp)
@@ -598,6 +610,20 @@ xdr_ep_lock_t (XDR *xdrs, ep_lock_t *objp)
 }
 
 bool_t
+xdr_ep_client_info_t (XDR *xdrs, ep_client_info_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_sftw_vers_t (xdrs, objp->vers))
+		 return FALSE;
+	 if (!xdr_uint16_t (xdrs, &objp->diag_port))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->socketRef))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_lock_request_arg_t (XDR *xdrs, ep_lock_request_arg_t *objp)
 {
 	//register int32_t *buf;
@@ -605,6 +631,8 @@ xdr_ep_lock_request_arg_t (XDR *xdrs, ep_lock_request_arg_t *objp)
 	 if (!xdr_uint32_t (xdrs, &objp->eid))
 		 return FALSE;
 	 if (!xdr_ep_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	 if (!xdr_ep_client_info_t (xdrs, &objp->client_info))
 		 return FALSE;
 	 if (!xdr_ep_lock_t (xdrs, &objp->lock))
 		 return FALSE;

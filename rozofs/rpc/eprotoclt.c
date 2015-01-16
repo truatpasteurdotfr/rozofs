@@ -6,6 +6,7 @@
 #include <memory.h> /* for memset */
 #include "eproto.h"
 #include <rozofs/rozofs.h>
+#define ROZOFS_VERSION_STRING_LENGTH 32
 
 /* Default timeout can be changed using clnt_control() */
 static struct timeval TIMEOUT = { 25, 0 };

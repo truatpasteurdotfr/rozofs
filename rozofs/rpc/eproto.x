@@ -35,6 +35,9 @@ typedef string            ep_st_host_t<ROZOFS_HOSTNAME_MAX>;
 typedef string            ep_epgw_host_t<ROZOFS_PATH_MAX>;
 
 
+%#define ROZOFS_VERSION_STRING_LENGTH    32
+typedef char            ep_sftw_vers_t[ROZOFS_VERSION_STRING_LENGTH];
+
 struct ep_gateway_t
 {
     uint32_t  eid;
@@ -242,10 +245,15 @@ struct ep_lock_t {
     ep_lock_range_t        user_range;
     ep_lock_range_t        effective_range;
 }; 
-
+struct ep_client_info_t {
+    ep_sftw_vers_t  vers;
+    uint16_t        diag_port;  
+    uint32_t        socketRef;
+}; 
 struct ep_lock_request_arg_t {
     uint32_t        eid;
-    ep_uuid_t       fid;    
+    ep_uuid_t       fid; 
+    ep_client_info_t client_info;
     ep_lock_t       lock;
 };
 

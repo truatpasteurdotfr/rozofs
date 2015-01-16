@@ -330,6 +330,8 @@ void rozofs_flock_service_periodic(void * ns) {
   */
   loop_count = 0;
   arg.arg_gw.eid             = exportclt.eid;
+  strncpy(arg.arg_gw.client_info.vers,VERSION,ROZOFS_VERSION_STRING_LENGTH);    
+  arg.arg_gw.client_info.diag_port = rozofsmount_diag_port;    
   arg.arg_gw.lock.client_ref = rozofs_client_hash;
   /*
   ** now initiates the transaction towards the remote end
@@ -425,6 +427,8 @@ void rozofs_ll_getlk_nb(fuse_req_t req,
     ** fill up the structure that will be used for creating the xdr message
     */    
     arg.arg_gw.eid = exportclt.eid;
+    strncpy(arg.arg_gw.client_info.vers,VERSION,ROZOFS_VERSION_STRING_LENGTH);    
+    arg.arg_gw.client_info.diag_port = rozofsmount_diag_port;    
     memcpy(arg.arg_gw.fid, ie->fid, sizeof (uuid_t));
     switch(flock->l_type) {
       case F_RDLCK:
@@ -1142,6 +1146,8 @@ int rozofs_ll_setlk_internal(file_t * file) {
     ** fill up the structure that will be used for creating the xdr message
     */    
     arg.arg_gw.eid                          = exportclt.eid;
+    strncpy(arg.arg_gw.client_info.vers,VERSION,ROZOFS_VERSION_STRING_LENGTH);    
+    arg.arg_gw.client_info.diag_port = rozofsmount_diag_port;    
     memcpy(arg.arg_gw.fid, file->fid, sizeof (uuid_t));
     arg.arg_gw.lock.mode                    = file->lock_type;
     arg.arg_gw.lock.client_ref              = rozofs_client_hash;
@@ -1412,6 +1418,8 @@ void rozofs_clear_file_lock_owner(file_t * f) {
     ** fill up the structure that will be used for creating the xdr message
     */    
     arg.arg_gw.eid               = exportclt.eid;
+    strncpy(arg.arg_gw.client_info.vers,VERSION,ROZOFS_VERSION_STRING_LENGTH);    
+    arg.arg_gw.client_info.diag_port = rozofsmount_diag_port;    
     memcpy(arg.arg_gw.fid, f->fid, sizeof (uuid_t));
     arg.arg_gw.lock.mode         = EP_LOCK_FREE;
     arg.arg_gw.lock.client_ref   = rozofs_client_hash;
@@ -1517,7 +1525,9 @@ void rozofs_ll_clear_client_file_lock(int eid, uint64_t client_hash) {
     epgw_lock_arg_t arg;
 
     arg.arg_gw.eid             = exportclt.eid;
-    arg.arg_gw.lock.client_ref = rozofs_client_hash;       
+    arg.arg_gw.lock.client_ref = rozofs_client_hash; 
+    strncpy(arg.arg_gw.client_info.vers,VERSION,ROZOFS_VERSION_STRING_LENGTH);    
+    arg.arg_gw.client_info.diag_port = rozofsmount_diag_port;    
 
     /*
     ** now initiates the transaction towards the remote end

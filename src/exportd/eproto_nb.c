@@ -1573,7 +1573,8 @@ void ep_set_file_lock_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
-    res = export_set_file_lock(exp, (unsigned char *) arg->arg_gw.fid, &arg->arg_gw.lock, &ret.gw_status.ep_lock_ret_t_u.lock);
+    arg->arg_gw.client_info.socketRef = req_ctx_p->socketRef;
+    res = export_set_file_lock(exp, (unsigned char *) arg->arg_gw.fid, &arg->arg_gw.lock, &ret.gw_status.ep_lock_ret_t_u.lock, &arg->arg_gw.client_info);
     if(res == 0) {
         ret.gw_status.status = EP_SUCCESS;
 	memcpy(&ret.gw_status.ep_lock_ret_t_u.lock,&arg->arg_gw.lock, sizeof(ep_lock_t));
@@ -1617,7 +1618,8 @@ void ep_clear_client_file_lock_1_svc_nb( void * pt, rozorpc_srv_ctx_t *req_ctx_p
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
-    if (export_clear_client_file_lock(exp, &arg->arg_gw.lock) != 0) {
+    arg->arg_gw.client_info.socketRef = req_ctx_p->socketRef;
+    if (export_clear_client_file_lock(exp, &arg->arg_gw.lock, &arg->arg_gw.client_info) != 0) {
         goto error;
     }
 
@@ -1738,8 +1740,9 @@ void ep_poll_file_lock_1_svc_nb( void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
-
-    if (export_poll_file_lock(exp, &arg->arg_gw.lock) != 0) {
+	
+    arg->arg_gw.client_info.socketRef = req_ctx_p->socketRef;
+    if (export_poll_file_lock(exp, &arg->arg_gw.lock, &arg->arg_gw.client_info) != 0) {
         goto error;
     }
 

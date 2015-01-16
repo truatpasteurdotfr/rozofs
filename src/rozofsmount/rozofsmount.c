@@ -73,6 +73,7 @@ DEFINE_PROFILING(mpp_profiler_t) = {0};
 
 sem_t *semForEver; /**< semaphore used for stopping rozofsmount: typically on umount */
 
+uint16_t rozofsmount_diag_port=0;
 
 int rozofs_mountpoint_check(const char * mntpoint);
 /*
@@ -117,12 +118,13 @@ static inline uint64_t rozofs_client_hash_compute(char * hostname, int instance)
      ** hash on hostname
      */
     for (; *d != 0; d++) {
-        h = (h * 16777619)^ *d;
+      h = (h * 16777619)^ *d;
     }
     /*
      ** hash on instance id
      */
-    h = (h * 16777619)^ instance;
+    h = h & 0xFFFFFFFFFFFFFF00;
+    h += instance;
     return h;
 }     
 /*
@@ -1802,6 +1804,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     }     
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = conf.dbg_port;
+    rozofsmount_diag_port = conf.dbg_port;
 
     rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     rozofs_fuse_conf.se = se;
