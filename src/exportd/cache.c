@@ -808,10 +808,7 @@ rozofs_file_lock_t * lv2_cache_allocate_file_lock(ep_lock_t * lock, ep_client_in
 void lv2_cache_free_file_lock(rozofs_file_lock_t * lock) {
   list_t * p;
   rozofs_file_lock_client_t * client;
-  
-  file_lock_unlink(lock);
-  
-#if 0  
+   
   /*
   ** Check whether the client has still a lock set 
   */
@@ -823,11 +820,10 @@ void lv2_cache_free_file_lock(rozofs_file_lock_t * lock) {
  
     if (client->client_ref == lock->lock.client_ref) {
       client->nb_lock--;
-      if (client->nb_lock == 0) file_lock_remove_client(client->client_ref);
+      file_lock_unlink(lock);;
       break;
     }       
   }
-#endif
   
   /*
   ** Free the lock
