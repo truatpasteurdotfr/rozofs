@@ -35,12 +35,16 @@
 #define DEFAULT_NB_PROCESS    20
 #define DEFAULT_LOOP         200
 #define DEFAULT_FILE_SIZE_MB   1
+#define DEFAULT_KILO_SZ        1024
 
-#define RANDOM_BLOCK_SIZE      (9*1024)
-#define READ_BUFFER_SIZE       (RANDOM_BLOCK_SIZE+file_mb)
+/*
+** This has rather to be a string with a length divisor of 1024
+*/
+char   * attention = ">> This is the CRC32 test line.\n";
 
-#define ERROR(...) printf("%d proc %d %s - ", __LINE__,myProcId,filename); printf(__VA_ARGS__)
+#define ERROR(...) printf("%d proc %d - ", __LINE__,myProcId); printf(__VA_ARGS__)
 
+#define BLK_SIZE 1024
 
 int shmid;
 #define SHARE_MEM_NB 7538
@@ -96,7 +100,7 @@ char FILENAME[500];
 
 int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
-  
+int nbKilo          = DEFAULT_KILO_SZ;
 
 long long unsigned int file_mb=DEFAULT_FILE_SIZE_MB*1000000;
 
@@ -162,7 +166,21 @@ char *argv[];
             idx++;
             continue;
         }
-			
+        /* -sz <kilo>  */
+        if (strcmp(argv[idx], "-sz") == 0) {
+            idx++;
+            if (idx == argc) {
+                printf("%s option set but missing value !!!\n", argv[idx-1]);
+                usage();
+            }
+            ret = sscanf(argv[idx], "%u", &nbKilo);
+            if (ret != 1) {
+                printf("%s option but bad value \"%s\"!!!\n", argv[idx-1], argv[idx]);
+                usage();
+            }
+            idx++;
+            continue;
+        }			
         printf("Unexpected parameter %s\n", argv[idx]);
         usage();
     }
@@ -185,24 +203,26 @@ char *argv[];
 }
 
 
-int get_1rst_projection_file_name(char * fname,int len) {
-  char   cmd[1024];
+int get_projection_nb_file_name(char * fname,int len, int nb) {
+  char   cmd[BLK_SIZE];
   int    fd;
   size_t size;
     
-  sprintf(cmd,"./setup.sh cou %s | grep \"bins\" | awk \'NR==1{print $2}\' > /tmp/%d", fname, getpid()); 
-//  printf("%s\n",cmd);
+  sprintf(cmd,"./setup.sh cou %s | grep \"bins\" | awk \'NR==%d{print $2}\' > /tmp/%d; sync", fname, nb, getpid()); 
+  //printf("%s\n",cmd);
   system(cmd);
-
   sprintf(cmd,"/tmp/%d",getpid());
+  
+//  usleep(100000);
+  
   fd = open(cmd, O_RDONLY, 0640);
   if (fd == -1) {
-      printf("proc %3d - open(%s) %s\n",myProcId, cmd, strerror(errno));
+      ERROR("open(%s) %s\n",cmd, strerror(errno));
       return -1;
   }          
   size = pread(fd, fname, len,0);
   if (size <= 0) {
-      printf("proc %3d - pread(%s) -> %d %s\n", myProcId, cmd, size, strerror(errno));   
+      ERROR("pread(%s) -> %d %s\n", cmd, size, strerror(errno));   
       return -1;
   }  
   fname[size-1] = 0;
@@ -216,65 +236,154 @@ int create_projection_error(char * filename) {
   uint32_t val32;
   size_t   size;
   char fname[500];
-  int  valint;
-  
+  int      i;
+  uint64_t offset;
+
+  /*
+  ** Find out a projection file name
+  */
   strcpy(fname,filename);
+  if (get_projection_nb_file_name(fname,500, myProcId%3+1) != 0) return -1;
   
-  if (get_1rst_projection_file_name(fname,500) != 0) return -1;
-  
+  /*
+  ** Open it
+  */
   fd = open(fname, O_RDWR, 0640);
   if (fd == -1) {
-      printf("proc %3d - open(%s) %s\n",myProcId, fname, strerror(errno));
+      ERROR("open(%s) %s\n", fname, strerror(errno));
       return -1;
   }
   
-  size = pread(fd, &val32, sizeof(val32),16);
-  if (size != sizeof(val32)) {
-      printf("proc %3d - pread(%s) -> %d %s\n", myProcId, fname, size, strerror(errno));   
+  /*
+  ** Read and rewite a 32 bit value
+  */
+  offset = 16;
+  for (i=0; i< nbKilo; i++, offset += BLK_SIZE) {
+      
+    size = pread(fd, &val32, sizeof(val32),offset);
+    if (size == 0) break;
+    if (size != sizeof(val32)) {
+      ERROR("pread(%s,offset %d) -> %d %s\n", fname, offset, size, strerror(errno));   
       return -1;
-  }    
+    }    
   
-  val32++;
+    val32++;
   
-  size = pwrite(fd, &val32, sizeof(val32),16);
-  if (size != sizeof(val32)) {
-      printf("proc %3d - pwrite(%s) -> %d %s\n", myProcId, fname, size, strerror(errno));   
+    size = pwrite(fd, &val32, sizeof(val32),offset);
+    if (size != sizeof(val32)) {
+      ERROR("pwrite(%s,offset %d) -> %d %s\n", fname, offset, size, strerror(errno));   
       return -1;
-  }   
+    }   
+  }  
   
   close(fd); 
   sync();
   return 0;
 }
-int loop_test_process() {
-  char filename[500];
+int reread_file(char * filename) {
   int    fd;
   size_t size;
-  int valint;
+  int    i,j;
+  char   block[BLK_SIZE];
+  uint64_t offset;
+    
+  /*
+  ** Open file
+  */
+  fd = open(filename, O_RDWR | O_CREAT, 0640);
+  if (fd == -1) {
+      ERROR("open2(%s) %s\n", filename, strerror(errno));
+      return -1;
+  }
+
+  /*
+  ** Read the file
+  */  
+  offset = 0;
+  for (i=0; i<nbKilo; i++,offset+=BLK_SIZE) {
+
+    size = pread(fd, &block, BLK_SIZE, offset);
+    if (size != sizeof(block)) {
+	ERROR("pread(%s,offset %d) -> %d %s\n", filename, offset, size, strerror(errno));   
+	return -1;
+    }  
+    
+    for (j=0; j < BLK_SIZE; j++) {
+      if (block[j] != attention[j%strlen(attention)]) {
+        ERROR("Bad text in %s at offset %d\n", filename, offset+j);        
+      }
+    }    
+  }
+  
+  close(fd);
+  return 0;
+}
+int write_file(char * filename) {
+  int    fd;
+  size_t size; 
+  char   block[BLK_SIZE];
+  int    i;
+  uint64_t offset;
+
+  /*
+  ** Remove the file
+  */
+  if (unlink(filename) == -1) {
+    if (errno != ENOENT) {
+      ERROR("unlink(%s) %s\n", filename, strerror(errno));
+      return -1;
+    }
+  }
+
+  /*
+  ** Create file empty
+  */
+  fd = open(filename, O_RDWR | O_CREAT, 0640);
+  if (fd == -1) {
+      ERROR("open1(%s) %s\n", filename, strerror(errno));
+      return -1;
+  }
+  
+  /*
+  ** Prepare the 1K block
+  */
+  for (i=0; i < BLK_SIZE; i++) {
+    block[i] = attention[i%strlen(attention)];
+  }
+    
+  /*
+  ** Write the file
+  */         
+  offset = 0;
+  for (i=0; i<nbKilo; i++,offset+=BLK_SIZE) {
+          
+    size = pwrite(fd, block, BLK_SIZE, offset);
+    if (size != sizeof(block)) {
+      ERROR("pwrite(%s,offset %d) -> %d %s\n", filename, offset, size, strerror(errno));   
+      close(fd);
+      return -1;
+    }
+
+  }
+      
+  /*
+  ** Close the file
+  */    
+  close(fd);
+  sync();
+}  
+int loop_test_process() {
+  char filename[500];
+  int    i;
   
   /*
   ** Create and write a file
   */
   sprintf(filename,"%s.%d",FILENAME, myProcId);
-  if (unlink(filename) == -1) {
-    if (errno != ENOENT) {
-      printf("proc %3d - ERROR !!! unlink(%s) %s\n", myProcId, filename, strerror(errno));
-      return -1;
-    }
+  if (write_file(filename) != 0) {
+    return -1;
   }
-
-  fd = open(filename, O_RDWR | O_CREAT, 0640);
-  if (fd == -1) {
-      printf("proc %3d - open1(%s) %s\n",myProcId, filename, strerror(errno));
-      return -1;
-  }             
-  size = pwrite(fd, &myProcId, sizeof(myProcId), 0);
-  if (size != sizeof(myProcId)) {
-      printf("proc %3d - pwrite(%s) -> %d %s\n", myProcId, filename, size, strerror(errno));   
-      return -1;
-  }  
-  close(fd);
-  sync();
+    
   
   /*
   ** Wait for rozofs to write the projection files
@@ -291,22 +400,8 @@ int loop_test_process() {
   /*
   ** Read the file
   */
-  fd = open(filename, O_RDWR | O_CREAT, 0640);
-  if (fd == -1) {
-      printf("proc %3d - open2(%s) %s\n",myProcId, filename, strerror(errno));
-      return -1;
-  }
-  size = pread(fd, &valint, sizeof(valint), 0);
-  if (size != sizeof(valint)) {
-      printf("proc %3d - pread(%s) -> %d %s\n", myProcId, filename, size, strerror(errno));   
-      return -1;
-  }  
-  close(fd);
-  
-  if (valint !=  myProcId) {
-      printf("proc %3d - myProcId %d != valint %d\n", myProcId, myProcId, valint); 
-      return -1;      
-  }
+  for (i=0; i<10; i++) reread_file(filename);
+  unlink(filename);  
   return 0;
 }  
 void free_result(void) {
