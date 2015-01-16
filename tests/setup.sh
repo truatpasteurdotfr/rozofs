@@ -27,6 +27,7 @@ BS32K=3
 REBUILD_LOOP=2
     
 COREDIR="/var/run/rozofs_core"
+LOCAL_SIMU="${WORKING_DIR}/simulation"
 # $1 is the site number
 create_site() {
 ROZOFS_SITE_PATH=/usr/local/etc/rozofs/
@@ -159,20 +160,71 @@ rebuild ()
     cd ..
     cp -r ${LOCAL_SOURCE_DIR}/tests/fs_ops/pjd-fstest/tests ${LOCAL_PJDTESTS}
 }
+create_device_files() {
 
+  case "$DEVICE_SIZE_MB" in
+    "") return;;
+  esac
+
+  for ((gid=0;  gid < ${GEOREP}; gid++)) 
+  do
+    for vid in $(seq ${NB_VOLUMES}); 
+    do
+      for sid in $(seq ${STORAGES_BY_CLUSTER}); 
+      do
+      
+        #hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + (gid*STORAGES_PER_SITE)  )) 
+	   
+	for idx in $(seq ${NB_CLUSTERS_BY_VOLUME}); do
+
+	  cid=$(( idx + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
+	  dir="${LOCAL_SIMU}/site$((GEOREP-1))/cid${cid}/sid${sid}"	  
+	  mkdir -p ${dir}
+	  
+	  for dev in $(seq ${NB_DEVICE_PER_SID})
+	  do
+	    if [ ! -f ${dir}/dev$((dev-1)) ];
+	    then
+	    
+	      dd if=/dev/zero of=${dir}/dev$((dev-1)) bs=1MB count=$DEVICE_SIZE_MB
+	      
+	      for loop in {1..128}
+	      do
+	        losetup /dev/loop${loop} ${dir}/dev$((dev-1)) 2>/dev/null
+		case "$?" in
+		  0) break
+		esac
+	      done
+	      
+	      case "$loop" in
+	        128) echo "Can not find /dev/loop for ${dir}/dev$((dev-1))"; break;;
+	        *) {		  
+	          mkfs.ext4 /dev/loop${loop}
+	        };;
+	      esac	
+	      echo "/dev/loop${loop} ${dir}/dev$((dev-1))"
+	    fi  
+	  done
+        done	  
+      done
+    done  
+  done 
+}
 gen_storage_conf ()
 {
 
+    create_device_files
     if [ ! -e "$LOCAL_CONF" ]
     then
 	mkdir -p $LOCAL_CONF
     fi
 
-    for gid in $(seq ${GEOREP}); do
+    for ((gid=0;  gid < ${GEOREP}; gid++)) 
+    do
       for vid in $(seq ${NB_VOLUMES}); do
         for sid in $(seq ${STORAGES_BY_CLUSTER}); do
 	
-          hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + ((gid-1)*STORAGES_PER_SITE)  )) 
+          hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + (gid*STORAGES_PER_SITE)  )) 
           resolve_storage_conf_file
        
 	  if [ -e "$STORAGE_CONF" ]
@@ -404,6 +456,10 @@ geomgr_delete ()
 }
 gen_geomgr_conf ()
 {
+    if [ "$GEOREP" -eq 1 ];
+    then
+      return
+    fi  
 
     FILE=${LOCAL_CONF}'geomgr.conf'
 
@@ -523,7 +579,7 @@ rebuild_storage_device()
     return        	  
   fi
 
-  create_storage_dev $storage_path $d
+  create_storage_dev $hid $cid $d
   
   cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP --sid $cid/$sid $dev $*"
   echo $cmd
@@ -610,7 +666,7 @@ rebuild_storage()
   do
       cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
       resolve_storage_path
-      create_storage_dev $storage_path	  
+      create_storage_dev $hid $cid	  
   done
   
   cmd="${LOCAL_BINARY_DIR}/storaged/${LOCAL_STORAGE_REBUILD} -c $STORAGE_CONF -H ${LOCAL_STORAGE_NAME_BASE}$hid -r ${EXPORT_HOST} -l $REBUILD_LOOP $*"
@@ -618,19 +674,37 @@ rebuild_storage()
   $cmd
   exit $?
 }
-# Input 
-# 1 : host number
-delete_storage() 
-{
-  resolve_host_storage $1
+mount_storage_dev() {
 
-  for cid in $(seq ${NB_CLUSTERS_BY_VOLUME})
+  case "$DEVICE_SIZE_MB" in
+    "") return;;
+  esac
+	
+  hid=$1
+  cid=$2
+  dev=$3  
+    
+  resolve_cid_hid $cid $hid
+  
+  dir="${LOCAL_SIMU}/site${gid}/cid${cid}/sid${sid}/dev${dev}"
+  	  
+  for loop in {1..128}
   do
-      cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
-      resolve_storage_path
-      \rm -rf $storage_path/*
-      echo "\rm -rf $storage_path/"	  
+  
+    res=`losetup /dev/loop${loop} | grep "$dir"`
+    
+    case "$res" in
+      "");;
+      *) {
+        echo "${storage_path}/$3 -> /dev/loop${loop} -> ${dir}"
+        mount -t ext4 /dev/loop${loop} ${storage_path}/$3
+	return
+      };;
+    esac
+    
   done
+  
+  echo "No /dev/loop for $dir"
 }
 # Input 
 # 1 : host number
@@ -659,25 +733,58 @@ delete_storage_device()
     
   for device in $(seq $begin $end)
   do
+    umount ${storage_path}/$device 2>/dev/null
     \rm -rf ${storage_path}/$device 
   done   
+}
+# Input 
+# 1 : host number
+delete_storage() 
+{
+  resolve_host_storage $1
+
+  for cid in $(seq ${NB_CLUSTERS_BY_VOLUME})
+  do
+      cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
+      delete_storage_device $1 $cid
+      resolve_storage_path
+      \rm -rf $storage_path/*
+      echo "\rm -rf $storage_path/"	  
+  done
 }
 # Input 
 
 # Input 
 # 1 : directory name
 # 2 : device num or all or ""
-create_storage_dev() {		    
+create_storage_dev() {	
+	    
+  hid=$1
+  cid=$2
+  case "$cid" in
+    "") usage;;
+  esac  
+    
+  resolve_cid_hid $cid $hid
 
-    case "$2" in
+    case "$3" in
       "")  begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
       all) begin=0  ; end=$((NB_DEVICE_PER_SID-1));;
-      *)   begin=$2 ; end=$2;;
+      *)   begin=$3 ; end=$3;;
     esac
     
     for device in $(seq $begin $end)
     do
-      mkdir ${1}/${device} > /dev/null 2>&1
+      if [ ! -d ${storage_path}/${device} ];
+      then
+        mkdir ${storage_path}/${device} > /dev/null 2>&1
+        case "$DEVICE_SIZE_MB" in
+          "") ;;
+	  *)  echo "" > ${storage_path}/${device}/X
+        esac
+      fi 
+      
+      mount_storage_dev $hid $cid $device
     done  
 }
 # 1 : host number
@@ -698,7 +805,7 @@ create_storage_device()  {
     return        	  
   fi
 
-  create_storage_dev $storage_path $3
+  create_storage_dev $hid $cid $3
 }
 stop_one_storage () {
    case $1 in
@@ -756,11 +863,11 @@ reload_storaged ()
 create_storages ()
 {
 
-    for gid in $(seq ${GEOREP}); do
+    for ((gid=0;  gid < ${GEOREP}; gid++)) 
+    do
       for vid in $(seq ${NB_VOLUMES}); do
         for sid in $(seq ${STORAGES_BY_CLUSTER}); do
-	
-          hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + ((gid-1)*STORAGES_PER_SITE)  )) 
+          hid=$(( sid + ((vid-1)*STORAGES_BY_CLUSTER) + (gid*STORAGES_PER_SITE)  )) 
           resolve_storage_conf_file
 	  	       
 	  if [ ! -e "$STORAGE_CONF" ]
@@ -774,7 +881,7 @@ create_storages ()
             cid=$((cid + ((vid-1)*NB_CLUSTERS_BY_VOLUME) ))
 	    resolve_storage_path
             mkdir -p $storage_path
-	    create_storage_dev $storage_path	  
+	    create_storage_dev $hid $cid	
           done
 	  
 
@@ -989,8 +1096,30 @@ remove_all ()
     echo "------------------------------------------------------"
     echo "Remove configuration files, storage and exports directories"
     rm -rf $LOCAL_CONF
-    rm -rf $LOCAL_STORAGES_ROOT*
-    rm -rf $LOCAL_EXPORTS_ROOT*
+    # Export meta data
+    rm -rf $LOCAL_EXPORTS_ROOT*      
+
+    # Storage data
+    case "$DEVICE_SIZE_MB" in
+      "") {
+           rm -rf $LOCAL_STORAGES_ROOT*
+      };;  
+      *) {
+           umount ${LOCAL_STORAGES_ROOT}_*/*
+           rm -rf ${LOCAL_STORAGES_ROOT}_*
+	      
+	   for loop in {1..128}
+	   do
+	     res=`losetup /dev/loop${loop} 2>/dev/null | grep ${LOCAL_SIMU}`
+	     case "$res" in
+	       "");;
+	       *) losetup -d /dev/loop${loop};; 
+	     esac
+	   done
+	   
+           rm -rf ${LOCAL_SIMU}
+      };;
+    esac   
 }
 
 remove_build ()
