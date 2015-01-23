@@ -595,13 +595,14 @@ char * display_file_lock_clients(char * pChar) {
 	   client->info.diag_port);
 
     pChar += sprintf(pChar, "| %16llx | %7d | %5d | %-23s | %s\n",
-                     client->client_ref, 
+                     (long long unsigned int)client->client_ref, 
 		     (int) (now-client->last_poll_time),
 		     (int)client->nb_lock,
 		     orig,
 		     client->info.vers);  
   } 
   pChar += sprintf(pChar, "+------------------+---------+-------+-------------------------+------------------------------\n");  
+  return pChar;
 }
 /*
 *___________________________________________________________________
@@ -648,7 +649,6 @@ void file_lock_remove_client(uint64_t client_ref) {
 *___________________________________________________________________
 */
 rozofs_file_lock_client_t * file_lock_create_client(uint64_t ref, ep_client_info_t * info) {
-  list_t * p;
   rozofs_file_lock_client_t * client;
  
   /*
