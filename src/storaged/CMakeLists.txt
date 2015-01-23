@@ -23,7 +23,6 @@ link_directories(${CMAKE_BINARY_DIR}/rozofs)
 add_executable(storaged
     mproto.c
     mprotosvc.h
-    spproto.c
     sconfig.h
     sconfig.c
     storage.h
@@ -81,7 +80,6 @@ target_link_libraries(storage_list_rebuilder rozofs ${PTHREAD_LIBRARY} ${UUID_LI
 
 
 add_executable(storio
-    spproto.c
     sconfig.h
     sconfig.c
     storage.h
