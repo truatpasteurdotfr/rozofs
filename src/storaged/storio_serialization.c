@@ -66,6 +66,9 @@ char * serialize_opcode_string(int opcode) {
     case STORIO_DISK_THREAD_TRUNCATE: return "truncate";
     case STORIO_DISK_THREAD_REMOVE: return "remove";
     case STORIO_DISK_THREAD_REMOVE_CHUNK: return "remove_chunk";
+    case STORIO_DISK_THREAD_WRITE_REPAIR: return "write repair";
+    case STORIO_DISK_REBUILD_START: return "rebuild start";
+    case STORIO_DISK_REBUILD_STOP: return "rebuild stop";
     default: return "Unknown";
   }
 }
@@ -87,17 +90,17 @@ void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRe
     return;    
   }
     
-  p += sprintf(p, "+--------------+------------------+------------------+------------------+\n");
-  p += sprintf(p, "| %12s | %16s | %16s | %16s |\n", "request","direct","queued","unqueued");
-  p += sprintf(p, "+--------------+------------------+------------------+------------------+\n");
+  p += sprintf(p, "+----------------+------------------+------------------+------------------+\n");
+  p += sprintf(p, "| %14s | %16s | %16s | %16s |\n", "request","direct","queued","unqueued");
+  p += sprintf(p, "+----------------+------------------+------------------+------------------+\n");
   for (opcode=1; opcode<STORIO_DISK_THREAD_MAX_OPCODE; opcode++) {  
-    p += sprintf(p, "| %12s | %16llu | %16llu | %16llu |\n", 
+    p += sprintf(p, "| %14s | %16llu | %16llu | %16llu |\n", 
                 serialize_opcode_string(opcode),
                 (long long unsigned int)storage_direct_req[opcode],
                 (long long unsigned int)storage_queued_req[opcode],
 		(long long unsigned int)storage_unqueued_req[opcode]);       
   }
-  p += sprintf(p, "+--------------+------------------+------------------+------------------+\n");
+  p += sprintf(p, "+----------------+------------------+------------------+------------------+\n");
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());    
 }
 /*_______________________________________________________________________
