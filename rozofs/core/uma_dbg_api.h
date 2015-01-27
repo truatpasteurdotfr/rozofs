@@ -100,6 +100,21 @@ static inline char * uma_dbg_get_buffer() {return uma_dbg_temporary_buffer;}
 *  Return the size of the temporary buffer where one can format a response
 */
 static inline int uma_dbg_get_buffer_len() {return UMA_DBG_MAX_SEND_SIZE;}
+/*
+**--------------------------------------------------------------------------
+**  #SYNOPSIS
+**   Read and execute a rozodiag command file if it exist
+**
+**
+**   IN:
+**       The command file name to execute
+**
+**   OUT : none
+**
+**
+**--------------------------------------------------------------------------
+*/
+void uma_dbg_process_command_file(char * command_file_name);
 
 /*
    The function uma_dbg_addTopic enables to declare a new topic to

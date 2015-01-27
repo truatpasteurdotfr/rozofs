@@ -812,6 +812,205 @@ void uma_dbg_receive_CBK(void *opaque,uint32_t tcpCnxRef,void *bufRef) {
   uma_dbg_topic[idx].funct(p->argv,tcpCnxRef,bufRef);
 }
 /*
+**--------------------------------------------------------------------------
+**  #SYNOPSIS
+**   Read and execute a rozodiag command file if it exist
+**
+**
+**   IN:
+**       The command file name to execute
+**
+**   OUT : none
+**
+**
+**--------------------------------------------------------------------------
+*/
+void uma_dbg_process_command_file(char * command_file_name) {
+  int                 topicNum;
+  char              * pBuf, * pArg;
+  size_t              length;
+  uint32_t            argc;
+  uint32_t            found=0;
+  UMA_MSGHEADER_S   * pHead;
+  uint32_t            idx;
+  UMA_DBG_SESSION_S * p;
+  int                 replay=0;
+  FILE              * fd = NULL;
+  void              * bufRef = NULL;
+
+  do_not_send = 1;
+
+  /*
+  ** Try to open the given command file
+  */
+  fd = fopen(command_file_name,"r");
+  if (fd == NULL) {
+    goto out;
+  }
+  
+  /*
+  ** Get the first context in the distributor
+  */
+  p = (UMA_DBG_SESSION_S*)ruc_objGetFirst((ruc_obj_desc_t*)uma_dbg_freeList);
+  if (p == (UMA_DBG_SESSION_S*)NULL) {
+    severe("Out of context");
+    goto out;
+  }
+  
+  /* 
+  ** Initialize the session context 
+  */
+  p->ipAddr    = ntohl(0x7F000001);
+  p->port      = 0;
+  p->tcpCnxRef = (uint32_t) -1;  
+  p->last_valid_command[0] = 0;
+  
+  /*
+  ** Get a buffer
+  */
+  bufRef = ruc_buf_getBuffer(p->recvPool);
+  if (bufRef == NULL) {
+    severe("can not allocate buffer");
+    goto out;
+  }
+  
+  /*
+  ** Get pointer to the payload
+  */
+  if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
+    severe( "ruc_buf_getPayload(%p)", bufRef );
+    goto out;
+  }  
+
+
+  while (1){
+
+    /*
+    ** Read a command from  the file
+    */
+    length = ruc_buf_getMaxPayloadLen(bufRef)-sizeof(UMA_MSGHEADER_S *);
+    pBuf = (char*)(pHead+1);
+    length = getline(&pBuf, &length, fd);
+    if (length == -1) goto out;
+      
+    if (length == 0) continue;
+      
+    /*
+    ** Remove '\n' and set the payload length
+    */  
+    if (pBuf[length-1] == '\n') {
+      length--;
+      pBuf[length] = 0;
+    } 
+    ruc_buf_setPayloadLen(bufRef, length); 
+
+//    info("Line read \"%s\"",pBuf);
+
+    /*
+    ** save the current received command
+    */
+    memcpy(rcvCmdBuffer,pBuf,length+1);
+
+
+    /* Scan the command line */
+    argc = 0;
+
+    pArg = p->argvBuffer;
+    argc = 0;
+    while (1) {
+      /* Skip blanks */
+      while ((*pBuf == ' ') || (*pBuf == '\t')) pBuf++; 
+      if (*pBuf == 0) break; /* end of command line */
+      p->argv[argc] = pArg;     /* beginning of a parameter */
+      argc++;
+      /* recopy the parameter */
+      while ((*pBuf != ' ') && (*pBuf != '\t') && (*pBuf != 0)) *pArg++ = *pBuf++;
+      *pArg++ = 0; /* End the parameter with 0 */
+      if (*pBuf == 0) break;/* end of command line */
+    }
+
+    /* Empty line */
+    if (argc == 0) continue;
+    
+    /* Comment line */
+    if (*(p->argv[0]) == '#') continue;
+
+    /* Set to NULL parameter number not filled in the command line */
+    for (idx=argc; idx < MAX_ARG; idx++) p->argv[idx] = NULL;
+
+
+    /* Search exact match in the topic list the one requested */
+    length = strlen(p->argv[0]);
+    for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
+      if (uma_dbg_topic[topicNum].len == length) {        
+        int order = strcasecmp(p->argv[0],uma_dbg_topic[topicNum].name);
+
+	if (order == 0) {
+	  found = 1;
+	  idx = topicNum;	
+	  break;
+	}
+	if (order < 0) break;  
+      }
+    }
+
+    /* Search match on first characters */
+    if (found == 0) {
+      for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
+	if (uma_dbg_topic[topicNum].option & UMA_DBG_OPTION_HIDE) continue;
+	if (uma_dbg_topic[topicNum].len > length) {
+          int order = strncasecmp(p->argv[0],uma_dbg_topic[topicNum].name, length);
+          if (order < 0) break;  	
+	  if (order == 0) {
+	    found++;
+	    idx = topicNum;
+	     /* Several matches Display possibilities */
+	    if (found > 1) {
+              severe("command \"%s\" matches several possibilities in %s", p->argv[0], command_file_name);
+	      break; 	  
+	    }
+	  }  
+	}	 
+      } 
+    }
+    
+    /*
+    ** Command not found or too much match
+    */
+    if (found == 0) {
+      severe("No such rozodiag command \"%s\" in %s",p->argv[0],command_file_name);
+      continue;
+    }
+    if (found != 1) continue;
+  
+    /*
+    ** Run the command
+    */
+    uma_dbg_topic[idx].funct(p->argv,-1,bufRef);
+  }
+  
+  
+  
+out:
+  /*
+  ** Reset do not send indicator
+  */
+  do_not_send = 0;
+  
+  /*
+  ** Close command file
+  */
+  if (fd != NULL) {
+    fclose(fd);
+  } 
+  /*
+  ** Release buffer
+  */
+  if (bufRef != NULL) {
+    ruc_buf_freeBuffer(bufRef);
+  }
+}
+/*
 **-------------------------------------------------------
   void upc_nse_ip_disc_uph_ctl_CBK(uint32_t nsei,uint32 tcpCnxRef)
 **-------------------------------------------------------
