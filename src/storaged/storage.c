@@ -96,6 +96,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
   struct stat buf;
   int       idx;
   int       ret;
+  uint64_t  crc32_error=0;
   
   memset(device_time,0,sizeof(device_time));
   memset(device_id,0,sizeof(device_id));
@@ -145,7 +146,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     ** Insert in the table in the time order
     */
     for (idx=0; idx < nb_devices; idx++) {
-      if (device_time[idx] < buf.st_mtime) continue;
+      if (device_time[idx] > buf.st_mtime) continue;
       break;
     }
     nb_devices++;
@@ -161,7 +162,6 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
       hdrDevice    = swap_device;  
     } 
   }
-  
   
   /*
   ** Header files do not exist
@@ -201,9 +201,38 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
 
     if (nb_read != sizeof (*hdr)) {
       device_result[dev] = EINVAL;	
-      storage_error_on_device(st,hdrDevice);
+      storage_error_on_device(st,device_id[dev]);
       continue;
     }
+    
+    /*
+    ** check CRC32
+    */
+    if (storio_check_header_crc32(hdr,&st->crc_error) != 0) {
+      crc32_error |= (1<<dev);
+      device_result[dev] = EIO;	
+      storage_error_on_device(st,device_id[dev]);   
+      continue;      
+    }  
+    
+    /*
+    ** Header file has been read successfully. 
+    ** Check whether some header file has had 
+    ** a CRC32 error detected that should be fixed
+    */
+    if (crc32_error!=0) {
+      int idx;
+      for (idx=0; idx < dev; idx++) {
+        if (crc32_error &(1ULL<<idx)) {
+	  /*
+	  ** Rewrite corrupted header file
+	  */
+	  storage_build_hdr_path(path, st->root, device_id[idx], spare, storage_slice);
+	  storage_write_header_file(st,device_id[idx], path, hdr);
+	}
+      }
+    }
+
     return STORAGE_READ_HDR_OK;	
   }  
   
@@ -226,7 +255,7 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   size_t                    nb_write;
   int                       fd;
   char                      my_path[FILENAME_MAX];
-  
+ 
   /*
   ** Create directory when needed */
   if (storage_create_dir(path) < 0) {   
@@ -276,6 +305,10 @@ int storage_write_all_header_files(storage_t * st, fid_t fid, uint8_t spare, roz
   
   storage_slice = rozofs_storage_fid_slice(fid);
   
+  /*
+  ** Compute CRC32
+  */
+  storio_gen_header_crc32(hdr);
 
   for (dev=0; dev < st->mapper_redundancy ; dev++) {
 
@@ -1248,7 +1281,8 @@ int storage_read_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_
     uint16_t rozofs_disk_psize;
     int    device_id_is_given = 1;
     int                       storage_slice;
-    struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG]; 
+    struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG];
+    int    crc32_errors; 
 
 
     MYDBGTRACE_DEV(device,"%d/%d Read chunk %d : ", st->cid, st->sid, chunk);
@@ -1421,18 +1455,20 @@ retry:
     ** check the crc32c for each projection block
     */
     if (rozofs_msg_psize == rozofs_disk_psize) {        
-      storio_check_crc32((char*)bins,
-                         nb_proj_effective,
-                	 rozofs_disk_psize,
-			 &st->crc_error);
+      crc32_errors = storio_check_crc32((char*)bins,
+                        		nb_proj_effective,
+                			rozofs_disk_psize,
+					&st->crc_error);
     }
     else {
-      storio_check_crc32_vect(vector,
-                         nb_proj_effective,
-                	 rozofs_disk_psize,
-			 &st->crc_error);      
+      crc32_errors = storio_check_crc32_vect(vector,
+                        		     nb_proj_effective,
+                			     rozofs_disk_psize,
+					     &st->crc_error);      
     }
-
+    if (crc32_errors!=0) { 
+      storage_error_on_device(st,device[chunk]); 
+    }	  
 
     // Update the length read
     *len_read = (nb_read/rozofs_disk_psize)*rozofs_msg_psize;

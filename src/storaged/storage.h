@@ -165,6 +165,7 @@ typedef struct storage {
 // because it is included in a whole of the file
 #define ROZOFS_EMPTY_CHUNK    253
  
+
 typedef struct rozofs_stor_bins_file_hdr {
     uint8_t version; ///<  version of rozofs. (not used yet)
     uint8_t layout; ///< layout used for this file.
@@ -172,7 +173,7 @@ typedef struct rozofs_stor_bins_file_hdr {
     fid_t   fid;
     sid_t   dist_set_current[ROZOFS_SAFE_MAX]; ///< currents sids of storage nodes target for this file.
     uint8_t device[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE]; // Device number that hold the chunk of projection
-
+    uint32_t crc32; ///< CRC32 . Set to 0 by default when no CRC32 is computed
 } rozofs_stor_bins_file_hdr_t;
 
 
