@@ -200,9 +200,21 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     close(fd);
 
     if (nb_read != sizeof (*hdr)) {
-      device_result[dev] = EINVAL;	
-      storage_error_on_device(st,device_id[dev]);
-      continue;
+    
+      /*
+      ** This may be a old header file without CRC32
+      */
+      
+      if (nb_read != sizeof(rozofs_stor_bins_file_hdr_no_crc32_t)) {
+        device_result[dev] = EINVAL;	
+        storage_error_on_device(st,device_id[dev]);
+        continue;
+      }
+      
+      /*
+      ** Set CRC32 to 0 whinch means that the CRC32 has not been computed
+      */
+      hdr->crc32 = 0; 	
     }
     
     /*
