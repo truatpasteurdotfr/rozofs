@@ -834,7 +834,6 @@ void uma_dbg_process_command_file(char * command_file_name) {
   UMA_MSGHEADER_S   * pHead;
   uint32_t            idx;
   UMA_DBG_SESSION_S * p;
-  int                 replay=0;
   FILE              * fd = NULL;
   void              * bufRef = NULL;
 

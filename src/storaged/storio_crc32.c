@@ -373,7 +373,6 @@ uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 */
 void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr)
 {
-   size_t crc_size = sizeof(rozofs_stor_bins_file_hdr_t);
    uint32_t crc;
  
    hdr->crc32 = 0;
