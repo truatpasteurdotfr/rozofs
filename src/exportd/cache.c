@@ -668,6 +668,7 @@ rozofs_file_lock_client_t * file_lock_create_client(uint64_t ref, ep_client_info
   list_init(&client->file_lock_list);
   
   /* Put the client in the list of clients */
+  file_lock_stat.nb_client_file_lock++;
   list_push_front(&file_lock_client_list,&client->next_client); 
   
   return client;
