@@ -349,19 +349,24 @@ void usage() {
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
     printf("   -m, --multiio\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
+    printf("   -C, --check\tthe storaged just checks the configuration and returns an exit status (0 when OK).\n");
 }
 
 int main(int argc, char *argv[]) {
     int c;
     int  multiio=0; /* Default is one storio */
+    int  justCheck=0; /* Run storaged. Not just a configuration check. */
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "config", required_argument, 0, 'c'},
         { "host", required_argument, 0, 'H'},
         { "multiio", no_argument, 0, 'm'},
+	{ "check", no_argument, 0, 'C'},
         { 0, 0, 0, 0}
     };
+
+    openlog("storaged", LOG_PID, LOG_DAEMON);
 
     // Init of the timer configuration
     rozofs_tmr_init_configuration();
@@ -371,7 +376,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hmc:H:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hmCc:H:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -385,10 +390,12 @@ int main(int argc, char *argv[]) {
             case 'm':
                 multiio = 1;
                 break;		
+            case 'C':
+                justCheck = 1;
+                break;				
             case 'c':
                 if (!realpath(optarg, storaged_config_file)) {
-                    fprintf(stderr, "storaged failed: %s %s\n", optarg,
-                            strerror(errno));
+                    severe("storaged failed: %s %s\n", optarg, strerror(errno));
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -405,24 +412,18 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-    openlog("storaged", LOG_PID, LOG_DAEMON);
 
     // Initialize the list of storage config
-    if (sconfig_initialize(&storaged_config) != 0) {
-        fprintf(stderr, "Can't initialize storaged config: %s.\n",
-                strerror(errno));
-        goto error;
-    }
+    sconfig_initialize(&storaged_config);
+    
     // Read the configuration file
     if (sconfig_read(&storaged_config, storaged_config_file,0) != 0) {
-        fprintf(stderr, "Failed to parse storage configuration file: %s.\n",
-                strerror(errno));
+        severe("Failed to parse storage configuration file: %s.\n",strerror(errno));
         goto error;
     }
     // Check the configuration
     if (sconfig_validate(&storaged_config) != 0) {
-        fprintf(stderr, "Inconsistent storage configuration file: %s.\n",
-                strerror(errno));
+        severe("Inconsistent storage configuration file: %s.\n",strerror(errno));
         goto error;
     }
     /*
@@ -432,6 +433,11 @@ int main(int argc, char *argv[]) {
                 storaged_config.crc32c_check,
                 storaged_config.crc32c_hw_forced);
 
+
+    if (justCheck) {
+      closelog();
+      exit(EXIT_SUCCESS);      
+    }
 
     char *pid_name_p = pid_name;
     if (storaged_hostname != NULL) {
@@ -450,8 +456,8 @@ int main(int argc, char *argv[]) {
     no_daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
             on_stop, NULL);
 
-    exit(0);
+    exit(EXIT_SUCCESS);
 error:
-    fprintf(stderr, "Can't start storaged. See logs for more details.\n");
+    closelog();
     exit(EXIT_FAILURE);
 }

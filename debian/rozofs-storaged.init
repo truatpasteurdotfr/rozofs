@@ -43,18 +43,36 @@ status () {
 
     if [ -f $PIDFILE ];
     then 
-      return 0 
-    else
-      return 3
-    fi
+      exit 0
+    fi   
+    
+    exit 3
 }
 #
 # Function that starts the daemon/service
 #
 do_start()
 {
-    $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
-    return 0
+    # 1rst check the configuration
+    $DAEMON $DAEMON_ARGS -C
+    case "$?" in
+    
+      # Configuration is valid. 
+      # Let's run through rozolauncher.
+      "0"){
+         $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
+         return 0
+      };;
+      
+      # Configuration is invalid. 
+      # Return an error.
+      *) {
+	 echo "Inconsistant configuration !!!"
+	 echo "Check log files."
+	 return 3      
+      };;
+      
+    esac    
 }
 
 #
@@ -71,18 +89,22 @@ case "$1" in
   start|reload|restart|force-reload)
     [ "$VERBOSE" != no ] && log_daemon_msg "$1 $DESC " "$NAME"
     do_start
-    case "$?" in
+    res=$?
+    case "$res" in
         0) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-        1) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        *) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
     esac
-  ;;
+    exit $res
+    ;;
   stop)
     [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
     do_stop
-    case "$?" in
+    res=$?
+    case "$res" in
         0) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
-        1) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        *) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
     esac
+    exit $res
     ;;
   status) status;;
 

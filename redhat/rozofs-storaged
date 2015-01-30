@@ -48,16 +48,34 @@ do_status () {
 
     if [ -f $PIDFILE ];
     then 
-      return 0 
-    else
-      return 3
-    fi
+      exit 0
+    fi   
+    
+    exit 3
 }
 
 do_start()
 {
-    $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
-    return 0
+    # 1rst check the configuration
+    $DAEMON $DAEMON_ARGS -C
+    case "$?" in
+    
+      # Configuration is valid. 
+      # Let's run through rozolauncher.
+      "0"){
+         $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
+         return 0
+      };;
+      
+      # Configuration is invalid. 
+      # Return an error.
+      *) {
+	 echo "Inconsistant configuration !!!"
+	 echo "Check log files."
+	 return 3      
+      };;
+      
+    esac    
 }
 
 # stop the daemon/service
@@ -73,11 +91,12 @@ case "$1" in
         echo -n "$1 $NAME"
         
         do_start
-
-        case "$?" in
+        res=$?
+        case "$res" in
             0|1) LOG_SUCCESS ;;
             *)   LOG_FAILURE ;;
         esac
+	exit $res
         ;;
     status) do_status;;
     
@@ -85,11 +104,12 @@ case "$1" in
         echo -n "Stopping $NAME"
         
         do_stop
-
-        case "$?" in
+        res=$?
+        case "$res" in
             0|1) LOG_SUCCESS ;;
             2)   LOG_FAILURE ;;
         esac
+	exit $res
         ;;
     *)
 
