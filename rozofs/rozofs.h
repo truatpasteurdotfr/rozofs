@@ -166,6 +166,7 @@ typedef enum
    ROZOFS_REG,  /**< regular file & symbolic links */
    ROZOFS_DIR,     /**< directory    */
    ROZOFS_SLNK,    /**< name of symbolic link */
+   ROZOFS_DIR_FID,     /**< directory rferenced by its fid  */
 
    ROZOFS_MAXATTR
 } export_attr_type_e;

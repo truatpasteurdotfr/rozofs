@@ -308,7 +308,7 @@ void rozofs_qt_set_grace_msg_process(rozofs_qt_header_t *msg)
 {
     rozofs_setgrace_req_t *msg_in = (rozofs_setgrace_req_t*) msg;
     rozofs_setgrace_rsp_t msg_out ;
-    int ret; 
+    int ret=-1; 
     /*
     ** copy the header in response message
     */
@@ -346,7 +346,7 @@ void rozofs_qt_set_quota_state_msg_process(rozofs_qt_header_t *msg)
 {
     rozofs_setquota_state_req_t *msg_in = (rozofs_setquota_state_req_t*) msg;
     rozofs_setquota_state_rsp_t msg_out ;
-    int ret; 
+    int ret=-1; 
     /*
     ** copy the header in response message
     */

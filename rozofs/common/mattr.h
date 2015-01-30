@@ -108,7 +108,8 @@ typedef union
 {
    char inode_buf[512];
    struct inode_internal_t {
-     mattr_t attrs;  /**< standard attributes       */
+     mattr_t attrs;      /**< standard attributes       */
+     uint64_t cr8time;   /**< creation time          */
      fid_t   pfid;   /**< parent fid                */
      uint32_t grpquota_id;   /**< id of the group for quota */
      uint32_t usrquota_id;   /**< id of the user for quota  */

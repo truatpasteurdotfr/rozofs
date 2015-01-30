@@ -265,8 +265,15 @@ static inline void del_ientry(ientry_t * ie) {
 }
 
 static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
+    rozofs_inode_t fake_id;
+
+    fake_id.fid[1]=ino;
+    if (ROZOFS_DIR_FID == fake_id.s.key) 
+    {
+      fake_id.s.key = ROZOFS_DIR;
+    }
     hash_inode_cur_collisions = 0;
-    return htable_get(&htable_inode, &ino);
+    return htable_get(&htable_inode, &fake_id.fid[1]);
 }
 
 static inline ientry_t *get_ientry_by_fid(fid_t fid) {

@@ -644,6 +644,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
 
    if (rozofs_qt_init_done == 0)
    {
+     severe("FDL Quota Not ready");
      return NULL;
    }
    /*
@@ -672,6 +673,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
      /*
      ** out of memory
      */
+     severe("FDL Out of memory");
      return NULL;
    }
    memset(tab_p,0,sizeof(rozofs_qt_export_t));

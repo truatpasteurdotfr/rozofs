@@ -364,6 +364,7 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
    fuse_req_t req; 
    epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
+   char *name;
 
    
    int status;
@@ -382,6 +383,7 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,trc_idx);
+   RESTORE_FUSE_STRUCT_PTR(param,name);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -500,7 +502,21 @@ void rozofs_ll_lookup_cbk(void *this,void *param)
     memset(&fep, 0, sizeof (fep));
     mattr_to_stat(&attrs, &stbuf,exportclt.bsize);
     stbuf.st_ino = nie->inode;
-    fep.ino = nie->inode;
+    /*
+    ** check the case of the directory
+    */
+    if ((S_ISDIR(attrs.mode)) &&(strncmp(name,"@rozofs_uuid@",13) == 0))
+    {
+        rozofs_inode_t fake_id;
+		
+	fake_id.fid[1]= nie->inode;
+	fake_id.s.key = ROZOFS_DIR_FID;
+        fep.ino = fake_id.fid[1];  
+    }
+    else
+    {
+      fep.ino = nie->inode;
+    }
     stbuf.st_size = nie->attrs.size;
 
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);

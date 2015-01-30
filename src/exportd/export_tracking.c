@@ -598,7 +598,7 @@ int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache) {
       ext_attrs.s.attrs.nlink = 2;
       ext_attrs.s.attrs.uid = 0; // root
       ext_attrs.s.attrs.gid = 0; // root
-      if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = time(NULL)) == -1)
+      if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = ext_attrs.s.cr8time =time(NULL)) == -1)
           return -1;
       ext_attrs.s.attrs.size = ROZOFS_DIR_SIZE;
       // Set children count to 0
@@ -1393,7 +1393,7 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
      /*
      ** set atime,ctime and mtime
      */
-      if ((buf_attr_work_p->s.attrs.ctime = buf_attr_work_p->s.attrs.atime = buf_attr_work_p->s.attrs.mtime = time(NULL)) == -1)
+      if ((buf_attr_work_p->s.attrs.ctime = buf_attr_work_p->s.attrs.atime = buf_attr_work_p->s.attrs.mtime = buf_attr_work_p->s.cr8time = time(NULL)) == -1)
           goto error;
       buf_attr_work_p->s.attrs.size = 0;
       /*
@@ -1667,7 +1667,7 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
    /*
    ** set atime,ctime and mtime
    */
-    if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = time(NULL)) == -1)
+    if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = ext_attrs.s.cr8time= time(NULL)) == -1)
         goto error;
     ext_attrs.s.attrs.size = 0;
     /*
@@ -1860,7 +1860,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     ext_attrs.s.attrs.uid = uid;
     ext_attrs.s.attrs.gid = gid;
     ext_attrs.s.attrs.nlink = 2;
-    if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = time(NULL)) == -1)
+    if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = ext_attrs.s.cr8time=  time(NULL)) == -1)
         goto error;
     ext_attrs.s.attrs.size = ROZOFS_DIR_SIZE;
     ext_attrs.s.attrs.children = 0;
@@ -1932,7 +1932,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     
     plv2->attributes.s.attrs.children++;
     plv2->attributes.s.attrs.nlink++;
-    plv2->attributes.s.attrs.mtime = plv2->attributes.s.attrs.ctime = time(NULL);
+    plv2->attributes.s.attrs.mtime = plv2->attributes.s.attrs.ctime = plv2->attributes.s.cr8time = time(NULL);
     if (export_lv2_write_attributes(e->trk_tb_p,plv2) != 0)
         goto error;
 
@@ -3078,7 +3078,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     ext_attrs.s.attrs.uid = getuid();
     ext_attrs.s.attrs.gid = getgid();
     ext_attrs.s.attrs.nlink = 1;
-    if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = time(NULL)) == -1)
+    if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = ext_attrs.s.cr8time = time(NULL)) == -1)
         goto error;
     ext_attrs.s.attrs.size = strlen(link);
     ext_attrs.s.i_extra_isize = ROZOFS_I_EXTRA_ISIZE;
@@ -3882,11 +3882,13 @@ out:
 #define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
 #define DISPLAY_ATTR_2INT(name,val1,val2) p += sprintf(p,"%-7s : %d/%d\n",name,val1,val2);
 #define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
+#define DISPLAY_ATTR_TXT_NOCR(name,val) p += sprintf(p,"%-7s : %s",name,val);
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
   uint8_t * pFid;
   int       idx;
   int       left;
+  char      bufall[128];
   uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
   
   pFid = (uint8_t *) lv2->attributes.s.attrs.fid;  
@@ -3901,7 +3903,9 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
 
   DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid);
-
+  bufall[0] = 0;
+  ctime_r((const time_t *)&lv2->attributes.s.cr8time,bufall);
+  DISPLAY_ATTR_TXT_NOCR("CREATE", bufall);
 
   if (S_ISDIR(lv2->attributes.s.attrs.mode)) {
     DISPLAY_ATTR_TXT("MODE", "DIRECTORY");

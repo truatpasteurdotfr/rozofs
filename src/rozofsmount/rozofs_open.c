@@ -58,6 +58,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     file_t *file = NULL;
     errno = 0;
 
+
     int trc_idx = rozofs_trc_req(srv_rozofs_ll_open,ino,NULL);
     /*
     ** allocate a context for saving the fuse parameters
