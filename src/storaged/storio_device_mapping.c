@@ -118,12 +118,15 @@ void storio_register_faulty_fid(int threadNb, uint8_t cid, uint8_t sid, fid_t fi
 */
   
 void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
-  fid_t                          fid;
   char                         * pChar=uma_dbg_get_buffer();
   uint8_t                        nb_rebuild;
   uint8_t                        storio_rebuild_ref;
   STORIO_REBUILD_T             * pRebuild; 
-  
+  int                            ret;
+  storio_device_mapping_key_t    key;
+  storage_t                    * st;
+  int                            found;
+    
   if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024*1024)) {
     pChar += sprintf(pChar,"chunk size  : %llu G\n", 
                (long long unsigned int) ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024*1024)); 
@@ -160,57 +163,63 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     return;       
   }     
 
-  uuid_parse(argv[1],fid);
-  int index = storio_fid_cache_search(storio_device_mapping_hash32bits_compute(fid),fid);
-  if (index == -1) {
-    pChar += sprintf(pChar,"%s no match found !!!\n",argv[1]);
-  } 
-  else {
+
+  ret = uuid_parse(argv[1],key.fid);
+  if (ret != 0) {
+    pChar += sprintf(pChar,"%s is not a FID !!!\n",argv[1]);
+    uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+    return;
+  }
+
+  st = NULL;
+  found = 0;
+  while ((st = storaged_next(st)) != NULL) {
+  
+    key.cid = st->cid;
+    key.sid = st->sid;
+    info("cid %d sid %d",key.cid,key.sid);
+
+    int index = storio_fid_cache_search(storio_device_mapping_hash32bits_compute(&key),&key);
+    if (index == -1) {
+      continue;
+    } 
+    
+    found=1;
     storio_device_mapping_t * p = storio_device_mapping_ctx_retrieve(index);
     if (p == NULL) {
       pChar += sprintf(pChar,"%s no match found !!!\n",argv[1]);
+      continue;
     }
-    else {
     
-#if 0    
-      if (p->consistency == storio_device_mapping_stat.consistency) {
-	pChar += sprintf(pChar,"%s is consistent (%llu)\n",
-	          argv[1],
-		  (unsigned long long)storio_device_mapping_stat.consistency);
-      }
-      else {
-	pChar += sprintf(pChar,"%s is inconsistent %llu vs %llu\n",
-		 argv[1],
-		 (unsigned long long)p->consistency, 
-		 (unsigned long long)storio_device_mapping_stat.consistency);        
-      }
-#endif      
-      pChar = trace_device(p->device, pChar);       
-      pChar += sprintf(pChar,"\n");        
-      pChar += sprintf(pChar,"running_request = %d\n",list_size(&p->running_request)); 
-      pChar += sprintf(pChar,"waiting_request = %d\n",list_size(&p->waiting_request)); 
-      if (p->storio_rebuild_ref.u32 != 0xFFFFFFFF) {
-	for (nb_rebuild=0; nb_rebuild   <MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
-	  storio_rebuild_ref = p->storio_rebuild_ref.u8[nb_rebuild];
-	  if (storio_rebuild_ref == 0xFF) continue;
-	  pChar += sprintf(pChar,"  rebuild %d : ",nb_rebuild+1);  
-	  if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-            pChar += sprintf(pChar,"Bad reference %d\n",storio_rebuild_ref);  
-            continue;
-	  }
-	  pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)fid);
-	  if (pRebuild == 0) {
-            pChar += sprintf(pChar,"Context reallocated to an other FID\n");  
-            continue;
-	  }
-	  pChar += sprintf(pChar,"start %llu stop %llu aging %llu sec\n",
-                	   (unsigned long long)pRebuild->start_block,
-			   (unsigned long long)pRebuild->stop_block,
-			   (unsigned long long)(time(NULL)-pRebuild->rebuild_ts));
+    pChar += sprintf(pChar,"cid/sid %d/%d\n  ",key.cid, key.sid);
+    pChar = trace_device(p->device, pChar);             
+    pChar += sprintf(pChar,"\n  running_request = %d\n",list_size(&p->running_request)); 
+    pChar += sprintf(pChar,"  waiting_request = %d\n",list_size(&p->waiting_request)); 
+    if (p->storio_rebuild_ref.u32 != 0xFFFFFFFF) {
+      for (nb_rebuild=0; nb_rebuild   <MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
+	storio_rebuild_ref = p->storio_rebuild_ref.u8[nb_rebuild];
+	if (storio_rebuild_ref == 0xFF) continue;
+	pChar += sprintf(pChar,"    rebuild %d : ",nb_rebuild+1);  
+	if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
+          pChar += sprintf(pChar,"Bad reference %d\n",storio_rebuild_ref);  
+          continue;
 	}
-      }  
-    }
+	pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)key.fid);
+	if (pRebuild == 0) {
+          pChar += sprintf(pChar,"Context reallocated to an other FID\n");  
+          continue;
+	}
+	pChar += sprintf(pChar,"start %llu stop %llu aging %llu sec\n",
+                	 (unsigned long long)pRebuild->start_block,
+			 (unsigned long long)pRebuild->stop_block,
+			 (unsigned long long)(time(NULL)-pRebuild->rebuild_ts));
+      }
+    }  
+  }  
+  if (found == 0) {
+    pChar += sprintf(pChar,"%s no such FID !!!\n",argv[1]);    
   }
+  
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }
@@ -804,7 +813,7 @@ uint32_t storio_device_mapping_exact_match(void *key ,uint32_t index) {
   p = storio_device_mapping_ctx_retrieve(index);
   if (p == NULL) return 0;
     
-  if (uuid_compare(p->fid,key) != 0) {
+  if (memcmp(&p->key,key, sizeof(storio_device_mapping_key_t)) != 0) {
     return 0;
   }
   /*

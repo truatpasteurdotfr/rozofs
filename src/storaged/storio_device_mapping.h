@@ -97,13 +97,19 @@ typedef union storio_rebuild_ref_u {
 #define    STORIO_FID_FREE     0
 #define    STORIO_FID_RUNNING  1
 #define    STORIO_FID_INACTIVE 2
-
+typedef struct _storio_device_mapping_key_t
+{
+  fid_t                fid;
+  uint8_t              cid;
+  uint8_t              sid;
+} storio_device_mapping_key_t;
+  
 typedef struct _storio_device_mapping_t
 {
   ruc_obj_desc_t       link;  
   uint32_t             status:8;
   uint32_t             index:24;
-  fid_t                fid;
+  storio_device_mapping_key_t key;
   uint8_t              device[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE];   /**< Device number to write the data on        */
   list_t               running_request;
   list_t               waiting_request;
@@ -143,9 +149,9 @@ extern storio_device_mapping_stat_t storio_device_mapping_stat;
   @retval hash value
   
 */
-static inline uint32_t storio_device_mapping_hash32bits_compute(void *usr_key) {
+static inline uint32_t storio_device_mapping_hash32bits_compute(storio_device_mapping_key_t *usr_key) {
   uint32_t * p32 = (uint32_t *) usr_key;
-  return (uint32_t) (p32[0]^p32[1]^p32[2]^p32[3]);
+  return (uint32_t) ((p32[0]^p32[1]^p32[2]^p32[3])+ usr_key->sid);
 }
 
 /*
@@ -232,7 +238,7 @@ static inline void storio_device_mapping_ctx_evaluate(storio_device_mapping_t * 
 static inline void storio_device_mapping_ctx_reset(storio_device_mapping_t * p) {
 
   
-  memset(&p->fid,0,sizeof(fid_t));
+  memset(&p->key,0,sizeof(storio_device_mapping_key_t));
   memset(p->device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
 //  p->consistency   = storio_device_mapping_stat.consistency;
   list_init(&p->running_request);
@@ -258,8 +264,8 @@ static inline void storio_device_mapping_release_entry(storio_device_mapping_t *
   /*
   ** Release the cache entry
   */
-  hash = storio_device_mapping_hash32bits_compute(p->fid);
-  if (storio_fid_cache_remove(hash, p->fid)==-1) {
+  hash = storio_device_mapping_hash32bits_compute(&p->key);
+  if (storio_fid_cache_remove(hash, &p->key)==-1) {
     severe("storio_fid_cache_remove");
   }
      
@@ -416,10 +422,10 @@ static inline void storio_device_mapping_ctx_distributor_init() {
 *  @param device_id The device number 
 *
 */
-static inline storio_device_mapping_t * storio_device_mapping_insert(void * fid) {
+static inline storio_device_mapping_t * storio_device_mapping_insert(uint8_t cid, uint8_t sid, void * fid) {
   storio_device_mapping_t            * p;  
   uint32_t hash;
-
+  
   /*
   ** allocate an entry
   */
@@ -427,11 +433,12 @@ static inline storio_device_mapping_t * storio_device_mapping_insert(void * fid)
   if (p == NULL) {
     return NULL;
   }
-  
-  memcpy(&p->fid,fid,sizeof(fid_t));
- 
 
-  hash = storio_device_mapping_hash32bits_compute(p->fid);  
+  p->key.cid = cid;
+  p->key.sid = sid;  
+  memcpy(&p->key.fid,fid,sizeof(fid_t));
+
+  hash = storio_device_mapping_hash32bits_compute(&p->key);  
   if (storio_fid_cache_insert(hash, p->index) != 0) {
      severe("storio_fid_cache_insert"); 
      storio_device_mapping_release_entry(p);
@@ -450,17 +457,22 @@ static inline storio_device_mapping_t * storio_device_mapping_insert(void * fid)
 *  @retval found entry or NULL
 *
 */
-static inline storio_device_mapping_t * storio_device_mapping_search(void * fid) {
+static inline storio_device_mapping_t * storio_device_mapping_search(uint8_t cid, uint8_t sid, void * fid) {
   storio_device_mapping_t   * p;  
   uint32_t hash;
   uint32_t index;
+  storio_device_mapping_key_t key;
 
-  hash = storio_device_mapping_hash32bits_compute(fid);
+  key.cid = cid;
+  key.sid = sid;
+  memcpy(key.fid,fid,sizeof(key.fid));
+  
+  hash = storio_device_mapping_hash32bits_compute(&key);
 
   /*
   ** Lookup for an entry
   */
-  index = storio_fid_cache_search(hash, fid) ;
+  index = storio_fid_cache_search(hash, &key) ;
   if (index == -1) {
     return NULL;
   }

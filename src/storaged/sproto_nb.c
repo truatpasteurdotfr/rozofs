@@ -414,9 +414,9 @@ void sp_write_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     /*
     ** Lookup for the FID context in the lookup table
     */ 
-    dev_map_p = storio_device_mapping_search(write_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(write_arg_p->cid, write_arg_p->sid, write_arg_p->fid);
     if (dev_map_p == NULL) { 
-      dev_map_p = storio_device_mapping_insert (write_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (write_arg_p->cid, write_arg_p->sid, write_arg_p->fid);
       if (dev_map_p == NULL) { 
         goto error;
       }
@@ -586,9 +586,9 @@ void sp_read_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     /*
     ** Lookup for the device_id in the lookup table
     */ 
-    dev_map_p = storio_device_mapping_search(read_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(read_arg_p->cid, read_arg_p->sid, read_arg_p->fid);
     if (dev_map_p == NULL) { 
-      dev_map_p = storio_device_mapping_insert (read_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (read_arg_p->cid, read_arg_p->sid, read_arg_p->fid);
       if (dev_map_p == NULL) { 
         goto error;
       }
@@ -651,12 +651,12 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
     /*
     ** Lookup in the FID cache for the FID context
     */ 
-    dev_map_p = storio_device_mapping_search(rebuild_start_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(rebuild_start_arg_p->cid, rebuild_start_arg_p->sid, rebuild_start_arg_p->fid);
     if (dev_map_p == NULL) { 
       /*
       ** Missing ! Create one entry
       */
-      dev_map_p = storio_device_mapping_insert (rebuild_start_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (rebuild_start_arg_p->cid, rebuild_start_arg_p->sid, rebuild_start_arg_p->fid);
       if (dev_map_p == NULL) { 
         errno = ENOMEM;      
         goto error;
@@ -684,7 +684,7 @@ void sp_rebuild_start_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p)
       /*
       ** Retrieve the rebuild context from its index 
       */
-      pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)dev_map_p->fid);
+      pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)dev_map_p->key.fid);
       if (pRebuild == NULL) {
 	/* This context is not allocated for this FID */
 	dev_map_p->storio_rebuild_ref.u8[nb_rebuild] = 0xFF; // reset entry
@@ -821,7 +821,7 @@ void sp_rebuild_stop_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
     /*
     ** Lookup in the FID cache
     */ 
-    dev_map_p = storio_device_mapping_search(rebuild_stop_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(rebuild_stop_arg_p->cid,rebuild_stop_arg_p->sid,rebuild_stop_arg_p->fid);
     if (dev_map_p == NULL) { 
       goto error;
     }
@@ -967,9 +967,9 @@ void sp_truncate_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
     req_ctx_p->recv_buf = NULL;
 
-    dev_map_p = storio_device_mapping_search(truncate_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(truncate_arg_p->cid, truncate_arg_p->sid, truncate_arg_p->fid);
     if (dev_map_p == NULL) { 
-      dev_map_p = storio_device_mapping_insert (truncate_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (truncate_arg_p->cid, truncate_arg_p->sid, truncate_arg_p->fid);
       if (dev_map_p == NULL) { 
         goto error;
       }
@@ -1062,9 +1062,9 @@ void sp_remove_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
     req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
     req_ctx_p->recv_buf = NULL;
 
-    dev_map_p = storio_device_mapping_search(remove_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(remove_arg_p->cid, remove_arg_p->sid, remove_arg_p->fid);
     if (dev_map_p == NULL) { 
-      dev_map_p = storio_device_mapping_insert (remove_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (remove_arg_p->cid, remove_arg_p->sid, remove_arg_p->fid);
       if (dev_map_p == NULL) { 
         goto error;
       }
@@ -1154,9 +1154,9 @@ void sp_remove_chunk_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
     req_ctx_p->xmitBuf  = req_ctx_p->recv_buf;
     req_ctx_p->recv_buf = NULL;
 
-    dev_map_p = storio_device_mapping_search(remove_chunk_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(remove_chunk_arg_p->cid, remove_chunk_arg_p->sid, remove_chunk_arg_p->fid);
     if (dev_map_p == NULL) { 
-      dev_map_p = storio_device_mapping_insert (remove_chunk_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (remove_chunk_arg_p->cid, remove_chunk_arg_p->sid, remove_chunk_arg_p->fid);
       if (dev_map_p == NULL) { 
         goto error;
       }
@@ -1251,9 +1251,9 @@ void sp_write_repair_1_svc_disk_thread(void * pt, rozorpc_srv_ctx_t *req_ctx_p) 
     /*
     ** Lookup for the FID context in the lookup table
     */ 
-    dev_map_p = storio_device_mapping_search(repair_arg_p->fid);
+    dev_map_p = storio_device_mapping_search(repair_arg_p->cid, repair_arg_p->sid, repair_arg_p->fid);
     if (dev_map_p == NULL) { 
-      dev_map_p = storio_device_mapping_insert (repair_arg_p->fid);
+      dev_map_p = storio_device_mapping_insert (repair_arg_p->cid, repair_arg_p->sid, repair_arg_p->fid);
       if (dev_map_p == NULL) { 
         goto error;
       }
