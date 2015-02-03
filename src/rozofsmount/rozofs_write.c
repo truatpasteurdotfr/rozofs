@@ -1906,6 +1906,7 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     START_PROFILING_NB(buffer_p,rozofs_ll_release);
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,trc_idx);
+    SAVE_FUSE_PARAM(buffer_p,ino);    
     SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));    
     /*
     ** install the callback 
@@ -2510,14 +2511,14 @@ void export_write_block_cbk(void *this,void *param)
     /*
     ** Update cache entry
     */
-    ie = get_ientry_by_inode(fuse_ctx_p->ino);
+    ie = get_ientry_by_fid((char*) ret.status_gw.ep_mattr_ret_t_u.attrs.fid);
     if (ie) {
       /*
       ** update the attributes in the ientry
       */
       rozofs_ientry_update(ie,(mattr_t *)&ret.status_gw.ep_mattr_ret_t_u.attrs);  
       ie->file_extend_running = 0;
-    }     
+    }
         
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
 //out:
