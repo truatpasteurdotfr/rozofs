@@ -852,12 +852,25 @@ def relocate_one_dev() :
 # test rebuilding device per device
 #___________________________________________________
 
+
   ret=1 
   for idx in range(len(list_sid)):
 
     hid=list_host[idx]
     cid=list_cid[idx]
     sid=list_sid[idx]
+
+    # Get storio mode: single or multuple
+    string="./build/src/rozodiag/rozodiag -i localhost%d -T storaged -c storio_nb"%(hid)
+    parsed = shlex.split(string)
+    cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    mode = "unknown"
+    for line in cmd.stdout:
+      if "mode" in line:
+        words=line.split()
+	mode=words[2]
+	break;     
 
     # Check wether self healing is configured
     string="./build/src/rozodiag/rozodiag -i localhost%d -T storio:%d -c device"%(hid,cid)
@@ -896,10 +909,23 @@ def relocate_one_dev() :
         time.sleep(10)
 	
         # Check The status of the device
-	string="./build/src/rozodiag/rozodiag -i localhost%d -T storio:%d -c device"%(hid,cid)
+        if mode == "multiple": string="./build/src/rozodiag/rozodiag -i localhost%d -T storio:%d -c device"%(hid,cid)
+	else                 : string="./build/src/rozodiag/rozodiag -i localhost%d -T storio:0 -c device"%(hid)
 	parsed = shlex.split(string)
 	cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	curcid=0
+	cursid=0
 	for line in cmd.stdout:
+	
+          # Read cid sid	
+	  if "cid = " in line and "sid = " in line:
+	    words=line.split()
+	    curcid=int(words[2])
+	    cursid=int(words[5])
+	    continue
+	      
+          if curcid != cid or cursid != sid: continue 
+          
           words=line.split('|')
           if len(words) < 4:
 	    continue
