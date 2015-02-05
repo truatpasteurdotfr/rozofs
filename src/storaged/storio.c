@@ -226,6 +226,7 @@ void usage() {
 int main(int argc, char *argv[]) {
     int c;
     int val;
+    char logname[32];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         {"config", required_argument, 0, 'c'},
@@ -284,9 +285,10 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
                 break;
         }
-    }
-    
-    openlog("storio", LOG_PID, LOG_DAEMON);
+    }    
+
+    sprintf(logname,"storio:%d",storio_instance);
+    openlog(logname, LOG_PID, LOG_DAEMON);
         
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {

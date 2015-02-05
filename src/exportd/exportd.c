@@ -1378,14 +1378,12 @@ static void on_stop() {
       }
 
       /*
-      ** now kill all the slave exportds
+      ** now kill every sub process
       */
-      export_kill_all_export_slave();
+      rozofs_session_leader_killer(100000);
     }
     
     exportd_release();
-
-    info("stopped.");
     closelog();
 }
 /*

@@ -224,18 +224,9 @@ static void on_stop() {
     }
 
     /*
-    ** Killing every storio and launcher within the session
+    ** now kill every sub process
     */
-    if (session_id!= 0) {
-      kill(-session_id,SIGTERM);
-    }
-    
-    //rozofs_layout_release();
-
-    //storaged_release();
-
-    //info("stopped.");
-    closelog();
+    rozofs_session_leader_killer(300000);
 }
 
 char storage_process_filename[NAME_MAX];

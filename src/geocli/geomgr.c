@@ -44,8 +44,6 @@
 
 #define GEOMGR_DEFAULT_TIMER    60
 
-pid_t     big_father=0;
-
 geomgr_input_param_t geomgr_input_param;
 
 typedef enum _geomgr_export_status_e {
@@ -715,7 +713,10 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port) {
 static void on_start() {
   int ret;
 
-  big_father = getpid();
+  /*
+  ** Create a session id under which every sub process will run
+  */
+  setsid();
 
   // Change AF_UNIX datagram socket length
   af_unix_socket_set_datagram_socket_len(128);
@@ -757,28 +758,7 @@ static void on_start() {
  *_______________________________________________________________________
  */
 static void on_stop() {
-  int i;
-  geomgr_export_t  * p = exports;
-  
-  
-  /*
-  ** The main task should kill all subprocesses
-  */
-  if (getpid() == big_father) {
-    for (i=0; i<GEOMGR_MAX_EXPORTS; i++,p++) {
-      if (p->status == geomgr_export_status_running) {
-	geomgr_stop_client(i);
-      }
-    }
-    info("stopped.");    
-    closelog();    
-  }
-  else {
-    /*
-    ** Kill all subpocesses of the session
-    */
-    kill(-getpid(),SIGTERM);
-  }
+  rozofs_session_leader_killer(100000);
 }
 /*
  *_______________________________________________________________________

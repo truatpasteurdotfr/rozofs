@@ -1576,6 +1576,8 @@ display_process() {
 }	
 show_process () {
 
+  sleep 0.4
+  
   tst_dir=`pwd | awk -F'/' '{ print $NF }'`
   case "$1" in
     "") LIST=`ps -ef | grep "/$tst_dir" | awk '{ if ($3==1) print $2;}'`;;

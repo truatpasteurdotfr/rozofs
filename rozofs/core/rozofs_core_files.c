@@ -372,3 +372,34 @@ void rozofs_signals_declare(char * application, int max_core_files) {
   signal(SIGCHLD, rozofs_cath_child);
   rozofs_clean_core();
 }
+/*__________________________________________________________________________
+  Kill every process within the session when the calling process is
+  the session leader
+  ==========================================================================
+  @param usec          the maximmum delay to politly wait for the sub-processes 
+                       to obey to the SIGTERM before sending a SIGKILL
+  ==========================================================================*/
+void rozofs_session_leader_killer(int usec) {
+  pid_t pid = getpid();
+  int   nb;
+
+  /*
+  ** Check this guy is the session leader
+  */
+  if (pid != getsid(0)) return;
+    
+  /*
+  ** Request termination to every sub process
+  */
+  kill(-pid,SIGTERM);
+
+  /*
+  ** Sleep a some micro seconds
+  */
+  usleep(usec);
+
+  /*
+  ** Abort every sub process
+  */
+  kill(-pid,SIGKILL);
+}
