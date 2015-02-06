@@ -53,6 +53,7 @@
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
+#include <rozofs/core/rozofs_share_memory.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
 
@@ -249,7 +250,9 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
     char                * pChar = uma_dbg_get_buffer();
     storage_t           * st=NULL;
     int                   device;
+    storage_device_info_t *info;
     
+
     pChar += sprintf(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
     pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  |  %c |\n",'%');
            
@@ -260,11 +263,15 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
       pChar += sprintf(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
 
       /*
-      ** Let's update device info in cache
+      ** Let's resolve the share memory address
       */
-      if (storaged_update_device_info(st)==0) {
-	for (device=0; device < st->device_info_cache->nb_dev; device++) {
-	  storage_device_info_t *pdev = &st->device_info_cache->device[device];
+      if (st->info == NULL) {
+        st->info = rozofs_share_memory_resolve_from_name(st->root);
+      }	
+      info = st->info;
+      if (info != NULL) {
+	for (device=0; device < st->device_number; device++) {
+	  storage_device_info_t *pdev = &info[device];
 	  sumfree += pdev->free;
 	  sumsize += pdev->size;
           pChar += sprintf(pChar,"| %3d | %3d | %3d | %6s | %14llu | %14llu | %2.2d |\n",

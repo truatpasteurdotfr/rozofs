@@ -57,7 +57,10 @@ extern "C" {
 #define STORIO_DEVICE_MAPPING_LVL0_SZ  (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2) 
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
 
+#define STORIO_DEVICE_PERIOD    5
 
+void storio_clear_faulty_fid();
+int storio_device_mapping_monitor_thread_start();
 
 typedef struct storio_rebuild_t {
   ruc_obj_desc_t      link;

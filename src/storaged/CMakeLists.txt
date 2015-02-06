@@ -101,6 +101,7 @@ add_executable(storio
     storio_bufcache.h
     storio_disk_thread_intf.h
     storio_disk_thread_intf.c
+    storio_device_monitor.c    
     storio_disk_thread.c
     storio_device_mapping.c
     storio_device_mapping.h

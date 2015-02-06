@@ -116,12 +116,6 @@ typedef struct _storage_device_info_t {
   uint64_t                   size;    
 } storage_device_info_t;
 
-typedef struct _storage_device_info_cache_t {
-  time_t                 time;
-  int                    nb_dev;
-  storage_device_info_t  device[STORAGE_MAX_DEVICE_NB];
-} storage_device_info_cache_t;
-
 #define STORAGE_DEVICE_NO_ACTION      0
 #define STORAGE_DEVICE_RESET_ERRORS   1
 #define STORAGE_DEVICE_REINIT         2
@@ -145,8 +139,8 @@ typedef struct storage {
     char  *  export_hosts; /* For self healing purpose */
     storage_device_free_blocks_t device_free;    // available blocks on devices
     storage_device_errors_t      device_errors;  // To monitor errors on device
-    storage_device_ctx_t         device_ctx[STORAGE_MAX_DEVICE_NB];  
-    storage_device_info_cache_t *device_info_cache;             
+    storage_device_ctx_t         device_ctx[STORAGE_MAX_DEVICE_NB]; 
+    storage_device_info_t      * info; // share memory between storaged and storio          
 } storage_t;
 
 /**
@@ -281,8 +275,6 @@ typedef struct _rozofs_rebuild_entry_file_t {
 #define MYDBGTRACE_DEV(device,fmt,...)
 #endif 
 
-int storage_write_device_status(char * root, storage_device_info_t * info, int nbElement);
-int storage_read_device_status(char * root, storage_device_info_t * info);
 
 /**
  *  Get the next storage 
@@ -301,31 +293,7 @@ storage_t *storaged_next(storage_t * st);
  */
 int storage_error_on_device(storage_t * st, uint8_t device_nb);
 
-/** API to be called periodically to monitor errors on a period
- *
- * @param st: the storage to be initialized.
- *
- * @return a bitmask of the device having encountered an error
- */
-static inline uint64_t storage_periodic_error_on_device_monitoring(storage_t * st) {
-  int dev;
-  uint64_t bitmask = 0;  
-  int old_active = st->device_errors.active;
-  int new_active = 1 - old_active;
-  
-  
-  for (dev = 0; dev < STORAGE_MAX_DEVICE_NB; dev++) {   
-    st->device_errors.errors[new_active][dev] = 0;    
-  }  
-  st->device_errors.active = new_active;
- 
-  
-  for (dev = 0; dev < STORAGE_MAX_DEVICE_NB; dev++) {    
-    st->device_errors.total[dev] = st->device_errors.total[dev] + st->device_errors.errors[old_active][dev];
-    bitmask |= (1<<dev);
-  }  
-  return bitmask;
-}
+
 static inline char * trace_device(uint8_t * device, char * pChar) {
   int  idx;
       
@@ -1047,5 +1015,18 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
                      uint8_t layout, uint8_t bsize, uint8_t spare, 
 		     sid_t * dist_set, fid_t fid, 
 		     uint8_t chunk, int * is_fid_faulty);
+
+/*
+ ** Name the storio pid file for the rozolauncher
+
+  @param pidfile           : the name of the storio pid file
+  @param storaged_hostname : hostname
+  @param instance          : cstorio instance
+  
+ */
+static inline void storio_pid_file(char * pidfile, char * storaged_hostname, int instance) {
+  if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,instance);
+  else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",instance);
+}
 #endif
 

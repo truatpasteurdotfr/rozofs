@@ -591,7 +591,7 @@ int storage_initialize(storage_t *st,
     st->mapper_redundancy = mapper_redundancy;
     st->selfHealing       = selfHealing; 
     st->export_hosts      = export_hosts;
-    st->device_info_cache = NULL;
+    st->info              = NULL;
     
     st->device_free.active = 0;
     for (dev=0; dev<STORAGE_MAX_DEVICE_NB; dev++) {
@@ -724,8 +724,6 @@ void storage_release(storage_t * st) {
     st->sid = 0;
     st->cid = 0;
     st->root[0] = 0;
-    if (st->device_info_cache != NULL) free(st->device_info_cache);
-    st->device_info_cache = NULL;
 
 }
 static inline void storage_get_projection_size(uint8_t spare, 
@@ -1893,31 +1891,7 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     }
     return 0;
 } 
-int storage_write_device_status(char * root, storage_device_info_t * info, int nbElement) {
-    char          path[FILENAME_MAX];
-    FILE *        fd=NULL; 
 
-    sprintf(path,"%s/status",root);
-    fd = fopen(path,"w");
-    if (fd != NULL) {
-      fwrite(info,sizeof(storage_device_info_t),nbElement,fd);
-      fclose(fd);
-    }  
-    return 0;
-}
-int storage_read_device_status(char * root, storage_device_info_t * info) {
-    char          path[FILENAME_MAX];
-    FILE *        fd=NULL; 
-    int           read=-1;
-
-    sprintf(path,"%s/status",root);
-    fd = fopen(path,"r");
-    if (fd != NULL) {
-      read = fread(info,sizeof(storage_device_info_t),STORAGE_MAX_DEVICE_NB,fd);
-      fclose(fd);
-    }  
-    return read;
-}
 
 bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t device_id, 
                                               uint8_t spare, uint16_t slice, uint64_t * cookie,

@@ -52,7 +52,9 @@
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/core/rozo_launcher.h>
+#include <rozofs/core/rozofs_share_memory.h>
 #include <rozofs/rozofs_timer_conf.h>
+
 #include "storio_crc32.h"
 
 #include "config.h"
@@ -237,7 +239,8 @@ static void on_start() {
     char * p;
     storaged_start_conf_param_t conf;
     int ret = -1;
-        
+    list_t   *l;
+          
     DEBUG_FUNCTION;
 
     session_id = setsid();
@@ -263,6 +266,21 @@ static void on_start() {
     //SET_PROBE_VALUE(io_process_ports[i],(uint16_t) storaged_storage_ports[i] + 1000);
     
     
+    /*
+    ** Create a share memory to get the device status for every SID
+    */
+    l = NULL;
+    list_for_each_forward(l, &storaged_config.storages) {
+
+      storage_config_t *sc = list_entry(l, storage_config_t, list);
+      
+      /*
+      ** Allocate share memory to report device status
+      */
+      rozofs_share_memory_allocate_from_name(sc->root, STORAGE_MAX_DEVICE_NB*sizeof(storage_device_info_t));
+    }
+    
+    
     conf.nb_storio = 0;
     /*
     ** Then start storio
@@ -272,8 +290,7 @@ static void on_start() {
       p += sprintf(p, "storio -i 0 -c %s ", storaged_config_file);
       if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
       
-      if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_0.pid",storaged_hostname);
-      else                   sprintf(pidfile,"/var/run/launcher_storio_0.pid");
+      storio_pid_file(pidfile, storaged_hostname, 0);
       
       // Launch storio
       ret = rozo_launcher_start(pidfile, cmd);
@@ -285,10 +302,10 @@ static void on_start() {
     }
     else {
       uint64_t  bitmask[4] = {0};
-      list_t   *l = NULL;
       uint8_t   cid,rank,bit; 
          
       /* For each storage on configuration file */
+      l = NULL;
       list_for_each_forward(l, &storaged_config.storages) {
       
         storage_config_t *sc = list_entry(l, storage_config_t, list);
@@ -307,10 +324,8 @@ static void on_start() {
 	p += sprintf(p, "storio -i %d -c %s ", cid, storaged_config_file);
 	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
 
-      
-        if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,cid);
-        else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",cid);
- 
+        storio_pid_file(pidfile, storaged_hostname, cid); 
+	
         // Launch storio
 	ret = rozo_launcher_start(pidfile, cmd);
 	if (ret !=0) {
