@@ -381,7 +381,6 @@ void rozofs_signals_declare(char * application, int max_core_files) {
   ==========================================================================*/
 void rozofs_session_leader_killer(int usec) {
   pid_t pid = getpid();
-  int   nb;
 
   /*
   ** Check this guy is the session leader

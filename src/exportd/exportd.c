@@ -52,6 +52,7 @@
 #include <rozofs/rpc/rpcclt.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/rozo_launcher.h>
+#include <rozofs/core/rozofs_core_files.h>
 
 #include "config.h"
 #include "exportd.h"

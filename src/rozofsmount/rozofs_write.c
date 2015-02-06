@@ -2511,7 +2511,7 @@ void export_write_block_cbk(void *this,void *param)
     /*
     ** Update cache entry
     */
-    ie = get_ientry_by_fid((char*) ret.status_gw.ep_mattr_ret_t_u.attrs.fid);
+    ie = get_ientry_by_fid((unsigned char*) ret.status_gw.ep_mattr_ret_t_u.attrs.fid);
     if (ie) {
       /*
       ** update the attributes in the ientry
