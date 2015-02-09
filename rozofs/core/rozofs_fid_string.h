@@ -151,7 +151,7 @@ static inline char * rozofs_u8_2_char(uint8_t hexa, char * pChar) {
   if (hexa < 10) *pChar++ = hexa + '0';
   else           *pChar++ = (hexa-10) + 'a';
   
-  return pChar+2;
+  return pChar;
 }
 /*
 **___________________________________________________________
@@ -171,22 +171,22 @@ static inline char * rozofs_fid2string(uuid_t fid, char * pChar) {
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   
-  pChar[8] = '-';
+  *pChar++ = '-';
   
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   pChar = rozofs_u8_2_char(*pFid++,pChar);
    
-  pChar[13] = '-';
+  *pChar++ = '-';
   
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   
-  pChar[18] = '-';
+  *pChar++ = '-';
   
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   
-  pChar[23] = '-';    
+  *pChar++ = '-';
   
   pChar = rozofs_u8_2_char(*pFid++,pChar);
   pChar = rozofs_u8_2_char(*pFid++,pChar);   
