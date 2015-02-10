@@ -190,7 +190,6 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   
     key.cid = st->cid;
     key.sid = st->sid;
-    info("cid %d sid %d",key.cid,key.sid);
 
     int index = storio_fid_cache_search(storio_device_mapping_hash32bits_compute(&key),&key);
     if (index == -1) {
