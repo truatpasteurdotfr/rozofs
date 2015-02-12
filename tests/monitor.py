@@ -140,9 +140,8 @@ def find_between( s, first, last ):
         end = s.index( last, start )
         return s[start:end]
     except ValueError:
-        return ""
-
-    
+        return " "
+   
 #_____________________________________________   
 def rozofs_new_status(status,dis):
   global rozofs_status
@@ -233,13 +232,14 @@ def do_one_test( ):
       errors=errors+1
     else:
       result=output.split()
-      dis.set_column(3,result[0]) 
-      msg=find_between(output,'<','>')
-      dis.set_column(4,msg)    
-      if result[0] == "WARNING":
-	warnings=warnings+1
-      elif result[0] == "ERROR":	 
-        errors=errors+1
+      dis.set_column(3,result[0])       
+      if result[0] == "WARNING": warnings=warnings+1
+      elif result[0] == "ERROR": errors=errors+1
+      if result[0] == "OK":
+        msg=find_between(output,'>','\n')
+      else:
+        msg=find_between(output,'<','>')	
+      dis.set_column(4,msg) 	 
 
   if options.nodisplay == False:   
     print "\n%s : %s"%(name,time.strftime('%Y/%m/%d %H:%M:%S'))      	    	 
