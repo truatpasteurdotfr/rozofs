@@ -31,8 +31,8 @@
  */
 typedef struct mattr {
     fid_t fid;                      /**< unique file id */
-    cid_t cid;                      /**< cluster id 0 for non regular files */
     sid_t sids[ROZOFS_SAFE_MAX];    /**< sid of storage nodes target (regular file only)*/
+    cid_t cid;                      /**< cluster id 0 for non regular files */
     uint32_t mode;                  /**< see stat(2) */
     uint32_t uid;                   /**< see stat(2) */
     uint32_t gid;                   /**< see stat(2) */
@@ -111,8 +111,8 @@ typedef union
      mattr_t attrs;      /**< standard attributes       */
      uint64_t cr8time;   /**< creation time          */
      fid_t   pfid;   /**< parent fid                */
-     uint32_t grpquota_id;   /**< id of the group for quota */
-     uint32_t usrquota_id;   /**< id of the user for quota  */
+     uint32_t hash1;   /**< parent/name hash1  */
+     uint32_t hash2;   /**< parent/name hash2  */
      uint32_t i_extra_isize;  /**< array reserved for extended attributes */
      uint32_t i_state;     /**< inode state               */
      uint64_t i_file_acl;  /**< extended inode */

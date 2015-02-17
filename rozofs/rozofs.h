@@ -93,6 +93,8 @@ typedef enum _ROZOFS_BSIZE_E {
 #define STORAGE_PORT_NUM_BEGIN 40000
 
 #define ROZOFS_INODE_SZ  512  /**< rozofs inode size (memory and disk)*/
+#define ROZOFS_NAME_INODE 128 /**< max size for object name in RPC message */
+#define ROZOFS_NAME_INODE_RPC (ROZOFS_NAME_INODE/sizeof(uint32_t))
 #define ROZOFS_XATTR_BLOCK_SZ 4096 /**< rozofs xattr block size */
 
 #define MAX_DIR_ENTRIES 50
@@ -175,7 +177,10 @@ typedef union
 {
    uint64_t fid[2];   /**<   */
    struct {
-     uint64_t  fid_high:54;   /**< highest part of the fid */
+     uint64_t  vers:4;        /**< fid version */
+     uint64_t  fid_high:43;   /**< highest part of the fid: not used */
+     uint64_t  opcode:4;      /**< opcode used for metadata log */
+     uint64_t  exp_id:3;      /**< exportd identifier: must remain unchanged for a given server */
      uint64_t  eid:10;        /**< export identifier */     
      uint64_t  usr_id:8;     /**< usr defined value-> for exportd;it is the slice   */
      uint64_t  file_id:40;    /**< bitmap file index within the slice                */
@@ -183,8 +188,10 @@ typedef union
      uint64_t  key:5;     /**< inode relative to the bitmap file index           */
    } s;
    struct {
-     uint64_t  opcode:4;   /**< opcode used for metadata log */
-     uint64_t  fid_high:50;   /**< highest part of the fid */
+     uint64_t  vers:4;        /**< fid version */
+     uint64_t  fid_high:43;   /**< highest part of the fid: not used */
+     uint64_t  opcode:4;      /**< opcode used for metadata log */
+     uint64_t  exp_id:3;      /**< exportd identifier: must remain unchanged for a given server */
      uint64_t  eid:10;        /**< export identifier */     
      uint64_t  usr_id:8;     /**< usr defined value-> for exportd;it is the slice   */
      uint64_t  file_id:40;    /**< bitmap file index within the slice                */
@@ -313,6 +320,30 @@ static inline int exp_trck_is_local_slice(uint32_t slice)
 {
    return 1;
 
+}
+
+
+/**
+*  Generate a fake FID for rozoFS
+  
+   @param fid : pointer to the fid
+   @param export_id : reference of the export host
+   
+   
+   @retval 1 : the slice is local
+   @retval 0: the slice is not local
+*/
+#define ROZOFS_FID_VERSION_0 0
+static inline void rozofs_uuid_generate(fid_t fid,uint8_t export_id)
+{
+  rozofs_inode_t *fake_inode;
+
+  fake_inode = (rozofs_inode_t*)fid;
+  fake_inode->fid[0] = 0;
+  fake_inode->fid[1] = 0;
+  fake_inode->s.vers = ROZOFS_FID_VERSION_0;
+  fake_inode->s.exp_id = export_id;
+  
 }
 
 

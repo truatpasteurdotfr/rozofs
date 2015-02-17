@@ -38,6 +38,7 @@
 
 lv2_entry_t  exp_fake_lv2_entry[EXP_MAX_FAKE_LVL2_ENTRIES];
 int exp_fake_lv2_entry_idx = 0;
+int rozofs_export_host_id = 0;   /**< reference between 0..7: default 0  */
 
 /**
 *  pointers table of the context associated with the eid: MAX is EXPGW_EID_MAX_IDX (see rozofs.h for details)
@@ -600,7 +601,7 @@ int exp_attr_create_write_cond(export_tracking_table_t *trk_tb_p,uint32_t slice,
    int inode_allocated = 0;
    int link_allocated = 0;
    
-   uuid_generate(fid);
+   rozofs_uuid_generate(fid,rozofs_get_export_host_id());
 
 
    fake_inode = (rozofs_inode_t*)fid;
@@ -744,7 +745,7 @@ int exp_attr_create(export_tracking_table_t *trk_tb_p,uint32_t slice,ext_mattr_t
    int inode_allocated = 0;
    int link_allocated = 0;
    
-   uuid_generate(fid);
+   rozofs_uuid_generate(fid,rozofs_get_export_host_id());
 
 
    fake_inode = (rozofs_inode_t*)fid;

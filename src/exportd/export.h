@@ -849,4 +849,17 @@ int export_open_parent_directory(export_t *e,fid_t parent);
  * @return the pointer to the statitics of NULL 
  */
 export_fstat_t * export_fstat_get_stat(uint16_t eid) ;
+/*
+** Get the export reference associated with the host
+   
+   @param none
+   
+   @retval export host value
+*/
+extern int rozofs_export_host_id;  /**< reference between 0..7  */
+
+static uint8_t rozofs_get_export_host_id()
+{
+  return rozofs_export_host_id;
+}
 #endif

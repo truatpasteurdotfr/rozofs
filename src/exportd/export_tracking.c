@@ -507,6 +507,8 @@ int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache) {
     char const_path[PATH_MAX];
     char root_path[PATH_MAX];
     char slice_path[PATH_MAX];
+    char root_export_host_id[PATH_MAX];
+
     export_fstat_t est;
     export_const_t ect;
     int fd = -1;
@@ -536,7 +538,12 @@ int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache) {
       /*
       ** create the tracking context of the export
       */
-      e->trk_tb_p = exp_create_attributes_tracking_context(e->eid,(char*)root,1);
+      sprintf(root_export_host_id,"%s/host%d",root,rozofs_get_export_host_id());
+      if (mkdir(root_export_host_id, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+	 severe("error on directory creation %s: %s\n",root_export_host_id,strerror(errno));
+	 return -1;      
+      }
+      e->trk_tb_p = exp_create_attributes_tracking_context(e->eid,(char*)root_export_host_id,1);
       if (e->trk_tb_p == NULL)
       {
 	 severe("error on tracking context allocation: %s\n",strerror(errno));
@@ -687,6 +694,7 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     char fstat_path[PATH_MAX];
     char const_path[PATH_MAX];
     char root_path[PATH_MAX];
+    char root_export_host_id[PATH_MAX];
     export_const_t ect;
     int fd = -1;
     int i = 0;
@@ -734,7 +742,9 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     */
      if (e->trk_tb_p == NULL)
      {
-       e->trk_tb_p = exp_create_attributes_tracking_context(e->eid,(char*)root,1);
+       sprintf(root_export_host_id,"%s/host%d",root,rozofs_get_export_host_id());
+
+       e->trk_tb_p = exp_create_attributes_tracking_context(e->eid,(char*)root_export_host_id,1);
        if (e->trk_tb_p == NULL)
        {
 	  severe("error on tracking context allocation: %s\n",strerror(errno));
@@ -1656,6 +1666,8 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     */
     if (volume_distribute(e->volume,site_number, &ext_attrs.s.attrs.cid, ext_attrs.s.attrs.sids) != 0)
         goto error;
+
+    int fake_len;
     ext_attrs.s.attrs.mode = mode;
     ext_attrs.s.attrs.uid = uid;
     ext_attrs.s.attrs.gid = gid;
@@ -1684,6 +1696,11 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     int len;
     
     hash1 = filename_uuid_hash_fnv(0, name,pfid, &hash2, &len);
+    /*
+    ** store the hash values in the i-node
+    */
+    ext_attrs.s.hash1 = hash1;
+    ext_attrs.s.hash2 = hash2;
     root_idx = dirent_get_root_idx(plv2->attributes.s.attrs.children,hash1);
     export_dir_update_root_idx_bitmap(plv2->dirent_root_idx_p,root_idx,1);
     if (export_dir_flush_root_idx_bitmap(e,pfid,plv2->dirent_root_idx_p) < 0)
@@ -1896,6 +1913,11 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     ** update the root_idx bitmap of the parent
     */
     hash1 = filename_uuid_hash_fnv(0, name, pfid, &hash2, &len);
+    /*
+    ** store the hash values in the i-node
+    */
+    ext_attrs.s.hash1 = hash1;
+    ext_attrs.s.hash2 = hash2;
     root_idx = dirent_get_root_idx(plv2->attributes.s.attrs.children,hash1);
     export_dir_update_root_idx_bitmap(plv2->dirent_root_idx_p,root_idx,1);
     if (export_dir_flush_root_idx_bitmap(e,pfid,plv2->dirent_root_idx_p) < 0)
@@ -3100,6 +3122,11 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     int len;
     
     hash1 = filename_uuid_hash_fnv(0, name,pfid, &hash2, &len);
+    /*
+    ** store the hash values in the i-node
+    */
+    ext_attrs.s.hash1 = hash1;
+    ext_attrs.s.hash2 = hash2;
     root_idx = dirent_get_root_idx(plv2->attributes.s.attrs.children,hash1);
     export_dir_update_root_idx_bitmap(plv2->dirent_root_idx_p,root_idx,1);
     if (export_dir_flush_root_idx_bitmap(e,pfid,plv2->dirent_root_idx_p) < 0)
@@ -3881,6 +3908,7 @@ out:
 #define DISPLAY_ATTR_LONG(name,val) p += sprintf(p,"%-7s : %llu\n",name,(unsigned long long int)val);
 #define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
 #define DISPLAY_ATTR_2INT(name,val1,val2) p += sprintf(p,"%-7s : %d/%d\n",name,val1,val2);
+#define DISPLAY_ATTR_HASH(name,val1,val2,val3) p += sprintf(p,"%-7s : %x/%x (%x)\n",name,val1,val2,val3);
 #define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
 #define DISPLAY_ATTR_TXT_NOCR(name,val) p += sprintf(p,"%-7s : %s",name,val);
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
@@ -3902,6 +3930,8 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
                pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
 	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
 
+  uint32_t bucket_idx = ((lv2->attributes.s.hash2 >> 16) ^ (lv2->attributes.s.hash2 & 0xffff))&((1<<8)-1);
+  DISPLAY_ATTR_HASH("HASH1/2",lv2->attributes.s.hash1,lv2->attributes.s.hash2,bucket_idx);
   DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid);
   bufall[0] = 0;
   ctime_r((const time_t *)&lv2->attributes.s.cr8time,bufall);

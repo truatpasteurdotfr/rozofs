@@ -77,7 +77,6 @@ int export_master;         /**< assert to 1 for export Master                  *
 lv2_cache_t cache;
 int export_local_site_number = 0;
 int rozofs_no_site_file;
-
 typedef struct export_entry {
     export_t export;
     list_t list;
