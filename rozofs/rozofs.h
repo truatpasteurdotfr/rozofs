@@ -276,15 +276,20 @@ typedef struct encode_t
  **__________________________________________________________________
  */
 static inline void mstor_get_slice_and_subslice(fid_t fid, uint32_t *slice, uint32_t *subslice) {
-    uint32_t hash = 0;
-    uint8_t *c = 0;
+    //uint32_t hash = 0;
+    //uint8_t *c = 0;
 
+    rozofs_inode_t *rozo_inode_p = (rozofs_inode_t*)fid;
+     *subslice = 0;
+     *slice = rozo_inode_p->s.usr_id & ((1 << MAX_SLICE_BIT) - 1);;
+#if 0    
     for (c = fid; c != fid + 8; c++)
         hash = *c + (hash << 6) + (hash << 16) - hash;
 
     *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
     hash = hash >> MAX_SLICE_BIT;
     *subslice = hash & ((1 << MAX_SUBSLICE_BIT) - 1);
+#endif
 }
 
 /*
@@ -301,7 +306,11 @@ static inline void exp_trck_get_slice(fid_t fid, uint32_t *slice) {
     uint32_t hash = 0;
     uint8_t *c = 0;
 
-    for (c = fid; c != fid + 8; c++)
+    int i;
+    rozofs_inode_t *rozo_inode_p = (rozofs_inode_t*)fid;
+    c = (uint8_t*)&rozo_inode_p->fid[1];
+    
+    for (i= 0; i < sizeof(uint64_t); c++,i++)
         hash = *c + (hash << 6) + (hash << 16) - hash;
 
     *slice = hash & ((1 << MAX_SLICE_BIT) - 1);
