@@ -1374,7 +1374,7 @@ void rozofs_start_one_storcli(int instance) {
     /*
     ** check if there is a share mem key
     */
-    if (rozofs_storcli_shared_mem[instance-1].key != 0)
+    if (rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].key != 0)
     {
       cmd_p += sprintf(cmd_p, "-k %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].key);       
       cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_sz);       

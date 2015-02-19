@@ -127,7 +127,7 @@ static int read_buf_nb(void *buffer_p,file_t * f, uint64_t off, char *buf, uint3
 //    int stor_idx =storcli_get_storcli_idx_from_fid(f->fid);
     int shared_buf_idx;
     uint32_t length;
-    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(storcli_idx);
+    void *shared_buf_ref = rozofs_alloc_shared_storcli_buf(SHAREMEM_IDX_READ);
     if (shared_buf_ref != NULL)
     {
       /*
