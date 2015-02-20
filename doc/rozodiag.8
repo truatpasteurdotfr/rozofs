@@ -1,9 +1,9 @@
 .\" Process this file with
 .\" groff -man -Tascii rozodiag.8
 .\"
-.TH ROZODIAG 8 "JUNE 2014" Rozofs "User Manuals"
+.TH ROZODIAG 8 "FEBRUARY 2015" RozoFS "User Manuals"
 .SH NAME
-rozodiag \- rozofs diagnostic tool
+rozodiag \- RozoFS diagnostic tool
 .SH SYNOPSIS
 .B rozodiag
 .I target
@@ -13,13 +13,35 @@ rozodiag \- rozofs diagnostic tool
 .B
 .SH DESCRIPTION
 .B rozodiag
-is the diagnostic interface to the RozoFS filesystem processes.
+is the diagnostic interface to the RozoFS processes.
 .SH TARGET
-.IP "[ -i hostname ] -p port"
-.RS
-A target is defined by the port it listen to for diagnostic requests
-and optionally the hostname or IP address in case it is located on
-a remote host.
+.P 
+[ -i <hostname|IP@> ] -p <port>
+.P 
+[ -i <hostname|IP@> ] -T <process>
+.IP
+A target is defined by its IP address or hostname and port it listens to for diagnostic requests.
+The IP address or hostname can be omitted when targeting the local host. The destination TCP port
+is mandatory and is either given explicitly thanks to 
+.I -p <port>
+, or implicitly thanks to
+.I -T <process>. 
+.IP
+The 
+.I <process> 
+of the 
+.I -T
+option can take the following values depending on the targeted process:
+   export                           (master exportd)
+   export:<slave>                   (slave exportd)
+   storaged                         (storaged)
+   storio:<cid>                     (storio)
+   mount:<mount instance>           (rozofsmount)
+   mount:<mount instance>:<1|2>     (storcli of rozofsmount)
+   geomgr                           (geomgr)
+   geocli:<geocli instance>         (geocli)
+   geocli:<geocli instance>:<1|2>   (storcli of geomgr)
+
 .SH OPTIONS
 .IP "-h, --help"
 .RS
@@ -54,11 +76,11 @@ Report bugs to <bugs@fizians.org>.
 .SH COPYRIGHT
 Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
 
-Rozofs is free software; you can redistribute it and/or modify
+RozoFS is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published
 by the Free Software Foundation, version 2.
 
-Rozofs is distributed in the hope that it will be useful, but
+RozoFS is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
