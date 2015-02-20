@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
     /*
     ** Change local directory to "/"
     */
-    chdir("/");
+    if (chdir("/")!= 0) {}
 
     /*
      ** init of the timer configuration

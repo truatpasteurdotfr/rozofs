@@ -1852,7 +1852,8 @@ int main(int argc, char *argv[]) {
     /*
     ** Change local directory to "/"
     */
-    chdir("/");
+    if (chdir("/")!=0) {
+    }
 
     memset(&conf, 0, sizeof (conf));
     /*

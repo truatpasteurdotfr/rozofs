@@ -887,7 +887,7 @@ int main(int argc, char *argv[]) {
     /*
     ** Change local directory to "/"
     */
-    chdir("/");
+    if (chdir("/")!= 0) {}
         
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},

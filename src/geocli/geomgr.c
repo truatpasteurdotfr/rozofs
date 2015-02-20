@@ -779,7 +779,7 @@ int main(int argc, char *argv[]) {
   /*
   ** Change local directory to "/"
   */
-  chdir("/");
+  if (chdir("/")!= 0) {}
 
   //memset(&geomgr_conf, 0, sizeof (geomgr_conf));
 

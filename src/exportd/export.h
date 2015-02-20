@@ -858,7 +858,7 @@ export_fstat_t * export_fstat_get_stat(uint16_t eid) ;
 */
 extern int rozofs_export_host_id;  /**< reference between 0..7  */
 
-static uint8_t rozofs_get_export_host_id()
+static inline uint8_t rozofs_get_export_host_id()
 {
   return rozofs_export_host_id;
 }

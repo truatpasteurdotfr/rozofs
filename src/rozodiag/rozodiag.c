@@ -392,7 +392,7 @@ char *argv[];
   /*
   ** Change local directory to "/"
   */
-  chdir("/");
+  if (chdir("/")!=0) {}
     
   idx = 1;
   /* Scan parameters */

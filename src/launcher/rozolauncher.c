@@ -207,20 +207,25 @@ void usage(char * msg) {
 int main(int argc, char *argv[]) {
   time_t   last_start = 0;
 
+#ifdef LAUNCHER_TRACE
+  openlog("launcher", LOG_PID, LOG_DAEMON);
+  info("%s %s",argv[1],argv[2]);
+#endif 
+
   /*
   ** Change local directory to "/"
   */
-  chdir("/"); 
+  if (chdir("/")!=0) {
+#ifdef LAUNCHER_TRACE  
+    warning("chir(/) %s",strerror(errno));
+#endif    
+  }
 
   /*
   ** Check the number of arguments
   */
   if (argc < 3) usage("rozolauncher requires at least 3 arguments");
 
-#ifdef LAUNCHER_TRACE
-  openlog("launcher", LOG_PID, LOG_DAEMON);
-  info("%s %s",argv[1],argv[2]);
-#endif 
 
   /*
   ** Stop

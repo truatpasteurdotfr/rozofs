@@ -375,7 +375,7 @@ int main(int argc, char *argv[]) {
     /*
     ** Change local directory to "/"
     */
-    chdir("/");
+    if (chdir("/")!= 0) {}
     
     openlog("storaged", LOG_PID, LOG_DAEMON);
 
