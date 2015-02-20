@@ -57,9 +57,9 @@ void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size);
     @param prj_size: size of a projection including the prj header
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
 
-    @retval the number of CRC32 error detected
+    @retval the bit mask of blocks with a CRC32 error detected
 */
-int storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p);
+uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p);
 
 /*
 **__________________________________________________________________
@@ -87,9 +87,9 @@ void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size);
     @param prj_size: size of a projection including the prj header
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
 
-    @retval the number of CRC32 error detected
+    @retval the bit mask of blocks with a CRC32 error detected
 */
-int storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p);
+uint64_t storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p);
 
 /*
 **__________________________________________________________________

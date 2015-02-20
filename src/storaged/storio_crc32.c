@@ -489,14 +489,14 @@ void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size)
 
     @retval the number of CRC32 error detected
 */
-int storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p)
+uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p)
 {
    size_t crc_size = prj_size;
    uint32_t crc = 0;
    uint32_t cur_crc;
    int i;
    char *buf=bins;
-   int result = 0;
+   uint64_t result = 0;
 #if 0
    uint64_t encode_cycles_start;
    uint64_t encode_cycles_stop;
@@ -535,7 +535,7 @@ int storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_er
 	*/
 	__atomic_fetch_add(&storio_crc_error,1,__ATOMIC_SEQ_CST);
 	__atomic_fetch_add(crc_error_cnt_p,1,__ATOMIC_SEQ_CST);
-	result++;
+	result |= (1ULL<<i);
       }
       buf+=prj_size;   
    }
@@ -593,14 +593,14 @@ void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size)
 
     @retval the number of CRC32 error detected
 */
-int storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p)
+uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p)
 {
    size_t crc_size = prj_size;
    uint32_t crc = 0;
    uint32_t cur_crc;
    int i;
    char *buf;
-   int result=0;
+   uint64_t  result=0;
    
    for (i = 0; i < nb_proj ; i++)
    {
@@ -631,7 +631,7 @@ int storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,u
 	*/
 	__atomic_fetch_add(&storio_crc_error,1,__ATOMIC_SEQ_CST);
 	__atomic_fetch_add(crc_error_cnt_p,1,__ATOMIC_SEQ_CST);
-	result++;
+	result |= (1ULL<<i);	
       }
    }
    return result;

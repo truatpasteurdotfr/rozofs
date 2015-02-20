@@ -621,6 +621,14 @@ static inline int storage_write_repair(storage_t * st, uint8_t * device, uint8_t
       return -1;
     }  
     
+    /*
+    ** No more that 64 bits in the bitmask !!
+    */
+    if (input_nb_proj > 64) {
+      severe("storage_write_repair %d projections",input_nb_proj);
+      input_nb_proj = 64;
+    }
+    
     bid = input_bid - (chunk * block_per_chunk);
            
     if ((bid+input_nb_proj) <= block_per_chunk){ 

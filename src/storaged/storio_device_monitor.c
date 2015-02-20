@@ -220,7 +220,7 @@ static inline uint64_t storio_device_monitor_error(storage_t * st) {
   
   for (dev = 0; dev < STORAGE_MAX_DEVICE_NB; dev++) {    
     st->device_errors.total[dev] = st->device_errors.total[dev] + st->device_errors.errors[old_active][dev];
-    bitmask |= (1<<dev);
+    bitmask |= (1ULL<<dev);
   }  
   return bitmask;
 }

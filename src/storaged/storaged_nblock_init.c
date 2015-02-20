@@ -235,11 +235,11 @@ static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
       /* Is this storage already started */
       rank = (cid-1)/64;
       bit  = (cid-1)%64; 
-      if (bitmask[rank] & (1<<bit)) {
+      if (bitmask[rank] & (1ULL<<bit)) {
 	continue;
       }
 
-      bitmask[rank] &= (1<<bit);
+      bitmask[rank] &= (1ULL<<bit);
       pChar += sprintf(pChar,"%d ",cid);
     }
     pChar += sprintf(pChar,"\n");

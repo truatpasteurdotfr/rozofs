@@ -216,7 +216,8 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
        }
        for (i = 0; i < number_of_blocks; i++) 
        {
-         if ((crc_err_bitmap & (1<< i)) == 0)
+//CRC    if ((crc_err_bitmap & (1<< i)) == 0) 
+         if ((crc_err_bitmap & (1ULL<< i)) == 0) 
 	 {
 	    /*
 	    ** nothing to generate for that block
@@ -230,9 +231,10 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
 	  /**
 	  * regenerate the projection for the block for which a crc error has been detected
 	  */
-          projections[moj_prj_id].bins = prj_ctx_p[moj_prj_id].bins +
+//CRC     projections[moj_prj_id].bins = prj_ctx_p[moj_prj_id].bins + 
+          projections[moj_prj_id].bins = prj_ctx_p[k].bins + 
                                          (prj_size_in_msg/sizeof(bin_t)* (0+block_idx));
-          rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[moj_prj_id].bins;	    
+          rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)projections[moj_prj_id].bins;
           /*
           ** check if the user data block is empty: if the data block is empty no need to transform
           */
@@ -250,8 +252,10 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
           ** fill the header of the projection
           */
           rozofs_bins_hdr_p->s.projection_id     = moj_prj_id;
-          rozofs_bins_hdr_p->s.timestamp         = working_ctx_p->block_ctx_table[block_idx].timestamp;
-          rozofs_bins_hdr_p->s.effective_length  = working_ctx_p->block_ctx_table[block_idx].effective_length;
+//CRC     rozofs_bins_hdr_p->s.timestamp         = working_ctx_p->block_ctx_table[block_idx].timestamp;       
+          rozofs_bins_hdr_p->s.timestamp         = working_ctx_p->block_ctx_table[i].timestamp; 
+//CRC     rozofs_bins_hdr_p->s.effective_length  = working_ctx_p->block_ctx_table[block_idx].effective_length;
+          rozofs_bins_hdr_p->s.effective_length  = working_ctx_p->block_ctx_table[i].effective_length;
           rozofs_bins_hdr_p->s.filler = 0;    
           rozofs_bins_hdr_p->s.version = 0;    	 
           /*
@@ -263,6 +267,7 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
           */
           if (empty_block == 0)
           {
+	  	    
             /*
             ** Apply the erasure code transform for the block i
             */
@@ -274,9 +279,10 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
 	    ** add the footer at the end of the repaired projection
 	    */
             rozofs_stor_bins_footer_t *rozofs_bins_foot_p;
-	    rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) (projections[moj_prj_id].bins
+            rozofs_bins_foot_p = (rozofs_stor_bins_footer_t*) (projections[moj_prj_id].bins
 	                                                      + rozofs_get_psizes(layout,bsize,moj_prj_id));
-            rozofs_bins_foot_p->timestamp      = working_ctx_p->block_ctx_table[block_idx].timestamp;	
+//CRC       rozofs_bins_foot_p->timestamp      = working_ctx_p->block_ctx_table[block_idx].timestamp;
+            rozofs_bins_foot_p->timestamp      = rozofs_bins_hdr_p->s.timestamp;	
           }
 	  block_idx++;    	  
         }
@@ -579,7 +585,8 @@ void rozofs_storcli_write_repair_req_processing(rozofs_storcli_ctx_t *working_ct
      else request->spare = 0;
      memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
      memcpy(request->fid, storcli_read_rq_p->fid, sizeof (sp_uuid_t));
-     request->proj_id = projection_id;
+//CRCrequest->proj_id = projection_id;
+     request->proj_id = rozofs_storcli_get_mojette_proj_id(storcli_read_rq_p->dist_set,request->sid,rozofs_forward);
      request->bid     = storcli_read_rq_p->bid;
      request->nb_proj = storcli_read_rq_p->nb_proj;     
      request->bitmap  = working_ctx_p->prj_ctx[projection_id].crc_err_bitmap;     
@@ -589,7 +596,8 @@ void rozofs_storcli_write_repair_req_processing(rozofs_storcli_ctx_t *working_ct
      int nb_blocks = 0;
      for (k = 0; k < storcli_read_rq_p->nb_proj;k++)
      {
-        if (request->bitmap & (1<<k)) nb_blocks++;
+//CRC  if (request->bitmap & (1<<k)) nb_blocks++; 
+       if (request->bitmap & (1ULL<<k)) nb_blocks++; 
      
      } 
      int bins_len = (prj_size_in_msg * nb_blocks);

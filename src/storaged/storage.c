@@ -221,7 +221,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     ** check CRC32
     */
     if (storio_check_header_crc32(hdr,&st->crc_error) != 0) {
-      crc32_error |= (1<<dev);
+      crc32_error |= (1ULL<<dev);
       device_result[dev] = EIO;	
       storage_error_on_device(st,device_id[dev]);   
       continue;      
@@ -1229,10 +1229,12 @@ open:
     char *data_p = (char *)bins;
     int block_idx = 0;
     int block_count = 0;
-    int error = 0;           
+    int error = 0;               
     for (block_idx = 0; block_idx < nb_proj; block_idx++)
     {
+
        if ((bitmap & (1ULL << block_idx)) == 0) continue;
+       
        /*
        ** generate the crc32c for each projection block
        */
@@ -1292,7 +1294,7 @@ int storage_read_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_
     int    device_id_is_given = 1;
     int                       storage_slice;
     struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG];
-    int    crc32_errors; 
+    uint64_t    crc32_errors; 
 
 
     MYDBGTRACE_DEV(device,"%d/%d Read chunk %d : ", st->cid, st->sid, chunk);
@@ -1476,7 +1478,7 @@ retry:
                 			     rozofs_disk_psize,
 					     &st->crc_error);      
     }
-    if (crc32_errors!=0) { 
+    if (crc32_errors!=0) {  
       storage_error_on_device(st,device[chunk]); 
     }	  
 

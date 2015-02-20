@@ -87,7 +87,8 @@ void rozofs_storcli_transform_update_headers(rozofs_storcli_projection_ctx_t *pr
       */
       if (rozofs_bins_hdr_p->s.projection_id == 0xff)
       {
-        prj_ctx_p->crc_err_bitmap |= (1<<block_idx);
+//CRC   prj_ctx_p->crc_err_bitmap |= (1<<block_idx); 
+        prj_ctx_p->crc_err_bitmap |= (1ULL<<block_idx);
         prj_ctx_p->block_hdr_tab[block_idx].s.projection_id = 0;      	
         prj_ctx_p->block_hdr_tab[block_idx].s.timestamp = 0;
         prj_ctx_p->block_hdr_tab[block_idx].s.effective_length = bbytes;
