@@ -776,6 +776,11 @@ int main(int argc, char *argv[]) {
       { 0, 0, 0, 0}
   };
 
+  /*
+  ** Change local directory to "/"
+  */
+  chdir("/");
+
   //memset(&geomgr_conf, 0, sizeof (geomgr_conf));
 
   geomgr_input_param.nb_cores = 1; /* Nb cores  */ 

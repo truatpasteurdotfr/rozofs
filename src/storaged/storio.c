@@ -236,6 +236,11 @@ int main(int argc, char *argv[]) {
     };
 
     /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
+
+    /*
      ** init of the timer configuration
      */
     rozofs_tmr_init_configuration();

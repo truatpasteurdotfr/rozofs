@@ -206,8 +206,12 @@ void usage(char * msg) {
  */
 int main(int argc, char *argv[]) {
   time_t   last_start = 0;
- 
- 
+
+  /*
+  ** Change local directory to "/"
+  */
+  chdir("/"); 
+
   /*
   ** Check the number of arguments
   */

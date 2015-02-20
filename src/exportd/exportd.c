@@ -1670,6 +1670,10 @@ int main(int argc, char *argv[]) {
         {"slave", no_argument, 0, 's'},
         {0, 0, 0, 0}
     };
+    /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
 
     /* Try to get debug port from /etc/services */
     expgwc_non_blocking_conf.debug_port = rozofs_get_service_port_export_master_diag();

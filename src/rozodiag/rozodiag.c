@@ -389,6 +389,11 @@ char *argv[];
   int                 status;
   char              * pt;
 
+  /*
+  ** Change local directory to "/"
+  */
+  chdir("/");
+    
   idx = 1;
   /* Scan parameters */
   while (idx < argc) {

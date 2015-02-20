@@ -883,7 +883,12 @@ void usage() {
 
 int main(int argc, char *argv[]) {
     int c;
-    
+
+    /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
+        
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "fids", required_argument, 0, 'f'},	

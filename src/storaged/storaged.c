@@ -314,11 +314,11 @@ static void on_start() {
         /* Is this storage already started */
 	rank = (cid-1)/64;
 	bit  = (cid-1)%64; 
-	if (bitmask[rank] & (1<<bit)) {
+	if (bitmask[rank] & (1ULL<<bit)) {
 	  continue;
 	}
 	
-	bitmask[rank] |= (1<<bit);
+	bitmask[rank] |= (1ULL<<bit);
 	
 	p = cmd;
 	p += sprintf(p, "storio -i %d -c %s ", cid, storaged_config_file);
@@ -372,6 +372,11 @@ int main(int argc, char *argv[]) {
         { 0, 0, 0, 0}
     };
 
+    /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
+    
     openlog("storaged", LOG_PID, LOG_DAEMON);
 
     // Init of the timer configuration

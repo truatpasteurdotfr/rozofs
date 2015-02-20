@@ -1219,6 +1219,12 @@ int main(int argc, char *argv[]) {
         { "owner", required_argument, 0, 'o'},
         { 0, 0, 0, 0}
     };
+
+    /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
+
     /*
     ** init of the timer configuration
     */

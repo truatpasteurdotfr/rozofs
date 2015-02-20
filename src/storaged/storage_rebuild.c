@@ -1813,6 +1813,11 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
       usage();
     }  
+    
+    /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
 
     // Init of the timer configuration
     rozofs_tmr_init_configuration();

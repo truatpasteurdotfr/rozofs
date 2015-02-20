@@ -566,6 +566,11 @@ int main(int argc, char *argv[]) {
         { 0, 0, 0, 0}
     };
     
+    /*
+    ** Change local directory to "/"
+    */
+    chdir("/");
+        
     rozofs_layout_initialize();
 
     memset(&conf, 0, sizeof (conf));
