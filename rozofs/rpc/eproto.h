@@ -180,8 +180,8 @@ typedef struct epgw_conf_ret_t epgw_conf_ret_t;
 
 struct ep_mattr_t {
 	ep_uuid_t fid;
+	uint32_t sids[ROZOFS_SAFE_MAX_RPC];
 	uint16_t cid;
-	uint8_t sids[ROZOFS_SAFE_MAX];
 	uint32_t mode;
 	uint32_t uid;
 	uint32_t gid;
@@ -191,6 +191,10 @@ struct ep_mattr_t {
 	uint64_t mtime;
 	uint64_t size;
 	uint32_t children;
+	uint32_t name[ROZOFS_NAME_INODE_RPC];
+	uint32_t pfid_name_hash1;
+	uint32_t pfid_name_hash2;
+	ep_uuid_t pfid;
 };
 typedef struct ep_mattr_t ep_mattr_t;
 

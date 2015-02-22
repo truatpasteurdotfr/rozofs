@@ -425,10 +425,10 @@ xdr_ep_mattr_t (XDR *xdrs, ep_mattr_t *objp)
 	//int i;
 	 if (!xdr_ep_uuid_t (xdrs, objp->fid))
 		 return FALSE;
-	 if (!xdr_uint16_t (xdrs, &objp->cid))
+	 if (!xdr_vector (xdrs, (char *)objp->sids, ROZOFS_SAFE_MAX_RPC,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
 		 return FALSE;
-	 if (!xdr_vector (xdrs, (char *)objp->sids, ROZOFS_SAFE_MAX,
-		sizeof (uint8_t), (xdrproc_t) xdr_uint8_t))
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->mode))
 		 return FALSE;
@@ -447,6 +447,15 @@ xdr_ep_mattr_t (XDR *xdrs, ep_mattr_t *objp)
 	 if (!xdr_uint64_t (xdrs, &objp->size))
 		 return FALSE;
 	 if (!xdr_uint32_t (xdrs, &objp->children))
+		 return FALSE;
+	 if (!xdr_vector (xdrs, (char *)objp->name, ROZOFS_NAME_INODE_RPC,
+		sizeof (uint32_t), (xdrproc_t) xdr_uint32_t))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->pfid_name_hash1))
+		 return FALSE;
+	 if (!xdr_uint32_t (xdrs, &objp->pfid_name_hash2))
+		 return FALSE;
+	 if (!xdr_ep_uuid_t (xdrs, objp->pfid))
 		 return FALSE;
 	return TRUE;
 }
