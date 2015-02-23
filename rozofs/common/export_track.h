@@ -111,7 +111,8 @@ typedef struct _exp_trck_top_header_t
    exp_trck_header_memory_t *entry_p[EXP_TRCK_MAX_USER_ID];
    void *trck_inode_p;  /**< memory structure used for inode tracking */
 } exp_trck_top_header_t;
-   
+ 
+extern uint64_t exp_trk_malloc_size;  
 /*
 **__________________________________________________________________
 */
@@ -134,6 +135,14 @@ typedef struct _exp_trck_top_header_t
 */
 exp_trck_top_header_t *exp_trck_top_allocate(char *name,char *root_path,uint16_t max_attributes_sz,int create_flag);
 
+/**
+*  Get the current allocated size
+*/
+static inline uint64_t exp_trk_get_memory()
+{
+  exp_trk_malloc_size;
+
+}
 /*
 **__________________________________________________________________
 */

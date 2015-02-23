@@ -109,7 +109,7 @@ DEFINE_PROFILING(epp_profiler_t) = {0};
 
 
 exportd_start_conf_param_t  expgwc_non_blocking_conf;  /**< configuration of the non blocking side */
-
+exp_trk_th_stats_t  *exp_trk_th_stats_p = NULL; /**< tracking thread statistis  */
 gw_configuration_t  expgw_conf;
 
 uint32_t expgw_eid_table[EXPGW_EID_MAX_IDX];
@@ -534,8 +534,29 @@ char * show_stacking_thread_stats_display(char *pChar)
      /*
      ** display the statistics of the thread
      */
+     exp_trk_th_stats_t *stats_p ;
+     
      pChar += sprintf(pChar,"period     : %d minute(s) \n",export_tracking_thread_period_count);
      pChar += sprintf(pChar,"statistics :\n");
+     pChar += sprintf(pChar," - allocated memory  :%llu MB (%llu Bytes)\n",(long long unsigned int)exp_trk_malloc_size/(1024*1024),
+                                                    (long long unsigned int)exp_trk_malloc_size);
+     stats_p = &exp_trk_th_stats_p[ROZOFS_REG];
+     pChar += sprintf(pChar," - regular attr. :%llu/%llu\n",
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_DEL_STATS],		
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_TRUNC_STATS]);		
+     stats_p = &exp_trk_th_stats_p[ROZOFS_DIR];
+     pChar += sprintf(pChar," - directories   :%llu/%llu\n",
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_DEL_STATS],		
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_TRUNC_STATS]);	
+     stats_p = &exp_trk_th_stats_p[ROZOFS_EXTATTR];
+     pChar += sprintf(pChar," - extended attr.:%llu/%llu\n",
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_DEL_STATS],		
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_TRUNC_STATS]);	
+     stats_p = &exp_trk_th_stats_p[ROZOFS_SLNK];
+     pChar += sprintf(pChar," - symbolic links:%llu/%llu\n",
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_DEL_STATS],		
+                (unsigned long long int)stats_p->counter[TRK_TH_INODE_TRUNC_STATS]);	
+
      pChar += sprintf(pChar," - activation counter:%llu\n",
                 (unsigned long long int)export_tracking_poll_stats[P_COUNT]);
      pChar += sprintf(pChar," - average time (us) :%llu\n",
@@ -566,6 +587,8 @@ void show_tracking_thread(char * argv[], uint32_t tcpRef, void *bufRef) {
       pChar +=sprintf(pChar,"\nStatistics have been cleared\n");
       export_tracking_poll_stats[0] = 0;
       export_tracking_poll_stats[1] = 0;
+      memset(exp_trk_th_stats_p,0, sizeof(exp_trk_th_stats_t)*ROZOFS_MAXATTR);
+
       uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());  
       return;   
     }
@@ -612,6 +635,15 @@ static void *export_tracking_thread(void *v) {
     export_tracking_thread_period_count = 1;
     // Set the frequency of calls
     struct timespec ts = {TRACKING_PTHREAD_FREQUENCY_SEC, 0};
+    /*
+    ** allocate memory for statistics
+    */
+    exp_trk_th_stats_p = malloc(sizeof(exp_trk_th_stats_t)*ROZOFS_MAXATTR);
+    if (exp_trk_th_stats_p == NULL)
+    {
+       fatal("cannot allocate memory for tracking thread statistics");
+    }
+    memset(exp_trk_th_stats_p,0, sizeof(exp_trk_th_stats_t)*ROZOFS_MAXATTR);
     
     export_tracking_thread_period_count = TRACKING_PTHREAD_FREQUENCY_SEC;
     export_tracking_poll_stats[0] = 0;
@@ -633,7 +665,7 @@ static void *export_tracking_thread(void *v) {
 	      {
         	for (type = 0;type < ROZOFS_MAXATTR; type++)
 		{
-		  if (type == ROZOFS_TRASH) continue;
+		  if ((type == ROZOFS_TRASH)||(type == ROZOFS_DIR_FID))continue;
         	  if (exp_trck_inode_release_poll(&entry->export, type) != 0) {
                       severe("export_tracking_thread failed (eid: %"PRIu32"): %s",
                               entry->export.eid, strerror(errno));

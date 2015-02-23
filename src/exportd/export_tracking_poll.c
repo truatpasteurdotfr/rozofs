@@ -61,18 +61,21 @@
   @param file_id : index of the tracking file to concatenate or delete
   @param tracking_file_hdr_p: pointer to the tracking file header
   @param main_tracking_header: pointer to the main tracking file header
+  @param type: type of the element (used to index statistics array)
   
 */
 void exp_trck_delete_attempt( exp_trck_top_header_t *top_p,
                               uint8_t slice_id,uint64_t file_id,
 			      exp_trck_file_header_t *tracking_file_hdr_p,
 			      int nb_entries,
-                              exp_trck_header_t *main_tracking_header)
+                              exp_trck_header_t *main_tracking_header,
+			      int type)
 {
   char pathname[1024];
   char newpathname[1024];
   int ret;
   int i;
+  exp_trk_th_stats_t *stats_p = &exp_trk_th_stats_p[type];
   
   /*
   ** go through the file header and check if we can truncate the file
@@ -107,6 +110,10 @@ void exp_trck_delete_attempt( exp_trck_top_header_t *top_p,
       severe("cannot delete %s:%s\n",pathname,strerror(errno));
     }
     /*
+    ** update statistics
+    */
+    stats_p->counter[TRK_TH_INODE_DEL_STATS]+=1;
+    /*
     ** check if the file tracking correspond to the first index of the main tracking file
     */
     if (main_tracking_header->first_idx == file_id)
@@ -125,6 +132,8 @@ void exp_trck_delete_attempt( exp_trck_top_header_t *top_p,
   */
   off_t len =  sizeof(exp_trck_file_header_t)+top_p->max_attributes_sz*(nb_entries-nb_empty_entries);
   sprintf(newpathname,"%s/%d/trk_%llu",top_p->root_path,slice_id,(long long unsigned int)file_id);
+  stats_p->counter[TRK_TH_INODE_TRUNC_STATS]+=1;
+
   ret = truncate(newpathname,len);
   if (ret < 0)
   {
@@ -194,7 +203,7 @@ int exp_trck_inode_release_poll(export_t * e,int type)
 	 ** attempt to delete/truncate or concatenate the tracking file
          */
          exp_trck_delete_attempt(top_p,slice,file_id,
-	                         &tracking_buffer_src,nb_entries,&slice_hdr_p->entry);       
+	                         &tracking_buffer_src,nb_entries,&slice_hdr_p->entry,type);       
       }       
     }
     return 0;

@@ -27,12 +27,36 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "export_track.h"
+#include <malloc.h>
 #include "export_track_change.h"
 
+#define EXP_TRK_FREE(p)  exp_trk_free((uint64_t*)p,__LINE__);
+#define EXP_TRK_MALLOC(length)  exp_trk_malloc((int)length,__LINE__);
+
+
 //static char pathname[1024];
+uint64_t exp_trk_malloc_size;
 int open_count;
 int close_count;
 #define CLOSE_CONTROL(val) /*{ if(close_count >= open_count) {printf("bad_close %d\n",val);} else {close_count++;}};*/
+
+
+static inline void exp_trk_free(uint64_t *p, int line) {
+    uint64_t size;
+    p -= 1;
+    size = *p;
+    exp_trk_malloc_size -= size;
+    free(p);
+}
+static inline void *exp_trk_malloc(int size, int line) {
+    uint64_t *p;
+
+    p = memalign(32,size + 8);
+    if (p == NULL )
+        printf("Out of memory at line %d\n", line);
+    exp_trk_malloc_size += (uint64_t) size;
+    return p + 1;
+}
 
 /*
 **__________________________________________________________________
@@ -304,7 +328,7 @@ int exp_trck_open_tracking_file(exp_trck_header_memory_t *main_trck_p, int *relo
    */
    if (main_trck_p->tracking_file_hdr_p == NULL)
    {
-     main_trck_p->tracking_file_hdr_p = malloc(sizeof(exp_trck_file_header_t));
+     main_trck_p->tracking_file_hdr_p = EXP_TRK_MALLOC(sizeof(exp_trck_file_header_t));
      if (main_trck_p->tracking_file_hdr_p == NULL)
      {
         errno = ENOMEM;
@@ -620,7 +644,7 @@ void exp_trck_release_header_memory(exp_trck_header_memory_t *p)
 {
    int i;
    
-   if (p->tracking_file_hdr_p != NULL) free(p->tracking_file_hdr_p);
+   if (p->tracking_file_hdr_p != NULL) EXP_TRK_FREE(p->tracking_file_hdr_p);
    if ( p->cur_tracking_file_fd != -1) close (p->cur_tracking_file_fd);
    for (i= 0; i < EXP_TRCK_MAIN_REPLICA_COUNT; i++)
    {
@@ -628,7 +652,7 @@ void exp_trck_release_header_memory(exp_trck_header_memory_t *p)
        close(p->fd[i]);
      } 
    }
-   free(p);
+   EXP_TRK_FREE(p);
 }
 
 /*
@@ -648,7 +672,7 @@ exp_trck_header_memory_t *exp_trck_allocate_header_memory(exp_trck_top_header_t 
    char pathname[1024];
    int ret;
    
-   header_memory_p = malloc(sizeof(exp_trck_header_memory_t));
+   header_memory_p = EXP_TRK_MALLOC(sizeof(exp_trck_header_memory_t));
    if (header_memory_p == NULL)
    {
       severe("Out of memory\n");
@@ -1352,7 +1376,7 @@ int exp_trck_top_release(exp_trck_top_header_t *top_hdr_p)
       */
       exp_trck_release_header_memory(top_hdr_p->entry_p[loop]);
    }
-   free(top_hdr_p);   
+   EXP_TRK_FREE(top_hdr_p);   
    return 0; 
 }
 /*
@@ -1405,7 +1429,7 @@ exp_trck_top_header_t *exp_trck_top_allocate(char *name,char *root_path,uint16_t
    exp_trck_top_header_t *top_hdr_p;
    char full_path[1024];
    
-   top_hdr_p = malloc(sizeof(exp_trck_top_header_t));
+   top_hdr_p = EXP_TRK_MALLOC(sizeof(exp_trck_top_header_t));
    if (top_hdr_p == NULL)
    {
      return NULL;

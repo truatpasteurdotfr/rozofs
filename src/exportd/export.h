@@ -826,6 +826,15 @@ static inline int exportd_get_instance_id_from_eid(int eid)
 */   
 int exp_trck_inode_release_poll(export_t * e,int type);
 
+#define TRK_TH_INODE_DEL_STATS   0 
+#define TRK_TH_INODE_TRUNC_STATS 1
+#define TRK_TH_INODE_MAX_STATS (TRK_TH_INODE_TRUNC_STATS+1) 
+typedef struct _exp_trk_th_stats_t
+{
+  uint64_t counter[TRK_TH_INODE_MAX_STATS];
+} exp_trk_th_stats_t;
+
+extern exp_trk_th_stats_t  *exp_trk_th_stats_p;
 /*
 **_______________________________________________________________________________
 */
