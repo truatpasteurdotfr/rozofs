@@ -43,6 +43,13 @@ Specifies if storaged starts one or multiple storio process(es). (default: "sing
 and adds the cluster number to ports in
 .B listen 
 .
+.SS crc32c_check (optional)
+Boolean (true or false) indicating if a check (thanks to CRC error detecting code) will be used for detect accidental changes to raw data.
+.SS crc32c_generate (optional)
+Boolean (true or false) indicating if a checksum must be generated (thanks to CRC error detecting code) for each write request.
+.SS crc32c_hw_forced (optional)
+That boolean (true or false) can be asserted if the information reported by cpuid does not indicates that hardware CRC is supported whilst the current CPU supports it.
+This might be the case with VirtualBox.
 .SS self-healing (optional)
 
 Gives the delay in minutes before starting an automatic rebuild of a broken device by relocating the data on the remaining devices. The lowest possible value is 1. When self-healing is configured, the 
@@ -103,6 +110,11 @@ nbcores = 2;
 storio  = "multiple";
 self-healing = 10;
 export-hosts = "192.168.0.1/192.168.0.2";
+
+# Activate CRC32 generation and control in hardware mode
+crc32c_check     = True;
+crc32c_generate  = True;
+crc32c_hw_forced = True;
 
 listen = (
     {addr = "192.168.1.1"; port = 41001; },
