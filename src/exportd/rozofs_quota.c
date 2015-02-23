@@ -47,7 +47,7 @@ rozofs_qt_cache_t rozofs_qt_cache;  /**< quota cache */
  */
 char * rozofs_qt_cache_display(rozofs_qt_cache_t *cache, char * pChar) {
 
-  pChar += sprintf(pChar, "lv2 attributes cache : current/max %u/%u\n",cache->size, cache->max);
+  pChar += sprintf(pChar, "quota cache : current/max %u/%u\n",cache->size, cache->max);
   pChar += sprintf(pChar, "hit %llu / miss %llu / lru_del %llu\n",
                    (long long unsigned int) cache->hit, 
 		   (long long unsigned int)cache->miss,
@@ -217,8 +217,9 @@ static inline uint32_t rozofs_qt_hash(void *key) {
 }
 
 static inline int rozofs_qt_cmp(void *k1, void *k2) {
-    
-    return memcmp((const void*)k1,(const void *)k2,sizeof(rozofs_quota_key_t));
+   
+  return memcmp((const void*)k1,(const void *)k2,sizeof(rozofs_quota_key_t));
+   
 }
 
 /*
@@ -340,6 +341,7 @@ rozofs_qt_cache_entry_t *rozofs_qt_cache_get(rozofs_qt_cache_t *cache,
 {
     rozofs_qt_cache_entry_t *entry = 0;
     int ret;
+    int count=0;
 
 
     if ((entry = htable_get(&cache->htable, key)) != 0) {
@@ -363,8 +365,28 @@ rozofs_qt_cache_entry_t *rozofs_qt_cache_get(rozofs_qt_cache_t *cache,
 	 */
 	 severe("quota writeback cache write failure");
 	 free(entry);
+	 return NULL;
       }
       cache->miss++;
+      /*
+      ** insert the entry in the cache
+      */
+      while ((cache->size >= cache->max) && (!list_empty(&cache->lru))){ 
+	rozofs_qt_cache_entry_t *lru;
+
+	    lru = list_entry(cache->lru.prev, rozofs_qt_cache_entry_t, list);  
+	    htable_del(&cache->htable, &lru->dquot.key.u64);
+	    rozofs_qt_cache_unlink(cache,lru);
+	    cache->lru_del++;
+	    count++;
+	    if (count >= 3) break;
+      }
+      /*
+      ** Insert the new entry
+      */
+      rozofs_qt_cache_update_lru(cache,entry);
+      htable_put(&cache->htable, &entry->dquot.key.u64, entry);
+      cache->size++;      
     }
     return entry;
 }
@@ -376,7 +398,7 @@ rozofs_qt_cache_entry_t *rozofs_qt_cache_get(rozofs_qt_cache_t *cache,
 *   The purpose of that service is to read object attributes and store them in the attributes cache
 
   @param cache : pointer to the export attributes cache
-  @param disk_p: quota disk table associated with the type
+  @param disk_p: quota disk table associated with the type or NULL if cache update only
   @param entry:pointer to the entry to insert (the key must be provisioned)
   
   @retval <> NULL: attributes of the object
@@ -387,35 +409,10 @@ rozofs_qt_cache_entry_t *rozofs_qt_cache_put(rozofs_qt_cache_t *cache,
                                              disk_table_header_t *disk_p,
                                              rozofs_qt_cache_entry_t *entry) 
 {
-    int count=0;
-    int ret;
-    /*
-    ** init of the linked list
-    */
-    list_remove(&entry->list);
-
-    /*
-    ** Try to remove older entries
-    */
-    while ((cache->size >= cache->max) && (!list_empty(&cache->lru))){ 
-      rozofs_qt_cache_entry_t *lru;
-		
-	  lru = list_entry(cache->lru.prev, rozofs_qt_cache_entry_t, list);  
-	  htable_del(&cache->htable, &lru->dquot.key.u64);
-	  rozofs_qt_cache_unlink(cache,lru);
-	  cache->lru_del++;
-	  count++;
-	  if (count >= 3) break;
-    }
-    /*
-    ** Insert the new entry
-    */
-    rozofs_qt_cache_update_lru(cache,entry);
-    htable_put(&cache->htable, &entry->dquot.key.u64, entry);
-    cache->size++;    
     /*
     ** push the data in the quota write back cache
     */
+    int ret;
     ret = quota_wbcache_write(disk_p,&entry->dquot,sizeof(rozofs_dquot_t));
     if (ret < 0)
     {
@@ -644,7 +641,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
 
    if (rozofs_qt_init_done == 0)
    {
-     severe("FDL Quota Not ready");
+     severe("Quota Not ready");
      return NULL;
    }
    /*
@@ -673,7 +670,7 @@ void *rozofs_qt_alloc_context(uint16_t eid, char *root_path, int create)
      /*
      ** out of memory
      */
-     severe("FDL Out of memory");
+     severe(" Out of memory");
      return NULL;
    }
    memset(tab_p,0,sizeof(rozofs_qt_export_t));
