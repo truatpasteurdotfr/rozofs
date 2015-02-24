@@ -36,6 +36,7 @@ typedef struct volume_stat {
 typedef struct volume_storage {
     sid_t sid; ///< storage identifier
     char host[ROZOFS_HOSTNAME_MAX]; ///< storage host name
+    uint8_t host_rank;   /// host number within this cluster for quick comparison
     uint8_t status; ///< status (0 = off line)
     sstat_t stat; ///< storage stat
     list_t list; ///< used to chain storages
@@ -48,7 +49,7 @@ typedef struct volume_storage {
  * @param hostname : hostname to set (memory is copied)
  */
 void volume_storage_initialize(volume_storage_t * vs, sid_t sid,
-        const char *hostname);
+        const char *hostname, int hostidx);
 
 /** release a volume storage
  *
@@ -68,6 +69,7 @@ typedef struct cluster {
     uint64_t size; ///< cluster size
     uint64_t free; ///< free space on cluster
     list_t storages[ROZOFS_GEOREP_MAX_SITE]; ///< list of storages managed in the cluster
+    uint8_t nb_host[ROZOFS_GEOREP_MAX_SITE]; ///< list of storages managed in the cluster
     list_t list; ///< used to chain cluster in a volume
 } cluster_t;
 

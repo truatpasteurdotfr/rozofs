@@ -56,11 +56,12 @@ static int cluster_compare_capacity(list_t *l1, list_t *l2) {
 }
 
 void volume_storage_initialize(volume_storage_t * vs, sid_t sid,
-        const char *hostname) {
+        const char *hostname, int host_rank) {
     DEBUG_FUNCTION;
 
     vs->sid = sid;
     strncpy(vs->host, hostname, ROZOFS_HOSTNAME_MAX);
+    vs->host_rank = host_rank;
     vs->stat.free = 0;
     vs->stat.size = 0;
     vs->status = 0;
@@ -159,10 +160,11 @@ int volume_safe_copy(volume_t *to, volume_t *from) {
                 from_cluster->free);
 	int i;
 	for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) {
+	  to_cluster->nb_host[i] = from_cluster->nb_host[i];
           list_for_each_forward(q, (&from_cluster->storages[i])) {
               volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
               volume_storage_t *to_storage = xmalloc(sizeof (volume_storage_t));
-              volume_storage_initialize(to_storage, from_storage->sid, from_storage->host);
+              volume_storage_initialize(to_storage, from_storage->sid, from_storage->host,from_storage->host_rank);
               to_storage->stat = from_storage->stat;
               to_storage->status = from_storage->status;
               list_push_back(&to_cluster->storages[i], &to_storage->list);
@@ -363,42 +365,111 @@ out:
 // what if a cluster is < rozofs safe
 
 static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, sid_t *sids) {
-    list_t *p;
-    int status = -1;
-    uint8_t ms_found = 0;
-    uint8_t ms_ok = 0;
-    sid_t sid_local[ROZOFS_SAFE_MAX];
-    int idx;
-    DEBUG_FUNCTION;
+  list_t    *p;
+  int        idx;
+  uint64_t   sid_taken;
+  uint64_t   host;
+  int        nb_down=0;
+  int        nb_up=0;
+  int        nb_selected; 
+  int        host_collision; 
+  int        decrease_size;
+  
+  uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
+  uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
 
+//  int modulo = export_rotate_sid[cluster->cid] % rozofs_forward;
+//  export_rotate_sid[cluster->cid]++;
 
-    
-    uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
-    uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
+  /*
+  ** Loop on the sid and take only one per node on each loop
+  */    
+  while (1) {
 
-    int modulo = export_rotate_sid[cluster->cid] % rozofs_safe;
-    export_rotate_sid[cluster->cid]++;
+    idx  = -1;
+    host = 0;
+    host_collision = 0;
 
     list_for_each_forward(p, (&cluster->storages[site_idx])) {
-        volume_storage_t *vs = list_entry(p, volume_storage_t, list);
-        if (vs->status != 0 || vs->stat.free != 0)
-            ms_ok++;
-        sid_local[ms_found++] = vs->sid;
 
-        // When creating a file we must be sure to have rozofs_safe servers
-        // and have at least rozofs_forward servers available for writing
-        if (ms_found == rozofs_safe && ms_ok >= rozofs_forward) {
-            status = 0;
-            for (idx = 0; idx < rozofs_safe; idx++) {
-                sids[idx] = sid_local[(idx + modulo) % rozofs_safe];
-            }
-            break;
-        }
+      volume_storage_t *vs = list_entry(p, volume_storage_t, list);
+      idx++;
+
+      /* SID already selected */
+      if ((sid_taken & (1ULL<<idx))!=0) {
+	//info("%d already taken", idx);
+	continue;
+      }
+      /* No space left */
+      if (vs->stat.free == 0) {
+	//info("%d no space left", idx);	  
+	continue;
+      }
+
+      /* One sid already allocated on this host */
+      if ((host & (1U<<vs->host_rank))!=0) {
+	//info("%d host collision %d", idx, vs->host_rank);
+	host_collision++;	    
+	continue;
+      }
+
+      /* Storage down */
+      if (vs->status == 0) nb_down++;
+      else                 nb_up++;
+
+      /*
+      ** Take this guy
+      */
+      sid_taken |= (1ULL<<idx);
+      host      |= (1ULL<<vs->host_rank);
+
+      sids[nb_selected++] = vs->sid;
+
+      //info("idx%d/sid%d is #%d on host %d with status %d", idx, vs->sid, nb_selected, vs->host_rank, vs->status);
+
+      /* Enough sid found */
+      if (rozofs_safe==nb_selected) {
+	if (nb_up<rozofs_forward) return -1;
+	goto success;
+      }	  
     }
+    if ((nb_selected+host_collision) < rozofs_forward) return  -1;    
+  } 
+  
+success:
 
-    return status;
+  decrease_size = (256*3*1024)/rozofs_forward;
+
+  /*
+  ** Decrease the estimated free size of the selected storages
+  */
+  idx = 0;
+  
+  list_for_each_forward(p, (&cluster->storages[site_idx])) {
+
+    volume_storage_t *vs = list_entry(p, volume_storage_t, list);
+
+    /* SID not selected */
+    if ((sid_taken & (1ULL<<idx))==0) continue;
+
+    idx++;
+    if (vs->stat.free > decrease_size) {
+      vs->stat.free -= decrease_size;
+    }
+    else {
+      vs->stat.free = 0;
+    }  
+    if (idx>=rozofs_forward) break;
+  }
+  
+
+  /*
+  ** Re-order the SIDs
+  */
+  list_sort(&cluster->storages[site_idx], volume_storage_compare);
+  
+  return 0;
 }
-
 int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids) {
     list_t *p,*q;
     int xerrno = ENOSPC;

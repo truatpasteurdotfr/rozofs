@@ -938,7 +938,61 @@ static int econfig_validate_clusters(volume_config_t *config) {
 out:
     return status;
 }
+static int econfig_number_storages_per_cluster(volume_config_t *config) {
+  list_t *l1, *l2, *l3;
+  int host_rank;
+  int site = 0;
+  cluster_config_t *c;
+  storage_node_config_t *s1, *s2;
+  
+  /*
+  ** For each site
+  */
+  for (site = 0; site <ROZOFS_GEOREP_MAX_SITE; site++) {
 
+    /*
+    ** Loop on cluster
+    */
+    list_for_each_forward(l1, &config->clusters) {
+    
+      c = list_entry(l1, cluster_config_t, list);
+      host_rank = 0;
+      
+      /*
+      ** Loop on storages of this cluster & site
+      */
+      list_for_each_forward(l2, (&c->storages[site])) {
+      
+        s1 = list_entry(l2, storage_node_config_t, list);
+
+        /*
+	** Check against the previous storages in the cluster
+	*/         
+        list_for_each_forward(l3, (&c->storages[site])) {
+	
+          s2 = list_entry(l3, storage_node_config_t, list);
+	  
+	  if (s2 == s1) {
+	    /*
+	    *** Previous storages have a different host name
+	    */
+	    s1->host_rank = host_rank++;
+	    break;
+	  }  
+	  
+	  /*
+	  ** Same host for s2 & s1
+	  */
+	  if (strcmp(s2->host,s1->host)==0) {
+	    s1->host_rank = s2->host_rank;
+	    break;
+	  }
+	}
+      }
+      c->nb_host[site] = host_rank;	  
+    }
+  }
+}
 /** Checks if maximum storage limits is exceeded for a given volume
  *
  * @param config: volume configuration
@@ -1064,7 +1118,7 @@ static int econfig_validate_volumes(econfig_t *config) {
         volume_config_t *e1 = list_entry(p, volume_config_t, list);
 
 
-	if (e1->layout < LAYOUT_2_3_4 || e1->layout > LAYOUT_8_12_16) {
+	if (e1->layout >= LAYOUT_MAX) {
             severe("unknown layout: %d.", e1->layout);
             errno = EINVAL;
             goto out;
@@ -1089,6 +1143,8 @@ static int econfig_validate_volumes(econfig_t *config) {
             severe("invalid cluster.");
             goto out;
         }
+	
+	econfig_number_storages_per_cluster(e1);
     }
 
     status = 0;

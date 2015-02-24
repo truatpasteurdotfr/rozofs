@@ -1052,10 +1052,11 @@ static int load_volumes_conf() {
             cluster_t *cluster = (cluster_t *) xmalloc(sizeof (cluster_t));
             cluster_initialize(cluster, cconfig->cid, 0, 0);
             for (i = 0; i <ROZOFS_GEOREP_MAX_SITE; i++) {
+	      cluster->nb_host[i] = cconfig->nb_host[i];
               list_for_each_forward(r, (&cconfig->storages[i])) {
                   storage_node_config_t *sconfig = list_entry(r, storage_node_config_t, list);
                   volume_storage_t *vs = (volume_storage_t *) xmalloc(sizeof (volume_storage_t));
-                  volume_storage_initialize(vs, sconfig->sid, sconfig->host);
+                  volume_storage_initialize(vs, sconfig->sid, sconfig->host, sconfig->host_rank);
                   list_push_back((&cluster->storages[i]), &vs->list);
               }
 	    }
@@ -1705,7 +1706,7 @@ int main(int argc, char *argv[]) {
     /*
     ** Change local directory to "/"
     */
-    chdir("/");
+    if (chdir("/")!=0) {}
 
     /* Try to get debug port from /etc/services */
     expgwc_non_blocking_conf.debug_port = rozofs_get_service_port_export_master_diag();

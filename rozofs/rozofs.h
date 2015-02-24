@@ -147,7 +147,8 @@ typedef enum {
 } cid_state_e;
 
 typedef enum {
-    LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16
+    LAYOUT_2_3_4, LAYOUT_4_6_8, LAYOUT_8_12_16,
+    LAYOUT_MAX
 } rozofs_layout_t;
 
 typedef uint8_t tid_t; /**< projection id */

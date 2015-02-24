@@ -28,7 +28,6 @@
 #include <rozofs/rozofs_srv.h>
 #include "rozofs.h"
 
-#define LAYOUT_MAX 3
 
 typedef struct _rozofs_conf_psizes_t {
     float    redundancyCoeff;    /**< Redundacny coefficient for the given layout and block size (>1)*/
