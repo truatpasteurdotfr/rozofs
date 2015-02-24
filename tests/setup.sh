@@ -265,13 +265,13 @@ gen_storage_conf ()
 	  esac 
 	  
 	  printf "listen = ( \n" >> $STORAGE_CONF
-	  printf "  {addr = \"192.168.2.$hid\"; port = 41000;}" >> $STORAGE_CONF
+	  printf "  {addr = \"192.168.10.$hid\"; port = 41000;}" >> $STORAGE_CONF
 
 	  # Test for special character "*"
 	  #printf "  {addr = \"*\"; port = 4100$sid;}" >> $STORAGE_CONF
 
 	  for idx in $(seq 2 1 ${NB_PORTS_PER_STORAGE_HOST}); do
-              printf " ,\n  {addr = \"192.168.$((idx+1)).$hid\"; port = 41000;}"
+              printf " ,\n  {addr = \"192.168.$((idx+9)).$hid\"; port = 41000;}"
 	  done >>  $STORAGE_CONF
 
 	  printf "\n);\n" >>  $STORAGE_CONF
