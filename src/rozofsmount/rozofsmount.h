@@ -76,6 +76,9 @@ typedef struct rozofsmnt_conf {
     int site;
     int conf_site_file;
     unsigned running_site;
+    unsigned mojThreadWrite;
+    unsigned mojThreadRead;    
+    unsigned mojThreadThreshold;        
 } rozofsmnt_conf_t;
 
 typedef struct dirbuf {

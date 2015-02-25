@@ -91,6 +91,9 @@ typedef struct storcli_conf {
     unsigned shaper;
     unsigned site;
     char *owner;
+    unsigned mojThreadWrite;
+    unsigned mojThreadRead;    
+    unsigned mojThreadThreshold;   
 } storcli_conf;
 
 /*
@@ -158,6 +161,9 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_UINT32_CONFIG(rozofsmount_instance);
   DISPLAY_UINT32_CONFIG(shaper);
+  DISPLAY_UINT32_CONFIG(mojThreadWrite);
+  DISPLAY_UINT32_CONFIG(mojThreadRead);    
+  DISPLAY_UINT32_CONFIG(mojThreadThreshold);   
   DISPLAY_UINT32_CONFIG(site);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }    
@@ -1185,6 +1191,9 @@ void usage() {
     printf("\t-S,--shaper VALUE\t\tShaper initial value (default 1)\n");
     printf("\t-g,--geosite <0|1>\t\tSite number for geo-replication case (default 0)\n");
     printf("\t-o,--owner <string>\t\tstorcli owner name(default: rozofsmount)\n");
+    printf("\t-r,--mojThreadRead <enable|disable>\t\tWhether the read mojette threads are enabled\n");
+    printf("\t-w,--mojThreadWrite <enable|disable>\t\tWhether the read mojette threads are enabled\n");
+    printf("\t-m,--mojThreadThreshold value\t\tThe number of bytes from which the storage threads are called\n");
 
 }
 
@@ -1215,6 +1224,9 @@ int main(int argc, char *argv[]) {
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
         { "storagetmr", required_argument, 0, 's'},
+        { "mojThreadRead", required_argument, 0, 'r'},
+        { "mojThreadWrite", required_argument, 0, 'w'},
+        { "mojThreadThreshold", required_argument, 0, 'm'},
         { "geosite", required_argument, 0, 'g'},
         { "owner", required_argument, 0, 'o'},
         { 0, 0, 0, 0}
@@ -1262,10 +1274,14 @@ int main(int argc, char *argv[]) {
     conf.site = 0;
     conf.owner=NULL;
 
+    conf.mojThreadWrite      = -1;
+    conf.mojThreadRead       = -1;    
+    conf.mojThreadThreshold  = -1;
+        
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:S:g:o:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:S:g:o:r:w:m:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -1401,6 +1417,51 @@ int main(int argc, char *argv[]) {
                 storcli_rozofsmount_shared_mem[SHAREMEM_IDX_READ].buf_sz = (key_t) val;
                 storcli_rozofsmount_shared_mem[SHAREMEM_IDX_WRITE].buf_sz = (key_t) val;
                 break;
+		
+            case 'r':
+                errno = 0;
+                if      (strcasecmp(optarg,"enable")==0) {
+		  conf.mojThreadRead = 1;
+		  rozofs_stcmoj_thread_enable_read(1);
+		}  
+		else if (strcasecmp(optarg,"disable")==0) {
+		  conf.mojThreadRead = 0;		
+		  rozofs_stcmoj_thread_enable_read(0);
+		}
+		else {  
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                break;
+		
+            case 'w':
+                errno = 0;
+                if      (strcasecmp(optarg,"enable")==0) {
+		  conf.mojThreadWrite = 1;		
+		  rozofs_stcmoj_thread_enable_write(1);
+		}  
+		else if (strcasecmp(optarg,"disable")==0) {
+		  conf.mojThreadWrite = 0;		
+		  rozofs_stcmoj_thread_enable_write(0);
+		}
+		else {  
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+                break;	
+		
+            case 'm':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+		conf.mojThreadThreshold = val;
+                rozofs_stcmoj_thread_set_threshold(val);
+                break;
+					
             case '?':
                 usage();
                 exit(EXIT_SUCCESS);

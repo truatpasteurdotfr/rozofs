@@ -55,9 +55,12 @@ int rozofs_stcmoj_thread_create(char * hostname,int eid,int storcli_idx, int nb_
 
 void * af_unix_mojette_pool_send = NULL;
 void * af_unix_mojette_pool_recv = NULL;
-int rozofs_stcmoj_thread_write_enable;
-int rozofs_stcmoj_thread_read_enable;
-uint32_t rozofs_stcmoj_thread_len_threshold;
+#define DEFAULT_STCMO_THREAD_WRITE       1
+#define DEFAULT_STCMO_THREAD_READ        0
+#define DEFAULT_STCMO_THREAD_THRESHOLD  (16*8*1024)
+int rozofs_stcmoj_thread_write_enable=DEFAULT_STCMO_THREAD_WRITE;
+int rozofs_stcmoj_thread_read_enable=DEFAULT_STCMO_THREAD_READ;
+uint32_t rozofs_stcmoj_thread_len_threshold=DEFAULT_STCMO_THREAD_THRESHOLD;
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -191,7 +194,7 @@ void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
        ** change the bytes threshold
        */
        rozofs_stcmoj_thread_len_threshold = new_val;
-       uma_dbg_send(tcpRef,bufRef,TRUE,"byte threshold changed\n");
+       uma_dbg_send(tcpRef,bufRef,TRUE,"bytes threshold changed\n");
        return;
     }
     pChar = mojette_thread_debug_help(pChar);
@@ -771,12 +774,39 @@ int rozofs_stcmoj_thread_intf_create(char * hostname,int eid,int storcli_idx, in
   ** attach the callback on socket controller
   */
   ruc_sockCtrl_attach_applicative_poller(af_unix_mojette_scheduler_entry_point);  
-  rozofs_stcmoj_thread_write_enable = 1;
-  rozofs_stcmoj_thread_read_enable = 0;
-  rozofs_stcmoj_thread_len_threshold = 16*ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_4K);
    
   return rozofs_stcmoj_thread_create(hostname,eid,storcli_idx, nb_threads);
 }
-
-
-
+/*__________________________________________________________________________
+* Enable/disable the mojette threads for write
+*
+* @param enable      1 to enable, 0 to disable 
+*/
+void rozofs_stcmoj_thread_enable_write(int enable) {
+  rozofs_stcmoj_thread_write_enable = enable;
+}
+/*__________________________________________________________________________
+* Enable/disable the mojette threads for read
+*
+* @param enable      1 to enable, 0 to disable 
+*/
+void rozofs_stcmoj_thread_enable_read(int enable) {
+  rozofs_stcmoj_thread_read_enable = enable;
+}
+/*__________________________________________________________________________
+* Set the threshold to call the mojette threads
+*
+* @param threshold      The threshold in number of blocks
+*/
+void rozofs_stcmoj_thread_set_threshold(int threshold) {
+  rozofs_stcmoj_thread_len_threshold = threshold;
+}
+/*__________________________________________________________________________
+* Reset to the default parameters
+*
+*/
+void rozofs_stcmoj_thread_set_default() {
+  rozofs_stcmoj_thread_enable_write(DEFAULT_STCMO_THREAD_WRITE);
+  rozofs_stcmoj_thread_enable_read(DEFAULT_STCMO_THREAD_READ);
+  rozofs_stcmoj_thread_set_threshold(DEFAULT_STCMO_THREAD_READ); 
+}
