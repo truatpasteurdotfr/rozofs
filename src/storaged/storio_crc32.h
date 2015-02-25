@@ -32,7 +32,7 @@ extern uint64_t storio_crc_error;
  
  void crc32c_init(int generate_enable,int check_enable,int hw_forced);
  
- /*
+/*
 **__________________________________________________________________
 */
 /*
@@ -42,8 +42,9 @@ extern uint64_t storio_crc_error;
     @param bin: pointer to the beginning of the set of projections
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
+    @param initial_crc: Value to intializae the CRC to    
 */
-void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size);
+void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size, uint32_t initial_crc);
 /*
 **__________________________________________________________________
 */
@@ -56,10 +57,11 @@ void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size);
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
-
-    @retval the bit mask of blocks with a CRC32 error detected
+    @param initial_crc: Value to intializae the CRC to    
+    
+    @retval the number of CRC32 error detected
 */
-uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p);
+uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p, uint32_t initial_crc);
 
 /*
 **__________________________________________________________________
@@ -71,8 +73,9 @@ uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *c
     @param vector: pointer to the beginning of the set of projections vector
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
+    @param initial_crc: Value to intializae the CRC to    
 */
-void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size);
+void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size, uint32_t initial_crc);
 
 /*
 **__________________________________________________________________
@@ -86,11 +89,11 @@ void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size);
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
-
-    @retval the bit mask of blocks with a CRC32 error detected
+    @param initial_crc: Value to intializae the CRC to    
+    
+    @retval the number of CRC32 error detected
 */
-uint64_t storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p);
-
+uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p, uint32_t initial_crc);
 /*
 **__________________________________________________________________
 */
@@ -98,8 +101,11 @@ uint64_t storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_s
 **  Generate a CRC32 of the content of the header file.
     
     @param hdr: the header file structure
+    @param initial_crc: Value to intializae the CRC to    
+
 */
-void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr);
+void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint32_t initial_crc);
+/*
 /*
 **__________________________________________________________________
 */
@@ -108,8 +114,9 @@ void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr);
 
     @param hdr: the header file structure
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
-
+    @param initial_crc: Value to intializae the CRC to    
+    
     @retval 0 on success -1 on error
 */
-int storio_check_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint64_t *crc_error_cnt_p);
+int storio_check_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint64_t *crc_error_cnt_p, uint32_t initial_crc);
 #endif

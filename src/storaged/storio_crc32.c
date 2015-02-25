@@ -370,8 +370,10 @@ uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 **  Generate a CRC32 of the content of the header file.
     
     @param hdr: the header file structure
+    @param initial_crc: Value to intializae the CRC to    
+
 */
-void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr)
+void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint32_t initial_crc)
 {
    uint32_t crc;
  
@@ -379,7 +381,7 @@ void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr)
    
    if (crc32c_generate_enable == 0) return;
 
-   crc = 0;
+   crc = initial_crc;
    crc = crc32c(crc,(char *) hdr, sizeof(rozofs_stor_bins_file_hdr_t));
    if (crc == 0) crc = 1;
    hdr->crc32 = crc;
@@ -392,13 +394,14 @@ void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr)
 
     @param hdr: the header file structure
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
+    @param initial_crc: Value to intializae the CRC to    
     
     @retval 0 on success -1 on error
 */
-int storio_check_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint64_t *crc_error_cnt_p)
+int storio_check_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint64_t *crc_error_cnt_p, uint32_t initial_crc)
 {
    uint32_t crc;
-   uint32_t cur_crc = hdr->crc32;;
+   uint32_t cur_crc = hdr->crc32;
 
 #if CRC32_PERFORMANCE_CHECK
    uint64_t encode_cycles_start;
@@ -420,7 +423,7 @@ int storio_check_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint64_t *crc_e
    **  compute the crc
    */
    hdr->crc32 = 0;
-   crc = 0;
+   crc = initial_crc;
    crc = crc32c(crc,(char *) hdr,sizeof(rozofs_stor_bins_file_hdr_t));
    if (crc==0) crc = 1;      
 
@@ -453,8 +456,9 @@ int storio_check_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint64_t *crc_e
     @param bin: pointer to the beginning of the set of projections
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
+    @param initial_crc: Value to intializae the CRC to    
 */
-void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size)
+void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size, uint32_t initial_crc)
 {
    size_t crc_size = prj_size;
    uint32_t crc = 0;
@@ -465,7 +469,7 @@ void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size)
 
    for (i = 0; i < nb_proj ; i++)
    {
-      crc = 0;
+      crc = initial_crc + i;
       ((rozofs_stor_bins_hdr_t*)(buf))->s.filler = 0;
       crc = crc32c(crc,buf,crc_size);
       if (crc == 0) crc = 1;
@@ -486,10 +490,11 @@ void storio_gen_crc32(char *bins,int nb_proj,uint16_t prj_size)
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
-
+    @param initial_crc: Value to intializae the CRC to    
+    
     @retval the number of CRC32 error detected
 */
-uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p)
+uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p, uint32_t initial_crc)
 {
    size_t crc_size = prj_size;
    uint32_t crc = 0;
@@ -517,7 +522,7 @@ uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *c
       **  compute the crc
       */
       ((rozofs_stor_bins_hdr_t*)(buf))->s.filler = 0;
-      crc = 0;
+      crc = initial_crc + i;
       crc = crc32c(crc,buf,crc_size);
       if (crc==0) crc = 1;      
 
@@ -557,8 +562,9 @@ uint64_t storio_check_crc32(char *bins,int nb_proj,uint16_t prj_size,uint64_t *c
     @param vector: pointer to the beginning of the set of projections vector
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
+    @param initial_crc: Value to intializae the CRC to    
 */
-void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size)
+void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size, uint32_t initial_crc)
 {
    size_t crc_size = prj_size;
    uint32_t crc = 0;
@@ -569,7 +575,7 @@ void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size)
 
    for (i = 0; i < nb_proj ; i++)
    {
-      crc = 0;
+      crc = initial_crc + i;
       buf = vector[i].iov_base;
       ((rozofs_stor_bins_hdr_t*)(buf))->s.filler = 0;
       crc = crc32c(crc,buf,crc_size);
@@ -590,10 +596,11 @@ void storio_gen_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size)
     @param nb_proj : number of projections
     @param prj_size: size of a projection including the prj header
     @param crc_errorcnt_p: pointer to the crc error counter of the storage (cid/sid).
-
+    @param initial_crc: Value to intializae the CRC to    
+    
     @retval the number of CRC32 error detected
 */
-uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p)
+uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_size,uint64_t *crc_error_cnt_p, uint32_t initial_crc)
 {
    size_t crc_size = prj_size;
    uint32_t crc = 0;
@@ -614,7 +621,7 @@ uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_
       **  compute the crc
       */
       ((rozofs_stor_bins_hdr_t*)(buf))->s.filler = 0;
-      crc = 0;
+      crc = initial_crc + i;
       crc = crc32c(crc,buf,crc_size);
       if (crc==0) crc = 1;      
       /*

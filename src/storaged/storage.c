@@ -47,6 +47,13 @@
 #include "storio_crc32.h"
 
 /*
+** Initialize a CRC32 from a FID
+*/
+static inline uint32_t fid2crc32(uint32_t * fid) {
+  return (fid[0] ^ fid[1] ^ fid[2] ^ fid [3]);
+}
+
+/*
 ** API to be called when an error occurs on a device
  *
  * @param st: the storage to be initialized.
@@ -203,8 +210,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     
       /*
       ** This may be a old header file without CRC32
-      */
-      
+      */      
       if (nb_read != sizeof(rozofs_stor_bins_file_hdr_no_crc32_t)) {
         device_result[dev] = EINVAL;	
         storage_error_on_device(st,device_id[dev]);
@@ -220,7 +226,9 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     /*
     ** check CRC32
     */
-    if (storio_check_header_crc32(hdr,&st->crc_error) != 0) {
+    uint32_t crc32 = fid2crc32((uint32_t *)fid);
+
+    if (storio_check_header_crc32(hdr,&st->crc_error, crc32) != 0) {
       crc32_error |= (1ULL<<dev);
       device_result[dev] = EIO;	
       storage_error_on_device(st,device_id[dev]);   
@@ -320,7 +328,8 @@ int storage_write_all_header_files(storage_t * st, fid_t fid, uint8_t spare, roz
   /*
   ** Compute CRC32
   */
-  storio_gen_header_crc32(hdr);
+  uint32_t crc32 = fid2crc32((uint32_t *)fid);  
+  storio_gen_header_crc32(hdr,crc32);
 
   for (dev=0; dev < st->mapper_redundancy ; dev++) {
 
@@ -1060,6 +1069,8 @@ open:
 
     //MYDBGTRACE("write %s bid %d nb %d",path,bid,nb_proj);
 
+    uint32_t crc32 = fid2crc32((uint32_t *)fid) + bid;
+
     /*
     ** Writting the projection as received directly on disk
     */
@@ -1068,7 +1079,7 @@ open:
       /*
       ** generate the crc32c for each projection block
       */
-      storio_gen_crc32((char*)bins,nb_proj,rozofs_disk_psize);
+      storio_gen_crc32((char*)bins,nb_proj,rozofs_disk_psize,crc32);
 
       errno = 0;
       nb_write = pwrite(fd, bins, length_to_write, bins_file_offset);
@@ -1098,7 +1109,8 @@ open:
       /*
       ** generate the crc32c for each projection block
       */
-      storio_gen_crc32_vect(vector,nb_proj,rozofs_disk_psize);
+      
+      storio_gen_crc32_vect(vector,nb_proj,rozofs_disk_psize,crc32);
       
       errno = 0;      
       nb_write = pwritev(fd, vector, nb_proj, bins_file_offset);      
@@ -1229,7 +1241,9 @@ open:
     char *data_p = (char *)bins;
     int block_idx = 0;
     int block_count = 0;
-    int error = 0;               
+    int error = 0;   
+    uint32_t crc32 = fid2crc32((uint32_t *)fid)+bid;
+            
     for (block_idx = 0; block_idx < nb_proj; block_idx++)
     {
 
@@ -1238,7 +1252,7 @@ open:
        /*
        ** generate the crc32c for each projection block
        */
-       storio_gen_crc32((char*)data_p,1,rozofs_disk_psize);
+       storio_gen_crc32((char*)data_p,1,rozofs_disk_psize,crc32+block_idx);
        /* 
        **  write the projection on disk
        */
@@ -1466,17 +1480,21 @@ retry:
     /*
     ** check the crc32c for each projection block
     */
+    uint32_t crc32 = fid2crc32((uint32_t *)fid)+bid;
+    
     if (rozofs_msg_psize == rozofs_disk_psize) {        
       crc32_errors = storio_check_crc32((char*)bins,
                         		nb_proj_effective,
                 			rozofs_disk_psize,
-					&st->crc_error);
+					&st->crc_error,
+					crc32);
     }
     else {
       crc32_errors = storio_check_crc32_vect(vector,
                         		     nb_proj_effective,
                 			     rozofs_disk_psize,
-					     &st->crc_error);      
+					     &st->crc_error,
+					     crc32);      
     }
     if (crc32_errors!=0) {  
       storage_error_on_device(st,device[chunk]); 
@@ -1656,7 +1674,8 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
 	/*
 	** generate the crc32c for each projection block
 	*/
-	storio_gen_crc32(data,1,rozofs_disk_psize);	
+	uint32_t crc32 = fid2crc32((uint32_t *)fid)+bid;
+	storio_gen_crc32(data,1,rozofs_disk_psize,crc32);	
 	
 	nb_write = pwrite(fd, data, length_to_write, bins_file_offset);
 	if (nb_write != length_to_write) {
