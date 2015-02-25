@@ -694,8 +694,8 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
-        // Default block size is 8K
-	bsize = ROZOFS_BSIZE_8K;
+        // Default block size is 4K
+	bsize = ROZOFS_BSIZE_4K;
 	
         if (config_setting_lookup_int(mfs_setting, EBSIZE, &bsize) != CONFIG_FALSE) {
 	
