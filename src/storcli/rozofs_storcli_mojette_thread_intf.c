@@ -398,7 +398,21 @@ void rozofs_storcli_inverse_threaded_end(rozofs_storcli_ctx_t * working_ctx_p)
       ** attempt to read block with the next distribution
       */
       return rozofs_storcli_read_req_processing(working_ctx_p);        
-    }    
+    }
+        
+    /*
+    ** check for auto-repair because of potential crc error
+    */
+    {
+      int ret = rozofs_storcli_check_repair(working_ctx_p,rozofs_safe);  
+      if (ret != 0)
+      {    
+         rozofs_storcli_repair_req_init(working_ctx_p);
+	 return;
+      }
+    
+    }
+        
     /*
     ** read is finished, send back the buffer to the client (rozofsmount)
     */       

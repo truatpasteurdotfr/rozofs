@@ -1495,7 +1495,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
     ** check for auto-repair because of potential crc error
     */
     {
-      int ret = rozofs_storcli_check_repair(working_ctx_p,rozofs_safe,rozofs_forward);  
+      int ret = rozofs_storcli_check_repair(working_ctx_p,rozofs_safe);  
       if (ret != 0)
       {
          rozofs_tx_free_from_ptr(this);      

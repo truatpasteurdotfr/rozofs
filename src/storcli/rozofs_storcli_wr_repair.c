@@ -328,78 +328,24 @@ int rozofs_storcli_get_mojette_proj_id(uint8_t *dist_p,uint8_t sid,uint8_t fwd)
     
     @param working_ctx_p: storcli working context of the read request
     @param rozofs_safe : max number of context to check
-    @param rozofs_fwd : number of projection in the optimal distribution associated with the layout
     
     @retval 0 : no crc error 
     @retval 1 : there is at least one block with a crc error
 */
-int rozofs_storcli_check_repair(rozofs_storcli_ctx_t *working_ctx_p,int rozofs_safe,int rozofs_fwd)
+int rozofs_storcli_check_repair(rozofs_storcli_ctx_t *working_ctx_p,int rozofs_safe)
 {
 
     rozofs_storcli_projection_ctx_t *prj_ctx_p   = working_ctx_p->prj_ctx;   
     int prj_ctx_idx;
-#if 0
-    int moj_prj_id;
-    uint8_t sid;
-    uint64_t crc_err_bitmap = 0;
-    storcli_read_arg_t *storcli_read_rq_p;   
-#endif
-    int crc_error = 0;
      
-    for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++)
+    for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++,prj_ctx_p++)
     {
       /*
       ** check for crc error
       */
-      if (prj_ctx_p[prj_ctx_idx].crc_err_bitmap != 0)
-      {
-        /*
-        ** there is a potential block to repair
-        */
-	crc_error = 1;
-	break;
-      }
+      if (prj_ctx_p->crc_err_bitmap != 0) return 1;
     }
-    if (crc_error == 0) return 0;
-
-#if 0    
-    /*
-    ** OK, there is a crc error, so go through all the projection sets
-    ** and identify all the blocks in error.
-    ** The repair takes care of the optimal distribution only. If a error
-    ** happens on a spare the auto repair does not take place.
-    */
-    storcli_read_rq_p = (storcli_read_arg_t*)&working_ctx_p->storcli_read_arg;
-    
-    for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++)
-    {
-      if (prj_ctx_p[prj_ctx_idx].crc_err_bitmap == 0) continue;
-      /*
-      **  Get the sid associated with the projection context
-      */
-      crc_err_bitmap = prj_ctx_p[prj_ctx_idx].crc_err_bitmap;
-      sid = (uint8_t) rozofs_storcli_lbg_prj_get_sid(working_ctx_p->lbg_assoc_tb,
-                                                     prj_ctx_p[prj_ctx_idx].stor_idx);
-      /*
-      ** Get the reference of the Mojette projection_id
-      */
-      moj_prj_id = rozofs_storcli_get_mojette_proj_id(storcli_read_rq_p->dist_set,sid,rozofs_fwd);
-      if  (moj_prj_id < 0)
-      {
-         /*
-	 ** it is the reference of a spare sid, so go to the next projection context
-	 */
-	 continue;
-      }
-      /*
-      ** OK insert the reference of the Mojette Projection id as well as the reference
-      ** of the projection context
-      */
-      severe("FDL Projection context %d -> Moj projection %d (sid %d) %8.8llx",
-              prj_ctx_idx,moj_prj_id,sid,crc_err_bitmap);
-    }
-#endif
-    return 1;
+    return 0;
 }
 /*
 **__________________________________________________________________________

@@ -1368,12 +1368,11 @@ void rozofs_storcli_write_req_processing(rozofs_storcli_ctx_t *working_ctx_p);
     
     @param working_ctx_p: storcli working context of the read request
     @param rozofs_safe : max number of context to check
-    @param rozofs_fwd : number of projection in the optimal distribution associated with the layout
     
     @retval 0 : no crc error 
     @retval 1 : there is at least one block with a crc error
 */
-int rozofs_storcli_check_repair(rozofs_storcli_ctx_t *working_ctx_p,int rozofs_safe,int rozofs_fwd);
+int rozofs_storcli_check_repair(rozofs_storcli_ctx_t *working_ctx_p,int rozofs_safe);
 
 /*
 **__________________________________________________________________________
