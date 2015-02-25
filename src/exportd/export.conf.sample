@@ -110,6 +110,10 @@ volumes =  # List of volumes
 #               - must be unique for each exported filesystem managed by this
 #                 exportd.
 #
+#       bsize: (defines the block size used on this export)
+#              - Valid bsize are within "4K", "8K", "16K", "32K".
+#              - default bsize is "4K".
+#
 #       root: (directory path where metadata for this filesystem will be stored)
 #               - must be an existing directory.
 #               - must be unique for each filesystem managed by this exportd.
@@ -152,11 +156,11 @@ volumes =  # List of volumes
 exports = ( # List of exported filesystem
 
     # First filesystem exported
-    {eid = 1; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0";
+    {eid = 1; root = "/path/to/foo"; bsize="4K"; md5="AyBvjVmNoKAkLQwNa2c4b0";
                                     squota="128G"; hquota="256G"; vid=1;},
 
     # Second filesystem exported
-    {eid = 2; root = "/path/to/bar"; md5="";
+    {eid = 2; root = "/path/to/bar"; bsize="4K"; md5="";
                             squota=""; hquota = ""; vid=2;}
     # ...
 );
