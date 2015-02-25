@@ -694,15 +694,36 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
             goto out;
         }
 
-        if (config_setting_lookup_int(mfs_setting, EBSIZE, &bsize) == CONFIG_FALSE) {
-           // Default block size is 8K
-	   bsize = ROZOFS_BSIZE_8K;
-        }
-	if ((bsize < ROZOFS_BSIZE_MIN) || (bsize > ROZOFS_BSIZE_MAX)) {
+        // Default block size is 4K
+	bsize = ROZOFS_BSIZE_4K;
+	
+        if (config_setting_lookup_int(mfs_setting, EBSIZE, &bsize) != CONFIG_FALSE) {
+	
+	  // bsize is given as an integer
+	  if ((bsize < ROZOFS_BSIZE_MIN) || (bsize > ROZOFS_BSIZE_MAX)) {
             errno = EINVAL;
             severe("Block size must be within [%d:%d]", ROZOFS_BSIZE_MIN,ROZOFS_BSIZE_MAX);
             goto out;
+          }
+	}
+	else {
+	
+	  // bsize is not int but may be a string
+	  if (config_setting_lookup_string(mfs_setting, EBSIZE, &str) != CONFIG_FALSE) {
+	    
+	    // bsize is given as a string
+	    if      (strcasecmp(str,"4K")==0)  bsize = bsize = ROZOFS_BSIZE_4K;
+	    else if (strcasecmp(str,"8K")==0)  bsize = bsize = ROZOFS_BSIZE_8K;
+	    else if (strcasecmp(str,"16K")==0) bsize = bsize = ROZOFS_BSIZE_16K;
+	    else if (strcasecmp(str,"32K")==0) bsize = bsize = ROZOFS_BSIZE_32K;
+	    else {
+              errno = EINVAL;
+              severe("Bad block size %s", str);
+              goto out;             
+	    }
+	  }     
         }
+
 	
         if (config_setting_lookup_string(mfs_setting, EROOT, &root) == CONFIG_FALSE) {
             errno = ENOKEY;

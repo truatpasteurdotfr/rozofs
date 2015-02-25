@@ -90,7 +90,8 @@ Maximum number of core files to keep. (default: 2)
                  exportd.
 
        bsize: (defines the block size used on this export)
-               - Valid bsize are 0 (4 Kibytes), 1 (8 Kibytes), 2 (16 Kibytes) or 3 (32 Kibytes).
+               - Valid bsize are within "4K", "8K", "16K", "32K".
+               - default bsize is "4K".
 
        root: (directory path where metadata for this filesystem will be stored)
                - must be an existing directory.
@@ -203,11 +204,11 @@ volumes =  # List of volumes
 exports = ( # List of exported filesystem
 
     # First filesystem exported
-    {eid = 1; bsize=0; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0";
+    {eid = 1; bsize="4K"; root = "/path/to/foo"; md5="AyBvjVmNoKAkLQwNa2c4b0";
                                     squota="128G"; hquota="256G"; vid=1;},
 
     # Second filesystem exported
-    {eid = 2; bsize=1; root = "/path/to/bar"; md5="";
+    {eid = 2; bsize="8K"; root = "/path/to/bar"; md5="";
                             squota=""; hquota = ""; vid=2;}
     # ...
 );
