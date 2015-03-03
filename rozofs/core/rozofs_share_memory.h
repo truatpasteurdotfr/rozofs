@@ -37,8 +37,17 @@
 * @retval a key
 */
 static inline key_t rozofs_share_memory_key_from_name(char * name) {
+  char local[PATH_MAX];
+  char *p = local;
+  
+  if (realpath(name, local)==NULL) {
+    // Can not run realpath. name may be a string but not a path.
+    // Let's compute a key directly from name
+    p = name;
+  }
+  
   key_t K = 0;
-  while (*name) K = 37 * K + *name++;
+  while (*p) K = 37 * K + *p++;
   return K; 
 } 
 /*__________________________________________________________________________
