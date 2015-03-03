@@ -140,7 +140,7 @@ exp_trck_top_header_t *exp_trck_top_allocate(char *name,char *root_path,uint16_t
 */
 static inline uint64_t exp_trk_get_memory()
 {
-  exp_trk_malloc_size;
+  return exp_trk_malloc_size;
 
 }
 /*

@@ -106,7 +106,6 @@ uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_
 */
 void storio_gen_header_crc32(rozofs_stor_bins_file_hdr_t * hdr, uint32_t initial_crc);
 /*
-/*
 **__________________________________________________________________
 */
 /*

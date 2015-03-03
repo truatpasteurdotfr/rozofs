@@ -712,10 +712,10 @@ static int load_exports_conf(econfig_t *ec, struct config_t *config) {
 	  if (config_setting_lookup_string(mfs_setting, EBSIZE, &str) != CONFIG_FALSE) {
 	    
 	    // bsize is given as a string
-	    if      (strcasecmp(str,"4K")==0)  bsize = bsize = ROZOFS_BSIZE_4K;
-	    else if (strcasecmp(str,"8K")==0)  bsize = bsize = ROZOFS_BSIZE_8K;
-	    else if (strcasecmp(str,"16K")==0) bsize = bsize = ROZOFS_BSIZE_16K;
-	    else if (strcasecmp(str,"32K")==0) bsize = bsize = ROZOFS_BSIZE_32K;
+	    if      (strcasecmp(str,"4K")==0)  bsize = ROZOFS_BSIZE_4K;
+	    else if (strcasecmp(str,"8K")==0)  bsize = ROZOFS_BSIZE_8K;
+	    else if (strcasecmp(str,"16K")==0) bsize = ROZOFS_BSIZE_16K;
+	    else if (strcasecmp(str,"32K")==0) bsize = ROZOFS_BSIZE_32K;
 	    else {
               errno = EINVAL;
               severe("Bad block size %s", str);
@@ -959,7 +959,7 @@ static int econfig_validate_clusters(volume_config_t *config) {
 out:
     return status;
 }
-static int econfig_number_storages_per_cluster(volume_config_t *config) {
+static void econfig_number_storages_per_cluster(volume_config_t *config) {
   list_t *l1, *l2, *l3;
   int host_rank;
   int site = 0;

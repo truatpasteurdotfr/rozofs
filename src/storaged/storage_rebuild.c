@@ -1353,7 +1353,7 @@ int rbs_build_job_lists(const char *export_host_list, int site, cid_t cid, sid_t
 	goto out;
       }
       
-      if (rbs_build_one_fid_list(cid, sid, layout, bsize, attr.sids, fid2rebuild) != 0)
+      if (rbs_build_one_fid_list(cid, sid, layout, bsize, (uint8_t*) attr.sids, fid2rebuild) != 0)
         goto out;
       rb_fid_table_count = 1;	
       parallel           = 1; 

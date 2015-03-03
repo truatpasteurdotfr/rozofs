@@ -1095,7 +1095,6 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
    uint32_t bsize         = storcli_read_rq_p->bsize;   
    uint8_t rozofs_safe    = rozofs_get_rozofs_safe(layout);
    uint8_t rozofs_inverse = rozofs_get_rozofs_inverse(layout);
-   uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
    rozofs_max_psize_in_msg= rozofs_get_max_psize_in_msg(layout,bsize);
     /*
     ** get the sequence number and the reference of the projection id form the opaque user array
