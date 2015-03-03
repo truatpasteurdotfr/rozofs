@@ -65,6 +65,7 @@ uint32_t storio_nb = 0;
 DECLARE_PROFILING(spp_profiler_t);
 
 extern sconfig_t storaged_config;
+extern char * pHostArray[];
 
 int storaged_update_device_info(storage_t * st);
 /*
@@ -349,14 +350,10 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
 
     uint32_t mx_tcp_client = 2;
-    uint32_t mx_tcp_server = 2;
+    uint32_t mx_tcp_server = 8;
     uint32_t mx_tcp_server_cnx = 10;
     uint32_t local_ip = INADDR_ANY;
     uint32_t        mx_af_unix_ctx = 1024;
-
-    if (arg_p->hostname[0] != 0) {
-        host2ip(arg_p->hostname, &local_ip);
-    }
 
     //#warning TCP configuration ressources is hardcoded!!
     /*
@@ -428,11 +425,23 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
          **--------------------------------------
          */
 
-        uma_dbg_init(10, local_ip, arg_p->debug_port);
+	if (pHostArray[0] != NULL) {
+	  int idx=0;
+	  while (pHostArray[idx] != NULL) {
+	    host2ip(pHostArray[idx], &local_ip);
+	    uma_dbg_init(10, local_ip, arg_p->debug_port);	    
+	    idx++;
+	  }  
+	}
+	else {
+	  local_ip = INADDR_ANY;
+	  uma_dbg_init(10, local_ip, arg_p->debug_port);
+	}  
+        
 
         {
             char name[256];
-            sprintf(name, "storaged %s", arg_p->hostname);
+            sprintf(name, "storaged %s", pHostArray[0]);
             uma_dbg_set_name(name);
         }
 
@@ -488,7 +497,7 @@ int storaged_start_nb_blocking_th(void *args) {
     fatal("Fatal error on storage_north_interface_buffer_init()\n");
     return -1;
   }
-  ret = storaged_north_interface_init(args_p->hostname);
+  ret = storaged_north_interface_init();
   if (ret < 0) {
     fatal("Fatal error on storage_north_interface_init()\n");
     return -1;
@@ -498,7 +507,7 @@ int storaged_start_nb_blocking_th(void *args) {
 
     info("storaged non-blocking thread started "
             "(instance: %d, host: %s, port: %d).",
-            args_p->instance_id, args_p->hostname, args_p->debug_port);
+            args_p->instance_id, (pHostArray[0]==NULL)?"":pHostArray[0], args_p->debug_port);
 
     /*
      ** main loop
@@ -547,7 +556,7 @@ int storaged_start_nb_th(void *args) {
         fatal("Fatal error on storaged_north_interface_buffer_init()\n");
         return -1;
     }
-    ret = storaged_north_interface_init(args_p->hostname);
+    ret = storaged_north_interface_init();
     if (ret < 0) {
         fatal("Fatal error on storaged_north_interface_init()\n");
         return -1;
@@ -562,9 +571,9 @@ int storaged_start_nb_th(void *args) {
     uma_dbg_addTopic("storio_nb", show_storio_nb);
     uma_dbg_addTopic("device",show_storage_device_status);
     
-    if ((args_p->hostname[0] != 0)) {
+    if (pHostArray[0] != NULL) {
         info("storaged non-blocking thread started (host: %s, dbg port: %d).",
-                args_p->hostname, args_p->debug_port);
+                (pHostArray[0]==NULL)?"":pHostArray[0], args_p->debug_port);
     } else {
         info("storaged non-blocking thread started (dbg port: %d).", 
                 args_p->debug_port);

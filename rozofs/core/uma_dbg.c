@@ -1141,11 +1141,22 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   void                      *idx;
   uint32_t                    tcpCnxServer;
 
-  /* Service already initialized */
-  if (uma_dbg_initialized) {
-    severe( "Service already initialized" );
-    return;
+  /* Create a TCP connection server */
+  inputArgs.userRef    = 0;
+  inputArgs.tcpPort    = serverPort /* UMA_DBG_SERVER_PORT */ ;
+  inputArgs.priority   = 1;
+  inputArgs.ipAddr     = ipAddr;
+  inputArgs.accept_CBK = uma_dbg_accept_CBK;
+  sprintf((char*)inputArgs.cnxName,"DIAG SRV %u.%u.%u.%u:%u",
+         (ipAddr>>24)&0xFF,(ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF,ipAddr&0xFF,serverPort);
+
+  if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
+    severe("ruc_tcp_server_connect" );
   }
+  
+  /* Service already initialized */
+  if (uma_dbg_initialized) return;
+
   uma_dbg_initialized = TRUE;
   
   uptime = time(0);
@@ -1175,18 +1186,6 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
     return;
   }
   ruc_listHdrInit(&uma_dbg_activeList->link);
-
-  /* Create a TCP connection server */
-  inputArgs.userRef    = 0;
-  inputArgs.tcpPort    = serverPort /* UMA_DBG_SERVER_PORT */ ;
-  inputArgs.priority   = 1;
-  inputArgs.ipAddr     = ipAddr;
-  inputArgs.accept_CBK = uma_dbg_accept_CBK;
-  sprintf((char*)inputArgs.cnxName,"DBG SERVER");
-
-  if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
-    severe("ruc_tcp_server_connect" );
-  }
   
   uma_dbg_addTopic("who", uma_dbg_show_name);
   uma_dbg_addTopic("uptime", uma_dbg_show_uptime);

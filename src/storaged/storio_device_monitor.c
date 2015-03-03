@@ -43,7 +43,7 @@
 #include "storio_device_mapping.h"
 #include "storaged.h"
 
-
+extern char * pHostArray[];
 
 
 /*_____________________________________
@@ -87,8 +87,10 @@ void * storio_device_relocate_thread(void *arg) {
 		     pRelocate->st->sid,
 		     pRelocate->dev);
 
-    if (storaged_hostname != NULL) {
-      pChar += sprintf(pChar," -H %s",storaged_hostname);
+    if (pHostArray[0] != NULL) {
+      pChar += sprintf (pChar, "-H %s",pHostArray[0]);
+      int idx=1;
+      while (pHostArray[idx] != NULL) pChar += sprintf (pChar, "/%s", pHostArray[idx++]);
     }
             
     errno = 0;	

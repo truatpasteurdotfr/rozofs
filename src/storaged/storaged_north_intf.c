@@ -52,6 +52,7 @@ int storage_read_write_buf_count = 0;   /**< number of buffer allocated for read
 int storage_read_write_buf_sz = 0;      /**<read:write buffer size on north interface */
 
 void *storaged_buffer_pool_p = NULL;  /**< reference of the read/write buffer pool */
+extern char * pHostArray[];
 
 /*
 **__________________________________________________________________________
@@ -418,30 +419,43 @@ int storaged_north_interface_buffer_init(int read_write_buf_count,int read_write
 @retval   RUC_NOK : out of memory
 */
 
-int storaged_north_interface_init(char * host) {
+int storaged_north_interface_init() {
   int ret = -1;
   uint32_t ip = INADDR_ANY; // Default IP to use
   uint16_t port=0;
 
-  // Resolve IP address
-  
-  // Check if storaged must listen on specific IP
-  if (host[0] != 0) {
-    ret = rozofs_host2ip(host,&ip);
-    if (ret != 0)
-      fatal("storaged_north_interface_init can not resolve host \"%s\"", host);
-  }
-
   /* Try to get debug port from /etc/services */    
   port = rozofs_get_service_port_storaged_mproto();
 
-  // Create the listening socket
-  ret = af_inet_sock_listening_create("MPROTO",ip, port, &af_inet_rozofs_north_conf);    
-  if (ret < 0) {
-    fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
-            ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, port);
-    return -1;
-  }
+
+  // No host given => listen on every IP@
+  if (pHostArray[0] == NULL) {
+    ret = af_inet_sock_listening_create("MPROTO",ip, port, &af_inet_rozofs_north_conf);    
+    if (ret < 0) {
+      fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
+              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, port);
+      return -1;
+    }  
+    return 0;
+  }  
+
+  int idx=0;
+  while (pHostArray[idx] != NULL) {
   
+    // Resolve host
+    ret = rozofs_host2ip(pHostArray[idx],&ip);
+    if (ret != 0) {
+      fatal("storaged_north_interface_init can not resolve host \"%s\"", pHostArray[idx]);
+    }
+
+    // Create the listening socket
+    ret = af_inet_sock_listening_create("MPROTO",ip, port, &af_inet_rozofs_north_conf);    
+    if (ret < 0) {
+      fatal("Can't create AF_INET listening socket %u.%u.%u.%u:%d",
+              ip>>24, (ip>>16)&0xFF, (ip>>8)&0xFF, ip&0xFF, port);
+      return -1;
+    }
+    idx++;
+  }  
   return 0;
 }

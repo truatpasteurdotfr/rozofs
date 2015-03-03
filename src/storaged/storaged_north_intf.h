@@ -77,13 +77,11 @@ int storaged_north_interface_buffer_init(int read_write_buf_count,int read_write
   Creation of the north interface listening sockets (AF_INET)
 
 
-@param host   storaged hostname
-
 @retval   : RUC_OK : done
 @retval          RUC_NOK : out of memory
 */
 
-int storaged_north_interface_init(char * host);
+int storaged_north_interface_init();
 
 
 #endif

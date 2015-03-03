@@ -746,16 +746,15 @@ static int get_storage_ports(mstorage_t *s) {
     mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
     memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
 
-    strncpy(mclt.host, s->host, ROZOFS_HOSTNAME_MAX);
+    mclient_new(&mclt, s->host, 0, 0);
 
     struct timeval timeo;
     timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
     timeo.tv_usec = 0;
 
-    init_rpcctl_ctx(&mclt.rpcclt);
 
     /* Initialize connection with storage (by mproto) */
-    if (mclient_initialize(&mclt, timeo) != 0) {
+    if (mclient_connect(&mclt, timeo) != 0) {
         DEBUG("Warning: failed to join storage (host: %s), %s.\n",
                 s->host, strerror(errno));
         goto out;
@@ -1099,8 +1098,9 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
 
         mstorage_t *s = list_entry(iterator, mstorage_t, list);
 
-        mclient_t mclt;
-        strcpy(mclt.host, s->host);
+        mclient_t mclt;	
+	mclient_new(&mclt, s->host, 0, 0);
+
         mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
         memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
 
@@ -1109,10 +1109,8 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
         timeout_mproto.tv_sec = ROZOFS_TMR_GET(TMR_MONITOR_PROGRAM);
         timeout_mproto.tv_usec = 0;
 
-        init_rpcctl_ctx(&mclt.rpcclt);
-
         /* Initialize connection with storage (by mproto) */
-        if (mclient_initialize(&mclt, timeout_mproto) != 0) {
+        if (mclient_connect(&mclt, timeout_mproto) != 0) {
             fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
                     s->host, strerror(errno));
             continue;		    

@@ -69,7 +69,37 @@ static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = {
     {0}
 };
 
-char *storaged_hostname = NULL;
+#define MAX_STORAGED_HOSTNAMES 32
+static char   storaged_hostname_buffer[512];
+char *        pHostArray[MAX_STORAGED_HOSTNAMES]={0};
+
+void parse_host_name(char * host) {
+  int    nb_names=0;
+  char * pHost;
+  char * pNext;
+
+  if (host == NULL) return;
+  
+  strcpy(storaged_hostname_buffer,host);
+  pHost = storaged_hostname_buffer;
+  while (*pHost=='/') pHost++;
+  
+  while (*pHost != 0) {
+  
+    pHostArray[nb_names++] = pHost;
+    
+    pNext = pHost;
+    
+    while ((*pNext != 0) && (*pNext != '/')) pNext++;
+    if (*pNext == '/') {
+      *pNext = 0;
+      pNext++;
+    }  
+
+    pHost = pNext;
+  }
+  pHostArray[nb_names++] = NULL;  
+}
 
 static uint16_t storaged_nrstorages = 0;
 
@@ -180,8 +210,8 @@ static void on_start(void) {
 
     storage_process_filename[0] = 0;
     char *pid_name_p = storage_process_filename;
-    if (storaged_hostname != NULL) {
-        sprintf(pid_name_p, "%s%s_%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, storaged_hostname,storio_instance);
+    if (pHostArray[0] != NULL) {
+        sprintf(pid_name_p, "%s%s_%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, pHostArray[0],storio_instance);
     } else {
         sprintf(pid_name_p, "%s%s.%d.pid", DAEMON_PID_DIRECTORY,STORIO_PID_FILE,storio_instance);
     }
@@ -203,10 +233,6 @@ static void on_start(void) {
     
     conf.instance_id = storio_instance;
     conf.debug_port = rozofs_get_service_port_storio_diag(storio_instance); 
-    if (storaged_hostname != NULL) 
-      strcpy(conf.hostname, storaged_hostname);
-    else 
-      conf.hostname[0] = 0;
       
     storio_start_nb_th(&conf);
 }
@@ -245,8 +271,6 @@ int main(int argc, char *argv[]) {
      */
     rozofs_tmr_init_configuration();
 
-    storaged_hostname = NULL;
-
     while (1) {
 
         int option_index = 0;
@@ -269,7 +293,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'H':
-                storaged_hostname = strdup(optarg);
+                parse_host_name(optarg);
                 break;
 	    case 'i':	
                 errno = 0;

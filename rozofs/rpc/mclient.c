@@ -28,35 +28,37 @@
 
 uint16_t mproto_service_port = 0;
 
-int mclient_initialize(mclient_t * clt, struct timeval timeout) {
-    int status = -1;
-    DEBUG_FUNCTION;
+/*_________________________________________________________________
+** try to connect a mclient
+** 
+** @param  clt      The mclient to connect
+** @param  timeout  The connection timeout
+**
+** @retval          0 when connected / -1 when failed
+*/
+int mclient_connect(mclient_t *clt, struct timeval timeout) {
+  int    idx;
+  char * pHost;
 
-    clt->status = 0;
+  clt->status = 0;
 
-    if (mproto_service_port == 0) {
-      /* Try to get debug port from /etc/services */    
-      mproto_service_port = rozofs_get_service_port_storaged_mproto();
-    }
-    
-    if (rpcclt_initialize(&clt->rpcclt, clt->host, MONITOR_PROGRAM,
+  if (mproto_service_port == 0) {
+    /* Try to resolve the mproto port from /etc/services */    
+    mproto_service_port = rozofs_get_service_port_storaged_mproto();
+  }
+
+  for (idx=0; idx < clt->nb_names; idx++) {
+  
+    pHost = &clt->host[clt->name_idx[idx]];
+    if (rpcclt_initialize(&clt->rpcclt, pHost, MONITOR_PROGRAM,
             MONITOR_VERSION, ROZOFS_RPC_BUFFER_SIZE, ROZOFS_RPC_BUFFER_SIZE,
-            mproto_service_port, timeout) != 0) {
-        // storageclt_release can change errno
-        int xerrno = errno;
-        //storageclt_release(clt);
-        clt->status = 0;
-        errno = xerrno;
-        goto out;
-    }
-    clt->status = 1;
-
-    status = 0;
-out:
-    return status;
+            mproto_service_port, timeout) == 0) {
+	clt->status = 1;
+	return 0;
+    } 
+  }
+  return -1;
 }
-
-// XXX Useless
 
 void mclient_release(mclient_t * clt) {
     DEBUG_FUNCTION;

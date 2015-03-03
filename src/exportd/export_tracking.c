@@ -1667,7 +1667,6 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     if (volume_distribute(e->volume,site_number, &ext_attrs.s.attrs.cid, ext_attrs.s.attrs.sids) != 0)
         goto error;
 
-    int fake_len;
     ext_attrs.s.attrs.mode = mode;
     ext_attrs.s.attrs.uid = uid;
     ext_attrs.s.attrs.gid = gid;
@@ -2557,18 +2556,17 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 
               volume_storage_t *vs = list_entry(q, volume_storage_t, list);
 
-              mclient_t * mclt = (mclient_t *) xmalloc(sizeof (mclient_t));
+              mclient_t * mclt = mclient_allocate(vs->host, cluster->cid, vs->sid);
+	      if (mclt == NULL) {
+	        severe("out of memory");
+		continue;
+	      }
 
-              strncpy(mclt->host, vs->host, ROZOFS_HOSTNAME_MAX);
-              mclt->cid = cluster->cid;
-              mclt->sid = vs->sid;
               struct timeval timeo;
               timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
               timeo.tv_usec = 0;
 
-	      init_rpcctl_ctx(&mclt->rpcclt);
-
-              if (mclient_initialize(mclt, timeo) != 0) {
+              if (mclient_connect(mclt, timeo) != 0) {
                   warning("failed to join: %s,  %s", vs->host, strerror(errno));
               }
 

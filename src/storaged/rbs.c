@@ -91,7 +91,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor, int cid) {
     DEBUG_FUNCTION;
 
     // Copy hostname for this storage
-    strncpy(rb_stor->mclient.host, rb_stor->host, ROZOFS_HOSTNAME_MAX);
+    mclient_new(&rb_stor->mclient, rb_stor->host, 0, 0);
     memset(io_address, 0, STORAGE_NODE_PORTS_MAX * sizeof (mp_io_address_t));
     rb_stor->sclients_nb = 0;
  
@@ -100,7 +100,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor, int cid) {
     timeo.tv_usec = 0;
 
     // Initialize connection with this storage (by mproto)
-    if (mclient_initialize(&rb_stor->mclient, timeo) != 0) {
+    if (mclient_connect(&rb_stor->mclient, timeo) != 0) {
         severe("failed to join storage (host: %s), %s.",
                 rb_stor->host, strerror(errno));
         goto out;

@@ -111,16 +111,17 @@ int exportclt_reload_check_mstorage(epgw_conf_ret_t *ret,exportclt_t *exportclt_
       ** attempt to get its port configuration
       */        
       mclient_t mclt;
-      init_rpcctl_ctx(&mclt.rpcclt);
-      strcpy(mclt.host, mstor->host);
+
       mp_io_address_t io_address[STORAGE_NODE_PORTS_MAX];
       memset(io_address, 0, sizeof (io_address));
+      
+      mclient_new(&mclt, mstor->host, 0, 0);
 
       struct timeval timeout_mproto;
       timeout_mproto.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
       timeout_mproto.tv_usec = 0;
       /* Initialize connection with storage (by mproto) */
-      if (mclient_initialize(&mclt,timeout_mproto) != 0) 
+      if (mclient_connect(&mclt,timeout_mproto) != 0) 
       {
           fprintf(stderr, "Warning: failed to join storage (host: %s), %s.\n",
                   mstor->host, strerror(errno));

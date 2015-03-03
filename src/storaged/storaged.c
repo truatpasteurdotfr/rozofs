@@ -72,7 +72,38 @@ sconfig_t storaged_config;
 
 static storage_t storaged_storages[STORAGES_MAX_BY_STORAGE_NODE] = { { 0 } };
 
-static char *storaged_hostname = NULL;
+#define MAX_STORAGED_HOSTNAMES 32
+static char   storaged_hostname_buffer[512];
+char *        pHostArray[MAX_STORAGED_HOSTNAMES]={0};
+
+void parse_host_name(char * host) {
+  int    nb_names=0;
+  char * pHost;
+  char * pNext;
+
+  if (host == NULL) return;
+  
+  strcpy(storaged_hostname_buffer,host);
+  pHost = storaged_hostname_buffer;
+  while (*pHost=='/') pHost++;
+  
+  while (*pHost != 0) {
+  
+    pHostArray[nb_names++] = pHost;
+    
+    pNext = pHost;
+    
+    while ((*pNext != 0) && (*pNext != '/')) pNext++;
+    if (*pNext == '/') {
+      *pNext = 0;
+      pNext++;
+    }  
+
+    pHost = pNext;
+  }
+  pHostArray[nb_names++] = NULL;  
+}
+
 
 static uint16_t storaged_nrstorages = 0;
 
@@ -184,38 +215,6 @@ pid_t session_id=0;
 static void on_stop() {
     DEBUG_FUNCTION;
 
-#if 0
-    char cmd[128];
-    int ret = -1;
-    char pidfile[128];   
-    /*
-    ** Kill every instance of storio of this host
-    */
-    if (storaged_config.multiio==0) {
-      if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_0.pid",storaged_hostname);
-      else                   sprintf(pidfile,"/var/run/launcher_storio_0.pid");
-      
-      // Stop storio
-      ret = rozo_launcher_stop(pidfile);
-      if (ret !=0) {
-        severe("rozo_launcher_stop(%s) %s",pidfile, strerror(errno));
-      }
-    }
-    else {
-      int idx;
-      for (idx = 0; idx < storaged_nb_ports; idx++) {
-        if (storaged_hostname) sprintf(pidfile,"/var/run/launcher_storio_%s_%d.pid",storaged_hostname,idx+1);
-        else                   sprintf(pidfile,"/var/run/launcher_storio_%d.pid",idx+1);
- 
-        // Stop storio
-	ret = rozo_launcher_stop(pidfile);
-	if (ret !=0) {
-          severe("rozo_launcher_stop(%s) %s",pidfile, strerror(errno));
-	}
-      }
-    }    
-#endif 
-
     svc_exit();
 
     if (storaged_monitoring_svc) {
@@ -288,9 +287,13 @@ static void on_start() {
     if (storaged_config.multiio==0) {
       p = cmd;
       p += sprintf(p, "storio -i 0 -c %s ", storaged_config_file);
-      if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
+      if (pHostArray[0] != NULL) {
+        p += sprintf (p, "-H %s",pHostArray[0]);
+        int idx=1;
+	while (pHostArray[idx] != NULL) p += sprintf (p, "/%s", pHostArray[idx++]);
+      }	
       
-      storio_pid_file(pidfile, storaged_hostname, 0);
+      storio_pid_file(pidfile, pHostArray[0], 0);
       
       // Launch storio
       ret = rozo_launcher_start(pidfile, cmd);
@@ -322,9 +325,13 @@ static void on_start() {
 	
 	p = cmd;
 	p += sprintf(p, "storio -i %d -c %s ", cid, storaged_config_file);
-	if (storaged_hostname) p += sprintf (p, "-H %s", storaged_hostname);
-
-        storio_pid_file(pidfile, storaged_hostname, cid); 
+	if (pHostArray[0] != NULL) {
+          p += sprintf (p, "-H %s",pHostArray[0]);
+          int idx=1;
+	  while (pHostArray[idx] != NULL) p += sprintf (p, "/%s", pHostArray[idx++]);
+	}		
+      
+        storio_pid_file(pidfile, pHostArray[0], cid); 
 	
         // Launch storio
 	ret = rozo_launcher_start(pidfile, cmd);
@@ -339,9 +346,6 @@ static void on_start() {
     conf.instance_id = 0;
     /* Try to get debug port from /etc/services */    
     conf.debug_port = rozofs_get_service_port_storaged_diag();
-
-    if (storaged_hostname != NULL) strcpy(conf.hostname, storaged_hostname);
-    else conf.hostname[0] = 0;
     
     storaged_start_nb_th(&conf);
 }
@@ -382,8 +386,6 @@ int main(int argc, char *argv[]) {
     // Init of the timer configuration
     rozofs_tmr_init_configuration();
 
-    storaged_hostname = NULL;
-
     while (1) {
 
         int option_index = 0;
@@ -411,7 +413,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'H':
-                storaged_hostname = strdup(optarg);
+		parse_host_name(optarg);
                 break;
             case '?':
                 usage();
@@ -451,8 +453,8 @@ int main(int argc, char *argv[]) {
     }
 
     char *pid_name_p = pid_name;
-    if (storaged_hostname != NULL) {
-        sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE, storaged_hostname);
+    if (pHostArray[0] != NULL) {
+        sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE, pHostArray[0]);
     } else {
         sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
     }

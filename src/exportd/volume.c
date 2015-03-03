@@ -225,17 +225,17 @@ void volume_balance(volume_t *volume) {
 
         list_for_each_forward(q, (&cluster->storages[local_site])) {
             volume_storage_t *vs = list_entry(q, volume_storage_t, list);
+	    
             mclient_t mclt;
-            strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
-            mclt.sid = vs->sid;
-            mclt.cid = cluster->cid;
-            init_rpcctl_ctx(&mclt.rpcclt);
+	    
+	    mclient_new(&mclt, vs->host, cluster->cid, vs->sid);
+	    
 
             struct timeval timeo;
             timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
 
-            if (mclient_initialize(&mclt, timeo) != 0) {
+            if (mclient_connect(&mclt, timeo) != 0) {
 
                 // Log if only the storage host was reachable before
                 if (1 == vs->status)
@@ -281,16 +281,14 @@ void volume_balance(volume_t *volume) {
           list_for_each_forward(q, (&cluster->storages[1-local_site])) {
               volume_storage_t *vs = list_entry(q, volume_storage_t, list);
               mclient_t mclt;
-              strncpy(mclt.host, vs->host, ROZOFS_HOSTNAME_MAX);
-              mclt.sid = vs->sid;
-              mclt.cid = cluster->cid;
-              init_rpcctl_ctx(&mclt.rpcclt);
+	      
+	      mclient_new(&mclt, vs->host, cluster->cid, vs->sid);
 
               struct timeval timeo;
               timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
               timeo.tv_usec = 0;
 
-              if (mclient_initialize(&mclt, timeo) != 0) {
+              if (mclient_connect(&mclt, timeo) != 0) {
 
                   // Log if only the storage host was reachable before
                   if (1 == vs->status)
@@ -367,11 +365,11 @@ out:
 static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, sid_t *sids) {
   list_t    *p;
   int        idx;
-  uint64_t   sid_taken;
+  uint64_t   sid_taken=0;
   uint64_t   host;
   int        nb_down=0;
   int        nb_up=0;
-  int        nb_selected; 
+  int        nb_selected=0; 
   int        host_collision; 
   int        decrease_size;
   int        loop;
