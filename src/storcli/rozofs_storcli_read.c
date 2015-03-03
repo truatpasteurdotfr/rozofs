@@ -125,7 +125,7 @@ static inline int rozofs_storcli_rebuild_check(uint8_t layout,rozofs_storcli_pro
 **__________________________________________________________________________
 */
 /**
-* The purpose of that function is to return TRUE if there is at least one projection
+* The purpose of that function is to return TRUE if there is atlbg_in_distribution least one projection
    for which we expect a response from a storage
   
   @param layout : layout association with the file
@@ -585,7 +585,6 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
       ** when a new cluster has been added to the configuration and the client does not
       ** know yet the configuration change
       */
-      severe("sid is unknown !! %d\n",used_dist_set[i]);
       continue;    
     }
     rozofs_storcli_lbg_prj_insert_lbg_and_sid(working_ctx_p->lbg_assoc_tb,lbg_in_distribution,
@@ -597,10 +596,10 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
     lbg_in_distribution++;
 
   }
-  if (lbg_in_distribution < rozofs_safe)
+  if (lbg_in_distribution < rozofs_inverse)
   {
     /*
-    ** we must have  rozofs_safe storages in the distribution vector !!
+    ** we must have  rozofs_inverse storages in the distribution vector !!
     */
     error = EINVAL;
     STORCLI_ERR_PROF(read_sid_miss);

@@ -238,7 +238,7 @@ void rozofs_storcli_truncate_req_init(uint32_t  socket_ctx_idx, void *recv_buf,r
       ** when a new cluster has been added to the configuration and the client does not
       ** know yet the configuration change
       */
-      severe("sid is unknown !! %d\n",storcli_truncate_rq_p->dist_set[i]);
+      //severe("sid is unknown !! %d\n",storcli_truncate_rq_p->dist_set[i]);
       continue;    
     }
      rozofs_storcli_lbg_prj_insert_lbg_and_sid(working_ctx_p->lbg_assoc_tb,lbg_in_distribution,

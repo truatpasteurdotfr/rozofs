@@ -374,6 +374,7 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
   int        nb_selected; 
   int        host_collision; 
   int        decrease_size;
+  int        loop;
   
   uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
   uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
@@ -384,7 +385,9 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
   /*
   ** Loop on the sid and take only one per node on each loop
   */    
-  while (1) {
+  loop = 0;
+  while (loop < 8) {
+    loop++;
 
     idx  = -1;
     host = 0;
@@ -398,11 +401,6 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
       /* SID already selected */
       if ((sid_taken & (1ULL<<idx))!=0) {
 	//info("%d already taken", idx);
-	continue;
-      }
-      /* No space left */
-      if (vs->stat.free == 0) {
-	//info("%d no space left", idx);	  
 	continue;
       }
 
@@ -433,8 +431,11 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
 	goto success;
       }	  
     }
-    if ((nb_selected+host_collision) < rozofs_forward) return  -1;    
+    //info("nb_selected %d host_collision %d", nb_selected, host_collision);
+    
+    if ((nb_selected+host_collision) < rozofs_safe) return  -1;    
   } 
+  return -1;
   
 success:
 
