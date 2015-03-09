@@ -21,8 +21,9 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "2")
 set(MINOR "0")
-set(REVISION "alpha8")
-set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
+set(ROZO_VERSION "${PROJECT_SOURCE_DIR}/rozo_version.sh")
+execute_process(COMMAND ${ROZO_VERSION} OUTPUT_VARIABLE ITERATION)
+set (VERSION "${MAJOR}.${MINOR}.${ITERATION}")
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
 #
