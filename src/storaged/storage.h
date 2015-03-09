@@ -65,6 +65,12 @@
 #define TIME_BETWEEN_2_RB_ATTEMPS 60
 
 
+/*
+** Initialize a CRC32 from a FID
+*/
+static inline uint32_t fid2crc32(uint32_t * fid) {
+  return (fid[0] ^ fid[1] ^ fid[2] ^ fid [3]);
+}
 
 /*
 ** Structure used to monitor device errors

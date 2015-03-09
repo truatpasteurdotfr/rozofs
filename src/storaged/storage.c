@@ -46,12 +46,7 @@
 #include "storio_device_mapping.h"
 #include "storio_crc32.h"
 
-/*
-** Initialize a CRC32 from a FID
-*/
-static inline uint32_t fid2crc32(uint32_t * fid) {
-  return (fid[0] ^ fid[1] ^ fid[2] ^ fid [3]);
-}
+
 
 /*
 ** API to be called when an error occurs on a device

@@ -76,6 +76,7 @@ add_executable(storage_list_rebuilder
     storio_crc32.c
     storio_crc32.h
 )
+
 target_link_libraries(storage_list_rebuilder rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 
@@ -115,6 +116,15 @@ add_executable(storio
 
 target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
+
+add_executable(rozodump
+    rozodump.c
+    storage.h   
+    storio_crc32.c
+    storio_crc32.h
+)
+target_link_libraries(rozodump rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY})
+
 # Install
 install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT storage)
 
@@ -141,6 +151,12 @@ install(TARGETS storio
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     COMPONENT storio
+)
+install(TARGETS rozodump
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT rozodump
 )
 install(FILES storage.conf.sample DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)
 install(FILES storage.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT storage)

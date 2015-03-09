@@ -1,0 +1,72 @@
+.\" Process this file with
+.\" groff -man -Tascii rozodiag.8
+.\"
+.TH ROZODUMP 8 "MARCH 2015" RozoFS "User Manuals"
+.SH NAME
+rozodump \- RozoFS projection file dump tool
+.SH SYNOPSIS
+.B rozodump
+[
+.I options
+]
+.I parameters
+.B
+.SH DESCRIPTION
+.B rozodump
+is a tool that enables to dump the projection files on a storage node.
+.SH PARAMETERS
+.P 
+-p <root path>
+.IP
+This mandatory parameter gives the root path of the storage node. 
+.P
+-f <FID>
+.IP
+This mandatory parameter gives the FID of the projection file to dump.
+.SH OPTIONS
+.IP "-h"
+.RS
+Print a help message. 
+.RE
+.IP "-a <prj id>"
+.RS
+Gives the projection identifier in case it can not be determined automatically.
+.RE
+.IP "-d"
+.RS
+To request for the dump of the block content and not only the block headers.
+.RE
+.IP "-b [<first>][:][<last>]"
+.RS
+To request to dump a block interval. 
+.I <first>:<last> 
+is all the block numbers with <first> and <last>. 
+.I :<last> 
+is all the block before block number <last>. 
+.I <first>: 
+is all the blocks after <first>. 
+.I <first> 
+is only block number <first>.
+.RE
+.\".SH ENVIRONMENT
+.\".SH DIAGNOSTICS
+.SH "REPORTING BUGS"
+Report bugs to <bugs@fizians.org>.
+.SH COPYRIGHT
+Copyright (c) 2013 Fizians SAS. <http://www.fizians.com>
+
+RozoFS is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published
+by the Free Software Foundation, version 2.
+
+RozoFS is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+.SH AUTHOR
+Fizians <http://www.fizians.org>
+.SH "SEE ALSO"
+.BR rozofs (7),
