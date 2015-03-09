@@ -441,7 +441,12 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
 
         {
             char name[256];
-            sprintf(name, "storaged %s", pHostArray[0]);
+	    if (pHostArray[0] == 0) {
+	      sprintf(name, "storaged");
+	    }
+	    else {
+              sprintf(name, "storaged %s", pHostArray[0]);
+	    }  
             uma_dbg_set_name(name);
         }
 
