@@ -103,6 +103,11 @@ int rozofs_sorcli_poll_tx(af_unix_ctx_generic_t  *sock_p,
        goto error;
     }    
     /*
+    ** store the reference of the xmit buffer in the transaction context: might be useful
+    ** in case we want to remove it from a transmit list of the underlying network stacks
+    */
+    rozofs_tx_save_xmitBuf(rozofs_tx_ctx_p,xmit_buf);
+    /*
     ** get the pointer to the payload of the buffer
     */
     header_size_p  = (uint32_t*) ruc_buf_getPayload(xmit_buf);
@@ -241,10 +246,13 @@ void storcli_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p)
                                         (void*)NULL);
   if (ret < 0)
   {
-   /*
-   ** direct need to free the xmit buffer
-   */
-   ruc_buf_freeBuffer(xmit_buf);    
+   if (errno == ENOMEM)
+   {
+     /*
+     ** direct need to free the xmit buffer
+     */
+     ruc_buf_freeBuffer(xmit_buf);
+   }    
   }
 }
 
