@@ -21,9 +21,13 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "2")
 set(MINOR "0")
-set(ROZO_VERSION "${PROJECT_SOURCE_DIR}/rozo_version.sh")
-execute_process(COMMAND ${ROZO_VERSION} OUTPUT_VARIABLE ITERATION)
-set (VERSION "${MAJOR}.${MINOR}.${ITERATION}")
+set(REVISION "alpha9")
+set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
+
+# Get rozo git ref
+# i.e git branch, git hash and date
+execute_process(COMMAND ${PROJECT_SOURCE_DIR}/rozo_git_ref.sh ${PROJECT_SOURCE_DIR} OUTPUT_VARIABLE ROZO_GIT_REF)
+
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
 #
