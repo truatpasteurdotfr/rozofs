@@ -110,7 +110,7 @@ int stc_rng_insert(void *obj_ptr,uint8_t opcode, fid_t fid,uint64_t bid,uint64_t
    {
       p = &stc_rng_request_p[cur_idx];
       if (p->obj_ptr == NULL) continue;
-      if (memcmp(p->fid,fid,sizeof(fid_t))!= 0) continue;
+      if (memcmp(p->fid,fid,sizeof(fid))!= 0) continue;
       if (stc_rng_serialize)
       {
         runnable = 0;
