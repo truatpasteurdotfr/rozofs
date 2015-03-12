@@ -55,7 +55,7 @@ int    block_number=-1;
 int    bsize=0;
 int    bbytes=-1;
 int    dump_data=0;
-unsigned int  first=0,last=-1;
+uint64_t  first=0,last=-1;
 unsigned int prjid = -1;
 
 #define HEXDUMP_COLS 16
@@ -232,18 +232,19 @@ char * ts2string(uint64_t u64) {
   return dateSting;
 }    
 unsigned char buffer[2*1024*33];
-void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr, int spare) {
+void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr, int spare, uint64_t firstBlock) {
   uint16_t rozofs_disk_psize;
   int      fd;
   rozofs_stor_bins_hdr_t * pH;
   int      nb_read;
   uint32_t bbytes = ROZOFS_BSIZE_BYTES(hdr->v0.bsize);
   char     crc32_string[32];
+  uint64_t offset;
   
   if (dump_data == 0) {
-    printf ("+----------+------------+------------+----+------+-------+--------------------------------------------\n");
-    printf ("| %8s | %10s | %10s | %2s | %4s | %5s | %s\n", "block","usr offset", "prj offset", "pj", "size", "crc32", "date");
-    printf ("+----------+------------+------------+----+------+-------+--------------------------------------------\n");  
+    printf ("+------------+------------------+------------+----+------+-------+--------------------------------------------\n");
+    printf ("| %10s | %16s | %10s | %2s | %4s | %5s | %s\n", "block#","file offset", "prj offset", "pj", "size", "crc32", "date");
+    printf ("+------------+------------------+------------+----+------+-------+--------------------------------------------\n");
   }
 
   // Open bins file
@@ -291,15 +292,29 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
     }
   }
   
+
   /*
-  ** Reading a block
+  ** Where to start reading from 
   */
-  uint64_t offset = 0;
+  if (first == 0) { 
+    offset = 0;
+  }
+  else {
+    if (first <= firstBlock) {
+      offset = 0;
+    }
+    else {
+      offset = (first-firstBlock)*rozofs_disk_psize;
+    }
+  }
+  
   int idx;
   nb_read = 1;
   uint64_t bid;
   
-  
+  /*
+  ** Reading blocks
+  */  
   while (nb_read) {
   
     // Read nb_proj * (projection + header)
@@ -317,9 +332,10 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
     
       pH = (rozofs_stor_bins_hdr_t*) &buffer[idx*rozofs_disk_psize];
       
-      bid = (offset/rozofs_disk_psize)+idx;
+      bid = (offset/rozofs_disk_psize)+idx+firstBlock;
       
-      if ((bid < first) || (bid> last)) continue;
+      if (bid < first) continue;
+      if (bid > last)  break;
      
       uint32_t save_crc32 = pH->s.filler;
       pH->s.filler = 0;
@@ -339,7 +355,7 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
       	
       if (dump_data == 0) {
       
-	printf ("| %8llu | %10llu | %10llu | %2d | %4d | %5s | %s\n",
+	printf ("| %10llu | %16llu | %10llu | %2d | %4d | %5s | %s\n",
         	(long long unsigned int)bid,
         	(long long unsigned int)bbytes * bid,
         	(long long unsigned int)offset+(idx*rozofs_disk_psize),
@@ -350,7 +366,7 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
        }		
        else {
 	printf("_________________________________________________________________________________________\n");
-	printf("Block %llu / offset user %llu / offset projection %llu\n", 
+	printf("Block# %llu / file offset %llu / projection offset %llu\n", 
         	(unsigned long long)bid, (unsigned long long)(bbytes * bid), (unsigned long long)(offset+(idx*rozofs_disk_psize)));
 	printf("prj id %d / length %d / CRC %s / time stamp %s\n", 
         	pH->s.projection_id,pH->s.effective_length,crc32_string, ts2string(pH->s.timestamp)); 	
@@ -362,7 +378,7 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
     offset += (nb_read*rozofs_disk_psize);
   }
   if (dump_data == 0) {
-    printf ("+----------+------------+------------+----+------+-------+--------------------------------------------\n");  
+    printf ("+------------+------------------+------------+----+------+-------+--------------------------------------------\n");
   }
   close(fd);
 }    
@@ -398,7 +414,10 @@ int main(int argc, char *argv[]) {
   rozofs_stor_bins_file_hdr_t hdr;
   char          path[256];
   int           spare;
-   
+  int           block_per_chunk;
+  int           chunk;
+  int           chunk_stop;
+  
   // Get utility name
   utility_name = basename(argv[0]); 
   
@@ -474,24 +493,24 @@ int main(int argc, char *argv[]) {
         printf("%s option set but missing value !!!\n", argv[idx-1]);
         usage();
       } 
-      ret = sscanf(argv[idx], "%u:%u", &first, &last);
+      ret = sscanf(argv[idx], "%llu:%llu", (long long unsigned int *)&first, (long long unsigned int *)&last);
       if (ret == 2) {
         if (first>last) {
-	  printf("first block index %d must be lower than last block index %d !!!\n", first, last);
+	  printf("first block index %llu must be lower than last block index %llu !!!\n", (long long unsigned int)first, (long long unsigned int)last);
 	  usage();
 	}
         idx++;
 	continue;
       }
       
-      ret = sscanf(argv[idx], ":%u", &last);
+      ret = sscanf(argv[idx], ":%llu", (long long unsigned int *)&last);
       if (ret == 1) {
         first = 0;
         idx++;
 	continue;
       }
             
-      ret = sscanf(argv[idx], "%u", &first);
+      ret = sscanf(argv[idx], "%llu", (long long unsigned int *)&first);
       if (ret == 1) {
         if (argv[idx][strlen(argv[idx])-1]==':') {
           last = -1;
@@ -535,13 +554,31 @@ int main(int argc, char *argv[]) {
     printf("No header file found for %s under %s !!!\n",pFid,pRoot);
     return -1;
   }
+  
+  block_per_chunk = ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(hdr.v0.bsize);
    
-  int chunk = 0;   
-  while(chunk<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {
+  
+  if (first == 0) {
+    chunk = 0;
+  }
+  else {
+    chunk = first / block_per_chunk;
+  }  
+  
+  if (last == -1) {
+    chunk_stop = ROZOFS_STORAGE_MAX_CHUNK_PER_FILE+1;
+  }
+  else {
+    chunk_stop = (last / block_per_chunk)+1;
+  }  
+     
+  while(chunk<chunk_stop) {
   
       
-    if (hdr.v0.device[chunk] == ROZOFS_EOF_CHUNK) break;
-  
+    if (hdr.v0.device[chunk] == ROZOFS_EOF_CHUNK) {
+      printf ("\n============ CHUNK %d EOF   ================\n", chunk);      
+      break;
+    }
     if (hdr.v0.device[chunk] == ROZOFS_EMPTY_CHUNK) {
       printf ("\n============ CHUNK %d EMPTY ================\n", chunk);
       chunk++;
@@ -553,7 +590,7 @@ int main(int argc, char *argv[]) {
     storage_complete_path_with_chunk(chunk,path);
     printf ("\n============ CHUNK %d ==  %s ================\n", chunk, path);
 
-    read_chunk_file(fid,path,&hdr,spare);
+    read_chunk_file(fid,path,&hdr,spare, chunk*block_per_chunk);
     chunk++;
   }
   return 0;
