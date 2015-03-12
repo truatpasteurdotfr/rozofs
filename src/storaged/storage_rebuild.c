@@ -1211,7 +1211,7 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
             for (i=0; i < storage_to_rebuild->mapper_redundancy; i++) {
 	          int dev;
 
-              dev = storage_mapper_device(file_hdr.fid,i,storage_to_rebuild->mapper_modulo);
+              dev = storage_mapper_device(file_hdr.v0.fid,i,storage_to_rebuild->mapper_modulo);
 
  	      if (dev == device_to_rebuild) {
 		// Let's re-write the header file  	      
@@ -1228,16 +1228,16 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
           // Check whether this file has some chunk of data on the device to rebuild
 	  for (chunk=0; chunk<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE; chunk++) {
 	  
-	      if (file_hdr.device[chunk] == ROZOFS_EOF_CHUNK)  break;
+	      if (file_hdr.v0.device[chunk] == ROZOFS_EOF_CHUNK)  break;
 	      
-              if (file_hdr.device[chunk] != device_to_rebuild) continue;
+              if (file_hdr.v0.device[chunk] != device_to_rebuild) continue;
 	   
               /*
 	      ** This file has a chunk on the device to rebuild
 	      ** Check whether this FID is already set in the list
 	      */
-	      if (rb_hash_table_search_chunk(file_hdr.fid,chunk) == 0) {
-	        rb_hash_table_insert_chunk(file_hdr.fid,chunk);	
+	      if (rb_hash_table_search_chunk(file_hdr.v0.fid,chunk) == 0) {
+	        rb_hash_table_insert_chunk(file_hdr.v0.fid,chunk);	
 	      }
 	      else {
 		continue;
@@ -1248,19 +1248,19 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
 	      ** to update it
 	      */
 	      if (st2rebuild.layout == 0xFF) {
-	        ret = rbs_write_st2rebuild(file_hdr.layout,cfgfd);
+	        ret = rbs_write_st2rebuild(file_hdr.v0.layout,cfgfd);
 		if (ret != 0) goto out;
               }
 
-	      memcpy(file_entry.fid,file_hdr.fid, sizeof (fid_t));
-	      file_entry.layout      = file_hdr.layout;
-	      file_entry.bsize       = file_hdr.bsize;
+	      memcpy(file_entry.fid,file_hdr.v0.fid, sizeof (fid_t));
+	      file_entry.layout      = file_hdr.v0.layout;
+	      file_entry.bsize       = file_hdr.v0.bsize;
               file_entry.todo        = 1;     
 	      file_entry.relocate    = relocate;
-	      file_entry.block_start = chunk * ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(file_hdr.bsize);  
-	      file_entry.block_end   = file_entry.block_start + ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(file_hdr.bsize) -1;  
+	      file_entry.block_start = chunk * ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(file_hdr.v0.bsize);  
+	      file_entry.block_end   = file_entry.block_start + ROZOFS_STORAGE_NB_BLOCK_PER_CHUNK(file_hdr.v0.bsize) -1;  
 
-              memcpy(file_entry.dist_set_current, file_hdr.dist_set_current, sizeof (sid_t) * ROZOFS_SAFE_MAX);	    
+              memcpy(file_entry.dist_set_current, file_hdr.v0.dist_set_current, sizeof (sid_t) * ROZOFS_SAFE_MAX);	    
 
               ret = write(cfgfd[current_file_index],&file_entry,sizeof(file_entry)); 
 	      if (ret != sizeof(file_entry)) {

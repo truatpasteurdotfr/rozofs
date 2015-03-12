@@ -30,6 +30,7 @@ extern int crc32c_generate_enable;  /**< assert to 1 for CRC generation  */
 extern int crc32c_check_enable;  /**< assert to 1 for CRC generation  */
 extern uint64_t storio_crc_error;
  
+ uint32_t crc32c(uint32_t crc, const void *buf, size_t len); 
  void crc32c_init(int generate_enable,int check_enable,int hw_forced);
  
 /*

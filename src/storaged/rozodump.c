@@ -44,6 +44,7 @@
 
 #include <rozofs/rozofs_srv.h>
 #include "storage.h"
+#include "storio_crc32.h"
 
 int firstBlock = 0;
 char * filename[128] = {NULL};
@@ -101,6 +102,7 @@ int rozofs_storage_get_device_number(char * root) {
     sprintf(path, "%s/%d", root, device);
     if (access(path, F_OK) == -1) return device; 
   }
+  return 0;
 }
 
 int read_hdr_file(char * root, int devices, int slice, rozofs_stor_bins_file_hdr_t * hdr, uuid_t uuid, int *spare) {
@@ -108,7 +110,6 @@ int read_hdr_file(char * root, int devices, int slice, rozofs_stor_bins_file_hdr
   int              dev;
   int              Zdev=-1;
   struct stat      st;
-  int              nbHdr=0;
   uint64_t         ts=0;
   int              fd;
   int              safe;
@@ -158,35 +159,45 @@ int read_hdr_file(char * root, int devices, int slice, rozofs_stor_bins_file_hdr
       }
       close(fd);  
       printf("%15s : %s\n","Header file",path);
-      printf("%15s : %d\n","version",hdr->version);
-      printf("%15s : %d\n","layout",hdr->layout);
-      printf("%15s : %d\n","bsize",hdr->bsize);
-      printf("%15s : %d","distibution",hdr->dist_set_current[0]);
-      safe    = rozofs_get_rozofs_safe(hdr->layout);
+      printf("%15s : %d\n","version",hdr->v0.version);
+      printf("%15s : %d\n","layout",hdr->v0.layout);
+      printf("%15s : %d\n","bsize",hdr->v0.bsize);
+      if (hdr->v0.version>0) {
+        printf("%15s : %d/%d\n","cid/sid",hdr->v1.cid,hdr->v1.sid); 	 
+      }
+      printf("%15s : %d","distibution",hdr->v0.dist_set_current[0]);
+      safe    = rozofs_get_rozofs_safe(hdr->v0.layout);
       int i;
       for (i=1; i< safe; i++) {
-        printf("-%d",hdr->dist_set_current[i]);
+        printf("-%d",hdr->v0.dist_set_current[i]);
       }
       printf("\n");
       printf("%15s : ","devices/chunk");
       i = 0;
       while(i<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {
-        if (hdr->device[i] == ROZOFS_EOF_CHUNK) break;
-	if (hdr->device[i] == ROZOFS_EMPTY_CHUNK) printf("/E");
-	else                                      printf("/%d",hdr->device[i]);
+        if (hdr->v0.device[i] == ROZOFS_EOF_CHUNK) break;
+	if (hdr->v0.device[i] == ROZOFS_EMPTY_CHUNK) printf("/E");
+	else                                      printf("/%d",hdr->v0.device[i]);
 	i++;
       }
       printf("\n");
       
-      uint32_t save_crc32 = hdr->crc32;
-      hdr->crc32 = 0;
+      uint32_t save_crc32 = hdr->v0.crc32;
+      hdr->v0.crc32 = 0;
       uint32_t crc32;
       
       if (save_crc32 != 0) {
+        int len;
         printf("%15s : 0x%x","crc32",save_crc32);
         crc32 = fid2crc32((uint32_t *)uuid);
-        crc32 = crc32c(crc32,(char *) hdr, sizeof(rozofs_stor_bins_file_hdr_t));
-        hdr->crc32 = save_crc32;
+	if (hdr->v0.version == 0) {
+	  len = sizeof(hdr->v0);
+	}
+	else {
+	  len = sizeof(*hdr);
+	}    
+        crc32 = crc32c(crc32,(char *) hdr, len);
+        hdr->v0.crc32 = save_crc32;
 	
 	if (save_crc32 != crc32) {
           printf(" expecting 0x%x !!!\n",crc32);
@@ -207,7 +218,7 @@ char * ts2string(uint64_t u64) {
   time_t   input = (u64/1000000);
   uint64_t micro = (u64%1000000);
   struct tm  ts;
-  int len;
+  int len=0;
   
   if (u64==0) {
     sprintf(&dateSting[len],"Empty");
@@ -226,7 +237,7 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
   int      fd;
   rozofs_stor_bins_hdr_t * pH;
   int      nb_read;
-  uint32_t bbytes = ROZOFS_BSIZE_BYTES(hdr->bsize);
+  uint32_t bbytes = ROZOFS_BSIZE_BYTES(hdr->v0.bsize);
   char     crc32_string[32];
   
   if (dump_data == 0) {
@@ -245,27 +256,41 @@ void read_chunk_file(uuid_t fid, char * path, rozofs_stor_bins_file_hdr_t * hdr,
   /*
   ** Retrieve the projection size on disk
   */
-  if (spare) {
-    rozofs_disk_psize = rozofs_get_max_psize_in_msg(hdr->layout,hdr->bsize);
-  }  
-  else if (prjid != -1) {
-    rozofs_disk_psize = rozofs_get_psizes_on_disk(hdr->layout,hdr->bsize,prjid);
-  }
-  else {
-    // Read 1rst block
-    nb_read = pread(fd, buffer, sizeof(rozofs_stor_bins_hdr_t), 0);
-    if (nb_read<0) {
-      printf("pread(%s) %s\n",path,strerror(errno));
-      return;      
+  rozofs_disk_psize = rozofs_get_max_psize_in_msg(hdr->v0.layout,hdr->v0.bsize);
+  if (spare==0) {
+  
+    /* Header version 1. Find the sid in  the distribution */
+    if (hdr->v0.version == 1) {
+      int fwd = rozofs_get_rozofs_forward(hdr->v0.layout);
+      int idx;
+      for (idx=0; idx< fwd;idx++) {
+	if (hdr->v0.dist_set_current[idx] != hdr->v1.sid) continue;
+	rozofs_disk_psize = rozofs_get_psizes_on_disk(hdr->v0.layout,hdr->v0.bsize,idx);
+	break; 
+      }
+    }  
+    /* Projection id given as parameter */
+    else if (prjid != -1) {
+      rozofs_disk_psize = rozofs_get_psizes_on_disk(hdr->v0.layout,hdr->v0.bsize,prjid);
     }
-    pH = (rozofs_stor_bins_hdr_t*)buffer;
-    if (pH->s.timestamp == 0) {
-      printf("Can not tell projection id\n");
-      return;            
+    
+    /* Version 0 without projection given as parameter*/
+    else {
+      // Read 1rst block
+      nb_read = pread(fd, buffer, sizeof(rozofs_stor_bins_hdr_t), 0);
+      if (nb_read<0) {
+	printf("pread(%s) %s\n",path,strerror(errno));
+	return;      
+      }
+      pH = (rozofs_stor_bins_hdr_t*)buffer;
+      if (pH->s.timestamp == 0) {
+	printf("Can not tell projection id\n");
+	return;            
+      }
+      rozofs_disk_psize = rozofs_get_psizes_on_disk(hdr->v0.layout,hdr->v0.bsize,pH->s.projection_id);
     }
-    rozofs_disk_psize = rozofs_get_psizes_on_disk(hdr->layout,hdr->bsize,pH->s.projection_id);
   }
-
+  
   /*
   ** Reading a block
   */
@@ -508,22 +533,22 @@ int main(int argc, char *argv[]) {
   */
   if (read_hdr_file(pRoot,devices, slice, &hdr, fid, &spare)!= 0) {
     printf("No header file found for %s under %s !!!\n",pFid,pRoot);
-    return;
+    return -1;
   }
    
   int chunk = 0;   
   while(chunk<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE) {
   
       
-    if (hdr.device[chunk] == ROZOFS_EOF_CHUNK) break;
+    if (hdr.v0.device[chunk] == ROZOFS_EOF_CHUNK) break;
   
-    if (hdr.device[chunk] == ROZOFS_EMPTY_CHUNK) {
+    if (hdr.v0.device[chunk] == ROZOFS_EMPTY_CHUNK) {
       printf ("\n============ CHUNK %d EMPTY ================\n", chunk);
       chunk++;
       continue;
     }
     
-    storage_build_bins_path(path, pRoot, hdr.device[chunk], spare, slice);
+    storage_build_bins_path(path, pRoot, hdr.v0.device[chunk], spare, slice);
     storage_complete_path_with_fid(fid, path);
     storage_complete_path_with_chunk(chunk,path);
     printf ("\n============ CHUNK %d ==  %s ================\n", chunk, path);
@@ -531,5 +556,5 @@ int main(int argc, char *argv[]) {
     read_chunk_file(fid,path,&hdr,spare);
     chunk++;
   }
-  
+  return 0;
 }
