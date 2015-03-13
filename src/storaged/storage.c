@@ -39,12 +39,229 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/rozofs_srv.h>
-//#include <rozofs/core/rozofs_optim.h>
+#include <rozofs/core/uma_dbg_api.h>
 #include "storio_cache.h"
 #include "storio_bufcache.h"
 #include "storio_device_mapping.h"
 #include "storio_device_mapping.h"
 #include "storio_crc32.h"
+
+
+/*
+=================== STORIO LOG SERVICE ====================================
+
+This service logs in a small buffer the first encountered errors.
+The logg cn be displayed through rozodiag
+The log can be reset through rozodiag
+
+===========================================================================
+*/
+int storio_error_log_initialized = 0;
+
+/*
+** A device access error record
+*/
+typedef struct _storio_device_error_log_record_t {
+  fid_t            fid;
+  uint16_t         nb_blocks;
+  uint8_t          chunk;
+  uint8_t          device;
+  uint32_t         line;
+  uint32_t         bid;
+  uint32_t         error;
+  uint64_t         ts;
+} storio_device_error_log_record_t;
+
+/*
+** Dimensionning factor of the log
+*/
+#define STORIO_DEVICE_ERROR_LOG_MAX_RECORD      128
+
+typedef struct _storio_device_error_log {
+  pthread_rwlock_t                  lock; 
+  uint32_t                          next_record;
+  storio_device_error_log_record_t  record[STORIO_DEVICE_ERROR_LOG_MAX_RECORD];
+} storio_device_error_log_t;
+
+storio_device_error_log_t storio_device_error_log;
+
+
+/*_______________________________________________________________________
+* Write an error in the next log entry
+*
+* @param fid        The FID tha has encountered an error
+* @param line       The line where the error is called
+* @param device     The device on which the error occured
+* @param chunk      The chunk of the FID on which the   error occured
+* @param bid        The block where the error occured
+* @param nb_blocks  The block of the chunk where the error occured
+* @param error      The errno
+*
+*/
+void storio_device_error_log_new(fid_t fid, int line, uint8_t device, uint8_t chunk, uint32_t bid, uint16_t nb_blocks, uint32_t error) {
+  uint32_t                          record_nb;
+  storio_device_error_log_record_t *p ;
+  
+  /*
+  ** Service must have been initialized
+  */ 
+  if (storio_error_log_initialized==0) return;
+   
+  /*
+  ** No space left in the log
+  */
+  if (storio_device_error_log.next_record >= STORIO_DEVICE_ERROR_LOG_MAX_RECORD) return;
+
+  /*
+  ** Take the lock
+  */
+  if (pthread_rwlock_wrlock(&storio_device_error_log.lock) != 0) {
+    return;
+  }
+  
+  /*
+  ** Get a record number
+  */ 
+  record_nb = storio_device_error_log.next_record;
+  storio_device_error_log.next_record++;
+  
+  /*
+  ** release the lock
+  */
+  pthread_rwlock_unlock(&storio_device_error_log.lock);  
+
+  /*
+  ** Check  the record number again
+  */
+  if (record_nb >= STORIO_DEVICE_ERROR_LOG_MAX_RECORD) return;
+  
+  p = &storio_device_error_log.record[record_nb];
+  memcpy(p->fid, fid,sizeof(fid_t));
+  p->nb_blocks   = nb_blocks;
+  p->line        = line;
+  p->device      = device;
+  p->chunk       = chunk;
+  p->bid         = bid;
+  p->error       = error;
+  p->ts          = time(NULL);
+}
+/*_______________________________________________________________________
+* Reset the error log
+*/
+void storio_device_error_log_reset() {
+   
+  /*
+  ** Take the lock
+  */
+  if (pthread_rwlock_wrlock(&storio_device_error_log.lock) != 0) {
+    return;
+  }
+  
+  /*
+  ** Reset the log
+  */ 
+  storio_device_error_log.next_record = 0;
+  memset(&storio_device_error_log.record[0],0,sizeof(storio_device_error_log_record_t)*STORIO_DEVICE_ERROR_LOG_MAX_RECORD);
+
+  /*
+  ** release the lock
+  */
+  pthread_rwlock_unlock(&storio_device_error_log.lock);  
+}
+
+/*_______________________________________________________________________
+* Display command syntax
+*/
+void storio_device_error_log_help(char * pChar) {
+  pChar += sprintf(pChar,"usage:\n");
+  pChar += sprintf(pChar,"log reset  : reset error logs\n");
+  pChar += sprintf(pChar,"log show   : display error logs\n");
+}
+/*_______________________________________________________________________
+* Display the error log
+*/
+void storio_device_error_log_display (char * argv[], uint32_t tcpRef, void *bufRef) {
+  char                             * pChar = uma_dbg_get_buffer();
+  int                                idx;
+  int                                nb_record = storio_device_error_log.next_record;
+  storio_device_error_log_record_t * p = storio_device_error_log.record;
+  struct tm                          ts;
+  char                               dateSting[128]; 
+     
+  if (argv[1] == NULL) {
+    storio_device_error_log_help(pChar);
+    uma_dbg_send(tcpRef,bufRef,TRUE,pChar); 
+    return;
+  }
+    
+  if (strcmp(argv[1],"reset")==0) {
+    storio_device_error_log_reset();
+    uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done\n");
+    return;
+  }
+  
+  if (strcmp(argv[1],"show")==0) {  
+  
+    pChar += sprintf(pChar, "nb log  : %d/%d\n",nb_record,STORIO_DEVICE_ERROR_LOG_MAX_RECORD);
+        
+    if (nb_record == 0) {
+      uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+      return;
+    } 
+    pChar += sprintf(pChar, "git ref : %s\n",ROZO_GIT_REF);
+
+    
+    pChar += sprintf(pChar, "+-----+--------------------------------------+-------+-----+-----+-----------+--------------------------------+-------------------+\n");
+    pChar += sprintf(pChar, "| %-3s | %-36s | %-5s | %-3s | %-3s | %-9s | %-30s | %-17s |\n", "#","FID","line","dev","chk", "bid", "error","time stamp");
+   pChar += sprintf(pChar, "+-----+--------------------------------------+-------+-----+-----+-----------+--------------------------------+-------------------+\n");
+    for (idx=0; idx < nb_record; idx++,p++) {
+      char fid_string[40];
+      uuid_unparse(p->fid, fid_string);
+      time_t t = p->ts;
+      ts = *localtime(&t);
+      strftime(dateSting, sizeof(dateSting), "%y/%m/%d %H:%M:%S", &ts);
+      pChar += sprintf(pChar, "| %3d | %-36s | %5d | %3d | %3d | %9u | %-30s | %-17s |\n", 
+                       idx, fid_string, p->line, p->device, p->chunk, p->bid, strerror(p->error),dateSting);
+    } 
+  }
+   pChar += sprintf(pChar, "+-----+--------------------------------------+-------+-----+-----+-----------+--------------------------------+-------------------+\n");
+  uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+}
+
+/*_______________________________________________________________________
+* Initialize the storio error log service
+*
+*/
+void storio_device_error_log_init(void) {
+ 
+  memset((char*)&storio_device_error_log,0,sizeof(storio_device_error_log_t));
+
+  if (pthread_rwlock_init(&storio_device_error_log.lock, NULL) != 0) {
+    severe("pthread_rwlock_init %s",strerror(errno));
+  }
+  
+  uma_dbg_addTopic("log", storio_device_error_log_display);
+  
+  storio_error_log_initialized = 1;
+}
+
+
+#define storio_fid_error(fid,dev,chunk,bid,nb_blocks) storio_device_error_log_new(fid, __LINE__, dev, chunk, bid, nb_blocks, errno)
+#define storio_hdr_error(fid,dev)                     storio_device_error_log_new(fid, __LINE__, dev, 0, 0, 0, errno) 
+
+/*
+=================== END OF STORIO LOG SERVICE ====================================
+*/
+
+
+
+
+
+
+
+
+
+
 /*
  ** Write a header/mapper file on a device
 
@@ -62,9 +279,12 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   /*
   ** Create directory when needed */
   if (storage_create_dir(path) < 0) {   
+    storio_hdr_error(hdr->v0.fid,dev);
     storage_error_on_device(st,dev);
     return -1;
   }   
+
+   
       
   strcpy(my_path,path); // Not to modify input path
   storage_complete_path_with_fid(hdr->v0.fid, my_path);  
@@ -72,6 +292,7 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   // Open bins file
   fd = open(my_path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
   if (fd < 0) {	
+    storio_hdr_error(hdr->v0.fid, dev);
     storage_error_on_device(st,dev);    
     return -1;
   }      
@@ -81,6 +302,7 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   close(fd);
 
   if (nb_write != sizeof (*hdr)) {
+    storio_hdr_error(hdr->v0.fid, dev);
     storage_error_on_device(st,dev);  
     return -1;
   }
@@ -227,11 +449,12 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
 	            
     // Check that this directory already exists, otherwise it will be create
     if (storage_create_dir(path) < 0) {
+      storio_hdr_error(fid, dev);   
       device_result[dev] = errno;		    
       storage_error_on_device(st,hdrDevice);
       continue;
     }   
-
+        
     /* 
     ** Fullfill the path with the name of the mapping file
     */
@@ -296,6 +519,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     // Open hdr file
     fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
+      storio_hdr_error(fid, dev);       
       device_result[dev] = errno;	
       continue;
     }
@@ -304,6 +528,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     close(fd);
     
     if (nb_read < 0) {
+      storio_hdr_error(fid, dev);       
       device_result[dev] = EINVAL;	
       storage_error_on_device(st,device_id[dev]);
       continue;
@@ -522,6 +747,8 @@ int storage_initialize(storage_t *st,
     int dev;
 
     DEBUG_FUNCTION;
+
+    storio_device_error_log_init();
 
     if (!realpath(root, st->root))
         goto out;
@@ -965,6 +1192,7 @@ open:
     
     // Check that this directory already exists, otherwise it must be created
     if (storage_create_dir(path) < 0) {
+      storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);
       storage_error_on_device(st,device[chunk]);
       goto out;
     }
@@ -979,6 +1207,7 @@ open:
     
         // Something definitively wrong on device
         if (errno != ENOENT) {
+          storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);	
 	  storage_error_on_device(st,device[chunk]); 
 	  goto out;
 	}
@@ -986,6 +1215,7 @@ open:
         // If device id was not given as input, the file path has been deduced from 
 	// the header files or should have been allocated. This is a definitive error !!!
 	if (device_id_is_given == 0) {
+          storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);
 	  storage_error_on_device(st,device[chunk]); 
 	  goto out;
 	}
@@ -1059,6 +1289,8 @@ open:
     } 
 
     if (nb_write != length_to_write) {
+
+	storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);
         
 	/*
 	** Only few bytes written since no space left on device 
@@ -1067,7 +1299,6 @@ open:
 	  errno = ENOSPC;
 	  goto out;
         }
-	
 	storage_error_on_device(st,device[chunk]);
 	// A fault probably localized to this FID is detected   
 	*is_fid_faulty = 1;  
@@ -1141,6 +1372,7 @@ open:
     
     // Check that this directory already exists, otherwise it must be created
     if (storage_create_dir(path) < 0) {
+      storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);    
       storage_error_on_device(st,device[chunk]);
       goto out;
     }
@@ -1155,6 +1387,7 @@ open:
     
         // Something definitively wrong on device
         if (errno != ENOENT) {
+          storio_fid_error(fid, device[chunk], chunk, bid, nb_proj); 	
 	  storage_error_on_device(st,device[chunk]); 
 	  goto out;
 	}
@@ -1162,6 +1395,7 @@ open:
         // If device id was not given as input, the file path has been deduced from 
 	// the header files or should have been allocated. This is a definitive error !!!
 	if (device_id_is_given == 0) {
+          storio_fid_error(fid, device[chunk], chunk, bid, nb_proj); 		
 	  storage_error_on_device(st,device[chunk]); 
 	  goto out;
 	}
@@ -1340,6 +1574,7 @@ retry:
     
         // Something definitively wrong on device
         if (errno != ENOENT) {
+          storio_fid_error(fid, device[chunk], chunk, bid, nb_proj); 		
 	  storage_error_on_device(st,device[chunk]); 
 	  goto out;
 	}
@@ -1347,6 +1582,7 @@ retry:
         // If device id was not given as input, the file path has been deduced from 
 	// the header files and so should exist. This is an error !!!
 	if (device_id_is_given == 0) {
+          storio_fid_error(fid, device[chunk], chunk, bid, nb_proj); 			  
 	  errno = EIO; // Data file is missing !!!
 	  *is_fid_faulty = 1;
 	  storage_error_on_device(st,device[chunk]); 
@@ -1399,6 +1635,7 @@ retry:
     
     // Check error
     if (nb_read == -1) {
+        storio_fid_error(fid, device[chunk], chunk, bid, nb_proj); 			
         severe("pread failed: %s", strerror(errno));
 	storage_error_on_device(st,device[chunk]);  
 	// A fault probably localized to this FID is detected   
@@ -1565,6 +1802,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
 
     // Check that this directory already exists, otherwise it will be create
     if (storage_create_dir(path) < 0) {
+      storio_fid_error(fid, device[chunk], chunk, bid, last_seg); 		    
       storage_error_on_device(st,file_hdr.v0.device[chunk]);
       goto out;
     }   
@@ -1577,6 +1815,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
+        storio_fid_error(fid, device[chunk], chunk, bid, last_seg); 		        
 	storage_error_on_device(st,file_hdr.v0.device[chunk]);  				    
         severe("open failed (%s) : %s", path, strerror(errno));
         goto out;
@@ -1626,6 +1865,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
 	nb_write = pwrite(fd, data, length_to_write, bins_file_offset);
 	if (nb_write != length_to_write) {
             status = -1;
+            storio_fid_error(fid, device[chunk], chunk, bid, last_seg); 		    
             severe("pwrite failed on last segment: %s", strerror(errno));
 	    storage_error_on_device(st,file_hdr.v0.device[chunk]); 
 	    // A fault probably localized to this FID is detected   
@@ -1645,6 +1885,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
 
 	nb_write = pwrite(fd, &bins_hdr, sizeof(bins_hdr), bins_file_offset);
 	if (nb_write != sizeof(bins_hdr)) {
+            storio_fid_error(fid, device[chunk], chunk, bid, last_seg); 	
             severe("pwrite failed on last segment header : %s", strerror(errno));
 	    storage_error_on_device(st,file_hdr.v0.device[chunk]); 
 	    // A fault probably localized to this FID is detected   
@@ -1657,6 +1898,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
 	        + rozofs_get_psizes(layout,bsize,proj_id) * sizeof (bin_t));
 	nb_write = pwrite(fd, &last_timestamp, sizeof(last_timestamp), bins_file_offset);
 	if (nb_write != sizeof(last_timestamp)) {
+            storio_fid_error(fid, device[chunk], chunk, bid, last_seg); 	
             severe("pwrite failed on last segment footer : %s", strerror(errno));
 	    storage_error_on_device(st,file_hdr.v0.device[chunk]);  				    
 	    // A fault probably localized to this FID is detected   

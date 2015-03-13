@@ -329,8 +329,8 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       pChar += sprintf(pChar,",%d", faulty_devices[dev]);  
     } 
     pChar += sprintf(pChar,"\n");
-
-  }    
+    pChar += sprintf(pChar,"    !!! Check for errors in \"log show\" rozodiag topic\n");
+  }  
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }
