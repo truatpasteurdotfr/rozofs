@@ -122,9 +122,7 @@ typedef union
    } s;
 } ext_mattr_t;
 
-#define ROZOFS_I_EXTRA_ISIZE (sizeof(mattr_t)+sizeof(fid_t)+ 2*sizeof(uint32_t)+\
-                              2*sizeof(uint32_t)+3*sizeof(uint64_t)+\
-			      sizeof(mdirent_fid_name_info_t))
+#define ROZOFS_I_EXTRA_ISIZE (sizeof(struct inode_internal_t))
 
 #define ROZOFS_I_EXTRA_ISIZE_BIS (sizeof(ext_mattr_t) -sizeof(struct inode_internal_t))
 #endif
