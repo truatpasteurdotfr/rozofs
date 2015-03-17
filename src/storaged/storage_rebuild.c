@@ -55,6 +55,7 @@
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rozofs_timer_conf.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "config.h"
 #include "sconfig.h"
@@ -1873,7 +1874,7 @@ int main(int argc, char *argv[]) {
 		  int ret;
 
 		  fid2rebuild_string = optarg;
-		  ret = uuid_parse(fid2rebuild_string,fid2rebuild);
+		  ret = rozofs_uuid_parse(fid2rebuild_string,fid2rebuild);
 		  if (ret != 0) {
 		    REBUILD_FAILED("Bad FID format %s.", optarg);
                     exit(EXIT_FAILURE);

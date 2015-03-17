@@ -27,7 +27,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/htable.h>
-
+#include <rozofs/core/rozofs_string.h>
 #include "mdir.h"
 
 #ifdef __i386__
@@ -4093,7 +4093,7 @@ static inline void mdirent_resolve_path(char *root_path,fid_t fid,char *pathname
     uint32_t subslice;
     
     mstor_get_slice_and_subslice(fid, &slice, &subslice);
-    uuid_unparse(fid, str);
+    rozofs_uuid_unparse(fid, str);
     sprintf(path, "%s/%d/%s/%s", root_path, slice, str,pathname_dentry);
 
 }

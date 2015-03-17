@@ -41,6 +41,7 @@
 #include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "config.h"
 #include "export.h"
@@ -189,7 +190,7 @@ static inline int export_lv2_resolve_path_internal(char *root_path, fid_t fid, c
     /*
      ** convert the fid in ascii
      */
-    uuid_unparse(fid, str);
+    rozofs_uuid_unparse(fid, str);
     sprintf(path, "%s/%d/%d/%s", root_path, slice, subslice, str);
     return 0;
 
@@ -1474,7 +1475,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
 
             // Unparse fid
             char fid_str[37];
-            uuid_unparse(lv2->attributes.fid, fid_str);
+            rozofs_uuid_unparse(lv2->attributes.fid, fid_str);
 
             // Build trash path for the file
             sprintf(trash_file_path, "%s/%s", trash_bucket_path, fid_str);
@@ -1798,7 +1799,7 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
             char path[PATH_MAX];
 
             char fid_str[37];
-            uuid_unparse(entry->fid, fid_str);
+            rozofs_uuid_unparse(entry->fid, fid_str);
 
             // Build path file
             sprintf(path, "%s/%s/%"PRIu32"/%s",
@@ -2290,7 +2291,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
 
                         // Unparse fid
                         char fid_str[37];
-                        uuid_unparse(lv2_to_replace->attributes.fid, fid_str);
+                        rozofs_uuid_unparse(lv2_to_replace->attributes.fid, fid_str);
 
                         // Build path for the trash file
                         sprintf(trash_file_path, "%s/%s", trash_bucket_path,

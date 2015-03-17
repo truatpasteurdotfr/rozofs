@@ -25,6 +25,7 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "export.h"
 
@@ -42,7 +43,7 @@ void print_cache(lv2_cache_t *cache) {
 
     list_for_each_forward(p, &cache->entries) {
         lv2_entry_t *entry = list_entry(p, lv2_entry_t, list);
-        uuid_unparse(entry->attributes.fid, str);
+        rozofs_uuid_unparse(entry->attributes.fid, str);
         printf("%s\n", str);
     }
     puts("=================================");
@@ -50,7 +51,7 @@ void print_cache(lv2_cache_t *cache) {
 
 void print_mattr(mattr_t *mattr) {
     char str[37];
-    uuid_unparse(mattr->fid, str);
+    rozofs_uuid_unparse(mattr->fid, str);
     printf("\tfid: %s\n", str);
     printf("\tsize: %"PRIu64"\n", mattr->size);
     printf("\tnlink: %d\n", mattr->nlink);

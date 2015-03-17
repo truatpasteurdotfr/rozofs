@@ -43,6 +43,7 @@
 #include <uuid/uuid.h>
 
 #include <rozofs/rozofs_srv.h>
+#include <rozofs/core/rozofs_string.h>
 #include "storage.h"
 #include "storio_crc32.h"
 
@@ -113,13 +114,14 @@ int read_hdr_file(char * root, int devices, int slice, rozofs_stor_bins_file_hdr
   uint64_t         ts=0;
   int              fd;
   int              safe;
+  char            *pChar;
   
   for (*spare=0; *spare<2; *spare+=1) {
   
     for (dev=0; dev < devices; dev++) {
     
-      storage_build_hdr_path(path,root,dev, *spare, slice);
-      storage_complete_path_with_fid(uuid,path);
+      pChar = storage_build_hdr_path(path,root,dev, *spare, slice);
+      rozofs_uuid_unparse(uuid, pChar);
       
       // Check that the file exists
       if (stat(path, &st) == -1) {
@@ -144,8 +146,8 @@ int read_hdr_file(char * root, int devices, int slice, rozofs_stor_bins_file_hdr
     
     //Header file has been found. Read it 
     if (Zdev != -1) {
-      storage_build_hdr_path(path,root,Zdev, *spare, slice);
-      storage_complete_path_with_fid(uuid,path);
+      pChar = storage_build_hdr_path(path,root,Zdev, *spare, slice);
+      rozofs_uuid_unparse(uuid, pChar);
       // Open hdr file
       fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
       if (fd < 0) {
@@ -444,7 +446,7 @@ int main(int argc, char *argv[]) {
         usage();
       } 
       pFid = argv[idx];
-      ret = uuid_parse( pFid, fid);
+      ret = rozofs_uuid_parse( pFid, fid);
       if (ret != 0) {
         printf("%s is not a FID !!!\n", pFid);
         usage();
@@ -585,9 +587,7 @@ int main(int argc, char *argv[]) {
       continue;
     }
     
-    storage_build_bins_path(path, pRoot, hdr.v0.device[chunk], spare, slice);
-    storage_complete_path_with_fid(fid, path);
-    storage_complete_path_with_chunk(chunk,path);
+    storage_build_chunk_full_path(path, pRoot, hdr.v0.device[chunk], spare, slice, fid, chunk);
     printf ("\n============ CHUNK %d ==  %s ================\n", chunk, path);
 
     read_chunk_file(fid,path,&hdr,spare, chunk*block_per_chunk);

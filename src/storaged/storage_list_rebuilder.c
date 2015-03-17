@@ -729,7 +729,7 @@ int storaged_rebuild_list(char * fid_list) {
 #if 0
   {
     char fid_string[128];
-    uuid_unparse(file_entry.fid,fid_string);  
+    rozofs_uuid_unparse(file_entry.fid,fid_string);  
     info("rebuilding FID %s layout %d bsize %d from %llu to %llu",
           fid_string,file_entry.layout, file_entry.bsize,
          (long long unsigned int) file_entry.block_start, 

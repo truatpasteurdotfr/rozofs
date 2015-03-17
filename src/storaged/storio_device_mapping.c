@@ -38,6 +38,7 @@
 #include <rozofs/common/mattr.h>
 #include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/core/ruc_timer_api.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "storio_device_mapping.h"
 #include "sconfig.h"
@@ -177,7 +178,7 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   }     
 
 
-  ret = uuid_parse(argv[1],key.fid);
+  ret = rozofs_uuid_parse(argv[1],key.fid);
   if (ret != 0) {
     pChar += sprintf(pChar,"%s is not a FID !!!\n",argv[1]);
     uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
@@ -314,7 +315,7 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 	char * pt=display;
 
         pt += sprintf(pt,"-s %d/%d -f ",pf->cid, pf->sid);
-	uuid_unparse((const unsigned char *)pf->fid, pt);	  
+	rozofs_uuid_unparse(pf->fid, pt);	  
         pChar += sprintf(pChar,"    %s\n", display);
       }
     } 
@@ -361,7 +362,7 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     if (pRebuild->rebuild_ts == 0) continue;
     
     pChar += sprintf(pChar,"\n%2d) ",storio_ref);  
-    uuid_unparse(pRebuild->fid,pChar);
+    rozofs_uuid_unparse(pRebuild->fid,pChar);
     pChar += 36;
     pChar += sprintf(pChar," chunk %-3d device %-3d start %-10llu stop %-10llu aging %llu sec",
                      pRebuild->chunk, pRebuild->old_device,

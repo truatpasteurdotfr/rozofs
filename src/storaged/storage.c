@@ -40,6 +40,7 @@
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/rozofs_string.h>
 #include "storio_cache.h"
 #include "storio_bufcache.h"
 #include "storio_device_mapping.h"
@@ -173,9 +174,7 @@ void storio_device_error_log_reset() {
 * Display command syntax
 */
 void storio_device_error_log_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"log reset  : reset error logs\n");
-  pChar += sprintf(pChar,"log show   : display error logs\n");
+  rozofs_string_append(pChar,"usage:\nlog reset  : reset error logs\nlog show   : display error logs\n");
 }
 /*_______________________________________________________________________
 * Display the error log
@@ -216,7 +215,7 @@ void storio_device_error_log_display (char * argv[], uint32_t tcpRef, void *bufR
    pChar += sprintf(pChar, "+-----+--------------------------------------+-------+-----+-----+-----------+--------------------------------+-------------------+\n");
     for (idx=0; idx < nb_record; idx++,p++) {
       char fid_string[40];
-      uuid_unparse(p->fid, fid_string);
+      rozofs_uuid_unparse(p->fid, fid_string);
       time_t t = p->ts;
       ts = *localtime(&t);
       strftime(dateSting, sizeof(dateSting), "%y/%m/%d %H:%M:%S", &ts);
@@ -234,6 +233,8 @@ void storio_device_error_log_display (char * argv[], uint32_t tcpRef, void *bufR
 */
 void storio_device_error_log_init(void) {
  
+  if (storio_error_log_initialized) return ;
+  
   memset((char*)&storio_device_error_log,0,sizeof(storio_device_error_log_t));
 
   if (pthread_rwlock_init(&storio_device_error_log.lock, NULL) != 0) {
@@ -275,6 +276,7 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   size_t                    nb_write;
   int                       fd;
   char                      my_path[FILENAME_MAX];
+  char                     *pChar;
  
   /*
   ** Create directory when needed */
@@ -287,8 +289,11 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
    
       
   strcpy(my_path,path); // Not to modify input path
-  storage_complete_path_with_fid(hdr->v0.fid, my_path);  
+  pChar = my_path;
+  pChar += strlen(my_path);
+  rozofs_uuid_unparse(hdr->v0.fid, pChar);
 
+  
   // Open bins file
   fd = open(my_path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
   if (fd < 0) {	
@@ -342,7 +347,7 @@ int storage_write_all_header_files(storage_t * st, fid_t fid, uint8_t spare, roz
     storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
                  
     if (storage_write_header_file(st,hdrDevice,path, hdr) == 0) {    
-      //MYDBGTRACE("Header written on storage %d/%d device %d", st->cid, st->sid, hdrDevice);
+      //dbg("Header written on storage %d/%d device %d", st->cid, st->sid, hdrDevice);
       result++;
     }
   }  
@@ -423,6 +428,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
   int       idx;
   int       ret;
   uint64_t  crc32_error=0;
+  char     *pChar;
   
   memset(device_time,0,sizeof(device_time));
   memset(device_id,0,sizeof(device_id));
@@ -445,7 +451,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     ** Header file path
     */
     hdrDevice = storage_mapper_device(fid,dev,st->mapper_modulo);
-    storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
+    pChar = storage_build_hdr_path(path, st->root, hdrDevice, spare, storage_slice);
 	            
     // Check that this directory already exists, otherwise it will be create
     if (storage_create_dir(path) < 0) {
@@ -458,7 +464,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     /* 
     ** Fullfill the path with the name of the mapping file
     */
-    storage_complete_path_with_fid(fid,path);
+    rozofs_uuid_unparse(fid, pChar);
 
     /*
     ** Get the file attributes
@@ -513,8 +519,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     /*
     ** Header file name
     */
-    storage_build_hdr_path(path, st->root, device_id[dev], spare, storage_slice);
-    storage_complete_path_with_fid(fid,path);
+    storage_build_hdr_file_path(path, st->root, device_id[dev], spare, storage_slice, fid);
 
     // Open hdr file
     fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
@@ -697,7 +702,7 @@ char *storage_dev_map_distribution_write(storage_t * st,
     file_hdr.v0.device[chunk] = storio_device_mapping_allocate_device(st); 
     memcpy(device,file_hdr.v0.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
     
-    //MYDBGTRACE("%d/%d Allocate device %d for chunk %d", st->cid, st->sid, device[chunk], chunk);
+    //dbg("%d/%d Allocate device %d for chunk %d", st->cid, st->sid, device[chunk], chunk);
      
 
     /*
@@ -745,6 +750,7 @@ int storage_initialize(storage_t *st,
     char path[FILENAME_MAX];
     struct stat s;
     int dev;
+    char * pChar, * pChar2;
 
     DEBUG_FUNCTION;
 
@@ -801,7 +807,11 @@ int storage_initialize(storage_t *st,
 	
 
 	// sanity checks
-	sprintf(path,"%s/%d",st->root,dev);
+	pChar = path;
+	pChar += rozofs_string_append(pChar,st->root);
+	*pChar++ = '/';
+	pChar += rozofs_u32_append(pChar,dev);
+
 	if (stat(path, &s) != 0) {
             severe("can not stat %s",path);
 	    continue;
@@ -816,74 +826,64 @@ int storage_initialize(storage_t *st,
         /*
 	** Build 2nd level directories
 	*/
-
-	
-        sprintf(path, "%s/%d/hdr_0", st->root, dev);
+        pChar2 = pChar;
+	pChar2 += rozofs_string_append(pChar2,"/hdr_0/");
         if (access(path, F_OK) != 0) {
           if (storage_create_dir(path) < 0) {
             severe("%s creation %s",path, strerror(errno));
           }
-#if FID_STORAGE_SLICE_SIZE != 1
 	  int slice;
-          char slicepath[FILENAME_MAX];
 	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
-	    sprintf(slicepath,"%s/%d",path,slice);
-            if (storage_create_dir(slicepath) < 0) {
-              severe("%s creation %s",slicepath, strerror(errno));
+	    rozofs_u32_append(pChar2,slice);
+            if (storage_create_dir(path) < 0) {
+              severe("%s creation %s",path, strerror(errno));
             }	    
 	  }
-#endif	  
 	}  
+	
+        pChar2 = pChar;
+	pChar2 += rozofs_string_append(pChar2,"/hdr_1/");
+        if (access(path, F_OK) != 0) {
+          if (storage_create_dir(path) < 0) {
+            severe("%s creation %s",path, strerror(errno));
+          }	
+	  int slice;
+	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	    rozofs_u32_append(pChar2,slice);	  
+            if (storage_create_dir(path) < 0) {
+              severe("%s creation %s",path, strerror(errno));
+            }	    
+	  }
+	} 
+	
+        pChar2 = pChar;	
+	pChar2 += rozofs_string_append(pChar2,"/bins_0/");
+        if (access(path, F_OK) != 0) {
+          if (storage_create_dir(path) < 0) {
+            severe("%s creation %s",path, strerror(errno));
+          }	
+	  int slice;
+	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	    rozofs_u32_append(pChar2,slice);	 
+            if (storage_create_dir(path) < 0) {
+              severe("%s creation %s",path, strerror(errno));
+            }	    
+	  }
+	} 
 
-        sprintf(path, "%s/%d/hdr_1", st->root, dev);
+        pChar2 = pChar;		
+	pChar2 += rozofs_string_append(pChar2,"/bins_1/");
         if (access(path, F_OK) != 0) {
           if (storage_create_dir(path) < 0) {
             severe("%s creation %s",path, strerror(errno));
           }	
-#if FID_STORAGE_SLICE_SIZE != 1
 	  int slice;
-          char slicepath[FILENAME_MAX];
 	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
-	    sprintf(slicepath,"%s/%d",path,slice);
-            if (storage_create_dir(slicepath) < 0) {
-              severe("%s creation %s",slicepath, strerror(errno));
+	    rozofs_u32_append(pChar2,slice);	 
+            if (storage_create_dir(path) < 0) {
+              severe("%s creation %s",path, strerror(errno));
             }	    
-	  }
-#endif
-	} 
-	
-        sprintf(path, "%s/%d/bins_0", st->root, dev);
-        if (access(path, F_OK) != 0) {
-          if (storage_create_dir(path) < 0) {
-            severe("%s creation %s",path, strerror(errno));
-          }	
-#if FID_STORAGE_SLICE_SIZE != 1
-	  int slice;
-          char slicepath[FILENAME_MAX];
-	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
-	    sprintf(slicepath,"%s/%d",path,slice);
-            if (storage_create_dir(slicepath) < 0) {
-              severe("%s creation %s",slicepath, strerror(errno));
-            }	    
-	  }
-#endif
-	} 
-	
-        sprintf(path, "%s/%d/bins_1", st->root, dev);
-        if (access(path, F_OK) != 0) {
-          if (storage_create_dir(path) < 0) {
-            severe("%s creation %s",path, strerror(errno));
-          }	
-#if FID_STORAGE_SLICE_SIZE != 1
-	  int slice;
-          char slicepath[FILENAME_MAX];
-	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
-	    sprintf(slicepath,"%s/%d",path,slice);
-            if (storage_create_dir(slicepath) < 0) {
-              severe("%s creation %s",slicepath, strerror(errno));
-            }	    
-	  }
-#endif	  
+	  } 
 	} 	
     }
     st->sid = sid;
@@ -948,12 +948,16 @@ static inline void storage_get_projection_size(uint8_t spare,
   }	  
 
   /* This is abnormal. The sid is not supposed to be spare */
-  
-  p += sprintf(p," safe %d ", safe);
+  p += rozofs_string_append(p, " safe ");
+  p += rozofs_u32_append(p,safe);
   for (idx=0; idx < safe; idx++) {
-    p += sprintf(p,"/%d", dist_set[idx]);
+    *p++ = '/';
+    p += rozofs_u32_append(p,dist_set[idx]);    
   }    
-  p += sprintf(p," storage_get_projection_size spare %d sid %d",spare, sid);
+  p += rozofs_string_append(p, " storage_get_projection_size spare ");
+  p += rozofs_u32_append(p,spare);
+  p += rozofs_string_append(p, " sid ");
+  p += rozofs_u32_append(p,sid);
 
   if (prj_id < safe) {
     /* spare should have been set to 1 !? */
@@ -1064,9 +1068,7 @@ int storage_rm_data_chunk(storage_t * st, uint8_t device, fid_t fid, uint8_t spa
   int  ret;
 
   uint32_t storage_slice = rozofs_storage_fid_slice(fid);
-  storage_build_bins_path(path, st->root, device, spare, storage_slice);
-  storage_complete_path_with_fid(fid, path);
-  storage_complete_path_with_chunk(chunk,path);
+  storage_build_chunk_full_path(path, st->root, device, spare, storage_slice, fid, chunk);
 
   ret = unlink(path);   
   if ((ret < 0) && (errno != ENOENT) && (errlog)) {
@@ -1168,7 +1170,7 @@ int storage_write_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32
     // No specific fault on this FID detected
     *is_fid_faulty = 0; 
 
-    MYDBGTRACE_DEV(device,"%d/%d Write chunk %d : ", st->cid, st->sid, chunk);
+    dbg("%d/%d Write chunk %d : ", st->cid, st->sid, chunk);
    
 open:    
     // If the device id is given as input, that proves that the file
@@ -1198,8 +1200,7 @@ open:
     }
 
     // Build the path of bins file
-    storage_complete_path_with_fid(fid, path);
-    storage_complete_path_with_chunk(chunk,path);
+    storage_build_chunk_path(path, fid, chunk);
 
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
@@ -1239,7 +1240,7 @@ open:
     bins_file_offset = bid * rozofs_disk_psize;
     length_to_write  = nb_proj * rozofs_disk_psize;
 
-    //MYDBGTRACE("write %s bid %d nb %d",path,bid,nb_proj);
+    //dbg("write %s bid %d nb %d",path,bid,nb_proj);
 
     uint32_t crc32 = fid2crc32((uint32_t *)fid) + bid;
 
@@ -1348,7 +1349,7 @@ int storage_write_repair_chunk(storage_t * st, uint8_t * device, uint8_t layout,
     // No specific fault on this FID detected
     *is_fid_faulty = 0; 
 
-    MYDBGTRACE_DEV(device,"%d/%d repair chunk %d : ", st->cid, st->sid, chunk);
+    dbg("%d/%d repair chunk %d : ", st->cid, st->sid, chunk);
    
 open:    
     // If the device id is given as input, that proves that the file
@@ -1378,9 +1379,8 @@ open:
     }
 
     // Build the path of bins file
-    storage_complete_path_with_fid(fid, path);
-    storage_complete_path_with_chunk(chunk,path);
-
+    storage_build_chunk_path(path, fid, chunk);
+        
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
@@ -1486,8 +1486,7 @@ int storage_read_chunk(storage_t * st, uint8_t * device, uint8_t layout, uint32_
     struct iovec vector[ROZOFS_MAX_BLOCK_PER_MSG];
     uint64_t    crc32_errors; 
 
-
-    MYDBGTRACE_DEV(device,"%d/%d Read chunk %d : ", st->cid, st->sid, chunk);
+    dbg("%d/%d Read chunk %d : ", st->cid, st->sid, chunk);
 
     // No specific fault on this FID detected
     *is_fid_faulty = 0;  
@@ -1564,9 +1563,7 @@ retry:
     
   
     storage_slice = rozofs_storage_fid_slice(fid);
-    storage_build_bins_path(path, st->root, device[chunk], spare, storage_slice);
-    storage_complete_path_with_fid(fid, path);
-    storage_complete_path_with_chunk(chunk,path);
+    storage_build_chunk_full_path(path, st->root, device[chunk], spare, storage_slice, fid,chunk);
 
     // Open bins file
     fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE_RO);
@@ -1602,7 +1599,7 @@ retry:
     bins_file_offset = bid * rozofs_disk_psize;
     length_to_read   = nb_proj * rozofs_disk_psize;
 
-    //MYDBGTRACE("read %s bid %d nb %d",path,bid,nb_proj);
+    //dbg("read %s bid %d nb %d",path,bid,nb_proj);
     
     /*
     ** Reading the projection directly as they will be sent in message
@@ -1647,7 +1644,7 @@ retry:
     // Check the length read
     if ((nb_read % rozofs_disk_psize) != 0) {
         char fid_str[37];
-        uuid_unparse(fid, fid_str);
+        rozofs_uuid_unparse(fid, fid_str);
         severe("storage_read failed (FID: %s layout %d bsize %d chunk %d bid %d): read inconsistent length %d not modulo of %d",
 	       fid_str,layout,bsize,chunk, (int) bid,(int)nb_read,rozofs_disk_psize);
 	nb_read = (nb_read / rozofs_disk_psize) * rozofs_disk_psize;
@@ -1740,7 +1737,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
       ** This is a file creation
       */    
       if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) {
-	MYDBGTRACE("%s","Truncate create");
+	dbg("%s","Truncate create");
 	rewrite_file_hdr = 1;
 	/*
 	** Prepare file header
@@ -1808,9 +1805,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
     }   
 
     // Build the path of bins file
-    storage_complete_path_with_fid(fid, path);
-    storage_complete_path_with_chunk(chunk,path);
-
+    storage_build_chunk_path(path, fid, chunk);
 
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
@@ -1933,7 +1928,7 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
     ** Rewrite file header on disk
     */   
     if (rewrite_file_hdr) {
-      MYDBGTRACE("%s","truncate rewrite file header");
+      dbg("%s","truncate rewrite file header");
       result = storage_write_all_header_files(st, fid, spare, &file_hdr);        
       /*
       ** Failure on every write operation
@@ -1955,7 +1950,7 @@ int storage_rm_chunk(storage_t * st, uint8_t * device,
 		     uint8_t chunk, int * is_fid_faulty) {
     rozofs_stor_bins_file_hdr_t file_hdr;
 
-    MYDBGTRACE_DEV(device,"%d/%d rm chunk %d : ", st->cid, st->sid, chunk);
+    dbg("%d/%d rm chunk %d : ", st->cid, st->sid, chunk);
 
     // No specific fault on this FID detected
     *is_fid_faulty = 0;  
@@ -2181,7 +2176,7 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
             // Alloc a new bins_file_rebuild_t
             *iterator = xmalloc(sizeof (bins_file_rebuild_t)); // XXX FREE ?
             // Copy FID
-            uuid_parse(ep->d_name, (*iterator)->fid);
+            rozofs_uuid_parse(ep->d_name, (*iterator)->fid);
             // Copy current dist_set
             memcpy((*iterator)->dist_set_current, file_hdr.v0.dist_set_current,
                     sizeof (sid_t) * ROZOFS_SAFE_MAX);

@@ -42,6 +42,7 @@ extern "C" {
 #include <rozofs/common/profile.h>
 #include <rozofs/common/mattr.h>
 #include <rozofs/core/ruc_list.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "storage.h"
 #include "storio_fid_cache.h"
@@ -606,7 +607,7 @@ static inline void storio_rebuild_ctx_stollen(STORIO_REBUILD_T * p, uint32_t del
   ** the old_device when possible !!!
   */
   
-  uuid_unparse(p->fid,fid_string);    
+  rozofs_uuid_unparse(p->fid,fid_string);    
   severe("rebuild stollen FID %s spare %d relocate %d chunk %d old device %d delay %u",
             fid_string, p->spare, p->relocate, p->chunk, p->old_device, delay);
   
@@ -630,7 +631,7 @@ static inline void storio_rebuild_ctx_aborted(STORIO_REBUILD_T * p, uint32_t del
   ** the old_device when possible !!!
   */
   
-  uuid_unparse(p->fid,fid_string);    
+  rozofs_uuid_unparse(p->fid,fid_string);    
   severe("rebuild aborted FID %s spare %d relocate %d chunk %d old device %d delay %u",
             fid_string, p->spare, p->relocate, p->chunk, p->old_device, delay);
   

@@ -151,7 +151,7 @@ int export_load_rmfentry(export_t * e)
 #if 0
 	    {
 	       char buf_fid[64];
-	       uuid_unparse(trash_entry.fid,buf_fid);
+	       rozofs_uuid_unparse(trash_entry.fid,buf_fid);
 	       severe("FDL slice %u file %llu index %d  trash fid %s ",user_id,file_id,i, buf_fid);
 	    }
 #endif

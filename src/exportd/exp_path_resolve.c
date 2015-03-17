@@ -1,7 +1,7 @@
 /*
 ** To be put in export.h
 */
-
+#include <rozofs/core/rozofs_string.h>
 #define MAX_SLICE_BIT 8
 #define MAX_SLICE_NB (1<<MAX_SLICE_BIT)
 #define MAX_SUBSLICE_BIT 12
@@ -146,7 +146,7 @@ static inline int export_lv2_resolve_path_internal(char *root_path, fid_t fid, c
     /*
     ** convert the fid in ascii
     */
-    uuid_unparse(fid, str);
+    rozofs_uuid_unparse(fid, str);
     sprintf(path, "%s/%d/%d/%s", root_path, slice,subslice,str);
     return 0;
     

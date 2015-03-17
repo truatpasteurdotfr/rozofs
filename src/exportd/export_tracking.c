@@ -42,6 +42,7 @@
 #include <rozofs/common/export_track.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "config.h"
 #include "export.h"
@@ -386,7 +387,7 @@ static inline int export_lv2_resolve_path_internal(char *root_path, fid_t fid, c
     /*
      ** convert the fid in ascii
      */
-    uuid_unparse(fid, str);
+    rozofs_uuid_unparse(fid, str);
     sprintf(path, "%s/%d/%s", root_path, slice, str);
     return 0;
 
@@ -927,7 +928,7 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs,mattr_t *p
 	int ret;
 	lv2_entry_t exp_fake_lv2_entry;
 	
-	ret = uuid_parse(&name[13],fid_direct);
+	ret = rozofs_uuid_parse(&name[13],fid_direct);
 	if (ret < 0)
 	{
 	  errno = EINVAL;
@@ -4169,7 +4170,7 @@ static inline int get_rozofs_xattr_internal_id(export_t *e, lv2_entry_t *lv2, ch
   for (idx = 0; idx < rozofs_safe; idx++) {
     p += sprintf(p,"%d-", lv2->attributes.s.attrs.sids[idx]);
   }
-  uuid_unparse(lv2->attributes.s.attrs.fid,p); 
+  rozofs_uuid_unparse(lv2->attributes.s.attrs.fid,p); 
   p+=36;
   /*
   ** put the length

@@ -28,6 +28,7 @@
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/rozofs_host_list.h>
 #include <rozofs/core/rozo_launcher.h>
+#include <rozofs/core/rozofs_string.h>
 #include <rozofs/common/rozofs_site.h>
 
 #include "rozofs_fuse.h"
@@ -494,7 +495,7 @@ void show_ientry(char * argv[], uint32_t tcpRef, void *bufRef) {
   } 
   
   if (strcmp(argv[1],"fid")==0) {
-      if (uuid_parse(argv[2],fid)==-1) {
+      if (rozofs_uuid_parse(argv[2],fid)==-1) {
           pChar += sprintf(pChar, "this is not a valid FID\n");
           uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
           return;	        
@@ -553,7 +554,7 @@ void show_ientry(char * argv[], uint32_t tcpRef, void *bufRef) {
       return;    
   }
   
-  uuid_unparse(ie->fid,fid_str);
+  rozofs_uuid_unparse(ie->fid,fid_str);
   pInode = (rozofs_inode_t *)ie->fid;
   
   pChar += sprintf(pChar, "%-15s : %llu\n", "inode", (long long unsigned int)ie->inode);
@@ -1126,10 +1127,10 @@ void show_trc_fuse_buffer(char * pChar)
       p = &rozofs_trc_buffer[start];
       if (p->hdr.s.fid == 1)
       {
-	uuid_unparse(p->par.def.fid, str);
+	rozofs_uuid_unparse(p->par.def.fid, str);
       } 
       else
-	uuid_unparse(fake_fid, str); 
+	rozofs_uuid_unparse(fake_fid, str); 
       if (p->hdr.s.req)
       {
         pChar+=sprintf(pChar,"[%8llu ]--> %-8s %4d %12.12llx ",
