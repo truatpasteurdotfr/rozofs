@@ -98,7 +98,7 @@ def get_device_numbers(hid,cid):
 #___________________________________________________
 def get_if_nb():
 
-  string="./tst.py display"     
+  string="./setup.py display"     
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -248,7 +248,7 @@ def start_all_sid () :
 #___________________________________________________
   for sid in range(STORCLI_SID_NB):
     hid=sid+(site*STORCLI_SID_NB)
-    os.system("./tst.py storage %s start"%(hid+1))    
+    os.system("./setup.py storage %s start"%(hid+1))    
     
 
       
@@ -290,7 +290,7 @@ def storageStart (hid,count=int(1)) :
   for idx in range(int(count)): 
     sys.stdout.write("%s "%(int(hid)+idx)) 
     sys.stdout.flush()
-    os.system("./tst.py storage %s start"%(int(hid)+idx))
+    os.system("./setup.py storage %s start"%(int(hid)+idx))
         
 #___________________________________________________
 def storageStartAndWait (hid,count=int(1)) :
@@ -310,7 +310,7 @@ def storageStop (hid,count=int(1)) :
   for idx in range(int(count)): 
     sys.stdout.write("%s "%(int(hid)+idx)) 
     sys.stdout.flush()
-    os.system("./tst.py storage %s stop"%(int(hid)+idx))
+    os.system("./setup.py storage %s stop"%(int(hid)+idx))
   
 #___________________________________________________
 def storageStopAndWait (hid,count=int(1)) :
@@ -439,7 +439,7 @@ def snipper_if ():
 	sys.stdout.write("\rhost %s if %s down "%(hid,itf))
         sys.stdout.flush()
 	
-	os.system("./tst.py storage %s ifdown %s"%(hid,itf))
+	os.system("./setup.py storage %s ifdown %s"%(hid,itf))
 	time.sleep(1)
 	
           
@@ -448,7 +448,7 @@ def snipper_if ():
 	sys.stdout.write("\rhost %s if %s up   "%(hid,itf))
         sys.stdout.flush()
 	
-	os.system("./tst.py storage %s ifup %s"%(hid,itf))
+	os.system("./setup.py storage %s ifup %s"%(hid,itf))
 	time.sleep(0.2)  
 #___________________________________________________
 def ifUpDown (test):
@@ -506,7 +506,7 @@ def snipper_storage ():
       for idx in range(int(nb_failures)):
         val=int(hid)+int(idx)
         sys.stdout.write("%s "%(val))
-	cmd+="./tst.py storage %s reset;"%(val)
+	cmd+="./setup.py storage %s reset;"%(val)
 	
       sys.stdout.flush()
       os.system(cmd)
@@ -806,18 +806,18 @@ def rebuild_one_dev() :
     device_number,mapper_modulo,mapper_redundancy = get_device_numbers(hid,cid)
     
     dev=int(hid)%int(mapper_modulo)
-    string="./tst.py sid %s %s rebuild -g 0 -s %s/%s -d %s -o one_cid%s_sid%s_dev%s 1> /dev/null"%(cid,sid,cid,sid,dev,cid,sid,dev)
-    os.system("./tst.py sid %s %s device-delete %s"%(cid,sid,dev))
-    os.system("./tst.py sid %s %s device-create %s"%(cid,sid,dev))
+    string="./setup.py sid %s %s rebuild -g 0 -s %s/%s -d %s -o one_cid%s_sid%s_dev%s 1> /dev/null"%(cid,sid,cid,sid,dev,cid,sid,dev)
+    os.system("./setup.py sid %s %s device-delete %s"%(cid,sid,dev))
+    os.system("./setup.py sid %s %s device-create %s"%(cid,sid,dev))
     ret = os.system(string)
     if ret != 0:
       return ret
       
     if int(mapper_modulo) > 1:
       dev=(dev+1)%int(mapper_modulo)
-      os.system("./tst.py sid %s %s device-delete %s"%(cid,sid,dev))
-      os.system("./tst.py sid %s %s device-create %s"%(cid,sid,dev))
-      ret = os.system("./tst.py sid %s %s rebuild -g 0 -s %s/%s -d %s -o one_cid%s_sid%s_dev%s 1> /dev/null"%(cid,sid,cid,sid,dev,cid,sid,dev))
+      os.system("./setup.py sid %s %s device-delete %s"%(cid,sid,dev))
+      os.system("./setup.py sid %s %s device-create %s"%(cid,sid,dev))
+      ret = os.system("./setup.py sid %s %s rebuild -g 0 -s %s/%s -d %s -o one_cid%s_sid%s_dev%s 1> /dev/null"%(cid,sid,cid,sid,dev,cid,sid,dev))
       if ret != 0:
 	return ret
             
@@ -867,14 +867,14 @@ def relocate_one_dev() :
     # No self healing configured. Ask for a rebuild with relocation	      
     if selfHealing == "No":
     	      
-      ret = os.system("./tst.py sid %s %s rebuild -s %s/%s -d 0 -g 0 -o reloc_cid%s_sid%s_dev0 1> /dev/null"%(cid,sid,cid,sid,cid,sid))
+      ret = os.system("./setup.py sid %s %s rebuild -s %s/%s -d 0 -g 0 -o reloc_cid%s_sid%s_dev0 1> /dev/null"%(cid,sid,cid,sid,cid,sid))
       if ret != 0:
 	return ret
 	
     # Self healing is configured. Remove device and wait for automatic relocation	
     else:
     
-      ret = os.system("./tst.py sid %s %s device-delete 0"%(cid,sid))
+      ret = os.system("./setup.py sid %s %s device-delete 0"%(cid,sid))
       if ret != 0:
 	return ret
 	      	
@@ -926,8 +926,8 @@ def relocate_one_dev() :
       return ret 
       
     if selfHealing != "No":
-      ret = os.system("./tst.py sid %s %s device-create 0"%(cid,sid))
-      ret = os.system("./tst.py sid %s %s rebuild -s %s/%s -d 0 -g 0 -C -o clear_cid%s_sid%s_dev0 1> /dev/null"%(cid,sid,cid,sid,cid,sid))
+      ret = os.system("./setup.py sid %s %s device-create 0"%(cid,sid))
+      ret = os.system("./setup.py sid %s %s rebuild -s %s/%s -d 0 -g 0 -C -o clear_cid%s_sid%s_dev0 1> /dev/null"%(cid,sid,cid,sid,cid,sid))
       
       
   ret = gruyere_reread()          
@@ -945,9 +945,9 @@ def rebuild_all_dev() :
     cid=s.split('-')[1]
     sid=s.split('-')[2]
 
-    os.system("./tst.py sid %s %s device-delete all 1> /dev/null"%(cid,sid))
-    os.system("./tst.py sid %s %s device-create all 1> /dev/null"%(cid,sid))
-    ret = os.system("./tst.py sid %s %s rebuild -s %s/%s -g 0 -o all_cid%s_sid%s 1> /dev/null"%(cid,sid,cid,sid,cid,sid))
+    os.system("./setup.py sid %s %s device-delete all 1> /dev/null"%(cid,sid))
+    os.system("./setup.py sid %s %s device-create all 1> /dev/null"%(cid,sid))
+    ret = os.system("./setup.py sid %s %s rebuild -s %s/%s -g 0 -o all_cid%s_sid%s 1> /dev/null"%(cid,sid,cid,sid,cid,sid))
     if ret != 0:
       return ret
 
@@ -976,10 +976,10 @@ def rebuild_one_node() :
       cid=s.split('-')[1]
       sid=s.split('-')[2]
       
-      os.system("./tst.py sid %s %s device-delete all 1> /dev/null"%(cid,sid))
-      os.system("./tst.py sid %s %s device-create all 1> /dev/null"%(cid,sid))      
+      os.system("./setup.py sid %s %s device-delete all 1> /dev/null"%(cid,sid))
+      os.system("./setup.py sid %s %s device-create all 1> /dev/null"%(cid,sid))      
     
-    string="./tst.py sid %s %s rebuild -g 0 -o node_%s 1> /dev/null"%(cid,sid,hid)
+    string="./setup.py sid %s %s rebuild -g 0 -o node_%s 1> /dev/null"%(cid,sid,hid)
     ret = os.system(string)
     if ret != 0:
       return ret
@@ -1009,7 +1009,7 @@ def rebuild_fid() :
       skip=0  
 
     # Get the split of file on storages      
-#    string="./tst.py cou %s/rebuild/%d"%(mnt,f+1)
+#    string="./setup.py cou %s/rebuild/%d"%(mnt,f+1)
     string="attr -g rozofs %s/rebuild/%d"%(mnt,f+1)
     parsed = shlex.split(string)
     cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1050,7 +1050,7 @@ def rebuild_fid() :
       line_nb=line_nb+1
       if skip >= line_nb:
 	  continue;    	
-      string="./tst.py sid %s %s rebuild -g 0 -s %s/%s -f %s -o fid%s_cid%s_sid%s 1> /dev/null"%(cid,sid,cid,sid,fid,fid,cid,sid)
+      string="./setup.py sid %s %s rebuild -g 0 -s %s/%s -f %s -o fid%s_cid%s_sid%s 1> /dev/null"%(cid,sid,cid,sid,fid,fid,cid,sid)
       parsed = shlex.split(string)
       cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
       cmd.wait()
@@ -1255,7 +1255,7 @@ def do_list():
 #____________________________________
 def resolve_sid(cid,sid):
 
-  string="%s/tst.py sid %s %s info"%(os.getcwd(),cid,sid)
+  string="%s/setup.py sid %s %s info"%(os.getcwd(),cid,sid)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   for line in cmd.stdout:
@@ -1285,7 +1285,7 @@ def resolve_mnt(inst):
   global hosts
     
   instance = inst
-  string="%s/tst.py mount %s info"%(os.getcwd(),instance)
+  string="%s/setup.py mount %s info"%(os.getcwd(),instance)
   parsed = shlex.split(string)
   cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   for line in cmd.stdout:

@@ -211,7 +211,7 @@ int get_projection_nb_file_name(char * fname,int len, int nb) {
   int    fd;
   size_t size;
     
-  sprintf(cmd,"./tst.py cou %s | grep \"bins\" | awk \'NR==%d{print $2}\' > /tmp/%d; sync", fname, nb, getpid()); 
+  sprintf(cmd,"./setup.py cou %s | grep \"bins\" | awk \'NR==%d{print $2}\' > /tmp/%d; sync", fname, nb, getpid()); 
   //printf("%s\n",cmd);
   system(cmd);
   sprintf(cmd,"/tmp/%d",getpid());

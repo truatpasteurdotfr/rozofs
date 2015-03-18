@@ -112,7 +112,7 @@ class host_class:
   def del_if(self,nb=None):
     # Delete one interface
     if nb != None:
-      cmd_system("ip addr del 192.168.%s.%s/32 dev %s > /dev/null 2>&1"%(int(nb)+10,self.number,rozofs.interface))  
+      silent_system("ip addr del 192.168.%s.%s/32 dev %s"%(int(nb)+10,self.number,rozofs.interface))  
       return
     # Delete all interfaces
     for i in range(rozofs.nb_listen): self.del_if(i)  
@@ -120,7 +120,7 @@ class host_class:
   def add_if(self,nb=None):
     # Add one interface
     if nb != None:
-      cmd_system("ip addr add 192.168.%s.%s/32 dev %s > /dev/null 2>&1"%(int(nb)+10,self.number,rozofs.interface))
+      silent_system("ip addr add 192.168.%s.%s/32 dev %s"%(int(nb)+10,self.number,rozofs.interface))
       return
     # Add all interfaces
     for i in range(rozofs.nb_listen): self.add_if(i)  
@@ -257,7 +257,7 @@ class sid_class:
      	  
   def umount_device_file(self,dev):
     h = self.host[0]    
-    cmd_system("umount %s/%s 2>/dev/null"%(self.get_root_path(h.number),dev))
+    silent_system("umount %s/%s"%(self.get_root_path(h.number),dev))
       
   def create_device_file(self,device):
   
@@ -1078,6 +1078,13 @@ def cmd_system (string):
   os.system(string)
 	      
 #___________________________________________  
+def silent_system (string):
+  # print string
+  parsed = shlex.split(string)
+  cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  output, error = cmd.communicate()	
+        
+#___________________________________________  
 def check_build ():
   sucess=True
   if not os.path.exists("./build/src/exportd/exportd"):
@@ -1114,43 +1121,43 @@ def check_build ():
   if sucess==False: sys.exit(-1)
 #_____________________________________________  
 def syntax_export() :
-  print  "./tst.py \tgeomgr  \tstart|stop|reset|pid|modify|delete"    
+  print  "./setup.py \tgeomgr  \tstart|stop|reset|pid|modify|delete"    
 
 #_____________________________________________  
 def syntax_geomgr() :
-  print  "./tst.py \texportd \tstart|stop|reset|pid"
+  print  "./setup.py \texportd \tstart|stop|reset|pid"
          
 #_____________________________________________  
 def syntax_mount() :
-  print  "./tst.py \tmount   \tall|<instance> start|stop|reset|pid|info"
+  print  "./setup.py \tmount   \tall|<instance> start|stop|reset|pid|info"
 #_____________________________________________  
 def syntax_storage() :
-  print  "./tst.py \tstorage \tall|<host idx> start|stop|reset|pid"
-  print  "./tst.py \tstorage \tall|<host idx> ifup|ifdown <if#>"
+  print  "./setup.py \tstorage \tall|<host idx> start|stop|reset|pid"
+  print  "./setup.py \tstorage \tall|<host idx> ifup|ifdown <if#>"
   
 #_____________________________________________  
 def syntax_cou() :
-  print  "./tst.py \tcou     \t<fileName>"
+  print  "./setup.py \tcou     \t<fileName>"
 #_____________________________________________  
 def syntax_config() :
-  print  "./tst.py \tconfig  \t<confFileName>"  
+  print  "./setup.py \tconfig  \t<confFileName>"  
 #_____________________________________________  
 def syntax_sid() :
-  print  "./tst.py \tsid     \t<cid <sid>\tdevice-delete all|<device>"
-  print  "./tst.py \tsid     \t<cid <sid>\tdevice-create all|<device>"
-  print  "./tst.py \tsid     \t<cid <sid>\trebuild..."
-  print  "./tst.py \tsid     \t<cid <sid>\tinfo"
+  print  "./setup.py \tsid     \t<cid <sid>\tdevice-delete all|<device>"
+  print  "./setup.py \tsid     \t<cid <sid>\tdevice-create all|<device>"
+  print  "./setup.py \tsid     \t<cid <sid>\trebuild..."
+  print  "./setup.py \tsid     \t<cid <sid>\tinfo"
 #_____________________________________________  
 def syntax_if() :
-  print  "./tst.py \tifup|ifdown  \t<if#>"    
+  print  "./setup.py \tifup|ifdown  \t<if#>"    
 
 
 #_____________________________________________  
 def syntax_all() :
   print  "Usage:"
-  #print  "./tst.py \tsite    \t<0|1>"
-  print  "./tst.py \t\t\tdisplay [conf. file]"
-  print  "./tst.py \t\t\tstart|stop|pause|resume"
+  #print  "./setup.py \tsite    \t<0|1>"
+  print  "./setup.py \t\t\tdisplay [conf. file]"
+  print  "./setup.py \t\t\tstart|stop|pause|resume"
   syntax_export()
   syntax_geomgr()
   syntax_mount()
@@ -1159,15 +1166,15 @@ def syntax_all() :
   syntax_cou() 
   syntax_config()  
   syntax_if()
-  print  "./tst.py \tcore    \tremove all|<coredir>/<corefile>"
-  print  "./tst.py \tcore    \t[<coredir>/<corefile>]"
-  print  "./tst.py \tprocess \t[pid]"
-  print  "./tst.py \tit..."
-  #print  "./tst.py monitor"
-  #print  "./tst.py reload"
-  #print  "./tst.py build"
-  #print  "./tst.py rebuild"
-  #print  "./tst.py clean"
+  print  "./setup.py \tcore    \tremove all|<coredir>/<corefile>"
+  print  "./setup.py \tcore    \t[<coredir>/<corefile>]"
+  print  "./setup.py \tprocess \t[pid]"
+  print  "./setup.py \tit..."
+  #print  "./setup.py monitor"
+  #print  "./setup.py reload"
+  #print  "./setup.py build"
+  #print  "./setup.py rebuild"
+  #print  "./setup.py clean"
   sys.exit(-1)   
           
 #_____________________________________________  
