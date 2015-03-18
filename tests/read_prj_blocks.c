@@ -71,19 +71,8 @@ int    bbytes=-1;
 
 
 #define HEXDUMP_COLS 16
-void hexdump(int blk, int prj, char * msg,void *mem, unsigned int offset, unsigned int len) {
-  FILE * fd;
+void hexdump(FILE * fd, void *mem, unsigned int offset, unsigned int len) {
   unsigned int i, j;
-  char fname[128];
-  
-  sprintf(fname,"b%d_sid%d.txt", blk, prj);
-  fd = fopen(fname,"w");
-  if (fd == NULL) {
-    printf ("Can not create file %s",fname);
-    return;
-  }
-  printf("%s\n",fname);
-  fprintf(fd,"%s\n",msg);
 
   for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++) {
           /* print offset */
@@ -115,8 +104,6 @@ void hexdump(int blk, int prj, char * msg,void *mem, unsigned int offset, unsign
       fprintf(fd,"%c",'\n');
     }
   }
-  
-  fclose(fd);
 }
 
 
@@ -183,7 +170,7 @@ int read_data_file() {
       nb_ts = 0;
       
       p = &LINE[0];
-      p += sprintf(p,"| %4d | %8d |",block_idx+firstBlock,(block_idx+firstBlock)*bbytes);
+      p += sprintf(p,"| %4d | %8d ",block_idx+firstBlock,(block_idx+firstBlock)*bbytes);
 
       for (idx=0; idx < nb_file; idx++) {
              
@@ -220,7 +207,7 @@ int read_data_file() {
 	   rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) 
 	            ((char*) rozofs_bins_hdr_p + disk_block_size);
            if (rozofs_bins_hdr_p->s.timestamp == 0) {
-	     p += sprintf(p,"| %16d | .... | %2d |",0,prj_id);
+	     p += sprintf(p,"|| %16d | .... | %2d ",0,prj_id);
 	   }		    
 	   else if (rozofs_bins_foot_p->timestamp != rozofs_bins_hdr_p->s.timestamp) {
 	     valid = 1;
@@ -287,21 +274,38 @@ int read_data_file() {
        }  
        size = pread(fd[idx],loc_read_bins_p,disk_block_size,block_number*disk_block_size);
        if (size !=  disk_block_size) {
-	   printf("Can not read block %d of %s\n", block_number, filename[idx]);       
-       }
-       else {
-           char msg[256];
-       	   rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;   
-	   if (rozofs_bins_hdr_p->s.timestamp == 0) {
-	     sprintf(msg,"%s Block %d is a whole\n", filename[idx], block_number);
-	     hexdump(block_number,idx,msg, NULL, 0, 0);
-	   }
-	   else {
-	     sprintf(msg,"%s Block %d size %d\n",filename[idx],block_number,  disk_block_size);	     
-	     hexdump(block_number,idx,msg,rozofs_bins_hdr_p, 0, disk_block_size);   
-           }		  
+	   printf("Can not read block %d of %s\n", block_number, filename[idx]); 
+	   continue;      
        }
 
+       FILE * f;
+       char fname[128];
+       sprintf(fname,"block_%d_dist_%d.txt", block_number, idx);
+       f = fopen(fname,"w");
+       if (f == NULL) {
+	 printf ("Can not create file %s",fname);
+	 continue;
+       }
+       printf("- %s\n",fname);
+
+
+       fprintf(f,"%s Block %d size %d\n", filename[idx], block_number, disk_block_size);
+
+       rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t *)loc_read_bins_p;   	 
+       fprintf(f,"Block header : TS %llu SZ %d PRJ %d CRC32 0x%x\n", 
+	       (long long unsigned int)rozofs_bins_hdr_p->s.timestamp, 
+	       rozofs_bins_hdr_p->s.effective_length,
+	       rozofs_bins_hdr_p->s.projection_id,
+	       rozofs_bins_hdr_p->s.filler);
+
+       rozofs_bins_foot_p = (rozofs_stor_bins_footer_t *) (loc_read_bins_p + disk_block_size);
+       rozofs_bins_foot_p--;
+       fprintf(f,"Block footer : TS %llu %s\n", 
+	      (long long unsigned int)rozofs_bins_foot_p->timestamp,
+	      (rozofs_bins_hdr_p->s.timestamp==rozofs_bins_foot_p->timestamp)?"":" !!!!!!");	 
+
+       hexdump(f,loc_read_bins_p, 0, disk_block_size);   
+       fclose(f);		  
      }   
    }
      

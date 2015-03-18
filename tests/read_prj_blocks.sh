@@ -80,8 +80,7 @@ do
 
     name=`printf "%s-%3.3d" $FID $chunk`
     locsid=$(( (sid-1)%HOSTNB + 1 ))
-    hid=$(( ((VID-1)*HOSTNB) + locsid ))
-    res=`find storage_c${cid}_h${hid} -name "$name"`
+    res=`find config_file/storage_*_${cid}_${sid} -name "$name"`
     case $res in 
       "") {
         list="$list -f NULL"
@@ -97,10 +96,11 @@ do
       };;
     esac
   done  
-  case $empty in
+  case "$empty" in
     "0") {
        echo "________________FID $FID chunk #$chunk"
        echo "$devices"
+       echo "./build/tests/read_prj_blocks $list -b $BSIZE -l $LAYOUT -c $chunk $oneblock"
        ./build/tests/read_prj_blocks $list -b $BSIZE -l $LAYOUT -c $chunk $oneblock
     };;
   esac  
