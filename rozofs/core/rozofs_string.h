@@ -29,7 +29,8 @@ extern "C" {
 
 typedef enum _rozofs_alignment_e {
  rozofs_left_alignment,
- rozofs_right_alignment
+ rozofs_right_alignment,
+ rozofs_zero,
 } rozofs_alignment_e;
 
 
@@ -299,7 +300,7 @@ static inline int rozofs_string_padded_append(char * pChar, int size, rozofs_ali
   /*
   ** Put left alignment
   */
-  if (alignment == rozofs_left_alignment) {
+  if (alignment == rozofs_right_alignment) {
     for (i=0; i< (size-len) ; i++) {
       *pChar++ = ' ';
     }
@@ -313,7 +314,7 @@ static inline int rozofs_string_padded_append(char * pChar, int size, rozofs_ali
   /*
   ** Put right alignment
   */  
-  if (alignment == rozofs_right_alignment) {
+  if (alignment == rozofs_left_alignment) {
     for (i=0; i< (size-len) ; i++) {
       *pChar++ = ' ';
     }
@@ -473,16 +474,25 @@ static inline int rozofs_64_padded_append(char * pChar, int size, rozofs_alignme
   /*
   ** Put left alignment
   */
-  if (alignment == rozofs_left_alignment) {
+  if (alignment == rozofs_right_alignment) {
     for (i=0; i< (size-len) ; i++) {
       *pChar++ = ' ';
     }
   } 
-     
+   
   /*
   ** Put sign if required
   */
   if (sign) *pChar++ = '-';
+  
+  /*
+  ** 0 left padding
+  */
+  if (alignment == rozofs_zero) {
+    for (i=0; i< (size-len) ; i++) {
+      *pChar++ = '0';
+    }
+  }  
 
   /*
   ** Write the value
@@ -497,7 +507,7 @@ static inline int rozofs_64_padded_append(char * pChar, int size, rozofs_alignme
   /*
   ** Put right alignment
   */
-  if (alignment == rozofs_right_alignment) {
+  if (alignment == rozofs_left_alignment) {
     for (i=0; i< (size-len) ; i++) {
       *pChar++ = ' ';
     }
