@@ -220,13 +220,13 @@ void show_export_fstat_thread(char * argv[], uint32_t tcpRef, void *bufRef) {
       */
       if (eid > EXPGW_EID_MAX_IDX)
       {
-        uma_dbg_send(tcpRef, bufRef, TRUE, "value not supported, max value is %u\n",EXPGW_EID_MAX_IDX);
+        uma_dbg_send_format(tcpRef, bufRef, TRUE, "value not supported, max value is %u\n",EXPGW_EID_MAX_IDX);
         return;
       }
       tab_p = export_fstat_table[eid];
       if (tab_p==NULL)
       {
-        uma_dbg_send(tcpRef, bufRef, TRUE, "export %u does not exist\n",eid);
+        uma_dbg_send_format(tcpRef, bufRef, TRUE, "export %u does not exist\n",eid);
         return;            
       }
       show_export_fstat_entry(pChar,tab_p,(uint16_t)eid);

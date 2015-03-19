@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <uuid/uuid.h>
 
 #ifdef __cplusplus
 extern "C" {

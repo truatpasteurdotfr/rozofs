@@ -110,7 +110,7 @@ static void display_write_flush_stat(char * argv[], uint32_t tcpRef, void *bufRe
       } 
       ROZOFS_MAX_WRITE_PENDING = new_val;
       reset_write_flush_stat();
-      uma_dbg_send(tcpRef, bufRef, TRUE, "New write pending maximum value is %d\n",ROZOFS_MAX_WRITE_PENDING); 
+      uma_dbg_send_format(tcpRef, bufRef, TRUE, "New write pending maximum value is %d\n",ROZOFS_MAX_WRITE_PENDING); 
       return;   
     } 
     /*
@@ -166,7 +166,7 @@ static void bugwatch_proc(char * argv[], uint32_t tcpRef, void *bufRef){
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
     return;
   }
-  uma_dbg_send(tcpRef, bufRef, TRUE, "BUGROZOFSWATCH is %s\n",(rozofs_bugwatch==0)?"disabled":"enabled"); 
+  uma_dbg_send_format(tcpRef, bufRef, TRUE, "BUGROZOFSWATCH is %s\n",(rozofs_bugwatch==0)?"disabled":"enabled"); 
 }  
 /*
 **__________________________________________________________________

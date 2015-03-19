@@ -178,7 +178,8 @@ void uma_dbg_addTopic_option(char * topic, uma_dbg_topic_function_t funct, uint1
 void uma_dbg_hide_topic(char * topic);
 void uma_dbg_init(uint32_t nbElements, uint32_t ipAddr, uint16_t serverPort) ;
 //64BITS void uma_dbg_send(uint32_t tcpCnxRef, uint32 bufRef, uint8_t end, char *fmt, ... );
-void uma_dbg_send(uint32_t tcpCnxRef, void *bufRef, uint8_t end, char *fmt, ... ); 
+void uma_dbg_send_format(uint32_t tcpCnxRef, void *bufRef, uint8_t end, char *fmt, ... ); 
+void uma_dbg_send(uint32_t tcpCnxRef, void *bufRef, uint8_t end, char * string); 
 void uma_dbg_set_name( char * system_name) ;
 
 //64BITS typedef uint32_t (*uma_dbg_catcher_function_t)(uint32 tcpRef, uint32 bufRef);

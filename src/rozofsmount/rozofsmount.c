@@ -406,7 +406,7 @@ void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
 	return;     
       } 
       rozofs_rotation_read_modulo = new_val;        
-      uma_dbg_send(tcpRef, bufRef, TRUE, "New rotate modulo set to %d\n",rozofs_rotation_read_modulo);    
+      uma_dbg_send_format(tcpRef, bufRef, TRUE, "New rotate modulo set to %d\n",rozofs_rotation_read_modulo);    
       return;     
    }
     /*
@@ -416,7 +416,7 @@ void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
     return;   
   }
-  uma_dbg_send(tcpRef, bufRef, TRUE, "rotation modulo is %d\n",rozofs_rotation_read_modulo);    
+  uma_dbg_send_format(tcpRef, bufRef, TRUE, "rotation modulo is %d\n",rozofs_rotation_read_modulo);    
   return;     
 }   
 /*__________________________________________________________________________

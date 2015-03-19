@@ -32,6 +32,7 @@
  
 #include <rozofs/common/types.h>
 #include <rozofs/common/log.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -110,17 +111,19 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
                 /* print offset */
                 if(i % HEXDUMP_COLS == 0)
                 {
-                        p += sprintf(p,"%8p: ", mem+i);
+			p += rozofs_u64_padded_append(p,8,rozofs_zero,(uint64_t)(mem+i));			
                 }
  
                 /* print hex data */
                 if(i < len)
                 {
-                        p += sprintf(p,"%02x ", 0xFF & ((char*)mem)[i]);
+			p += rozofs_u64_padded_append(p,2,rozofs_zero,0xFF & ((char*)mem)[i]);			
+		       *p++ = ' ';
+		
                 }
                 else /* end of block, just aligning for ASCII dump */
                 {
-                        p += sprintf(p,"   ");
+                        *p++ = ' '; *p++ = ' ';*p++ = ' ';
                 }
                 
                 /* print ASCII dump */
@@ -130,20 +133,21 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
                         {
                                 if(j >= len) /* end of block, not really printing */
                                 {
-                                        p += sprintf(p," ");
+                                        *p++ = ' ';
                                 }
                                 else if(isprint(((char*)mem)[j])) /* printable char */
                                 {
-					p += sprintf(p,"%c", 0xFF & ((char*)mem)[j]);     
+				        *p++ = 0xFF & ((char*)mem)[j];  
                                 }
                                 else /* other char */
                                 {
-                                        p += sprintf(p,".");
+                                        *p++ = '.';
                                 }
                         }
-                        p += sprintf(p,"\n");
+                        *p++ = '\n';
                 }
         }
+	*p = 0;
 	return p;
 }
 
@@ -157,12 +161,17 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len) {
   char   fileName[32];
   int    fd;
   int ret = -1;
+  char * p;
   
   pid = getpid();
-  sprintf(fileName,"/tmp/rozo.%d",pid);
+  p = fileName;
+  p += rozofs_string_append(p,"/tmp/rozo.");
+  p += rozofs_u32_append(p,pid);
   
-  strcat(cmd," > ");
-  strcat(cmd,fileName);
+  p = cmd;
+  p += strlen(cmd);
+  *p++ = ' '; *p++ = '>'; *p++ = ' ';
+  p += rozofs_string_append(p,fileName);
   
   ret = system(cmd);
   if (-1 == ret) {
@@ -203,7 +212,7 @@ void uma_dbg_system_cmd(char * argv[], uint32_t tcpRef, void *bufRef) {
 
   len = uma_dbg_run_system_cmd(cmd, uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
   if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
-  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",uma_dbg_get_buffer());
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return ;
 } 
 /*__________________________________________________________________________
@@ -214,15 +223,18 @@ void uma_dbg_system_cmd(char * argv[], uint32_t tcpRef, void *bufRef) {
 void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
   int    len;
   pid_t  pid;
+  char  *p;
   
   pid = getpid();
   
-  sprintf(uma_dbg_get_buffer(),"ps -p %d ", pid);
-  strcat(uma_dbg_get_buffer(), "-o%p -o%C -o%t -o%z -o%a");
+  p = uma_dbg_get_buffer();
+  p += rozofs_string_append(p,"ps -p ");
+  p += rozofs_u32_append(p, pid);
+  p += rozofs_string_append(p," -o%p -o%C -o%t -o%z -o%a");
 
   len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
   if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
-  else           uma_dbg_send(tcpRef, bufRef, TRUE, "%s",uma_dbg_get_buffer());
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return ;
 } 
 /*__________________________________________________________________________
@@ -233,6 +245,7 @@ void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
 void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     time_t elapse;
     int days, hours, mins, secs;
+    char   * pChar;
 
     // Compute uptime for storaged process
     elapse = (int) (time(0) - uptime);
@@ -240,7 +253,20 @@ void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     hours = (int) ((elapse / 3600) - (days * 24));
     mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
     secs = (int) (elapse % 60);
-    uma_dbg_send(tcpRef, bufRef, TRUE, "uptime = %d days, %d:%d:%d\n", days, hours, mins, secs);
+    
+    pChar = uma_dbg_get_buffer();
+    pChar += rozofs_string_append(pChar,"uptime = ");
+    pChar += rozofs_u32_append(pChar,days);
+    pChar += rozofs_string_append(pChar," days, ");
+    pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero,hours);
+    *pChar++ = ':';
+    pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero,mins);
+    *pChar++ = ':';
+    pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero,secs);
+    *pChar++ = '\n';
+    *pChar = 0;  
+        
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________
  */
@@ -253,15 +279,19 @@ void uma_dbg_reserved_ports(char * argv[], uint32_t tcpRef, void *bufRef) {
         
   pt += show_ip_local_reserved_ports(pt);
 
-  pt += sprintf(pt,"\n");
+  *pt++ = '\n';
   strcpy(cmd,"grep ip_local_reserved_ports /etc/sysctl.conf");
-  pt += sprintf(pt,"%s\n",cmd);    
+  pt += rozofs_string_append(pt,cmd);
+  *pt++ = '\n';      
   pt += uma_dbg_run_system_cmd(cmd, pt, 1024);
-  pt += sprintf(pt,"\n");
+  *pt++ = '\n';      
   
   strcpy(cmd,"cat /proc/sys/net/ipv4/ip_local_reserved_ports");
-  pt += sprintf(pt,"%s\n",cmd);  
+  pt += rozofs_string_append(pt,cmd);
+  *pt++ = '\n';   
   pt += uma_dbg_run_system_cmd(cmd, pt, 1024);
+  *pt++ = '\n'; 
+  *pt = 0; 
   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -271,12 +301,17 @@ void uma_dbg_reserved_ports(char * argv[], uint32_t tcpRef, void *bufRef) {
 *  Display the system name if any has been set thanks to uma_dbg_set_name()
 */
 void uma_dbg_show_name(char * argv[], uint32_t tcpRef, void *bufRef) {  
-    
+  char * pt = uma_dbg_get_buffer();
+      
   if (uma_gdb_system_name == NULL) {
     uma_dbg_send(tcpRef, bufRef, TRUE, "system : NO NAME\n");
   }  
   else {  
-    uma_dbg_send(tcpRef, bufRef, TRUE, "system : %s\n", uma_gdb_system_name);
+    pt += rozofs_string_append(pt,"system : ");
+    pt += rozofs_string_append(pt,uma_gdb_system_name);
+    pt += rozofs_string_append(pt,"\n");
+    
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   }
 }
 
@@ -286,13 +321,21 @@ void uma_dbg_show_name(char * argv[], uint32_t tcpRef, void *bufRef) {
 *  Display the version of the library 
 */
 void uma_dbg_show_version(char * argv[], uint32_t tcpRef, void *bufRef) {  
-  uma_dbg_send(tcpRef, bufRef, TRUE, "version : %s\n", VERSION);
+  char * pt = uma_dbg_get_buffer();
+  pt += rozofs_string_append(pt,"version : ");
+  pt += rozofs_string_append(pt,VERSION);
+  pt += rozofs_string_append(pt,"\n");
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /**
 *  Display the version of the library 
 */
 void uma_dbg_show_git_ref(char * argv[], uint32_t tcpRef, void *bufRef) {  
-  uma_dbg_send(tcpRef, bufRef, TRUE, "git : %s\n", ROZO_GIT_REF);
+  char * pt = uma_dbg_get_buffer();
+  pt += rozofs_string_append(pt,"git : ");
+  pt += rozofs_string_append(pt,ROZO_GIT_REF);
+  pt += rozofs_string_append(pt,"\n");
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________
  */
@@ -318,14 +361,15 @@ void uma_dbg_counters_reset(char * argv[], uint32_t tcpRef, void *bufRef) {
   p = uma_dbg_topic;
   for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++,p++) {
     if (p->option & UMA_DBG_OPTION_RESET) {
-      pChar += sprintf(pChar,"%s reset\n",p->name);
+      pChar += rozofs_string_append(pChar,p->name);
+      pChar += rozofs_string_append(pChar," reset\n");
       p->funct(argv,tcpRef,bufRef);
     }
   }  
 
   do_not_send = 0;
 
-  uma_dbg_send(tcpRef, bufRef, TRUE, "%s", mybuffer);
+  uma_dbg_send(tcpRef, bufRef, TRUE, mybuffer);
 } 
 /*-----------------------------------------------------------------------------
 **
@@ -368,8 +412,7 @@ void uma_dbg_setCatcher(uma_dbg_catcher_function_t funct)
 **
 **----------------------------------------------------------------------------
 */
-//64BITS void uma_dbg_send(uint32_t tcpCnxRef, uint32 bufRef, uint8_t end, char *fmt, ... )
-void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ... ) {
+void uma_dbg_send_format(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ... ) {
   va_list         vaList;
   UMA_MSGHEADER_S *pHead;
   char            *pChar;
@@ -389,14 +432,68 @@ void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *fmt, ...
   }
   pChar = (char*) (pHead+1);
   
-  len    = sprintf(pChar, "____[%s]__[ %s]____\n", uma_gdb_system_name, rcvCmdBuffer);
-  pChar += len;
-  len   += sizeof(UMA_MSGHEADER_S);
+  pChar += rozofs_string_append(pChar,"____[");
+  pChar += rozofs_string_append(pChar,uma_gdb_system_name);
+  pChar += rozofs_string_append(pChar,"]__[");  
+  pChar += rozofs_string_append(pChar,rcvCmdBuffer);
+  pChar += rozofs_string_append(pChar,"]____\n");  
+  
+  len = pChar - (char*)pHead;
 
   /* Format the string */
   va_start(vaList,fmt);
   len += vsprintf(pChar, fmt, vaList)+1;
   va_end(vaList);
+
+  if (len > UMA_DBG_MAX_SEND_SIZE)
+  {
+    severe("debug response exceeds buffer length %u/%u",len,(int)UMA_DBG_MAX_SEND_SIZE);
+  }
+
+  pHead->len = htonl(len-sizeof(UMA_MSGHEADER_S));
+  pHead->end = end;
+
+  ruc_buf_setPayloadLen(bufRef,len);
+  uma_tcp_sendSocket(tcpCnxRef,bufRef,0);
+}
+/*-----------------------------------------------------------------------------
+**
+**  #SYNOPSIS
+**   Send a message
+**
+**  IN:
+**   OUT :
+**
+**----------------------------------------------------------------------------
+*/
+void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *string) {
+  UMA_MSGHEADER_S *pHead;
+  char            *pChar;
+  uint32_t           len;
+
+  /* 
+  ** May be in a specific process such as counter reset
+  ** and so do not send any thing
+  */
+  if (do_not_send) return;
+  
+  /* Retrieve the buffer payload */
+  if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
+    severe( "ruc_buf_getPayload(%p)", bufRef );
+    /* Let's tell the caller fsm that the message is sent */
+    return;
+  }
+  pChar = (char*) (pHead+1);
+  
+  pChar += rozofs_string_append(pChar,"____[");
+  pChar += rozofs_string_append(pChar,uma_gdb_system_name);
+  pChar += rozofs_string_append(pChar,"]__[");  
+  pChar += rozofs_string_append(pChar,rcvCmdBuffer);
+  pChar += rozofs_string_append(pChar,"]____\n");  
+  pChar += rozofs_string_append(pChar,string);
+  
+  len = pChar - (char*)pHead;
+  len ++;
 
   if (len > UMA_DBG_MAX_SEND_SIZE)
   {
@@ -638,26 +735,35 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
   idx = 0;
   /* Format the string */
   if (topic) {
-    idx += sprintf(&p[idx], "No such topic \"%s\" !!!\n\n",topic);
+    idx += rozofs_string_append(&p[idx], "No such topic \"");
+    idx += rozofs_string_append(&p[idx],topic);
+    idx += rozofs_string_append(&p[idx],"\" !!!\n\n");
     len = strlen(topic);                
   }
 
   /* Build the list of topic */
-  if (len == 0) idx += sprintf(&p[idx], "List of available topics :\n");
-  else          idx += sprintf(&p[idx], "List of %s... topics:\n",topic);
-  
+  if (len == 0) idx += rozofs_string_append(&p[idx], "List of available topics :\n");
+  else {
+    idx += rozofs_string_append(&p[idx], "List of ");
+    idx += rozofs_string_append(&p[idx], topic);
+    idx += rozofs_string_append(&p[idx], "... topics:\n");
+  }
   for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++) {
   
     if (uma_dbg_topic[topicNum].option & UMA_DBG_OPTION_HIDE) continue;
   
     if (len == 0) {
-      idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);
+      idx += rozofs_string_append(&p[idx],"  ");
+      idx += rozofs_string_append(&p[idx],uma_dbg_topic[topicNum].name);
+      idx += rozofs_string_append(&p[idx],"\n");
     }
     else if (strncmp(topic,uma_dbg_topic[topicNum].name, len) == 0) {
-      idx += sprintf(&p[idx], "  %s\n",uma_dbg_topic[topicNum].name);      
+      idx += rozofs_string_append(&p[idx],"  ");
+      idx += rozofs_string_append(&p[idx],uma_dbg_topic[topicNum].name);
+      idx += rozofs_string_append(&p[idx],"\n");     
     }  
   }
-  if (len == 0) idx += sprintf(&p[idx], "  exit / quit / q\n");
+  if (len == 0) idx += rozofs_string_append(&p[idx],"  exit / quit / q\n");
 
   idx ++;
 
@@ -1064,6 +1170,7 @@ uint32_t uma_dbg_accept_CBK(uint32_t userRef,int socketId,struct sockaddr * sock
   struct  sockaddr_in vSckAddr;
   int                 vSckAddrLen=14;
   char                name[32];
+  char              * pChar;
 
   uma_tcp_create_t *pconf = &conf;
 
@@ -1073,7 +1180,18 @@ uint32_t uma_dbg_accept_CBK(uint32_t userRef,int socketId,struct sockaddr * sock
   }
   ipAddr = (uint32_t) ntohl((uint32_t)(/*(struct sockaddr *)*/vSckAddr.sin_addr.s_addr));
   port   = ntohs((uint16_t)(vSckAddr.sin_port));
-  sprintf(name,"DBG %u.%u.%u.%u", (ipAddr>>24)&0xFF, (ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF,(ipAddr)&0xFF);
+  
+  pChar = name;
+  pChar += rozofs_string_append(pChar,"A:DIAG/");
+  pChar += rozofs_u32_append(pChar,(ipAddr>>24)&0xFF);
+  *pChar++ = '.';
+  pChar += rozofs_u32_append(pChar,(ipAddr>>16)&0xFF);
+  *pChar++ = '.';
+  pChar += rozofs_u32_append(pChar,(ipAddr>>8)&0xFF);
+  *pChar++ = '.';
+  pChar += rozofs_u32_append(pChar,(ipAddr)&0xFF);
+  *pChar++ = ':';
+  pChar += rozofs_u32_append(pChar,port);  
 
   /* Search for a debug session with this IP address and port */
   if ((pObj = uma_dbg_findFromAddrAndPort(ipAddr,port)) != NULL) {
@@ -1146,6 +1264,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   ruc_obj_desc_t            *pnext ;
   void                      *idx;
   uint32_t                    tcpCnxServer;
+  char                     * pChar;
 
   /* Create a TCP connection server */
   inputArgs.userRef    = 0;
@@ -1153,8 +1272,18 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   inputArgs.priority   = 1;
   inputArgs.ipAddr     = ipAddr;
   inputArgs.accept_CBK = uma_dbg_accept_CBK;
-  sprintf((char*)inputArgs.cnxName,"DIAG SRV %u.%u.%u.%u:%u",
-         (ipAddr>>24)&0xFF,(ipAddr>>16)&0xFF,(ipAddr>>8)&0xFF,ipAddr&0xFF,serverPort);
+  
+  pChar = (char *) &inputArgs.cnxName[0];
+  pChar += rozofs_string_append(pChar,"L:DIAG/");
+  pChar += rozofs_u32_append(pChar,(ipAddr>>24)&0xFF);
+  *pChar++ = '.';
+  pChar += rozofs_u32_append(pChar,(ipAddr>>16)&0xFF);
+  *pChar++ = '.';
+  pChar += rozofs_u32_append(pChar,(ipAddr>>8)&0xFF);
+  *pChar++ = '.';
+  pChar += rozofs_u32_append(pChar,(ipAddr)&0xFF);
+  *pChar++ = ':';
+  pChar += rozofs_u32_append(pChar,serverPort);  
 
   if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
     severe("ruc_tcp_server_connect" );
