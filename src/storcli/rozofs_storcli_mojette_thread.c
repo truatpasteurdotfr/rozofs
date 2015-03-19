@@ -39,20 +39,7 @@ int af_unix_disk_socket_ref = -1;
  
  #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 
-/*
-**____________________________________________________________________________
-*/
-/**
-* api for reading the cycles counter
-*/
 
-static __inline__ unsigned long long rdtsc(void)
-{
-  unsigned hi,lo;
-  __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-  return ((unsigned long long)lo)| (((unsigned long long)hi)<<32);
-
-}
 /**
 *  Thread table
 */

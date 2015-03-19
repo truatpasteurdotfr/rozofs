@@ -50,17 +50,6 @@
 /* CRC-32C (iSCSI) polynomial in reversed bit order. */
 #define POLY 0x82f63b78
 
-/**
-*    FDL : get processor ticker
-*/
-static __inline__ unsigned long long rdtsc(void)
-{
-  unsigned hi,lo;
-  __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
-  return ((unsigned long long)lo)| (((unsigned long long)hi)<<32);
-
-}
-
 
 /* Table for a quadword-at-a-time software crc. */
 static pthread_once_t crc32c_once_sw = PTHREAD_ONCE_INIT;

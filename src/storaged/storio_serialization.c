@@ -31,6 +31,7 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "storio_serialization.h"
 
@@ -44,8 +45,7 @@ uint64_t   storage_direct_req[STORIO_DISK_THREAD_MAX_OPCODE]={0};
 * Display serialization counter debug help
 */
 static char * display_serialization_counters_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"serialization reset       : reset serialization counter\n");
+  pChar += rozofs_string_append(pChar,"usage:\nserialization reset       : reset serialization counter\n");
   return pChar; 
 }
 /*_______________________________________________________________________
@@ -78,6 +78,7 @@ char * serialize_opcode_string(int opcode) {
 void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
   char          * p = uma_dbg_get_buffer();
   int             opcode;
+  char          * sep = "+----------------+------------------+------------------+------------------+\n";
   
   if (argv[1] != NULL) {
     if (strcmp(argv[1],"reset")==0) {
@@ -88,19 +89,24 @@ void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRe
     p = display_serialization_counters_help(p);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
     return;    
-  }
-    
-  p += sprintf(p, "+----------------+------------------+------------------+------------------+\n");
-  p += sprintf(p, "| %14s | %16s | %16s | %16s |\n", "request","direct","queued","unqueued");
-  p += sprintf(p, "+----------------+------------------+------------------+------------------+\n");
+  } 
+      
+  p += rozofs_string_append(p, sep);
+  p += rozofs_string_append(p,"|    request     |     direct       |     queued       |     unqueued     |\n");
+  p += rozofs_string_append(p, sep); 
   for (opcode=1; opcode<STORIO_DISK_THREAD_MAX_OPCODE; opcode++) {  
-    p += sprintf(p, "| %14s | %16llu | %16llu | %16llu |\n", 
-                serialize_opcode_string(opcode),
-                (long long unsigned int)storage_direct_req[opcode],
-                (long long unsigned int)storage_queued_req[opcode],
-		(long long unsigned int)storage_unqueued_req[opcode]);       
+    *p++ = '|'; *p++ = ' ';
+    p += rozofs_string_padded_append(p,15,rozofs_left_alignment,serialize_opcode_string(opcode));
+    *p++ = '|'; 
+    p += rozofs_u64_padded_append(p,17,rozofs_right_alignment,storage_direct_req[opcode]);
+    *p++ = ' '; *p++ = '|';
+    p += rozofs_u64_padded_append(p,17,rozofs_right_alignment,storage_queued_req[opcode]);
+    *p++ = ' '; *p++ = '|';    
+    p += rozofs_u64_padded_append(p,17,rozofs_right_alignment,storage_unqueued_req[opcode]);
+    *p++ = ' '; *p++ = '|'; *p++ = '\n';      
   }
-  p += sprintf(p, "+----------------+------------------+------------------+------------------+\n");
+  p += rozofs_string_append(p, sep);
+    
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());    
 }
 /*_______________________________________________________________________
