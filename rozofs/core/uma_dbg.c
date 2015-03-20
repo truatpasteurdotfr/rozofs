@@ -30,9 +30,7 @@
 #include <time.h>
 #include <ctype.h>
  
-#include <rozofs/common/types.h>
-#include <rozofs/common/log.h>
-#include <rozofs/core/rozofs_string.h>
+
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -40,7 +38,6 @@
 #include "uma_tcp_main_api.h"
 #include "ruc_tcpServer_api.h"
 #include "uma_dbg_api.h"
-#include "uma_dbg_msgHeader.h"
 #include "config.h"
 #include "../rozofs_service_ports.h"
 
@@ -81,12 +78,12 @@ UMA_DBG_SESSION_S *uma_dbg_freeList = (UMA_DBG_SESSION_S*)NULL;
 UMA_DBG_SESSION_S *uma_dbg_activeList = (UMA_DBG_SESSION_S*)NULL;
 
 #define UMA_DBG_MAX_CMD_LEN 127
-static char rcvCmdBuffer[UMA_DBG_MAX_CMD_LEN+1];
+char rcvCmdBuffer[UMA_DBG_MAX_CMD_LEN+1];
 
 char uma_dbg_temporary_buffer[UMA_DBG_MAX_SEND_SIZE];
 
 void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic);
-static uint32_t do_not_send = 0;
+uint32_t uma_dbg_do_not_send = 0;
 
 /*__________________________________________________________________________
  */
@@ -356,7 +353,7 @@ void uma_dbg_counters_reset(char * argv[], uint32_t tcpRef, void *bufRef) {
   /*
   ** To prevent called function to send back a response
   */ 
-  do_not_send = 1;
+  uma_dbg_do_not_send = 1;
   
   p = uma_dbg_topic;
   for (topicNum=0; topicNum <uma_dbg_nb_topic; topicNum++,p++) {
@@ -367,7 +364,7 @@ void uma_dbg_counters_reset(char * argv[], uint32_t tcpRef, void *bufRef) {
     }
   }  
 
-  do_not_send = 0;
+  uma_dbg_do_not_send = 0;
 
   uma_dbg_send(tcpRef, bufRef, TRUE, mybuffer);
 } 
@@ -422,7 +419,7 @@ void uma_dbg_send_format(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *f
   ** May be in a specific process such as counter reset
   ** and so do not send any thing
   */
-  if (do_not_send) return;
+  if (uma_dbg_do_not_send) return;
   
   /* Retrieve the buffer payload */
   if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
@@ -456,56 +453,7 @@ void uma_dbg_send_format(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *f
   ruc_buf_setPayloadLen(bufRef,len);
   uma_tcp_sendSocket(tcpCnxRef,bufRef,0);
 }
-/*-----------------------------------------------------------------------------
-**
-**  #SYNOPSIS
-**   Send a message
-**
-**  IN:
-**   OUT :
-**
-**----------------------------------------------------------------------------
-*/
-void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *string) {
-  UMA_MSGHEADER_S *pHead;
-  char            *pChar;
-  uint32_t           len;
 
-  /* 
-  ** May be in a specific process such as counter reset
-  ** and so do not send any thing
-  */
-  if (do_not_send) return;
-  
-  /* Retrieve the buffer payload */
-  if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
-    severe( "ruc_buf_getPayload(%p)", bufRef );
-    /* Let's tell the caller fsm that the message is sent */
-    return;
-  }
-  pChar = (char*) (pHead+1);
-  
-  pChar += rozofs_string_append(pChar,"____[");
-  pChar += rozofs_string_append(pChar,uma_gdb_system_name);
-  pChar += rozofs_string_append(pChar,"]__[");  
-  pChar += rozofs_string_append(pChar,rcvCmdBuffer);
-  pChar += rozofs_string_append(pChar,"]____\n");  
-  pChar += rozofs_string_append(pChar,string);
-  
-  len = pChar - (char*)pHead;
-  len ++;
-
-  if (len > UMA_DBG_MAX_SEND_SIZE)
-  {
-    severe("debug response exceeds buffer length %u/%u",len,(int)UMA_DBG_MAX_SEND_SIZE);
-  }
-
-  pHead->len = htonl(len-sizeof(UMA_MSGHEADER_S));
-  pHead->end = end;
-
-  ruc_buf_setPayloadLen(bufRef,len);
-  uma_tcp_sendSocket(tcpCnxRef,bufRef,0);
-}
 /*-----------------------------------------------------------------------------
 **
 **  #SYNOPSIS
@@ -949,7 +897,7 @@ void uma_dbg_process_command_file(char * command_file_name) {
   FILE              * fd = NULL;
   void              * bufRef = NULL;
 
-  do_not_send = 1;
+  uma_dbg_do_not_send = 1;
 
   /*
   ** Try to open the given command file
@@ -1106,7 +1054,7 @@ out:
   /*
   ** Reset do not send indicator
   */
-  do_not_send = 0;
+  uma_dbg_do_not_send = 0;
   
   /*
   ** Close command file

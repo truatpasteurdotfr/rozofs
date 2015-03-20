@@ -18,10 +18,18 @@
 #ifndef UMA_DBG_API_H
 #define UMA_DBG_API_H
 
-#include <rozofs/common/types.h>
 #include <stdio.h>
 
+#include <rozofs/common/types.h>
+#include <rozofs/common/log.h>
+#include <rozofs/core/rozofs_string.h>
+
+#include "uma_dbg_msgHeader.h"
 #include "ruc_common.h"
+#include "rozofs_string.h"
+#include "ruc_buffer_api.h"
+#include "uma_tcp_main_api.h"
+
 
 #define   UMA_DBG_OPTION_HIDE           (1<<0)
 #define   UMA_DBG_OPTION_RESET          (1<<1)
@@ -31,6 +39,10 @@
 */
 #define UMA_DBG_MAX_SEND_SIZE (1024*384)
 extern char uma_dbg_temporary_buffer[];
+extern uint32_t uma_dbg_do_not_send;
+extern char   * uma_gdb_system_name;
+extern char     rcvCmdBuffer[];
+
 /*__________________________________________________________________________
  */
 /**
@@ -43,38 +55,71 @@ static inline int uma_dbg_byte2String(uint64_t value, char * value_string) {
   char     * pt = value_string;
   
   if (value<1000) {
-    return sprintf(pt,"%llu Bytes",(long long unsigned int) value);  		    
+    pt += rozofs_u64_append(pt,value);
+    pt += rozofs_string_append(pt," Bytes");
+    return (pt-value_string);  		    
   }
   
   if (value<1000000) {
+  
     if (value>99000) {
-      return sprintf(pt,"%llu KB",(long long unsigned int) value/1000);  		    
+      pt += rozofs_u64_append(pt,value/1000);
+      pt += rozofs_string_append(pt," KB");
+      return (pt-value_string);    		    
     }
+    
     modulo = (value % 1000) / 100;
-    return sprintf(pt,"%llu.%1.1llu KB",(long long unsigned int) value/1000, (long long unsigned int)modulo);
+    pt += rozofs_u64_append(pt,value/1000);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," KB");
+    return (pt-value_string); 
   }
   
   if (value<1000000000) {
+  
     if (value>99000000) {
-      return sprintf(pt,"%llu MB",(long long unsigned int) value/1000000);  		    
+      pt += rozofs_u64_append(pt,value/1000000);
+      pt += rozofs_string_append(pt," MB");
+      return (pt-value_string);    		    
     }
+    
     modulo = (value % 1000000) / 100000;
-    return sprintf(pt,"%llu.%1.1llu MB",(long long unsigned int) value/1000000, (long long unsigned int)modulo);
+    pt += rozofs_u64_append(pt,value/1000000);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," MB");
+    return (pt-value_string);     
   }
     
   if (value<1000000000000) {
+  
     if (value>99000000000) {
-      return sprintf(pt,"%llu GB",(long long unsigned int) value/1000000000);  		    
+      pt += rozofs_u64_append(pt,value/1000000000);
+      pt += rozofs_string_append(pt," GB");
+      return (pt-value_string);    		    
     }
+    
     modulo = (value % 1000000000) / 100000000;
-    return sprintf(pt,"%llu.%1.1llu GB",(long long unsigned int) value/1000000000, (long long unsigned int)modulo);
+    pt += rozofs_u64_append(pt,value/1000000000);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," GB");
+    return (pt-value_string);     
   }  
   
   if (value>99000000000000) {
-    return sprintf(pt,"%llu PB",(long long unsigned int) value/1000000000000);  		    
-  }
+    pt += rozofs_u64_append(pt,value/1000000000000);
+    pt += rozofs_string_append(pt," PB");
+    return (pt-value_string);     
+  }  
+
   modulo = (value % 1000000000000) / 100000000000;
- return sprintf(pt,"%llu.%1.1llu PB",(long long unsigned int) value/1000000000000,(long long unsigned int) modulo);
+  pt += rozofs_u64_append(pt,value/1000000000000);
+  *pt++ = '.';
+  pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);      
+  pt += rozofs_string_append(pt," PB");
+  return (pt-value_string);   
 }
 /*__________________________________________________________________________
  */
@@ -115,7 +160,57 @@ static inline int uma_dbg_get_buffer_len() {return UMA_DBG_MAX_SEND_SIZE;}
 **--------------------------------------------------------------------------
 */
 void uma_dbg_process_command_file(char * command_file_name);
+/*-----------------------------------------------------------------------------
+**
+**   Send back a diagnostic response
+**
+**  @param tcpCnxRef   TCP connection reference
+**  @param bufRef      reference of the received buffer that will be used to respond
+**  @param end         whether this is the last buffer of the response 
+**  @param string      A pre-formated string ontaining the reponse 
+**
+**----------------------------------------------------------------------------
+*/
+static inline void uma_dbg_send(uint32_t tcpCnxRef, void  *bufRef, uint8_t end, char *string) {
+  UMA_MSGHEADER_S *pHead;
+  char            *pChar;
+  uint32_t           len;
 
+  /* 
+  ** May be in a specific process such as counter reset
+  ** and so do not send any thing
+  */
+  if (uma_dbg_do_not_send) return;
+  
+  /* Retrieve the buffer payload */
+  if ((pHead = (UMA_MSGHEADER_S *)ruc_buf_getPayload(bufRef)) == NULL) {
+    severe( "ruc_buf_getPayload(%p)", bufRef );
+    /* Let's tell the caller fsm that the message is sent */
+    return;
+  }
+  pChar = (char*) (pHead+1);
+  
+  pChar += rozofs_string_append(pChar,"____[");
+  pChar += rozofs_string_append(pChar,uma_gdb_system_name);
+  pChar += rozofs_string_append(pChar,"]__[");  
+  pChar += rozofs_string_append(pChar,rcvCmdBuffer);
+  pChar += rozofs_string_append(pChar,"]____\n");  
+  pChar += rozofs_string_append(pChar,string);
+  
+  len = pChar - (char*)pHead;
+  len ++;
+
+  if (len > UMA_DBG_MAX_SEND_SIZE)
+  {
+    severe("debug response exceeds buffer length %u/%u",len,(int)UMA_DBG_MAX_SEND_SIZE);
+  }
+
+  pHead->len = htonl(len-sizeof(UMA_MSGHEADER_S));
+  pHead->end = end;
+
+  ruc_buf_setPayloadLen(bufRef,len);
+  uma_tcp_sendSocket(tcpCnxRef,bufRef,0);
+}
 /*
    The function uma_dbg_addTopic enables to declare a new topic to
    the debug module. You have to give :
@@ -179,7 +274,6 @@ void uma_dbg_hide_topic(char * topic);
 void uma_dbg_init(uint32_t nbElements, uint32_t ipAddr, uint16_t serverPort) ;
 //64BITS void uma_dbg_send(uint32_t tcpCnxRef, uint32 bufRef, uint8_t end, char *fmt, ... );
 void uma_dbg_send_format(uint32_t tcpCnxRef, void *bufRef, uint8_t end, char *fmt, ... ); 
-void uma_dbg_send(uint32_t tcpCnxRef, void *bufRef, uint8_t end, char * string); 
 void uma_dbg_set_name( char * system_name) ;
 
 //64BITS typedef uint32_t (*uma_dbg_catcher_function_t)(uint32 tcpRef, uint32 bufRef);

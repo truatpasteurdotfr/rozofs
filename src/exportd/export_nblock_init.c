@@ -84,19 +84,39 @@ void * decoded_rpc_buffer_pool = NULL;
 **_________________________________________________________________________
 */
 
+#define SHOW_PROFILER_PROBE(probe) \
+  if (prof->probe[P_COUNT]) {\
+    *pChar++ = ' ';\
+    pChar += rozofs_string_padded_append(pChar, 25, rozofs_left_alignment, #probe);\
+    *pChar++ = '|';\
+    pChar += rozofs_u64_padded_append(pChar, 16, rozofs_right_alignment, prof->probe[P_COUNT]);\
+    *pChar++ = ' '; *pChar++ = '|'; \
+    pChar += rozofs_u64_padded_append(pChar, 10, rozofs_right_alignment, prof->probe[P_COUNT]?prof->probe[P_ELAPSE]/prof->probe[P_COUNT]:0);\
+    *pChar++ = ' '; *pChar++ = '|'; \
+    pChar += rozofs_u64_padded_append(pChar, 19, rozofs_right_alignment, prof->probe[P_ELAPSE]);\
+    *pChar++ = ' '; *pChar++ = '|'; \
+    pChar += rozofs_string_padded_append(pChar, 16, rozofs_right_alignment, " ");\
+    *pChar++ = '\n';\
+    *pChar = 0;\
+  }
 
-#define SHOW_PROFILER_PROBE(probe) if (prof->probe[P_COUNT]) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15s |\n",\
-                    #probe,\
-                    prof->probe[P_COUNT],\
-                    prof->probe[P_COUNT]?prof->probe[P_ELAPSE]/prof->probe[P_COUNT]:0,\
-                    prof->probe[P_ELAPSE]," ");
+#define SHOW_PROFILER_PROBE_BYTE(probe) \
+  if (prof->probe[P_COUNT]) {\
+    *pChar++ = ' ';\
+    pChar += rozofs_string_padded_append(pChar, 25, rozofs_left_alignment, #probe);\
+    *pChar++ = '|';\
+    pChar += rozofs_u64_padded_append(pChar, 16, rozofs_right_alignment, prof->probe[P_COUNT]);\
+    *pChar++ = ' '; *pChar++ = '|'; \
+    pChar += rozofs_u64_padded_append(pChar, 10, rozofs_right_alignment, prof->probe[P_COUNT]?prof->probe[P_ELAPSE]/prof->probe[P_COUNT]:0);\
+    *pChar++ = ' '; *pChar++ = '|'; \
+    pChar += rozofs_u64_padded_append(pChar, 19, rozofs_right_alignment, prof->probe[P_ELAPSE]);\
+    *pChar++ = ' '; *pChar++ = '|'; \
+    pChar += rozofs_u64_padded_append(pChar, 16, rozofs_right_alignment, prof->probe[P_BYTES]);\
+    *pChar++ = '\n';\
+    *pChar = 0;\
+  }
 
-#define SHOW_PROFILER_PROBE_BYTE(probe) if (prof->probe[P_COUNT]) pChar += sprintf(pChar," %-24s | %15"PRIu64" | %9"PRIu64" | %18"PRIu64" | %15"PRIu64" |\n",\
-                    #probe,\
-                    prof->probe[P_COUNT],\
-                    prof->probe[P_COUNT]?prof->probe[P_ELAPSE]/prof->probe[P_COUNT]:0,\
-                    prof->probe[P_ELAPSE],\
-                    prof->probe[P_BYTES]);
+
 
 char * show_profiler_one(char * pChar, uint32_t eid) {
     export_one_profiler_t * prof;   
@@ -114,9 +134,9 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
         
 
     // Compute uptime for storaged process
-    pChar +=  sprintf(pChar, "_______________________ EID = %d _______________________ \n",eid);
-    pChar += sprintf(pChar, "   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
-    pChar += sprintf(pChar, "--------------------------+-----------------+-----------+--------------------+-----------------+\n");
+    pChar += rozofs_string_append(pChar, "_______________________ EID = ");
+    pChar += rozofs_u32_append(pChar,eid);
+    pChar += rozofs_string_append(pChar, " _______________________ \n   procedure              |     count       |  time(us) | cumulated time(us) |     bytes       |\n--------------------------+-----------------+-----------+--------------------+-----------------+\n");
     SHOW_PROFILER_PROBE(ep_mount);
     SHOW_PROFILER_PROBE(ep_umount);
     SHOW_PROFILER_PROBE(ep_statfs);
@@ -215,16 +235,15 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
     SHOW_PROFILER_PROBE(quota_set);
     SHOW_PROFILER_PROBE(quota_get);
     SHOW_PROFILER_PROBE(quota_setinfo);
+    
     return pChar;
 }
 
-
 static char * show_profiler_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"profiler reset [ <eid> ] : reset statistics\n");
-  pChar += sprintf(pChar,"profiler [ <eid> ]       : display statistics\n");  
+  pChar += rozofs_string_append(pChar,"usage:\nprofiler reset [ <eid> ] : reset statistics\nprofiler [ <eid> ]       : display statistics\n");  
   return pChar; 
 }
+
 void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     uint32_t eid;
@@ -266,7 +285,6 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
     return;
 }
-
 
 
 void show_profiler_conf(char * argv[], uint32_t tcpRef, void *bufRef) {

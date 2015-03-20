@@ -31,6 +31,7 @@
 #include "af_unix_socket_generic_api.h"
 #include "af_unix_socket_generic.h"
 #include "north_lbg.h"
+#include "rozofs_string.h"
 
 #define MICROLONG(time) ((unsigned long long)time.tv_sec * 1000000 + time.tv_usec)
 #define RUC_SOCKCTRL_DEBUG_TOPIC      "cpu"
@@ -253,49 +254,96 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   uint32_t          average;
 
   p = ruc_sockCtrl_pFirstCtx;
-  pChar += sprintf(pChar,"conditional sockets      : %u \n",ruc_sockCtrl_nb_socket_conditional);
-  pChar += sprintf(pChar,"max socket events        : %u \n",ruc_sockCtrl_max_nr_select);
+  pChar += rozofs_string_append(pChar,"conditional sockets      : ");
+  pChar += rozofs_u32_append(pChar ,ruc_sockCtrl_max_nr_select);
+  *pChar++ = '\n';
+
+  pChar += rozofs_string_append(pChar,"max socket events        : ");
+  pChar += rozofs_u32_append(pChar ,ruc_sockCtrl_max_nr_select);
+  *pChar++ = '\n';
   ruc_sockCtrl_max_nr_select = 0;
-  pChar += sprintf(pChar,"xmit/recv prepare cycles : %llu cycles [%llu/%llu)\n",
-                   (ruc_count_prepare==0)?0:(long long unsigned)ruc_time_prepare/ruc_count_prepare,
-                   (long long unsigned)ruc_time_prepare,(long long unsigned)ruc_count_prepare);
+
+  pChar += rozofs_string_append(pChar,"xmit/recv prepare cycles : ");
+  pChar += rozofs_u64_append(pChar ,(ruc_count_prepare==0)?0:(long long unsigned)ruc_time_prepare/ruc_count_prepare);
+  pChar += rozofs_string_append(pChar," cycles [");
+  pChar += rozofs_u64_append(pChar ,ruc_time_prepare);
+  *pChar++ = '/';
+  pChar += rozofs_u64_append(pChar ,ruc_count_prepare);
+  *pChar++ = ']';  
+  *pChar++ = '\n';
   ruc_time_prepare = 0;
   ruc_count_prepare = 0;
-  pChar += sprintf(pChar,"xmit/recv receive cycles : %llu cycles [%llu/%llu)\n",
-                   (ruc_count_receive==0)?0:(long long unsigned)ruc_time_receive/ruc_count_receive,
-                   (long long unsigned)ruc_time_receive,(long long unsigned)ruc_count_receive);
+
+  pChar += rozofs_string_append(pChar,"xmit/recv receive cycles : ");
+  pChar += rozofs_u64_append(pChar ,(ruc_count_receive==0)?0:(long long unsigned)ruc_time_receive/ruc_count_receive);
+  pChar += rozofs_string_append(pChar," cycles [");
+  pChar += rozofs_u64_append(pChar ,ruc_time_receive);
+  *pChar++ = '/';
+  pChar += rozofs_u64_append(pChar ,ruc_count_receive);
+  *pChar++ = ']';  
+  *pChar++ = '\n';
   ruc_time_receive = 0;
   ruc_count_receive = 0;							       
 
-  pChar += sprintf(pChar,"gettimeofday cycles      : %llu cycles [%llu/%llu)\n",
-                   (gettimeofday_count==0)?0:(long long unsigned)gettimeofday_cycles/gettimeofday_count,
-                   (long long unsigned)gettimeofday_cycles,(long long unsigned)gettimeofday_count);
+  pChar += rozofs_string_append(pChar,"gettimeofday cycles      : ");
+  pChar += rozofs_u64_append(pChar ,(gettimeofday_count==0)?0:(long long unsigned)gettimeofday_cycles/gettimeofday_count);
+  pChar += rozofs_string_append(pChar," cycles [");
+  pChar += rozofs_u64_append(pChar ,gettimeofday_cycles);
+  *pChar++ = '/';
+  pChar += rozofs_u64_append(pChar ,gettimeofday_count);
+  *pChar++ = ']';  
+  *pChar++ = '\n';
   gettimeofday_cycles = 0;
   gettimeofday_count  = 0;	
 
-  pChar += sprintf(pChar,"application poll cycles  : %llu cycles [%llu/%llu)\n",
-                   (ruc_applicative_poller_count==0)?0:(long long unsigned)ruc_applicative_poller_cycles/ruc_applicative_poller_count,
-                   (long long unsigned)ruc_applicative_poller_cycles,(long long unsigned)ruc_applicative_poller_count);
+  pChar += rozofs_string_append(pChar,"application poll cycles  : ");
+  pChar += rozofs_u64_append(pChar ,(ruc_applicative_poller_count==0)?0:(long long unsigned)ruc_applicative_poller_cycles/ruc_applicative_poller_count);
+  pChar += rozofs_string_append(pChar," cycles [");
+  pChar += rozofs_u64_append(pChar ,ruc_applicative_poller_cycles);
+  *pChar++ = '/';
+  pChar += rozofs_u64_append(pChar ,ruc_applicative_poller_count);
+  *pChar++ = ']';  
+  *pChar++ = '\n';
   ruc_applicative_poller_cycles = 0;
   ruc_applicative_poller_count  = 0;	
-
-  pChar += sprintf(pChar,"rucRdFdSet %p (%lu) __FD_SETSIZE :%u __NFDBITS :%u\n",&rucRdFdSet,(long unsigned int)sizeof(rucRdFdSet),__FD_SETSIZE,__NFDBITS);
   
-  
-  pChar += sprintf(pChar,"select max cpu time : %u us\n",ruc_sockCtrl_looptimeMax);
+  pChar += rozofs_string_append(pChar,"rucRdFdSet ");
+  pChar += rozofs_x64_append(pChar,(uint64_t)&rucRdFdSet);
+  pChar += rozofs_string_append(pChar," (");
+  pChar += rozofs_u64_append(pChar,sizeof(rucRdFdSet));  
+  pChar += rozofs_string_append(pChar,") __FD_SETSIZE :"); 
+  pChar += rozofs_u32_append(pChar,__FD_SETSIZE);
+  pChar += rozofs_string_append(pChar," __NFDBITS :"); 
+  pChar += rozofs_u32_append(pChar,__NFDBITS);
+  *pChar++ = '\n';
+    
+  pChar += rozofs_string_append(pChar,"select max cpu time : ");
+  pChar += rozofs_u32_append(pChar,ruc_sockCtrl_looptimeMax);
+  pChar += rozofs_string_append(pChar," us\n");   
   ruc_sockCtrl_looptimeMax = 0;   
-  pChar += sprintf(pChar,"%-32s %4s %10s %10s %10s %10s\n","application","sock", "last","cumulated", "activation", "average");
-  pChar += sprintf(pChar,"%-32s %4s %10s %10s %10s %10s  prio\n\n","name","nb", "cpu","cpu","times","cpu");
-  
+
+  pChar += rozofs_string_append(pChar,"\napplication                      sock       last  cumulated activation    average\n");
+  pChar += rozofs_string_append(pChar,"name                               nb        cpu        cpu      times        cpu  prio\n\n");
+    
   for (i = 0; i < ruc_sockCtrl_maxConnection; i++)
   {
     if (p->socketId !=(uint32_t)-1)
     {
       if (p->nbTimes == 0) average = 0;
       else                 average = p->cumulatedTime/p->nbTimes;
-      pChar += sprintf(pChar, "%-32s %4d %10u %10u %10u %10u %4u %u-%u\n",
-       &p->name[0],p->socketId, p->lastTime, p->cumulatedTime,p->nbTimes, average,p->priority,
-       (FD_ISSET(p->socketId, &rucRdFdSetUnconditional)==0)?0:1, (FD_ISSET(p->socketId, &rucWrFdSetCongested)==0)?0:1);
+      pChar += rozofs_string_padded_append(pChar, 33, rozofs_left_alignment, &p->name[0]);
+      pChar += rozofs_u32_padded_append(pChar,  4, rozofs_right_alignment, p->socketId);
+      pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, p->lastTime);
+      pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, p->cumulatedTime);
+      pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, p->nbTimes);
+      pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, average);
+      pChar += rozofs_u64_padded_append(pChar,  5, rozofs_right_alignment, p->priority);
+      *pChar++ = ' ';
+      pChar += rozofs_u32_append(pChar, (FD_ISSET(p->socketId, &rucRdFdSetUnconditional)==0)?0:1);
+      *pChar++ = '-';      
+      pChar += rozofs_u32_append(pChar, (FD_ISSET(p->socketId, &rucWrFdSetCongested)==0)?0:1);  
+      *pChar ++ = '\n';
+                
       p->cumulatedTime = 0;
       p->nbTimes = 0;
     }
@@ -304,10 +352,19 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
 
   if (ruc_sockCtrl_nbTimesScheduler == 0) average = 0;
   else                                    average = ruc_sockCtrl_cumulatedCpuScheduler/ruc_sockCtrl_nbTimesScheduler;
-  pChar += sprintf(pChar,"%-32s %4d %10u %10u %10u %10u\n", "scheduler", 0,  
-		   ruc_sockCtrl_lastCpuScheduler, ruc_sockCtrl_cumulatedCpuScheduler, ruc_sockCtrl_nbTimesScheduler, average);
+  
+  pChar += rozofs_string_padded_append(pChar, 33, rozofs_left_alignment, "scheduler");
+  pChar += rozofs_u32_padded_append(pChar,  4, rozofs_right_alignment, 0);
+  pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, ruc_sockCtrl_lastCpuScheduler);
+  pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, ruc_sockCtrl_cumulatedCpuScheduler);
+  pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, ruc_sockCtrl_nbTimesScheduler);
+  pChar += rozofs_u64_padded_append(pChar, 11, rozofs_right_alignment, average);
+  pChar += rozofs_u64_padded_append(pChar,  5, rozofs_right_alignment, p->priority);
+  *pChar ++ = '\n';
+  *pChar = 0;
   ruc_sockCtrl_cumulatedCpuScheduler = 0;
   ruc_sockCtrl_nbTimesScheduler = 0;
+
   uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
 
 }
