@@ -1865,6 +1865,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     /*
     ** copy the parent fid and the name of the regular file
     */
+    memset(&ext_attrs,0x00,sizeof(ext_attrs));    
     memcpy(&ext_attrs.s.pfid,pfid,sizeof(fid_t));
     attrs->cid = 0;
     ext_attrs.s.attrs.cid =0;
