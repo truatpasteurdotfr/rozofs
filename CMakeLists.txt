@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "2")
 set(MINOR "0")
-set(REVISION "alpha14")
+set(REVISION "alpha15")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 
 # Get rozo git ref

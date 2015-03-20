@@ -1226,12 +1226,17 @@ static void exportd_release() {
         severe("can't release config lock: %s", strerror(errno));
     }
 
+#if 0
+    In case we crash, let the system free the memory for us.
+    It knows better than us, especially when we crash...
+    
     monitor_release();
     exports_release();
     volumes_release();
     export_expgws_release();
     econfig_release(&exportd_config);
     lv2_cache_release(&cache);
+#endif    
 }
 /*
  *_______________________________________________________________________
