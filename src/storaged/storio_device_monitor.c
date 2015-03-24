@@ -77,20 +77,31 @@ void * storio_device_relocate_thread(void *arg) {
   if (pid == 0) {
     char * pChar = cmd;
  
-    pChar += sprintf(pChar,"storage_rebuild --quiet -c %s -R -l 4 -r %s --sid %d/%d --device %d -o selfhealing_cid%d_sid%d_dev%d",
-                     storaged_config_file,
-		     pRelocate->st->export_hosts,
-		     pRelocate->st->cid,
-		     pRelocate->st->sid,
-		     pRelocate->dev,
-		     pRelocate->st->cid,
-		     pRelocate->st->sid,
-		     pRelocate->dev);
-
+    pChar += rozofs_string_append(pChar,"storage_rebuild --quiet -c ");
+    pChar += rozofs_string_append(pChar,storaged_config_file);
+    pChar += rozofs_string_append(pChar," -R -l 4 -r ");
+    pChar += rozofs_string_append(pChar,pRelocate->st->export_hosts);
+    pChar += rozofs_string_append(pChar," --sid ");
+    pChar += rozofs_u32_append(pChar,pRelocate->st->cid);
+    *pChar++ ='/';
+    pChar += rozofs_u32_append(pChar,pRelocate->st->sid);
+    pChar += rozofs_string_append(pChar," --device ");
+    pChar += rozofs_u32_append(pChar,pRelocate->dev);
+    pChar += rozofs_string_append(pChar," -o selfhealing_cid");
+    pChar += rozofs_u32_append(pChar,pRelocate->st->cid);
+    pChar += rozofs_string_append(pChar,"_sid");
+    pChar += rozofs_u32_append(pChar,pRelocate->st->sid);
+    pChar += rozofs_string_append(pChar,"_dev");
+    pChar += rozofs_u32_append(pChar,pRelocate->dev);
+    
     if (pHostArray[0] != NULL) {
-      pChar += sprintf (pChar, "-H %s",pHostArray[0]);
+      pChar += rozofs_string_append(pChar,"-H ");
+      pChar += rozofs_string_append(pChar,pHostArray[0]);
       int idx=1;
-      while (pHostArray[idx] != NULL) pChar += sprintf (pChar, "/%s", pHostArray[idx++]);
+      while (pHostArray[idx] != NULL) {
+        *pChar++ = '/';
+        pChar += rozofs_string_append(pChar,pHostArray[idx++]);
+      }	
     }
             
     errno = 0;	
@@ -169,7 +180,9 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   char          path[FILENAME_MAX];
   char        * pChar = path;
   
-  pChar += sprintf(pChar, "%s/%d", root, dev); 
+  pChar += rozofs_string_append(pChar, root);
+  *pChar++ ='/';
+  pChar += rozofs_u32_append(pChar, dev); 
 
   /*
   ** Check that the device is writable
@@ -189,7 +202,7 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   ** Check we can see an X file. 
   ** This would mean that the device is not mounted
   */
-  pChar += sprintf(pChar, "/X");
+  pChar += rozofs_string_append(pChar, "/X");
   if (access(path,F_OK) == 0) {
     return -1;
   }

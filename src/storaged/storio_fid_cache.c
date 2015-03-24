@@ -31,6 +31,7 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "storio_fid_cache.h"
 
@@ -55,13 +56,21 @@ uint8_t lowest1[0xFF];
 ** @param pChar where to format the display
 ** @retval The end of the display
 */
-#define DISPLAY_CACHE_FID_STAT(x) pChar += sprintf (pChar,"cache %-6s: %llu\n", #x, (unsigned long long int)storio_fid_cache_stat.x);
+#define DISPLAY_CACHE_FID_STAT(x) {\
+  pChar += rozofs_string_append(pChar,"cache ");\
+  pChar += rozofs_string_padded_append(pChar, 6, rozofs_left_alignment, #x);\
+  *pChar++ = ':';*pChar++ = ' ';\
+  pChar += rozofs_u64_append(pChar, storio_fid_cache_stat.x);\
+  pChar += rozofs_eol(pChar);\
+}  
+
 char * display_cache_fid_stat(char * pChar) {
   DISPLAY_CACHE_FID_STAT(count);
   DISPLAY_CACHE_FID_STAT(hit);
   DISPLAY_CACHE_FID_STAT(miss);
   DISPLAY_CACHE_FID_STAT(bkts);
   DISPLAY_CACHE_FID_STAT(mxcol)
+  *pChar = 0;
   return pChar;
 }  
 /*

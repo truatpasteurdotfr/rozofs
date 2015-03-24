@@ -58,12 +58,20 @@ DECLARE_PROFILING(spp_profiler_t);
 char rebuild_directory_name[FILENAME_MAX];
 char * get_rebuild_directory_name() {
   pid_t pid = getpid();
-  sprintf(rebuild_directory_name,"/tmp/rbs.%d",pid);  
+  char * pChar = rebuild_directory_name;
+  pChar += rozofs_string_append(pChar,"/tmp/rbs.");
+  pChar += rozofs_u32_append(pChar,pid);  
   return rebuild_directory_name;
 }
 char * get_rebuild_sid_directory_name(int cid, int sid) {
   pid_t pid = getpid();
-  sprintf(rebuild_directory_name,"/tmp/rbs.%d/cid%d_sid%d",pid,cid,sid);  
+  char * pChar = rebuild_directory_name;
+  pChar += rozofs_string_append(pChar,"/tmp/rbs.");
+  pChar += rozofs_u32_append(pChar,pid);  
+  pChar += rozofs_string_append(pChar,"/cid");
+  pChar += rozofs_u32_append(pChar,cid);  
+  pChar += rozofs_string_append(pChar,"_sid");
+  pChar += rozofs_u32_append(pChar,sid);  
   return rebuild_directory_name;
 }
 
@@ -128,8 +136,7 @@ int rbs_stor_cnt_initialize(rb_stor_t * rb_stor, int cid) {
                 strcpy(rb_stor->sclients[i].host, rb_stor->host);
                 rozofs_host2ip(rb_stor->host, &ip);
             } else {
-                sprintf(rb_stor->sclients[i].host, "%u.%u.%u.%u", ip >> 24,
-                        (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+	        rozofs_ipv4_append(rb_stor->sclients[i].host, ip);
             }
 
             rb_stor->sclients[i].ipv4 = ip;
@@ -297,7 +304,10 @@ int rbs_empty_dir(char * dirname) {
   while ((file = readdir(dir)) != NULL) {  
     if (strcmp(file->d_name,".")==0)  continue;
     if (strcmp(file->d_name,"..")==0) continue;
-    sprintf(fileName,"%s/%s",dirname,file->d_name);
+    char * pChar = fileName;
+    pChar += rozofs_string_append(pChar,dirname);
+    pChar += rozofs_string_append(pChar,"/");
+    pChar += rozofs_string_append(pChar,file->d_name);
     unlink(fileName);
   }
   

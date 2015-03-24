@@ -260,8 +260,7 @@ void uma_dbg_show_uptime(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero,mins);
     *pChar++ = ':';
     pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero,secs);
-    *pChar++ = '\n';
-    *pChar = 0;  
+    pChar += rozofs_eol(pChar);
         
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -287,8 +286,7 @@ void uma_dbg_reserved_ports(char * argv[], uint32_t tcpRef, void *bufRef) {
   pt += rozofs_string_append(pt,cmd);
   *pt++ = '\n';   
   pt += uma_dbg_run_system_cmd(cmd, pt, 1024);
-  *pt++ = '\n'; 
-  *pt = 0; 
+  pt += rozofs_eol(pt); 
   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -306,7 +304,7 @@ void uma_dbg_show_name(char * argv[], uint32_t tcpRef, void *bufRef) {
   else {  
     pt += rozofs_string_append(pt,"system : ");
     pt += rozofs_string_append(pt,uma_gdb_system_name);
-    pt += rozofs_string_append(pt,"\n");
+    pt += rozofs_eol(pt);
     
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   }
@@ -321,7 +319,7 @@ void uma_dbg_show_version(char * argv[], uint32_t tcpRef, void *bufRef) {
   char * pt = uma_dbg_get_buffer();
   pt += rozofs_string_append(pt,"version : ");
   pt += rozofs_string_append(pt,VERSION);
-  pt += rozofs_string_append(pt,"\n");
+  pt += rozofs_eol(pt);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /**
@@ -331,7 +329,7 @@ void uma_dbg_show_git_ref(char * argv[], uint32_t tcpRef, void *bufRef) {
   char * pt = uma_dbg_get_buffer();
   pt += rozofs_string_append(pt,"git : ");
   pt += rozofs_string_append(pt,ROZO_GIT_REF);
-  pt += rozofs_string_append(pt,"\n");
+  pt += rozofs_eol(pt);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________
@@ -703,12 +701,12 @@ void uma_dbg_listTopic(uint32_t tcpCnxRef, void *bufRef, char * topic) {
     if (len == 0) {
       idx += rozofs_string_append(&p[idx],"  ");
       idx += rozofs_string_append(&p[idx],uma_dbg_topic[topicNum].name);
-      idx += rozofs_string_append(&p[idx],"\n");
+      idx += rozofs_eol(&p[idx]);
     }
     else if (strncmp(topic,uma_dbg_topic[topicNum].name, len) == 0) {
       idx += rozofs_string_append(&p[idx],"  ");
       idx += rozofs_string_append(&p[idx],uma_dbg_topic[topicNum].name);
-      idx += rozofs_string_append(&p[idx],"\n");     
+      idx += rozofs_eol(&p[idx]);     
     }  
   }
   if (len == 0) idx += rozofs_string_append(&p[idx],"  exit / quit / q\n");
@@ -1131,15 +1129,7 @@ uint32_t uma_dbg_accept_CBK(uint32_t userRef,int socketId,struct sockaddr * sock
   
   pChar = name;
   pChar += rozofs_string_append(pChar,"A:DIAG/");
-  pChar += rozofs_u32_append(pChar,(ipAddr>>24)&0xFF);
-  *pChar++ = '.';
-  pChar += rozofs_u32_append(pChar,(ipAddr>>16)&0xFF);
-  *pChar++ = '.';
-  pChar += rozofs_u32_append(pChar,(ipAddr>>8)&0xFF);
-  *pChar++ = '.';
-  pChar += rozofs_u32_append(pChar,(ipAddr)&0xFF);
-  *pChar++ = ':';
-  pChar += rozofs_u32_append(pChar,port);  
+  pChar += rozofs_ipv4_port_append(pChar,ipAddr,port);  
 
   /* Search for a debug session with this IP address and port */
   if ((pObj = uma_dbg_findFromAddrAndPort(ipAddr,port)) != NULL) {
@@ -1223,15 +1213,7 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   
   pChar = (char *) &inputArgs.cnxName[0];
   pChar += rozofs_string_append(pChar,"L:DIAG/");
-  pChar += rozofs_u32_append(pChar,(ipAddr>>24)&0xFF);
-  *pChar++ = '.';
-  pChar += rozofs_u32_append(pChar,(ipAddr>>16)&0xFF);
-  *pChar++ = '.';
-  pChar += rozofs_u32_append(pChar,(ipAddr>>8)&0xFF);
-  *pChar++ = '.';
-  pChar += rozofs_u32_append(pChar,(ipAddr)&0xFF);
-  *pChar++ = ':';
-  pChar += rozofs_u32_append(pChar,serverPort);  
+  pChar += rozofs_ipv4_port_append (pChar,ipAddr,serverPort);  
 
   if ((tcpCnxServer = ruc_tcp_server_connect(&inputArgs)) == (uint32_t)-1) {
     severe("ruc_tcp_server_connect" );

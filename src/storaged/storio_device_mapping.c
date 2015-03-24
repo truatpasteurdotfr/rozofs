@@ -140,39 +140,52 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   storio_device_mapping_key_t    key;
   storage_t                    * st;
   int                            found;
-    
+
+  pChar += rozofs_string_append(pChar,"chunk size  : ");    
   if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024*1024)) {
-    pChar += sprintf(pChar,"chunk size  : %llu G\n", 
-               (long long unsigned int) ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024*1024)); 
+    pChar += rozofs_u64_append(pChar,ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024*1024));
+    pChar += rozofs_string_append(pChar," G\n");    
   }
   else if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024*1024)) {
-    pChar += sprintf(pChar,"chunk size  : %llu M\n", 
-               (long long unsigned int)ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024)); 
+    pChar += rozofs_u64_append(pChar,ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024*1024));
+    pChar += rozofs_string_append(pChar," M\n");    
   }  
   else if ((ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE)>(1024)) {
-    pChar += sprintf(pChar,"chunk size  : %llu K\n", 
-               (long long unsigned int)ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024)); 
+    pChar += rozofs_u64_append(pChar,ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE/(1024));
+    pChar += rozofs_string_append(pChar," K\n");    
   }
   else {
-    pChar += sprintf(pChar,"chunk size  : %llu\n", 
-               (long long unsigned int)ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE); 
+    pChar += rozofs_u64_append(pChar,ROZOFS_STORAGE_FILE_MAX_SIZE/ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+    pChar += rozofs_eol(pChar);    
   }  
  
 
   if (argv[1] == NULL) {
     pChar = display_cache_fid_stat(pChar);
-    pChar += sprintf(pChar,"ctx nb x sz : %d x %d = %d\n",
-            (int) STORIO_DEVICE_MAPPING_MAX_ENTRIES,
-	    (int)sizeof(storio_device_mapping_t),
-	    (int) (STORIO_DEVICE_MAPPING_MAX_ENTRIES * sizeof(storio_device_mapping_t)));
-    pChar += sprintf(pChar,"free        : %llu\n", (long long unsigned int) storio_device_mapping_stat.free);  
-    pChar += sprintf(pChar,"running     : %llu\n", (long long unsigned int) storio_device_mapping_stat.running);
-    pChar += sprintf(pChar,"inactive    : %llu\n", (long long unsigned int) storio_device_mapping_stat.inactive);
-    pChar += sprintf(pChar,"allocation  : %llu (release+%llu)\n", 
-                          (long long unsigned int) storio_device_mapping_stat.allocation,
-			  (long long unsigned int) (storio_device_mapping_stat.allocation-storio_device_mapping_stat.release));
-    pChar += sprintf(pChar,"release     : %llu\n", (long long unsigned int) storio_device_mapping_stat.release);
-    pChar += sprintf(pChar,"out of ctx  : %llu\n", (long long unsigned int) storio_device_mapping_stat.out_of_ctx);  
+    
+    pChar += rozofs_string_append(pChar,"ctx nb x sz : ");
+    pChar += rozofs_u32_append(pChar,STORIO_DEVICE_MAPPING_MAX_ENTRIES);
+    pChar += rozofs_string_append(pChar," x ");
+    pChar += rozofs_u32_append(pChar,sizeof(storio_device_mapping_t));
+    pChar += rozofs_string_append(pChar," = ");    
+    pChar += rozofs_u32_append(pChar,STORIO_DEVICE_MAPPING_MAX_ENTRIES * sizeof(storio_device_mapping_t));
+    pChar += rozofs_eol(pChar);    
+    pChar += rozofs_string_append(pChar,"free        : ");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.free);
+    pChar += rozofs_string_append(pChar,"\nrunning     : ");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.running);
+    pChar += rozofs_string_append(pChar,"\ninactive    : ");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.inactive);
+    pChar += rozofs_string_append(pChar,"\nallocation  : ");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.allocation);
+    pChar += rozofs_string_append(pChar," (release+");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.allocation-storio_device_mapping_stat.release);
+    pChar += rozofs_string_append(pChar,")\nrelease     : ");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.release);
+    pChar += rozofs_string_append(pChar,"\nout of ctx  : ");
+    pChar += rozofs_u64_append(pChar,storio_device_mapping_stat.out_of_ctx);
+    pChar += rozofs_eol(pChar);
+
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
     return;       
   }     
@@ -180,7 +193,8 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 
   ret = rozofs_uuid_parse(argv[1],key.fid);
   if (ret != 0) {
-    pChar += sprintf(pChar,"%s is not a FID !!!\n",argv[1]);
+    pChar += rozofs_string_append(pChar,argv[1]);
+    pChar += rozofs_string_append(pChar," is not a FID !!!\n");
     uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
     return;
   }
@@ -200,37 +214,54 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     found=1;
     storio_device_mapping_t * p = storio_device_mapping_ctx_retrieve(index);
     if (p == NULL) {
-      pChar += sprintf(pChar,"%s no match found !!!\n",argv[1]);
+      pChar += rozofs_string_append(pChar,argv[1]);
+      pChar += rozofs_string_append(pChar," no match found !!!\n");
       continue;
     }
-    
-    pChar += sprintf(pChar,"cid/sid %d/%d\n  ",key.cid, key.sid);
+    pChar += rozofs_string_append(pChar,"cid/sid ");
+    pChar += rozofs_u32_append(pChar,key.cid);
+    pChar += rozofs_string_append(pChar,"/");
+    pChar += rozofs_u32_append(pChar,key.sid);
+    pChar += rozofs_eol(pChar);
+
     pChar = trace_device(p->device, pChar);             
-    pChar += sprintf(pChar,"\n  running_request = %d\n",list_size(&p->running_request)); 
-    pChar += sprintf(pChar,"  waiting_request = %d\n",list_size(&p->waiting_request)); 
+    pChar += rozofs_string_append(pChar,"\n  running_request = ");
+    pChar += rozofs_u32_append(pChar,list_size(&p->running_request));
+    pChar += rozofs_string_append(pChar,"\n  waiting_request = ");
+    pChar += rozofs_u32_append(pChar,list_size(&p->waiting_request));
+    pChar += rozofs_eol(pChar);
+    
     if (p->storio_rebuild_ref.u32 != 0xFFFFFFFF) {
       for (nb_rebuild=0; nb_rebuild   <MAX_FID_PARALLEL_REBUILD; nb_rebuild++) {
 	storio_rebuild_ref = p->storio_rebuild_ref.u8[nb_rebuild];
 	if (storio_rebuild_ref == 0xFF) continue;
-	pChar += sprintf(pChar,"    rebuild %d : ",nb_rebuild+1);  
+	pChar += rozofs_string_append(pChar,"    rebuild ");
+	pChar += rozofs_u32_append(pChar,nb_rebuild+1);
+        pChar += rozofs_eol(pChar);
 	if (storio_rebuild_ref >= MAX_STORIO_PARALLEL_REBUILD) {
-          pChar += sprintf(pChar,"Bad reference %d\n",storio_rebuild_ref);  
+	  pChar += rozofs_string_append(pChar,"Bad reference ");
+	  pChar += rozofs_u32_append(pChar,storio_rebuild_ref);  
+	  pChar += rozofs_eol(pChar);
           continue;
 	}
 	pRebuild = storio_rebuild_ctx_retrieve(storio_rebuild_ref, (char*)key.fid);
 	if (pRebuild == 0) {
-          pChar += sprintf(pChar,"Context reallocated to an other FID\n");  
+          pChar += rozofs_string_append(pChar,"Context reallocated to an other FID\n");  
           continue;
 	}
-	pChar += sprintf(pChar,"start %llu stop %llu aging %llu sec\n",
-                	 (unsigned long long)pRebuild->start_block,
-			 (unsigned long long)pRebuild->stop_block,
-			 (unsigned long long)(time(NULL)-pRebuild->rebuild_ts));
+	pChar += rozofs_string_append(pChar,"start ");
+	pChar += rozofs_u64_append(pChar, pRebuild->start_block);
+	pChar += rozofs_string_append(pChar," stop ");
+	pChar += rozofs_u64_append(pChar, pRebuild->stop_block);
+	pChar += rozofs_string_append(pChar," aging ");
+	pChar += rozofs_u64_append(pChar, (time(NULL)-pRebuild->rebuild_ts));
+	pChar += rozofs_eol(pChar);
       }
     }  
   }  
   if (found == 0) {
-    pChar += sprintf(pChar,"%s no such FID !!!\n",argv[1]);    
+    pChar += rozofs_string_append(pChar,argv[1]);
+    pChar += rozofs_string_append(pChar," no such FID !!!\n");    
   }
   
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
@@ -251,32 +282,50 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     int           fault=0;
     storio_disk_thread_file_desc_t * pf;
 
-    pChar += sprintf(pChar,"cid = %d sid = %d\n", st->cid, st->sid);
+    pChar += rozofs_string_append(pChar,"cid = ");
+    pChar += rozofs_u32_append(pChar,st->cid);
+    pChar += rozofs_string_append(pChar," sid = ");
+    pChar += rozofs_u32_append(pChar,st->sid);
 
-    pChar += sprintf(pChar,"    root              = %s\n", st->root);
-    pChar += sprintf(pChar,"    mapper_modulo     = %d\n",st->mapper_modulo);
-    pChar += sprintf(pChar,"    mapper_redundancy = %d\n",st->mapper_redundancy);		          
-    pChar += sprintf(pChar,"    device_number     = %d\n",st->device_number);
+    pChar += rozofs_string_append(pChar,"\n    root              = ");
+    pChar += rozofs_string_append(pChar,st->root);
+    
+    pChar += rozofs_string_append(pChar,"\n    mapper_modulo     = ");
+    pChar += rozofs_u32_append(pChar,st->mapper_modulo);
+    
+    pChar += rozofs_string_append(pChar,"\n    mapper_redundancy = ");
+    pChar += rozofs_u32_append(pChar,st->mapper_redundancy);
+    		          
+    pChar += rozofs_string_append(pChar,"\n    device_number     = ");
+    pChar += rozofs_u32_append(pChar,st->device_number);
+    
     if (st->selfHealing == -1) {
-      pChar += sprintf(pChar,"    self-healing      = No\n");
+      pChar += rozofs_string_append(pChar,"\n    self-healing      = No\n");
     }  
     else {
-      pChar += sprintf(pChar,"    self-healing      = %d min (%d failures)\n",
-                             st->selfHealing,
-			     (st->selfHealing * 60)/STORIO_DEVICE_PERIOD);
+      pChar += rozofs_string_append(pChar,"\n    self-healing      = ");
+      pChar += rozofs_u32_append(pChar, st->selfHealing);
+      pChar += rozofs_string_append(pChar," min (");
+      pChar += rozofs_u32_append(pChar, (st->selfHealing * 60)/STORIO_DEVICE_PERIOD);
+      pChar += rozofs_string_append(pChar," failures)\n");
     }  
       
-    pChar += sprintf(pChar,"\n    %6s | %6s | %8s | %12s | %12s |\n",
-             "device","status","failures","blocks", "errors");
-    pChar += sprintf(pChar,"    _______|________|__________|______________|______________|\n");
+    pChar += rozofs_string_append(pChar,"\n    device | status | failures |    blocks    |    errors    |\n");
+    pChar += rozofs_string_append(pChar,"    _______|________|__________|______________|______________|\n");
 	     
     for (dev = 0; dev < st->device_number; dev++) {
-      pChar += sprintf(pChar,"    %6d | %6s | %8d | %12llu | %12llu |\n", 
-                       (int)dev, 
-		       storage_device_status2string(st->device_ctx[dev].status),
-		       (int)st->device_ctx[dev].failure,
-		       (long long unsigned int)st->device_free.blocks[st->device_free.active][dev], 
-                       (long long unsigned int)st->device_errors.total[dev]);
+      pChar += rozofs_string_append(pChar,"   ");
+      pChar += rozofs_u32_padded_append(pChar, 7, rozofs_right_alignment, dev);
+      pChar += rozofs_string_append(pChar," | ");
+      pChar += rozofs_string_padded_append(pChar, 7, rozofs_left_alignment, storage_device_status2string(st->device_ctx[dev].status));
+      pChar += rozofs_string_append(pChar,"|");
+      pChar += rozofs_u32_padded_append(pChar, 9, rozofs_right_alignment, st->device_ctx[dev].failure);
+      pChar += rozofs_string_append(pChar," |");
+      pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, st->device_free.blocks[st->device_free.active][dev]);
+      pChar += rozofs_string_append(pChar," |");
+      pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, st->device_errors.total[dev]);
+      pChar += rozofs_string_append(pChar," |\n");
+
       if (st->device_ctx[dev].status != storage_device_status_is) {
 	faulty_devices[fault++] = dev;
       }  			 
@@ -287,7 +336,7 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     for (threadNb=0; threadNb < ROZOFS_MAX_DISK_THREADS; threadNb++) {
       for (idx=0; idx < storio_faulty_fid[threadNb].nb_faulty_fid_in_table; idx++) {
         if (first) {
-	  pChar += sprintf(pChar,"Faulty FIDs:\n");
+	  pChar += rozofs_string_append(pChar,"Faulty FIDs:\n");
           first = 0;
         }
 	pf = &storio_faulty_fid[threadNb].file[idx];
@@ -311,26 +360,34 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 	  if (already_listed) continue;
 	}
 
-	char display[128];
-	char * pt=display;
-
-        pt += sprintf(pt,"-s %d/%d -f ",pf->cid, pf->sid);
-	rozofs_uuid_unparse(pf->fid, pt);	  
-        pChar += sprintf(pChar,"    %s\n", display);
+        pChar += rozofs_string_append(pChar,"    -s ");
+	pChar += rozofs_u32_append(pChar, pf->cid);
+        pChar += rozofs_string_append(pChar,"/");
+	pChar += rozofs_u32_append(pChar, pf->sid);
+        pChar += rozofs_string_append(pChar," -f ");	
+	rozofs_uuid_unparse(pf->fid, pChar);
+	pChar += 36;
+	pChar += rozofs_eol(pChar);
       }
     } 
 
     if (fault == 0) continue;
 
     // There is some faults on some devices
-    pChar += sprintf(pChar,"\n    !!! %d faulty devices cid=%d/sid=%d/devices=%d", 
-                     fault, st->cid, st->sid, faulty_devices[0]);
-
+    pChar += rozofs_string_append(pChar,"\n    !!! ");
+    pChar += rozofs_u32_append(pChar,fault);
+    pChar += rozofs_string_append(pChar," faulty devices cid=");
+    pChar += rozofs_u32_append(pChar,st->cid);
+    pChar += rozofs_string_append(pChar,"/sid=");
+    pChar += rozofs_u32_append(pChar,st->sid);
+    pChar += rozofs_string_append(pChar,"/devices=");
+    pChar += rozofs_u32_append(pChar,faulty_devices[0]);
     for (dev = 1; dev < fault; dev++) {
-      pChar += sprintf(pChar,",%d", faulty_devices[dev]);  
+      *pChar++ = ',';
+      pChar += rozofs_u32_append(pChar,faulty_devices[dev]);  
     } 
-    pChar += sprintf(pChar,"\n");
-    pChar += sprintf(pChar,"    !!! Check for errors in \"log show\" rozodiag topic\n");
+    pChar += rozofs_eol(pChar);
+    pChar += rozofs_string_append(pChar,"    !!! Check for errors in \"log show\" rozodiag topic\n");
   }  
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
@@ -345,35 +402,52 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     memset(&storio_rebuild_stat,0,sizeof(storio_rebuild_stat));     
   }
 
-  pChar += sprintf(pChar,"allocated        : %llu\n",(long long unsigned int) storio_rebuild_stat.allocated);
-  pChar += sprintf(pChar,"stollen          : %llu\n",(long long unsigned int) storio_rebuild_stat.stollen);
-  pChar += sprintf(pChar,"aborted          : %llu\n",(long long unsigned int) storio_rebuild_stat.aborted);
-  pChar += sprintf(pChar,"released         : %llu\n",(long long unsigned int) storio_rebuild_stat.released);
-  pChar += sprintf(pChar,"out of ctx       : %llu\n",(long long unsigned int) storio_rebuild_stat.out_of_ctx);
-  pChar += sprintf(pChar,"lookup hit       : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_hit);
-  pChar += sprintf(pChar,"lookup miss      : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_miss);
-  pChar += sprintf(pChar,"lookup bad index : %llu\n",(long long unsigned int) storio_rebuild_stat.lookup_bad_index);
+  pChar += rozofs_string_append(pChar,"allocated        : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.allocated);
+  pChar += rozofs_string_append(pChar,"\nstollen          : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.stollen);
+  pChar += rozofs_string_append(pChar,"\naborted          : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.aborted);
+  pChar += rozofs_string_append(pChar,"\nreleased         : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.released);
+  pChar += rozofs_string_append(pChar,"\nout of ctx       : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.out_of_ctx);
+  pChar += rozofs_string_append(pChar,"\nlookup hit       : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.lookup_hit);
+  pChar += rozofs_string_append(pChar,"\nlookup miss      : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.lookup_miss);
+  pChar += rozofs_string_append(pChar,"\nlookup bad index : ");
+  pChar += rozofs_u64_append(pChar,storio_rebuild_stat.lookup_bad_index);
   
-  pChar += sprintf(pChar,"Running rebuilds : "); 
+  pChar += rozofs_string_append(pChar,"\nRunning rebuilds : "); 
   
   for (storio_ref=0; storio_ref <MAX_STORIO_PARALLEL_REBUILD; storio_ref++) {
 
     pRebuild = storio_rebuild_ctx_retrieve(storio_ref, NULL);
     if (pRebuild->rebuild_ts == 0) continue;
     
-    pChar += sprintf(pChar,"\n%2d) ",storio_ref);  
+    pChar += rozofs_eol(pChar);
+    pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero,storio_ref); 
+    *pChar++ = ')';
+    *pChar++ = ' ';
     rozofs_uuid_unparse(pRebuild->fid,pChar);
     pChar += 36;
-    pChar += sprintf(pChar," chunk %-3d device %-3d start %-10llu stop %-10llu aging %llu sec",
-                     pRebuild->chunk, pRebuild->old_device,
-                     (long long unsigned int)pRebuild->start_block,
-		     (long long unsigned int)pRebuild->stop_block,
-		     (long long unsigned int)(time(NULL)-pRebuild->rebuild_ts));
-    nb++;
+    pChar += rozofs_string_append(pChar," chunk ");
+    pChar += rozofs_u32_padded_append(pChar,3,rozofs_right_alignment,pRebuild->chunk);
+    pChar += rozofs_string_append(pChar," device ");
+    pChar += rozofs_u32_padded_append(pChar,3,rozofs_right_alignment,pRebuild->old_device);
+    pChar += rozofs_string_append(pChar," start ");
+    pChar += rozofs_u64_padded_append(pChar,10,rozofs_right_alignment,pRebuild->start_block);
+    pChar += rozofs_string_append(pChar," stop ");
+    pChar += rozofs_u64_padded_append(pChar,10,rozofs_right_alignment,pRebuild->stop_block);
+    pChar += rozofs_string_append(pChar," aging ");
+    pChar += rozofs_u64_append(pChar,(time(NULL)-pRebuild->rebuild_ts));
+    pChar += rozofs_string_append(pChar," sec");
+   nb++;
   }
   
-  if (nb == 0) pChar += sprintf(pChar,"NONE\n");
-  else         pChar += sprintf(pChar,"\n");
+  if (nb == 0) pChar += rozofs_string_append(pChar,"NONE\n");
+  else         pChar += rozofs_eol(pChar);
 
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         

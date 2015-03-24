@@ -1056,7 +1056,12 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
    /*
    ** create the common socket to receive requests on
    */
-   sprintf(socketName,"%s_%d_%s",ROZOFS_SOCK_FAMILY_DISK_NORTH,instance_id, hostname);
+   char * pChar = socketName;
+   pChar += rozofs_string_append(pChar,ROZOFS_SOCK_FAMILY_DISK_NORTH);
+   *pChar++ = '_';
+   pChar += rozofs_u32_append(pChar,instance_id);
+   *pChar++ = '_';  
+   pChar += rozofs_string_append(pChar,hostname);
    af_unix_disk_socket_ref = af_unix_disk_sock_create_internal(socketName,1024*32);
    if (af_unix_disk_socket_ref < 0) {
       fatal("af_unix_disk_thread_create af_unix_disk_sock_create_internal(%s) %s",socketName,strerror(errno));
@@ -1072,7 +1077,14 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
      /*
      ** create the thread specific socket to send the response from 
      */
-     sprintf(socketName,"%s_%d_%s_%d",ROZOFS_SOCK_FAMILY_DISK_NORTH,instance_id,hostname,i);
+     pChar = socketName;
+     pChar += rozofs_string_append(pChar,ROZOFS_SOCK_FAMILY_DISK_NORTH);
+     *pChar++ = '_';
+     pChar += rozofs_u32_append(pChar,instance_id);
+     *pChar++ = '_';  
+     pChar += rozofs_string_append(pChar,hostname);
+     *pChar++ = '_'; 
+     pChar += rozofs_u32_append(pChar,i);
      thread_ctx_p->sendSocket = af_unix_disk_sock_create_internal(socketName,1024*32);
      if (thread_ctx_p->sendSocket < 0) {
 	fatal("af_unix_disk_thread_create af_unix_disk_sock_create_internal(%s) %s",socketName, strerror(errno));

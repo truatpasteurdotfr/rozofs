@@ -34,6 +34,7 @@
 #include <rozofs/common/profile.h>
 #include <rozofs/common/mattr.h>
 #include <rozofs/core/com_cache.h>
+#include <rozofs/core/rozofs_string.h>
 
 #include "storio_cache.h"
 #include "storio_bufcache.h"
@@ -678,8 +679,12 @@ void storio_cache_remove(fid_t fid)
 **______________________________________________________________________________
 */
 
-#define SHOW_STAT_MBCACHE(probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->probe);
-
+#define SHOW_STAT_MBCACHE(probe) {\
+  pChar += rozofs_string_padded_append(pChar, 28, rozofs_left_alignment, #probe);\
+  pChar += rozofs_string_append(pChar," : ");\
+  pChar += rozofs_u64_padded_append(pChar,10,rozofs_right_alignment, stat_p->probe);\
+  pChar += rozofs_eol(pChar);\
+}
 
 char *storio_cache_stats_display(char *buffer)
 {
@@ -695,7 +700,8 @@ char *storio_cache_stats_display(char *buffer)
  SHOW_STAT_MBCACHE(get_cache_hit);
  SHOW_STAT_MBCACHE(get_cache_req_blocks);
  SHOW_STAT_MBCACHE(get_cache_hit_bytes);
- pChar += sprintf(pChar,"\n\n");
+ pChar += rozofs_eol(pChar);
+ pChar += rozofs_eol(pChar);
  return pChar;
 }
 /*

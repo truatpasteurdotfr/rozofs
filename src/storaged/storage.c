@@ -170,12 +170,6 @@ void storio_device_error_log_reset() {
   pthread_rwlock_unlock(&storio_device_error_log.lock);  
 }
 
-/*_______________________________________________________________________
-* Display command syntax
-*/
-void storio_device_error_log_help(char * pChar) {
-  rozofs_string_append(pChar,"usage:\nlog reset  : reset error logs\nlog show   : display error logs\n");
-}
 
 /*_______________________________________________________________________
 * Display the error log
@@ -187,78 +181,71 @@ void storio_device_error_log_display (char * argv[], uint32_t tcpRef, void *bufR
   storio_device_error_log_record_t * p = storio_device_error_log.record;
   struct tm                          ts;
   char                             * line_sep = "+-----+--------------------------------------+-------+-----+-----+-----------+--------------------------------+-------------------+\n";
-  if (argv[1] == NULL) {
-    storio_device_error_log_help(pChar);
-    uma_dbg_send(tcpRef,bufRef,TRUE,pChar); 
-    return;
-  }
+
     
-  if (strcmp(argv[1],"reset")==0) {
+  if ((argv[1] != NULL) && (strcmp(argv[1],"reset")==0)) {
     storio_device_error_log_reset();
     uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done\n");
     return;
   }
   
-  if (strcmp(argv[1],"show")==0) {  
     
-    pChar += rozofs_string_append(pChar,"nb log  : ");
-    pChar += rozofs_u32_append(pChar,nb_record);
-    *pChar++ = '/';
-    pChar += rozofs_u32_append(pChar,STORIO_DEVICE_ERROR_LOG_MAX_RECORD);
-    *pChar++ = '\n';
-    *pChar = 0;    
-	
-    if (nb_record == 0) {
-      uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
-      return;
-    } 
-    
-    pChar += rozofs_string_append(pChar,"git ref : ");
-    pChar += rozofs_string_append(pChar,ROZO_GIT_REF);
-    *pChar++ = '\n';
-    
-    pChar += rozofs_string_append(pChar, line_sep);
-    pChar += rozofs_string_append(pChar,"|  #  |                FID                   | line  | dev | chk |  block id |          error                 |   time stamp      |\n");
-    pChar += rozofs_string_append(pChar, line_sep);
-    
-    for (idx=0; idx < nb_record; idx++,p++) {
-      *pChar++ = '|';
-      pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, idx);   
-      pChar += rozofs_string_append(pChar," | ");
-      rozofs_uuid_unparse(p->fid, pChar);
-      pChar += 36;
-      *pChar++ = ' '; *pChar++ = '|';      
-      pChar += rozofs_u32_padded_append(pChar, 6, rozofs_right_alignment, p->line);
-      *pChar++ = ' '; *pChar++ = '|';  
-      pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, p->device); 
-      *pChar++ = ' '; *pChar++ = '|';
-      pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, p->chunk); 
-      *pChar++ = ' '; *pChar++ = '|';
-      pChar += rozofs_u32_padded_append(pChar, 10, rozofs_right_alignment, p->bid); 
-      *pChar++ = ' '; *pChar++ = '|'; *pChar++ = ' ';
-      pChar += rozofs_string_padded_append(pChar, 31, rozofs_left_alignment, strerror(p->error));
-      *pChar++ = '|'; *pChar++ = ' ';
+  pChar += rozofs_string_append(pChar,"nb log  : ");
+  pChar += rozofs_u32_append(pChar,nb_record);
+  *pChar++ = '/';
+  pChar += rozofs_u32_append(pChar,STORIO_DEVICE_ERROR_LOG_MAX_RECORD);
+  pChar += rozofs_eol(pChar);   
 
-      time_t t = p->ts;
-      ts = *localtime(&t);
-      pChar += rozofs_u32_append(pChar, ts.tm_year-100);
-      *pChar++ = '/';
-      pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_mon+1);
-      *pChar++ = '/';
-      pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_mday);
-      *pChar++ = ' ';
-      pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_hour);
-      *pChar++ = ':';
-      pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_min);
-      *pChar++ = ':';
-      pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_sec);
-      *pChar++ = ' '; *pChar++ = '|';
-      *pChar++ = '\n';
-    } 
-  }
+  if (nb_record == 0) {
+    uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+    return;
+  } 
+
+  pChar += rozofs_string_append(pChar,"git ref : ");
+  pChar += rozofs_string_append(pChar,ROZO_GIT_REF);
+  pChar += rozofs_eol(pChar);
+
+  pChar += rozofs_string_append(pChar, line_sep);
+  pChar += rozofs_string_append(pChar,"|  #  |                FID                   | line  | dev | chk |  block id |          error                 |   time stamp      |\n");
   pChar += rozofs_string_append(pChar, line_sep);
 
+  for (idx=0; idx < nb_record; idx++,p++) {
+    *pChar++ = '|';
+    pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, idx);   
+    pChar += rozofs_string_append(pChar," | ");
+    rozofs_uuid_unparse(p->fid, pChar);
+    pChar += 36;
+    *pChar++ = ' '; *pChar++ = '|';      
+    pChar += rozofs_u32_padded_append(pChar, 6, rozofs_right_alignment, p->line);
+    *pChar++ = ' '; *pChar++ = '|';  
+    pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, p->device); 
+    *pChar++ = ' '; *pChar++ = '|';
+    pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, p->chunk); 
+    *pChar++ = ' '; *pChar++ = '|';
+    pChar += rozofs_u32_padded_append(pChar, 10, rozofs_right_alignment, p->bid); 
+    *pChar++ = ' '; *pChar++ = '|'; *pChar++ = ' ';
+    pChar += rozofs_string_padded_append(pChar, 31, rozofs_left_alignment, strerror(p->error));
+    *pChar++ = '|'; *pChar++ = ' ';
+
+    time_t t = p->ts;
+    ts = *localtime(&t);
+    pChar += rozofs_u32_append(pChar, ts.tm_year-100);
+    *pChar++ = '/';
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_mon+1);
+    *pChar++ = '/';
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_mday);
+    *pChar++ = ' ';
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_hour);
+    *pChar++ = ':';
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_min);
+    *pChar++ = ':';
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, ts.tm_sec);
+    *pChar++ = ' '; *pChar++ = '|';
+    pChar += rozofs_eol(pChar);
+  } 
+  pChar += rozofs_string_append(pChar, line_sep);
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
+
 }
 /*_______________________________________________________________________
 * Initialize the storio error log service

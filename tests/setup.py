@@ -1132,8 +1132,8 @@ def syntax_mount() :
   print  "./setup.py \tmount   \tall|<instance> start|stop|reset|pid|info"
 #_____________________________________________  
 def syntax_storage() :
-  print  "./setup.py \tstorage \tall|<host idx> start|stop|reset|pid"
-  print  "./setup.py \tstorage \tall|<host idx> ifup|ifdown <if#>"
+  print  "./setup.py \tstorage \tall|<host> <idx> start|stop|reset|pid"
+  print  "./setup.py \tstorage \tall|<host> <idx> ifup|ifdown <if#>"
   
 #_____________________________________________  
 def syntax_cou() :
@@ -1143,10 +1143,10 @@ def syntax_config() :
   print  "./setup.py \tconfig  \t<confFileName>"  
 #_____________________________________________  
 def syntax_sid() :
-  print  "./setup.py \tsid     \t<cid <sid>\tdevice-delete all|<device>"
-  print  "./setup.py \tsid     \t<cid <sid>\tdevice-create all|<device>"
-  print  "./setup.py \tsid     \t<cid <sid>\trebuild..."
-  print  "./setup.py \tsid     \t<cid <sid>\tinfo"
+  print  "./setup.py \tsid     \t<cid> <sid>\tdevice-delete all|<device>"
+  print  "./setup.py \tsid     \t<cid> <sid>\tdevice-create all|<device>"
+  print  "./setup.py \tsid     \t<cid> <sid>\trebuild..."
+  print  "./setup.py \tsid     \t<cid> <sid>\tinfo"
 #_____________________________________________  
 def syntax_if() :
   print  "./setup.py \tifup|ifdown  \t<if#>"    

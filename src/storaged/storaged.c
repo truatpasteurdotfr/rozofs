@@ -286,11 +286,16 @@ static void on_start() {
     */
     if (storaged_config.multiio==0) {
       p = cmd;
-      p += sprintf(p, "storio -i 0 -c %s ", storaged_config_file);
+      p += rozofs_string_append(p, "storio -i 0 -c ");
+      p += rozofs_string_append(p,storaged_config_file);
       if (pHostArray[0] != NULL) {
-        p += sprintf (p, "-H %s",pHostArray[0]);
+        p += rozofs_string_append (p, "-H ");
+	p += rozofs_string_append (p, pHostArray[0]);
         int idx=1;
-	while (pHostArray[idx] != NULL) p += sprintf (p, "/%s", pHostArray[idx++]);
+	while (pHostArray[idx] != NULL) {
+	  *p++ ='/';
+	  p += rozofs_string_append(p , pHostArray[idx++]);
+	}  
       }	
       
       storio_pid_file(pidfile, pHostArray[0], 0);
@@ -324,11 +329,20 @@ static void on_start() {
 	bitmask[rank] |= (1ULL<<bit);
 	
 	p = cmd;
-	p += sprintf(p, "storio -i %d -c %s ", cid, storaged_config_file);
+	p += rozofs_string_append(p, "storio -i ");
+	p += rozofs_u32_append(p,cid);
+	p += rozofs_string_append(p, " -c ");
+	p += rozofs_string_append(p,storaged_config_file);
 	if (pHostArray[0] != NULL) {
-          p += sprintf (p, "-H %s",pHostArray[0]);
+
+          p += rozofs_string_append (p, " -H ");
+	  p += rozofs_string_append (p, pHostArray[0]);
+
           int idx=1;
-	  while (pHostArray[idx] != NULL) p += sprintf (p, "/%s", pHostArray[idx++]);
+	  while (pHostArray[idx] != NULL) {
+	    *p++ ='/';
+	    p += rozofs_string_append(p , pHostArray[idx++]);
+          }	
 	}		
       
         storio_pid_file(pidfile, pHostArray[0], cid); 
@@ -454,9 +468,15 @@ int main(int argc, char *argv[]) {
 
     char *pid_name_p = pid_name;
     if (pHostArray[0] != NULL) {
-        sprintf(pid_name_p, "%s_%s.pid", STORAGED_PID_FILE, pHostArray[0]);
+        char * pChar = pid_name_p;
+	pChar += rozofs_string_append(pChar,STORAGED_PID_FILE);
+	*pChar++ = '_'; 
+	pChar += rozofs_string_append(pChar,pHostArray[0]);
+	pChar += rozofs_string_append(pChar,".pid");	
     } else {
-        sprintf(pid_name_p, "%s.pid", STORAGED_PID_FILE);
+        char * pChar = pid_name_p;
+	pChar += rozofs_string_append(pChar,STORAGED_PID_FILE);
+	pChar += rozofs_string_append(pChar,".pid");	
     }
     
     /*

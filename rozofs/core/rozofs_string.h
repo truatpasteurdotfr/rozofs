@@ -265,6 +265,10 @@ static inline void rozofs_uuid_unparse(uuid_t fid, char * pChar) {
 */
 static inline int rozofs_string_append(char * pChar, char * new_string) {
   int len=0;
+  if (new_string == NULL) {
+    *pChar = 0;
+    return 0;
+  }
   while ( (*pChar++ = *new_string++) != 0) len ++;
   return len;
 }
@@ -288,7 +292,14 @@ static inline int rozofs_string_append(char * pChar, char * new_string) {
 */
 static inline int rozofs_string_padded_append(char * pChar, int size, rozofs_alignment_e alignment, char * new_string) {
   int i;
-  int len = strlen(new_string);
+  int len;
+  
+  if (new_string == NULL) {
+    len = 0;
+  }
+  else {
+    len = strlen(new_string);
+  }
   
   /*
   ** new_string is too big => truncate it
@@ -327,6 +338,22 @@ static inline int rozofs_string_padded_append(char * pChar, int size, rozofs_ali
   return size;
 }
 
+/*
+**___________________________________________________________
+** Append an end of line and a 0 at the end
+**
+**    sprintf(pChar,"\n",) 
+** -> rozofs_eol(pChar)
+**
+** @param pChar       The string that is being built
+**
+** @retval the size added to the built string
+*/
+static inline int rozofs_eol(char * pChar) {
+  *pChar++ = '\n';
+  *pChar   = 0;
+  return 1;
+}
 
 
 /*
@@ -812,6 +839,224 @@ static inline int rozofs_u64_padded_append(char * pChar, int size, rozofs_alignm
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+** ===================== 6IPv4 FORMATING  ======================
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+**___________________________________________________________
+** Append an IPv4 address to a string and add a 0 at the end
+**
+**
+** @param pChar       The string that is being built
+** @param ip          The IP address
+**
+** @retval the size added to the built string
+*/
+static inline int rozofs_ipv4_append(char * pChar, uint32_t ip) {
+  char * p = pChar; 
+  
+  p += rozofs_u32_append(p,(ip>>24)&0xFF);
+  *p++ = '.';
+  p += rozofs_u32_append(p,(ip>>16)&0xFF);  
+  *p++ = '.';
+  p += rozofs_u32_append(p,(ip>>8)&0xFF);  
+  *p++ = '.';
+  p += rozofs_u32_append(p,ip&0xFF);  
+  *p = 0;
+
+  return (p-pChar);
+}
+/*
+**___________________________________________________________
+** Append an IPv4:port address to a string and add a 0 at the end
+**
+**
+** @param pChar       The string that is being built
+** @param ip          The IP address
+**
+** @retval the size added to the built string
+*/
+static inline int rozofs_ipv4_port_append(char * pChar, uint32_t ip, uint16_t port) {
+  char * p = pChar; 
+  
+  p += rozofs_u32_append(p,(ip>>24)&0xFF);
+  *p++ = '.';
+  p += rozofs_u32_append(p,(ip>>16)&0xFF);  
+  *p++ = '.';
+  p += rozofs_u32_append(p,(ip>>8)&0xFF);  
+  *p++ = '.';
+  p += rozofs_u32_append(p,ip&0xFF);  
+  *p++ = ':';
+  p += rozofs_u32_append(p,port);
+
+  return (p-pChar);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+** ===================== MISCELLANEOUS FORMATING  ======================
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*__________________________________________________________________________
+ */
+/**
+*  Display bytes with correct unit 
+*  @param value         Value in bytes to display
+*  @param value_string  String where to format the value
+*/
+static inline int rozofs_bytes_padded_append(char * value_string, int size, uint64_t value) {
+  uint64_t   modulo=0;
+  char     * pt = value_string;
+  int        sz;  
+  
+  if (value<1000) {
+    pt += rozofs_u64_append(pt,value);
+    pt += rozofs_string_append(pt," Bytes");
+    goto out;  		    
+  }
+  
+  if (value<1000000) {
+  
+    if (value>99000) {
+      pt += rozofs_u64_append(pt,value/1000);
+      pt += rozofs_string_append(pt," KB");
+      goto out;    		    
+    }
+    
+    modulo = (value % 1000) / 100;
+    pt += rozofs_u64_append(pt,value/1000);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," KB");
+    goto out; 
+  }
+  
+  if (value<1000000000) {
+  
+    if (value>99000000) {
+      pt += rozofs_u64_append(pt,value/1000000);
+      pt += rozofs_string_append(pt," MB");
+      goto out;  		    
+    }
+    
+    modulo = (value % 1000000) / 100000;
+    pt += rozofs_u64_append(pt,value/1000000);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," MB");
+    goto out; 
+  }
+    
+  if (value<1000000000000) {
+  
+    if (value>99000000000) {
+      pt += rozofs_u64_append(pt,value/1000000000);
+      pt += rozofs_string_append(pt," GB");
+      goto out; 		    
+    }
+    
+    modulo = (value % 1000000000) / 100000000;
+    pt += rozofs_u64_append(pt,value/1000000000);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," GB");
+    goto out; 	  
+  }  
+  
+  if (value>99000000000000) {
+    pt += rozofs_u64_append(pt,value/1000000000000);
+    pt += rozofs_string_append(pt," PB");
+    goto out;    
+  }  
+
+  modulo = (value % 1000000000000) / 100000000000;
+  pt += rozofs_u64_append(pt,value/1000000000000);
+  *pt++ = '.';
+  pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);      
+  pt += rozofs_string_append(pt," PB");   
+  
+out:
+  sz = pt-value_string; 
+  while(sz < size) {
+    *pt++ = ' ';
+    sz++;
+  }
+  return size;  
+  
+}
 #ifdef __cplusplus
 }
 #endif /*__cplusplus */

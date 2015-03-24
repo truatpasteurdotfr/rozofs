@@ -103,7 +103,8 @@ void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRe
     p += rozofs_u64_padded_append(p,17,rozofs_right_alignment,storage_queued_req[opcode]);
     *p++ = ' '; *p++ = '|';    
     p += rozofs_u64_padded_append(p,17,rozofs_right_alignment,storage_unqueued_req[opcode]);
-    *p++ = ' '; *p++ = '|'; *p++ = '\n';      
+    *p++ = ' '; *p++ = '|'; 
+    p += rozofs_eol(p);;      
   }
   p += rozofs_string_append(p, sep);
     

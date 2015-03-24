@@ -165,13 +165,14 @@ void rbs_monitor_purge(void) {
   uint32_t        nb,idx;
   uint32_t        older;
   char file_path[FILENAME_MAX];
-  char dir_path[FILENAME_MAX];
+  char * pChar;
 
-
-  sprintf(dir_path, "%s/storage_rebuild/", DAEMON_PID_DIRECTORY);
+  pChar = file_path;
+  pChar += rozofs_string_append(pChar,DAEMON_PID_DIRECTORY);
+  pChar += rozofs_string_append(pChar,"/storage_rebuild/");
   
   /* Open core file directory */ 
-  dir=opendir(dir_path);
+  dir=opendir(file_path);
   if (dir==NULL) return;
 
   nb = 0;
@@ -180,8 +181,8 @@ void rbs_monitor_purge(void) {
     
     /* Skip . and .. */ 
     if (dirItem->d_name[0] == '.') continue;
-
-    sprintf(file_path,"%s/%s", dir_path, dirItem->d_name); 
+    
+    rozofs_string_append(pChar,dirItem->d_name); 
 
     /* Get file date */ 
     if (stat(file_path,&statBuf) < 0) {   
@@ -239,7 +240,8 @@ void static inline rbs_status_file_name(char * given_name) {
   char * pChar = rbs_monitor_file_path;
   if (*pChar != 0) return;
     
-  pChar += sprintf(pChar, "%s/storage_rebuild/", DAEMON_PID_DIRECTORY);
+  pChar += rozofs_string_append(pChar,DAEMON_PID_DIRECTORY);
+  pChar += rozofs_string_append(pChar,"/storage_rebuild/");
   if (access(rbs_monitor_file_path,W_OK) == -1) {
     mkdir(rbs_monitor_file_path,S_IRWXU | S_IROTH);
   }	
@@ -248,13 +250,23 @@ void static inline rbs_status_file_name(char * given_name) {
   localtime_r(&loc_time,&date); 
 
   if (given_name != NULL) {
-    pChar += sprintf(pChar, "%s", given_name);  
+    pChar += rozofs_string_append(pChar, given_name);  
   }
   else {
-    pChar += sprintf(pChar, "%4.4d:%2.2d:%2.2d_%2.2d:%2.2d:%2.2d_%d", 
-                   date.tm_year+1900,date.tm_mon+1,date.tm_mday,
-		   date.tm_hour, date.tm_min, date.tm_sec,
-		   getpid());
+    pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, date.tm_year+1900); 
+    *pChar++ =':'; 
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, date.tm_mon+1);  
+    *pChar++ =':';     
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, date.tm_mday);  
+    *pChar++ ='_';     
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, date.tm_hour);  
+    *pChar++ =':';     
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, date.tm_min);  
+    *pChar++ =':';     
+    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, date.tm_sec);  
+    *pChar++ ='_';     
+    pChar += rozofs_u32_append(pChar, getpid());  
+
   }		   
   ctime_r(&loc_time,initial_date);  
   info("%s",rbs_monitor_file_path);
@@ -282,10 +294,15 @@ int rbs_monitor_update(char * rebuild_status, int cid, int sid) {
 
     if (header_msg_size == 0) {
       char * pt = header_msg;
-      pt += sprintf(pt, HEADER, VERSION);
-      pt += sprintf(pt, "starting  : %s", initial_date);
-      pt += sprintf(pt, "command   : %s\n", command);
-      pt += sprintf(pt, "parallel  : %d\n", parallel); 
+      pt += rozofs_string_append(pt, HEADER);
+      pt += rozofs_string_append(pt, VERSION);
+      pt += rozofs_string_append(pt,"\nstarting  : ");
+      pt += rozofs_string_append(pt,initial_date);
+      pt += rozofs_string_append(pt,"\ncommand   : ");
+      pt += rozofs_string_append(pt,command);
+      pt += rozofs_string_append(pt,"\nparallel  : ");
+      pt += rozofs_u32_append(pt,parallel);
+      pt += rozofs_eol(pt); 
       header_msg_size = pt - header_msg;
     }
     dprintf(fd,"%s",header_msg);
@@ -367,12 +384,14 @@ out:
 
 int rbs_monitor_display() {
   char cmdString[256];
+  char * pChar = cmdString;
   
   if (quiet) return 0;
 
   if (rbs_monitor_file_path[0] == 0) return 0;
 
-  sprintf(cmdString,"cat %s",rbs_monitor_file_path);
+  pChar += rozofs_string_append(pChar,"cat ");
+  pChar += rozofs_string_append(pChar,rbs_monitor_file_path);
   return system(cmdString);
 }
     
@@ -701,8 +720,11 @@ int storage_rebuild_monitor_append(char * msg) {
     int fd = -1;
     char path[FILENAME_MAX];
     DEBUG_FUNCTION;
-
-    sprintf(path, "%s/storage_rebuild/rbs.%d", DAEMON_PID_DIRECTORY, getpid());
+    
+    char * pChar = path;
+    pChar += rozofs_string_append(pChar,DAEMON_PID_DIRECTORY);
+    pChar += rozofs_string_append(pChar,"/storage_rebuild/rbs.");
+    pChar += rozofs_u32_append(pChar,getpid());
     if ((fd = open(path, O_APPEND, S_IRWXU | S_IROTH)) < 0) {
         severe("can't open %s", path);
         goto out;
@@ -725,7 +747,11 @@ int storage_rebuild_monitor_append_int(char * msg, int val) {
     char path[FILENAME_MAX];
     DEBUG_FUNCTION;
 
-    sprintf(path, "%s/storage_rebuild/rbs.%d", DAEMON_PID_DIRECTORY, getpid());
+    char * pChar = path;
+    pChar += rozofs_string_append(pChar,DAEMON_PID_DIRECTORY);
+    pChar += rozofs_string_append(pChar,"/storage_rebuild/rbs.");
+    pChar += rozofs_u32_append(pChar,getpid());
+
     if ((fd = open(path, O_APPEND, S_IRWXU | S_IROTH)) < 0) {
         severe("can't open %s", path);
         goto out;
@@ -899,10 +925,13 @@ static int rbs_get_rb_entry_list_one_cluster(list_t * cluster_entries,
     */
     dir = get_rebuild_sid_directory_name(cid,sid);
     for (idx=0; idx < parallel; idx++) {
-    
-      sprintf(filename,"%s/storage.%2.2d", dir, idx);
 
-      cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
+      char * pChar = filename;
+      pChar += rozofs_string_append(pChar,dir);
+      pChar += rozofs_string_append(pChar,"/storage.");
+      pChar += rozofs_u32_append(pChar,idx);
+
+      cfgfd[idx] = open (filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
       if (cfgfd[idx] == -1) {
 	severe("Can not open file %s %s", filename, strerror(errno));
 	return -1;
@@ -966,7 +995,10 @@ static int rbs_build_one_fid_list(cid_t cid, sid_t sid, uint8_t layout, uint8_t 
   */
   dir = get_rebuild_sid_directory_name(cid,sid);
 
-  sprintf(filename,"%s/%s", dir, fid2rebuild_string);
+  char * pChar = filename;
+  pChar += rozofs_string_append(pChar,dir);
+  *pChar++ = '/';
+  pChar += rozofs_string_append(pChar,fid2rebuild_string);
       
   fd = open(filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
   if (fd == -1) {
@@ -1051,16 +1083,23 @@ int rbs_do_list_rebuild(int cid, int sid) {
     if (strcmp(file->d_name,".")==0)  continue;
     if (strcmp(file->d_name,"..")==0) continue;
     
-    sprintf(fname,"%s/%s",dirName,file->d_name);
+    char * pChar = fname;
+    pChar += rozofs_string_append(pChar,dirName);
+    *pChar++ = '/';
+    pChar += rozofs_string_append(pChar,file->d_name);
+    
     fd[total] = open(fname, O_RDONLY);
 
     pid = fork();
     
     if (pid == 0) {
       char * pChar = cmd;
-      pChar += sprintf(pChar,"storage_list_rebuilder -f %s/%s", dirName, file->d_name);
+      pChar += rozofs_string_append(pChar,"storage_list_rebuilder -f ");
+      pChar += rozofs_string_append(pChar,dirName);
+      *pChar++ = '/';
+      pChar += rozofs_string_append(pChar,file->d_name);
       if (quiet) {
-        pChar += sprintf(pChar," --quiet");
+        pChar += rozofs_string_append(pChar," --quiet");
       }
       status = system(cmd);
       if (status == 0) exit(0);
@@ -1155,7 +1194,12 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
   dir = get_rebuild_sid_directory_name(cid,sid);
   for (idx=0; idx < parallel; idx++) {
 
-    sprintf(filename,"%s/device%d.%2.2d", dir, device_to_rebuild, idx);
+    char * pChar = filename;
+    pChar += rozofs_string_append(pChar,dir);
+    pChar += rozofs_string_append(pChar,"/device");
+    pChar += rozofs_u32_append(pChar,device_to_rebuild);
+    pChar += rozofs_string_append(pChar,"."); 
+    pChar += rozofs_u32_padded_append(pChar,2,rozofs_zero, idx);        
       
     cfgfd[idx] = open(filename,O_CREAT | O_TRUNC | O_WRONLY, 0640);
     if (cfgfd[idx] == -1) {
@@ -1175,8 +1219,14 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
     for (spare_it = 0; spare_it < 2; spare_it++) {
 
       // Build path directory for this layout and this spare type        	
-      sprintf(dir_path, "%s/%d/hdr_%u", storage_to_rebuild->root, device_it, spare_it);
-
+      char * pChar = dir_path;
+      pChar += rozofs_string_append(pChar,storage_to_rebuild->root);
+      *pChar++ = '/';
+      pChar += rozofs_u32_append(pChar,device_it); 
+      pChar += rozofs_string_append(pChar,"/hdr_");
+      pChar += rozofs_u32_append(pChar,spare_it); 
+         
+      
       // Check that this directory already exists, otherwise it will be create
       if (access(dir_path, F_OK) == -1) continue;
 
@@ -1196,8 +1246,11 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
 	  if (file->d_name[0] == '.') continue;
 
           // Read the file
-          sprintf(filepath, "%s/%s",slicepath, file->d_name);
-
+	  pChar = filepath;
+	  pChar += rozofs_string_append(pChar,slicepath);
+	  *pChar++ = '/';
+	  pChar += rozofs_string_append(pChar,file->d_name);
+ 
 	  fd = open(filepath, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
 	  if (fd < 0) continue;
 
@@ -1588,7 +1641,11 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   
   for (dev = 0; dev < st->device_number; dev++) {
 
-    sprintf(path, "%s/%d/", st->root, dev); 
+    char * pChar = path;
+    pChar += rozofs_string_append(pChar,st->root);
+    *pChar++ = '/';
+    pChar += rozofs_u32_append(pChar,dev);
+    pChar += rozofs_string_append(pChar,"/");   
                
     if (statfs(path, &sfs) != -1) {
       if (sfs.f_bfree > max) {
@@ -1969,7 +2026,11 @@ int main(int argc, char *argv[]) {
       char * p = command;
       int i;
       
-      for (i=0; i< argc; i++) p += sprintf(p, "%s ", argv[i]);
+      for (i=0; i< argc; i++) {
+        p += rozofs_string_append(p, argv[i]);
+	*p++ = ' ';
+      }
+      *p = 0;	
       info("%s",command);
     }
     

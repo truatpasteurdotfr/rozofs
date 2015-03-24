@@ -74,67 +74,26 @@ int storaged_update_device_info(storage_t * st);
  **_________________________________________________________________________
  */
 
-#define sp_display_rbs_progress_probe(the_cid, the_sid,\
-                                        the_probe_1, the_probe_2, the_probe_3)\
-    {\
-        if ( the_probe_3 == 0 ) {\
-            pChar += sprintf(pChar,\
-                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
-                               "%"PRIu64"/%-12"PRIu64" |\n",\
-                               the_cid, the_sid, "not started",\
-                               the_probe_2, the_probe_1);\
-        }\
-        if ( the_probe_3 == 1 ) {\
-            pChar += sprintf(pChar,\
-                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
-                               "%"PRIu64"/%-12"PRIu64" |\n",\
-                               the_cid, the_sid, "getting cluster list",\
-                               the_probe_2, the_probe_1);\
-        }\
-        if ( the_probe_3 == 2 ) {\
-            pChar += sprintf(pChar,\
-                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
-                               "%"PRIu64"/%-12"PRIu64" |\n",\
-                               the_cid, the_sid, "init connections",\
-                               the_probe_2, the_probe_1);\
-        }\
-        if ( the_probe_3 == 3 ) {\
-            pChar += sprintf(pChar,\
-                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
-                               "%"PRIu64"/%-12"PRIu64" |\n",\
-                               the_cid, the_sid, "getting list of files",\
-                               the_probe_2, the_probe_1);\
-        }\
-        if ( the_probe_3 == 4 ) {\
-            pChar += sprintf(pChar,\
-                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
-                               "%"PRIu64"/%-12"PRIu64" |\n",\
-                               the_cid, the_sid, "rebuild in progress",\
-                               the_probe_2, the_probe_1);\
-        }\
-        if ( the_probe_3 == 5 ) {\
-            pChar += sprintf(pChar,\
-                               "%-12"PRIu16" | %-12"PRIu8" | %-16s | "\
-                               "%"PRIu64"/%-12"PRIu64" |\n",\
-                               the_cid, the_sid, "completed",\
-                               the_probe_2, the_probe_1);\
-        }\
-    }
 
-#define sp_display_probe(the_profiler, the_probe)\
-    {\
-        uint64_t rate;\
-        uint64_t cpu;\
-        if ((the_profiler.the_probe[P_COUNT] == 0) || (the_profiler.the_probe[P_ELAPSE] == 0) ){\
-            cpu = rate = 0;\
-        } else {\
-            rate = (the_profiler.the_probe[P_COUNT] * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
-            cpu = the_profiler.the_probe[P_ELAPSE] / the_profiler.the_probe[P_COUNT];\
-        }\
-        pChar += sprintf(pChar, " %-16s | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" |\n",\
-                #the_probe, the_profiler.the_probe[P_COUNT], \
-                rate, cpu);\
-    }
+#define sp_display_probe(the_profiler, the_probe){\
+  uint64_t rate;\
+  uint64_t cpu;\
+  if ((the_profiler.the_probe[P_COUNT] == 0) || (the_profiler.the_probe[P_ELAPSE] == 0) ){\
+      cpu = rate = 0;\
+  } else {\
+      rate = (the_profiler.the_probe[P_COUNT] * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
+      cpu = the_profiler.the_probe[P_ELAPSE] / the_profiler.the_probe[P_COUNT];\
+  }\
+  *pChar++ = ' ';\
+  pChar += rozofs_string_padded_append(pChar,16, rozofs_left_alignment,#the_probe);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,the_profiler.the_probe[P_COUNT]);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,rate);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,cpu);\
+  pChar += rozofs_string_append(pChar," |\n");\
+}
 
 #define sp_clear_probe(the_profiler, the_probe)\
     {\
@@ -154,23 +113,26 @@ int storaged_update_device_info(storage_t * st);
             cpu = the_profiler.the_probe[P_ELAPSE] / the_profiler.the_probe[P_COUNT];\
             throughput = (the_profiler.the_probe[P_BYTES] / 1024 /1024 * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
         }\
-        pChar += sprintf(pChar, " %-16s | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64"     |\n",\
-                 #the_probe, the_profiler.the_probe[P_COUNT], \
-                rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
-    }
+  *pChar++ = ' ';\
+  pChar += rozofs_string_padded_append(pChar,17, rozofs_left_alignment,#the_probe);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,the_profiler.the_probe[P_COUNT]);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,rate);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,cpu);\
+  pChar += rozofs_string_append(pChar," |");\
+  pChar += rozofs_u64_padded_append(pChar,13, rozofs_right_alignment,throughput);\
+  pChar += rozofs_string_append(pChar," |\n");\
+}
 
 static char * show_profile_storaged_master_display_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
-  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  pChar += rozofs_string_append(pChar,"usage:\nprofiler reset       : reset statistics\nprofiler             : display statistics\n");  
   return pChar; 
 }
 
 static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
-
-    time_t elapse;
-    int days, hours, mins, secs;
 
     if (argv[1] != NULL) {
 
@@ -191,22 +153,16 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
         return;
     }
 
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-
     // Print general profiling values for storaged
-    pChar += sprintf(pChar, "storaged: %s - %"PRIu16" IO process(es),"
-            " uptime: %d days, %d:%d:%d\n\n",
-            gprofiler.vers, gprofiler.nb_io_processes, days, hours, mins, secs);
+    pChar += rozofs_string_append(pChar, "storaged: ");
+    pChar += rozofs_string_append(pChar, gprofiler.vers);
+    pChar += rozofs_string_append(pChar, " - ");
+    pChar += rozofs_u64_padded_append(pChar, 16, rozofs_right_alignment,gprofiler.nb_io_processes);
+    pChar += rozofs_string_append(pChar, " IO process(es)\n");
 
     // Print header for operations profiling values for storaged
-    pChar += sprintf(pChar, " %-16s | %-12s | %-12s | %-12s |\n", "OP",
-            "CALL", "RATE(msg/s)", "CPU(us)");
-    pChar += sprintf(pChar, "------------------+--------------+--------------+--------------+\n");
+    pChar += rozofs_string_append(pChar, "                  |    CALL      | RATE(msg/s)  |   CPU(us)    |\n");
+    pChar += rozofs_string_append(pChar, "------------------+--------------+--------------+--------------+\n");
 
     // Print master storaged process profiling values
     sp_display_probe(gprofiler, stat);
@@ -223,9 +179,16 @@ static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
     list_t   *l = NULL;
     uint8_t   cid,rank,bit; 
           
-    pChar += sprintf(pChar,"storio_nb : %d\n", storio_nb);
-    pChar += sprintf(pChar,"mode : %s\n", storaged_config.multiio?"multiple":"single");
-    pChar += sprintf(pChar,"cids : ");
+    pChar +=  rozofs_string_append(pChar,"storio_nb : ");
+    pChar +=  rozofs_u32_append(pChar,storio_nb);
+    pChar +=  rozofs_string_append(pChar,"\nmode : ");
+    if (storaged_config.multiio) {
+      pChar +=  rozofs_string_append(pChar,"multiple");
+    }  
+    else {
+      pChar +=  rozofs_string_append(pChar,"single");
+    }      
+    pChar += rozofs_string_append(pChar,"\ncids : ");
              
     /* For each storage on configuration file */
     list_for_each_forward(l, &storaged_config.storages) {
@@ -241,9 +204,10 @@ static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
       }
 
       bitmask[rank] &= (1ULL<<bit);
-      pChar += sprintf(pChar,"%d ",cid);
+      pChar += rozofs_u32_append(pChar,cid);
+      *pChar++ = ' ';
     }
-    pChar += sprintf(pChar,"\n");
+    pChar += rozofs_eol(pChar);
    
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -254,14 +218,14 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
     storage_device_info_t *info;
     
 
-    pChar += sprintf(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
-    pChar += sprintf(pChar,"| cid | sid | dev | status |   free size B  |    max size B  |  %c |\n",'%');
+    pChar += rozofs_string_append(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
+    pChar += rozofs_string_append(pChar,"| cid | sid | dev | status |   free size B  |    max size B  |  % |\n");
            
     while((st = storaged_next(st)) != NULL) {
       uint64_t sumfree=0;
       uint64_t sumsize=0;
 
-      pChar += sprintf(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
+      pChar += rozofs_string_append(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
 
       /*
       ** Let's resolve the share memory address
@@ -275,23 +239,49 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
 	  storage_device_info_t *pdev = &info[device];
 	  sumfree += pdev->free;
 	  sumsize += pdev->size;
-          pChar += sprintf(pChar,"| %3d | %3d | %3d | %6s | %14llu | %14llu | %2.2d |\n",
-	                    st->cid, st->sid, device,
-			    storage_device_status2string(pdev->status),
-			    (long long unsigned int) pdev->free, 
-			    (long long unsigned int) pdev->size,
-			    (pdev->size==0)?0:(int)(pdev->free*100/pdev->size));
+	  *pChar++ = '|';
+	  pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, st->cid);
+	  pChar += rozofs_string_append(pChar," |");
+	  pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, st->sid);
+	  pChar += rozofs_string_append(pChar," |");
+	  pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, device);
+	  pChar += rozofs_string_append(pChar," | ");
+	  pChar += rozofs_string_padded_append(pChar, 7, rozofs_left_alignment, storage_device_status2string(pdev->status));
+	  *pChar++ = '|';
+	  pChar += rozofs_u64_padded_append(pChar, 15, rozofs_right_alignment, pdev->free);
+	  pChar += rozofs_string_append(pChar," |");
+	  pChar += rozofs_u64_padded_append(pChar, 15, rozofs_right_alignment, pdev->size);	  	  
+	  pChar += rozofs_string_append(pChar," | ");
+	  pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, pdev->free*100/pdev->size);	  
+	  pChar += rozofs_string_append(pChar," |\n");
 	}
-        pChar += sprintf(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
+        pChar += rozofs_string_append(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
 
-	pChar += sprintf(pChar,"                           | %14llu | %14llu | %2.2d |\n",
-				    (long long unsigned int)sumfree, 
-				    (long long unsigned int)sumsize,
-				    (sumsize==0)?0:(int)(sumfree*100/sumsize));	
+	pChar += rozofs_string_append(pChar,"                           |");
+	pChar += rozofs_u64_padded_append(pChar, 15, rozofs_right_alignment, sumfree);
+	pChar += rozofs_string_append(pChar," |");	
+	pChar += rozofs_u64_padded_append(pChar, 15, rozofs_right_alignment, sumsize);	
+	pChar += rozofs_string_append(pChar," | ");
+	
+	
+	if (sumsize == 0) {	  	  
+	  pChar += rozofs_string_append(pChar, "00");	
+	} 
+	else {
+	  pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, sumfree*100/sumsize);	  	  
+	} 
+	pChar += rozofs_string_append(pChar," |\n");
+
+	pChar += rozofs_string_append(pChar,"                           | ");
+	pChar += rozofs_bytes_padded_append(pChar,15,sumfree);
+	pChar += rozofs_string_append(pChar,"| ");
+	pChar += rozofs_bytes_padded_append(pChar,15,sumsize);
+	pChar += rozofs_string_append(pChar,"|    |\n");	
+
       } 
 
     }
-    pChar += sprintf(pChar,"                           |________________|________________|____|\n");   
+    pChar += rozofs_string_append(pChar,"                           |________________|________________|____|\n");   
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 // For trace purpose

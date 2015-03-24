@@ -646,12 +646,32 @@ uint64_t  storio_check_crc32_vect(struct iovec *vector,int nb_proj,uint16_t prj_
 static void show_data_integrity(char * argv[], uint32_t tcpRef, void *bufRef)
 {
     char *pChar = uma_dbg_get_buffer();
-     pChar += sprintf(pChar,"Data integrity :\n");
-     pChar += sprintf(pChar,"  crc32c generation      : %s\n",(crc32c_generate_enable==0)?"DISABLED":"ENABLED");
-     pChar += sprintf(pChar,"  crc32c control         : %s\n",(crc32c_check_enable==0)?"DISABLED":"ENABLED");
-     pChar += sprintf(pChar,"  crc32c computing mode  : %s\n",(crc32c_hw_supported==0)?"SOFTWARE":"HARDWARE");
-     pChar += sprintf(pChar,"  crc32c error counter   : %llu\n",(unsigned long long int)storio_crc_error);
-
+     pChar += rozofs_string_append(pChar,"Data integrity :\n");
+     pChar += rozofs_string_append(pChar,"  crc32c generation      : ");
+     if (crc32c_generate_enable==0) {
+       pChar += rozofs_string_append(pChar,"DISABLED\n");
+     }
+     else {
+       pChar += rozofs_string_append(pChar,"ENABLED\n");       
+     }  
+     pChar += rozofs_string_append(pChar,"  crc32c control         : ");
+     if (crc32c_check_enable==0) {
+       pChar += rozofs_string_append(pChar,"DISABLED\n");
+     }
+     else {
+       pChar += rozofs_string_append(pChar,"ENABLED\n");       
+     }       
+     pChar += rozofs_string_append(pChar,"  crc32c computing mode  : ");
+     if (crc32c_hw_supported==0) {
+       pChar += rozofs_string_append(pChar,"SOFTWARE\n");
+     }
+     else {
+       pChar += rozofs_string_append(pChar,"HARDWARE\n");       
+     }       
+     pChar += rozofs_string_append(pChar,"  crc32c error counter   : ");
+     pChar += rozofs_u64_append(pChar, storio_crc_error);
+     pChar += rozofs_eol(pChar);
+     
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 
 }

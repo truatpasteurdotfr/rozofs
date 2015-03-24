@@ -55,6 +55,7 @@
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
 #include <rozofs/core/ruc_buffer_debug.h>
 #include <rozofs/core/rozofs_host2ip.h>
+#include <rozofs/core/rozofs_string.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/sproto.h>
@@ -85,21 +86,6 @@ DECLARE_PROFILING(spp_profiler_t);
 
 
 
-#define sp_display_probe(the_profiler, the_probe)\
-    {\
-        uint64_t rate;\
-        uint64_t cpu;\
-        if ((the_profiler.the_probe[P_COUNT] == 0) || (the_profiler.the_probe[P_ELAPSE] == 0) ){\
-            cpu = rate = 0;\
-        } else {\
-            rate = (the_profiler.the_probe[P_COUNT] * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
-            cpu = the_profiler.the_probe[P_ELAPSE] / the_profiler.the_probe[P_COUNT];\
-        }\
-        pChar += sprintf(pChar, " %-16s | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" |\n",\
-                #the_probe, the_profiler.the_probe[P_COUNT], \
-                rate, cpu);\
-    }
-
 #define sp_display_io_probe(the_profiler, the_probe)\
     {\
         uint64_t rate;\
@@ -112,28 +98,28 @@ DECLARE_PROFILING(spp_profiler_t);
             cpu = the_profiler.the_probe[P_ELAPSE] / the_profiler.the_probe[P_COUNT];\
             throughput = (the_profiler.the_probe[P_BYTES] / 1024 /1024 * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
         }\
-        pChar += sprintf(pChar, " %-16s | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64"     |\n",\
-                 #the_probe, the_profiler.the_probe[P_COUNT], \
-                rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
+	*pChar++ = ' ';\
+	pChar += rozofs_string_padded_append(pChar, 17, rozofs_left_alignment, #the_probe);\
+	*pChar++ = '|'; \
+	pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, the_profiler.the_probe[P_COUNT]);\
+	*pChar++ = ' ';*pChar++ = '|';\
+	pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, rate);\
+	*pChar++ = ' ';*pChar++ = '|';\
+	pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, cpu);\
+	*pChar++ = ' ';*pChar++ = '|';\
+	pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, the_profiler.the_probe[P_BYTES]);\
+	*pChar++ = ' ';*pChar++ = '|';\
+	pChar += rozofs_u64_padded_append(pChar, 17, rozofs_right_alignment, throughput);\
+	*pChar++ = ' ';*pChar++ = '|';\
+	pChar += rozofs_eol(pChar); \
     }
 #define sp_display_io_probe_cond(the_profiler, the_probe)\
     {\
-        uint64_t rate;\
-        uint64_t cpu;\
-        uint64_t throughput;\
         if (the_profiler.the_probe[P_COUNT] != 0) {\
-	  if (the_profiler.the_probe[P_ELAPSE] == 0) {\
-              cpu = rate = throughput = 0;\
-          } else {\
-              rate = (the_profiler.the_probe[P_COUNT] * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
-              cpu = the_profiler.the_probe[P_ELAPSE] / the_profiler.the_probe[P_COUNT];\
-              throughput = (the_profiler.the_probe[P_BYTES] / 1024 /1024 * 1000000 / the_profiler.the_probe[P_ELAPSE]);\
-          }\
-          pChar += sprintf(pChar, " %-16s | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64" | %-12"PRIu64"     |\n",\
-                   #the_probe, the_profiler.the_probe[P_COUNT], \
-                  rate, cpu, the_profiler.the_probe[P_BYTES], throughput);\
-      }\
+	   sp_display_io_probe(the_profiler, the_probe)\
+        }\
     }  
+    
 #define sp_clear_io_probe(the_profiler, the_probe)\
     {\
        the_profiler.the_probe[P_COUNT] = 0;\
@@ -141,17 +127,11 @@ DECLARE_PROFILING(spp_profiler_t);
        the_profiler.the_probe[P_BYTES] = 0;\
     }
 static char * show_profile_storaged_io_display_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
-  pChar += sprintf(pChar,"profiler             : display statistics\n");  
+  pChar += rozofs_string_append(pChar,"usage:\nprofiler reset       : reset statistics\nprofiler             : display statistics\n");  
   return pChar; 
 }
 static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, void *bufRef) {
-
     char *pChar = uma_dbg_get_buffer();
-
-    time_t elapse;
-    int days, hours, mins, secs;
 
     if (argv[1] != NULL)
     {
@@ -173,21 +153,9 @@ static void show_profile_storaged_io_display(char * argv[], uint32_t tcpRef, voi
       return;          
     }
 
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-
-
-    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n\n", gprofiler.vers, days, hours, mins, secs);
-
-
     // Print header for operations profiling values for storaged
-    pChar += sprintf(pChar, " %-16s | %-12s | %-12s | %-12s | %-12s | %-16s |\n", "OP",
-            "CALL", "RATE(msg/s)", "CPU(us)", "COUNT(B)", "THROUGHPUT(MB/s)");
-    pChar += sprintf(pChar, "------------------+--------------+--------------+--------------+--------------+------------------+\n");
+    pChar += rozofs_string_append(pChar, "                  |    CALL      | RATE(msg/s)  |   CPU(us)    |   COUNT(B)   | THROUGHPUT(MB/s) |\n");
+    pChar += rozofs_string_append(pChar, "------------------+--------------+--------------+--------------+--------------+------------------+\n");
 
 
     // Print master storaged process profiling values

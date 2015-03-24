@@ -211,16 +211,30 @@ static void on_start(void) {
     storage_process_filename[0] = 0;
     char *pid_name_p = storage_process_filename;
     if (pHostArray[0] != NULL) {
-        sprintf(pid_name_p, "%s%s_%s.%d.pid", DAEMON_PID_DIRECTORY, STORIO_PID_FILE, pHostArray[0],storio_instance);
+      char * pChar = pid_name_p;
+      pChar += rozofs_string_append(pChar,DAEMON_PID_DIRECTORY);
+      pChar += rozofs_string_append(pChar,STORIO_PID_FILE);
+      *pChar++ = '_';
+      pChar += rozofs_string_append(pChar,pHostArray[0]);	
+      *pChar++ = '.';      
+      pChar += rozofs_u32_append(pChar,storio_instance);
+      pChar += rozofs_string_append(pChar,".pid");
     } else {
-        sprintf(pid_name_p, "%s%s.%d.pid", DAEMON_PID_DIRECTORY,STORIO_PID_FILE,storio_instance);
+      char * pChar = pid_name_p;
+      pChar += rozofs_string_append(pChar,DAEMON_PID_DIRECTORY);
+      pChar += rozofs_string_append(pChar,STORIO_PID_FILE);
+      *pChar++ = '.';      
+      pChar += rozofs_u32_append(pChar,storio_instance);
+      pChar += rozofs_string_append(pChar,".pid");
     }
     int ppfd;
     if ((ppfd = open(storage_process_filename, O_RDWR | O_CREAT, 0640)) < 0) {
         severe("can't open process file");
     } else {
         char str[10];
-        sprintf(str, "%d\n", getpid());
+	char * pChar = str;
+        pChar += rozofs_u32_append(pChar, getpid());
+	pChar += rozofs_eol(pChar);
         if (write(ppfd, str, strlen(str))<0) {
           severe("can't write process file %s",strerror(errno));	  
 	}

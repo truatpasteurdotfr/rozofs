@@ -88,9 +88,7 @@ static inline void reset_detailed_counters(void) {
 * @param delay delay in us of the write operation
 */
 static char * display_detailed_counters_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"detailedTiming reset       : reset statistics\n");
-  pChar += sprintf(pChar,"detailedTiming             : display statistics\n");  
+  pChar += rozofs_string_append(pChar,"usage:\ndetailedTiming reset       : reset statistics\ndetailedTiming             : display statistics\n");  
   return pChar; 
 }
 /*_______________________________________________________________________
@@ -117,12 +115,21 @@ void display_detailed_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
   stop_read  = STORIO_DETAILED_READ_SLICE;
   stop_write  = STORIO_DETAILED_WRITE_SLICE;
 
-  p += sprintf(p, "    READ                                 WRITE\n");  
+  p += rozofs_string_append(p, "    READ                                 WRITE\n");  
   for (i=0; i<=STORIO_DETAILED_COUNTER_MAX; i++) {
   
-    p += sprintf(p, "%4d..%4d : %-16"PRIu64"        %4d..%4d : %-16"PRIu64"\n", 
-                start_read,stop_read,storio_detailed_counters.read[i],
-                start_write,stop_write,storio_detailed_counters.write[i]); 
+    p += rozofs_u64_padded_append(p, 4, rozofs_right_alignment,start_read);
+    p += rozofs_string_append(p, "..");
+    p += rozofs_u64_padded_append(p, 4, rozofs_left_alignment,stop_read);
+    p += rozofs_string_append(p, " : ");
+    p += rozofs_u64_padded_append(p, 16, rozofs_right_alignment, storio_detailed_counters.read[i]);
+    p += rozofs_string_append(p, "        ");
+    p += rozofs_u64_padded_append(p, 4, rozofs_right_alignment,start_write);
+    p += rozofs_string_append(p, "..");
+    p += rozofs_u64_padded_append(p, 4, rozofs_left_alignment,stop_write);
+    p += rozofs_string_append(p, " : ");
+    p += rozofs_u64_padded_append(p, 16, rozofs_right_alignment, storio_detailed_counters.write[i]);
+    p += rozofs_eol(p);
 
     start_read = stop_read;
     stop_read += STORIO_DETAILED_READ_SLICE; 

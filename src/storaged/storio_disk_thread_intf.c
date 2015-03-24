@@ -58,20 +58,32 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
   - 
   RETURN: none
   ==========================================================================*/
-#define new_line(title,empty) \
+#define new_line(title,empty) { \
   if (lineEmpty) { pChar = pLine;}\
   lineEmpty = empty;\
   pLine = pChar;\
-  pChar += sprintf(pChar,"\n%-24s |", title);
+  *pChar++ = '\n';\
+  pChar += rozofs_string_padded_append(pChar,25,rozofs_left_alignment,title);\
+  *pChar++ = '|';\
+}  
     
-#define display_val(val) pChar += sprintf(pChar," %16lld |", (long long unsigned int) val)
-#define display_div(val1,val2) if (val2==0) display_val(0);else display_val(val1/val2)
-#define display_txt(txt) pChar += sprintf(pChar," %16s |", (char *) txt)
+#define display_val(val){\
+  pChar += rozofs_u64_padded_append(pChar, 17, rozofs_right_alignment, val);\
+  *pChar++ = ' ';\
+  *pChar++ = '|';\
+}
+  
+#define display_div(val1,val2) if (val2==0) { display_val(0)} else { display_val(val1/val2)}
+#define display_txt(txt) {\
+  pChar += rozofs_string_padded_append(pChar,17, rozofs_right_alignment, txt);\
+  *pChar++ = ' ';\
+  *pChar++ = '|';\
+}
 
 #define display_line_topic(title) \
   new_line(title,0);\
   for (i=startIdx; i<(stopIdx+last); i++) {\
-    pChar += sprintf(pChar,"__________________|");\
+    pChar += rozofs_string_append(pChar,"__________________|");\
   }
     
 #define display_line_val(title,val) \
@@ -94,9 +106,7 @@ int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) 
 
  
 static char * disk_thread_debug_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"diskThreads reset       : reset statistics\n");
-  pChar += sprintf(pChar,"diskThreads             : display statistics\n");  
+  pChar += rozofs_string_append(pChar,"usage:\ndiskThreads reset       : reset statistics\ndiskThreads             : display statistics\n");  
   return pChar; 
 }  
 #define THREAD_PER_LINE 6
@@ -215,7 +225,8 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     display_line_div("   Average Time (us)",rebStop_time,rebStop_count);  
  
     display_line_topic("");  
-    pChar += sprintf(pChar,"\n");
+    *pChar++= '\n';
+    *pChar = 0;
   }
 
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
@@ -578,7 +589,12 @@ uint32_t af_unix_disk_rcvMsgsock(void * unused,int socketId)
 void storio_set_socket_name_with_hostname(struct sockaddr_un *socketname,char *name,char *hostname,int instance_id)
 {
   socketname->sun_family = AF_UNIX;  
-  sprintf(socketname->sun_path,"%s_%d_%s",name,instance_id,hostname);
+  char * pChar = socketname->sun_path;
+  pChar += rozofs_string_append(pChar,name);
+  *pChar++ = '_';
+  pChar += rozofs_u32_append(pChar,instance_id);
+  *pChar++ = '_';  
+  pChar += rozofs_string_append(pChar,hostname);
 }
 
 /*

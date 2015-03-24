@@ -268,7 +268,7 @@ static inline char * trace_device(uint8_t * device, char * pChar) {
       *pChar++ = 'E';
     }  
     else {
-      rozofs_u32_append(pChar,device[idx]);
+      pChar += rozofs_u32_append(pChar,device[idx]);
     }  
   }
   *pChar++ = '/';  

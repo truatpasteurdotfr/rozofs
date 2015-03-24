@@ -53,11 +53,14 @@ uint64_t storio_bufcache_max_buftimestamp;       /**< max configured number of 2
   
   @retval none
 */
-#define SHOW_STAT_GCACHE(prefix,probe) pChar += sprintf(pChar,"%-28s :  %10llu\n","  "#probe ,(long long unsigned int) stat_p->prefix ## probe);
+#define SHOW_STAT_GCACHE(prefix,probe) {\
+  pChar += rozofs_string_padded_append(pChar, 28, rozofs_left_alignment, #probe);\
+  pChar += rozofs_string_append(pChar, " : ");\
+  pChar += rozofs_u64_padded_append(pChar, 10, rozofs_right_alignment,stat_p->prefix ## probe);\
+  pChar += rozofs_eol(pChar); \
+}
 static char * storio_bufcache_show_cache_stats_help(char * pChar) {
-  pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"data_cache flush       : flush the data cache\n");
-  pChar += sprintf(pChar,"data_cache             : display statistics\n");  
+  pChar += rozofs_string_append(pChar,"usage:\ndata_cache flush       : flush the data cache\ndata_cache             : display statistics\n");  
   return pChar; 
 }
 void storio_bufcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufRef) 
@@ -77,11 +80,13 @@ void storio_bufcache_show_cache_stats(char * argv[], uint32_t tcpRef, void *bufR
       return;     
    }
  
-   pChar += sprintf(pChar,"%s:\n","Data Cache");
-   pChar += sprintf(pChar,"level0_sz        : %d\n",STORIO_CACHE_MAX_BUF_POOL);
-  // pChar += sprintf(pChar,"entries (max/cur): %u/%u\n\n",p->max,p->size);
-
-   pChar +=sprintf(pChar,"%-28s :  %10llu\n","timestamp buffers max.",(long long unsigned int)storio_bufcache_max_buftimestamp);
+   pChar += rozofs_string_append(pChar,"Data Cache\n");
+   pChar += rozofs_string_append(pChar,"level0_sz        : ");
+   pChar += rozofs_u32_append(pChar,STORIO_CACHE_MAX_BUF_POOL);
+   pChar += rozofs_eol(pChar);
+   pChar += rozofs_string_padded_append(pChar,30,rozofs_left_alignment,"timestamp buffers max.");
+   pChar += rozofs_u64_append(pChar,storio_bufcache_max_buftimestamp);
+   pChar += rozofs_eol(pChar);   
    SHOW_STAT_GCACHE(count_,buf_timestamp );
    SHOW_STAT_GCACHE(coll_,buf_timestamp );
 

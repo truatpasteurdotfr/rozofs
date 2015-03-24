@@ -132,8 +132,12 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   char          path[FILENAME_MAX];  
   
   for (dev = 0; dev < st->device_number; dev++) {
-
-    sprintf(path, "%s/%d/", st->root, dev); 
+    char * pChar = path;
+    pChar += rozofs_string_append(pChar,st->root);
+    *pChar++ = '/';
+    pChar += rozofs_u32_append(pChar,dev);
+    *pChar++ = '/';  
+    *pChar = 0;  
                
     if (statfs(path, &sfs) != -1) {
       if (sfs.f_bfree > max) {
