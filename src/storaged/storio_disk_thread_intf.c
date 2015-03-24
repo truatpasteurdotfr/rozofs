@@ -345,19 +345,12 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
   rpcCtx = msg->rpcCtx;
   opcode = msg->opcode;
   tic    = msg->timeStart; 
-  void * fid = NULL;
-  uint8_t cid=0;
-  uint8_t sid=0;
 
   switch (opcode) {
   
     case STORIO_DISK_THREAD_READ:
     {
       STOP_PROFILING_IO(read,msg->size);
-      sp_read_arg_t * arg = (sp_read_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;
       update_read_detailed_counters(toc - tic);      
       break;
     }  
@@ -365,10 +358,6 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     case STORIO_DISK_THREAD_WRITE:{
     
       STOP_PROFILING_IO(write,msg->size);
-      sp_write_arg_t * arg = (sp_write_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;      
       update_write_detailed_counters(toc - tic);            
       break;     
     }  
@@ -376,20 +365,12 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     case STORIO_DISK_THREAD_TRUNCATE:
     {
       STOP_PROFILING(truncate);
-      sp_truncate_arg_t * arg = (sp_truncate_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;     	            
       break;
     }  
        
     case STORIO_DISK_THREAD_WRITE_REPAIR:
     {
       STOP_PROFILING_IO(repair,msg->size);
-      sp_write_repair_arg_t * arg = (sp_write_repair_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;          
       update_write_detailed_counters(toc - tic);            
       break;
     }  
@@ -397,40 +378,25 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     case STORIO_DISK_THREAD_REMOVE:
     {
       STOP_PROFILING(remove);
-      sp_remove_arg_t * arg = (sp_remove_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;          	                   
       break; 
     }  
           
     case STORIO_DISK_THREAD_REMOVE_CHUNK:
     {
       STOP_PROFILING(remove_chunk);
-      sp_remove_chunk_arg_t * arg = (sp_remove_chunk_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;                                
       break;    
     }  
           
     case STORIO_DISK_REBUILD_START:
     {
       STOP_PROFILING(rebuild_start);
-      sp_rebuild_start_arg_t * arg = (sp_rebuild_start_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;           	                                 
       break; 
     }  
           
     case STORIO_DISK_REBUILD_STOP:
     {
-      sp_rebuild_stop_arg_t * arg = (sp_rebuild_stop_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      fid = &arg->fid;
-      cid = arg->cid;
-      sid = arg->sid;  
-      dev_map_p = storio_device_mapping_search(cid,sid,fid); 
+      dev_map_p = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+
       if (dev_map_p != NULL) {
         sp_rebuild_stop_response(dev_map_p, rpcCtx);
       }
@@ -446,9 +412,13 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
   }
 
   /*
-  ** Rtrieve FID context
+  ** Retrieve FID context
   */
-  if (dev_map_p == NULL) dev_map_p = storio_device_mapping_search(cid,sid,fid);
+  if (dev_map_p == NULL) {
+    /* Get from given index in message */
+    dev_map_p = storio_device_mapping_ctx_retrieve(msg->fidIdx);
+  }
+ 
   
   if (dev_map_p == NULL) {
     severe("Missing context");
