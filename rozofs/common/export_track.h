@@ -41,7 +41,6 @@
 extern int open_count;
 extern int close_count;
 
-typedef uuid_t fid_t;
 /**
 *  structure of the main tracking file
 */
