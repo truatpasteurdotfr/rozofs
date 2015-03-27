@@ -110,6 +110,8 @@ typedef enum {
 } TIMER_SLOT_SIZE_E ;
 
 typedef enum {
+    TIMER_TICK_VALUE_10MS  = 10,      /* tick value = 50 ms   */
+    TIMER_TICK_VALUE_20MS  = 20,      /* tick value = 50 ms   */
     TIMER_TICK_VALUE_50MS  = 50,      /* tick value = 50 ms   */
     TIMER_TICK_VALUE_100MS  = 100,    /* tick value = 100 ms  */
     TIMER_TICK_VALUE_250MS  = 250,    /* tick value = 250 ms  */

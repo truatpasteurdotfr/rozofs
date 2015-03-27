@@ -112,6 +112,7 @@ typedef struct ientry {
      */
     uint64_t    read_consistency;
     uint64_t    timestamp;
+    uint64_t    timestamp_wr_block;
 } ientry_t;
 
 
@@ -302,6 +303,7 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
         ie->read_consistency = 1;
 	ie->file_extend_pending = 0;
 	ie->file_extend_running = 0;
+	ie->timestamp_wr_block = 0;
 	put_ientry(ie);
 
 	return ie;

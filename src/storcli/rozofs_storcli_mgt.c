@@ -468,6 +468,7 @@ void  rozofs_storcli_ctxInit(rozofs_storcli_ctx_t *p,uint8_t creation)
   p->redundancyStorageIdxCur = 0;
   p->redundancyStorageIdxCur = 0;
   p->read_seqnum    = 0;
+  p->reply_done     = 0;
   p->write_ctx_lock = 0;
   p->read_ctx_lock  = 0;
   memset(p->fid_key,0, sizeof (sp_uuid_t));
@@ -592,7 +593,33 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
       }
       ctx_p->prj_ctx[i].prj_buf = NULL;
     }
+    /*
+    ** case of the buffer used when missing response condition is encountered
+    */
+    if (ctx_p->prj_ctx[i].prj_buf_missing != NULL)  
+    {
+      if (ctx_p->prj_ctx[i].inuse_valid_missing == 1)
+      {
+        inuse = ruc_buf_inuse_decrement(ctx_p->prj_ctx[i].prj_buf_missing);
+        if(inuse == 1) 
+        {
+          ruc_objRemove((ruc_obj_desc_t*)ctx_p->prj_ctx[i].prj_buf_missing);
+          ruc_buf_freeBuffer(ctx_p->prj_ctx[i].prj_buf_missing);
+        }
+      }
+      else
+      {
+        inuse = ruc_buf_inuse_get(ctx_p->prj_ctx[i].prj_buf_missing);
+        if (inuse == 1) 
+        {
+          ruc_objRemove((ruc_obj_desc_t*)ctx_p->prj_ctx[i].prj_buf_missing);
+          ruc_buf_freeBuffer(ctx_p->prj_ctx[i].prj_buf_missing);
+        }      
+      }
+      ctx_p->prj_ctx[i].prj_buf_missing = NULL;
+    }
   }
+
   /*
   ** remove any buffer that has been allocated for reading in the case of the write
   */

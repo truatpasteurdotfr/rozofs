@@ -216,6 +216,7 @@ typedef struct _rozofs_storcli_ctx_t
   uint32_t   src_transaction_id;  /**< transaction id of the source request                                       */
   void      *xmitBuf;             /**< reference of the xmit buffer that will use for sending the response        */
   uint32_t   read_seqnum;         /**< read sequence number that must be found in the reply to correlate with ctx */
+  uint32_t   reply_done;         /**< assert to one when reply has been sent to rozofsmount */
   rozofs_storcli_projection_ctx_t  prj_ctx[ROZOFS_SAFE_MAX];
   rozofs_storcli_lbg_prj_assoc_t lbg_assoc_tb[ROZOFS_SAFE_MAX]; /**< association table between lbg and projection */
   rozofs_storcli_inverse_block_t block_ctx_table[ROZOFS_MAX_BLOCK_PER_MSG];  
@@ -777,6 +778,24 @@ void rozofs_storcli_start_read_guard_timer(rozofs_storcli_ctx_t  *p);
 */
 void rozofs_storcli_write_reply_success(rozofs_storcli_ctx_t *p);
 
+/*
+**__________________________________________________________________________
+*/
+/**
+* send a truncate success reply
+  That API fill up the common header with the SP_READ_RSP opcode
+  insert the transaction_id associated with the inittial request transaction id
+  insert a status OK
+  insert the length of the data payload
+  
+  In case of a success it is up to the called function to release the xmit buffer
+  
+  @param p : pointer to the root transaction context used for the read
+  
+  @retval none
+
+*/
+void rozofs_storcli_truncate_reply_success(rozofs_storcli_ctx_t *p);
 /*
 **__________________________________________________________________________
 */
@@ -1430,4 +1449,32 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
   return 1;
 }
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Call back function call upon a success rpc, timeout or any other rpc failure
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+
+void rozofs_storcli_truncate_timeout(rozofs_storcli_ctx_t *working_ctx_p);
+/*
+**__________________________________________________________________________
+*/
+/**
+*  processing of a time-out that is trigger once inverse projection
+   has been received. The goal of the timer is to provide a quicker
+   reaction when some storage does not respond in the right timeframe.
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+
+void rozofs_storcli_write_timeout(rozofs_storcli_ctx_t *working_ctx_p) ;
 #endif

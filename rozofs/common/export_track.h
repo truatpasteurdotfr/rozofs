@@ -351,4 +351,22 @@ int exp_trck_write_main_tracking_file(char * root_path,uint8_t user_id,off_t off
 */
 int exp_metadata_create_attributes_burst(exp_trck_top_header_t *top_hdr_p,rozofs_inode_t *inode,void *attr_p,int attr_sz);
 
+/*
+**__________________________________________________________________
+*/
+/**
+*
+    get the stats of a tracking file within a given user_id directory
+    
+    @param top_hdr_p: pointer to the top table
+    @param user_id: reference of the directory
+    @param file_id : reference of the tracking file
+    @param buf_p: pointer to the stat buffer
+    
+    @retval 0 on success
+    @retval -1 on error    
+*/
+int exp_metadata_get_tracking_file_stat(exp_trck_top_header_t *top_hdr_p,
+                                        int user_id,uint64_t file_id,struct stat *buf_p);
+
 #endif

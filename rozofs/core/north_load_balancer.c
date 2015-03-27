@@ -137,9 +137,8 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
         ruc_obj_desc_t *pnext;
         int i;
 
-        pChar += sprintf(pChar, "  LBG Name                | lbg_id | idx  | sock |    state   |   Queue   | Cnx Attpts | Xmit Attpts | Recv count  |\n");
-        pChar +=
-                sprintf(pChar, "--------------------------+--------+------+------+------------+-----------+------------+-------------+-------------+\n");
+        pChar += sprintf(pChar, "  LBG Name                | lbg_id | idx  | sock |    state   | rdy |    Queue  | Cnx Attpts | Xmit Attpts | Recv count  |\n");
+        pChar += sprintf(pChar, "--------------------------+--------+------+------+------------+-----+-----------+------------+-------------+-------------+\n");
         pnext = (ruc_obj_desc_t*) NULL;
         while ((lbg_p = (north_lbg_ctx_t*) ruc_objGetNext((ruc_obj_desc_t*) & north_lbg_context_activeListHead,
                 &pnext))
@@ -162,6 +161,18 @@ void north_lbg_entries_debug_show(uint32_t tcpRef, void *bufRef) {
                 pChar += sprintf(pChar, " %4d |", sock_p->socketRef); /** socket */
 
                 pChar += sprintf(pChar, " %s |", lbg_north_state2String(entry_p->state));
+		while(1)
+		{
+		  af_unix_ctx_generic_t *sock_p ;
+		  sock_p = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
+		  if (sock_p == NULL)
+		  {
+                    pChar += sprintf(pChar, " %s |","???");
+		     break;
+		  }
+                  pChar += sprintf(pChar, " %s |",(sock_p->cnx_availability_state == AF_UNIX_CNX_AVAILABLE )?"YES":" NO");
+		  break;
+		}
                 pChar += sprintf(pChar, " %s |", ruc_objIsEmptyList((ruc_obj_desc_t*) & entry_p->xmitList) ? "    EMPTY" : "NON EMPTY");
                 pChar += sprintf(pChar, " %10llu |", (unsigned long long int) entry_p->stats.totalConnectAttempts);
                 pChar += sprintf(pChar, "  %10llu |", (unsigned long long int) entry_p->stats.totalXmit);

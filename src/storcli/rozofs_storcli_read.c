@@ -1655,8 +1655,7 @@ void rozofs_storcli_read_timeout(rozofs_storcli_ctx_t *working_ctx_p)
       ** we can take a new entry for a projection on a another storage
       */   
       projection_id = rozofs_inverse+ working_ctx_p->redundancyStorageIdxCur;
-      working_ctx_p->redundancyStorageIdxCur++;    
-
+      working_ctx_p->redundancyStorageIdxCur++;  
       ret = rozofs_storcli_read_projection_retry(working_ctx_p,projection_id,0);
       if (ret < 0)
       {
@@ -1743,8 +1742,21 @@ void rozofs_storcli_periodic_ticker(void * param)
     while  ((timer = ruc_objGetFirst(bucket_head_p)) !=NULL) 
     {
        read_ctx_p = (rozofs_storcli_ctx_t * )ruc_listGetAssoc(timer);
-       rozofs_storcli_stop_read_guard_timer(read_ctx_p);       
-       rozofs_storcli_read_timeout(read_ctx_p);    
+       rozofs_storcli_stop_read_guard_timer(read_ctx_p); 
+       switch (read_ctx_p->opcode_key)
+       {
+	 case  STORCLI_READ:   
+           rozofs_storcli_read_timeout(read_ctx_p); 
+	   break;
+	 case  STORCLI_WRITE:   
+           rozofs_storcli_write_timeout(read_ctx_p); 
+	   break;
+	 case  STORCLI_TRUNCATE:   
+           rozofs_storcli_truncate_timeout(read_ctx_p); 
+	   break;
+	 default:   
+	   break;
+       }   
     }          
 }
 /*
@@ -1771,7 +1783,7 @@ void rozofs_storcli_read_init_timer_module() {
     return;
   }
   ruc_periodic_timer_start (periodic_timer, 
-                            100,
+                            20,
  	                        rozofs_storcli_periodic_ticker,
  			                0);
 

@@ -67,13 +67,15 @@ typedef struct _rozofs_storcli_projection_ctx_t
    uint8_t inuse_valid:1;    /**< assert to 1 if the inuse counter of the buffer has been incremented: just for write case */
    uint8_t stor_idx:6;       /**< relative index of the storage                    */
 
-   uint8_t retry_cpt:7;        /**< current retry counter                                      */
+   uint8_t inuse_valid_missing:1;    /**< assert to 1 if the inuse counter of the buffer has been incremented: just for write case */
+   uint8_t retry_cpt:6;        /**< current retry counter                                      */
    uint8_t rebuild_req:1;      /**< a rebuild is needed for that storage for this projection   */
 
    uint8_t prj_state;        /**< read state see rozofs_read_req_state_e enum      */
    int     errcode;          /**< errno value associated with the ROZOFS_PRJ_WR_ERROR or ROZOFS_PRJ_READ_ERROR state */
    void    *prj_buf;         /**< ruc buffer that contains the payload             */ 
    bin_t  *bins;             /**< pointer to the payload (data read)               */
+   void    *prj_buf_missing;         /**< ruc buffer that contains the payload             */ 
    uint64_t timestamp;       /**< monitoring timestamp                             */
    rozofs_stor_bins_hdr_t block_hdr_tab[ROZOFS_MAX_BLOCK_PER_MSG];
    uint64_t raw_file_size;    /**< file size reported from a fstat on the projection file */

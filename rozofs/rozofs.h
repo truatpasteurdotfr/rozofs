@@ -82,7 +82,7 @@ typedef enum _ROZOFS_BSIZE_E {
 #define ROZOFS_XATTR_NAME_MAX 255
 #define ROZOFS_XATTR_VALUE_MAX 65536
 #define ROZOFS_XATTR_LIST_MAX 65536
-#define ROZOFS_FILENAME_MAX 255
+#define ROZOFS_FILENAME_MAX (255*2)
 /* Maximum file size (check for truncate) */
 #define ROZOFS_FILESIZE_MAX 0x20000000000LL
 

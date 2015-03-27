@@ -373,15 +373,14 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
          continue;         
        }             
      }    
+
      /*
      ** update for the next run when externbal line is used
      */
      if (lbg_p->local == 0) {
        if (lbg_p->next_global_entry_idx_p != NULL)
        {
-          if (lbg_p->local==0) {
 	    * lbg_p->next_global_entry_idx_p = check_idx+1;
-	  }
        }
        else 
        {

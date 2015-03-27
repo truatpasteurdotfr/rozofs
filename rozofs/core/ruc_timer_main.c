@@ -742,7 +742,7 @@ void *ruc_timer_TickerThread(void *arg)
  while(1)
  {
    ruc_ticker.tv_sec=0;
-   ruc_ticker.tv_nsec=TIMER_TICK_VALUE_100MS*1000*1000;
+   ruc_ticker.tv_nsec=TIMER_TICK_VALUE_20MS*1000*1000;
    nanosleep(&ruc_ticker,(struct timespec *)NULL);
    
    if (timer_lock_for_debug) continue;

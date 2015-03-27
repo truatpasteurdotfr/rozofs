@@ -140,7 +140,7 @@ int export_sharemem_create_or_attach(exportd_start_conf_param_t *p)
       exportd_shared_mem.active = 0;
       return -1;
     } 
-    severe("FDL slave port %d instance %d\n",p->debug_port,p->instance); 
+    info("slave port %d instance %d\n",p->debug_port,p->instance); 
   
   }
   /*

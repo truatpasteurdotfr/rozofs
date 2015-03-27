@@ -155,7 +155,7 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
 
     // Print general profiling values for storaged
     pChar += rozofs_string_append(pChar, "storaged: ");
-    pChar += rozofs_string_append(pChar, gprofiler.vers);
+    pChar += rozofs_string_append(pChar, (char*)gprofiler.vers);
     pChar += rozofs_string_append(pChar, " - ");
     pChar += rozofs_u64_padded_append(pChar, 16, rozofs_right_alignment,gprofiler.nb_io_processes);
     pChar += rozofs_string_append(pChar, " IO process(es)\n");

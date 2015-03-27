@@ -934,6 +934,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
       printf("CheckRcvBits :socketId %d, name: %s\n",p->socketId,&p->name[0]);
 #endif
       socketId = p->socketId;
+#if 0
       /*
       ** check the traffic shaper
       */
@@ -942,7 +943,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits(int nbrSelect)
 
        (*ruc_applicative_traffic_shaper)(timeAfter);
       }
-
+#endif
 #if APP_POLLING
       if (ruc_applicative_poller != NULL)
       {
@@ -1059,6 +1060,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
   {
     socketId = socket_recv_table[i];
     if (socketId == -1) continue;
+#if 0
     /*
     ** check the traffic shaper
     */
@@ -1066,6 +1068,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
     {
      (*ruc_applicative_traffic_shaper)(timeAfter);
     }
+#endif
     p = socket_ctx_table[socketId];
     if (p == NULL) 
     {
@@ -1198,6 +1201,7 @@ static inline void ruc_sockCtl_prepareRcvAndXmitBits()
   int i;
   ruc_sockObj_t *p;
   uint32_t ret;
+  int polling_cnt = 2;
   
   uint64_t time_before,time_after;
   ruc_sockCtrl_nb_socket_conditional = 0;
@@ -1220,8 +1224,9 @@ static inline void ruc_sockCtl_prepareRcvAndXmitBits()
     {
       ruc_sockCtrl_nb_socket_conditional++;
 #if APP_POLLING
-      if (ruc_applicative_poller != NULL)
+      if ((polling_cnt!=0)&& (ruc_applicative_poller != NULL))
       {
+        polling_cnt -=1;
 	ruc_applicative_poller_count++;
 	uint64_t cycles_start = rdtsc();  	
 	(*ruc_applicative_poller)(0);

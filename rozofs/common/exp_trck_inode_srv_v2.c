@@ -1311,7 +1311,7 @@ int exp_metadata_update_main_tracking_file_header(exp_trck_top_header_t *top_hdr
     @param nb_entries_p: pointer where service will return the number iof entries (might be NULL)
     
     @retval 0 on success
-    @retval -1 on error    
+    @retval -1 on error  (see errno for details)  
 */
 int exp_metadata_get_tracking_file_header(exp_trck_top_header_t *top_hdr_p,
                                           int user_id,uint64_t file_id,exp_trck_file_header_t *buf_p,int *nb_entries_p)
@@ -1326,6 +1326,46 @@ int exp_metadata_get_tracking_file_header(exp_trck_top_header_t *top_hdr_p,
       return -1;
    }
    return exp_trck_get_tracking_file_header(main_trck_p,file_id,buf_p,nb_entries_p);
+}
+
+
+
+/*
+**__________________________________________________________________
+*/
+/**
+*
+    get the stats of a tracking file within a given user_id directory
+    
+    @param top_hdr_p: pointer to the top table
+    @param user_id: reference of the directory
+    @param file_id : reference of the tracking file
+    @param buf_p: pointer to the stat buffer
+    
+    @retval 0 on success
+    @retval -1 on error    
+*/
+int exp_metadata_get_tracking_file_stat(exp_trck_top_header_t *top_hdr_p,
+                                        int user_id,uint64_t file_id,struct stat *buf_p)
+{
+   exp_trck_header_memory_t  *main_trck_p;
+   char pathname[1024];
+   int ret;
+
+   main_trck_p = top_hdr_p->entry_p[user_id];
+   if (main_trck_p == NULL)
+   {
+      severe("user_id %d does not exist\n",user_id);
+      errno = ENOENT;
+      return -1;
+   }
+   sprintf(pathname,"%s/%d/trk_%llu",main_trck_p->root_path,main_trck_p->user_id,(long long unsigned int)file_id);
+   ret = lstat(pathname,buf_p);
+   if (ret < 0)
+   {
+      return -1;
+   }
+   return 0;
 }
 
 /*

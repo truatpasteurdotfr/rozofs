@@ -2282,6 +2282,7 @@ int export_write_block_asynchrone(void *fuse_ctx_p, file_t *file_p, sys_recv_pf_
 #endif
     if (ret == 0) {
       rozofs_geo_write_reset(file_p);
+      ie->timestamp_wr_block = rozofs_get_ticker_us();
       /*
       ** indicates that the revelant file size will be found in the ientry
       */
@@ -2328,6 +2329,18 @@ void export_write_block_nb(void *fuse_ctx_p, file_t *file_p)
     {
       ie->attrs.size = buf_flush_offset + buf_flush_len;
       ie->file_extend_pending = 1;
+    }
+    /*
+    ** check if we need to push the new size on metadata server
+    */
+    if (ie->file_extend_pending == 1)
+    {
+       if ((rozofs_get_ticker_us()-ie->timestamp_wr_block) > rozofs_tmr_get(TMR_WR_BLOCK)*1000)
+       {
+         file_p->write_block_req = 1;
+	     file_p->write_block_pending = 1;
+       }
+    
     }
     /*
     ** check if the update is requested

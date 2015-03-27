@@ -135,6 +135,7 @@ static inline int rozofs_storcli_all_prj_write_check(uint8_t layout,rozofs_storc
   ** Get the rozofs_forward value for the layout
   */
   uint8_t   rozofs_forward = rozofs_get_rozofs_forward(layout);
+  uint8_t   rozofs_inverse = rozofs_get_rozofs_inverse(layout);
   int i;
   int received = 0;
   
@@ -145,8 +146,9 @@ static inline int rozofs_storcli_all_prj_write_check(uint8_t layout,rozofs_storc
       received++;
 //      dist_set_true(*distribution, prj_cxt_p->stor_idx);
     }
-    if (received == rozofs_forward) return 1;   
+    if (received == rozofs_forward) return 2;   
   }
+  if (received == rozofs_inverse) return 1;   
   return 0;
 }
 
@@ -1144,12 +1146,14 @@ fatal:
   @param  working_ctx_p : pointer to the root transaction context
   @param  projection_id : index of the projection
   @param same_storage_retry_acceptable : assert to 1 if retry on the same storage is acceptable
+  @param missing : assert to 1 when the request is assciated with a projection for which we do not yet receive a responses
   
   @retval >= 0 : success, it indicates the reference of the projection id
   @retval< < 0 error
 */
 
-void rozofs_storcli_write_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uint8_t projection_id,int same_storage_retry_acceptable)
+void rozofs_storcli_write_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uint8_t projection_id,int same_storage_retry_acceptable,
+                                           int missing)
 {
     uint8_t   rozofs_safe;
     uint8_t   rozofs_forward;
@@ -1207,8 +1211,9 @@ void rozofs_storcli_write_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,u
      sp_write_arg_no_bins_t  write_prj_args;
      void  *xmit_buf;  
      int ret;  
-      
-     xmit_buf = prj_cxt_p[projection_id].prj_buf;
+     if (missing == 0)  xmit_buf = prj_cxt_p[projection_id].prj_buf;
+     else xmit_buf = prj_cxt_p[projection_id].prj_buf_missing;
+     
      if (xmit_buf == NULL)
      {
        /*
@@ -1389,8 +1394,26 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
     if (seqnum != working_ctx_p->read_seqnum)
     {
       /*
-      ** not the right sequence number, so drop the received message
+      ** not the right sequence number, so drop the received message but before check the status of the
+      ** operation since we might decide to put the LBG in quarantine
       */
+      status = rozofs_tx_get_status(this);
+      if (status < 0)
+      {
+         /*
+         ** something wrong happened: assert the status in the associated projection id sub-context
+         ** now, double check if it is possible to retry on a new storage
+         */
+         errno = rozofs_tx_get_errno(this);  
+         if (errno == ETIME)
+         {
+           storcli_lbg_cnx_sup_increment_tmo(lbg_id);
+         }
+      }
+      else
+      {
+        storcli_lbg_cnx_sup_clear_tmo(lbg_id);
+      }
       goto drop_msg;    
     }
     /*
@@ -1542,15 +1565,31 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
        goto wait_more_projection;
     }
     /*
-    ** write is finished, send back the response to the client (rozofsmount)
-    */       
-    rozofs_storcli_write_reply_success(working_ctx_p);
-    /*
     ** release the root context and the transaction context
     */
-    if(recv_buf!= NULL) ruc_buf_freeBuffer(recv_buf);       
-    rozofs_storcli_release_context(working_ctx_p);    
+    if(recv_buf!= NULL) ruc_buf_freeBuffer(recv_buf); 
     rozofs_tx_free_from_ptr(this);
+    /*
+    ** check if all projections have been received
+    */
+    if (ret == 2) 
+    {        
+      /*
+      ** write is finished, send back the response to the client (rozofsmount)
+      */       
+      rozofs_storcli_write_reply_success(working_ctx_p);
+      rozofs_storcli_stop_read_guard_timer(working_ctx_p);    
+      rozofs_storcli_release_context(working_ctx_p);  
+
+      return;
+    }  
+    /*
+    ** we have received inverse response, so it is enough for re-reading
+    ** the initial block(s) however we need to start a guard timer since
+    ** the truncate can block some other requests related with the current
+    ** fid
+    */
+    rozofs_storcli_start_read_guard_timer(working_ctx_p);    
     return;
     
     /*
@@ -1601,7 +1640,7 @@ retry_attempt:
     /**
     * attempt to select a new storage
     */
-    return rozofs_storcli_write_projection_retry(working_ctx_p,projection_id,same_storage_retry_acceptable);
+    return rozofs_storcli_write_projection_retry(working_ctx_p,projection_id,same_storage_retry_acceptable,0);
 
         
 wait_more_projection:    
@@ -2085,3 +2124,95 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
    rozofs_storcli_read_req_init(0,xmit_buf,rozofs_storcli_internal_read_rsp_cbk,(void*)working_ctx_p,STORCLI_DO_NOT_QUEUE);
    return 0;
 }
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  processing of a time-out that is trigger once inverse projection
+   has been received. The goal of the timer is to provide a quicker
+   reaction when some storage does not respond in the right timeframe.
+*
+ @param this : pointer to the transaction context
+ @param param: pointer to the associated rozofs_fuse_context
+ 
+ @return none
+ */
+
+void rozofs_storcli_write_timeout(rozofs_storcli_ctx_t *working_ctx_p) 
+{
+    uint8_t   layout;
+    uint8_t   rozofs_forward;
+    storcli_write_arg_no_data_t *storcli_write_rq_p;
+    int missing= 0;
+    int i;
+    int projection_id_tab[16];
+    rozofs_storcli_projection_ctx_t *prj_cxt_p;
+    int same_storage_retry_acceptable = 0;
+    
+   storcli_write_rq_p = (storcli_write_arg_no_data_t*)&working_ctx_p->storcli_write_arg;
+    layout         = storcli_write_rq_p->layout;
+    rozofs_forward = rozofs_get_rozofs_forward(layout);
+
+    prj_cxt_p = working_ctx_p->prj_ctx;
+    /*
+    ** build the list of the missing projection
+    */
+    for (i = 0; i <rozofs_forward; i++,prj_cxt_p++)
+    {
+      if (prj_cxt_p->prj_state == ROZOFS_PRJ_WR_DONE) 
+      {
+	continue;
+      }
+      projection_id_tab[missing] = i;
+      missing++;         
+    }
+    /*
+    ** check if we can select a new storage for the missing projection
+    */
+    for (i = 0; i < missing; i++)
+    {
+      /*
+      ** allocate a buffer for the missing projection
+      */
+      working_ctx_p->prj_ctx[projection_id_tab[i]].prj_buf_missing   = ruc_buf_getBuffer(ROZOFS_STORCLI_SOUTH_LARGE_POOL);
+      if (working_ctx_p->prj_ctx[projection_id_tab[i]].prj_buf_missing == NULL)
+      {
+	/*
+	** that situation MUST not occur since there the same number of receive buffer and working context!!
+	*/
+	severe("out of large buffer");
+	break;
+      }
+      /*
+      ** increment inuse counter on each buffer since we might need to re-use that packet in case
+      ** of retransmission
+      */
+       working_ctx_p->prj_ctx[projection_id_tab[i]].inuse_valid_missing = 1;
+       ruc_buf_inuse_increment(working_ctx_p->prj_ctx[projection_id_tab[i]].prj_buf_missing);
+       /*
+       ** set the pointer to the bins
+       */
+       int position = rozofs_storcli_get_position_of_first_byte2write();
+       uint8_t *pbuf = (uint8_t*)ruc_buf_getPayload(working_ctx_p->prj_ctx[projection_id_tab[i]].prj_buf_missing); 
+
+       bin_t *bins_p  = (bin_t*)(pbuf+position); 
+       int bins_len = rozofs_get_max_psize_in_msg(layout,storcli_write_rq_p->bsize)* working_ctx_p->wr_nb_blocks;
+       memcpy(bins_p,working_ctx_p->prj_ctx[projection_id_tab[i]].bins,bins_len);
+  
+      /*
+      ** we try to take a new entry for a projection on a another storage
+      ** need to lock the context in order to avoid the retry function to release the
+      ** working context if it runs out of storage. Since we have already engaged forward
+      ** truncate requests, we have the default storage time-out that is still running
+      ** so the truncate transaction will end on storage transaction time-out
+      */
+      working_ctx_p->write_ctx_lock++;
+      /*
+      ** dequeue the buffer from a potential xmit list of a tcp connection
+      */
+      rozofs_storcli_write_projection_retry(working_ctx_p,projection_id_tab[i],same_storage_retry_acceptable,1);   
+      working_ctx_p->write_ctx_lock--;
+    }    
+    return;    
+}        
