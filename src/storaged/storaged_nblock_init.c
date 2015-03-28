@@ -252,7 +252,12 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
 	  pChar += rozofs_string_append(pChar," |");
 	  pChar += rozofs_u64_padded_append(pChar, 15, rozofs_right_alignment, pdev->size);	  	  
 	  pChar += rozofs_string_append(pChar," | ");
-	  pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, pdev->free*100/pdev->size);	  
+	  if (pdev->size==0) {
+	    pChar += rozofs_string_append(pChar, "00");
+	  }
+	  else { 
+	    pChar += rozofs_u32_padded_append(pChar, 2, rozofs_zero, pdev->free*100/pdev->size);
+	  }	  
 	  pChar += rozofs_string_append(pChar," |\n");
 	}
         pChar += rozofs_string_append(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
