@@ -316,7 +316,7 @@ int rozofs_stat_start(void *args) {
     uint16_t debug_port = args_p->debug_port;
     uint16_t export_listening_port = (uint16_t)exportclt_p->listen_port;
     
-    severe("FDL debug exportd listening port %d",export_listening_port);
+    info("exportd listening port %d",export_listening_port);
 
     ret = ruc_init(FALSE, debug_port,export_listening_port);
     if (ret != RUC_OK) {
