@@ -437,7 +437,7 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
 }
 
 static void *balance_volume_thread(void *v) {
-    struct timespec ts = {8, 0};
+    struct timespec ts = {5, 0};
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
