@@ -443,7 +443,13 @@ static int export_update_files(export_t *e, int32_t n) {
     int status = -1;
     START_PROFILING(export_update_files);
 
-    status = export_fstat_update_files(e->eid,n);
+    if (n > 0) {
+      status = export_fstat_create_files(e->eid,n);
+    }
+    else {
+      status = export_fstat_delete_files(e->eid,-n);
+    }
+      
 
     STOP_PROFILING(export_update_files);
     return status;
@@ -456,13 +462,13 @@ static int export_update_files(export_t *e, int32_t n) {
  *
  * @return 0 on success -1 otherwise
  */
-static int export_update_blocks(export_t * e, int32_t n) {
+static int export_update_blocks(export_t * e, uint64_t newblocks, uint64_t oldblocks) {
     int status = -1;
 
-    if (n == 0) return 0;
+    if (oldblocks == newblocks) return 0;
     
     START_PROFILING(export_update_blocks);
-     status = export_fstat_update_blocks(e->eid,n);
+     status = export_fstat_update_blocks(e->eid, newblocks, oldblocks);
     STOP_PROFILING(export_update_blocks);
     return status;
 }
@@ -1067,7 +1073,7 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
 	{
           rozofs_qt_block_update(e->eid,lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid,(nrb_old-nrb_new)*bbytes,ROZOFS_QT_DEC); 	
 	}      		
-        if (export_update_blocks(e, ((int32_t) nrb_new - (int32_t) nrb_old))!= 0)
+        if (export_update_blocks(e, nrb_new, nrb_old)!= 0)
             goto out;
 
         lv2->attributes.s.attrs.size = attrs->size;
@@ -2258,8 +2264,8 @@ int export_unlink_multiple(export_t * e, fid_t parent, char *name, fid_t fid,mat
 	  // Best effort
       }
       // Update the nb. of blocks
-      if (export_update_blocks(e,
-              -(((int64_t) lv2->attributes.s.attrs.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1)
+      if (export_update_blocks(e,0,
+              (((int64_t) lv2->attributes.s.attrs.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1)
               / ROZOFS_BSIZE_BYTES(e->bsize))) != 0) {
 	  severe("export_update_blocks failed: %s", strerror(errno));
 	  // Best effort
@@ -2476,8 +2482,8 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
                 // Best effort
             }
             // Update the nb. of blocks
-            if (export_update_blocks(e,
-                    -(((int64_t) lv2->attributes.s.attrs.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1)
+            if (export_update_blocks(e,0,
+                    (((int64_t) lv2->attributes.s.attrs.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1)
                     / ROZOFS_BSIZE_BYTES(e->bsize))) != 0) {
                 severe("export_update_blocks failed: %s", strerror(errno));
                 // Best effort
@@ -3507,8 +3513,8 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
                         }
 
                         // Update the nb. of blocks
-                        if (export_update_blocks(e,
-                                -(((int64_t) lv2_to_replace->attributes.s.attrs.size
+                        if (export_update_blocks(e,0,
+                                (((int64_t) lv2_to_replace->attributes.s.attrs.size
                                 + ROZOFS_BSIZE_BYTES(e->bsize) - 1) / ROZOFS_BSIZE_BYTES(e->bsize))) != 0) {
                             severe("export_update_blocks failed: %s",
                                     strerror(errno));
@@ -3769,7 +3775,7 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
 	rozofs_qt_block_update(e->eid,lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid,
 	                       (off + len - lv2->attributes.s.attrs.size),ROZOFS_QT_INC);
 
-        if (export_update_blocks(e, nbnew - nbold) != 0)
+        if (export_update_blocks(e, nbnew, nbold) != 0)
             goto out;
 
         lv2->attributes.s.attrs.size = off + len;

@@ -76,10 +76,13 @@
 /** stat of an export
  * these values are independent of volume
  */
+#define ROZOFS_MAX_BLOCK_BITS  (ROZOFS_STORAGE_FILE_MAX_SIZE_POWER2-12+2)
 typedef struct export_fstat {
     uint64_t blocks;
     uint64_t files;
+    uint64_t file_per_size[ROZOFS_MAX_BLOCK_BITS];
 } export_fstat_t;
+
 
 /** structure for store the list of files to remove
  * for one trash bucket.

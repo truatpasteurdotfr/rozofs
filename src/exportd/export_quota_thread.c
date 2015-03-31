@@ -35,6 +35,7 @@
 #include <rozofs/common/types.h>
 #include <rozofs/core/uma_dbg_api.h>
 
+
 #define EXPORT_QUOTA_DELAY_WARN_SEC  (60*5)
 
 #define START_PROFILING_TH(the_probe)\
@@ -112,13 +113,25 @@ char *show_export_fstat_entry(char *pChar,export_fstat_ctx_t *tab_p,uint16_t eid
    p = &tab_p->memory;
    pChar += sprintf(pChar," number of blocks (mem) : %llu\n",(unsigned long long int) p->blocks);
    pChar += sprintf(pChar," number of files  (mem) : %llu\n",(unsigned long long int) p->files);
+   int i;
+   pChar += sprintf(pChar,"   nb files per number of block\n");
+   if (p->file_per_size[0] != 0) {
+     pChar += sprintf(pChar,"\t[ %llu .. %llu [ \t%llu\n", 0, 1,p->file_per_size[i]);   
+   }
+   for (i=1; i<ROZOFS_MAX_BLOCK_BITS; i++) {    
+     if (p->file_per_size[i] != 0) {
+       pChar += sprintf(pChar,"\t[ %llu .. %llu [ \t%llu\n", (1UL<<(i-1)), (1UL<<i),p->file_per_size[i]);
+     }
+   }      
+   
    p = &tab_p->last_written;
    pChar += sprintf(pChar," number of blocks (disk): %llu\n",(unsigned long long int) p->blocks);
    pChar += sprintf(pChar," number of files  (disk): %llu\n",(unsigned long long int) p->files);
    pChar += sprintf(pChar," hardware quota         : %llu\n",(unsigned long long int) tab_p->hquota);
    pChar += sprintf(pChar," software quota         : %llu\n",(unsigned long long int) tab_p->squota);
    pChar += sprintf(pChar," quota exceeded         : %s\n",(tab_p->quota_exceeded_flag==0)?"NO":"YES");
-   
+
+
    return pChar;
 }
 /*
@@ -280,14 +293,14 @@ export_fstat_t * export_fstat_get_stat(uint16_t eid)
 /*
 **__________________________________________________________________
 */
-/** update the number of files in file system
+/** Delete the number of files in file system
  *
  * @param eid: the export to update
  * @param n: number of files
  *
  * @return always 0
  */
-int export_fstat_update_files(uint16_t eid, int32_t n) 
+int export_fstat_delete_files(uint16_t eid, uint32_t n) 
 {
     export_fstat_ctx_t *tab_p;
     
@@ -313,22 +326,108 @@ int export_fstat_update_files(uint16_t eid, int32_t n)
    } 
    tab_p = export_fstat_table[eid];
 
-    if (n<0) {
-      n = -n;
-      /*
-      ** Releasing more files than existing !!!
-      */
-      if (n > tab_p->memory.files) {
-         export_fstat_stats.negative_file_count_err++;
-         n = tab_p->memory.files;
-      }
-      tab_p->memory.files -= n;
-    }
-    else {
-      tab_p->memory.files += n;
-    }
+   /*
+   ** Releasing more files than existing !!!
+   */
+   if (n > tab_p->memory.files) {
+      export_fstat_stats.negative_file_count_err++;
+      n = tab_p->memory.files;
+   }
+   tab_p->memory.files -= n;
+   tab_p->memory.file_per_size[0] -= n; 
     return 0;
 }
+/*
+** Compute the number of leading 0
+*/
+static inline int my_lzcnt64(uint64_t val) {
+  int res = 0;
+  
+  if (val > 0xFFFFFFFF) {
+    val = val >> 32;
+  }
+  else {
+    res += 32;
+  }
+  
+  if (val > 0xFFFF) {
+    val = val >> 16;
+  }
+  else {  
+    res += 16;
+  }
+  
+  if (val > 0xFF) {
+    val = val >> 8;
+  }  
+  else { 
+    res += 8;
+  }  
+
+  if (val > 0xF) {
+    val = val >> 4;
+  }  
+  else {
+    res += 4;
+  }   
+  
+  if (val > 3) {
+    val = val >> 2;
+  }  
+  else { 
+    res += 2;
+  } 
+  
+  if (val > 1) {
+    val = val >> 1;
+  }  
+  else {
+    res += 1;
+  } 
+  if (val != 1) {
+    res += 1;
+  }      
+  return res;   
+}
+/*
+**__________________________________________________________________
+*/
+/** Create some empty files 
+ *
+ * @param eid: the export to update
+ * @param n: number of created files
+ *
+ * @return 0 on success -1 otherwise
+ */
+int export_fstat_create_files(uint16_t eid, uint32_t n) {
+    int status = -1;
+    export_fstat_ctx_t *tab_p;
+    time_t timecur;
+    
+   if (export_fstat_init_done == 0)
+   {
+      return 0;
+   }
+   /*
+   ** check the index of the eid
+   */
+   if (eid > EXPGW_EID_MAX_IDX) 
+   {
+      /*
+      ** eid value is out of range
+      */
+      export_fstat_stats.eid_out_of_range_err++;
+      return 0;
+   }
+   if (export_fstat_table[eid]== NULL)  
+   {
+      export_fstat_stats.no_eid_err++;
+      return 0;   
+   } 
+   tab_p = export_fstat_table[eid];
+   tab_p->memory.file_per_size[0] += n;  
+   tab_p->memory.files += n;    
+}       
 /*
 **__________________________________________________________________
 */
@@ -339,10 +438,11 @@ int export_fstat_update_files(uint16_t eid, int32_t n)
  *
  * @return 0 on success -1 otherwise
  */
-int export_fstat_update_blocks(uint16_t eid, int32_t n) {
+int export_fstat_update_blocks(uint16_t eid, uint64_t newblocks, uint64_t oldblocks) {
     int status = -1;
     export_fstat_ctx_t *tab_p;
     time_t timecur;
+    int64_t n = newblocks - oldblocks;
 
    if (n == 0) return 0;   
     
@@ -367,6 +467,20 @@ int export_fstat_update_blocks(uint16_t eid, int32_t n) {
       return 0;   
    } 
    tab_p = export_fstat_table[eid];
+   
+   
+   /*
+   ** Update number of file per file size
+   */
+   uint32_t old_idx = 64 - my_lzcnt64(oldblocks);
+   uint32_t new_idx = 64 - my_lzcnt64(newblocks);
+   if (old_idx != new_idx) {
+     if (tab_p->memory.file_per_size[old_idx] > 0) {
+       tab_p->memory.file_per_size[old_idx] -= 1;
+     }
+     tab_p->memory.file_per_size[new_idx] += 1;
+   }
+  
     /*
     ** Releasing some blocks 
     */
@@ -550,14 +664,11 @@ error:
 void export_fstat_thread_update(export_fstat_ctx_t *tab_p)
 {
 
-    export_fstat_t current;  /**< written by export non blocking thread  */
     int fd;
    /*
    ** check if there is a change
    */
-   current.blocks = tab_p->memory.blocks; 
-   current.files = tab_p->memory.files;
-   if ((current.blocks!= tab_p->last_written.blocks) || (current.files!= tab_p->last_written.files))
+   if ((tab_p->memory.blocks!= tab_p->last_written.blocks) || (tab_p->memory.files!= tab_p->last_written.files))
    {
       if ((fd = open(tab_p->pathname, O_RDWR /*| NO_ATIME*/ | O_CREAT, S_IRWXU)) < 1) {
           export_fstat_stats.open_err++;
@@ -570,7 +681,7 @@ void export_fstat_thread_update(export_fstat_ctx_t *tab_p)
       }
       close(fd);      
       export_fstat_stats.thread_update_count++;
-      memcpy(&tab_p->last_written,&current,sizeof(export_fstat_t));      
+      memcpy(&tab_p->last_written,&tab_p->memory,sizeof(export_fstat_t));      
    }
 }
 /*

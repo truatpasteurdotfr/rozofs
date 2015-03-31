@@ -71,11 +71,12 @@ int export_fstat_update_files(uint16_t eid, int32_t n) ;
 /** update the number of blocks in file system
  *
  * @param eid: the export to update
- * @param n: number of blocks
+ * @param newblocks: new number of blocks
+ * @param oldblocks: old number of blocks
  *
  * @return 0 on success -1 otherwise
  */
-int export_fstat_update_blocks(uint16_t eid, int32_t n);
+int export_fstat_update_blocks(uint16_t eid, uint64_t newblocks, uint64_t oldblocks);
 
 /*
 **_______________________________________________________________
