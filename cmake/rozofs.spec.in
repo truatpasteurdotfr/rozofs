@@ -1,113 +1,99 @@
 Summary: RozoFS scale-out NAS
 Name: rozofs
 Version: @VERSION@
-Release:1
+Release: 1
 License: GPLv2
 Group: System Environment/Base
 Vendor: Fizians SAS
 Packager: devel@rozofs.com
 URL: http://www.rozofs.com
 Source0: rozofs-@VERSION@.tar.gz
-#Requires(post): /sbin/chkconfig
-#Requires(preun): /sbin/service, /sbin/chkconfig
-#Requires(postun): /sbin/service
 
 # Manage by cmake
-#BuildRequires: gcc make automake cmake
-#BuildRequires:
-#BuildRequires: python-devel
+BuildRequires: libuuid-devel libattr-devel readline-devel cmake
+BuildRequires: fuse-devel >= 2.9, libconfig-devel
+%if 0%{?rhel} > 7
+%{?systemd_requires}
+%endif
 
 %description
-Rozofs is a scale-out NAS using erasure coding.
+RozoFS is a scale-out distributed network POSIX file system using erasure 
+coding algorithm for data distribution. RozoFS designed to provide very high 
+availability levels with optimized raw capacity usage on heterogeneous 
+commodity hardware.
+
+
+%package rozolauncher
+Summary: RozoFS process launcher.
+License: GPLv2
+Group: System Environment/Daemons
+%description rozolauncher
+RozoFS process launcher.
 
 %package exportd
-Summary: Rozofs filesystem (export package).
+Summary: RozoFS filesystem (export package).
 License: GPLv2
 Group: System Environment/Daemons
-BuildRequires: libattr-devel libconfig-devel
-Requires: rpcbind, libattr, libconfig9
-
+Requires: rpcbind libattr libconfig libuuid rozofs-rozolauncher
 %description exportd
-Rozofs is a scale-out NAS using erasure coding.
+RozoFS exportd daemon manages metadata for the RozoFS filesystems.
 
 %package storaged
-Summary: Rozofs filesystem (storage package).
+Summary: RozoFS filesystem (storage package).
 License: GPLv2
 Group: System Environment/Daemons
-BuildRequires: libconfig-devel
-Requires: rpcbind libconfig9
-
+Requires: rpcbind libconfig libuuid rozofs-rozolauncher
 %description storaged
-Rozofs is a scale-out NAS using erasure coding.
+RozoFS storaged daemon stores encoded data for the RozoFS filesystems.
 
 %package rozofsmount
-Summary: Rozofs filesystem (rozofsmount package).
+Summary: RozoFS filesystem (mount utility package).
 License: GPLv2
 Group: System Environment/File
-BuildRequires: fuse-devel
-Requires: libfuse2
-
+Requires: fuse >= 2.9, rozofs-rozolauncher
 %description rozofsmount
-Rozofs is a scale-out NAS using erasure coding.
-
-%package geomgr
-Summary: Rozofs filesystem (geo-replication package).
-License: GPLv2
-Group: System Environment/File
-Requires: libconfig9, rozofs-rozofsmount
-
-%description rozofsmount
-Rozofs is a scale-out NAS using erasure coding.
-
-%package rprof
-Summary: Rozofs filesystem (profiling package).
-License: GPLv2
-Group: System Environment/File
-#BuildRequires:
-#Requires:
-
-%description rprof
-Rozofs is a scale-out NAS using erasure coding.
+rozofsmount mounts RozoFS filesystems using FUSE.
 
 %package rozodiag
-Summary: Rozofs filesystem (debugging package).
+Summary: RozoFS filesystem (debugging package).
 License: GPLv2
 Group: System Environment/File
-#BuildRequires:
-#Requires:
-
+Requires: readline
 %description rozodiag
-Rozofs is a scale-out NAS using erasure coding.
+rozodiag allows deep audit of RozoFS filesystems.
 
-%package manager-lib
-Summary: Rozofs filesystem (management library package).
-License: GPLv2
-Group: System Environment/File
-#BuildRequires:
-Requires: libconfig9, python-pyro, python-argparse
+#%package manager-lib
+#Summary: RozoFS filesystem (management library package).
+#License: GPLv2
+#Group: System Environment/File
+#Requires: libconfig PyYAML psmisc python-pyro3
+#%description manager-lib
+#Python management libraries for RozoFS.
 
-%description manager-lib
-Rozofs is a scale-out NAS using erasure coding.
+#%package manager-cli
+#Summary: RozoFS filesystem (management cli package).
+#License: GPLv2
+#Group: System Environment/File
+#Requires: rozofs-manager-lib python
+#%description manager-cli
+#Management command-line for RozoFS.
 
-%package manager-cli
-Summary: Rozofs filesystem (management cli package).
-License: GPLv2
-Group: System Environment/File
-#BuildRequires:
-Requires: rozofs-manager-lib
+#%package manager-agent
+#Summary: RozoFS filesystem (management agent package).
+#License: GPLv2
+#Group: System Environment/File
+#Requires: rozofs-manager-lib rozofs-manager-cli
+#%description manager-agent
+#Management daemon for RozoFS.
 
-%description manager-cli
-Rozofs is a scale-out NAS using erasure coding.
+#%package geomgr
+#Summary: RozoFS filesystem (geo-replication software).
+#License: GPLv2
+#Group: System Environment/Daemons
+#Requires: libconfig rozofs-rozolauncher
+#%description geomgr
+#Geo-replication daemon for RozoFS.
 
-%package manager-agent
-Summary: Rozofs filesystem (management agent package).
-License: GPLv2
-Group: System Environment/File
-#BuildRequires:
-Requires: rozofs-manager-cli
-
-%description manager-agent
-Rozofs is a scale-out NAS using erasure coding.
 
 %prep
 %setup -q
@@ -126,156 +112,211 @@ cmake -G "Unix Makefiles" ${CMAKE_EXTRA_FLAGS}
 %install
 rm -rf %{buildroot}/*
 make install DESTDIR=%{buildroot}
-#install init script
+
+# rozofs-exportd OCF script
+mkdir -p %{buildroot}%{_usr}/lib/ocf/resource.d/heartbeat/
+%{__cp} @CMAKE_CURRENT_SOURCE_DIR@/contrib/heartbeat/exportd %{buildroot}%{_usr}/lib/ocf/resource.d/heartbeat/exportd
+
+#mkdir -p %{buildroot}/etc/default
+
+%if 0%{?rhel} > 7
+#install init script (systemd)
+mkdir -p %{buildroot}%{_unitdir}
+%{__cp} redhat/rozofs-exportd.service %{buildroot}%{_unitdir}/rozofs-exportd.service
+%{__cp} redhat/rozofs-storaged.service %{buildroot}%{_unitdir}/rozofs-storaged.service
+#%{__cp} redhat/rozofs-manager-agent.service %{buildroot}%{_unitdir}/rozofs-manager-agent.service
+%else
+#install init script (sysVinit)
 mkdir -p %{buildroot}%{_initrddir}
-mkdir -p %{buildroot}/etc/default
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-exportd %{buildroot}%{_initrddir}/rozofs-exportd
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-storaged %{buildroot}%{_initrddir}/rozofs-storaged
 %{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-rozofsmount %{buildroot}%{_initrddir}/rozofs-rozofsmount
-%{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-geomgr %{buildroot}%{_initrddir}/rozofs-geomgr
-%{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-manager-agent %{buildroot}%{_initrddir}/rozofs-manager-agent
-%{__cp} @CMAKE_CURRENT_SOURCE_DIR@/redhat/rozofs-manager-agent.default %{buildroot}%{_sysconfdir}/default/rozofs-manager-agent
+#%{__cp} redhat/rozofs-geomgr %{buildroot}%{_initrddir}/rozofs-geomgr
+%endif
 
 %clean
 %{__rm} -rf %{buildroot}
 
+
+%files rozolauncher
+%defattr(-,root,root)
+%{_bindir}/rozolauncher
+
 %files exportd
 %defattr(-,root,root)
 %{_bindir}/exportd
+%{_bindir}/rozo_quotaon
+%{_bindir}/rozo_warnquota
+%{_bindir}/rozo_setquota
+%{_bindir}/rozo_repquota
 %{_sysconfdir}/rozofs/export.conf
 %{_sysconfdir}/rozofs/export.conf.sample
+%if 0%{?rhel} > 7
+%{_unitdir}/rozofs-exportd.service
+%else
 %{_initrddir}/rozofs-exportd
+%endif
+%{_usr}/lib/ocf/resource.d/heartbeat/exportd
 %{_mandir}/man5/export.conf.5.gz
 %{_mandir}/man7/rozofs.7.gz
 %{_mandir}/man8/exportd.8.gz
+%{_mandir}/man8/rozo_quotaon.8.gz
+%{_mandir}/man8/rozo_warnquota.8.gz
+%{_mandir}/man8/rozo_setquota.8.gz
+%{_mandir}/man8/rozolauncher.8.gz
 
 %files storaged
 %defattr(-,root,root)
 %{_bindir}/storaged
 %{_bindir}/storio
+%{_bindir}/storage_rebuild
+%{_bindir}/storage_list_rebuilder
+%{_bindir}/rozodump
 %{_sysconfdir}/rozofs/storage.conf
 %{_sysconfdir}/rozofs/storage.conf.sample
+%if 0%{?rhel} > 7
+%{_unitdir}/rozofs-storaged.service
+%else
 %{_initrddir}/rozofs-storaged
+%endif
 %{_mandir}/man5/storage.conf.5.gz
 %{_mandir}/man8/storaged.8.gz
 %{_mandir}/man8/storage_rebuild.8.gz
+%{_mandir}/man8/rozolauncher.8.gz
+%{_mandir}/man8/rozodump.8.gz
 
 %files rozofsmount
 %defattr(-,root,root)
 %{_bindir}/rozofsmount
 %{_bindir}/storcli
+%if 0%{?rhel} < 7
 %{_initrddir}/rozofs-rozofsmount
+%endif
 %{_mandir}/man8/rozofsmount.8.gz
-
-%files geomgr
-%defattr(-,root,root)
-%{_bindir}/geomgr
-%{_bindir}/geocli
-%{_initrddir}/rozofs-geomgr
-%{_mandir}/man8/geomgr.8.gz
-%{_mandir}/man8/geocli.8.gz
-%{_mandir}/man5/geomgr.conf.5.gz
-
-%files rprof
-%defattr(-,root,root)
-%{_bindir}/rprof
+%{_mandir}/man8/rozolauncher.8.gz
 
 %files rozodiag
 %defattr(-,root,root)
 %{_bindir}/rozodiag
 %{_mandir}/man8/rozodiag.8.gz
-%{_bindir}/rozolauncher
-%{_mandir}/man8/rozolauncher.8.gz
 
-%files manager-lib
-%defattr(-,root,root)
-%{_libdir}/python2.7/site-packages/rozofs/cli/platform.py
-%{_libdir}/python2.7/site-packages/rozofs/cli/agent.py
-%{_libdir}/python2.7/site-packages/rozofs/cli/__init__.py
-%{_libdir}/python2.7/site-packages/rozofs/cli/parser.py
-%{_libdir}/python2.7/site-packages/rozofs/ext/__init__.py
-%{_libdir}/python2.7/site-packages/rozofs/ext/fstab.py
-%{_libdir}/python2.7/site-packages/rozofs/__init__.py
-%{_libdir}/python2.7/site-packages/rozofs/core/platform.py
-%{_libdir}/python2.7/site-packages/rozofs/core/agent.py
-%{_libdir}/python2.7/site-packages/rozofs/core/_profile.so
-%{_libdir}/python2.7/site-packages/rozofs/core/libconfig.py
-%{_libdir}/python2.7/site-packages/rozofs/core/storaged.py
-%{_libdir}/python2.7/site-packages/rozofs/core/__init__.py
-%{_libdir}/python2.7/site-packages/rozofs/core/_libconfig.so
-%{_libdir}/python2.7/site-packages/rozofs/core/daemon.py
-%{_libdir}/python2.7/site-packages/rozofs/core/configuration.py
-%{_libdir}/python2.7/site-packages/rozofs/core/constants.py
-%{_libdir}/python2.7/site-packages/rozofs/core/exportd.py
-%{_libdir}/python2.7/site-packages/rozofs/core/profile.py
-%{_libdir}/python2.7/site-packages/rozofs/core/rozofsmount.py
-%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/platform.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/agent.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/__init__.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/cli/parser.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/ext/__init__.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/ext/fstab.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/__init__.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/platform.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/agent.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/libconfig.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/storaged.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/__init__.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/daemon.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/configuration.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/constants.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/exportd.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/profile.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs/core/rozofsmount.pyc
-%exclude %{_libdir}/python2.7/site-packages/rozofs_manager-@VERSION@-py2.7.egg-info
+#%files manager-lib
+#%defattr(-,root,root)
+#%{python_sitearch}/rozofs/cli/agent.py
+#%{python_sitearch}/rozofs/cli/__init__.py
+#%{python_sitearch}/rozofs/cli/export.py
+#%{python_sitearch}/rozofs/cli/node.py
+#%{python_sitearch}/rozofs/cli/output.py
+#%{python_sitearch}/rozofs/cli/storage.py
+#%{python_sitearch}/rozofs/cli/volume.py
+#%{python_sitearch}/rozofs/cli/layout.py
+#%{python_sitearch}/rozofs/ext/__init__.py
+#%{python_sitearch}/rozofs/ext/fstab.py
+#%{python_sitearch}/rozofs/__init__.py
+#%{python_sitearch}/rozofs/core/platform.py
+#%{python_sitearch}/rozofs/core/agent.py
+#%{python_sitearch}/rozofs/core/libconfig.py
+#%{python_sitearch}/rozofs/core/storaged.py
+#%{python_sitearch}/rozofs/core/__init__.py
+#%{python_sitearch}/rozofs/core/_libconfig.so
+#%{python_sitearch}/rozofs/core/daemon.py
+#%{python_sitearch}/rozofs/core/configuration.py
+#%{python_sitearch}/rozofs/core/constants.py
+#%{python_sitearch}/rozofs/core/exportd.py
+#%{python_sitearch}/rozofs/core/rozofsmount.py
+#%exclude %{python_sitearch}/rozofs/cli/*.pyc
+#%exclude %{python_sitearch}/rozofs/cli/*.pyo
+#%exclude %{python_sitearch}/rozofs/ext/*.pyc
+#%exclude %{python_sitearch}/rozofs/ext/*.pyo
+#%exclude %{python_sitearch}/rozofs/__init__.pyc
+#%exclude %{python_sitearch}/rozofs/__init__.pyo
+#%exclude %{python_sitearch}/rozofs/core/*.pyc
+#%exclude %{python_sitearch}/rozofs/core/*.pyo
+#%exclude %{python_sitearch}/rozofs_manager-@VERSION@-py2.7.egg-info
 
-%files manager-cli
-%defattr(-,root,root)
-%{_bindir}/rozo
-%{_mandir}/man1/rozo.1.gz
+#%files manager-cli
+#%defattr(-,root,root)
+#%{_bindir}/rozo
+#%{_mandir}/man1/rozo.1.gz
 
-%files manager-agent
-%defattr(-,root,root)
-%{_sysconfdir}/default/rozofs-manager-agent
-%{_initrddir}/rozofs-manager-agent
+#%files manager-agent
+#%defattr(-,root,root)
+#%{_unitdir}/rozofs-manager-agent.service
 
+#%files geomgr
+#%defattr(-,root,root)
+#%{_bindir}/geocli
+#%{_bindir}/geomgr
+#%{_mandir}/man5/geomgr.conf.5.gz
+#%{_mandir}/man8/geomgr.8.gz
+#%{_mandir}/man8/geocli.8.gz
+#%{_initrddir}/rozofs-geomgr
+
+
+%if 0%{?rhel} > 7
+%post exportd
+%systemd_post rozofs-exportd.service
+
+%preun exportd
+%systemd_preun rozofs-exportd.service
+
+%postun exportd
+%systemd_postun_with_restart rozofs-exportd.service
+%else
 %post exportd
 if [ -x /usr/lib/lsb/install_initd ]; then
   /usr/lib/lsb/install_initd /etc/init.d/rozofs-exportd
 elif [ -x /sbin/chkconfig ]; then
   /sbin/chkconfig --add rozofs-exportd
 fi
+%endif
 
+
+%if 0%{?rhel} > 7
+%post storaged
+%systemd_post rozofs-storaged.service
+
+%preun storaged
+%systemd_preun rozofs-storaged.service
+
+%postun storaged
+%systemd_postun_with_restart rozofs-storaged.service
+
+%else
 %post storaged
 if [ -x /usr/lib/lsb/install_initd ]; then
   /usr/lib/lsb/install_initd /etc/init.d/rozofs-storaged
 elif [ -x /sbin/chkconfig ]; then
   /sbin/chkconfig --add rozofs-storaged
 fi
+%endif
+
 
 %post rozofsmount
-ln -sf /sbin/mount.fuse /sbin/mount.rozofs
-if [ -x /usr/lib/lsb/install_initd ]; then
-  /usr/lib/lsb/install_initd /etc/init.d/rozofs-rozofsmount
-elif [ -x /sbin/chkconfig ]; then
-  /sbin/chkconfig --add rozofs-rozofsmount
-fi
+ln -sf /usr/sbin/mount.fuse /sbin/mount.rozofs
 
-%post geomgr
-if [ -x /usr/lib/lsb/install_initd ]; then
-  /usr/lib/lsb/install_initd /etc/init.d/rozofs-geomgr
-elif [ -x /sbin/chkconfig ]; then
-  /sbin/chkconfig --add rozofs-geomgr
-fi
+#%post manager-agent
+#%systemd_post rozofs-manager-agent.service
 
-%post manager-agent
-if [ -x /usr/lib/lsb/install_initd ]; then
-  /usr/lib/lsb/install_initd /etc/init.d/rozofs-manager-agent
-elif [ -x /sbin/chkconfig ]; then
-  /sbin/chkconfig --add rozofs-manager-agent
-fi
+#%preun manager-agent
+#%systemd_preun rozofs-manager-agent.service
+
+#%postun manager-agent
+#%systemd_postun_with_restart manager-agent.service
 
 %changelog
 
-* Wed June 11 2014 RozoFS <devel@rozofs.org> - @VERSION@
+* Mon March 30 2015 RozoFS <devel@rozofs.org> 2.0.alpha17-1
+- Updated for RozoFS release 2 (without packaging for rozo and geocli)
+
+* Thu Nov 27 2014 RozoFS <devel@rozofs.org> 1.5.4-2
+- Missing dependencies.
+- Integration of systemd service files
+
+* Thu Oct 16 2014 Laurent Wandrebeck <lw@hygeos.com> 1.5.4-1
+- Missing dependencies.
+- Get rid of hardcoded values.
+- Update files list (Thx Sylvain !)
+
+* Tue Feb 05 2013 RozoFS <devel@rozofs.org> - 1.0.3-1
 - Initial spec file

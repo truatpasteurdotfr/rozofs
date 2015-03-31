@@ -19,104 +19,127 @@
 ### END INIT INFO
 
 
-DAEMON=/usr/bin/storaged
-NAME=storaged
-PIDFILE=/var/run/launcher_${NAME}.pid
-LAUNCHER=/usr/bin/rozolauncher
+exec=/usr/bin/storaged
+prog=rozofs-storaged
+pidfile=/var/run/launcher_${prog}.pid
+launcher=/usr/bin/rozolauncher
+config=/etc/rozofs/storage.conf
 
 # Source function library.
-if [ -f /lib/lsb/init-functions ]; then
-    . /lib/lsb/init-functions
-    alias START_DAEMON=start_daemon
-    alias STATUS=storaged_status
-    alias LOG_SUCCESS=log_success_msg
-    alias LOG_FAILURE=log_failure_msg
-    alias LOG_WARNING=log_warning_msg
-elif [ -f /etc/init.d/functions ]; then
-    . /etc/init.d/functions
-    alias START_DAEMON=daemon
-    alias STATUS=status
-    alias LOG_SUCCESS=success
-    alias LOG_FAILURE=failure
-    alias LOG_WARNING=passed
-else
-    echo "Error: your platform is not supported by $0" > /dev/stderr
-    exit 1
-fi
+. /etc/rc.d/init.d/functions
 
-do_status () {
-
-    if [ -f $PIDFILE ];
-    then 
-      exit 0
-    fi   
-    
-    exit 3
+rh_status()
+{
+  # run checks to determine if the service is running or use generic status
+  status -p "$pidfile" "$exec"
 }
 
-do_start()
+rh_status_q()
 {
-    # 1rst check the configuration
-    $DAEMON $DAEMON_ARGS -C
-    case "$?" in
-    
-      # Configuration is valid. 
+  rh_status >/dev/null 2>&1
+}
+
+start()
+{
+  # user had insufficient privilege
+  if [ $UID -ne 0 ] ; then
+      echo "User has insufficient privilege."
+      exit 4
+  fi
+
+  # program is not installed
+  [ -x $exec ] || exit 5
+
+  # program is not configured
+  [ -f $config ] || exit 6
+
+  echo -n $"Starting $prog: "
+
+  # Check the configuration
+  $exec $exec_args -C
+
+  case "$?" in
+    "0")
+      # Configuration is valid
       # Let's run through rozolauncher.
-      "0"){
-         $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
-         return 0
-      };;
-      
-      # Configuration is invalid. 
+      $launcher start $pidfile $exec $exec_args &
+      success
+      echo
+      return 0
+      ;;
+    *)
+      # Configuration is invalid
       # Return an error.
-      *) {
-	 echo "Inconsistant configuration !!!"
-	 echo "Check log files."
-	 return 3      
-      };;
-      
-    esac    
+      failure
+      echo
+      return 3
+      ;;
+  esac
 }
 
-# stop the daemon/service
-
-do_stop()
+stop()
 {
-    $LAUNCHER stop $PIDFILE
-    return 0
+  # user had insufficient privilege
+  if [ $UID -ne 0 ] ; then
+      echo "User has insufficient privilege."
+      exit 4
+  fi
+
+  echo -n $"Stopping $prog: "
+
+  $launcher stop $pidfile
+
+  success
+  echo
+
+  return 0
+}
+
+restart()
+{
+  rh_status_q && stop
+  start
+}
+
+force_reload()
+{
+  # new configuration takes effect after restart
+  restart
 }
 
 case "$1" in
-    start|restart|force-reload)
-        echo -n "$1 $NAME"
-        
-        do_start
-        res=$?
-        case "$res" in
-            0|1) LOG_SUCCESS ;;
-            *)   LOG_FAILURE ;;
-        esac
-	exit $res
-        ;;
-    status) do_status;;
-    
-    stop)
-        echo -n "Stopping $NAME"
-        
-        do_stop
-        res=$?
-        case "$res" in
-            0|1) LOG_SUCCESS ;;
-            2)   LOG_FAILURE ;;
-        esac
-	exit $res
-        ;;
-    *)
 
-    LOG_WARNING "Usage: $0 {start|stop|restart|force-reload}" >&2
-    exit 3
+  start)
+    rh_status_q && exit 0
+    start
+    ;;
+
+  restart)
+    restart
+    ;;
+
+  status)
+    rh_status
+    ;;
+
+  force-reload)
+    force_reload
+    ;;
+
+  stop)
+    rh_status_q || exit 0
+    stop
+    ;;
+
+  condrestart|try-restart)
+    rh_status_q || exit 0
+    restart
+    ;;
+
+  *)
+    echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|force-reload}"
+    exit 2
     ;;
 esac
 
-:
-
+exit $?
