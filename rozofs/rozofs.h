@@ -185,6 +185,18 @@ typedef enum
    ROZOFS_MAXATTR
 } export_attr_type_e;
 
+static inline char * export_attr_type2String(export_attr_type_e val) {
+  switch(val) {
+    case ROZOFS_EXTATTR: return "EXTATTR";
+    case ROZOFS_TRASH: return "TRASH";
+    case ROZOFS_REG: return "REG";
+    case ROZOFS_DIR: return "DIR";
+    case ROZOFS_SLNK: return "SLNK";
+    case ROZOFS_DIR_FID: return "DIR_FID";
+    default:
+      return "?";
+  }
+}        
 typedef union
 {
    uint64_t fid[2];   /**<   */
