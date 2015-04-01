@@ -63,8 +63,8 @@ void *export_fstat_alloc_context(uint16_t eid, char *root_path,uint64_t hquota,u
  *
  * @return always 0
  */
-int export_fstat_update_files(uint16_t eid, int32_t n) ;
-
+int export_fstat_create_files(uint16_t eid, uint32_t n);
+int export_fstat_delete_files(uint16_t eid, uint32_t n);
 /*
 **__________________________________________________________________
 */

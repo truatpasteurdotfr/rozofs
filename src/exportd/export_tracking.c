@@ -3943,7 +3943,7 @@ out:
   p += rozofs_x32_append(p,val2); \
   *p++=' '; \
   *p++='('; \
-  p += rozofs_x32_append(p,val2); \
+  p += rozofs_x32_append(p,val3); \
   *p++=')'; \
   p += rozofs_eol(p);\
 }  

@@ -116,11 +116,11 @@ char *show_export_fstat_entry(char *pChar,export_fstat_ctx_t *tab_p,uint16_t eid
    int i;
    pChar += sprintf(pChar,"   nb files per number of block\n");
    if (p->file_per_size[0] != 0) {
-     pChar += sprintf(pChar,"\t[ %llu .. %llu [ \t%llu\n", 0, 1,p->file_per_size[i]);   
+     pChar += sprintf(pChar,"\t[ %d .. %d [ \t%llu\n", 0, 1,(long long unsigned int)p->file_per_size[0]);   
    }
    for (i=1; i<ROZOFS_MAX_BLOCK_BITS; i++) {    
      if (p->file_per_size[i] != 0) {
-       pChar += sprintf(pChar,"\t[ %llu .. %llu [ \t%llu\n", (1UL<<(i-1)), (1UL<<i),p->file_per_size[i]);
+       pChar += sprintf(pChar,"\t[ %llu .. %llu [ \t%llu\n", (1ULL<<(i-1)), (1ULL<<i),(long long unsigned int)p->file_per_size[i]);
      }
    }      
    
@@ -400,9 +400,7 @@ static inline int my_lzcnt64(uint64_t val) {
  * @return 0 on success -1 otherwise
  */
 int export_fstat_create_files(uint16_t eid, uint32_t n) {
-    int status = -1;
     export_fstat_ctx_t *tab_p;
-    time_t timecur;
     
    if (export_fstat_init_done == 0)
    {
@@ -426,7 +424,8 @@ int export_fstat_create_files(uint16_t eid, uint32_t n) {
    } 
    tab_p = export_fstat_table[eid];
    tab_p->memory.file_per_size[0] += n;  
-   tab_p->memory.files += n;    
+   tab_p->memory.files += n;       
+   return 0;
 }       
 /*
 **__________________________________________________________________
@@ -442,7 +441,7 @@ int export_fstat_update_blocks(uint16_t eid, uint64_t newblocks, uint64_t oldblo
     int status = -1;
     export_fstat_ctx_t *tab_p;
     time_t timecur;
-    int64_t n = newblocks - oldblocks;
+    long long int n = newblocks - oldblocks;
 
    if (n == 0) return 0;   
     
@@ -492,7 +491,7 @@ int export_fstat_update_blocks(uint16_t eid, uint64_t newblocks, uint64_t oldblo
       ** Releasing more blocks than allocated !!!
       */
       if (n > tab_p->memory.blocks) {
-        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %d blocks",
+        severe("export %s blocks %"PRIu64" files %"PRIu64". Releasing %lld blocks",
 	      tab_p->pathname, tab_p->memory.blocks, tab_p->memory.files, n); 
         n = tab_p->memory.blocks;
       }
@@ -515,8 +514,8 @@ int export_fstat_update_blocks(uint16_t eid, uint64_t newblocks, uint64_t oldblo
 	 if (( tab_p->quota_exceeded_flag == 1) || 
 	    ((timecur -tab_p->quota_exceeded_time ) > export_fstat_quota_delay))
 	 {
-            warning("quota exceed: %"PRIu64" over %"PRIu64"", tab_p->memory.blocks + n,
-                     tab_p->hquota);
+            warning("quota exceed: %llu over %llu", tab_p->memory.blocks + n,
+                     (long long unsigned int)tab_p->hquota);
   	    tab_p->quota_exceeded_time = time(NULL); 
 	    tab_p->quota_exceeded_flag = 1;
          }
