@@ -45,6 +45,9 @@ uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
 static time_t uptime=0;
 
+
+char uma_dbg_core_file_path[128] = {0};
+
 typedef struct uma_dbg_topic_s {
   char                     * name;
   uint16_t                   option;
@@ -147,7 +150,34 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
 	*p = 0;
 	return p;
 }
+/*__________________________________________________________________________
+ */
+/**
+*  Display whether some core files exist
+*/
+void show_uma_dbg_core_files(char * argv[], uint32_t tcpRef, void *bufRef) {
+  int    len;
+  char  *p;
+  
+  p = uma_dbg_get_buffer();
+  p += rozofs_string_append(p,"ls -1 -h --full-time ");
+  p += rozofs_string_append(p,uma_dbg_core_file_path);
+  p += rozofs_string_append(p,"/* 2>/dev/null");
 
+  len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
+  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "None\n");    
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+  return ;
+}
+/*__________________________________________________________________________
+ */
+/**
+*  Declare the path where to serach for core files
+*/
+void uma_dbg_declare_core_dir(char * path) {
+  strcpy(uma_dbg_core_file_path,path);
+  uma_dbg_addTopic("core", show_uma_dbg_core_files);  
+}
 /*__________________________________________________________________________
  */
 /**

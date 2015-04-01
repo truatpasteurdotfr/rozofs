@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <rozofs/common/log.h>
 #include <rozofs/core/rozofs_core_files.h>
+#include <rozofs/core/uma_dbg_api.h>
 
 #define ROZOFS_CORE_BASE_PATH  "/var/run/rozofs_core"
 volatile sig_atomic_t     rozofs_fatal_error_processing = 0;
@@ -334,6 +335,8 @@ void rozofs_signals_declare(char * application, int max_core_files) {
   rozofs_core_file_path[0] = 0;
   if (application == NULL) return;
   sprintf(rozofs_core_file_path,"%s/%s",ROZOFS_CORE_BASE_PATH,application);
+  
+  uma_dbg_declare_core_dir(rozofs_core_file_path);
   
   /* Declare the fatal errors handler */
  

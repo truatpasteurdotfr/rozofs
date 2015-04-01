@@ -289,4 +289,10 @@ void uma_dbg_setCatcher(uma_dbg_catcher_function_t funct);
 */
 int uma_dbg_run_system_cmd(char * cmd, char *result, int len);
 
+/*__________________________________________________________________________
+ */
+/**
+*  Declare the path where to serach for core files
+*/
+void uma_dbg_declare_core_dir(char * path);
 #endif
