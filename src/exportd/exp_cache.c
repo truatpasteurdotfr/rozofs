@@ -902,9 +902,22 @@ int exp_xattr_block_create(export_tracking_table_t *trk_tb_p,lv2_entry_t *entry,
       return -1;
    }
    /*
+   ** Skip the very 1rst block that has a ref of 0 
+   */	
+   if (fake_inode.fid[1] == 0) {
+     // Skip NULL reference buffer that could be interpreted as no buffer
+     // info("skip null");
+     exp_metadata_release_inode(p,&fake_inode);
+     ret = exp_metadata_allocate_inode(p,&fake_inode,ROZOFS_EXTATTR,slice);
+     if (ret < 0)
+     { 
+	return -1;
+     }
+   }
+   /*
    ** get the reference of the block since we will need it for the inode
    */
-   *block_ref_p = fake_inode.fid[1];
+   *block_ref_p = fake_inode.fid[1];   
    /*
    ** write back the inode reference in the header of the extended attribute block
    */

@@ -36,23 +36,21 @@ static void usage() {
 }
 
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE (16*1024)
 char buff[BUFFER_SIZE];
 char value[BUFFER_SIZE];
-char expected_value[BUFFER_SIZE];
+char read_value[BUFFER_SIZE];
+char name[BUFFER_SIZE];
 
-char * myAttributes[] = {
-  "user.Attr1",
-  "user.attr2",
-  "user.cfhdqvhscvdsqvdssgfrqgtrthjytehCFREZGjlgnn3",
-  "user.@4",
-  "user.________________________________________________________5",
-  "user.66666666666666666666666",
-  "user.7.7.7.7.7",
-  "user.DSQVFDQVFDSQFDVqjkmlngqmslq_cvkfdqbvsd8",
+int nbAttr = 7;
 
-};
-int nbAttr = (sizeof(myAttributes)/sizeof(char*));
+char * prefixes[]={"user","trusted","security"};
+int nb_prefixes = (sizeof(prefixes)/sizeof(void*));
+
+#define myAttributes(prefix,idx) sprintf(name,"%s._%s_%d",prefix,prefix,idx);
+#define value_initial(prefix,idx) {myAttributes(prefix,idx); sprintf(value, "%s.%s.%s", file, name,"INITIAL");}
+#define value_modified(prefix,idx) {myAttributes(prefix,idx); sprintf(value, "%s.%s.%s", file, name,"MODIFIED");}
+
 
 static void read_parameters(argc, argv)
 int argc;
@@ -116,12 +114,32 @@ char *argv[];
         usage();
     }
 }
-int get_attribute_rank(char * name) {
-  int i;
+int get_attribute(char * attr_name, int * prefix, int * idx) {
+  int i,p;
+  int len;
   
-  for (i=0; i < nbAttr; i++) {
-    if (strcmp(name,myAttributes[i]) == 0) return i;
+  /*
+  ** Find prefix
+  */
+  for (p=0; p < nb_prefixes; p++) {
+    len = strlen(prefixes[p]);
+    if (strncmp(prefixes[p],attr_name,len) == 0) break;
   }
+  
+  if (p == nb_prefixes) {
+    printf("No such prefix\n");
+    return -1;
+  }
+  
+  *prefix = p;
+  for (i=0; i <  nbAttr; i++) {
+    myAttributes(prefixes[p],i);
+    if (strcmp(name,attr_name) == 0) {
+      *idx = i;
+      return 0;
+    }  
+  } 
+  printf("No such attribute index\n");  
   return -1;
 }
 int list_xattr (char * file,int option, int exist) {
@@ -129,6 +147,7 @@ int list_xattr (char * file,int option, int exist) {
   char *pAttr=buff,*pEnd=buff;
   int nb;
   int idx;
+  int prefix;
   
   size = listxattr(file,buff,BUFFER_SIZE);
   if (size < 0)  {
@@ -154,122 +173,182 @@ int list_xattr (char * file,int option, int exist) {
   nb = 0;
   while (pAttr < pEnd) {
   
-    idx = get_attribute_rank(pAttr);
-    if (idx < 0) {
+    if (get_attribute(pAttr, &prefix, &idx)< 0) {
       printf("Unexpected attribute %s on file %s\n", pAttr, file);
       return -1;
     }  
     
-    size = getxattr(file,pAttr,value,BUFFER_SIZE);
+    size = getxattr(file,pAttr,read_value,BUFFER_SIZE);
     if (size == -1) {
       printf("getxattr(%s) on file %s %s\n", pAttr, file, strerror(errno));
       return -1;
     }        
 
-    value[size] = 0;
+    read_value[size] = 0;
     nb++;
+    
+    
     if (option == XATTR_CREATE) {
-      sprintf (expected_value, "%s.initial", myAttributes[idx]);
+      value_initial(prefixes[prefix],idx);
     }
     else {
-      sprintf (expected_value, "%s.modified", myAttributes[idx]);
-    }    
-    if (strcmp(expected_value,value) != 0) {
+      value_modified(prefixes[prefix],idx);
+    }   
+    if (strcmp(read_value,value) != 0) {
       printf("read value %s while expecting %s for attr %s file %s\n", 
-             value, expected_value, pAttr, file);
+             read_value, value, pAttr, file);
       return -1;
     }           
     pAttr += (strlen(pAttr)+1);
   }
-  if (nb != nbAttr) {
-      printf("Read %d attr while expecting %d\n", nb, nbAttr);
+  if (nb != (nbAttr*nb_prefixes)) {
+      printf("Read %d attr while expecting %d\n", nb, (nbAttr*nb_prefixes));
       return -1;
   }
   return 0;    
 }
 int set_attr (char * file, int option, int exist) {
   int idx,res;
+  int prefix;
   
   for (idx = 0 ; idx < nbAttr; idx++) {
+    for (prefix=0; prefix<nb_prefixes; prefix++) {
   
-    if (option == XATTR_CREATE) {
-      sprintf (value, "%s.initial", myAttributes[idx]);
-    }
-    else {
-      sprintf (value, "%s.modified", myAttributes[idx]);
-    }
+      if (option == XATTR_CREATE) {
+	value_initial(prefixes[prefix],idx);
+      }
+      else {
+	value_modified(prefixes[prefix],idx);
+      }
 
-    res = setxattr(file, myAttributes[idx], value, strlen(value),option);
-    
-    if (option == XATTR_REPLACE) {
-      if (res < 0) {
-	printf("REPLACE setxattr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
-	return -1;
-      }   
-    }
-    else {
-      if (exist) {
-	if ((res >= 0)||(errno!=EEXIST)) {
-	  printf("CREATE & exist setxattr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
+      res = setxattr(file, name, value, strlen(value),option);
+
+      if (option == XATTR_REPLACE) {
+	if (res < 0) {
+	  printf("REPLACE setxattr(%s) on file %s %s\n", name, file, strerror(errno));
 	  return -1;
 	}   
       }
       else {
-	if (res < 0) {
-	  printf("CREATE & !exist setxattr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
-	  return -1;
-	}   
-      }
-    }  
-  }
+	if (exist) {
+	  if ((res >= 0)||(errno!=EEXIST)) {
+	    printf("CREATE & exist setxattr(%s) on file %s %s\n", name, file, strerror(errno));
+	    return -1;
+	  }   
+	}
+	else {
+	  if (res < 0) {
+	    printf("CREATE & !exist setxattr(%s) on file %s %s\n", name, file, strerror(errno));
+	    return -1;
+	  }   
+	}
+      }  
+    }
+  }  
   return 0;
 }   
 int remove_attr (char * file, int exist) {
   int idx,res;
+  int prefix;
   
   for (idx = 0 ; idx < nbAttr; idx++) {
+    for (prefix=0; prefix<nb_prefixes;prefix++) {
     
-    res = removexattr(file, myAttributes[idx]);
-    if (exist) {
-      if (res < 0) {
-	  printf("exist .remove_attr(%s) on file %s %s\n", myAttributes[idx], file, strerror(errno));
-	  return -1;
+      myAttributes(prefixes[prefix],idx);
+      
+      res = removexattr(file, name);
+      if (exist) {
+	if (res < 0) {
+	    printf("exist .remove_attr(%s) on file %s %s\n", name, file, strerror(errno));
+	    return -1;
+	}
       }
+      else {
+	if (res>= 0) {
+          printf("!exist .remove_attr(%s) on file %s\n", name, file);
+          return -1; 
+	}	
+      }         
     }
-    else {
-      if (res>= 0) {
-        printf("!exist .remove_attr(%s) on file %s\n", myAttributes[idx], file);
-        return -1; 
-      }	
-    }         
-  }
+  }  
   return 0;
 }   
 int do_one_test(char * file, int count) {
   int ret = 0;
 
   ret += list_xattr(file,XATTR_CREATE, 0);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
   
   ret += set_attr (file,XATTR_CREATE, 0);
-  ret += list_xattr(file,XATTR_CREATE, 1);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
   
+  ret += list_xattr(file,XATTR_CREATE, 1);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+    
   ret += set_attr (file,XATTR_CREATE, 1);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += list_xattr(file,XATTR_CREATE, 1);  
-
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += set_attr (file,XATTR_REPLACE, 1);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += list_xattr(file,XATTR_REPLACE, 1);
-
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += remove_attr (file, 1);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += list_xattr(file,XATTR_REPLACE, 0);
-
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += remove_attr (file, 0);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
   ret += list_xattr(file,XATTR_REPLACE, 0);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
   return ret;
 }
 int loop_test_process() {
   int count=0;   
   char filename[128];
-  char cmd[128];
+  char symlink[128];  
+  char dirname[128];  
+  char cmd[256];
   pid_t pid = getpid();
        
   if (getcwd(cmd,125) == NULL) {
@@ -277,21 +356,46 @@ int loop_test_process() {
   }
   
   pid = getpid();
-  sprintf(filename, "%s/%s/test_xattr.%u", cmd, mount, pid);
+  sprintf(filename, "%s/%s/test_file_xattr.%u", cmd, mount, pid);
+  sprintf(symlink, "%s/%s/test_slink_xattr.%u", cmd, mount, pid);
+  sprintf(dirname, "%s/%s/test_dir_xattr.%u", cmd, mount, pid);
   
   sprintf(cmd, "echo HJKNKJNKNKhuezfqr > %s", filename);
   if (system(cmd) == -1) {
       return -1;
   }
+  sprintf(cmd, "mkdir %s", dirname);
+  if (system(cmd) == -1) {
+      return -1;
+  }  
+
+  sprintf(cmd, "ln -s %s %s", filename, symlink); 
+  if (system(cmd) == -1) {
+      return -1;
+  }  
+  
   while (1) {
     count++;    
+
     if  (do_one_test(filename,count) != 0) {
-      printf("proc %3d - ERROR in loop %d\n", myProcId, count); 
-      unlink(filename);     
+      printf("proc %3d - ERROR in loop %d %s\n", myProcId, count,filename); 
       return -1;
     } 
+   
+    if  (do_one_test(dirname,count) != 0) {
+      printf("proc %3d - ERROR in loop %d %s\n", myProcId, count,dirname); 
+      return -1;
+    }     
+    
+   
+    if  (do_one_test(symlink,count) != 0) {
+      printf("proc %3d - ERROR in loop %d %s\n", myProcId, count,symlink); 
+      return -1;
+    }         
+    
     if (loop==count) {
-      unlink(filename);         
+      unlink(filename); 
+      rmdir(dirname);                   
       return 0;
     }  
   }

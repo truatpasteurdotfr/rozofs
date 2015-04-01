@@ -249,7 +249,7 @@ class sid_class:
     output, error = cmd.communicate()
     if output != "":
       loop=output.split(':')[0]  
-      print "%s%s -> /dev/loop%s -> %s/%s"%(path,dev,loop,self.get_root_path(h.number),dev)
+      print "%s%s -> %s -> %s/%s"%(path,dev,loop,self.get_root_path(h.number),dev)
       cmd_system("mount -t ext4 %s %s/%s"%(loop,self.get_root_path(h.number),dev))
     else:
       print "No /dev/loop for %s%s"%(path,dev)  
@@ -272,8 +272,7 @@ class sid_class:
     except: pass 
     
     if os.path.exists("%s/%s"%(path,device)): return
-    cmd_system("dd if=/dev/zero of=%s/%s bs=1MB count=%s"%(path,device,rozofs.disk_size_mb))
-    
+    cmd_system("dd if=/dev/zero of=%s/%s bs=1MB count=%s 2>&1"%(path,device,rozofs.disk_size_mb))
     for loop in range(1,128):
       try:
 	string="losetup /dev/loop%s %s/%s "%(loop,path,device)
@@ -281,7 +280,7 @@ class sid_class:
         cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = cmd.communicate()
 	if error == "":
-	  cmd_system("mkfs.ext4 /dev/loop%s"%(loop))
+	  cmd_system("mkfs.ext4 -q /dev/loop%s"%(loop))
 	  return
       except: 
         continue      
