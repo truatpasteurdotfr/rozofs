@@ -3910,32 +3910,98 @@ out:
 #define ROZOFS_ROOT_XATTR_MAX_SIZE "trusted.rozofs_maxsize"
 
 
-#define DISPLAY_ATTR_TITLE(name) p += sprintf(p,"%-7s : ",name);
-#define DISPLAY_ATTR_LONG(name,val) p += sprintf(p,"%-7s : %llu\n",name,(unsigned long long int)val);
-#define DISPLAY_ATTR_INT(name,val) p += sprintf(p,"%-7s : %d\n",name,val);
-#define DISPLAY_ATTR_2INT(name,val1,val2) p += sprintf(p,"%-7s : %d/%d\n",name,val1,val2);
-#define DISPLAY_ATTR_HASH(name,val1,val2,val3) p += sprintf(p,"%-7s : %x/%x (%x)\n",name,val1,val2,val3);
-#define DISPLAY_ATTR_TXT(name,val) p += sprintf(p,"%-7s : %s\n",name,val);
-#define DISPLAY_ATTR_TXT_NOCR(name,val) p += sprintf(p,"%-7s : %s",name,val);
+#define DISPLAY_ATTR_TITLE(name) {\
+  p += rozofs_string_padded_append(p,8,rozofs_left_alignment,name); \
+  *p++ = ':';\
+  *p++ = ' ';\
+}
+
+#define DISPLAY_ATTR_LONG(name,val) {\
+  DISPLAY_ATTR_TITLE(name); \
+  p += rozofs_u64_append(p,val); \
+  p += rozofs_eol(p);\
+}
+
+#define DISPLAY_ATTR_INT(name,val) {\
+  DISPLAY_ATTR_TITLE(name); \
+  p += rozofs_i32_append(p,val); \
+  p += rozofs_eol(p);\
+}
+
+#define DISPLAY_ATTR_2INT(name,val1,val2) {\
+  DISPLAY_ATTR_TITLE(name); \
+  p += rozofs_i32_append(p,val1); \
+  *p++='/'; \
+  p += rozofs_i32_append(p,val2); \
+  p += rozofs_eol(p);\
+}  
+  
+#define DISPLAY_ATTR_HASH(name,val1,val2,val3) {\
+  DISPLAY_ATTR_TITLE(name); \
+  p += rozofs_x32_append(p,val1); \
+  *p++='/'; \
+  p += rozofs_x32_append(p,val2); \
+  *p++=' '; \
+  *p++='('; \
+  p += rozofs_x32_append(p,val2); \
+  *p++=')'; \
+  p += rozofs_eol(p);\
+}  
+     
+#define DISPLAY_ATTR_TXT(name,val) {\
+  DISPLAY_ATTR_TITLE(name); \
+  p += rozofs_string_append(p,val); \
+  p += rozofs_eol(p); \
+}
+  
+#define DISPLAY_ATTR_TXT_NOCR(name,val) {\
+  DISPLAY_ATTR_TITLE(name); \
+  p += rozofs_string_append(p,val);\
+}  
+  
+  
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
-  uint8_t * pFid;
   int       idx;
   int       left;
   char      bufall[128];
   uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
   
-  pFid = (uint8_t *) lv2->attributes.s.attrs.fid;  
   DISPLAY_ATTR_INT("EID", e->eid);
   DISPLAY_ATTR_INT("VID", e->volume->vid);
   DISPLAY_ATTR_INT("LAYOUT", e->layout);  
   DISPLAY_ATTR_INT("BSIZE", e->bsize);  
   
   DISPLAY_ATTR_TITLE( "FID"); 
-  p += sprintf(p,"%2.2x%2.2x%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x-%2.2x%2.2x%2.2x%2.2x%2.2x%2.2x\n", 
-               pFid[0],pFid[1],pFid[2],pFid[3],pFid[4],pFid[5],pFid[6],pFid[7],
-	       pFid[8],pFid[9],pFid[10],pFid[11],pFid[12],pFid[13],pFid[14],pFid[15]);
-
+  rozofs_uuid_unparse(lv2->attributes.s.attrs.fid,p);
+  p += 36;
+  *p++ = '\n';
+  
+  rozofs_inode_t * fake_inode_p =  (rozofs_inode_t *) lv2->attributes.s.attrs.fid;
+  DISPLAY_ATTR_TITLE( "SPLIT");   
+  p += rozofs_string_append(p,"vers=");
+  p += rozofs_u64_append(p,fake_inode_p->s.vers);
+  p += rozofs_string_append(p," fid_high=");
+  p += rozofs_u64_append(p,fake_inode_p->s.fid_high);
+  p += rozofs_string_append(p," opcode=");
+  p += rozofs_u64_append(p,fake_inode_p->s.opcode);
+  p += rozofs_string_append(p," exp_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.exp_id);
+  p += rozofs_string_append(p," eid=");
+  p += rozofs_u64_append(p,fake_inode_p->s.eid);
+  p += rozofs_string_append(p," usr_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.usr_id);
+  p += rozofs_string_append(p," file_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.file_id);
+  p += rozofs_string_append(p," idx=");
+  p += rozofs_u64_append(p,fake_inode_p->s.idx);
+  p += rozofs_string_append(p," key=");
+  p += rozofs_u64_append(p,fake_inode_p->s.key);
+  p += rozofs_string_append(p," (");
+  p += rozofs_string_append(p,export_attr_type2String(fake_inode_p->s.key));
+  p += rozofs_string_append(p,")");     
+  p += rozofs_eol(p);
+  
   uint32_t bucket_idx = ((lv2->attributes.s.hash2 >> 16) ^ (lv2->attributes.s.hash2 & 0xffff))&((1<<8)-1);
   DISPLAY_ATTR_HASH("HASH1/2",lv2->attributes.s.hash1,lv2->attributes.s.hash2,bucket_idx);
   DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid);
@@ -3961,11 +4027,12 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   */
   DISPLAY_ATTR_INT("CLUSTER",lv2->attributes.s.attrs.cid);
   DISPLAY_ATTR_TITLE("STORAGE");
-  p += sprintf(p, "%3.3d", lv2->attributes.s.attrs.sids[0]);  
+  p += rozofs_u32_padded_append(p,3, rozofs_zero,lv2->attributes.s.attrs.sids[0]); 
   for (idx = 1; idx < rozofs_safe; idx++) {
-    p += sprintf(p,"-%3.3d", lv2->attributes.s.attrs.sids[idx]);
+    *p++ = '-';
+    p += rozofs_u32_padded_append(p,3, rozofs_zero,lv2->attributes.s.attrs.sids[idx]);
   } 
-  p += sprintf(p,"\n");
+  p += rozofs_eol(p);
 
   DISPLAY_ATTR_INT("NLINK",lv2->attributes.s.attrs.nlink);
   DISPLAY_ATTR_LONG("SIZE",lv2->attributes.s.attrs.size);
@@ -3982,7 +4049,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
     left = size;
     left -= ((int)(p-value));
     if (left < 110) {
-      if (left > 4) p += sprintf(p,"...");
+      if (left > 4) p += rozofs_string_append(p,"...");
       return (p-value);
     }
     
