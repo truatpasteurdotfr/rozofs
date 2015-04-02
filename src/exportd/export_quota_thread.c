@@ -630,12 +630,12 @@ void *export_fstat_alloc_context(uint16_t eid, char *root_path,uint64_t hquota,u
           export_fstat_stats.open_err++;
           return NULL;
       }
-      if (read(fd, &tab_p->memory, sizeof (export_fstat_t)) != sizeof (export_fstat_t)) {
-          close(fd);
+      int len = read(fd, &tab_p->memory, sizeof (export_fstat_t));
+      close(fd);      
+      if (len < (2*sizeof (uint64_t))) {
           export_fstat_stats.read_err++;
           return NULL;
       }
-      close(fd);
       memcpy(&tab_p->last_written,&tab_p->memory,sizeof(export_fstat_t));      
    }
    /*
