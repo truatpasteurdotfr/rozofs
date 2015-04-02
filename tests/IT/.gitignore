@@ -1,0 +1,5 @@
+!*.c
+!*.py
+test_*
+rw*
+read_*
