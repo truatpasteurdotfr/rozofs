@@ -318,6 +318,12 @@ int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
             severe("can't fetch total device number.");
             goto out;
 	}
+	if (devices > STORAGE_MAX_DEVICE_NB) {
+            errno = EINVAL;
+            severe("Device number exceed %d for storage %d.", STORAGE_MAX_DEVICE_NB, i);
+            goto out;
+        }
+
 
 	if (!config_setting_lookup_int(ms, SDEV_MAPPER, &mapper)) {
 	  mapper = devices;
