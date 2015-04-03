@@ -37,6 +37,10 @@ def list(platform, args):
     list_l = []
     for vid, volume in configuration.volumes.items():
         volume_l = []
+        if volume.layout is not None:
+            volume_l.append({'LAYOUT' : volume.layout })
+        else:
+            volume_l.append({'LAYOUT' : configuration.layout })
         for cid, cluster in volume.clusters.items():
             cluster_l = []
             for sid, storage in cluster.storages.items():
@@ -80,6 +84,10 @@ def stat(platform, args):
     stat_l = []
     for vid, vstat in configuration.stats.vstats.items():
         volume_l = []
+        if configuration.volumes[vid].layout is not None:
+            volume_l.append({'layout' : configuration.volumes[vid].layout })
+        else:
+            volume_l.append({'layout' : configuration.layout })
         volume_l.append({'bsize': vstat.bsize})
         volume_l.append({'bfree': vstat.bfree})
         volume_l.append({'blocks': vstat.blocks})
@@ -114,6 +122,10 @@ def get(platform, args):
         vconfig = configuration.volumes[vid]
         vstat = configuration.stats.vstats[vid]
         volume_l = []
+        if vconfig.layout is not None:
+            volume_l.append({'layout' : vconfig.layout })
+        else:
+            volume_l.append({'layout' : configuration.layout })
         volume_l.append({'bsize': vstat.bsize})
         volume_l.append({'bfree': vstat.bfree})
         volume_l.append({'blocks': vstat.blocks})
@@ -138,11 +150,11 @@ def expand(platform, args):
             get_proxy(host, STORAGED_MANAGER).get_service_status()
         except:
             raise Exception("storage agent on the node \"%s\" is not reachable" % (host))
-    
+
     if not args.vid:
-        platform.add_nodes(args.hosts, None, args.layout)
+        platform.add_nodes(args.hosts, None, args.layout, args.total, args.mapper, args.redundancy)
     else:
-        platform.add_nodes(args.hosts, args.vid, args.layout)
+        platform.add_nodes(args.hosts, args.vid, args.layout, args.total, args.mapper, args.redundancy)
 
 def remove(platform, args):
     for vid in args.vid:

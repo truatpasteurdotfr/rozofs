@@ -45,6 +45,12 @@ NBCORES = "nbcores"
 
 THREADS = "threads"
 STORIO = "storio"
+STORIO_VALID_VALUES = ["single", "multiple"]
+SELF_HEALING="self-healing"
+EXPORT_HOSTS="export-hosts"
+CRC32C_CHECK = "crc32c_check"
+CRC32C_GENERATE = "crc32c_generate"
+CRC32C_HW_FORCED = "crc32c_hw_forced"
 LISTEN = "listen"
 LISTEN_ADDR = "addr"
 LISTEN_PORT = "port"
@@ -52,7 +58,13 @@ STORAGES = "storages"
 STORAGE_CID = "cid"
 STORAGE_SID = "sid"
 STORAGE_ROOT = "root"
+STORAGE_DEV_T = "device-total"
+STORAGE_DEV_M = "device-mapper"
+STORAGE_DEV_R = "device-redundancy"
+
+
 SID_MAX = 255
+STORAGE_PORTS_MAX = 32
 
 LAYOUT = "layout"
 VOLUMES = "volumes"
