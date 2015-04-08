@@ -25,6 +25,7 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/list.h>
 #include <rozofs/rpc/mproto.h>
+#include "storage.h"
 typedef struct _sconfig_devices_t {
     int                     total; 
     int                     mapper;
