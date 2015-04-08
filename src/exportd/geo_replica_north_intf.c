@@ -230,7 +230,7 @@ int geo_replicat_north_interface_buffer_init(int read_write_buf_count,int read_w
        severe( "ruc_buf_poolCreate(%d,%d)", geo_replicat_buf_count, geo_replicat_buf_sz ); 
        return -1;
     }
-    ruc_buffer_debug_register_pool("Pool_meta_rcv",  geo_replicat_receive_buffer_pool_p);
+    ruc_buffer_debug_register_pool("Geo_replica_rcv",  geo_replicat_receive_buffer_pool_p);
 
     /*
     ** create the pool for sending requests to rozofsmount
@@ -241,7 +241,7 @@ int geo_replicat_north_interface_buffer_init(int read_write_buf_count,int read_w
        severe( "ruc_buf_poolCreate(%d,%d)", geo_replicat_buf_count, geo_replicat_buf_sz ); 
        return -1;
     }
-    ruc_buffer_debug_register_pool("Pool_meta_snd",  geo_replicat_xmit_buffer_pool_p);
+    ruc_buffer_debug_register_pool("Geo_replica_snd",  geo_replicat_xmit_buffer_pool_p);
 
     return 0;
 
