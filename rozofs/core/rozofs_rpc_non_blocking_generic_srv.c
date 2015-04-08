@@ -587,12 +587,16 @@ error:
 @retval   : RUC_OK : done
 @retval          RUC_NOK : out of memory
 */
+static uint32_t rozorpc_srv_module_initialized = 0;
 uint32_t rozorpc_srv_module_init()
 {
    rozorpc_srv_ctx_t *p;
    uint32_t idxCur;
    ruc_obj_desc_t *pnext;
    uint32_t ret = RUC_OK;
+   
+   if (rozorpc_srv_module_initialized) return RUC_OK;
+   rozorpc_srv_module_initialized = 1;
    
     memset(&gprofiler,0,sizeof(gprofiler));
 
