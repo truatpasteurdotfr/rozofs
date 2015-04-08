@@ -481,7 +481,7 @@ int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids)
     
     site_idx = export_get_local_site_number();
 
-    if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
+    if ((errno = pthread_rwlock_wrlock(&volume->lock)) != 0) {
         warning("can't lock volume %u.", volume->vid);
         goto out;
     }
