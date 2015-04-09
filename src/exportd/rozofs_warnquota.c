@@ -539,7 +539,7 @@ static int mail_user(struct offenderlist *offender, struct configparams *config)
 						 * attribute we wanted in this entry
 						 */
 						to = malloc(strlen(offender->offender_name)+
-							strlen(config->default_domain)+1);
+							strlen(config->default_domain)+2);
 						sprintf(to, "%s@%s", offender->offender_name,
 							config->default_domain);
 					}
