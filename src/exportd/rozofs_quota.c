@@ -480,7 +480,7 @@ int rozofs_qt_read_quota_info(char *root_path,rozofs_quota_info_t *quota_info_p,
    sprintf(pathname,"%s/%s_%s",root_path,ROZOFS_QUOTA_INFO_NAME,(type==USRQUOTA)?"usr":"grp");
    if ((fd = open(pathname, O_RDWR,S_IRWXU)) < 1) 
    {
-      severe("cannot open quota info file %s: %s",pathname,strerror(errno));
+      warning("cannot open quota info file %s: %s",pathname,strerror(errno));
       return -1;
    }
    if (read(fd, quota_info_p, sizeof (rozofs_quota_info_t)) != sizeof (rozofs_quota_info_t)) 
