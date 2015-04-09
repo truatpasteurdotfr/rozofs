@@ -334,6 +334,10 @@ int export_fstat_delete_files(uint16_t eid, uint32_t n)
       n = tab_p->memory.files;
    }
    tab_p->memory.files -= n;
+   
+   if (n > tab_p->memory.file_per_size[0]) {
+     n = tab_p->memory.file_per_size[0]; 
+   }
    tab_p->memory.file_per_size[0] -= n; 
     return 0;
 }
