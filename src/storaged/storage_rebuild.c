@@ -1886,7 +1886,7 @@ int main(int argc, char *argv[]) {
       storaged_geosite = 0;
     }
 
-    openlog("RBS", LOG_PID, LOG_DAEMON);
+    uma_dbg_record_syslog_name("RBS");
 
     while (1) {
 

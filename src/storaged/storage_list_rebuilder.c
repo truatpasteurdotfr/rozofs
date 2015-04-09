@@ -50,6 +50,7 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
@@ -937,7 +938,7 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
-    openlog("RBS_LIST", LOG_PID, LOG_DAEMON);
+    uma_dbg_record_syslog_name("RBS_LIST");
     
     
     /*

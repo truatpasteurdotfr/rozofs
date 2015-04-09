@@ -1491,7 +1491,7 @@ int main(int argc, char *argv[]) {
     if (conf.passwd == NULL) {
         conf.passwd = strdup("none");
     }
-    openlog("storcli", LOG_PID, LOG_DAEMON);
+    uma_dbg_record_syslog_name("storcli");
 
     rozofs_signals_declare("storcli",conf.nb_cores);
     rozofs_attach_crash_cbk(storlci_handle_signal);

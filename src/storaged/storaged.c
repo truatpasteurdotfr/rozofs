@@ -53,6 +53,7 @@
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/core/rozo_launcher.h>
 #include <rozofs/core/rozofs_share_memory.h>
+#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "storio_crc32.h"
@@ -395,7 +396,7 @@ int main(int argc, char *argv[]) {
     */
     if (chdir("/")!= 0) {}
     
-    openlog("storaged", LOG_PID, LOG_DAEMON);
+    uma_dbg_record_syslog_name("storaged");
 
     // Init of the timer configuration
     rozofs_tmr_init_configuration();

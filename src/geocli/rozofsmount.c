@@ -387,7 +387,7 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     int export_index=0;
     char * pHost;
 
-    openlog("geocli", LOG_PID, LOG_LOCAL0);
+    uma_dbg_record_syslog_name("geocli");
 
     struct timeval timeout_mproto;
     timeout_mproto.tv_sec = 1;//rozofs_tmr_get(TMR_EXPORT_PROGRAM);

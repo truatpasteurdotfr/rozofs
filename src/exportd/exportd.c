@@ -1806,7 +1806,7 @@ int main(int argc, char *argv[]) {
     }
     if ( expgwc_non_blocking_conf.slave == 0)
     {
-    openlog("exportd", LOG_PID, LOG_DAEMON);
+    uma_dbg_record_syslog_name("exportd");
     daemon_start("exportd",exportd_config.nb_cores,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
     }
     else
@@ -1815,7 +1815,7 @@ int main(int argc, char *argv[]) {
       char name2[1024];
 
       sprintf(name,"export_slave_%d",expgwc_non_blocking_conf.instance);
-      openlog(name, LOG_PID, LOG_DAEMON);
+      uma_dbg_record_syslog_name(name);
       sprintf(name2,"%s.pid",name);
       no_daemon_start("export_slave",exportd_config.nb_cores,name2, on_start, on_stop, on_hup);    
     }

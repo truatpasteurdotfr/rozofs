@@ -50,6 +50,7 @@
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/core/uma_dbg_api.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
@@ -331,7 +332,7 @@ int main(int argc, char *argv[]) {
     }    
 
     sprintf(logname,"storio:%d",storio_instance);
-    openlog(logname, LOG_PID, LOG_DAEMON);
+    uma_dbg_record_syslog_name(logname);
         
     // Initialize the list of storage config
     if (sconfig_initialize(&storaged_config) != 0) {

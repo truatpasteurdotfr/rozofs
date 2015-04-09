@@ -48,6 +48,8 @@ static time_t uptime=0;
 
 char uma_dbg_core_file_path[128] = {0};
 
+char uma_dbg_syslog_name[128] = {0};
+
 typedef struct uma_dbg_topic_s {
   char                     * name;
   uint16_t                   option;
@@ -149,6 +151,74 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
         }
 	*p = 0;
 	return p;
+}
+/*__________________________________________________________________________
+ */
+/**
+*  Display whether some syslog exists
+*/
+void show_uma_dbg_syslog(char * argv[], uint32_t tcpRef, void *bufRef) {
+  int       len;
+  char      *p = uma_dbg_get_buffer();
+  uint32_t  lines=40;
+
+
+  if(argv[1] == NULL) {  
+    /*
+    ** Display syntax 
+    */
+syntax:  
+    rozofs_string_append(uma_dbg_get_buffer(),"syslog fatal [nblines]\nsyslog severe [nblines]\nsyslog warning [nblines]\nsyslog info [nblines]\n");
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+    return; 
+  }
+  
+  /*
+  ** When argv[2] is set, it is the number of lines to display 
+  */  
+  if (argv[2] != NULL) {
+    sscanf(argv[2],"%u",&lines);
+    /* Limit the number of lines to 100 */
+    if (lines>100) lines = 100;
+  }
+
+  p += rozofs_string_append(p,"grep \'");
+  p += rozofs_string_append(p,uma_dbg_syslog_name);
+
+  /* 
+  ** Check the requested level given as 1rst argument
+  */  
+  if ((strcmp(argv[1],"info")) == 0) {
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\|warning\\|info\\):\' /var/log/syslog | tail -");
+  }
+  else if ((strcmp(argv[1],"warning")) == 0) {
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\|warning\\):\' /var/log/syslog | tail -");
+  }  \
+  else if ((strcmp(argv[1],"severe")) == 0) {
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\):\' /var/log/syslog | tail -");
+  }
+  else if ((strcmp(argv[1],"fatal")) == 0) {
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*fatal:\' /var/log/syslog | tail -");
+  }
+  else {
+    goto syntax;
+  }    
+  p += rozofs_u32_append(p,lines);
+
+  len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
+  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No such log\n");    
+  else           uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+  return ;
+}
+/*__________________________________________________________________________
+*  Record syslog name
+*
+* @param name The syslog name
+*/
+void uma_dbg_record_syslog_name(char * name) {
+  strcpy(uma_dbg_syslog_name,name);
+  openlog(uma_dbg_syslog_name, LOG_PID, LOG_DAEMON);
+  uma_dbg_addTopic("syslog",show_uma_dbg_syslog);  
 }
 /*__________________________________________________________________________
  */
@@ -1290,7 +1360,6 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   uma_dbg_addTopic("ps", uma_dbg_system_ps);
   uma_dbg_addTopic("reserved_ports", uma_dbg_reserved_ports);
   uma_dbg_addTopic("counters", uma_dbg_counters_reset);
-
 }
 /*
 **-------------------------------------------------------

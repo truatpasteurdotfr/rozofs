@@ -721,7 +721,7 @@ static void on_start() {
   // Change AF_UNIX datagram socket length
   af_unix_socket_set_datagram_socket_len(128);
 
-  openlog("geomgr", LOG_PID, LOG_LOCAL0);
+  uma_dbg_record_syslog_name("geomgr");
 
   /*
    ** Register these topics before start the rozofs_stat_start that will

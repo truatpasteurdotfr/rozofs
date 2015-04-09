@@ -295,4 +295,10 @@ int uma_dbg_run_system_cmd(char * cmd, char *result, int len);
 *  Declare the path where to serach for core files
 */
 void uma_dbg_declare_core_dir(char * path);
+/*__________________________________________________________________________
+*  Record syslog name
+*
+* @param name The syslog name
+*/
+void uma_dbg_record_syslog_name(char * name);
 #endif
