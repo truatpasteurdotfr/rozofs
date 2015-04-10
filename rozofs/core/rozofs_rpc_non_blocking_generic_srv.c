@@ -56,7 +56,9 @@ int rozorpc_srv_south_small_buf_sz= 0;
 int rozorpc_srv_south_large_buf_count= 0;
 int rozorpc_srv_south_large_buf_sz= 0;
 
+#ifdef SRV_RPC_POOL
 void *rozorpc_srv_pool[_ROZORPC_SRV_MAX_POOL];
+#endif
 
 uint32_t rozorpc_srv_seqnum = 1;
 
@@ -101,6 +103,7 @@ void rozorpc_srv_debug_show(uint32_t tcpRef, void *bufRef) {
   gprofiler.forward_reply[1] = 0;
   pChar += sprintf(pChar,"\n");
 
+#ifdef SRV_RPC_POOL 
   pChar += sprintf(pChar,"Buffer Pool (name[size] :initial/current\n");
   pChar += sprintf(pChar,"North interface Buffers            \n");  
   pChar += sprintf(pChar,"  small[%6d]  : %6d/%d\n",rozorpc_srv_north_small_buf_sz,rozorpc_srv_north_small_buf_count,
@@ -112,6 +115,7 @@ void rozorpc_srv_debug_show(uint32_t tcpRef, void *bufRef) {
                                                          ruc_buf_getFreeBufferCount(ROZORPC_SRV_SOUTH_SMALL_POOL)); 
   pChar += sprintf(pChar,"  large[%6d]  : %6d/%d\n",rozorpc_srv_south_large_buf_sz,rozorpc_srv_south_large_buf_count,
                                                          ruc_buf_getFreeBufferCount(ROZORPC_SRV_SOUTH_LARGE_POOL)); 
+#endif 
   if (bufRef != NULL) uma_dbg_send(tcpRef,bufRef,TRUE,myBuf);
   else printf("%s",myBuf);
 
@@ -664,7 +668,7 @@ uint32_t rozorpc_srv_module_init()
    memset(rozorpc_srv_stats,0,sizeof(uint64_t)*ROZORPC_SRV_COUNTER_MAX);
    rozorpc_srv_debug_init();
       
-   
+#ifdef SRV_RPC_POOL  
    while(1)
    {
       rozorpc_srv_pool[_ROZORPC_SRV_NORTH_SMALL_POOL]= ruc_buf_poolCreate(rozorpc_srv_north_small_buf_count,rozorpc_srv_north_small_buf_sz);
@@ -705,6 +709,7 @@ uint32_t rozorpc_srv_module_init()
 
    break;
    }
+#endif
    return ret;
 }
 
