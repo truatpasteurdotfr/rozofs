@@ -3825,6 +3825,7 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
     lv2_entry_t *parent = NULL;
     int fdp = -1;
     child_t ** iterator;
+    fid_t      null_fid = {0};
     
     iterator = children;
         
@@ -3851,18 +3852,23 @@ int export_readdir(export_t * e, fid_t fid, uint64_t * cookie,
     ** check if we start from the beginning because in that case we must provide
     ** the fid for "." and ".."
     */
-    if (*cookie == 0)
+    if (*cookie == 0) 
     {
             *iterator = xmalloc(sizeof (child_t));
             memset(*iterator, 0, sizeof (child_t));
-            memcpy((*iterator)->fid, parent->attributes.s.attrs.fid, sizeof (fid_t));            
+            memcpy((*iterator)->fid, parent->attributes.s.attrs.fid, sizeof (fid_t)); 
 	    (*iterator)->name = strdup(".");
             // Go to next entry
             iterator = &(*iterator)->next;
 
             *iterator = xmalloc(sizeof (child_t));
             memset(*iterator, 0, sizeof (child_t));
-            memcpy((*iterator)->fid, parent->attributes.s.pfid, sizeof (fid_t));            
+	    if (memcmp(parent->attributes.s.pfid,null_fid,sizeof(fid_t))==0) {
+              memcpy((*iterator)->fid, parent->attributes.s.attrs.fid, sizeof (fid_t));	      
+	    }
+	    else {
+              memcpy((*iterator)->fid, parent->attributes.s.pfid, sizeof (fid_t));
+	    }     
 	    (*iterator)->name = strdup("..");
             // Go to next entry
             iterator = &(*iterator)->next;
