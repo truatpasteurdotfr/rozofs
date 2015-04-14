@@ -683,10 +683,12 @@ class Platform(object):
         # Check devices args
         if (dev_t < 1) or (dev_m < 1) or (dev_r < 1):
             raise Exception('device number(s) must be greater than 0')
+        if (dev_t > 64) or (dev_m > 64) or (dev_r > 64):
+            raise Exception('device number(s) must be lower or equal than 64')
         if (dev_t < dev_m):
             raise Exception('device-mapper must be lower than or equal to device-total')
         if (dev_r > dev_m):
-            raise Exception('device-mapper must be lower than or equal to device-mapper')
+            raise Exception('device-redundancy must be lower than or equal to device-mapper')
 
         # find a cluster id
         cids = [c.cid for v in econfig[Role.EXPORTD].volumes.values()
