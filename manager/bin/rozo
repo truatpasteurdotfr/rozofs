@@ -37,7 +37,7 @@ from rozofs.cli.exceptions import MultipleError
 __all__ = []
 # __version__ = 0.1
 __date__ = '2013-09-14'
-__updated__ = '2014-09-11'
+__updated__ = '2015-04-14'
 __export_host_env_var__ = 'ROZO_EXPORT_HOSTNAME'
 
 DEBUG = 0
