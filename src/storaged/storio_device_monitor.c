@@ -175,7 +175,7 @@ int storio_device_relocate(storage_t * st, int dev) {
 ** and get the number of free blocks
 ** 
 */
-static inline int storio_device_monitor_get_free_space(char *root, int dev, uint64_t * free, uint64_t * size, uint64_t * bs) {
+static inline int storio_device_monitor_get_free_space(char *root, int dev, uint64_t * free, uint64_t * size, uint64_t * bs, storage_device_diagnostic_e * diagnostic) {
   struct statfs sfs;
   char          path[FILENAME_MAX];
   char        * pChar = path;
@@ -188,6 +188,12 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   ** Check that the device is writable
   */
   if (access(path,W_OK) != 0) {
+    if (errno == EACCES) {
+      *diagnostic = DEV_DIAG_READONLY_FS;
+    }
+    else {
+      *diagnostic = DEV_DIAG_FAILED_FS;
+    }    
     return -1;
   }
   
@@ -195,6 +201,7 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   ** Get statistics
   */
   if (statfs(path, &sfs) != 0) {
+    *diagnostic = DEV_DIAG_FAILED_FS;    
     return -1;
   }  
   
@@ -204,12 +211,27 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   */
   pChar += rozofs_string_append(pChar, "/X");
   if (access(path,F_OK) == 0) {
+    *diagnostic = DEV_DIAG_UNMOUNTED;
     return -1;
   }
 
-  *free = sfs.f_bfree;
+
   *size = sfs.f_blocks;
   *bs   = sfs.f_bsize;
+  
+  if (sfs.f_ffree < 100) {
+    *diagnostic = DEV_DIAG_INODE_DEPLETION;
+    *free  = 0;    
+    return 0;
+  }   
+  
+  *free = sfs.f_bfree;
+  if (*free < 1000) {  
+    *free  = 0;   
+    *diagnostic = DEV_DIAG_BLOCK_DEPLETION;
+    return 0;
+  }         
+  *diagnostic = DEV_DIAG_OK;
   return 0;
 }
 /*
@@ -372,7 +394,7 @@ void storio_device_monitor() {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz) != 0) {
+	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz, &pDev->diagnostic) != 0) {
 	    /*
 	    ** The device is failing !
 	    */
@@ -393,7 +415,7 @@ void storio_device_monitor() {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz) != 0) {
+	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz, &pDev->diagnostic) != 0) {
 	    /*
 	    ** The device is failing !
 	    */
@@ -410,7 +432,7 @@ void storio_device_monitor() {
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
-	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz) != 0) {
+	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz, &pDev->diagnostic) != 0) {
 	    /*
 	    ** Still failed
 	    */	
@@ -456,10 +478,10 @@ void storio_device_monitor() {
       st->device_free.blocks[passive][dev] = bfree;  
 
       if (info) {
-	info[dev].status  = pDev->status;
-	info[dev].padding = 0;
-	info[dev].free    = bfree * bsz;
-	info[dev].size    = bmax  * bsz;
+	info[dev].status     = pDev->status;
+	info[dev].diagnostic = pDev->diagnostic;
+	info[dev].free       = bfree * bsz;
+	info[dev].size       = bmax  * bsz;
       }	
     } 
 

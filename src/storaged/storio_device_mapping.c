@@ -310,8 +310,8 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       pChar += rozofs_string_append(pChar," failures)\n");
     }  
       
-    pChar += rozofs_string_append(pChar,"\n    device | status | failures |    blocks    |    errors    |\n");
-    pChar += rozofs_string_append(pChar,"    _______|________|__________|______________|______________|\n");
+    pChar += rozofs_string_append(pChar,"\n    device | status | failures |    blocks    |    errors    | diagnostic\n");
+    pChar += rozofs_string_append(pChar,"    _______|________|__________|______________|______________|___________________\n");
 	     
     for (dev = 0; dev < st->device_number; dev++) {
       pChar += rozofs_string_append(pChar,"   ");
@@ -324,7 +324,9 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, st->device_free.blocks[st->device_free.active][dev]);
       pChar += rozofs_string_append(pChar," |");
       pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, st->device_errors.total[dev]);
-      pChar += rozofs_string_append(pChar," |\n");
+      pChar += rozofs_string_append(pChar," | ");
+      pChar += rozofs_string_append(pChar, storage_device_diagnostic2String(st->device_ctx[dev].diagnostic));
+      pChar += rozofs_eol(pChar);
 
       if (st->device_ctx[dev].status != storage_device_status_is) {
 	faulty_devices[fault++] = dev;
