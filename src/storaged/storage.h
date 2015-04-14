@@ -121,9 +121,29 @@ static inline char * storage_device_status2string(storage_device_status_e status
   }
 }
 
+typedef enum _storage_device_diagnostic_e {
+  DEV_DIAG_OK,
+  DEV_DIAG_FAILED_FS,
+  DEV_DIAG_READONLY_FS,  
+  DEV_DIAG_UNMOUNTED,
+  DEV_DIAG_INODE_DEPLETION,
+  DEV_DIAG_BLOCK_DEPLETION
+} storage_device_diagnostic_e;
+
+static inline char * storage_device_diagnostic2String(storage_device_diagnostic_e diagnostic) { 
+  switch (diagnostic) {
+    case DEV_DIAG_OK : return "OK";
+    case DEV_DIAG_FAILED_FS: return "FAILED FS";
+    case DEV_DIAG_READONLY_FS: return "READONLY FS";  
+    case DEV_DIAG_UNMOUNTED: return "UNMOUNTED";
+    case DEV_DIAG_INODE_DEPLETION: return "INODE DEPLETION";
+    case DEV_DIAG_BLOCK_DEPLETION: return "BLOCK DEPLETION";
+    default: return "??";
+  }  
+}  
 typedef struct _storage_device_info_t {
   storage_device_status_e    status;
-  uint32_t                   padding;
+  storage_device_diagnostic_e diagnostic;
   uint64_t                   free;
   uint64_t                   size;    
 } storage_device_info_t;
@@ -134,6 +154,7 @@ typedef struct _storage_device_info_t {
 typedef struct _storage_device_ctx_t {
   storage_device_status_e     status;
   uint64_t                    failure;
+  storage_device_diagnostic_e diagnostic;
   uint8_t                     action;
 } storage_device_ctx_t;
 
