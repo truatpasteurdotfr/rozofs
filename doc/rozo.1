@@ -589,9 +589,18 @@ exportd must be given.
 
 .\" rozo storaged rebuild start
 .SS rebuild start
-.B rozo storaged rebuild start \fInode\fP \fB\-E | \-\-exportd\fP \fIhost\fP 
+.B rozo storaged rebuild start \fP[\fB\-c\fP | \fB\-\-cid\fP \fIcid\fP] [\fB\-s\fP | \fB\-\-sid\fP \fIsid\fP] [\fB\-d\fP | \fB\-\-device\fP \fIdevice\fP] \fInode\fP \fB\-E | \-\-exportd\fP \fIhost\fP 
 .TP 
-Restart the storaged daemon for one storage \fInode\fP with processes for rebuild data of each storage declared in the storaged configuration file.
+Start process for rebuild data of one storaged \fInode\fP.
+.TP
+\fB\-c\fP, \fB\-\-cid\fP \fIcid
+Cluster identifier to rebuild. If not set all storages are rebuilt.
+.TP
+\fB\-s\fP, \fB\-\-sid\fP \fIsid
+Storage identifier to rebuild. If not set all storages are rebuilt.
+.TP
+\fB\-d\fP, \fB\-\-device\fP \fIdevice
+Device number to rebuild. If not set all devices are rebuilt.
 .TP
 \fB\-E\fP, \fB--exportd \fP\fIhost\fP...
 List of running exportd hostname(s). When securing the exportd thanks to a

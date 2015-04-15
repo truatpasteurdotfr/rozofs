@@ -37,7 +37,7 @@ from rozofs.cli.exceptions import MultipleError
 __all__ = []
 # __version__ = 0.1
 __date__ = '2013-09-14'
-__updated__ = '2015-04-14'
+__updated__ = '2015-04-15'
 __export_host_env_var__ = 'ROZO_EXPORT_HOSTNAME'
 
 DEBUG = 0
@@ -343,6 +343,9 @@ def main(argv=None):  # IGNORE:C0111
         ## start
         #action_storaged_rebuild_start_parser = action_storaged_rebuild_subparser.add_parser('start', add_help=False, help='start to rebuild one storaged node', parents=[topic_storaged_parser])
         action_storaged_rebuild_start_parser = action_storaged_rebuild_subparser.add_parser('start', add_help=False, help='start to rebuild one storaged node')
+        action_storaged_rebuild_start_parser.add_argument('-c', '--cid', type=int, help='cluster identifier to rebuild. If not set all storages are rebuilt.')
+        action_storaged_rebuild_start_parser.add_argument('-s', '--sid', type=int, help='storage identifier to rebuild. If not set all storages are rebuilt.')
+        action_storaged_rebuild_start_parser.add_argument('--device', type=int, help='device number to rebuild. If not set all devices are rebuilt.')
         action_storaged_rebuild_start_parser.add_argument('node', nargs=1, metavar='NODE', help='storaged node to rebuild.')
 
         #

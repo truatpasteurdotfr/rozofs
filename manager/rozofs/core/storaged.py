@@ -37,6 +37,7 @@ from rozofs.core.agent import Agent, ServiceStatus
 from rozofs import __sysconfdir__
 import collections
 import syslog
+import subprocess
 
 
 class StorageConfig():
@@ -286,6 +287,7 @@ class StoragedAgent(Agent):
         self._daemon_manager = DaemonManager(daemon, ["-c", config], 5)
         self._reader = ConfigurationReader(config, StoragedConfigurationParser())
         self._writer = ConfigurationWriter(config, StoragedConfigurationParser())
+        self._rebuilder = "storage_rebuild"
 
     def get_service_config(self):
         configuration = StoragedConfig()
@@ -325,5 +327,13 @@ class StoragedAgent(Agent):
             changes = self._daemon_manager.stop()
         return changes
 
-    def restart_with_rebuild(self, exports_list):
-        self._daemon_manager.restart(["-r", "/".join(exports_list)])
+    def start_rebuild(self, exports_list, cid=None, sid=None, device=None):
+        if cid is not None and sid is not None:
+            if device is not None:
+                cmds = self._rebuilder + ' -s ' + str(cid) + '/' + str(sid) + ' -d ' + str(device) + " -r " + "/".join(exports_list)
+            else:
+                cmds = self._rebuilder + ' -s ' + str(cid) + '/' + str(sid) + " -r " + "/".join(exports_list)
+        else:
+            cmds = self._rebuilder + " -r " + "/".join(exports_list)
+
+        p = subprocess.Popen(cmds, shell=True, stdin=None, stdout=None, stderr=None, close_fds=True)

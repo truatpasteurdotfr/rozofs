@@ -39,7 +39,7 @@ def __check_bool_value(value_str):
 
 
 def rebuild_start(platform, args):
-    platform.rebuild_storage_node(args.node[0])
+    platform.rebuild_storage_node(args.node[0], args.cid, args.sid, args.device)
 
 
 def option_list(platform, args):

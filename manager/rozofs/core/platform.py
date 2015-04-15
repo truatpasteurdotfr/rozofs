@@ -227,12 +227,12 @@ class Node(object):
 
         return changes
 
-    def set_rebuild(self, exports_list):
+    def set_rebuild(self, exports_list, cid, sid, device):
         if not self._try_up():
             raise Exception("%s is not reachable." % self._host)
 
         try:
-            self._proxies[Role.STORAGED].restart_with_rebuild(exports_list)
+            self._proxies[Role.STORAGED].start_rebuild(exports_list, cid, sid, device)
         except NamingError:
             raise Exception("no %s agent reachable for host: %s." % (ROLES_STR[Role.STORAGED], self._host))
         except ProtocolError:
@@ -508,19 +508,52 @@ class Platform(object):
 
         return changes
 
-    def rebuild_storage_node(self, host):
-        """ Convenient method to rebuild one storage node
+    def rebuild_storage_node(self, host, cid=None, sid=None, device=None):
+        """ Convenient method to rebuild all the storage node or only one
+            storage or device of one storage node
         Args:
             host: storage host to rebuild
+            cid: cluster id to rebuild
+            sid: storage id to rebuild
+            device: device nb. rebuild
         """
 
+        # Check if known node
         if host not in self._nodes.keys():
             raise Exception("Unknown host: %s." % host)
 
         node = self._nodes[host]
 
+        # Check if it's a storage node
         if node.has_one_of_roles(Role.STORAGED):
-            node.set_rebuild(self._export_hosts)
+
+            # Check if we rebuild all the storage node
+            if cid is None and sid is None and device is None:
+                node.set_rebuild(self._export_hosts, None, None, None)
+            else:
+                # OK we want rebuild only one storage
+
+                # Check if both cid and sid are defined
+                if cid is None or sid is None:
+                    raise Exception("cid and sid must be defined")
+
+                # Get config
+                sconfig = node.get_configurations(Role.STORAGED)
+
+                # Check if the given storage is known by this host
+                if (cid,sid) not in [(s.cid,s.sid) for s in sconfig[Role.STORAGED].storages.values()]:
+                    raise Exception("Host: %s has not storage with cid=%d and sid=%d." % (host, cid, sid))
+
+                if device is not None:
+                    # Check invalid value
+                    if device < 0:
+                        raise Exception("Device number must be greater than 0.")
+
+                    # Check if the given device is known
+                    if device >= sconfig[Role.STORAGED].storages[(cid, sid)].device_t:
+                        raise Exception("Host: %s has not a device with number=%d for storage (cid=%d,sid=%d)." % (host, device, cid, sid))
+
+                node.set_rebuild(self._export_hosts, cid, sid, device)
         else:
             raise Exception("Host: %s is not a storage node." % host)
 
