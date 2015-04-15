@@ -368,8 +368,7 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
   int        idx;
   uint64_t   sid_taken=0;
   uint64_t   host;
-  int        nb_down=0;
-  int        nb_up=0;
+  uint8_t    ms_ok = 0;;
   int        nb_selected=0; 
   int        host_collision; 
   int        decrease_size;
@@ -410,9 +409,9 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
 	continue;
       }
 
-      /* Storage down */
-      if (vs->status == 0) nb_down++;
-      else                 nb_up++;
+      /* Is there some available space on this server */
+      if (vs->status != 0 && vs->stat.free != 0)
+            ms_ok++;
 
       /*
       ** Take this guy
@@ -426,7 +425,7 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
 
       /* Enough sid found */
       if (rozofs_safe==nb_selected) {
-	if (nb_up<rozofs_forward) return -1;
+	if (ms_ok<rozofs_forward) return -1;
 	goto success;
       }	  
     }
