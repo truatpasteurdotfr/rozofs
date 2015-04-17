@@ -123,10 +123,6 @@ mkdir -p %{buildroot}%{_sysconfdir}/sysconfig/
 mkdir -p %{buildroot}/sbin
 ln -sf %{_sbindir}/mount.fuse %{buildroot}/sbin/mount.rozofs
 
-find %{buildroot} -name '*.pyc' -delete
-find %{buildroot} -name '*.pyo' -delete
-find %{buildroot} -name '*.egg-info' -delete
-
 %if 0%{?rhel} > 7
 #install init script (systemd)
 mkdir -p %{buildroot}%{_unitdir}
@@ -215,49 +211,6 @@ mkdir -p %{buildroot}%{_initrddir}
 %files manager-lib
 %defattr(-,root,root)
 %{python_sitearch}/rozofs*
-
-#%{python_sitearch}/rozofs/cli/agent.py
-#%{python_sitearch}/rozofs/cli/__init__.py
-#%{python_sitearch}/rozofs/cli/export.py
-#%{python_sitearch}/rozofs/cli/exportd.py
-#%{python_sitearch}/rozofs/cli/mount.py
-#%{python_sitearch}/rozofs/cli/node.py
-#%{python_sitearch}/rozofs/cli/output.py
-#%{python_sitearch}/rozofs/cli/exceptions.py
-#%{python_sitearch}/rozofs/cli/layout.py
-#%{python_sitearch}/rozofs/cli/storage.py
-#%{python_sitearch}/rozofs/cli/storaged.py
-#%{python_sitearch}/rozofs/cli/volume.py
-#%{python_sitearch}/rozofs/ext/__init__.py
-#%{python_sitearch}/rozofs/ext/fstab.py
-#%{python_sitearch}/rozofs/__init__.py
-#%{python_sitearch}/rozofs/core/platform.py
-#%{python_sitearch}/rozofs/core/agent.py
-#%{python_sitearch}/rozofs/core/libconfig.py
-#%{python_sitearch}/rozofs/core/storaged.py
-#%{python_sitearch}/rozofs/core/__init__.py
-#%{python_sitearch}/rozofs/core/_libconfig.so
-#%{python_sitearch}/rozofs/core/daemon.py
-#%{python_sitearch}/rozofs/core/configuration.py
-#%{python_sitearch}/rozofs/core/constants.py
-#%{python_sitearch}/rozofs/core/exportd.py
-#%{python_sitearch}/rozofs/core/rozofsmount.py
-
-
-#%exclude %{python_sitearch}/rozofs/cli/*.pyc
-#%exclude %{python_sitearch}/rozofs/ext/*.pyc
-#%exclude %{python_sitearch}/rozofs/__init__.pyc
-#%exclude %{python_sitearch}/rozofs/core/*.pyc
-
-#%if 0%{?rhel} > 7
-#%exclude %{python_sitearch}/rozofs/cli/*.pyo
-#%exclude %{python_sitearch}/rozofs/ext/*.pyo
-#%exclude %{python_sitearch}/rozofs/__init__.pyo
-#%exclude %{python_sitearch}/rozofs/core/*.pyo
-#%exclude %{python_sitearch}/rozofs_manager-@VERSION@-py2.7.egg-info
-#%else
-#%exclude %{python_sitearch}/rozofs_manager-@VERSION@-py2.6.egg-info
-#%endif
 
 %files manager-cli
 %defattr(-,root,root)

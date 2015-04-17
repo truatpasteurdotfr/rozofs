@@ -3,9 +3,6 @@ set (PREFIX "" CACHE FORCE "Prefix")
 set (SETUP "" CACHE FORCE "Path to setup.py")
 set (DEBIAN "" CACHE FORCE "Debian layout")
 set (MANIFEST "" CACHE FORCE "Manifest file")
-
-set (PYTHON "" CACHE FORCE "python exec")
-
 set (INSTALL_ROOT $ENV{DESTDIR})
 set (EXTRA_ARGS "")
 
