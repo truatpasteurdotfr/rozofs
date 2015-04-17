@@ -18,85 +18,111 @@
 #                    provides the geo-replication functionality.
 ### END INIT INFO
 
-
-DAEMON=/usr/bin/geomgr
-NAME=geomgr
-PIDFILE=/var/run/launcher_${NAME}.pid
-LAUNCHER=/usr/bin/rozolauncher
+exec=/usr/bin/geomgr
+prog=rozofs-geomgr
+pidfile=/var/run/launcher_geomgr.pid
+launcher=/usr/bin/rozolauncher
 
 # Source function library.
-if [ -f /lib/lsb/init-functions ]; then
-    . /lib/lsb/init-functions
-    alias START_DAEMON=start_daemon
-    alias STATUS=geomgr_status
-    alias LOG_SUCCESS=log_success_msg
-    alias LOG_FAILURE=log_failure_msg
-    alias LOG_WARNING=log_warning_msg
-elif [ -f /etc/init.d/functions ]; then
-    . /etc/init.d/functions
-    alias START_DAEMON=daemon
-    alias STATUS=status
-    alias LOG_SUCCESS=success
-    alias LOG_FAILURE=failure
-    alias LOG_WARNING=passed
-else
-    echo "Error: your platform is not supported by $0" > /dev/stderr
-    exit 1
-fi
+. /etc/rc.d/init.d/functions
 
-do_status () {
-
-    if [ -f $PIDFILE ];
-    then 
-      return 0 
-    else
-      return 3
-    fi
-}
-
-# stop the daemon/service
-do_stop()
+rh_status()
 {
-    $LAUNCHER stop $PIDFILE
-    return 0
+  # run checks to determine if the service is running or use generic status
+  status -p "$pidfile" "$exec"
 }
 
-do_start()
+rh_status_q()
 {
-    $LAUNCHER start $PIDFILE $DAEMON $DAEMON_ARGS &
-    return 0
+  rh_status >/dev/null 2>&1
 }
 
+start()
+{
+  # user had insufficient privilege
+  if [ $UID -ne 0 ] ; then
+      echo "User has insufficient privilege."
+      exit 4
+  fi
+
+  # program is not installed
+  [ -x $exec ] || exit 5
+  [ -x $launcher ] || exit 5
+
+  echo -n $"Starting $prog: "
+
+  # Check the configuration
+  $exec $exec_args -C
+
+  $launcher start $pidfile $exec $exec_args &
+  success
+  echo
+  return 0
+}
+
+stop()
+{
+  # user had insufficient privilege
+  if [ $UID -ne 0 ] ; then
+      echo "User has insufficient privilege."
+      exit 4
+  fi
+
+  echo -n $"Stopping $prog: "
+
+  $launcher stop $pidfile
+
+  success
+  echo
+
+  return 0
+}
+
+restart()
+{
+  rh_status_q && stop
+  start
+}
+
+force_reload()
+{
+  # new configuration takes effect after restart
+  restart
+}
 
 case "$1" in
-    start|restart|force-reload)
-        echo -n "$1 $NAME"
-        
-        do_start
 
-        case "$?" in
-            0|1) LOG_SUCCESS ;;
-            *)   LOG_FAILURE ;;
-        esac
-        ;;
-    status) do_status;;
-    
-    stop)
-        echo -n "Stopping $NAME"
-        
-        do_stop
+  start)
+    rh_status_q && exit 0
+    start
+    ;;
 
-        case "$?" in
-            0|1) LOG_SUCCESS ;;
-            2)   LOG_FAILURE ;;
-        esac
-        ;;
-    *)
+  restart)
+    restart
+    ;;
 
-    LOG_WARNING "Usage: $0 {start|stop|restart|force-reload}" >&2
-    exit 3
+  status)
+    rh_status
+    ;;
+
+  force-reload)
+    force_reload
+    ;;
+
+  stop)
+    rh_status_q || exit 0
+    stop
+    ;;
+
+  condrestart|try-restart)
+    rh_status_q || exit 0
+    restart
+    ;;
+
+  *)
+    echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|force-reload}"
+    exit 2
     ;;
 esac
 
-:
-
+exit $?

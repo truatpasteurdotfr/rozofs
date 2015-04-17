@@ -45,7 +45,14 @@ find_package(FUSE REQUIRED)
 find_package(READLINE REQUIRED)
 find_package(SWIG REQUIRED)
 find_package(Doxygen QUIET)
+
 find_program(PYTHON NAMES python2.7)
+if(NOT PYTHON)
+  find_program(PYTHON NAMES python2.6)
+endif(NOT PYTHON)
+
+MESSAGE( STATUS "python version:         " ${PYTHON} )
+
 find_program(DEBUILD NAMES debuild)
 find_program(DEBUILD NAMES debuild)
 find_program(MAKEINFO NAMES makeinfo)
