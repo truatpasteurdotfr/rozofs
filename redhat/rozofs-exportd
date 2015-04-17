@@ -22,6 +22,7 @@ RETVAL=0
 exec=/usr/bin/exportd
 prog="rozofs-exportd"
 pidfile=/var/run/exportd.pid
+launcher=/usr/bin/rozolauncher
 config=/etc/rozofs/export.conf
 
 # Source function library.
@@ -48,6 +49,7 @@ start()
 
   # program is not installed
   [ -x $exec ] || exit 5
+  [ -x $launcher ] || exit 5
 
   # program is not configured
   [ -f $config ] || exit 6

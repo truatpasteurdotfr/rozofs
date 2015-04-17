@@ -20,6 +20,7 @@
 
 
 exec=/usr/bin/storaged
+storio=/usr/bin/storio
 prog=rozofs-storaged
 pidfile=/var/run/launcher_${prog}.pid
 launcher=/usr/bin/rozolauncher
@@ -49,6 +50,8 @@ start()
 
   # program is not installed
   [ -x $exec ] || exit 5
+  [ -x $launcher ] || exit 5
+  [ -x $storio ] || exit 5
 
   # program is not configured
   [ -f $config ] || exit 6
