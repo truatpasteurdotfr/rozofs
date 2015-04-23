@@ -50,6 +50,206 @@ struct  sockaddr_un storio_north_socket_name;
 int storio_disk_thread_create(char * hostname, int nb_threads, int instance_id) ;
  
 
+#define STORIO_THROUGHPUT_COUNTERS_NB    64
+typedef struct _storio_throughput_counter_t {
+  uint64_t     ts;
+  uint64_t     count;
+} storio_throughput_counter_t;
+
+storio_throughput_counter_t storio_read_throughput[STORIO_THROUGHPUT_COUNTERS_NB];
+storio_throughput_counter_t storio_write_throughput[STORIO_THROUGHPUT_COUNTERS_NB];
+int storio_throughput_enable = 0;
+
+/*_______________________________________________________________________
+* Update a read thoughput counter
+*
+* @param t        the time in seconds
+* @param count    Number of bytes that have been just read
+*/
+static inline void storio_update_read_counter(uint32_t t, uint64_t count) {
+  int    rank;
+
+  if (storio_throughput_enable==0) return;
+  
+  rank = t % STORIO_THROUGHPUT_COUNTERS_NB;
+  
+  if (storio_read_throughput[rank].ts == t) {
+    storio_read_throughput[rank].count += count;
+  }
+  else {
+    storio_read_throughput[rank].ts    = t;
+    storio_read_throughput[rank].count = count;
+  }
+}
+/*_______________________________________________________________________
+* Update a write thoughput counter
+*
+* @param t        the time in seconds
+* @param count    Number of bytes that have been just read
+*/
+static inline void storio_update_write_counter(uint32_t t, uint64_t count) {
+  int    rank;
+  
+  if (storio_throughput_enable==0) return;
+  
+  rank = t % STORIO_THROUGHPUT_COUNTERS_NB;
+  
+  if (storio_write_throughput[rank].ts == t) {
+    storio_write_throughput[rank].count += count;
+  }
+  else {
+    storio_write_throughput[rank].ts    = t;
+    storio_write_throughput[rank].count = count;
+  }
+}
+
+/*_______________________________________________________________________
+* Display throughput counters
+*
+* @param pChar    Where to format the ouput
+*/
+void display_throughput (char * argv[], uint32_t tcpRef, void *bufRef) {
+  uint32_t t;
+  struct timeval tv;
+  int    rank;
+  int    idx,line,col;
+  char * pChar = uma_dbg_get_buffer();
+  uint64_t sum_read[6]={0};
+  uint64_t sum_write[6]={0};
+  storio_throughput_counter_t *p;
+  uint32_t COLS=4;
+  uint32_t LINES;
+  
+  if ((argv[1] != NULL) && (strcasecmp(argv[1],"enable")==0)) {
+    storio_throughput_enable = 1;
+    pChar += rozofs_string_append(pChar,"troughput measurement enabled\n");
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  
+  if ((argv[1] != NULL) && (strcasecmp(argv[1],"disable")==0)) {
+    storio_throughput_enable = 0;
+    pChar += rozofs_string_append(pChar,"troughput measurement disabled\n");
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }  
+  
+  if (argv[1] != NULL) {
+    int ret = sscanf(argv[1],"%u",&COLS);
+    if (ret!=1) {
+      pChar += rozofs_string_append(pChar,"troughput {enable|disable]\ntroughput [nb columns]\n");    
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;
+    }
+    if (COLS>6) COLS = 6;
+  }
+  LINES=60/COLS;
+  
+  if (storio_throughput_enable == 0) {
+    pChar += rozofs_string_append(pChar,"troughput measurement is disabled\n");
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+    return;
+  }
+  
+  
+  gettimeofday(&tv,(struct timezone *)0);
+  t = tv.tv_sec-1;
+  rank = t % STORIO_THROUGHPUT_COUNTERS_NB;
+  
+  ctime_r((const time_t *)&t,pChar);
+  pChar += strlen(uma_dbg_get_buffer());
+
+  for (col=0; col<COLS; col++) {
+    pChar += rozofs_string_append(pChar," _____ _________ _________ ");
+  }  
+  pChar += rozofs_eol(pChar);
+
+  for (col=0; col<COLS; col++) {  
+    pChar += rozofs_string_append(pChar,"| T.S |  Read   |  Write  |");
+  }  
+  pChar += rozofs_eol(pChar);
+
+  for (col=0; col<COLS; col++) {  
+    pChar += rozofs_string_append(pChar,"|_____|_________|_________|");
+  }  
+  pChar += rozofs_eol(pChar);
+     
+
+  
+  for (line=0; line< LINES; line++) {
+    
+    for (col=0; col<COLS; col++) {
+    
+      idx = (STORIO_THROUGHPUT_COUNTERS_NB+rank-line-(col*LINES))%STORIO_THROUGHPUT_COUNTERS_NB;
+
+      pChar += rozofs_string_append(pChar,"|");
+      pChar += rozofs_i32_padded_append(pChar, 4, rozofs_right_alignment, -1-line-(col*LINES));
+      pChar += rozofs_string_append(pChar," | ");
+
+      p = &storio_read_throughput[idx];
+      if (p->ts == (t-line-(col*LINES))) {
+ 	sum_read[col] += p->count;     
+	pChar += rozofs_bytes_padded_append(pChar,7, p->count);
+	pChar += rozofs_string_append(pChar," | ");
+      }
+      else {
+	pChar += rozofs_string_append(pChar,"        | ");
+      }    
+      
+      p = &storio_write_throughput[idx];
+      if (p->ts == (t-line-(col*LINES))) {
+ 	sum_write[col] += p->count;         
+	pChar += rozofs_bytes_padded_append(pChar,7, p->count);    
+	pChar += rozofs_string_append(pChar," |");
+      }
+      else {
+	pChar += rozofs_string_append(pChar,"        |");
+      }
+    }
+    pChar += rozofs_eol(pChar);  
+  }
+  
+  for (col=0; col<COLS; col++) {  
+    pChar += rozofs_string_append(pChar,"|_____|_________|_________|");
+  }  
+  pChar += rozofs_eol(pChar);
+  
+  for (col=0; col<COLS; col++) {
+    pChar += rozofs_string_append(pChar,"| Avg | ");
+    pChar += rozofs_bytes_padded_append(pChar,7, sum_read[col]/LINES);
+    pChar += rozofs_string_append(pChar," | ");
+    pChar += rozofs_bytes_padded_append(pChar,7, sum_write[col]/LINES);
+    pChar += rozofs_string_append(pChar," |");        
+  }
+  pChar += rozofs_eol(pChar);
+    
+  for (col=0; col<COLS; col++) {  
+    pChar += rozofs_string_append(pChar,"|_____|_________|_________|");
+  }  
+  pChar += rozofs_eol(pChar);
+
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+  return;   
+}
+/*_______________________________________________________________________
+* Initialize the thoughput measurement service
+*
+*/
+void storio_throughput_counter_init(void) {
+
+  storio_throughput_enable = 0;
+    
+  /*
+  ** Initialize counters
+  */
+  memset(storio_read_throughput,0,sizeof(storio_read_throughput));
+  memset(storio_write_throughput,0,sizeof(storio_write_throughput)); 
+  
+  /*
+  ** Register the diagnostic function
+  */
+  uma_dbg_addTopic("throughput", display_throughput); 
+}
 
 /*__________________________________________________________________________
   Trace level debug function
@@ -321,6 +521,7 @@ uint32_t af_unix_disk_rcvReadysock(void * unused,int socketId)
 {
   return TRUE;
 }
+
 /*
 **__________________________________________________________________________
 */
@@ -352,13 +553,15 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     {
       STOP_PROFILING_IO(read,msg->size);
       update_read_detailed_counters(toc - tic);      
+      storio_update_read_counter(tv.tv_sec,msg->size);        
       break;
     }  
 
     case STORIO_DISK_THREAD_WRITE:{
     
       STOP_PROFILING_IO(write,msg->size);
-      update_write_detailed_counters(toc - tic);            
+      update_write_detailed_counters(toc - tic);  
+      storio_update_write_counter(tv.tv_sec,msg->size);                         
       break;     
     }  
         
@@ -371,7 +574,7 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     case STORIO_DISK_THREAD_WRITE_REPAIR:
     {
       STOP_PROFILING_IO(repair,msg->size);
-      update_write_detailed_counters(toc - tic);            
+      update_write_detailed_counters(toc - tic); 
       break;
     }  
           
@@ -726,6 +929,11 @@ void af_unix_disk_scheduler_entry_point(uint64_t current_time)
 *  @retval 0 on success -1 in case of error
 */
 int storio_disk_thread_intf_create(char * hostname, int instance_id, int nb_threads) {
+
+  /*
+  ** Initialize throughput compute diagnostic service
+  */
+  storio_throughput_counter_init(); 
 
   af_unix_disk_thread_count = nb_threads;
 
