@@ -22,7 +22,7 @@
 exec=/usr/bin/storaged
 storio=/usr/bin/storio
 prog=rozofs-storaged
-pidfile=/var/run/launcher_${prog}.pid
+pidfile=/var/run/launcher_storaged.pid
 launcher=/usr/bin/rozolauncher
 config=/etc/rozofs/storage.conf
 
