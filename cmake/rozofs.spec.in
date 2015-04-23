@@ -156,7 +156,7 @@ mkdir -p %{buildroot}%{_initrddir}
 %{_bindir}/rozo_warnquota
 %{_bindir}/rozo_setquota
 %{_bindir}/rozo_repquota
-%{_sysconfdir}/rozofs/export.conf
+%config(noreplace) %{_sysconfdir}/rozofs/export.conf
 %{_sysconfdir}/rozofs/export.conf.sample
 %if 0%{?rhel} > 7
 %{_unitdir}/rozofs-exportd.service
@@ -179,7 +179,7 @@ mkdir -p %{buildroot}%{_initrddir}
 %{_bindir}/storage_rebuild
 %{_bindir}/storage_list_rebuilder
 %{_bindir}/rozodump
-%{_sysconfdir}/rozofs/storage.conf
+%config(noreplace) %{_sysconfdir}/rozofs/storage.conf
 %{_sysconfdir}/rozofs/storage.conf.sample
 %if 0%{?rhel} > 7
 %{_unitdir}/rozofs-storaged.service
@@ -222,7 +222,7 @@ mkdir -p %{buildroot}%{_initrddir}
 %if 0%{?rhel} > 7
 %{_unitdir}/rozofs-manager-agent.service
 %else
-%{_sysconfdir}/sysconfig/rozofs-manager-agent
+%config(noreplace) %{_sysconfdir}/sysconfig/rozofs-manager-agent
 %{_initrddir}/rozofs-manager-agent
 %endif
 
@@ -296,6 +296,9 @@ fi
 %endif
 
 %changelog
+
+* Thu Apr 23 2015 RozoFS <devel@rozofs.org> 2.0.alpha20-1
+- Added directive %config(noreplace) for configuration files
 
 * Fri Apr 17 2015 RozoFS <devel@rozofs.org> 2.0.alpha19-1
 - Updated for RozoFS release 2 (with packaging for rozo and geocli)
