@@ -7,7 +7,6 @@
 /usr/lib/python2.7/dist-packages/rozofs/cli/mount.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/node.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/output.py
-/usr/lib/python2.7/dist-packages/rozofs/cli/storage.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/storaged.py
 /usr/lib/python2.7/dist-packages/rozofs/cli/volume.py
 /usr/lib/python2.7/dist-packages/rozofs/ext/__init__.py
