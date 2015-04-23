@@ -112,7 +112,7 @@ void display_throughput (char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t t;
   struct timeval tv;
   int    rank;
-  int    idx,line,col,k;
+  int    idx,line,col;
   char * pChar = uma_dbg_get_buffer();
   uint64_t sum_read[6]={0};
   uint64_t sum_write[6]={0};
@@ -235,7 +235,7 @@ void display_throughput (char * argv[], uint32_t tcpRef, void *bufRef) {
 * Initialize the thoughput measurement service
 *
 */
-int storio_throughput_counter_init(void) {
+void storio_throughput_counter_init(void) {
 
   storio_throughput_enable = 0;
     
