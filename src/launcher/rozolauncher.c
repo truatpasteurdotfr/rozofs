@@ -75,6 +75,19 @@ void rozolauncher_catch_signal(int sig){
 }
 /*
  *_______________________________________________________________________
+ * When receiving a hangup this handler propagates it to its child
+ */
+void rozolauncher_catch_hup(int sig){
+  
+  /*
+  ** Propagate hangup to the child
+  */
+  if (child_pid) kill(child_pid,SIGHUP);
+  
+  signal(SIGHUP,rozolauncher_catch_hup);
+}
+/*
+ *_______________________________________________________________________
  */
 void rozolauncher_catch_sigpipe(int s){
   signal(SIGPIPE,rozolauncher_catch_sigpipe);
@@ -147,8 +160,10 @@ int rozolauncher_reload(char * pid_file) {
 #ifdef LAUNCHER_TRACE
   info("reload process %d %s",pid,pid_file);
 #endif 
-  
-  return kill(pid,SIGUSR1);
+  /*
+  ** send a hangup signal to the process
+  */
+  return kill(pid,SIGHUP);
 }
 /*
  *_______________________________________________________________________
@@ -318,7 +333,11 @@ int main(int argc, char *argv[]) {
    * process when a TCP connexion is down
    */   
   signal (SIGPIPE,rozolauncher_catch_sigpipe);
-
+  
+  /*
+  ** Add a handler for hangup  
+  */
+  signal (SIGHUP,rozolauncher_catch_hup);
   
   /*
   ** Never ending loop
