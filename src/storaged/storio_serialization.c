@@ -356,12 +356,23 @@ void storio_serialization_end(storio_device_mapping_t * dev_map_p, rozorpc_srv_c
 
     req = list_entry(p, rozorpc_srv_ctx_t, list);
 
+    /*
+    ** No running request. This request can be unqueued
+    */
     if (list_empty(&dev_map_p->running_request)) {
       storio_serialization_unqueue_run(dev_map_p,req, toc);
+      /*
+      ** When 1rst dequeued request is excluse, 
+      ** no need to consider the following requests
+      */
+      if (storio_is_request_exclusive(dev_map_p,req)) {
+        return;
+      }
       continue;
     }
 
     /*
+    ** There are some already running requets.
     ** Check if this request is exclusive
     */
     if (storio_is_request_exclusive(dev_map_p,req)) {

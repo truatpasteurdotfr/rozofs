@@ -611,7 +611,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
 
 
 /*
- ** Find out the directory absolute path where to write the projection file in.
+ ** Find the name of the chunk file.
     
   @param st        : storage we are looking on
   @param device_id : the device_id the file resides on or -1 when unknown
@@ -623,7 +623,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
   @param path      : The returned absolute path
   @param version   : current header file format version
 
-  @retval The number of header file that have been written successfuly
+  @retval The file name or NULL
   
  */	  
 char *storage_dev_map_distribution_write(storage_t * st, 
@@ -636,18 +636,21 @@ char *storage_dev_map_distribution_write(storage_t * st,
 					 uint8_t spare, 
 					 char *path, 
 					 int version) {
-    int                       result;
+    int                         result;
     rozofs_stor_bins_file_hdr_t file_hdr;
-    int                       storage_slice;
-    STORAGE_READ_HDR_RESULT_E read_hdr_res;
-    
-    DEBUG_FUNCTION;
-    
+    STORAGE_READ_HDR_RESULT_E   read_hdr_res;
+    int                         storage_slice = rozofs_storage_fid_slice(fid); 
+    uint8_t                     dev;       
+
     /*
-    ** A real device is given as input, so use it
+    ** A valid device is given as input, so use it
     */
     if ((device[chunk] != ROZOFS_EOF_CHUNK)&&(device[chunk] != ROZOFS_EMPTY_CHUNK)&&(device[chunk] != ROZOFS_UNKNOWN_CHUNK)) {
-       goto success;
+      /*
+      ** Build the chunk file name using the valid device id given in the device array
+      */
+      storage_build_chunk_full_path(path, st->root, device[chunk], spare, storage_slice, fid, chunk);
+      return path;  
     }   
 
     /*
@@ -666,13 +669,25 @@ char *storage_dev_map_distribution_write(storage_t * st,
     ** Header file has been read
     */
     if (read_hdr_res == STORAGE_READ_HDR_OK) {
-         
+       
+      dev = file_hdr.v0.device[chunk];
+      
       /*
       ** A device is already allocated for this chunk.
       */
-      if ((file_hdr.v0.device[chunk] != ROZOFS_EOF_CHUNK)&&(file_hdr.v0.device[chunk] != ROZOFS_EMPTY_CHUNK)) {
+      if ((dev != ROZOFS_EOF_CHUNK)&&(dev != ROZOFS_EMPTY_CHUNK)) {
+      
+	 /*
+	 ** Build the chunk file name using the device id read from the header file
+	 */
+	 storage_build_chunk_full_path(path, st->root, dev, spare, storage_slice, fid, chunk);
+	 
+         /*
+	 ** Update input device array from the read header file
+	 */
          memcpy(device,file_hdr.v0.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
-	 goto success;
+	 
+	 return path;
       }   
       
       /*
@@ -719,14 +734,11 @@ char *storage_dev_map_distribution_write(storage_t * st,
     /*
     ** Allocate a device for this newly written chunk
     */
-    file_hdr.v0.device[chunk] = storio_device_mapping_allocate_device(st); 
-    memcpy(device,file_hdr.v0.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
-    
-    //dbg("%d/%d Allocate device %d for chunk %d", st->cid, st->sid, device[chunk], chunk);
-     
-
+    dev = storio_device_mapping_allocate_device(st);
+    file_hdr.v0.device[chunk] = dev; 
+        
     /*
-    ** Write the header files on disk 
+    ** (re)Write the header files on disk 
     */
     result = storage_write_all_header_files(st, fid, spare, &file_hdr);        
     /*
@@ -744,9 +756,17 @@ char *storage_dev_map_distribution_write(storage_t * st,
       return NULL;
     }       
     
-success: 
-    storage_slice = rozofs_storage_fid_slice(fid);
-    storage_build_bins_path(path, st->root, device[chunk], spare, storage_slice);
+
+    /*
+    ** Build the chunk file name using the newly allocated device id
+    */
+    storage_build_chunk_full_path(path, st->root, dev, spare, storage_slice, fid, chunk);
+    
+    /*
+    ** Update input device array from header file
+    */
+    memcpy(device,file_hdr.v0.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+    
     return path;            
 }
 
@@ -1205,22 +1225,12 @@ open:
       open_flags = ROZOFS_ST_BINS_FILE_FLAG;
     }        
  
-    // Build the full path of directory that contains the bins file
+    // Build the chunk file name 
     if (storage_dev_map_distribution_write(st, device, chunk, bsize, 
                                           fid, layout, dist_set, 
 					  spare, path, 0) == NULL) {
       goto out;      
     }  
-    
-    // Check that this directory already exists, otherwise it must be created
-    if (storage_create_dir(path) < 0) {
-      storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);
-      storage_error_on_device(st,device[chunk]);
-      goto out;
-    }
-
-    // Build the path of bins file
-    storage_build_chunk_path(path, fid, chunk);
 
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
@@ -1384,22 +1394,12 @@ open:
       open_flags = ROZOFS_ST_BINS_FILE_FLAG;
     }        
  
-    // Build the full path of directory that contains the bins file
+    // Build the chunk file name
     if (storage_dev_map_distribution_write(st, device, chunk, bsize, 
                                           fid, layout, dist_set, 
 					  spare, path, 0) == NULL) {
       goto out;      
     }  
-    
-    // Check that this directory already exists, otherwise it must be created
-    if (storage_create_dir(path) < 0) {
-      storio_fid_error(fid, device[chunk], chunk, bid, nb_proj);    
-      storage_error_on_device(st,device[chunk]);
-      goto out;
-    }
-
-    // Build the path of bins file
-    storage_build_chunk_path(path, fid, chunk);
         
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
@@ -1811,21 +1811,12 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
       open_flags = ROZOFS_ST_NO_CREATE_FILE_FLAG;
     }
     
+    // Build the chunk file name
     if (storage_dev_map_distribution_write(st, file_hdr.v0.device, chunk, bsize, 
                                           fid, layout, dist_set, 
 					  spare, path, 0) == NULL) {
       goto out;      
     }   
-
-    // Check that this directory already exists, otherwise it will be create
-    if (storage_create_dir(path) < 0) {
-      storio_fid_error(fid, device[chunk], chunk, bid, last_seg); 		    
-      storage_error_on_device(st,file_hdr.v0.device[chunk]);
-      goto out;
-    }   
-
-    // Build the path of bins file
-    storage_build_chunk_path(path, fid, chunk);
 
     // Open bins file
     fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
