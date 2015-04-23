@@ -977,76 +977,122 @@ static inline int rozofs_ipv4_port_append(char * pChar, uint32_t ip, uint16_t po
 *  @param value         Value in bytes to display
 *  @param value_string  String where to format the value
 */
+#define DIX  10ULL
+#define CENT 100ULL
+#define KILO 1000ULL
+#define MEGA (KILO*KILO)
+#define GIGA (KILO*MEGA)
+#define PETA (KILO*GIGA)
 static inline int rozofs_bytes_padded_append(char * value_string, int size, uint64_t value) {
   uint64_t   modulo=0;
   char     * pt = value_string;
   int        sz;  
   
-  if (value<1000) {
-    pt += rozofs_u64_append(pt,value);
-    pt += rozofs_string_append(pt," Bytes");
+  if (value<KILO) {
+    pt += rozofs_u64_padded_append(pt,4, rozofs_right_alignment, value);
+    pt += rozofs_string_append(pt,"  B");
     goto out;  		    
   }
   
-  if (value<1000000) {
+  if (value<MEGA) {
   
-    if (value>99000) {
-      pt += rozofs_u64_append(pt,value/1000);
+    if (value>=(CENT*KILO)) {
+      pt += rozofs_u64_padded_append(pt,4,rozofs_right_alignment,value/KILO);
       pt += rozofs_string_append(pt," KB");
       goto out;    		    
     }
     
-    modulo = (value % 1000) / 100;
-    pt += rozofs_u64_append(pt,value/1000);
+    if (value>=(DIX*KILO)) {    
+      modulo = (value % KILO) / CENT;
+      pt += rozofs_u64_padded_append(pt,2,rozofs_right_alignment,value/KILO);
+      *pt++ = '.';
+      pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+      pt += rozofs_string_append(pt," KB");
+      goto out;
+    }  
+    
+    modulo = (value % KILO) / DIX;
+    pt += rozofs_u64_padded_append(pt,1,rozofs_right_alignment,value/KILO);
     *pt++ = '.';
-    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_u32_padded_append(pt,2,rozofs_zero,modulo);
     pt += rozofs_string_append(pt," KB");
-    goto out; 
-  }
-  
-  if (value<1000000000) {
-  
-    if (value>99000000) {
-      pt += rozofs_u64_append(pt,value/1000000);
-      pt += rozofs_string_append(pt," MB");
-      goto out;  		    
-    }
-    
-    modulo = (value % 1000000) / 100000;
-    pt += rozofs_u64_append(pt,value/1000000);
-    *pt++ = '.';
-    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
-    pt += rozofs_string_append(pt," MB");
-    goto out; 
-  }
-    
-  if (value<1000000000000) {
-  
-    if (value>99000000000) {
-      pt += rozofs_u64_append(pt,value/1000000000);
-      pt += rozofs_string_append(pt," GB");
-      goto out; 		    
-    }
-    
-    modulo = (value % 1000000000) / 100000000;
-    pt += rozofs_u64_append(pt,value/1000000000);
-    *pt++ = '.';
-    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
-    pt += rozofs_string_append(pt," GB");
-    goto out; 	  
-  }  
-  
-  if (value>99000000000000) {
-    pt += rozofs_u64_append(pt,value/1000000000000);
-    pt += rozofs_string_append(pt," PB");
     goto out;    
+     
+  }
+  
+  if (value<GIGA) {
+  
+    if (value>=(CENT*MEGA)) {
+      pt += rozofs_u64_padded_append(pt,4,rozofs_right_alignment,value/MEGA);
+      pt += rozofs_string_append(pt," MB");
+      goto out;    		    
+    }
+    
+    if (value>=(DIX*MEGA)) {    
+      modulo = (value % MEGA) / (CENT*KILO);
+      pt += rozofs_u64_padded_append(pt,2,rozofs_right_alignment,value/MEGA);
+      *pt++ = '.';
+      pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+      pt += rozofs_string_append(pt," MB");
+      goto out;
+    }  
+    
+    modulo = (value % MEGA) / (DIX*KILO);
+    pt += rozofs_u64_padded_append(pt,1,rozofs_right_alignment,value/MEGA);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,2,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," MB");
+    goto out;    
+     
   }  
+  
+  if (value<PETA) {
+  
+    if (value>=(CENT*GIGA)) {
+      pt += rozofs_u64_padded_append(pt,4,rozofs_right_alignment,value/GIGA);
+      pt += rozofs_string_append(pt," GB");
+      goto out;    		    
+    }
+    
+    if (value>=(DIX*GIGA)) {    
+      modulo = (value % GIGA) / (CENT*MEGA);
+      pt += rozofs_u64_padded_append(pt,2,rozofs_right_alignment,value/GIGA);
+      *pt++ = '.';
+      pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+      pt += rozofs_string_append(pt," GB");
+      goto out;
+    }  
+    
+    modulo = (value % GIGA) / (DIX*MEGA);
+    pt += rozofs_u64_padded_append(pt,1,rozofs_right_alignment,value/GIGA);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,2,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," GB");
+    goto out;    
+     
+  }  
+    
+  if (value>=(CENT*PETA)) {
+    pt += rozofs_u64_padded_append(pt,4,rozofs_right_alignment,value/PETA);
+    pt += rozofs_string_append(pt," PB");
+    goto out; 		    
+  }
+  if (value>=(DIX*PETA)) {    
+    modulo = (value % PETA) / (CENT*GIGA);
+    pt += rozofs_u64_padded_append(pt,2,rozofs_right_alignment,value/PETA);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," PB");
+    goto out;
+  }     
 
-  modulo = (value % 1000000000000) / 100000000000;
-  pt += rozofs_u64_append(pt,value/1000000000000);
+  modulo = (value % PETA) / (DIX*GIGA);
+  pt += rozofs_u64_padded_append(pt,1,rozofs_right_alignment,value/PETA);
   *pt++ = '.';
-  pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);      
-  pt += rozofs_string_append(pt," PB");   
+  pt += rozofs_u32_padded_append(pt,2,rozofs_zero,modulo);
+  pt += rozofs_string_append(pt," PB");
+  goto out; 	  
+  
   
 out:
   sz = pt-value_string; 
