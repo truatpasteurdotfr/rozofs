@@ -179,6 +179,7 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   struct statfs sfs;
   char          path[FILENAME_MAX];
   char        * pChar = path;
+  uint64_t      threashold;
   
   pChar += rozofs_string_append(pChar, root);
   *pChar++ ='/';
@@ -196,7 +197,7 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
     }    
     return -1;
   }
-  
+
   /*
   ** Get statistics
   */
@@ -204,7 +205,7 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
     *diagnostic = DEV_DIAG_FAILED_FS;    
     return -1;
   }  
-  
+
   /*
   ** Check we can see an X file. 
   ** This would mean that the device is not mounted
@@ -213,12 +214,12 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   if (access(path,F_OK) == 0) {
     *diagnostic = DEV_DIAG_UNMOUNTED;
     return -1;
-  }
-
+  }  
 
   *size = sfs.f_blocks;
   *bs   = sfs.f_bsize;
   
+  // Less than 100 inodes !!!
   if (sfs.f_ffree < 100) {
     *diagnostic = DEV_DIAG_INODE_DEPLETION;
     *free  = 0;    
@@ -226,7 +227,14 @@ static inline int storio_device_monitor_get_free_space(char *root, int dev, uint
   }   
   
   *free = sfs.f_bfree;
-  if (*free < 1000) {  
+
+  /*
+  ** Under a given limit, say there is no space left
+  */
+  threashold = *size;
+  threashold /= 1024;
+  if (threashold > 1024) threashold =  1024;
+  if (*free < threashold) {  
     *free  = 0;   
     *diagnostic = DEV_DIAG_BLOCK_DEPLETION;
     return 0;

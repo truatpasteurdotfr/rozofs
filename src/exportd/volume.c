@@ -437,8 +437,9 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
   
 success:
 
-  decrease_size = (256*3*1024)/rozofs_forward;
 
+  decrease_size = (128*1024*1024)/rozofs_safe;
+  
   /*
   ** Decrease the estimated free size of the selected storages
   */
@@ -452,12 +453,18 @@ success:
     if ((sid_taken & (1ULL<<idx))==0) continue;
 
     idx++;
-    if (vs->stat.free > decrease_size) {
+    if (vs->stat.free > (256*decrease_size)) {
       vs->stat.free -= decrease_size;
     }
+    else if (vs->stat.free > (64*decrease_size)) {
+      vs->stat.free -= (decrease_size/2);      
+    }
+    else if (vs->stat.free > decrease_size) {
+      vs->stat.free -= (decrease_size/8);
+    }
     else {
-      vs->stat.free = 0;
-    }  
+      vs->stat.free /= 2;
+    }
     if (idx>=rozofs_forward) break;
   }
   

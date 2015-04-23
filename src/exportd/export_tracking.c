@@ -859,6 +859,8 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     int status = -1;
     struct statfs stfs;
     volume_stat_t vstat;
+    uint64_t      used;
+    uint64_t      free;
     START_PROFILING_EID(export_stat,e->eid);
     
     export_fstat_t * estats = export_fstat_get_stat(e->eid);
@@ -872,30 +874,55 @@ int export_stat(export_t * e, ep_statfs_t * st) {
     //st->namemax = stfs.f_namelen;
     st->namemax = ROZOFS_FILENAME_MAX;
     st->ffree = stfs.f_ffree;
-    st->blocks = estats->blocks;
+    st->files = estats->files;    
+
     volume_stat(e->volume, &vstat);
 
-    /* Volume statistics are given on 1024 block units */
-    vstat.bfree /= (4<<e->bsize);
-
-    if (e->hquota > 0) {
-        if (e->hquota < vstat.bfree) {
-            st->bfree = e->hquota - st->blocks;
-        } else {
-            st->bfree = vstat.bfree - st->blocks;
-        }
-    } else {
-        st->bfree = vstat.bfree;
+    /* 
+    ** TNumber of blocks on the volume
+    */
+    st->blocks = vstat.blocks;
+    st->blocks /= (4<<e->bsize);
+        
+    /*
+    ** Number of free blocks on the volume
+    */
+    free = vstat.bfree;
+    free /= (4<<e->bsize);
+    
+    /* 
+    ** Do not show more free blocks than total blocks !
+    */
+    if (free > st->blocks) {
+      free = st->blocks;
     }
-    //st->bfree = e->hquota > 0 && e->hquota < vstat.bfree ? e->hquota : vstat.bfree;
-    // blocks store in export stat file is the number of currently stored blocks
-    // blocks in estat_t is the total number of blocks (see struct statvfs)
-    // rozofs does not have a constant total number of blocks
-    // it depends on usage made of storage (through other services)
-    st->blocks += st->bfree;
-    st->files = estats->files;
+    
+    /*
+    ** No quota. Every single available block of the 
+    ** volume can be used by this export
+    */
+    if (e->hquota == 0) {
+      st->bfree = free;
+      status = 0;
+      goto out;
+    }
 
+    /*
+    ** When some quota are defined, not all the volume 
+    ** can be used by this export
+    */
+    if (e->hquota < st->blocks) {
+      st->blocks = e->hquota;
+    }
+
+    used = estats->blocks; // Written blocks of data
+    st->bfree = st->blocks - used;
+
+    if (st->bfree > free) {
+      st->bfree = free;
+    }      
     status = 0;
+    
 out:
     STOP_PROFILING_EID(export_stat,e->eid);
     return status;
