@@ -5,7 +5,7 @@
 # Description: Manages RozoFS exportd daemon as an OCF resource in 
 #               an High Availability setup.
 #
-# Author: Sylvain DAVID <sylvain.david@rozofs.com>
+# Author: Fizians SAS <devel@rozofs.org>
 # License: GNU General Public License 2 (GPL 2)
 #
 #
