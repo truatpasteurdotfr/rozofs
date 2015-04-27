@@ -45,6 +45,7 @@ int rozofs_storcli_read_write_buf_sz= 0;      /**<read:write buffer size on nort
 void *storcli_north_buffer_pool_p = NULL;  /**< reference of the read/write buffer pool */
  
 
+extern int rozofs_storcli_south_large_buf_count;
 
 
 /*
@@ -80,6 +81,17 @@ void * rozofs_storcli_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_co
         return NULL;
     }
 
+
+    /*
+    ** Check that the is enough buffer on the storio side
+    */
+    free_count = ruc_buf_getFreeBufferCount(ROZOFS_STORCLI_SOUTH_LARGE_POOL);
+
+    if (free_count < (rozofs_storcli_south_large_buf_count>>3)) {
+        storcli_buf_depletion_count++;
+        return NULL;
+    }
+    
    /*
    ** check if a small or a large buffer must be allocated
    */
