@@ -154,10 +154,7 @@ void display_throughput (char * argv[], uint32_t tcpRef, void *bufRef) {
   
   gettimeofday(&tv,(struct timezone *)0);
   t = tv.tv_sec-1;
-  rank = t % STORIO_THROUGHPUT_COUNTERS_NB;
-  
-  ctime_r((const time_t *)&t,pChar);
-  pChar += strlen(uma_dbg_get_buffer());
+  rank = t % STORIO_THROUGHPUT_COUNTERS_NB;  
 
   for (col=0; col<COLS; col++) {
     pChar += rozofs_string_append(pChar," _____ _________ _________ ");
