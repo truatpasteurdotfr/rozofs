@@ -273,8 +273,8 @@ class StoragedConfigurationParser(ConfigurationParser):
                                                                    sid,
                                                                    root,
                                                                    device_t,
-                                                                   device_r,
-                                                                   device_m
+                                                                   device_m,
+                                                                   device_r
                                                                    )
 
         else:
