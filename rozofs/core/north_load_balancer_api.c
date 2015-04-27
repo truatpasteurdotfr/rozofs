@@ -1338,6 +1338,8 @@ int north_lbg_send(int  lbg_idx,void *buf_p)
   int ret = 0;
 
 
+  ruc_objRemove((ruc_obj_desc_t *) buf_p);
+
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
   {
@@ -1467,6 +1469,7 @@ int north_lbg_send_from_shaper(int  lbg_idx,void *buf_p)
   int entry_idx;
   int ret = 0;
 
+  ruc_objRemove((ruc_obj_desc_t *) buf_p);
 
   lbg_p = north_lbg_getObjCtx_p(lbg_idx);
   if (lbg_p == NULL) 
