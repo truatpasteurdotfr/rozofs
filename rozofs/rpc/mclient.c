@@ -81,6 +81,9 @@ int mclient_stat(mclient_t * clt, sstat_t * st) {
     }
     if (ret->status != 0) {
         errno = ret->mp_stat_ret_t_u.error;
+        warning("mclient_stat cid:%d sid:%d RozoFS error %s", 
+	         args.cid, args.sid,  
+		 strerror(errno));	
 	memset(st,0, sizeof(sstat_t));
         goto out;
     }

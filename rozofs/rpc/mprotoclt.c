@@ -6,7 +6,7 @@
 #include <memory.h> /* for memset */
 #include "mproto.h"
 #include <rozofs/rozofs.h>
-
+#include <rozofs/common/log.h>
 /* Default timeout can be changed using clnt_control() */
 static struct timeval TIMEOUT = { 25, 0 };
 
@@ -29,15 +29,23 @@ mp_stat_ret_t *
 mp_stat_1(mp_stat_arg_t *argp, CLIENT *clnt)
 {
 	static mp_stat_ret_t clnt_res;
+        enum clnt_stat       result;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
-	if (clnt_call (clnt, MP_STAT,
-		(xdrproc_t) xdr_mp_stat_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_mp_stat_ret_t, (caddr_t) &clnt_res,
-		TIMEOUT) != RPC_SUCCESS) {
-		return (NULL);
-	}
-	return (&clnt_res);
+	
+	result = clnt_call (clnt, MP_STAT,
+			   (xdrproc_t) xdr_mp_stat_arg_t, (caddr_t) argp,
+			   (xdrproc_t) xdr_mp_stat_ret_t, (caddr_t) &clnt_res,
+			   TIMEOUT);
+			   
+	if (result == RPC_SUCCESS) {
+	  return (&clnt_res);
+        }
+
+        warning("MP_STAT cid:%d sid:%d RPC error %s", 
+	         argp->cid, argp->sid,  
+		 clnt_sperrno(result));
+	return (NULL);
 }
 
 mp_status_ret_t *

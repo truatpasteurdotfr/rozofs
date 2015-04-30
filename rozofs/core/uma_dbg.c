@@ -327,7 +327,7 @@ void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
   p = uma_dbg_get_buffer();
   p += rozofs_string_append(p,"ps -p ");
   p += rozofs_u32_append(p, pid);
-  p += rozofs_string_append(p," -o%p -o%C -o%t -o%z -o%a");
+  p += rozofs_string_append(p," -m -opid,lwp,psr,pcpu,cputime,pmem,vsz,args");
 
   len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
   if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    

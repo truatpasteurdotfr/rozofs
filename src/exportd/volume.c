@@ -233,37 +233,29 @@ void volume_balance(volume_t *volume) {
 	    
 
             struct timeval timeo;
-            timeo.tv_sec = ROZOFS_MPROTO_TIMEOUT_SEC;
+            timeo.tv_sec  = ROZOFS_MPROTO_TIMEOUT_SEC;
             timeo.tv_usec = 0;
-
-            if (mclient_connect(&mclt, timeo) != 0) {
-
-                // Log if only the storage host was reachable before
-                if (1 == vs->status)
-                    warning("storage host '%s' unreachable: %s", vs->host,
-                            strerror(errno));
-                
-                // Change status
-                vs->status = 0;
-                
-            } else {
-                
-                // Log if only the storage host was not reachable before
-                if (0 == vs->status)
-                    info("storage host '%s' is now reachable", vs->host);
-
-                if (mclient_stat(&mclt, &vs->stat) != 0) {
-                    warning("failed to stat storage (cid: %u, sid: %u)"
-                            " for host: %s", cluster->cid, vs->sid, vs->host);
-                    vs->status = 0;
-                } else {
-                    // Change status
-                    vs->status = 1;
-                }
-            }
+	    int new       = 0;
+            
+            if ((mclient_connect(&mclt, timeo) == 0)
+            &&  (mclient_stat(&mclt, &vs->stat) == 0)) {
+              new = 1;
+            }		    
+	    
+	    // Status has changed
+	    if (vs->status != new) {
+	      vs->status = new;
+	      if (new == 0) {
+                warning("storage host '%s' unreachable: %s", vs->host,
+                         strerror(errno));	        
+	      }
+	      else {
+                info("storage host '%s' is now reachable", vs->host);	         
+	      }
+	    }
 
             // Update cluster stats
-	    if (vs->status) {
+	    if (new) {
               cluster->free += vs->stat.free;
               cluster->size += vs->stat.size;
             }
