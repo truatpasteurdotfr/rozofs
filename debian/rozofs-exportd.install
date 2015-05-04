@@ -11,3 +11,4 @@
 /usr/share/man/man8/rozo_warnquota.8
 /usr/share/man/man8/rozo_setquota.8
 contrib/heartbeat/* /usr/lib/ocf/resource.d/heartbeat/
+/usr/share/man/man5/common.conf.5

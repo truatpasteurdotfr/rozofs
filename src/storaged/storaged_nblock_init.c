@@ -40,6 +40,7 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/profile.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/core/ruc_common.h>
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/core/ruc_timer_api.h>
@@ -182,7 +183,7 @@ static void show_storio_nb(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar +=  rozofs_string_append(pChar,"storio_nb : ");
     pChar +=  rozofs_u32_append(pChar,storio_nb);
     pChar +=  rozofs_string_append(pChar,"\nmode : ");
-    if (storaged_config.multiio) {
+    if (common_config.storio_multiple_mode) {
       pChar +=  rozofs_string_append(pChar,"multiple");
     }  
     else {

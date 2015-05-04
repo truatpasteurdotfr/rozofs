@@ -40,6 +40,7 @@
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/profile.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/core/ruc_common.h>
 #include <rozofs/core/ruc_sockCtl_api.h>
 #include <rozofs/core/ruc_timer_api.h>
@@ -370,7 +371,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Initialize the disk thread interface and start the disk threads
   */	
-  ret = storio_disk_thread_intf_create(pHostArray[0],args_p->instance_id, storaged_config.nb_disk_threads) ;
+  ret = storio_disk_thread_intf_create(pHostArray[0],args_p->instance_id, common_config.nb_disk_thread) ;
   if (ret < 0) {
     fatal("storio_disk_thread_intf_create");
     return -1;

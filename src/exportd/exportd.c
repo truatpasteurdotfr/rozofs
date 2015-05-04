@@ -39,6 +39,7 @@
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rpc/export_profiler.h>
 #include <rozofs/common/profile.h>
 #include <rozofs/rpc/eproto.h>
@@ -1775,6 +1776,12 @@ int main(int argc, char *argv[]) {
                 break;
         }
     }
+       
+    /*
+    ** read common config file
+    */
+    common_config_read(NULL);         
+        
     /*
     ** set the instance id and the role of the exportd
     */
@@ -1807,7 +1814,7 @@ int main(int argc, char *argv[]) {
     if ( expgwc_non_blocking_conf.slave == 0)
     {
     uma_dbg_record_syslog_name("exportd");
-    daemon_start("exportd",exportd_config.nb_cores,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
+    daemon_start("exportd",common_config.nb_core_file,EXPORTD_PID_FILE, on_start, on_stop, on_hup);
     }
     else
     {
@@ -1817,7 +1824,7 @@ int main(int argc, char *argv[]) {
       sprintf(name,"export_slave_%d",expgwc_non_blocking_conf.instance);
       uma_dbg_record_syslog_name(name);
       sprintf(name2,"%s.pid",name);
-      no_daemon_start("export_slave",exportd_config.nb_cores,name2, on_start, on_stop, on_hup);    
+      no_daemon_start("export_slave",common_config.nb_core_file,name2, on_start, on_stop, on_hup);    
     }
 
 

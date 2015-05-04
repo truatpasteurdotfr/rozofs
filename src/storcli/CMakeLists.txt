@@ -54,7 +54,7 @@ add_executable(storcli
     rozofs_storcli_wr_repair.c
 )
 #pthread need by fuse
-target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY})
+target_link_libraries(storcli rozofs ${PTHREAD_LIBRARY} ${CRYPT_LIBRARY} ${CONFIG_LIBRARY})
 
 # Install
 install(TARGETS storcli

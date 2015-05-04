@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+#rozofs.set_trace()
 
 #--------------STORIO GENERAL
 
@@ -8,7 +9,7 @@
 # rozofs.storio_mode_single()
 
 # Disable CRC32
-# rozofs.crc32(False)
+# rozofs.set_crc32(False)
 
 # Disable self healing
 # rozofs.set_self_healing(0)
@@ -20,7 +21,11 @@
 # rozofs.set_threads(8)
 
 # Use fixed size file mounted through losetup for devices
-# rozofs.set_disk_size_mb(100)
+#rozofs.set_ext4(300)
+#rozofs.set_xfs(1000,None)
+#rozofs.set_xfs(1000,"4096")
+#rozofs.set_xfs(1000,"64K")
+#rozofs.set_xfs(1000,"128M")
 
 #--------------CLIENT GENERAL
 
@@ -43,16 +48,14 @@
 # rozofs.no_bsd_lock
 
 
+#--------------Layout
+# -- Layout 1
+layout = rozofs.layout_4_6_8()
+# -- Layout 0
+#layout = rozofs.layout_2_3_4()
 
 
-
-# Layout 1
-#layout = rozofs.layout_4_6_8()
-
-# Layout 0
-layout = rozofs.layout_2_3_4()
-
-
+#-------------- NB devices
 devices    = 4
 mapper     = 2
 redundancy = 2

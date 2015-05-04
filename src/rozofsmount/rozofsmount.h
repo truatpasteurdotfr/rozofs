@@ -65,7 +65,6 @@ typedef struct rozofsmnt_conf {
     unsigned cache_mode;  /**< 0: no option, 1: direct_read, 2: keep_cache */
     unsigned attr_timeout;
     unsigned entry_timeout;
-    unsigned nb_cores;
     unsigned shaper;
     unsigned rotate;
     unsigned posix_file_lock;    

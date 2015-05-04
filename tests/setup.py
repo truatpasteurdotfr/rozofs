@@ -131,12 +131,6 @@ class host_class:
 
   def display_config(self):
     global rozofs    
-    print "threads \t= %s;"%(rozofs.threads)
-    print "nbcores \t= %s;"%(rozofs.cores)
-    print "storio  \t= \"multiple\";"
-    print "crc32c_check \t= %s;"%(rozofs.crc32)
-    print "crc32c_generate \t= %s;"%(rozofs.crc32)
-    print "crc32c_hw_forced \t= True;"
     if rozofs.self_healing != 0:
       print "self-healing \t= %s;"%(rozofs.self_healing)
     print "export-hosts \t= \"%s\";"%(exportd.export_host)
@@ -250,7 +244,13 @@ class sid_class:
     if output != "":
       loop=output.split(':')[0]  
       print "%s%s -> %s -> %s/%s"%(path,dev,loop,self.get_root_path(h.number),dev)
-      cmd_system("mount -t ext4 %s %s/%s"%(loop,self.get_root_path(h.number),dev))
+      if rozofs.fstype == "ext4":
+        cmd_system("mount -t ext4 %s %s/%s"%(loop,self.get_root_path(h.number),dev))
+      else:
+        if rozofs.allocsize == None:
+          cmd_system("mount -t xfs %s %s/%s"%(loop,self.get_root_path(h.number),dev))      		
+	else:
+          cmd_system("mount -t xfs -o allocsize=%s %s %s/%s"%(rozofs.allocsize,loop,self.get_root_path(h.number),dev))      	
     else:
       print "No /dev/loop for %s%s"%(path,dev)  
     return
@@ -280,7 +280,10 @@ class sid_class:
         cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	output, error = cmd.communicate()
 	if error == "":
-	  cmd_system("mkfs.ext4 -q /dev/loop%s"%(loop))
+	  if rozofs.fstype == "ext4" :
+	    cmd_system("mkfs.ext4 -q /dev/loop%s"%(loop))
+	  else:  
+	    cmd_system("mkfs.xfs -f -q /dev/loop%s"%(loop))	    
 	  return
       except: 
         continue      
@@ -445,10 +448,9 @@ class mount_point_class:
   def start(self):
     global rozofs
     options="-o rozofsexporttimeout=24"
-    options += " -o rozofsstoragetimeout=4"
+    #options += " -o rozofsstoragetimeout=4"
     options += " -o rozofsstorclitimeout=11" 
     options += " -o rozofsnbstorcli=%s"%(rozofs.nb_storcli)
-    options += " -o nbcores=2"
     options += " -o rozofsbufsize=256" 
     options += " -o rozofsminreadsize=256"
     options += " -o rozofsshaper=0"
@@ -673,7 +675,7 @@ class exportd_class:
   def reset(self):
     pid=self.pid()
     if pid == 0: self.start_exportd()
-    cmd_system("kill -1 %s"%(pid))
+    cmd_system("kill -HUP %s"%(pid))
 
   def process(self,opt):
     pid = self.pid()
@@ -848,7 +850,9 @@ class rozofs_class:
     self.posix_lock = True
     self.bsd_lock = True
     self.disk_size_mb = None
+    self.trace = False
 
+  def set_trace(self): self.trace = True
   def storio_mode_single(self):self.storio_mode = "single"  
   def set_nb_listen(self,nb_listen):self.nb_listen = nb_listen  
   def set_cores(self,cores):self.cores = cores     
@@ -861,7 +865,13 @@ class rozofs_class:
   def dual_storcli(self): self.nb_storcli = 2
   def no_posix_lock(self): self.posix_lock = False
   def no_bsd_lock(self): self.bsd_lock = False
-  def set_disk_size_mb(self,mb): self.disk_size_mb = mb
+  def set_xfs(self,mb,allocsize=None):
+    self.fstype       = "xfs"
+    self.disk_size_mb = mb
+    self.allocsize    = allocsize
+  def set_ext4(self,mb):
+    self.fstype = "ext4"
+    self.disk_size_mb = mb
   
   def get_config_path(self):
     path = "%s/config_file"%(os.getcwd())
@@ -901,8 +911,25 @@ class rozofs_class:
     if val == 2: return "16K"
     if val == 3: return "32K"
 
+  def display_common_config(self):        
+    print "nb_disk_thread       = %s;"%(rozofs.threads)
+    print "nb_core_file         = %s;"%(rozofs.cores)
+    print "crc32c_check         = %s;"%(rozofs.crc32)
+    print "crc32c_generate      = %s;"%(rozofs.crc32)
+    print "crc32c_hw_forced     = True;"
+    if self.storio_mode == "multiple": print "storio_multiple_mode = True;"
+    else:                               print "storio_multiple_mode = False;"
+
+  def create_common_config(self):
+    save_stdout = sys.stdout
+    sys.stdout = open("/etc/rozofs/common.conf","w")
+    self.display_common_config()
+    sys.stdout.close()
+    sys.stdout = save_stdout    
+
   def create_config(self):
     global hosts
+    self.create_common_config()
     exportd.create_config()
     for h in hosts: h.create_config()
     geomgr.create_config()
@@ -935,7 +962,7 @@ class rozofs_class:
     if self.disk_size_mb == None:
       print "  . %-12s : %s "%("Device size","no limit")
     else:
-      print "  . %-12s : %s MB"%("Device size",self.disk_size_mb)
+      print "  . %-12s : %s MB (%s)"%("Device size",self.disk_size_mb,self.fstype)
         
     if len(volumes) != int(0):
       volumes[0].display()
@@ -951,6 +978,7 @@ class rozofs_class:
     for v in volumes: v.delete_path()
 
   def resume(self):
+    self.create_config()  
     check_build()  
     for h in hosts: h.start()
     exportd.start()
@@ -959,7 +987,6 @@ class rozofs_class:
        
   def start(self):  
     self.stop()
-    self.create_config()
     self.create_path()
     self.resume()
     
@@ -968,12 +995,12 @@ class rozofs_class:
     for m in mount_points: m.stop()
     for h in hosts: h.stop()
     exportd.stop()
+    self.delete_config()
 
   def stop(self):
     self.pause()
     for h in hosts: h.del_if()
     self.delete_path()
-    self.delete_config()
         
   def process(self,opt): 
     geomgr.process(opt)
@@ -1073,7 +1100,7 @@ class rozofs_class:
 	      
 #___________________________________________  
 def cmd_system (string):
-  # print string
+  if rozofs.trace: print string
   os.system(string)
 	      
 #___________________________________________  

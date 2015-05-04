@@ -45,6 +45,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
@@ -90,7 +91,7 @@ static int storaged_initialize() {
 
     storaged_nb_io_processes = 1;
     
-    storio_nb_threads = storaged_config.nb_disk_threads;
+    storio_nb_threads = common_config.nb_disk_thread;
 
     storaged_nb_ports = storaged_config.io_addr_nb;
 
@@ -948,6 +949,11 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "storage_rebuilder failed. Missing --files option.\n");
         exit(EXIT_FAILURE);
     }  
+    
+    /*
+    ** read common config file
+    */
+    common_config_read(NULL);    
  
 
     // Start rebuild storage   

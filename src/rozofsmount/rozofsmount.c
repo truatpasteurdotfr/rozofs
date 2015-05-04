@@ -167,7 +167,6 @@ static void usage() {
     fprintf(stderr, "    -o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
     fprintf(stderr, "    -o debug_port=N\t\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "    -o instance=N\t\tdefine instance number (default: 0)\n");
-    fprintf(stderr, "    -o nbcores=N\t\tdefine the maximum number of core files to keep (default: 2)\n");
     fprintf(stderr, "    -o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
     fprintf(stderr, "    -o rozofsmode=N\t\tdefine the operating mode of rozofsmount: 0: filesystem, 1: block mode (default: 0)\n");
     fprintf(stderr, "    -o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
@@ -218,7 +217,6 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("instance=%u", instance, 0),
     MYFS_OPT("rozofscachemode=%u", cache_mode, 0),
     MYFS_OPT("rozofsmode=%u", fs_mode, 0),
-    MYFS_OPT("nbcores=%u", nb_cores, 0),
     MYFS_OPT("rozofsshaper=%u", shaper, 0),
     MYFS_OPT("rozofsrotate=%u", rotate, 0),
     MYFS_OPT("posixlock", posix_file_lock, 1),
@@ -361,7 +359,6 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(cache_mode);  
   DISPLAY_UINT32_CONFIG(attr_timeout);
   DISPLAY_UINT32_CONFIG(entry_timeout);
-  DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_UINT32_CONFIG(shaper);  
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
@@ -1378,7 +1375,6 @@ void rozofs_start_one_storcli(int instance) {
           
     cmd_p += sprintf(cmd_p, "-D %d ", debug_port_value);
     cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
-    cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
     cmd_p += sprintf(cmd_p, "--shaper %d ", conf.shaper);
     cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
     
@@ -1735,15 +1731,11 @@ int fuseloop(struct fuse_args *args, int fg) {
       conf.dbg_port = rozofs_get_service_port_fsmount_diag(conf.instance);    
     }    
     
-    if (conf.nb_cores == 0) 
-    {
-      conf.nb_cores = 2;    
-    }     
+   
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = conf.dbg_port;
     rozofsmount_diag_port = conf.dbg_port;
 
-    rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     rozofs_fuse_conf.se = se;
     rozofs_fuse_conf.ch = ch;
     rozofs_fuse_conf.exportclt = (void*) &exportclt;

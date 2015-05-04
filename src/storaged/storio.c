@@ -42,6 +42,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/profile.h>
@@ -202,7 +203,7 @@ static void on_start(void) {
     DEBUG_FUNCTION;
 
 
-    rozofs_signals_declare("storio", storaged_config.nb_cores);
+    rozofs_signals_declare("storio", common_config.nb_core_file);
     rozofs_attach_crash_cbk(on_stop);
     rozofs_attach_hgup_cbk(on_reload);
     /*
@@ -346,12 +347,18 @@ int main(int argc, char *argv[]) {
     if (sconfig_validate(&storaged_config) != 0) {
         fatal( "Inconsistent storage configuration file: %s.\n",strerror(errno));
     }
+    
+    /*
+    ** read common config file
+    */
+    common_config_read(NULL);    
+    
     /*
     ** init of the crc32c
     */
-    crc32c_init(storaged_config.crc32c_generate,
-                storaged_config.crc32c_check,
-                storaged_config.crc32c_hw_forced);
+    crc32c_init(common_config.crc32c_generate,
+                common_config.crc32c_check,
+                common_config.crc32c_hw_forced);
 		
     // Initialization of the storage configuration
     if (storaged_initialize() != 0) {

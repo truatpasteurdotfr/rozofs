@@ -236,26 +236,7 @@ gen_storage_conf ()
 
 	  echo "#${NAME_LABEL}" >> $STORAGE_CONF
 	  echo "#${DATE_LABEL}" >> $STORAGE_CONF
-
-	  printf "threads = $NB_DISK_THREADS;\n" >> $STORAGE_CONF
-	  printf "nbcores = $NB_CORES;\n" >> $STORAGE_CONF
-	  printf "storio  = \"$STORIO_MODE\";\n" >> $STORAGE_CONF
-	  
-	  case "$CRC32_CHECK" in
-	    "");;
-	    *) printf "crc32c_check = $CRC32_CHECK;\n";;
-	  esac   >> $STORAGE_CONF
-	  
-	  case "$CRC32_GENERATE" in
-	    "");;
-	    *) printf "crc32c_generate = $CRC32_GENERATE;\n";;
-	  esac  >> $STORAGE_CONF
-
-	  case "$CRC32_HW" in
-	    "");;
-	    *) printf "crc32c_hw_forced = $CRC32_HW;\n";;
-	  esac  >> $STORAGE_CONF	
-	    	  
+	  	    	  
 	  case "$DEV_SELF_HEALING" in
 	    "") ;;
 	    *) {
@@ -924,7 +905,6 @@ deploy_clients_local ()
                     fi
 
                     option=" -o rozofsexporttimeout=24 -o rozofsstoragetimeout=4 -o rozofsstorclitimeout=11"
-                    option="$option -o nbcores=$NB_CORES"
                     option="$option -o rozofsbufsize=$WRITE_FILE_BUFFERING_SIZE -o rozofsminreadsize=$READ_FILE_MINIMUM_SIZE" 
                     option="$option -o rozofsnbstorcli=$NB_STORCLI"
                     option="$option -o rozofsshaper=$SHAPER"

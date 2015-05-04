@@ -1,3 +1,4 @@
 /usr/bin/rozofsmount
 /usr/bin/storcli
 /usr/share/man/man8/rozofsmount.8
+/usr/share/man/man5/common.conf.5

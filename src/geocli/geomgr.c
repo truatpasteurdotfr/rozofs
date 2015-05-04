@@ -38,6 +38,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/common/common_config.h>
 
 #include "geomgr.h"
 #include "geomgr_config.h"
@@ -137,7 +138,6 @@ static void usage() {
     printf("Usage: geomgr [OPTIONS]\n\n");
     printf("\t-h, --help\t\tprint this message.\n");
     printf("\t-D, diag_port=N\t\tdefine the rozodiag port (default is 54000).\n");
-    printf("\t-C, nbcores=N\t\tdefine the maximum number of core files to keep (default: 2)\n");
     printf("\t-c, --config\t\tconfiguration file to use (default: %s).\n",GEOMGR_DEFAULT_CONFIG);
     printf("\t-t, --timer\t\ttimer in second to reread configuration file (default: %d).\n",GEOMGR_DEFAULT_TIMER);
 
@@ -316,7 +316,6 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   char *pChar = uma_dbg_get_buffer();
 
   DISPLAY_UINT32_CONFIG(dbg_port);
-  DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_STRING_CONFIG(cfg);  
   DISPLAY_UINT32_CONFIG(timer);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
@@ -770,7 +769,6 @@ int main(int argc, char *argv[]) {
   static struct option long_options[] = {
       { "help", no_argument, 0, 'h'},
       { "dbg", required_argument, 0, 'D'},
-      { "nbcores", required_argument, 0, 'C'},
       {"config", required_argument, 0, 'c'},
       {"timer", required_argument, 0, 't'},      
       { 0, 0, 0, 0}
@@ -783,7 +781,6 @@ int main(int argc, char *argv[]) {
 
   //memset(&geomgr_conf, 0, sizeof (geomgr_conf));
 
-  geomgr_input_param.nb_cores = 1; /* Nb cores  */ 
   geomgr_input_param.dbg_port = rozofs_get_service_port_geomgr_diag();   
   geomgr_input_param.cfg      = GEOMGR_DEFAULT_CONFIG;
   geomgr_input_param.timer    = 60;
@@ -792,7 +789,7 @@ int main(int argc, char *argv[]) {
   while (1) {
 
       int option_index = 0;
-      c = getopt_long(argc, argv, "hD:C:c:t:", long_options, &option_index);
+      c = getopt_long(argc, argv, "hD:c:t:", long_options, &option_index);
 
       if (c == -1)
           break;
@@ -811,17 +808,6 @@ int main(int argc, char *argv[]) {
                   exit(EXIT_FAILURE);
               }
               geomgr_input_param.dbg_port = val;
-              break;
-	      
-          case 'C':
-              errno = 0;
-              val = (int) strtol(optarg, (char **) NULL, 10);
-              if (errno != 0) {
-                  strerror(errno);
-                  usage();
-                  exit(EXIT_FAILURE);
-              }
-              geomgr_input_param.nb_cores = val;
               break;
 	      
 	  case 't':    		
@@ -856,6 +842,12 @@ int main(int argc, char *argv[]) {
       }
   }       
 
+  /*
+  ** read common config file
+  */
+  common_config_read(NULL);    
+  
+
   // Change the value of maximum size of core file
   core_limit.rlim_cur = RLIM_INFINITY;
   core_limit.rlim_max = RLIM_INFINITY;
@@ -864,7 +856,7 @@ int main(int argc, char *argv[]) {
               strerror(errno));
   }
 
-  no_daemon_start("geomgr", 1, "geomgr.pid", 
+  no_daemon_start("geomgr", common_config.nb_core_file, "geomgr.pid", 
                 on_start, on_stop, NULL);
   exit(0);
 }

@@ -12,14 +12,6 @@ is managed thanks to
 .B libconfig
 grammar.
 
-.SS threads (optional)
-
-Specifies number of threads that can process the disk requests. (default: 2)
-
-.SS nbcores (optional)
-
-Maximum number of core files to keep (default: 2). The older core files are kept while the newest ones are removed. 
-
 .SS listen (mandatory)
 
 Specifies list of IP(s) (or hostname(s)) and port(s) the storio process must listen to for receiving write and read requests from clients.
@@ -29,27 +21,9 @@ Specifies list of IP(s) (or hostname(s)) and port(s) the storio process must lis
             - if "*" is specified storio will listen on any of the interfaces.
 
     port: (TCP port number (in decimal) to use for storio process)
+    In single storio mode, only one storio is started that listens on this port to service every configured cluster.
+    In multiple storio mode, one storio is started per cluster that listen on this port + the cluster number to service the given cluster only.
 
-.SS storio (optional)
-
-Specifies if storaged starts one or multiple storio process(es). (default: "single")
-       Valid values are :
-           - "single"
-             only storio instance 0 is started. It takes care of every storage instance configured in this file by listening to the addresses and ports defined by 
-.B listen.
-           - "multiple"
-             one storio is started for each cluster declared in this configuration file. The storio instance is the cluster number. The storio listens on the addresses defined by 
-.B listen 
-and adds the cluster number to ports in
-.B listen 
-.
-.SS crc32c_check (optional)
-Boolean (true or false) indicating if a check (thanks to CRC error detecting code) will be used for detect accidental changes to raw data.
-.SS crc32c_generate (optional)
-Boolean (true or false) indicating if a checksum must be generated (thanks to CRC error detecting code) for each write request.
-.SS crc32c_hw_forced (optional)
-That boolean (true or false) can be asserted if the information reported by cpuid does not indicates that hardware CRC is supported whilst the current CPU supports it.
-This might be the case with VirtualBox.
 .SS self-healing (optional)
 
 Gives the delay in minutes before starting an automatic rebuild of a broken device by relocating the data on the remaining devices. The lowest possible value is 1. When self-healing is configured, the 
@@ -105,16 +79,9 @@ have some replica written on the devices following their main device.
 .nf
 .ta +3i
 # sample RozoFS storage configuration file
-threads = 4;
-nbcores = 2;
-storio  = "multiple";
+
 self-healing = 10;
 export-hosts = "192.168.0.1/192.168.0.2";
-
-# Activate CRC32 generation and control in hardware mode
-crc32c_check     = True;
-crc32c_generate  = True;
-crc32c_hw_forced = True;
 
 listen = (
     {addr = "192.168.1.1"; port = 41001; },

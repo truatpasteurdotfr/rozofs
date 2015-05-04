@@ -65,7 +65,6 @@ typedef struct _rozofs_fuse_conf_t
 {
    uint16_t debug_port;   /**< port value to be used by rmonitor  */
    uint16_t instance;     /**< rozofsmount instance: needed when more than 1 rozofsmount run the same server and exports the same filesystem */
-   uint16_t nb_cores;     /**< Number of core files */
    void     *se;          /**< pointer to the session context     */
    void    *ch;           /**< pointer to the channel context     */
    void    *exportclt;           /**< pointer to the exportd conf     */

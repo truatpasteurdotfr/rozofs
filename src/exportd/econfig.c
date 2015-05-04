@@ -46,7 +46,6 @@
 #define EMD5        "md5"
 #define ESQUOTA     "squota"
 #define EHQUOTA     "hquota"
-#define ECORES      "nbcores"
 #define EGEOREP     "georep"
 #define ESITE0     "site0"
 #define ESITE1     "site1"
@@ -810,10 +809,10 @@ int econfig_read(econfig_t *config, const char *fname) {
     // Check version of libconfig
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-    int layout, nbCores;
+    int layout;
 #else
 
-    long int layout, nbCores;
+    long int layout;
 #endif
 
     DEBUG_FUNCTION;
@@ -826,13 +825,7 @@ int econfig_read(econfig_t *config, const char *fname) {
                 config_error_line(&cfg));
         goto out;
     }
-    
-    if (!config_lookup_int(&cfg, ECORES, &nbCores)) {
-       config->nb_cores = 2;
-    }
-    else {
-       config->nb_cores = nbCores;
-    }
+
     
     if (!config_lookup_int(&cfg, ELAYOUT, &layout)) {
         errno = ENOKEY;

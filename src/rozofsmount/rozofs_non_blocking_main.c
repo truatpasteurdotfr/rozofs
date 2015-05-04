@@ -21,6 +21,7 @@
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/rpc/storcli_lbg_prototypes.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
+#include <rozofs/common/common_config.h>
 #include <pthread.h>
 
 #include "rozofs_export_gateway_conf_non_blocking.h"
@@ -361,7 +362,7 @@ int rozofs_stat_start(void *args) {
         severe("Cannot setup the load balancing group towards StorCli");
     }
     
-    rozofs_signals_declare("rozofsmount",  args_p->nb_cores);
+    rozofs_signals_declare("rozofsmount",  common_config.nb_core_file);
     
     /*
      ** main loop

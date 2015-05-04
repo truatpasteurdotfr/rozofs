@@ -32,6 +32,7 @@
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/af_unix_socket_generic.h>
 #include <rozofs/common/rozofs_site.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/core/rozofs_host_list.h>
 #include <rozofs/core/rozo_launcher.h>
 #include <rozofs/core/rozofs_core_files.h>
@@ -135,7 +136,6 @@ static void usage() {
     fprintf(stderr, "    -o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 15)\n");
     fprintf(stderr, "    -o debug_port=N\t\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "    -o instance=N\t\tdefine instance number (default: 0)\n");
-    fprintf(stderr, "    -o nbcores=N\t\tdefine the maximum number of core files to keep (default: 2)\n");
     fprintf(stderr, "    -o rozofsnbstorcli=N\tdefine the number of storcli process(es) to use (default: 1)\n");
     fprintf(stderr, "    -o site=N\t\t\tsite number for geo-replication purpose (default:1)\n");
 }
@@ -206,7 +206,6 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(cache_mode);  
   DISPLAY_UINT32_CONFIG(attr_timeout);
   DISPLAY_UINT32_CONFIG(entry_timeout);
-  DISPLAY_UINT32_CONFIG(nb_cores);
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
@@ -317,7 +316,6 @@ void rozofs_start_one_storcli(int instance) {
           
     cmd_p += sprintf(cmd_p, "-D %d ", debug_port_value);
     cmd_p += sprintf(cmd_p, "-R %d ", conf.instance);
-    cmd_p += sprintf(cmd_p, "--nbcores %d ", conf.nb_cores);
     cmd_p += sprintf(cmd_p, "--shaper 0 ");
     cmd_p += sprintf(cmd_p, "-s %d ", ROZOFS_TMR_GET(TMR_STORAGE_PROGRAM));
 #if 1
@@ -471,15 +469,10 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     {
       conf.dbg_port = rozofs_get_service_port_geocli_diag(conf.instance);    
     } 
-    
-    if (conf.nb_cores == 0) 
-    {
-      conf.nb_cores = 2;    
-    }     
+       
     rozofs_fuse_conf.instance = (uint16_t) conf.instance;
     rozofs_fuse_conf.debug_port = conf.dbg_port;
 
-    rozofs_fuse_conf.nb_cores = (uint16_t) conf.nb_cores;
     rozofs_fuse_conf.exportclt = (void*) &exportclt;
     rozofs_fuse_conf.max_transactions = ROZOFSMOUNT_MAX_TX;
 
@@ -508,7 +501,7 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
     /*
     ** Declare a signal handler and attach a crash callback
     */
-    rozofs_signals_declare("geocli", 2);
+    rozofs_signals_declare("geocli", common_config.nb_core_file);
     rozofs_attach_crash_cbk(rozofs_crash_cbk);
     
     /*
@@ -555,7 +548,6 @@ int main(int argc, char *argv[]) {
         { "path", required_argument, 0, 'E'},
         { "pwd", required_argument, 0, 'P'},
         { "dbg", required_argument, 0, 'D'},
-        { "nbcores", required_argument, 0, 'C'},
         { "mount", required_argument, 0, 'M'},
         { "instance", required_argument, 0, 'i'},
         { "rozo_instance", required_argument, 0, 'R'},
@@ -598,7 +590,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:C:M:R:s:k:c:l:S:G:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:k:c:l:S:G:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -662,16 +654,7 @@ int main(int argc, char *argv[]) {
                 }
                 conf.dbg_port = val;
                 break;
-            case 'C':
-                errno = 0;
-                val = (int) strtol(optarg, (char **) NULL, 10);
-                if (errno != 0) {
-                    strerror(errno);
-                    usage();
-                    exit(EXIT_FAILURE);
-                }
-                conf.nb_cores = val;
-                break;		
+	
 /*
             case 'R':
                 errno = 0;
@@ -771,6 +754,11 @@ int main(int argc, char *argv[]) {
     if (conf.min_read_size > conf.buf_size) {
         conf.min_read_size = conf.buf_size;
     }
+    
+    /*
+    ** read common config file
+    */
+    common_config_read(NULL);        
 
     /*
     ** always 2 storcli for geo-replication

@@ -40,21 +40,15 @@
 #define SSID	    "sid"
 #define SCID	    "cid"
 #define SROOT	    "root"
-#define STHREADS    "threads"
 #define SIOLISTEN   "listen"
 #define SIOADDR     "addr"
 #define SIOPORT     "port"
-#define SCORES      "nbcores"
-#define SSTORIO     "storio"
 
 #define SDEV_TOTAL      "device-total"
 #define SDEV_MAPPER     "device-mapper"
 #define SDEV_RED        "device-redundancy"
 #define SSELF_HEALING   "self-healing"
 #define SEXPORT_HOSTS   "export-hosts"
-#define SCRC32_C     "crc32c_check"
-#define SCRC32_G     "crc32c_generate"
-#define SCRC32_H     "crc32c_hw_forced"
 
 int storage_config_initialize(storage_config_t *s, cid_t cid, sid_t sid,
         const char *root, int dev, int dev_mapper, int dev_red) {
@@ -96,18 +90,17 @@ void sconfig_release(sconfig_t *config) {
 int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
     int status = -1;
     config_t cfg;
-    int my_bool;
     struct config_setting_t *stor_settings = 0;
     struct config_setting_t *ioaddr_settings = 0;
     int i = 0;
     const char              *char_value = NULL;    
 #if (((LIBCONFIG_VER_MAJOR == 1) && (LIBCONFIG_VER_MINOR >= 4)) \
                || (LIBCONFIG_VER_MAJOR > 1))
-    int threads, port, nb_cores;
+    int port;
     int devices, mapper, redundancy, selfHealing;
     
 #else
-    long int threads, port, nb_cores;
+    long int port;
     long int devices, mapper, redundancy, selfHealing;
 #endif      
     DEBUG_FUNCTION;
@@ -121,47 +114,6 @@ int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
         goto out;
     }
 
-        
-    if (!config_lookup_int(&cfg, STHREADS, &threads)) {
-        config->nb_disk_threads = 2;
-    } else {
-        config->nb_disk_threads = threads;
-    }
-
-    if (!config_lookup_bool(&cfg, SCRC32_C, &my_bool)) {
-        config->crc32c_check = 0;
-    } else {
-        config->crc32c_check = my_bool;
-    }
-
-    if (!config_lookup_bool(&cfg, SCRC32_G, &my_bool)) {
-        config->crc32c_generate = 0;
-    } else {
-        config->crc32c_generate = my_bool;
-    }
-    if (!config_lookup_bool(&cfg, SCRC32_H, &my_bool)) {
-        config->crc32c_hw_forced = 0;
-    } else {
-        config->crc32c_hw_forced = my_bool;
-    }
-    if (!config_lookup_int(&cfg, SCORES, &nb_cores)) {
-        config->nb_cores = 2;
-    } else {
-        config->nb_cores = nb_cores;
-    }
-    
-    /*
-    ** Default is single storio 
-    */
-    config->multiio = 0;
-    if (config_lookup_string(&cfg, SSTORIO, &char_value)) {
-        if (strcasecmp(char_value, "multiple") == 0) {
-            config->multiio = 1;
-        } else if (strcasecmp(char_value, "single") != 0) {
-            severe("%s has unexpected value \"%s\". Assume single storio.",
-                    SSTORIO, char_value);
-        }
-    }
     
     /*
     ** Check whether self-healing is configured 

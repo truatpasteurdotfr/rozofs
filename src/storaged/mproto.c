@@ -22,6 +22,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/profile.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rpc/spproto.h>
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/core/rozofs_rpc_non_blocking_generic_srv.h>
@@ -131,7 +132,7 @@ void mp_ports_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
     memcpy(&ret->mp_ports_ret_t_u.ports.io_addr, storaged_config.io_addr,
             sizeof(storaged_config.io_addr));
 	    
-    if (storaged_config.multiio == 0) {
+    if (common_config.storio_multiple_mode == 0) {
       ret->mp_ports_ret_t_u.ports.mode = MP_SINGLE;
     }    
     else {

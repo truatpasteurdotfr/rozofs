@@ -45,6 +45,7 @@
 #include <rozofs/common/list.h>
 #include <rozofs/common/daemon.h>
 #include <rozofs/common/profile.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rpc/mproto.h>
 #include <rozofs/rpc/sproto.h>
 #include <rozofs/rpc/spproto.h>
@@ -110,7 +111,6 @@ static uint16_t storaged_nrstorages = 0;
 
 static SVCXPRT *storaged_monitoring_svc = 0;
 
-uint8_t storio_nb_threads = 0;
 uint8_t storaged_nb_ports = 0;
 uint8_t storaged_nb_io_processes = 0;
 
@@ -129,8 +129,6 @@ static int storaged_initialize() {
 
     storaged_nb_io_processes = 1;
     
-    storio_nb_threads = storaged_config.nb_disk_threads;
-
     storaged_nb_ports = storaged_config.io_addr_nb;
 
     /* For each storage on configuration file */
@@ -258,7 +256,7 @@ static void on_start() {
 
     SET_PROBE_VALUE(uptime, time(0));
     strncpy((char*) gprofiler.vers, VERSION, 20);
-    SET_PROBE_VALUE(nb_io_processes, storio_nb_threads);
+    SET_PROBE_VALUE(nb_io_processes, common_config.nb_disk_thread);
     
     // Create storio process(es)
 
@@ -285,12 +283,12 @@ static void on_start() {
     /*
     ** Then start storio
     */
-    if (storaged_config.multiio==0) {
+    if (common_config.storio_multiple_mode==0) {
       p = cmd;
       p += rozofs_string_append(p, "storio -i 0 -c ");
       p += rozofs_string_append(p,storaged_config_file);
       if (pHostArray[0] != NULL) {
-        p += rozofs_string_append (p, "-H ");
+        p += rozofs_string_append (p, " -H ");
 	p += rozofs_string_append (p, pHostArray[0]);
         int idx=1;
 	while (pHostArray[idx] != NULL) {
@@ -373,20 +371,17 @@ void usage() {
     printf("   -H, --host=storaged-host\tspecify the hostname to use for build pid name (default: none).\n");
     printf("   -c, --config=config-file\tspecify config file to use (default: %s).\n",
             STORAGED_DEFAULT_CONFIG);
-    printf("   -m, --multiio\twhen set, the storaged starts as many storio as listening port exist in the config file.\n");
     printf("   -C, --check\tthe storaged just checks the configuration and returns an exit status (0 when OK).\n");
 }
 
 int main(int argc, char *argv[]) {
     int c;
-    int  multiio=0; /* Default is one storio */
     int  justCheck=0; /* Run storaged. Not just a configuration check. */
     char pid_name[256];
     static struct option long_options[] = {
         { "help", no_argument, 0, 'h'},
         { "config", required_argument, 0, 'c'},
         { "host", required_argument, 0, 'H'},
-        { "multiio", no_argument, 0, 'm'},
 	{ "check", no_argument, 0, 'C'},
         { 0, 0, 0, 0}
     };
@@ -415,9 +410,6 @@ int main(int argc, char *argv[]) {
                 usage();
                 exit(EXIT_SUCCESS);
                 break;
-            case 'm':
-                multiio = 1;
-                break;		
             case 'C':
                 justCheck = 1;
                 break;				
@@ -454,12 +446,18 @@ int main(int argc, char *argv[]) {
         severe("Inconsistent storage configuration file: %s.\n",strerror(errno));
         goto error;
     }
+    
+    /*
+    ** read common config file
+    */
+    common_config_read(NULL);    
+
     /*
     ** init of the crc32c
     */
-    crc32c_init(storaged_config.crc32c_generate,
-                storaged_config.crc32c_check,
-                storaged_config.crc32c_hw_forced);
+    crc32c_init(common_config.crc32c_generate,
+                common_config.crc32c_check,
+                common_config.crc32c_hw_forced);
 
 
     if (justCheck) {
@@ -480,14 +478,7 @@ int main(int argc, char *argv[]) {
 	pChar += rozofs_string_append(pChar,".pid");	
     }
     
-    /*
-    ** When -m is set force multiple storio mode
-    */
-    if (multiio) {
-      storaged_config.multiio = 1; 
-    }
-
-    no_daemon_start("storaged", storaged_config.nb_cores, pid_name, on_start,
+    no_daemon_start("storaged", common_config.nb_core_file, pid_name, on_start,
             on_stop, NULL);
 
     exit(EXIT_SUCCESS);

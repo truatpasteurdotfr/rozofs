@@ -22,7 +22,6 @@
 typedef struct _geomgr_input_param_t {
     char   * cfg;       /**< configuration file */
     unsigned dbg_port;  /**< rozodiag port */
-    unsigned nb_cores;
     int      timer;
 } geomgr_input_param_t;
 

@@ -1,0 +1,67 @@
+.\" Process this file with
+.\" groff -man -Tascii common.conf.5
+.\"
+.TH COMMON.CONF 5 "APRIL 2015" RozoFS "User Manuals"
+.SH NAME
+common.conf \- RozoFS common configuration file
+.SH DESCRIPTION
+.B "common.conf"
+is managed thanks to 
+.B libconfig
+<http://www.hyperrealm.com/libconfig/> and thus complies to the
+.B libconfig
+grammar.
+
+.SS nb_disk_thread
+
+Specifies the number of threads within the STORIO process that can operate the disk read/write.
+
+.SS nb_core_file
+
+Maximum number of core file to keep on this node per RozoFS process type. The older core files are kept while the newest ones are removed. 
+
+.SS storio_multiple_mode
+
+Specifies if storaged starts one or multiple storio process(es).
+       Valid values are :
+           - "False"
+             only storio instance 0 is started. It takes care of every storage instance configured in the storage.conf.
+           - "True"
+             one storio is started for each cluster declared in the storage.conf file. The storio instance is the cluster number. 
+
+.SS crc32c_check
+Boolean (true or false) indicating if a check (thanks to CRC error detecting code) will be used for detecting accidental changes to raw data.
+.SS crc32c_generate
+Boolean (true or false) indicating if a checksum must be generated (thanks to CRC error detecting code) for each write request.
+.SS crc32c_hw_forced
+That boolean (true or false) can be asserted if the information reported by cpuid does not indicates that hardware CRC is supported whilst the current CPU supports it.
+This might be the case with VirtualBox.
+
+.SH EXAMPLE
+.PP
+.nf
+.ta +3i
+# sample RozoFS common configuration file
+
+#__ALL
+nb_core_file         = 1;
+
+#__STORAGE
+nb_disk_threads      = 4;
+crc32c_check         = True;
+crc32c_generate      = True;
+crc32c_hw_forced     = True;
+storio_multiple_mode = True;
+
+
+.SH FILES
+.I /etc/rozofs/common.conf (/usr/local/etc/rozofs/common.conf)
+.RS
+The system wide configuration file.
+.\".SH ENVIRONMENT
+.\".SH DIAGNOSTICS
+.\".SH BUGS
+.SH AUTHOR
+Fizians <http://www.fizians.com>
+.SH "SEE ALSO"
+.BR rozofs (7)
