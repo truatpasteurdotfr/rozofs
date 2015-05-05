@@ -3,6 +3,9 @@
 
 #rozofs.set_trace()
 
+# Change number of core files
+# rozofs.set_nb_core_file(1);
+
 #--------------STORIO GENERAL
 
 # Set single storio mode

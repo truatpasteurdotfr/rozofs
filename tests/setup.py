@@ -837,7 +837,7 @@ class rozofs_class:
 
   def __init__(self):
     self.threads = 4
-    self.cores = 2
+    self.nb_core_file = 2
     self.crc32 = True
     self.self_healing = 1
     self.nb_listen=2;
@@ -855,7 +855,7 @@ class rozofs_class:
   def set_trace(self): self.trace = True
   def storio_mode_single(self):self.storio_mode = "single"  
   def set_nb_listen(self,nb_listen):self.nb_listen = nb_listen  
-  def set_cores(self,cores):self.cores = cores     
+  def set_nb_core_file(self,nb_core_file):self.nb_core_file = nb_core_file     
   def set_threads(self,threads):self.threads = threads  
   def set_self_healing(self,self_healing):self.self_healing = self_healing      
   def set_crc32(self,crc32):self.crc32 = crc32  
@@ -913,7 +913,7 @@ class rozofs_class:
 
   def display_common_config(self):        
     print "nb_disk_thread       = %s;"%(rozofs.threads)
-    print "nb_core_file         = %s;"%(rozofs.cores)
+    print "nb_core_file         = %s;"%(rozofs.nb_core_file)
     print "crc32c_check         = %s;"%(rozofs.crc32)
     print "crc32c_generate      = %s;"%(rozofs.crc32)
     print "crc32c_hw_forced     = True;"
