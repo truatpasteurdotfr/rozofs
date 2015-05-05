@@ -38,6 +38,12 @@ common_config_t common_config;
   pChar += rozofs_i32_append(pChar, common_config.val);\
   pChar += rozofs_string_append(pChar," \t(");\
   pChar += rozofs_i32_append(pChar, rozofs_default_##val);\
+  *pChar++ = ' ';\
+  *pChar++ = '[';\
+  pChar += rozofs_i32_append(pChar, rozofs_min_##val);\
+  *pChar++ = ':';\
+  pChar += rozofs_i32_append(pChar, rozofs_max_##val);\
+  *pChar++ = ']';\
   *pChar++ = ')';\
   pChar += rozofs_eol(pChar);\
 }  
@@ -88,7 +94,15 @@ long int          intval;
 #define COMMON_CONFIG_READ_INT(val)  {\
   common_config.val = rozofs_default_##val;\
   if (config_lookup_int(&cfg, #val, &intval)) { \
-    common_config.val = intval;\
+    if (intval<rozofs_min_##val) {\
+      common_config.val = rozofs_min_##val;\
+    }\
+    else if (intval>rozofs_max_##val) { \
+      common_config.val = rozofs_max_##val;\
+    }\
+    else {\
+      common_config.val = intval;\
+    }\
   }\
 } 
 

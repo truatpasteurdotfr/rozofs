@@ -38,7 +38,13 @@
 ** Default parameter values
 */
 #define rozofs_default_nb_core_file             1
+#define rozofs_min_nb_core_file                 0
+#define rozofs_max_nb_core_file                 4
+
 #define rozofs_default_nb_disk_thread           3
+#define rozofs_min_nb_disk_thread               2
+#define rozofs_max_nb_disk_thread              16
+
 #define rozofs_default_storio_multiple_mode     TRUE
 #define rozofs_default_crc32c_check             TRUE
 #define rozofs_default_crc32c_generate          TRUE
