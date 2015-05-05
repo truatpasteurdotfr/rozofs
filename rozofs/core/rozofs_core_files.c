@@ -199,6 +199,14 @@ void rozofs_clean_core(void) {
     if (dirItem->d_name[0] == '.') continue;
 
     sprintf(buff,"%s/%s", rozofs_core_file_path, dirItem->d_name); 
+    
+    /*
+    ** No core file
+    */
+    if (rozofs_max_core_files == 0) {
+      unlink(buff);	 
+      continue;
+    }     
 
     /* Get file date */ 
     if (stat(buff,&traceStat) < 0) {   
