@@ -982,7 +982,8 @@ static inline int rozofs_ipv4_port_append(char * pChar, uint32_t ip, uint16_t po
 #define KILO 1000ULL
 #define MEGA (KILO*KILO)
 #define GIGA (KILO*MEGA)
-#define PETA (KILO*GIGA)
+#define TERA (KILO*GIGA)
+#define PETA (KILO*TERA)
 static inline int rozofs_bytes_padded_append(char * value_string, int size, uint64_t value) {
   uint64_t   modulo=0;
   char     * pt = value_string;
@@ -1044,9 +1045,9 @@ static inline int rozofs_bytes_padded_append(char * value_string, int size, uint
     pt += rozofs_string_append(pt," MB");
     goto out;    
      
-  }  
-  
-  if (value<PETA) {
+  } 
+   
+  if (value<TERA) {
   
     if (value>=(CENT*GIGA)) {
       pt += rozofs_u64_padded_append(pt,4,rozofs_right_alignment,value/GIGA);
@@ -1070,6 +1071,32 @@ static inline int rozofs_bytes_padded_append(char * value_string, int size, uint
     pt += rozofs_string_append(pt," GB");
     goto out;    
      
+  }   
+  
+  if (value<PETA) {
+  
+    if (value>=(CENT*TERA)) {
+      pt += rozofs_u64_padded_append(pt,4,rozofs_right_alignment,value/TERA);
+      pt += rozofs_string_append(pt," TB");
+      goto out;    		    
+    }
+    
+    if (value>=(DIX*TERA)) {    
+      modulo = (value % TERA) / (CENT*GIGA);
+      pt += rozofs_u64_padded_append(pt,2,rozofs_right_alignment,value/TERA);
+      *pt++ = '.';
+      pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
+      pt += rozofs_string_append(pt," TB");
+      goto out;
+    }  
+    
+    modulo = (value % TERA) / (DIX*GIGA);
+    pt += rozofs_u64_padded_append(pt,1,rozofs_right_alignment,value/TERA);
+    *pt++ = '.';
+    pt += rozofs_u32_padded_append(pt,2,rozofs_zero,modulo);
+    pt += rozofs_string_append(pt," TB");
+    goto out;    
+     
   }  
     
   if (value>=(CENT*PETA)) {
@@ -1078,7 +1105,7 @@ static inline int rozofs_bytes_padded_append(char * value_string, int size, uint
     goto out; 		    
   }
   if (value>=(DIX*PETA)) {    
-    modulo = (value % PETA) / (CENT*GIGA);
+    modulo = (value % PETA) / (CENT*TERA);
     pt += rozofs_u64_padded_append(pt,2,rozofs_right_alignment,value/PETA);
     *pt++ = '.';
     pt += rozofs_u32_padded_append(pt,1,rozofs_zero,modulo);
@@ -1086,7 +1113,7 @@ static inline int rozofs_bytes_padded_append(char * value_string, int size, uint
     goto out;
   }     
 
-  modulo = (value % PETA) / (DIX*GIGA);
+  modulo = (value % PETA) / (DIX*TERA);
   pt += rozofs_u64_padded_append(pt,1,rozofs_right_alignment,value/PETA);
   *pt++ = '.';
   pt += rozofs_u32_padded_append(pt,2,rozofs_zero,modulo);
