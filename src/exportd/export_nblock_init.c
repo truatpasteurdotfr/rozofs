@@ -1024,17 +1024,20 @@ int expgwc_start_nb_blocking_th(void *args) {
     uma_dbg_addTopic("quota_cache",show_quota_cache);
     uma_dbg_addTopic("quota_get",rw_quota_entry);
     uma_dbg_addTopic("fstat_thread",show_export_fstat_thread);
-/*
+ 
+    uma_dbg_addTopic("vfstat", show_vfstat);
+    uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
+    uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
+    uma_dbg_addTopic("exp_slave", show_export_slave);
+             
+    /*
     ** do not provide volume stats for the case of the slaves
     */
     if (args_p->slave == 0)
     {
-      uma_dbg_addTopic("vfstat", show_vfstat);
-      uma_dbg_addTopic("vfstat_stor",show_vfstat_stor);
       uma_dbg_addTopic("vstor",show_vstor);
-      uma_dbg_addTopic("vfstat_vol",show_vfstat_vol);
       uma_dbg_addTopic("vfstat_exp",show_vfstat_eid);
-      uma_dbg_addTopic("exp_slave", show_export_slave);
+
     }
     uma_dbg_addTopic("lv2_cache",show_lv2_attribute_cache);
     uma_dbg_addTopic("flock",    show_flock);  
