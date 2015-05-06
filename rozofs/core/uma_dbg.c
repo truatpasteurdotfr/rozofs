@@ -189,20 +189,33 @@ syntax:
   ** Check the requested level given as 1rst argument
   */  
   if ((strcmp(argv[1],"info")) == 0) {
-    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\|warning\\|info\\):\' /var/log/syslog | tail -");
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\|warning\\|info\\):\' ");
   }
   else if ((strcmp(argv[1],"warning")) == 0) {
-    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\|warning\\):\' /var/log/syslog | tail -");
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\|warning\\):\' ");
   }  \
   else if ((strcmp(argv[1],"severe")) == 0) {
-    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\):\' /var/log/syslog | tail -");
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*\\(fatal\\|severe\\):\' ");
   }
   else if ((strcmp(argv[1],"fatal")) == 0) {
-    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*fatal:\' /var/log/syslog | tail -");
+    p += rozofs_string_append(p,"\\[[0-9]*\\]: .*fatal:\' ");
   }
   else {
     goto syntax;
   }    
+  
+  if (access("/var/log/syslog",R_OK)==0) {
+    p += rozofs_string_append(p,"/var/log/syslog | tail -");
+  }
+  else if (access("/var/log/messages",R_OK)==0) {
+    p += rozofs_string_append(p,"/var/log/messages | tail -");
+  }
+  else  {
+    rozofs_string_append(uma_dbg_get_buffer(),"No log file /var/log/syslog or /var/log/messages\n");
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+    return; 
+  }
+  
   p += rozofs_u32_append(p,lines);
 
   len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
