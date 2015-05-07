@@ -440,6 +440,8 @@ int expgw_build_configuration_message(char * pchar, uint32_t size)
 static void *balance_volume_thread(void *v) {
     struct timespec ts = {5, 0};
 
+    uma_dbg_thread_add_self("Volume balance");
+
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     for (;;) {
@@ -474,6 +476,8 @@ static void *remove_bins_thread(void *v) {
     int export_idx = 0;
     // Set the frequency of calls
     struct timespec ts = {RM_BINS_PTHREAD_FREQUENCY_SEC, 0};
+    
+    uma_dbg_thread_add_self("remove bins");
 
     // Pointer for store start bucket index for each exports
     uint16_t * idx_p = xmalloc(list_size(&exports) * sizeof (uint16_t));
@@ -636,6 +640,9 @@ static void *export_tracking_thread(void *v) {
     export_tracking_thread_period_count = 1;
     // Set the frequency of calls
     struct timespec ts = {TRACKING_PTHREAD_FREQUENCY_SEC, 0};
+
+    uma_dbg_thread_add_self("Tracking");
+
     /*
     ** allocate memory for statistics
     */
@@ -688,6 +695,8 @@ static void *export_tracking_thread(void *v) {
 static void *monitoring_thread(void *v) {
     struct timespec ts = {2, 0};
     list_t *p;
+
+    uma_dbg_thread_add_self("Monitor");
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -743,6 +752,8 @@ static void *monitoring_thread(void *v) {
 static void *monitoring_thread_slave(void *v) {
     struct timespec ts = {10, 0};
     list_t *p;
+
+    uma_dbg_thread_add_self("Monitor");
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
@@ -830,6 +841,8 @@ static void *georep_poll_thread(void *v) {
     rpcclt_t export_cnx;
     struct timeval timeout_mproto;
     void *ret;
+
+    uma_dbg_thread_add_self("Geo rep poll");
 
     // Set the frequency of calls
     struct timespec ts = {5, 0};
@@ -1253,6 +1266,9 @@ static void on_start() {
     // Allocate default profiler structure
     export_profiler_allocate(0);
     geo_profiler_allocate(0);
+
+
+    uma_dbg_thread_add_self("Blocking");
 
     /**
     * start the non blocking thread

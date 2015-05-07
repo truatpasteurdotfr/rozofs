@@ -43,6 +43,7 @@
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
 #include <rozofs/core/rozofs_string.h>
+#include <rozofs/core/uma_dbg_api.h>
 
 #include "config.h"
 #include "export.h"
@@ -680,6 +681,8 @@ static void *load_trash_dir_thread(void *v) {
 
     export_t *export = (export_t*) v;
 
+    uma_dbg_thread_add_self("Reload trash");
+
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     // Load files to delete in trash list
@@ -687,6 +690,8 @@ static void *load_trash_dir_thread(void *v) {
         severe("export_load_rmfentry failed: %s", strerror(errno));
         return 0;
     }
+
+    uma_dbg_thread_remove_self();
 
     info("Load trash directory pthread completed successfully (eid=%d)",
             export->eid);

@@ -346,6 +346,8 @@ static void *dirent_wbcache_thread(void *v) {
     struct timespec ts = {DIRENT_WBCACHE_PTHREAD_FREQUENCY_SEC, 0};
    dirent_writeback_entry_t  *cache_p;
    int i;
+
+    uma_dbg_thread_add_self("Dirent wr.back");
     
     dirent_wbcache_thread_period_count = DIRENT_WBCACHE_PTHREAD_FREQUENCY_SEC;
     dirent_wbcache_poll_stats[0] = 0;

@@ -55,7 +55,7 @@ typedef struct _uma_dbg_threads_t {
 
 #define UMA_DBG_MAX_THREAD  64
 uma_dbg_threads_t uma_dbg_thread_table[UMA_DBG_MAX_THREAD];
-uint32_t          uma_dbg_nb_threads = 0;
+int               uma_dbg_thread_table_initialized=0;
 pthread_mutex_t   uma_dbg_thread_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -173,22 +173,53 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
 ** @param name   The function of the tread
 */
 void uma_dbg_thread_add_self(char * name) {
+  int  i;
+  int  tid = syscall(SYS_gettid);
+  
+  uma_dbg_threads_t * th = &uma_dbg_thread_table[0];
 
   pthread_mutex_lock(&uma_dbg_thread_mutex);
   
-  uma_dbg_threads_t * th = &uma_dbg_thread_table[uma_dbg_nb_threads++];
-
+  if (uma_dbg_thread_table_initialized==0) {
+    memset(uma_dbg_thread_table,0,sizeof(uma_dbg_thread_table));
+    uma_dbg_thread_table_initialized = 1;
+  }
+  
+  for (i=0; i < UMA_DBG_MAX_THREAD; i++,th++) {
+    if (th->tid == 0) {
+      th->tid  = tid;
+      break;
+    }  
+  }  
+  
   pthread_mutex_unlock(&uma_dbg_thread_mutex);
 
-  th->tid  = syscall(SYS_gettid);
-  th->name = strdup(name);
+  if (i != UMA_DBG_MAX_THREAD) {
+    th->name = strdup(name);
+  }  
 }
 /*__________________________________________________________________________
-*  Reset thread table
+*  Remove a thread from the thread table
 */
-void uma_dbg_thread_reset(void) {
-  uma_dbg_nb_threads = 0;
-  memset(uma_dbg_thread_table,0,sizeof(uma_dbg_thread_table));
+void uma_dbg_thread_remove_self(void) {
+  int  i;
+  int  tid = syscall(SYS_gettid);
+  
+  uma_dbg_threads_t * th = &uma_dbg_thread_table[0];
+
+  pthread_mutex_lock(&uma_dbg_thread_mutex);
+  
+  for (i=0; i < UMA_DBG_MAX_THREAD; i++,th++) {
+    if (th->tid == tid) {
+      th->tid = 0;
+      if (th->name) {
+        free(th->name);
+        th->name = NULL;
+      }	
+      break;
+    }  
+  }  
+  pthread_mutex_unlock(&uma_dbg_thread_mutex);
 }
 /*__________________________________________________________________________
 **  Get the thread name of a thread
@@ -198,8 +229,8 @@ void uma_dbg_thread_reset(void) {
 char * uma_dbg_thread_get_name(pthread_t tid){
   int i;
   
-  for (i=0; i< uma_dbg_nb_threads; i++) {
-     if (tid == uma_dbg_thread_table[i].tid) return uma_dbg_thread_table[i].name;
+  for (i=0; i< UMA_DBG_MAX_THREAD; i++) {
+    if (tid == uma_dbg_thread_table[i].tid) return uma_dbg_thread_table[i].name;
   }
   return NULL;
 }  

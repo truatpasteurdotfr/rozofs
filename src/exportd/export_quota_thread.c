@@ -700,6 +700,8 @@ static void *export_fstat_thread(void *v) {
     // Set the frequency of calls
     struct timespec ts = {EXPORT_FSTAT_PTHREAD_FREQUENCY_SEC, 0};
    int i;
+
+    uma_dbg_thread_add_self("Quota");
     
     export_fstat_thread_period_count = EXPORT_FSTAT_PTHREAD_FREQUENCY_SEC*5;
     export_fstat_poll_stats[0] = 0;

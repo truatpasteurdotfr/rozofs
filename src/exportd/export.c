@@ -737,6 +737,8 @@ static void *load_trash_dir_thread(void *v) {
 
     export_t *export = (export_t*) v;
 
+    uma_dbg_thread_add_self("Load trash");
+
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
     // Load files to delete in trash list

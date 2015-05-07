@@ -127,7 +127,10 @@ static inline int uma_dbg_byte2String(uint64_t value, char * value_string) {
 ** @param name   The function of the tread
 */
 void uma_dbg_thread_add_self(char * name);
-
+/*__________________________________________________________________________
+*  Remove a thread from the thread table
+*/
+void uma_dbg_thread_remove_self(void) ;
 /*__________________________________________________________________________
 *  Get the thread name of a thread
 ** @param tid    The thread identifier

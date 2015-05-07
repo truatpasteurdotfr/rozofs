@@ -922,6 +922,8 @@ int expgwc_start_nb_blocking_th(void *args) {
     int size;
     //sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
     exportd_start_conf_param_t *args_p = (exportd_start_conf_param_t*)args;
+
+    uma_dbg_thread_add_self("Non bloking");
  
     /*
     ** set the uptime
