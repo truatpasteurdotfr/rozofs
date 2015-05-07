@@ -809,6 +809,9 @@ out:
 void *connect_storage(void *v) {
 	mstorage_t *mstorage = (mstorage_t*) v;
 	int configuration_done = 0;
+	
+	uma_dbg_thread_add_self("Connect");
+
 
 	struct timespec ts = { CONNECTION_THREAD_TIMESPEC, 0 };
 
@@ -1231,6 +1234,8 @@ int main(int argc, char *argv[]) {
     ** Change local directory to "/"
     */
     if (chdir("/")!=0) {}
+
+    uma_dbg_thread_add_self("Main");
 
     /*
     ** init of the timer configuration

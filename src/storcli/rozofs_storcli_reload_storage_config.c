@@ -208,6 +208,9 @@ void *storcli_exportd_config_supervision_thread(void *exportd_context_p) {
  int status = -1;
  int retry = 0;
  
+ uma_dbg_thread_add_self("Supervision");
+
+ 
  struct timespec ts = {CONF_CONNECTION_THREAD_TIMESPEC, 0};
  pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
  /*

@@ -263,6 +263,8 @@ void *rozofs_stcmoj_thread(void *arg) {
   rozofs_mojette_thread_ctx_t * ctx_p = (rozofs_mojette_thread_ctx_t*)arg;
   int                        bytesRcvd;
 
+  uma_dbg_thread_add_self("Mojette");
+
   //info("Disk Thread %d Started !!\n",ctx_p->thread_idx);
 
     /*
