@@ -270,8 +270,9 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port,uint16_t export_listening_p
  */
 int rozofs_stat_start(void *args) {
 
+    uma_dbg_thread_add_self("Main");
 
-    int ret;
+    int ret; 
     //sem_t semForEver;    /* semaphore for blocking the main thread doing nothing */
     args_p = args;
     exportclt_t *exportclt_p = (exportclt_t*)args_p->exportclt;

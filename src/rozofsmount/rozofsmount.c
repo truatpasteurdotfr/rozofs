@@ -1449,6 +1449,8 @@ int fuseloop(struct fuse_args *args, int fg) {
 
     uma_dbg_record_syslog_name("rozofsmount");
 
+    uma_dbg_thread_add_self("Starter");
+
     struct timeval timeout_mproto;
     timeout_mproto.tv_sec = 1;//rozofs_tmr_get(TMR_EXPORT_PROGRAM);
     timeout_mproto.tv_usec = 0;
