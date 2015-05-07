@@ -390,6 +390,8 @@ int main(int argc, char *argv[]) {
     ** Change local directory to "/"
     */
     if (chdir("/")!= 0) {}
+
+    uma_dbg_thread_add_self("Main");
     
     uma_dbg_record_syslog_name("storaged");
 

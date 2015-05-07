@@ -35,6 +35,8 @@
 #include "ruc_timer_struct.h"
 #include "ruc_trace_api.h"
 #include "ruc_sockCtl_api.h"
+#include "uma_dbg_api.h"
+
 
 uint32_t  ruc_timer_getIntSockIdxFromSocketId(ruc_timer_t *p,int socketId);
 uint64_t  ruc_timer_ticker = 0;
@@ -668,6 +670,7 @@ uint32_t ruc_timer_threadCreate( pthread_t  *thrdId ,
     return RUC_NOK;
 
   }
+  
   return RUC_OK;
 }
 
@@ -733,6 +736,8 @@ void *ruc_timer_TickerThread(void *arg)
 
   ruc_timer_t *p;
   int count = 0;
+
+  uma_dbg_thread_add_self("Ticker");
 
 
   p = ruc_timer_getObjRef();

@@ -282,6 +282,8 @@ int main(int argc, char *argv[]) {
     */
     if (chdir("/")!= 0) {}
 
+    uma_dbg_thread_add_self("Main");
+
     /*
      ** init of the timer configuration
      */

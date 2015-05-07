@@ -29,8 +29,8 @@
 #include <unistd.h>
 #include <time.h>
 #include <ctype.h>
- 
-
+#include <sys/syscall.h>
+#include <pthread.h>
 
 #include "ruc_common.h"
 #include "ruc_list.h"
@@ -44,6 +44,20 @@
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
 static time_t uptime=0;
+
+/*
+** List of threads
+*/
+typedef struct _uma_dbg_threads_t {
+  pthread_t    tid;
+  char       * name;
+} uma_dbg_threads_t;
+
+#define UMA_DBG_MAX_THREAD  64
+uma_dbg_threads_t uma_dbg_thread_table[UMA_DBG_MAX_THREAD];
+uint32_t          uma_dbg_nb_threads = 0;
+pthread_mutex_t   uma_dbg_thread_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 
 char uma_dbg_core_file_path[128] = {0};
@@ -152,6 +166,43 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
 	*p = 0;
 	return p;
 }
+
+/*__________________________________________________________________________
+*  Add a thread in the thread table
+** @param tid    The thread identifier
+** @param name   The function of the tread
+*/
+void uma_dbg_thread_add_self(char * name) {
+
+  pthread_mutex_lock(&uma_dbg_thread_mutex);
+  
+  uma_dbg_threads_t * th = &uma_dbg_thread_table[uma_dbg_nb_threads++];
+
+  pthread_mutex_unlock(&uma_dbg_thread_mutex);
+
+  th->tid  = syscall(SYS_gettid);
+  th->name = strdup(name);
+}
+/*__________________________________________________________________________
+*  Reset thread table
+*/
+void uma_dbg_thread_reset(void) {
+  uma_dbg_nb_threads = 0;
+  memset(uma_dbg_thread_table,0,sizeof(uma_dbg_thread_table));
+}
+/*__________________________________________________________________________
+**  Get the thread name of a thread
+** @param tid    The thread identifier
+** @retval the name of the thread or NULL
+*/
+char * uma_dbg_thread_get_name(pthread_t tid){
+  int i;
+  
+  for (i=0; i< uma_dbg_nb_threads; i++) {
+     if (tid == uma_dbg_thread_table[i].tid) return uma_dbg_thread_table[i].name;
+  }
+  return NULL;
+}  
 /*__________________________________________________________________________
  */
 /**
@@ -334,17 +385,52 @@ void uma_dbg_system_ps(char * argv[], uint32_t tcpRef, void *bufRef) {
   int    len;
   pid_t  pid;
   char  *p;
+  int   tid;
   
   pid = getpid();
   
   p = uma_dbg_get_buffer();
   p += rozofs_string_append(p,"ps -p ");
   p += rozofs_u32_append(p, pid);
-  p += rozofs_string_append(p," -m -opid,lwp,psr,pcpu,cputime,pmem,vsz,args");
+  p += rozofs_string_append(p," -m -olwp:20,psr,pcpu,cputime,pmem,vsz,args");
 
   len = uma_dbg_run_system_cmd(uma_dbg_get_buffer(), uma_dbg_get_buffer(), uma_dbg_get_buffer_len());
-  if (len == 0)  uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");    
-  else           uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+  
+  if (len == 0)  return uma_dbg_send(tcpRef, bufRef, TRUE, "No response\n");  
+    
+  /*
+  ** Add thread identifier list 
+  */
+  p = uma_dbg_get_buffer();
+  // Title line
+  while((*p!=0)&&(*p!='\n')) p++;
+  if (*p==0) goto out;
+  p++;
+
+  // General line
+  while((*p!=0)&&(*p!='\n')) p++;  
+  if (*p==0) goto out;
+  p++;
+    
+  // scan for tid
+  while (*p!=0) {
+  
+    int ret = sscanf(p,"%d",&tid);
+    if (ret == 1) {
+    
+      char * name = uma_dbg_thread_get_name(tid);
+      if (name != NULL) {
+        len = strlen(name);
+	memcpy(p,name,len);
+      }   
+    }
+    while((*p!=0)&&(*p!='\n')) p++;  
+    if (*p==0) break;
+    p++;
+  }      
+
+out:  
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return ;
 } 
 /*__________________________________________________________________________

@@ -122,6 +122,20 @@ static inline int uma_dbg_byte2String(uint64_t value, char * value_string) {
   return (pt-value_string);   
 }
 /*__________________________________________________________________________
+*  Add a thread in the thread table
+** @param tid    The thread identifier
+** @param name   The function of the tread
+*/
+void uma_dbg_thread_add_self(char * name);
+
+/*__________________________________________________________________________
+*  Get the thread name of a thread
+** @param tid    The thread identifier
+** @retval the name of the thread or NULL
+*/
+char * uma_dbg_thread_get_name(pthread_t tid);
+
+/*__________________________________________________________________________
  */
 /**
 *  Format an ASCII dump

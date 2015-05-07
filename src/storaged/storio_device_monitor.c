@@ -507,6 +507,9 @@ void storio_device_monitor() {
 **  @param param: Not significant
 */
 void * storio_device_monitor_thread(void * param) {
+
+  uma_dbg_thread_add_self("Device monitor");
+
   /*
   ** Never ending loop
   */ 
