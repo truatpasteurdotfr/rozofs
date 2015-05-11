@@ -1228,7 +1228,7 @@ static int exportd_initialize() {
 }
 
 static void exportd_release() {
-
+#if 0
     pthread_cancel(bal_vol_thread);
     pthread_cancel(rm_bins_thread);
     pthread_cancel(exp_tracking_thread);
@@ -1239,6 +1239,7 @@ static void exportd_release() {
     if ((errno = pthread_rwlock_destroy(&config_lock)) != 0) {
         severe("can't release config lock: %s", strerror(errno));
     }
+#endif    
 
 #if 0
     In case we crash, let the system free the memory for us.
