@@ -419,6 +419,8 @@ int exp_trck_open_tracking_file(exp_trck_header_memory_t *main_trck_p, int *relo
     ** fatal error, cannot read inode information of the tracking file
     */
     severe("fstat error on %s: %s\n",pathname,strerror(errno));
+    close(main_trck_p->cur_tracking_file_fd);
+    main_trck_p->cur_tracking_file_fd = -1;    
     return -1;  
   }
   /**
@@ -946,7 +948,7 @@ int exp_trck_rw_attributes(char *root_path,rozofs_inode_t *inode,void *attr_p,in
 
    if ((fd = open(pathname, O_RDWR , 0640)) < 0)  
    {
-     severe("cannot open %s: %s\n",pathname,strerror(errno));
+     severe("cannot open %s: %s\n",pathname,strerror(errno));     
      return -1;
    } 
    /*
@@ -955,6 +957,8 @@ int exp_trck_rw_attributes(char *root_path,rozofs_inode_t *inode,void *attr_p,in
    int real_idx = exp_trck_get_relative_inode_idx(fd,root_path,inode);
    if (real_idx < 0)
    {
+     CLOSE_CONTROL(__LINE__);
+     close(fd);   
      return -1;
    }
    /*

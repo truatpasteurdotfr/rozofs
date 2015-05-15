@@ -691,6 +691,11 @@ void * ruc_sockctl_connect(int socketId,
 
     ruc_sockObj_t *p,*pelem;
 
+  if (socketId >= FD_SETSIZE) {
+    fatal("ruc_sockctl_connect socketId out of range %d",socketId);
+    return NULL;
+  }
+
   /*
   ** get the first element from the free list
   */

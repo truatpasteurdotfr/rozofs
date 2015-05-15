@@ -107,7 +107,35 @@ static inline void  *rozofs_alloc_shared_storcli_buf(int pool_id)
    rozofs_storcli_shared_mem[pool_id].read_stats++; 
    return (ruc_buf_getBuffer(rozofs_storcli_shared_mem[pool_id].pool_p));
 }
+/*
+ *________________________________________________________
+ */
+/**
+*  Get the amount of remaining shared buffer within a given pool
 
+   @param pool_id : index of pool (0: read/1:write 
+   
+   @retval     Buffer count
+*/
+static inline int rozofs_get_shared_storcli_buf_free(int pool_id)
+{
+   if (pool_id >= SHAREMEM_PER_FSMOUNT)
+   {
+      severe("bad pool_id %d out of range",pool_id);
+      return 0;
+   }
+   if (rozofs_storcli_shared_mem[pool_id].key == 0)
+   {
+      /*
+      ** shared memory is inactive 
+      */
+      return 0;
+   }
+   /*
+   ** Get the count of free buffer
+   */   
+   return (ruc_buf_getFreeBufferCount(rozofs_storcli_shared_mem[pool_id].pool_p));
+}
 /*
  *________________________________________________________
  */

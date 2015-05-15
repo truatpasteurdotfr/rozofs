@@ -22,6 +22,7 @@
 
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
+#include "rozofs_sharedmem.h"
 
 rozofs_fuse_ctx_t  *rozofs_fuse_ctx_p = NULL;  /**< pointer to the rozofs_fuse saved contexts   */
 uint64_t rozofs_write_merge_stats_tab[RZ_FUSE_WRITE_MAX]; /**< read/write merge stats table */
@@ -33,7 +34,7 @@ rozofs_fuse_read_write_stats  rozofs_fuse_read_write_stats_buf;
  */
 uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId);
 uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId);
-int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p);
+int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p, int * empty);
 uint32_t rozofs_fuse_xmitReadysock(void * rozofs_fuse_ctx_p,int socketId);
 uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId);
 
@@ -329,7 +330,16 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
       rozofs_fuse_buffer_depletion_count++;
       return FALSE;
     }
-
+    
+    /*
+    ** Check the amount of read buffer (shared pool)
+    */
+    buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_READ);
+    if (buffer_count < 2) 
+    {
+      rozofs_fuse_buffer_depletion_count++;
+      return FALSE;
+    }          
     return TRUE;
 }
   
@@ -356,6 +366,7 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
     rozofs_fuse_ctx_t  *ctx_p;
     int k;
     uint32_t            buffer_count;
+    int                 empty;
     
     ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;   
      
@@ -366,8 +377,18 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
        {
 	 rozofs_fuse_buffer_depletion_count++;
 	 return TRUE;
-       }    
-       rozofs_fuse_session_loop(ctx_p);
+       }
+       /*
+       ** Check the amount of read buffer (shared pool)
+       */
+       buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_READ);
+       if (buffer_count < 2) 
+       {
+	 rozofs_fuse_buffer_depletion_count++;
+	 return TRUE;
+       }           
+       rozofs_fuse_session_loop(ctx_p,&empty);
+       if (empty) return TRUE;
      }
     
     return TRUE;
@@ -379,7 +400,7 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
 /*
 **__________________________________________________________________________
 */
-int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p)
+int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p, int * empty)
 {
 	int res = 0;
     char *buf;
@@ -387,6 +408,8 @@ int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p)
     int exit_req = 0;
     struct fuse_session *se = ctx_p->se;
 	struct fuse_chan *ch = fuse_session_next_chan(se, NULL);
+    
+    *empty = 0;
     
     /*
     ** Get a buffer from the rozofs_fuse context. That buffer is unique and is allocated
@@ -423,6 +446,7 @@ int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p)
              /*
              ** the fuse queue is empty
              */
+	     *empty = 1;
              return 0;
              break;   
              default:
@@ -815,7 +839,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
    */
    rozofs_fuse_ctx_p->connectionId = ruc_sockctl_connect(rozofs_fuse_ctx_p->fd,  // Reference of the socket
                                               "rozofs_fuse",                 // name of the socket
-                                              16,                             // Priority within the socket controller
+                                              3,                             // Priority within the socket controller
                                               (void*)rozofs_fuse_ctx_p,      // user param for socketcontroller callback
                                               &rozofs_fuse_callBack_sock);   // Default callbacks
     if (rozofs_fuse_ctx_p->connectionId == NULL)

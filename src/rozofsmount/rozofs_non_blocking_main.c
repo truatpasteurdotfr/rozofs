@@ -212,7 +212,7 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port,uint16_t export_listening_p
         if (ret != RUC_OK) break;
 
         ret = rozofs_tx_module_init(args_p->max_transactions+32, // fuse trx + internal trx
-                args_p->max_transactions, 2048, // xmit small [count,size]
+                args_p->max_transactions+32, 2048, // xmit small [count,size]
                 args_p->max_transactions, (1024 * 258), // xmit large [count,size]
                 args_p->max_transactions, 1024, // recv small [count,size]
                 args_p->max_transactions, (1024 * 258)); // recv large [count,size];  
