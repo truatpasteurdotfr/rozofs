@@ -961,7 +961,37 @@ static inline int rozofs_ipv4_port_append(char * pChar, uint32_t ip, uint16_t po
 
 
 
+/*
+**___________________________________________________________
+** Append an unsigned 64 bit number in hexadecimal representation
+** to a string. Add a 0 at the end.
+**
+** sprintf(pChar,"%16.16llx",val) 
+**  -> rozofs_x64_append(pChar, val)
+**
+** @param pChar       The string that is being built
+** @param val         The 64bits unsigned value
+**
+** @retval the size added to the string
+*/
+static inline int rozofs_x8_append(char * pChar, uint8_t val) {
+  uint32_t high,low;
 
+  low  = val & 0xF;
+  high = (val >> 4) & 0xF;
+  
+  if (high<10) *pChar++ = high + '0';
+  else         *pChar++ = high + 'a' - 10;
+
+  if (low<10)  *pChar++ = low  + '0';
+  else         *pChar++ = low  + 'a' - 10;
+  
+  /*
+  ** Add the end of string
+  */      
+  *pChar = 0;
+  return 2;
+} 
 
 
 

@@ -127,15 +127,15 @@ char * uma_dbg_hexdump(void *ptr, unsigned int len, char * p)
                 /* print offset */
                 if(i % HEXDUMP_COLS == 0)
                 {
-			p += rozofs_u64_padded_append(p,8,rozofs_zero,(uint64_t)(mem+i));			
+			p += rozofs_x64_append(p,(uint64_t)(mem+i));			
+                        *p++ = ' ';
                 }
- 
+		
                 /* print hex data */
                 if(i < len)
                 {
-			p += rozofs_u64_padded_append(p,2,rozofs_zero,0xFF & ((char*)mem)[i]);			
+			p += rozofs_x8_append(p, 0xFF & ((char*)mem)[i]);			
 		       *p++ = ' ';
-		
                 }
                 else /* end of block, just aligning for ASCII dump */
                 {
