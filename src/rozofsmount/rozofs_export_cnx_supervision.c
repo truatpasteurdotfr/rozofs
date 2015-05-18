@@ -258,7 +258,7 @@ void rozofs_export_lbg_cnx_polling(af_unix_ctx_generic_t  *sock_p)
   int ret;
   int timeout = (int)ROZOFS_TMR_GET(TMR_RPC_NULL_PROC_TCP);
 
-  af_inet_set_cnx_tmo(sock_p,timeout*10);
+  af_inet_set_cnx_tmo(sock_p,timeout*10*5);
   /*
   ** attempt to poll
   */
@@ -312,6 +312,9 @@ void rozofs_export_poll_cbk(void *this,void *param)
    struct rpc_msg  rpc_reply;
    void * ret = NULL;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
+   af_unix_ctx_generic_t  *sock_p;
+   int timeout = (int)ROZOFS_TMR_GET(TMR_RPC_NULL_PROC_TCP);
+   north_lbg_ctx_t *lbg_p;
    /*
    ** Restore opaque data
    */ 
@@ -385,6 +388,31 @@ void rozofs_export_poll_cbk(void *this,void *param)
    north_lbg_set_active_entry(lbg_id,sock_idx_in_lbg);     
    goto out;
 error:
+   {
+      /*
+      ** Get the pointer to the lbg
+      */
+      lbg_p = north_lbg_getObjCtx_p(lbg_id);
+      if (lbg_p == NULL) 
+      {
+	severe("rozofs_export_poll_tx: no such instance %d ",lbg_id);
+	goto out;
+      }
+      /*
+      ** the context of the socket
+      */      
+      sock_p = af_unix_getObjCtx_p(lbg_p->entry_tb[sock_idx_in_lbg].sock_ctx_ref); 
+      if ( sock_p == NULL)
+      {
+         severe("No socket pointer for lbg_id %d entry %d", (int)lbg_id, (int)  lbg_p->entry_tb[sock_idx_in_lbg].sock_ctx_ref);
+	 goto out;
+      }
+      /*
+      ** restart the timer
+      */
+      af_inet_set_cnx_tmo(sock_p,timeout*10*5);
+      
+    }
 
    /*
    ** When this antry used to be tha active entry, invalidate it
