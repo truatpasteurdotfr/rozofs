@@ -103,6 +103,11 @@ typedef struct volume {
     uint8_t georep; /**< asserted to 1 when geo-replication is enabled */
     list_t clusters; ///< cluster(s) list
     pthread_rwlock_t lock; ///< lock to be used by export
+    /*
+    ** Updateed by volume_balance() and the used by cluster_distribute()
+    */
+    int    active_list;
+    list_t cluster_distribute[2];  
 } volume_t;
 
 /** initialize a volume

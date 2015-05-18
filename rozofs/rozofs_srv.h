@@ -109,6 +109,20 @@ static inline uint8_t rozofs_get_rozofs_safe(uint8_t layout) {
 }
 
 /**
+  Get the rozofs_safe for a given layout
+  
+  @param layout : layout association with the file
+  
+  @retval rozofs_inverse associated with the layout
+ */
+static inline int rozofs_get_rozofs_invers_forward_safe(uint8_t layout, uint8_t * inv, uint8_t * fwd, uint8_t * safe) {
+    if (layout >= LAYOUT_MAX) return -1;
+    *inv  = rozofs_conf_layout_table[layout].rozofs_inverse;
+    *fwd  = rozofs_conf_layout_table[layout].rozofs_forward;
+    *safe = rozofs_conf_layout_table[layout].rozofs_safe;
+    return 0;
+}
+/**
   Get the angle "p" for a given layout
   
   @param layout : layout association with the file

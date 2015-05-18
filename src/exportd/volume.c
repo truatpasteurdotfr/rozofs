@@ -46,7 +46,7 @@ static int volume_storage_compare(list_t * l1, list_t *l2) {
     if ((!e1->status && e2->status) || (e1->status && !e2->status)) {
         return (e2->status - e1->status);
     }
-    return e1->stat.free < e2->stat.free;
+    return e1->stat.free <= e2->stat.free;
 //  return e2->stat.free - e1->stat.free;
 }
 
@@ -107,6 +107,11 @@ int volume_initialize(volume_t *volume, vid_t vid, uint8_t layout,uint8_t georep
     volume->georep = georep;
     volume->layout = layout;
     list_init(&volume->clusters);
+    
+    volume->active_list = 0;
+    list_init(&volume->cluster_distribute[0]);    
+    list_init(&volume->cluster_distribute[1]);    
+
     if (pthread_rwlock_init(&volume->lock, NULL) != 0) {
         goto out;
     }
@@ -125,6 +130,18 @@ void volume_release(volume_t *volume) {
         cluster_release(entry);
         free(entry);
     }
+    list_for_each_forward_safe(p, q, &volume->cluster_distribute[0]) {
+        cluster_t *entry = list_entry(p, cluster_t, list);
+        list_remove(p);
+        cluster_release(entry);
+        free(entry);
+    } 
+    list_for_each_forward_safe(p, q, &volume->cluster_distribute[1]) {
+        cluster_t *entry = list_entry(p, cluster_t, list);
+        list_remove(p);
+        cluster_release(entry);
+        free(entry);
+    }        
     if ((errno = pthread_rwlock_destroy(&volume->lock)) != 0) {
         severe("can't release volume lock: %s", strerror(errno));
     }
@@ -192,33 +209,130 @@ error:
     return -1;
 
 }
+int volume_safe_from_list_copy(volume_t *to, list_t *from) {
+    list_t *p, *q;
 
+    if ((errno = pthread_rwlock_wrlock(&to->lock)) != 0) {
+        severe("can't lock volume: %u %s", to->vid,strerror(errno));
+        goto error;
+    }
+
+    list_for_each_forward_safe(p, q, &to->clusters) {
+        cluster_t *entry = list_entry(p, cluster_t, list);
+        list_remove(p);
+        cluster_release(entry);
+        free(entry);
+    }
+
+    list_for_each_forward(p, from) {
+    
+        cluster_t *to_cluster = xmalloc(sizeof (cluster_t));
+        cluster_t *from_cluster = list_entry(p, cluster_t, list);
+        cluster_initialize(to_cluster, from_cluster->cid, from_cluster->size,
+                from_cluster->free);
+	int i;
+	for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) {
+	  to_cluster->nb_host[i] = from_cluster->nb_host[i];
+          list_for_each_forward(q, (&from_cluster->storages[i])) {
+              volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
+              volume_storage_t *to_storage = xmalloc(sizeof (volume_storage_t));
+              volume_storage_initialize(to_storage, from_storage->sid, from_storage->host,from_storage->host_rank);
+              to_storage->stat = from_storage->stat;
+              to_storage->status = from_storage->status;
+              list_push_back(&to_cluster->storages[i], &to_storage->list);
+          }
+	}
+        list_push_back(&to->clusters, &to_cluster->list);
+    }
+
+    if ((errno = pthread_rwlock_unlock(&to->lock)) != 0) {
+        severe("can't unlock volume: %u %s", to->vid,strerror(errno));
+        goto error;
+    }
+
+    return 0;
+error:
+    // Best effort to release locks
+    pthread_rwlock_unlock(&to->lock);
+    return -1;
+
+}
+int volume_safe_to_list_copy(volume_t *from, list_t *to) {
+    list_t *p, *q;
+
+    if ((errno = pthread_rwlock_rdlock(&from->lock)) != 0) {
+        severe("can't lock volume: %u %s", from->vid,strerror(errno));
+        goto error;
+    }
+
+    list_for_each_forward_safe(p, q, to) {
+        cluster_t *entry = list_entry(p, cluster_t, list);
+        list_remove(p);
+        cluster_release(entry);
+        free(entry);
+    }
+
+    list_for_each_forward(p, &from->clusters) {
+        cluster_t *to_cluster = xmalloc(sizeof (cluster_t));
+        cluster_t *from_cluster = list_entry(p, cluster_t, list);
+        cluster_initialize(to_cluster, from_cluster->cid, from_cluster->size,
+                from_cluster->free);
+	int i;
+	for (i = 0; i < ROZOFS_GEOREP_MAX_SITE;i++) {
+	  to_cluster->nb_host[i] = from_cluster->nb_host[i];
+          list_for_each_forward(q, (&from_cluster->storages[i])) {
+              volume_storage_t *from_storage = list_entry(q, volume_storage_t, list);
+              volume_storage_t *to_storage = xmalloc(sizeof (volume_storage_t));
+              volume_storage_initialize(to_storage, from_storage->sid, from_storage->host,from_storage->host_rank);
+              to_storage->stat = from_storage->stat;
+              to_storage->status = from_storage->status;
+              list_push_back(&to_cluster->storages[i], &to_storage->list);
+          }
+	}
+        list_push_back(to, &to_cluster->list);
+    }
+
+    if ((errno = pthread_rwlock_unlock(&from->lock)) != 0) {
+        severe("can't unlock volume: %u %s", from->vid,strerror(errno));
+        goto error;
+    }
+
+    return 0;
+error:
+    // Best effort to release locks
+    pthread_rwlock_unlock(&from->lock);
+    return -1;
+
+}
 uint8_t export_rotate_sid[ROZOFS_CLUSTERS_MAX] = {0};
 
 void volume_balance(volume_t *volume) {
     list_t *p, *q;
-    volume_t clone;
+    list_t   * pList;
     DEBUG_FUNCTION;
     START_PROFILING_0(volume_balance);
     
     int local_site = export_get_local_site_number();
 
+    /*
+    ** We will work on the next distribution list which is
+    ** inactive since the last call to volume_balance().
+    */
+    int next = 1 - volume->active_list; 
+    pList = &volume->cluster_distribute[next];
 
-    // create a working copy
-    if (volume_initialize(&clone, 0, 0,0) != 0) {
-        severe("can't initialize clone volume: %u", volume->vid);
+    /*
+    ** Reinitialize this list from the current cluster list
+    */
+    if (volume_safe_to_list_copy(volume,pList) != 0) {
+        severe("can't volume_safe_to_list_copy: %u %s", volume->vid,strerror(errno));
         goto out;
-    }
+    }   
 
-    if (volume_safe_copy(&clone, volume) != 0) {
-        severe("can't clone volume: %u", volume->vid);
-        goto out;
-    }
-
-    // work on the clone
-    // try to join each storage server & stat it
-
-    list_for_each_forward(p, &clone.clusters) {
+    /*
+    ** Check the storage status and free storage
+    */
+    list_for_each_forward(p, pList) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 
         cluster->free = 0;
@@ -268,7 +382,7 @@ void volume_balance(volume_t *volume) {
     */
     if (volume->georep)
     {
-      list_for_each_forward(p, &clone.clusters) {
+      list_for_each_forward(p, pList) {
           cluster_t *cluster = list_entry(p, cluster_t, list);
 
           list_for_each_forward(q, (&cluster->storages[1-local_site])) {
@@ -310,65 +424,67 @@ void volume_balance(volume_t *volume) {
           }
 
       }
-    }    
-    // sort the clone
-    // no need to lock the volume since it's a local only volume
-
-    list_for_each_forward(p, &clone.clusters) {
+    }  
+    
+      
+    // sort the new list
+    list_for_each_forward(p, pList) {
         cluster_t *cluster = list_entry(p, cluster_t, list);
 	export_rotate_sid[cluster->cid] = 0;
         list_sort((&cluster->storages[local_site]), volume_storage_compare);
     }
-    list_sort(&clone.clusters, cluster_compare_capacity);
+    list_sort(pList, cluster_compare_capacity);
     
     if (volume->georep)
     {
       /*
       ** do it also for the remote site
       */
-      list_for_each_forward(p, &clone.clusters) {
+      list_for_each_forward(p, pList) {
           cluster_t *cluster = list_entry(p, cluster_t, list);
           list_sort((&cluster->storages[local_site]), volume_storage_compare);
       }
-      list_sort(&clone.clusters, cluster_compare_capacity);
     }
+    
+    
     // Copy the result back to our volume
-    if (volume_safe_copy(volume, &clone) != 0) {
-        severe("can't clone volume: %u", volume->vid);
+    if (volume_safe_from_list_copy(volume,pList) != 0) {
+        severe("can't volume_safe_from_list_copy: %u %s", volume->vid,strerror(errno));
         goto out;
-    }
+    }  
 
-    // Free the clone volume
-    p = NULL;
-    q = NULL;
 
-    list_for_each_forward_safe(p, q, &clone.clusters) {
-        cluster_t *entry = list_entry(p, cluster_t, list);
-        list_remove(p);
-        cluster_release(entry);
-        free(entry);
-    }
-
+    /*
+    ** Swap the active list. This is done after the lock/unlock
+    ** in the volume_safe_from_list_copy which insures a memory barrier
+    */
+    volume->active_list = next;
 out:
     STOP_PROFILING_0(volume_balance);
 }
-
 // what if a cluster is < rozofs safe
 
-static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, sid_t *sids) {
-  list_t    *p;
+static int do_cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, sid_t *sids) {
   int        idx;
   uint64_t   sid_taken=0;
+  uint64_t   taken_bit;  
   uint64_t   host;
+  uint64_t   host_bit;  
   uint8_t    ms_ok = 0;;
   int        nb_selected=0; 
   int        host_collision; 
-  int        decrease_size;
   int        loop;
+  volume_storage_t *selected[ROZOFS_SAFE_MAX];
+  volume_storage_t *vs;
+  list_t           *pList = &cluster->storages[site_idx];
+  list_t           *p;
   
-  uint8_t rozofs_forward = rozofs_get_rozofs_forward(layout);
-  uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
+  uint8_t rozofs_inverse=0; 
+  uint8_t rozofs_forward=0;
+  uint8_t rozofs_safe=0;
 
+  rozofs_get_rozofs_invers_forward_safe(layout,&rozofs_inverse,&rozofs_forward,&rozofs_safe);
+  
 //  int modulo = export_rotate_sid[cluster->cid] % rozofs_forward;
 //  export_rotate_sid[cluster->cid]++;
 
@@ -383,19 +499,21 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
     host = 0;
     host_collision = 0;
 
-    list_for_each_forward(p, (&cluster->storages[site_idx])) {
+    list_for_each_forward(p, pList) {
 
-      volume_storage_t *vs = list_entry(p, volume_storage_t, list);
+      vs = list_entry(p, volume_storage_t, list);
       idx++;
 
       /* SID already selected */
-      if ((sid_taken & (1ULL<<idx))!=0) {
-	//info("%d already taken", idx);
+      taken_bit = (1ULL<<idx);
+      if ((sid_taken & taken_bit)!=0) {
+        //info("%d already taken", idx);
 	continue;
       }
 
       /* One sid already allocated on this host */
-      if ((host & (1U<<vs->host_rank))!=0) {
+      host_bit = (1ULL<<vs->host_rank);
+      if ((host & host_bit)!=0) {
 	//info("%d host collision %d", idx, vs->host_rank);
 	host_collision++;	    
 	continue;
@@ -408,10 +526,9 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
       /*
       ** Take this guy
       */
-      sid_taken |= (1ULL<<idx);
-      host      |= (1ULL<<vs->host_rank);
-
-      sids[nb_selected++] = vs->sid;
+      sid_taken |= taken_bit;
+      host      |= host_bit;
+      selected[nb_selected++] = vs;
 
       //info("idx%d/sid%d is #%d on host %d with status %d", idx, vs->sid, nb_selected, vs->host_rank, vs->status);
 
@@ -424,47 +541,80 @@ static int cluster_distribute(uint8_t layout,int site_idx, cluster_t *cluster, s
     //info("nb_selected %d host_collision %d", nb_selected, host_collision);
     
     if ((nb_selected+host_collision) < rozofs_safe) return  -1;    
-  } 
+  }
   return -1;
   
 success:
 
-
-  decrease_size = (128*1024*1024)/rozofs_safe;
+#define decrease_size1 (32*1024ULL*1024ULL)
+#define decrease_size2 (16*1024ULL*1024ULL)
+#define decrease_size3 (1024ULL*1024ULL)
   
-  /*
-  ** Decrease the estimated free size of the selected storages
-  */
   idx = 0;
+  while(idx < rozofs_inverse) {
   
-  list_for_each_forward(p, (&cluster->storages[site_idx])) {
+    vs = selected[idx];
+    sids[idx] = vs->sid;
 
-    volume_storage_t *vs = list_entry(p, volume_storage_t, list);
-
-    /* SID not selected */
-    if ((sid_taken & (1ULL<<idx))==0) continue;
-
-    idx++;
-    if (vs->stat.free > (256*decrease_size)) {
-      vs->stat.free -= decrease_size;
+    if (vs->stat.free > (256*decrease_size1)) {
+      vs->stat.free -= decrease_size1;
     }
-    else if (vs->stat.free > (64*decrease_size)) {
-      vs->stat.free -= (decrease_size/2);      
+    else if (vs->stat.free > (64*decrease_size1)) {
+      vs->stat.free -= (decrease_size1/2);      
     }
-    else if (vs->stat.free > decrease_size) {
-      vs->stat.free -= (decrease_size/8);
+    else if (vs->stat.free > decrease_size1) {
+      vs->stat.free -= (decrease_size1/8);
     }
     else {
       vs->stat.free /= 2;
     }
-    if (idx>=rozofs_forward) break;
+    idx++;
   }
   
+  while(idx < rozofs_forward) {
+  
+    vs = selected[idx];
+    sids[idx] = vs->sid;
+
+    if (vs->stat.free > (256*decrease_size2)) {
+      vs->stat.free -= decrease_size2;
+    }
+    else if (vs->stat.free > (64*decrease_size2)) {
+      vs->stat.free -= (decrease_size2/2);      
+    }
+    else if (vs->stat.free > decrease_size2) {
+      vs->stat.free -= (decrease_size2/8);
+    }
+    else {
+      vs->stat.free /= 2;
+    }
+    idx++;
+  } 
+   
+  while(idx < rozofs_safe) {
+  
+    vs = selected[idx];
+    sids[idx] = vs->sid;
+
+    if (vs->stat.free > (256*decrease_size3)) {
+      vs->stat.free -= decrease_size3;
+    }
+    else if (vs->stat.free > (64*decrease_size3)) {
+      vs->stat.free -= (decrease_size3/2);      
+    }
+    else if (vs->stat.free > decrease_size3) {
+      vs->stat.free -= (decrease_size3/8);
+    }
+    else {
+      vs->stat.free /= 2;
+    }
+    idx++;
+  }    
 
   /*
   ** Re-order the SIDs
   */
-  list_sort(&cluster->storages[site_idx], volume_storage_compare);
+  list_sort(pList, volume_storage_compare);
   
   return 0;
 }
@@ -472,6 +622,7 @@ int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids)
     list_t *p,*q;
     int xerrno = ENOSPC;
     int site_idx;
+    list_t * cluster_distribute;
     
 
     DEBUG_FUNCTION;
@@ -479,19 +630,24 @@ int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids)
     
     site_idx = export_get_local_site_number();
 
+#if 0
     if ((errno = pthread_rwlock_wrlock(&volume->lock)) != 0) {
         warning("can't lock volume %u.", volume->vid);
         goto out;
     }
+#endif
+    
     if (volume->georep)
     {
       site_idx = site_number;
     }
 
-    list_for_each_forward(p, &volume->clusters) {
+    cluster_distribute = &volume->cluster_distribute[volume->active_list];
+    
+    list_for_each_forward(p, cluster_distribute) {
         cluster_t *next_cluster;
         cluster_t *cluster = list_entry(p, cluster_t, list);
-        if (cluster_distribute(volume->layout,site_idx, cluster, sids) == 0) {
+        if (do_cluster_distribute(volume->layout,site_idx, cluster, sids) == 0) {
             *cid = cluster->cid;
             xerrno = 0;
 	    
@@ -510,7 +666,7 @@ int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids)
 	        q = p->next;
 
 		// This cluster is the last and so the smallest
-		if (q == &volume->clusters) break;
+		if (q == cluster_distribute) break;
 
 		// Check against next cluster
 		next_cluster = list_entry(q, cluster_t, list);
@@ -528,11 +684,13 @@ int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids)
             break;
         }
     }
+#if 0
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
         warning("can't unlock volume %u.", volume->vid);
         goto out;
     }
-out:
+#endif
+    
     STOP_PROFILING(volume_distribute);
     errno = xerrno;
     return errno == 0 ? 0 : -1;
