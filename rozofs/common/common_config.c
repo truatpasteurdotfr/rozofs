@@ -62,7 +62,7 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_BOOL(crc32c_check);
   COMMON_CONFIG_SHOW_BOOL(crc32c_generate);
   COMMON_CONFIG_SHOW_BOOL(crc32c_hw_forced);
-  
+  COMMON_CONFIG_SHOW_INT(trashed_file_per_run);  
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -172,7 +172,11 @@ void common_config_read(char * fname) {
   COMMON_CONFIG_READ_BOOL(crc32c_check);
   COMMON_CONFIG_READ_BOOL(crc32c_generate);
   COMMON_CONFIG_READ_BOOL(crc32c_hw_forced);
-    
+
+
+  /* Number of file deleted in a run of rm bins thread */
+  COMMON_CONFIG_READ_INT(trashed_file_per_run);    
+  
   /*
   ** Free lib config working structure
   */

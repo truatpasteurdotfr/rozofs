@@ -95,7 +95,7 @@ static list_t volumes;
 static pthread_rwlock_t volumes_lock;
 
 static pthread_t bal_vol_thread;
-static pthread_t rm_bins_thread;
+static pthread_t rm_bins_thread=0;
 static pthread_t monitor_thread;
 static pthread_t exp_tracking_thread;
 static pthread_t geo_poll_thread;
@@ -1195,8 +1195,11 @@ static int exportd_initialize() {
             0)
         fatal("can't create balancing thread %s", strerror(errno));
 
-    if (pthread_create(&rm_bins_thread, NULL, remove_bins_thread, NULL) != 0)
-        fatal("can't create remove files thread %s", strerror(errno));
+    if (expgwc_non_blocking_conf.slave != 0) {
+      if (pthread_create(&rm_bins_thread, NULL, remove_bins_thread, NULL) != 0)
+        fatal("can't create remove files thread %s", strerror(errno));     
+    }
+    	
     /*
     ** create the thread that control the release of the inode and blocks
     */
@@ -1501,10 +1504,12 @@ int export_reload_nb()
         volume_balance(&list_entry(p, volume_entry_t, list)->volume);
     }
 
-    // Canceled the remove bins pthread before reload list of exports
-    if ((errno = pthread_cancel(rm_bins_thread)) != 0)
+    if (rm_bins_thread) {
+      // Canceled the remove bins pthread before reload list of exports
+      if ((errno = pthread_cancel(rm_bins_thread)) != 0)
         severe("can't canceled remove bins pthread: %s", strerror(errno));
-
+    }
+    
     // Canceled the export tracking pthread before reload list of exports
     if ((errno = pthread_cancel(exp_tracking_thread)) != 0)
         severe("can't canceled export tracking pthread: %s", strerror(errno));
@@ -1522,9 +1527,9 @@ int export_reload_nb()
 
         // Canceled the load trash pthread if neccesary before
         // reload list of exports
-
-        pthread_cancel(entry->export.load_trash_thread);
-
+        if (entry->export.load_trash_thread) {
+          pthread_cancel(entry->export.load_trash_thread);
+        }
         export_release(&entry->export);
         list_remove(p);
         free(entry);
@@ -1546,11 +1551,13 @@ int export_reload_nb()
     // XXX: An export may have been deleted while the rest of the files deleted.
     // These files will never be deleted.
 
-    // Start pthread for remove bins file
-    if ((errno = pthread_create(&rm_bins_thread, NULL,
+    // Start pthread for remove bins file on slave thread only
+    if (expgwc_non_blocking_conf.slave != 0) {
+      if ((errno = pthread_create(&rm_bins_thread, NULL,
             remove_bins_thread, NULL)) != 0) {
         severe("can't create remove files pthread %s", strerror(errno));
         goto error;
+      }	
     }
 
     if (pthread_create(&exp_tracking_thread, NULL, export_tracking_thread, NULL) != 0)

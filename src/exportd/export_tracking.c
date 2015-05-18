@@ -37,6 +37,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include <rozofs/common/list.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/rpc/export_profiler.h>
 #include <rozofs/common/export_track.h>
@@ -65,7 +66,7 @@ extern epp_profiler_t  gprofiler;
 
 uint64_t export_rm_bins_pending_count = 0; /**< trash thread statistics  */
 uint64_t export_rm_bins_done_count = 0;  /**< trash thread statistics  */
-int export_limit_rm_files = RM_FILES_MAX;
+int export_limit_rm_files;
 
 typedef struct cnxentry {
     mclient_t *cnx;
@@ -846,12 +847,21 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     }
 
     // Initialize pthread for load files to remove
-    if ((errno = pthread_create(&e->load_trash_thread, NULL,
-            load_trash_dir_thread, e)) != 0) {
-        severe("can't create load trash pthread: %s", strerror(errno));
-        return -1;
-    }
 
+    export_limit_rm_files = common_config.trashed_file_per_run;
+    
+    if (exportd_is_master()== 0) 
+    {   
+
+      if ((errno = pthread_create(&e->load_trash_thread, NULL,
+              load_trash_dir_thread, e)) != 0) {
+          severe("can't create load trash pthread: %s", strerror(errno));
+          return -1;
+      }
+      else {
+        e->load_trash_thread = 0;
+      }
+    }  
     return 0;
 }
 

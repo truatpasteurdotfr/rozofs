@@ -29,6 +29,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+
 /*
 ** Default configuration file name
 */
@@ -37,6 +38,10 @@
 /*
 ** Default parameter values
 */
+#define rozofs_default_trashed_file_per_run   500
+#define rozofs_min_trashed_file_per_run        50
+#define rozofs_max_trashed_file_per_run     50000
+
 #define rozofs_default_nb_core_file             1
 #define rozofs_min_nb_core_file                 0
 #define rozofs_max_nb_core_file                 4
@@ -60,6 +65,7 @@ typedef struct _common_config_t {
   uint32_t    crc32c_check;
   uint32_t    crc32c_generate;
   uint32_t    crc32c_hw_forced;  
+  uint32_t    trashed_file_per_run;
 } common_config_t;
   
 extern common_config_t common_config;
