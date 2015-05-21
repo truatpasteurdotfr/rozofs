@@ -21,7 +21,7 @@ cmake_minimum_required(VERSION 2.6)
 project(rozofs C)
 set(MAJOR "2")
 set(MINOR "0")
-set(REVISION "alpha25")
+set(REVISION "~alpha26")
 set(VERSION "${MAJOR}.${MINOR}.${REVISION}")
 
 # cmake_get.sh enables to populate some CMAKE variables
@@ -54,7 +54,6 @@ endif(NOT PYTHON)
 
 MESSAGE( STATUS "python version:         " ${PYTHON} )
 
-find_program(DEBUILD NAMES debuild)
 find_program(DEBUILD NAMES debuild)
 find_program(MAKEINFO NAMES makeinfo)
 find_program(TEXI2DVI NAMES texi2dvi)

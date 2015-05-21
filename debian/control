@@ -12,6 +12,7 @@ Build-Depends: 	debhelper (>= 9),
 				,python-all-dev
 				,libreadline-dev
 				,swig
+				,libnuma-dev
 Standards-Version: 3.9.6
 X-Python-Version: = 2.7 << 3.0
 Homepage: http://www.rozofs.com
@@ -33,6 +34,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 		,portmap | rpcbind
 		,libattr1
 		,libuuid1
+		,libnuma1
 		,libconfig8 | libconfig9
 		,rozofs-rozolauncher
 Description: RozoFS filesystem (export daemon)
@@ -45,6 +47,7 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 		,portmap | rpcbind
 		,libuuid1
+		,libnuma1
 		,libconfig8 | libconfig9
 		,rozofs-rozolauncher
 Description: RozoFS filesystem (storage daemon)
@@ -57,6 +60,7 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 		,libfuse2 (>= 2.9.0)
 		,fuse
+		,libnuma1
 		,rozofs-rozolauncher
 Description: RozoFS filesystem (mount utility)
  rozofsmount mounts RozoFS filesystems using FUSE.
@@ -68,6 +72,7 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 		,libconfig8 | libconfig9
 		,rozofs-rozolauncher
+		,libnuma1
 Description: RozoFS filesystem (geo-replication software)
  This package contains the software related to geo-replication.
  .

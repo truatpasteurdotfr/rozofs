@@ -10,7 +10,7 @@ URL: http://www.rozofs.com
 Source0: rozofs-@VERSION@.tar.gz
 
 # Manage by cmake
-BuildRequires: libuuid-devel libattr-devel readline-devel cmake
+BuildRequires: libuuid-devel libattr-devel readline-devel cmake numactl-devel
 BuildRequires: fuse-devel >= 2.9, python-devel swig libconfig-devel
 %if 0%{?rhel} > 7
 %{?systemd_requires}
@@ -33,7 +33,7 @@ RozoFS process launcher.
 Summary: RozoFS filesystem (export package).
 License: GPLv2
 Group: System Environment/Daemons
-Requires: rpcbind libattr libconfig libuuid rozofs-rozolauncher
+Requires: rpcbind libattr libconfig libuuid rozofs-rozolauncher numactl
 %description exportd
 RozoFS exportd daemon manages metadata for the RozoFS filesystems.
 
@@ -41,7 +41,7 @@ RozoFS exportd daemon manages metadata for the RozoFS filesystems.
 Summary: RozoFS filesystem (storage package).
 License: GPLv2
 Group: System Environment/Daemons
-Requires: rpcbind libconfig libuuid rozofs-rozolauncher
+Requires: rpcbind libconfig libuuid rozofs-rozolauncher numactl
 %description storaged
 RozoFS storaged daemon stores encoded data for the RozoFS filesystems.
 
@@ -49,7 +49,7 @@ RozoFS storaged daemon stores encoded data for the RozoFS filesystems.
 Summary: RozoFS filesystem (mount utility package).
 License: GPLv2
 Group: System Environment/File
-Requires: fuse >= 2.9, rozofs-rozolauncher
+Requires: fuse >= 2.9, rozofs-rozolauncher numactl
 %description rozofsmount
 rozofsmount mounts RozoFS filesystems using FUSE.
 
@@ -92,7 +92,7 @@ Management daemon for RozoFS.
 Summary: RozoFS filesystem (geo-replication software).
 License: GPLv2
 Group: System Environment/Daemons
-Requires: libconfig rozofs-rozolauncher
+Requires: libconfig rozofs-rozolauncher numactl
 %description geomgr
 Geo-replication daemon for RozoFS.
 
