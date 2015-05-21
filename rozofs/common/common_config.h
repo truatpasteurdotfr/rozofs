@@ -31,11 +31,6 @@
 #include <rozofs/common/log.h>
 
 /*
-** Default configuration file name
-*/
-#define ROZOFS_DEFAULT_COMMON_CONF "/etc/rozofs/common.conf"
-
-/*
 ** Default parameter values
 */
 #define rozofs_default_trashed_file_per_run   500

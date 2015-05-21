@@ -82,6 +82,8 @@ set(GEOMGR_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/geomgr.conf")
 
 set(STORAGED_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/storage.conf")
 
+set(ROZOFS_DEFAULT_CONFIG "${ROZOFS_CONFIG_DIR}/rozofs.conf")
+
 #if(NOT ROZOFS_SHELL_DIR)
 #    set(ROZOFS_SHELL_DIR "/usr/local/bin")
 #endif(NOT ROZOFS_SHELL_DIR)

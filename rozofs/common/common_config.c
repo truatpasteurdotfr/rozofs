@@ -16,6 +16,7 @@
  <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
 #include "common_config.h"
 #include <rozofs/core/uma_dbg_api.h>
 
@@ -136,7 +137,7 @@ void common_config_read(char * fname) {
   ** Read the file
   */
   if (fname == NULL) {
-    strcpy(config_file_name,ROZOFS_DEFAULT_COMMON_CONF);
+    strcpy(config_file_name,ROZOFS_DEFAULT_CONFIG);
   }
   else {
     strcpy(config_file_name,fname);    
@@ -144,9 +145,14 @@ void common_config_read(char * fname) {
 
   config_file_is_read = 1;
   if (config_read_file(&cfg, config_file_name) == CONFIG_FALSE) {
-    errno = EIO;
-    severe("can't read %s: %s (line %d).", config_file_name, config_error_text(&cfg),
+    if (errno == ENOENT) {
+      info("can't read %s: %s (line %d).", config_file_name, config_error_text(&cfg),
             config_error_line(&cfg));
+    }
+    else {
+      severe("can't read %s: %s (line %d).", config_file_name, config_error_text(&cfg),
+            config_error_line(&cfg));
+    }	    
     config_file_is_read = 0;	    
   }
 

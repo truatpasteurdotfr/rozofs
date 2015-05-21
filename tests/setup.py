@@ -922,7 +922,7 @@ class rozofs_class:
 
   def create_common_config(self):
     save_stdout = sys.stdout
-    sys.stdout = open("/etc/rozofs/common.conf","w")
+    sys.stdout = open("/etc/rozofs/rozofs.conf","w")
     self.display_common_config()
     sys.stdout.close()
     sys.stdout = save_stdout    
