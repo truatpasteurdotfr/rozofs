@@ -2,7 +2,8 @@ Source: rozofs
 Section: admin
 Priority: optional
 Maintainer: Fizians S.A.S. <devel@rozofs.com>
-Build-Depends: 	debhelper (>= 8)
+Build-Depends: 	debhelper (>= 9),
+				,dh-python
 				,cmake
 				,libfuse-dev (>= 2.9.0)
 				,libattr1-dev
@@ -11,7 +12,7 @@ Build-Depends: 	debhelper (>= 8)
 				,python-all-dev
 				,libreadline-dev
 				,swig
-Standards-Version: 3.9.4
+Standards-Version: 3.9.6
 X-Python-Version: = 2.7 << 3.0
 Homepage: http://www.rozofs.com
 Vcs-Git: https://github.com/rozofs/rozofs.git
@@ -21,7 +22,8 @@ Package: rozofs-rozolauncher
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: RozoFS filesystem (daemon launcher)
- RozoFS rozolauncher is a utility to launch RozoFS daemons like storaged,storio and exportd with high availability feature.
+ RozoFS rozolauncher is a utility to launch RozoFS daemons like storaged, storio 
+ and exportd with high availability feature.
  .
  RozoFS is a scale-out NAS using erasure coding.
 
@@ -80,11 +82,10 @@ Description: RozoFS filesystem (diagnostic tools)
  RozoFS is a scale-out NAS using erasure coding.
 
 Package: rozofs-manager-lib
+Section: python
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-		,libconfig8 | libconfig9
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${python:Depends}
 		,pyro
-		,python-support (>= 0.90)
 		,python-argparse
 		,python-yaml
 Description: RozoFS filesystem (management library)
@@ -94,9 +95,8 @@ Description: RozoFS filesystem (management library)
 
 Package: rozofs-manager-cli
 Architecture: any
-Depends: ${misc:Depends}
-		,rozofs-manager-lib
-		,python2.7
+Depends: ${misc:Depends}, ${python:Depends}
+		,rozofs-manager-lib  (>= ${source:Version})
 Description: RozoFS filesystem (management cli)
  Management command-line for RozoFS.
  .
@@ -105,7 +105,7 @@ Description: RozoFS filesystem (management cli)
 Package: rozofs-manager-agent
 Architecture: any
 Depends: ${misc:Depends}
-		,rozofs-manager-lib
+		,rozofs-manager-lib  (>= ${source:Version})
 		,rozofs-manager-cli
 Description: RozoFS filesystem (management daemon)
  Management daemon for RozoFS.
@@ -116,8 +116,10 @@ Package: rozofs-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-		, rozofs-rozofsmount (= ${binary:Version}) | rozofs-storaged (= ${binary:Version}) | rozofs-exportd (= ${binary:Version})
+Depends: ${misc:Depends}
+		, rozofs-rozofsmount (= ${binary:Version}) |
+		 rozofs-storaged (= ${binary:Version}) |
+		 rozofs-exportd (= ${binary:Version})
 Description: RozoFS filesystem (debugging symbols)
  Provide debugging information for the various rozofs packages.
  Install it to get a better backtrace in the event of a crash, or to test.
@@ -128,7 +130,8 @@ Package: nagios-plugins-rozofs
 Section: net
 Priority: extra
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Multi-Arch: foreign
+Depends: ${misc:Depends}
 		, rozofs-rozodiag (>= ${binary:Version})
 Description: RozoFS filesystem (Nagios plugins)
  Provide monitoring information for the various rozofs packages.

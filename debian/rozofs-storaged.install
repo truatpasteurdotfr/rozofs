@@ -3,10 +3,8 @@
 /usr/bin/storage_rebuild
 /usr/bin/storage_list_rebuilder
 /usr/bin/rozodump
-/etc/rozofs/storage.conf.sample
 /etc/rozofs/storage.conf
 /usr/share/man/man5/storage.conf.5
 /usr/share/man/man8/storaged.8
 /usr/share/man/man8/storage_rebuild.8
 /usr/share/man/man8/rozodump.8
-/usr/share/man/man5/common.conf.5
