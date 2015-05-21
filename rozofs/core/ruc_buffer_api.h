@@ -20,6 +20,8 @@
 #define RUC_BUFFER_API_H
 
 #include <stdint.h>
+#include <stdlib.h>
+#include  <sys/mman.h>
 
 #include <rozofs/common/types.h>
 
@@ -28,6 +30,8 @@
 #include "ruc_list.h"
 #include "ruc_buffer_api.h"
 #include "ruc_trace_api.h"
+
+#define ROZOFS_HUGE_PAGE_SIZE  (2UL*1024*1024)
 
 #define RUC_BUF_TRC(name,p1,p2,p3,p4) { if (ruc_buffer_trace==TRUE) \
                                         ruc_trace(name,(uint64_t)(long)p1,(uint64_t)(long)p2,(uint64_t)(long)p3,(uint64_t)(long)p4); }
@@ -123,6 +127,8 @@ static inline void * ruc_buf_poolCreate(uint32_t nbBuf,uint32_t bufsize)
   char *pusrData;
   char *pBufCur;
   ruc_buf_t  *p;
+  int huge_page = 0;
+
   
    RUC_BUF_TRC("buf_poolCreate",nbBuf,bufsize,-1,-1);
    /*
@@ -177,18 +183,32 @@ static inline void * ruc_buf_poolCreate(uint32_t nbBuf,uint32_t bufsize)
       return NULL;
     }
   }
-
-   pusrData = (char*)malloc(bufsize*nbBuf);
-   if (pusrData == (char *) NULL)
+  /*
+  ** check for hugepage
+  */
+  size_t alloc_size = bufsize*nbBuf;
+#if 1
+  if (alloc_size > ROZOFS_HUGE_PAGE_SIZE)
+  {
+     int count = alloc_size/ROZOFS_HUGE_PAGE_SIZE;
+     if (alloc_size%ROZOFS_HUGE_PAGE_SIZE)
+     {
+       count+=1;
+     }
+     alloc_size = ROZOFS_HUGE_PAGE_SIZE*count;
+     huge_page = 1;  
+  }
+#endif
+   if (posix_memalign((void**)&pusrData,4096,alloc_size))
    {
      /*
      **  out of memory, free the pool
      */
      RUC_WARNING(-1);
      ruc_listDelete((ruc_obj_desc_t*)poolRef);
-     // 64BITS return (uint32)NULL;
      return NULL;
    }
+   if (huge_page) madvise(pusrData,alloc_size,MADV_HUGEPAGE);
    /*
    ** store the pointer address on the head
    */
@@ -217,7 +237,6 @@ static inline void * ruc_buf_poolCreate(uint32_t nbBuf,uint32_t bufsize)
    **  return the reference of the buffer pool
    */
   RUC_BUF_TRC("buf_poolCreate_out",poolRef,poolRef->ptr,poolRef->len,-1);
-  // 64BITS return (uint32)poolRef;
   return poolRef;
 }
 

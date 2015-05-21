@@ -27,6 +27,7 @@ To build the RozoFS source code, it is necessary to install several libraries an
 -   `libcrypt`
 -   `rpcbind`
 -   `swig`
+-   `libnuma-dev`
 
 ###Build
 Using default values will compile RozoFS in Release mode and install it on `/usr/local`.

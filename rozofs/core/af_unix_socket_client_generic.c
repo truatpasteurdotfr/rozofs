@@ -219,6 +219,10 @@ uint32_t af_unix_generic_cli_connectReply_CBK(void * socket_ctx_p,int socketId)
         break;
       }
       /*
+      ** set the speculative scheduling
+      */
+      ruc_sockCtrl_set_speculative_mode(sock_p->connectionId,1);
+      /*
       ** Make sure the transmitter and receiver will be ready again;
       */
       sock_p->xmit.state = XMIT_READY;

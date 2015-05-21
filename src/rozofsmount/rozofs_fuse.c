@@ -34,7 +34,7 @@ rozofs_fuse_read_write_stats  rozofs_fuse_read_write_stats_buf;
  */
 uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId);
 uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId);
-int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p, int * empty);
+int rozofs_fuse_session_loop(rozofs_fuse_ctx_t *ctx_p, int *empty);
 uint32_t rozofs_fuse_xmitReadysock(void * rozofs_fuse_ctx_p,int socketId);
 uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId);
 
@@ -48,9 +48,11 @@ uint64_t rozofs_fuse_req_enoent_count = 0;
 uint64_t rozofs_fuse_req_tic = 0;
 uint64_t rozofs_fuse_buffer_depletion_count = 0;
 int rozofs_fuse_loop_count = 2;
-
+int fuse_sharemem_init_done = 0;
+int fuse_sharemem_enable = 0;
 uint64_t fuse_profile[3];
 
+void  rozofs_fuse_share_mem_init();
 
 
 /*
@@ -235,6 +237,13 @@ int rozofs_fuse_kern_chan_send(struct fuse_chan *ch, const struct iovec iov[],
 			return -err;
 		}
 	}
+	/*
+	** check if share mem init must be done
+	*/
+	if (fuse_sharemem_init_done == 0)
+	{
+	   rozofs_fuse_share_mem_init();
+	}
 	return 0;
 }
 
@@ -366,7 +375,7 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
     rozofs_fuse_ctx_t  *ctx_p;
     int k;
     uint32_t            buffer_count;
-    int                 empty;
+    int empty = 0;
     
     ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;   
      
@@ -686,13 +695,13 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   ** Per array statistics
   */
   pChar +=sprintf(pChar,"Per Read Array statitics:\n" );  
-  for (i = 0; i < 32; i++)
+  for (i = 0; i < ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX; i++)
   {
      if (rozofs_read_buf_section_table[i]!= 0)
        pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_PAGE_SZ,(long long unsigned int)rozofs_read_buf_section_table[i]);  
   }
   pChar +=sprintf(pChar,"Per Write Array statitics:\n" );  
-  for (i = 0; i < 32; i++)
+  for (i = 0; i < ROZOFS_FUSE_NB_OF_BUSIZE_SECTION_MAX; i++)
   {
      if (rozofs_write_buf_section_table[i]!= 0)
        pChar +=sprintf(pChar,"  %6d: %8llu\n",(i+1)*ROZOFS_PAGE_SZ,(long long unsigned int)rozofs_write_buf_section_table[i]);  
@@ -737,7 +746,9 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
   int status = 0;
   
 //   return 0;
-   
+
+  fuse_sharemem_init_done = 0;   
+  
   int fileflags;
   rozofs_fuse_ctx_p = malloc(sizeof (rozofs_fuse_ctx_t));
   if (rozofs_fuse_ctx_p == NULL) 
@@ -797,6 +808,10 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      ** get the fd of the channel
      */
      rozofs_fuse_ctx_p->fd = fuse_chan_fd(ch);
+     /*
+     ** wait the end of the share memroy init prior providing it to fuse
+     */
+     while (rozofs_shared_mem_init_done == 0) sleep(1);  
      /*
      ** create a new channel with the specific operation for rozofs (non-blocking)
      */  
@@ -870,3 +885,36 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
 }
 
 
+void rozofs_fuse_share_mem_init()
+{
+  if (fuse_sharemem_enable==0) 
+  {
+     /*
+     ** fake init done
+     */
+     fuse_sharemem_init_done = 1;
+     return;
+  }
+  if (fuse_sharemem_init_done == 1) return;
+
+  fuse_ino_t ino = rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_sz;
+  ino *=rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_count;
+  struct fuse_bufvec bufvec_fake;
+  off_t offset = (off_t) rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].data_p; 
+  int ret;  
+  char bufall[16];
+  memset(&bufvec_fake,0,sizeof(bufvec_fake));
+  bufvec_fake.count = 1;
+  bufvec_fake.buf[0].size=16;
+  bufvec_fake.buf[0].mem=&bufall;
+  bufvec_fake.buf[0].fd=-1;
+  bufvec_fake.buf[0].pos=0;
+
+  errno = 0;
+  fuse_sharemem_init_done =1;
+  ret = fuse_lowlevel_notify_store(rozofs_fuse_ctx_p->ch, ino,
+			     offset, &bufvec_fake,
+			     0);
+  info("Fuse share memory init %s",(ret==0)?"Success":strerror(errno));
+ 
+}

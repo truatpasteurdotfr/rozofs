@@ -1032,7 +1032,7 @@ retry:
 //     if (projection_id >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
      request->rebuild_ref = 0; // This is not a rebuild process
-     memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
      request->proj_id = projection_id;
      request->bid     = working_ctx_p->wr_bid;
@@ -1088,7 +1088,6 @@ retry:
        /*
        ** retry for that projection with a new storage index: WARNING: we assume that xmit buffer has not been released !!!
        */
-//#warning: it is assumed that xmit buffer has not been release, need to double check!!        
        goto retry;
      } 
      else
@@ -1209,9 +1208,64 @@ void rozofs_storcli_write_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,u
     */
      sp_write_arg_no_bins_t *request; 
      sp_write_arg_no_bins_t  write_prj_args;
-     void  *xmit_buf;  
+     void  *xmit_buf=NULL;  
      int ret;  
-     if (missing == 0)  xmit_buf = prj_cxt_p[projection_id].prj_buf;
+     if (missing == 0)  
+     {
+        /*
+	** need to check the in_use counter of the buffer, it might be
+	** possible that the buffer is under transmission in the 
+	** TCP transmitter, in that case we must allocate a new buffer
+	** since we will change the header: typically the case of the spare
+	** field of the request
+	*/
+        int inuse = ruc_buf_inuse_get(prj_cxt_p[projection_id].prj_buf);
+	while (1)
+	{
+           if (inuse <=1)
+	   {
+	     severe("Buffer is already released while storcli_write uses it");
+	     xmit_buf = prj_cxt_p[projection_id].prj_buf;
+	     break;
+	   }
+           if (inuse ==2)
+	   {
+	     /*
+	     ** OK the buffer is safe we can re-use it
+	     */ 
+	     xmit_buf = prj_cxt_p[projection_id].prj_buf;
+	     break;
+	   }
+	   /*
+	   ** somebody else uses it, so need to allocate a new
+	   ** one
+	   */
+	   ruc_buf_inuse_decrement(prj_cxt_p[projection_id].prj_buf);
+           int position  = rozofs_storcli_get_position_of_first_byte2write();
+           prj_cxt_p[projection_id].prj_buf = ruc_buf_getBuffer(ROZOFS_STORCLI_SOUTH_LARGE_POOL);
+           if (prj_cxt_p[projection_id].prj_buf == NULL)
+           {
+	     /*
+	     ** that situation MUST not occur since there the same number 
+	     ** of receive buffer and working context!!
+	     */
+	     severe("out of large buffer");
+	     break;
+           }
+	   /*
+	   ** copy the data in the new buffer
+	   */
+           uint8_t *pbuf = (uint8_t*)ruc_buf_getPayload(prj_cxt_p[projection_id].prj_buf); 
+           bin_t *bins_p  = (bin_t*)(pbuf+position); 
+           int bins_len   = rozofs_get_max_psize_in_msg(layout,storcli_write_rq_p->bsize)* 
+                             working_ctx_p->wr_nb_blocks;
+           memcpy(prj_cxt_p[projection_id].bins,bins_p,bins_len);
+	   ruc_buf_inuse_increment(prj_cxt_p[projection_id].prj_buf);
+	   prj_cxt_p[projection_id].bins = bins_p;
+	   xmit_buf = prj_cxt_p[projection_id].prj_buf;	
+	   break;     	   
+	 }
+     }
      else xmit_buf = prj_cxt_p[projection_id].prj_buf_missing;
      
      if (xmit_buf == NULL)
@@ -1235,7 +1289,7 @@ retry:
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
      request->rebuild_ref = 0; // This is not a rebuild process     
-     memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
      request->proj_id = projection_id;
      request->bid     = working_ctx_p->wr_bid;
@@ -1292,7 +1346,6 @@ retry:
        /*
        ** retry for that projection with a new storage index: WARNING: we assume that xmit buffer has not been released !!!
        */
-//#warning: it is assumed that xmit buffer has not been release, need to double check!!        
        goto retry;
      }
      /*
@@ -2039,7 +2092,7 @@ int rozofs_storcli_internal_read_req(rozofs_storcli_ctx_t *working_ctx_p,rozofs_
    request->layout = storcli_write_rq_p->layout;
    request->cid    = storcli_write_rq_p->cid;
    request->spare = 0;  /* not significant */
-   memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+   memcpy(request->dist_set, storcli_write_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
    memcpy(request->fid, storcli_write_rq_p->fid, sizeof (sp_uuid_t));
    request->proj_id = 0;  /* not significant */
    request->bsize   = storcli_write_rq_p->bsize;

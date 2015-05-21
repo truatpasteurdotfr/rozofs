@@ -450,6 +450,13 @@ int exp_trck_open_tracking_file(exp_trck_header_memory_t *main_trck_p, int *relo
   {
     close(main_trck_p->cur_tracking_file_fd);
     main_trck_p->cur_tracking_file_fd = -1;
+    if (count == 0)
+    {
+       /*
+       ** the file is empty, so delete it
+       */
+       unlink(pathname);       
+    }
     severe("cannot read %s: %s\n",pathname,strerror(errno));
     return -1;
   } 

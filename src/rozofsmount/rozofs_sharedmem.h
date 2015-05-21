@@ -38,6 +38,8 @@ typedef struct _rozofs_shared_pool_t
 * array used for storing information related to the storcli shared memory
 */
 extern rozofs_shared_pool_t rozofs_storcli_shared_mem[];
+extern int rozofs_shared_mem_init_done;
+
 /*__________________________________________________________________________
 */
  /**
@@ -115,13 +117,13 @@ static inline void  *rozofs_alloc_shared_storcli_buf(int pool_id)
 
    @param pool_id : index of pool (0: read/1:write 
    
-   @retval     Buffer count
+   @retval buffer_count
 */
 static inline int rozofs_get_shared_storcli_buf_free(int pool_id)
 {
    if (pool_id >= SHAREMEM_PER_FSMOUNT)
    {
-      severe("bad pool_id %d out of range",pool_id);
+      severe("bad pool: pool_id %d out of range",pool_id);
       return 0;
    }
    if (rozofs_storcli_shared_mem[pool_id].key == 0)
@@ -133,9 +135,11 @@ static inline int rozofs_get_shared_storcli_buf_free(int pool_id)
    }
    /*
    ** Get the count of free buffer
-   */   
+   */  
+   
    return (ruc_buf_getFreeBufferCount(rozofs_storcli_shared_mem[pool_id].pool_p));
 }
+
 /*
  *________________________________________________________
  */

@@ -346,8 +346,8 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
        uint32_t buf_offset = storcli_read_rq_p->proj_id*storcli_rozofsmount_shared_mem[SHAREMEM_IDX_READ].buf_sz;
        uint32_t *pbuffer = (uint32_t*) (pbase + buf_offset);
        pbuffer[1] = 0; /** bin_len */
-       working_ctx_p->data_read_p  = (char*)&pbuffer[2+2];
-       working_ctx_p->shared_mem_p = pbuffer;           
+       working_ctx_p->data_read_p  = (char*)&pbuffer[4096/4];
+       working_ctx_p->shared_mem_p = pbuffer;  
      }   
    }
    /*
@@ -373,7 +373,7 @@ void rozofs_storcli_read_req_init(uint32_t  socket_ctx_idx,
    ** set now the working variable specific for handling the read
    */
    int i;
-   for (i = 0; i < ROZOFS_SAFE_MAX; i++)
+   for (i = 0; i < ROZOFS_SAFE_MAX_STORCLI; i++)
    {
      working_ctx_p->prj_ctx[i].prj_state = ROZOFS_PRJ_READ_IDLE;
      working_ctx_p->prj_ctx[i].prj_buf   = NULL;   
@@ -482,7 +482,7 @@ void rozofs_storcli_read_req_processing(rozofs_storcli_ctx_t *working_ctx_p)
   int       rotate=0;
   rozofs_storcli_lbg_prj_assoc_t  *lbg_assoc_p = working_ctx_p->lbg_assoc_tb;
   rozofs_storcli_projection_ctx_t *prj_cxt_p   = working_ctx_p->prj_ctx;   
-  uint8_t used_dist_set[ROZOFS_SAFE_MAX];
+  uint8_t used_dist_set[ROZOFS_SAFE_MAX_STORCLI];
   uint8_t rotate_modulo;
   uint8_t local_storage_idx;
 
@@ -679,7 +679,7 @@ retry:
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
 //     if (projection_id >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
-     memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_read_rq_p->fid, sizeof (sp_uuid_t));
      request->bid = bid+cur_nmbs;
      request->nb_proj  = nb_projections2read;
@@ -921,7 +921,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
      request->bsize         = storcli_read_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
-     memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_read_rq_p->fid, sizeof (sp_uuid_t));
      request->bid = storcli_read_rq_p->bid+working_ctx_p->cur_nmbs;
      request->nb_proj  = working_ctx_p->nb_projections2read;

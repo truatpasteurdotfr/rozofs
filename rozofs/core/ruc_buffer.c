@@ -34,6 +34,7 @@
 #include "ruc_list.h"
 #include "ruc_buffer_api.h"
 #include "ruc_trace_api.h"
+#include "rozofs_share_memory.h"
 
 
 uint32_t ruc_buffer_trace = FALSE;
@@ -53,7 +54,8 @@ void ruc_buf_set_trace(uint32_t flag)
 /*
 **__________________________________________________________
 */
-
+#define MB_1 (1024*1024)
+#define MB_2 (2*MB_1)
 void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key/*,ruc_pf_buf_t init_fct*/)
 {
   ruc_buf_t  *poolRef;
@@ -117,11 +119,18 @@ void * ruc_buf_poolCreate_shared(uint32_t nbBuf, uint32_t bufsize, key_t key/*,r
     }
   }
   /*
+  ** delete existing shared memory
+  */
+  rozofs_share_memory_free_from_key(key,NULL);
+  /*
   ** create the shared memory
   */
-  if ((shmid = shmget(key, bufsize*nbBuf, IPC_CREAT | 0666 )) < 0) {
-      severe("ruc_buf_poolCreate_shared :shmget %s",strerror(errno));
- //     RUC_WARNING(errno);
+  int size = bufsize*nbBuf;
+  int page_count = size/MB_2;
+  if (size%MB_2 != 0) page_count+=1;
+  int allocated_size = page_count*MB_2;
+  if ((shmid = shmget(key, allocated_size, IPC_CREAT/*|SHM_HUGETLB */| 0666 )) < 0) {
+      fatal("ruc_buf_poolCreate_shared :shmget %s %d",strerror(errno),allocated_size);
       return (ruc_obj_desc_t*)NULL;
   }
   /*
@@ -287,7 +296,7 @@ void * ruc_buf_poolCreate(uint32_t nbBuf,uint32 bufsize)
     }
   }
 
-   pusrData = (char*)memalign(32,bufsize*nbBuf);
+   pusrData = (char*)memalign(4096,bufsize*nbBuf);
    if (pusrData == (char *) NULL)
    {
      /*

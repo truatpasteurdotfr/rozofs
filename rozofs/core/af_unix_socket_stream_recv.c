@@ -31,6 +31,7 @@
 #include <sys/un.h>
 #include "af_unix_socket_generic_api.h"
 #include <rozofs/common/log.h>
+extern uint64_t af_unix_rcv_buffered;
 
 
 /**
@@ -57,6 +58,7 @@ uint32_t af_unix_recv_stream_sock_recv(af_unix_ctx_generic_t  *sock_p, void *buf
      /*
      ** attempt to read from the socket
      */
+     af_unix_rcv_buffered+=1;
      bytesRcvd = recv(sock_p->socketRef,buf,len,flags);
      if (bytesRcvd == 0)
      {
@@ -326,6 +328,10 @@ uint32_t af_unix_recv_stream_generic_cbk(void * socket_pointer,int socketId)
         switch(status)
         {
           case RUC_OK:
+	   /*
+	   ** update the speculative scheduler
+	   */
+	   ruc_sockCtrl_speculative_scheduler_decrement(sock_p->connectionId);
            /*
            ** that fine's call the application with that received message
            */
@@ -654,6 +660,10 @@ uint32_t af_unix_recv_rpc_stream_generic_cbk(void * socket_pointer,int socketId)
         switch(status)
         {
           case RUC_OK:
+	   /*
+	   ** update the speculative scheduler
+	   */
+	   ruc_sockCtrl_speculative_scheduler_decrement(sock_p->connectionId);
            /*
            ** that fine's call the application with that received message
            */

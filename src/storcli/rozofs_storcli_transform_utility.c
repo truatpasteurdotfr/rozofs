@@ -178,7 +178,7 @@ inline int rozofs_storcli_transform_inverse_check_timestamp_tb(rozofs_storcli_pr
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
     rozofs_storcli_timestamp_ctx_t *p;
     int eof = 1;
-    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX];
+    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX_STORCLI];
     uint8_t  rozofs_storcli_timestamp_next_free_idx=0;
 
     for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++)
@@ -318,7 +318,7 @@ inline int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_
     *effective_len_p = 0;
     rozofs_storcli_timestamp_ctx_t ref_ctx={0};        
     rozofs_storcli_timestamp_ctx_t *ref_ctx_p = &ref_ctx;        
-    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX];
+    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX_STORCLI];
     uint8_t  rozofs_storcli_timestamp_next_free_idx=0;
     uint8_t prjid;    
     ref_ctx_p->count = 0;
@@ -476,7 +476,7 @@ inline int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_
           continue;        
         }
         ret =  rozofs_storcli_transform_inverse_check(prj_ctx_p,layout,
-                                                      block_idx, &rozofs_storcli_prj_idx_table[block_idx*ROZOFS_SAFE_MAX],
+                                                      block_idx, &rozofs_storcli_prj_idx_table[block_idx*ROZOFS_SAFE_MAX_STORCLI],
                                                       &block_ctx_p[block_idx].timestamp,
                                                       &block_ctx_p[block_idx].effective_length);
         if (ret < 0)

@@ -53,7 +53,7 @@
   { \
    gprofiler.the_probe[P_COUNT]++;\
    buffer->profiler_probe = &gprofiler.the_probe[0]; \
-   gettimeofday(&timeDay,(struct timezone *)0);  \
+   /*gettimeofday(&timeDay,(struct timezone *)0); */ \
    time = MICROLONG(timeDay); \
    buffer->profiler_time =(uint64_t)time ;\
   }\
@@ -68,7 +68,7 @@
   struct timeval     timeDay;  \
   if (buffer->profiler_probe != NULL)\
   { \
-    gettimeofday(&timeDay,(struct timezone *)0);  \
+    /*gettimeofday(&timeDay,(struct timezone *)0); */ \
     timeAfter = MICROLONG(timeDay); \
     buffer->profiler_probe[P_ELAPSE] += (timeAfter-buffer->profiler_time); \
     buffer->profiler_probe = NULL;\
@@ -78,7 +78,7 @@
 /**
 *  North Interface
 */
-#define ROZORPC_SRV_CTX_CNT   32  /**< context for processing either a read or write request from rozofsmount and internal read req */
+#define ROZORPC_SRV_CTX_CNT   (32*2)  /**< context for processing either a read or write request from rozofsmount and internal read req */
 #define ROZORPC_SRV_CTX_MIN_CNT 3 /**< minimum count to process a request from rozofsmount */
 /**
 * Buffer s associated with the reception of the load balancing group on north interface
@@ -153,7 +153,7 @@ typedef struct _rozorpc_srv_ctx_t
   gprofiler_fake[P_COUNT]++;\
   if (buffer != NULL)\
     {\
-        gettimeofday(&timeDay,(struct timezone *)0);  \
+        /*gettimeofday(&timeDay,(struct timezone *)0); */ \
         time = MICROLONG(timeDay); \
         (buffer)->timestamp =time;\
     }\
@@ -169,7 +169,7 @@ typedef struct _rozorpc_srv_ctx_t
   gprofiler_fake += ((buffer)->opcode*(P_ELAPSE+1)); \
   if (buffer != NULL)\
   { \
-    gettimeofday(&timeDay,(struct timezone *)0);  \
+    /*gettimeofday(&timeDay,(struct timezone *)0);*/  \
     timeAfter = MICROLONG(timeDay); \
     gprofiler_fake[P_ELAPSE] += (timeAfter-(buffer)->timestamp); \
   }\

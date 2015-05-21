@@ -36,7 +36,7 @@ add_executable(storaged
     storio_crc32.c
     storio_crc32.h
 )
-target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+target_link_libraries(storaged rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY} ${NUMA_LIBRARY})
 
 add_executable(storage_rebuild
     sconfig.h
@@ -114,7 +114,7 @@ add_executable(storio
     storio_crc32.h
 )
 
-target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
+target_link_libraries(storio rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY} ${NUMA_LIBRARY})
 
 
 add_executable(rozodump

@@ -17,8 +17,17 @@
  */
 #ifndef SOCKET_CTRL_API_H
 #define SOCKET_CTRL_API_H
+#include <rozofs/common/types.h>
+#include <sys/select.h>
+#include "ruc_common.h"
+#include "ruc_list.h"
+/*
+**  max number of priority
+*/
+#define RUC_SOCKCTL_MAXPRIO 4
 
-
+#define RUC_SOCKCTL_POLLCOUNT 16 /**< default value for former receiver ready callbacks */
+#define RUC_SOCKCTL_POLLFREQ (40*1000) /**< default polling frequency in us */
 
 // 64BITS typedef uint32_t (*ruc_pf_sock_t)(uint32,int);
 typedef uint32_t (*ruc_pf_sock_t)(void * objref, int socketid);
@@ -31,6 +40,41 @@ typedef struct _ruc_sockCallBack_t
    ruc_pf_sock_t  xmitEvtFunc;
 } ruc_sockCallBack_t;
 
+/*
+** connection structure
+*/
+
+#define RUC_SOCK_MAX_NAME 48
+
+
+typedef struct _ruc_sockObj_t
+{
+   ruc_obj_desc_t   link;
+   uint32_t connectId;
+   char   name[RUC_SOCK_MAX_NAME];
+   int socketId;
+   uint32_t speculative;    /**< asserted to one for speculative socket */
+   uint32_t priority;
+  // 64BITS    uint32_t objRef;
+   void   *objRef;
+   uint32_t rcvCount;  /* number of times the rcvbit is set */
+   uint32_t xmitCount; /* number of times the xmitbit is set */
+   uint32_t processed;
+   uint32_t lastTime;       /* cpu time in us of last processing */
+   uint32_t cumulatedTime;  /* cumulated cpu time of las processings */
+   uint32_t nbTimes;       /* NB times it has been scheduled */
+   uint32_t lastTimeXmit;       /* cpu time in us of last processing */
+   uint32_t cumulatedTimeXmit;  /* cumulated cpu time of las processings */
+   uint32_t nbTimesXmit;       /* NB times it has been scheduled */
+   ruc_sockCallBack_t *callBack;
+} ruc_sockObj_t;
+
+
+extern fd_set  sockCtrl_speculative;   
+extern ruc_sockObj_t *socket_predictive_ctx_table[ ];
+extern int socket_predictive_ctx_table_count[];
+extern int ruc_sockCtrl_speculative_sched_enable;
+extern int ruc_sockCtrl_speculative_count;
 
 
 /*
@@ -95,5 +139,78 @@ static inline void ruc_sockCtrl_attach_applicative_poller(ruc_scheduler_t callba
   @param int fd : file descriptor to clear
 */
 void ruc_sockCtrl_clear_rcv_bit(int fd);
+ /*
+ **_______________________________________________________________
+ */
+/**
+*  insert the socket reference in the speculative scheduler
 
+  @param socketRef : socket controller reference
+  @retval none
+*/
+static inline void ruc_sockCtrl_speculative_scheduler_insert(void *connectionId)
+{
+   ruc_sockObj_t *p;
+   
+   if (ruc_sockCtrl_speculative_sched_enable == 0 ) return;
+   
+   
+   p = (ruc_sockObj_t*)connectionId;
+   if (p->speculative == 0) return;
+   
+   if (socket_predictive_ctx_table[p->socketId]== NULL)
+   {
+     socket_predictive_ctx_table[p->socketId] = p;
+     FD_SET(p->socketId,&sockCtrl_speculative);
+     ruc_sockCtrl_speculative_count++;
+   }
+   /*
+   ** update the count
+   */
+   socket_predictive_ctx_table_count[p->socketId]+=1;
+ }
+ /*
+ **_______________________________________________________________
+ */
+/**
+*  insert the socket reference in the speculative scheduler
+
+  @param socketRef : socket controller reference
+  @retval none
+*/
+static inline void ruc_sockCtrl_speculative_scheduler_decrement(void *connectionId)
+{
+   ruc_sockObj_t *p;
+   
+   p = (ruc_sockObj_t*)connectionId;
+   
+   if (p->speculative == 0) return;
+   if (ruc_sockCtrl_speculative_sched_enable == 0 ) return;
+
+   /*
+   ** update the count
+   */
+   socket_predictive_ctx_table_count[p->socketId]--;
+   if (socket_predictive_ctx_table_count[p->socketId] <= 0)
+   {
+     ruc_sockCtrl_speculative_count--;
+     if (ruc_sockCtrl_speculative_count < 0) ruc_sockCtrl_speculative_count= 0;
+     socket_predictive_ctx_table_count[p->socketId]= 0;
+     socket_predictive_ctx_table[p->socketId] = NULL;
+     FD_CLR(p->socketId,&sockCtrl_speculative);  
+   }
+ }
+/**
+*  set/reset speculative scheduling for a socket
+
+  @param connectId: reference of the connection
+  @param speculative: 1->set/0->reset
+*/
+static inline void ruc_sockCtrl_set_speculative_mode(void *connectionId,int speculative)
+{
+   ruc_sockObj_t *p;
+   p = (ruc_sockObj_t*)connectionId;
+   p->speculative = speculative;
+
+}
 #endif

@@ -116,6 +116,7 @@ typedef struct file {
     int              file2create;     /**< assert to one on a write when the attributes indicates a file size of 0    */
     uint64_t         off_wr_start;    /**< geo replication :write offset start  */
     uint64_t         off_wr_end;      /**< geo replication :write offset end  */
+    int              pending_read_count; 
 #if 0
     char *buffer;
     int buf_write_wait;
@@ -176,6 +177,7 @@ static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
     file->write_block_req = 0;
     file->write_block_pending = 0;
     file->file2create = 0;
+    file->pending_read_count = 0;
     rozofs_geo_write_reset(file);
 }
 

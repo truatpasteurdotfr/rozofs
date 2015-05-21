@@ -15,29 +15,16 @@
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
  */
-#ifndef SOCKET_CTRL_H
-#define SOCKET_CTRL_H
+ #ifndef ROZOFS_NUMA_H
+ #define ROZOFS_NUMA_H
+#include <numa.h>
 
-#include <rozofs/common/types.h>
-#include <sys/select.h>
-#include "ruc_common.h"
-#include "ruc_list.h"
-#include "ruc_sockCtl_api.h"
+/**
+*  case of NUMA: allocate the running node according to the
+*  instance
 
-/*
-** file descriptor for receiving and transmitting events
+   @param instance: instance number of the process
 */
-extern fd_set  rucRdFdSet;   
-extern fd_set  rucWrFdSet;   
-extern fd_set  rucWrFdSetCongested;
-
-/*
-**  private API
-*/
-
-void ruc_sockCtl_checkRcvBits();
-void ruc_sockCtl_prepareRcvBits();
-void ruc_sockCtl_checkXmitBits();
-void ruc_sockCtl_prepareXmitBits();
+void rozofs_numa_allocate_node(int instance);
 
 #endif

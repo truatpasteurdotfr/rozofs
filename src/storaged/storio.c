@@ -52,6 +52,7 @@
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/core/rozofs_numa.h>
 #include <rozofs/rozofs_timer_conf.h>
 
 #include "config.h"
@@ -334,6 +335,24 @@ int main(int argc, char *argv[]) {
         }
     }    
 
+    /*
+    **  set the numa node for storio and its disk threads
+    */
+    if (pHostArray[0] != NULL)
+    {
+       char *name;
+       name = pHostArray[0];
+       int instance;
+       int len = strlen(name);
+       instance = (int)name[len-1];
+       rozofs_numa_allocate_node(instance);
+
+    }
+    else
+    {
+      rozofs_numa_allocate_node(storio_instance);
+    }
+    
     sprintf(logname,"storio:%d",storio_instance);
     uma_dbg_record_syslog_name(logname);
         

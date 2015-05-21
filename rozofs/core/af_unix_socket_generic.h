@@ -161,6 +161,7 @@ typedef enum _com_recv_state_e
 {
      RECV_IDLE = 0,      /**< no reception in progress  */
      RECV_WAIT_HDR,      /**< wait for the full header message */
+     RECV_WAIT_HDR_NO_RECV,      /**< wait for the full header message */
      RECV_ALLOC_BUF,     /**< allocate buffer for receiving message: might remain in that state if there is none available */
      RECV_PAYLOAD,       /**< message payload reception */
      RECV_DEAD,         /**< receiver is dead because of a fatal error on socket or buffer allocation   */
@@ -201,7 +202,7 @@ typedef struct rozofs_socket_stats_t
 
 #define AF_UNIX_CONGESTION_DEFAULT_THRESHOLD 2  /**< number of loop before restarting to send after
 eoc */
-#define AF_UNIX_XMIT_CREDIT_DEFAULT 8
+#define AF_UNIX_XMIT_CREDIT_DEFAULT 4
 #define AF_UNIX_RECV_CREDIT_DEFAULT 4
 /**
 * transmitter generic Context
@@ -290,6 +291,8 @@ typedef union
    uint64_t timestamp:61 ;        /**< expiration date */
    } s;
 } af_inet_check_cnx_t;
+
+
 /**
 * AF UNIX generic context
 */
@@ -343,7 +346,6 @@ typedef struct _af_unix_ctx_generic_t
   rozofs_socket_stats_t stats;
   af_inet_check_cnx_t   cnx_supevision; /**< supervision context */
   uint8_t               cnx_availability_state;  /**< operational state of the connection */  
-
 } af_unix_ctx_generic_t;
 
 

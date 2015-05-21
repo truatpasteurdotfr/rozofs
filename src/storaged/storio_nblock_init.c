@@ -36,6 +36,7 @@
 #include <semaphore.h>
 #include <pthread.h>
 #include <config.h>
+#include <pthread.h>
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
@@ -420,6 +421,37 @@ int storio_start_nb_th(void *args) {
                 args_p->instance_id, args_p->debug_port);
     }
 
+  /*
+  **  change the priority of the main thread
+  */
+    {
+      struct sched_param my_priority;
+      int policy=-1;
+      int ret= 0;
+
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          info("storio main thread Scheduling policy   = %s\n",
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+ #if 1
+      my_priority.sched_priority= 97;
+      policy = SCHED_FIFO;
+      ret = pthread_setschedparam(pthread_self(),policy,&my_priority);
+      if (ret < 0) 
+      {
+	severe("error on sched_setscheduler: %s",strerror(errno));	
+      }
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          DEBUG("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+ #endif        
+     
+    }  
   /*
    ** main loop
    */

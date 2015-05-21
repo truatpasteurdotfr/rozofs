@@ -24,6 +24,7 @@
 * array used for storing information related to the storcli shared memory
 */
 rozofs_shared_pool_t rozofs_storcli_shared_mem[SHAREMEM_PER_FSMOUNT];
+int rozofs_shared_mem_init_done = 0;
 
 /*__________________________________________________________________________
 */

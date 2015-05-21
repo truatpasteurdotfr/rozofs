@@ -59,7 +59,7 @@ extern "C" {
    if (buffer->profiler_probe != NULL)\
    { \
      probe[P_COUNT]++;\
-     gettimeofday(&timeDay,(struct timezone *)0);  \
+     /*gettimeofday(&timeDay,(struct timezone *)0); */ \
      time = MICROLONG(timeDay); \
      buffer->profiler_time =(uint64_t)time ;\
    }\
@@ -76,7 +76,7 @@ extern "C" {
   struct timeval     timeDay;  \
   if (buffer->profiler_probe != NULL)\
   { \
-    gettimeofday(&timeDay,(struct timezone *)0);  \
+    /*gettimeofday(&timeDay,(struct timezone *)0); */ \
     timeAfter = MICROLONG(timeDay); \
     buffer->profiler_probe[P_ELAPSE] += (timeAfter-buffer->profiler_time); \
     buffer->profiler_probe = NULL;\
