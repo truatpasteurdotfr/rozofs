@@ -578,7 +578,7 @@ int rozofs_storcli_internal_read_before_truncate_req(rozofs_storcli_ctx_t *worki
    request->cid    = storcli_truncate_rq_p->cid;
    request->spare = 0;  /* not significant */
    request->bsize = storcli_truncate_rq_p->bsize;
-   memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+   memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
    memcpy(request->fid, storcli_truncate_rq_p->fid, sizeof (sp_uuid_t));
    request->proj_id = 0;  /* not significant */
    request->bid     = storcli_truncate_rq_p->bid;  
@@ -766,7 +766,7 @@ retry:
      request->bsize         = bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
-     memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_truncate_rq_p->fid, sizeof (sp_uuid_t));
      request->proj_id        = projection_id;
      request->bid            = storcli_truncate_rq_p->bid;
@@ -1013,7 +1013,7 @@ retry:
      request->bsize         = storcli_truncate_rq_p->bsize;
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
-     memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_truncate_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_truncate_rq_p->fid, sizeof (sp_uuid_t));
      request->proj_id        = projection_id;
      request->bid            = storcli_truncate_rq_p->bid;

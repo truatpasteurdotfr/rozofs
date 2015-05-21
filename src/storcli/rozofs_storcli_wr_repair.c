@@ -163,7 +163,7 @@ static inline int rozofs_storcli_all_prj_write_repair_check(uint8_t layout,rozof
                                 	      uint32_t number_of_blocks,
                                 	      char *data) 
  {
-    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
+    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX_STORCLI];
     projection_t *projections; // Table of projections used to transform data
     uint16_t projection_id = 0;
     uint32_t i = 0;    
@@ -529,7 +529,7 @@ void rozofs_storcli_write_repair_req_processing(rozofs_storcli_ctx_t *working_ct
      */
      if (prj_cxt_p[projection_id].stor_idx >= rozofs_forward) request->spare = 1;
      else request->spare = 0;
-     memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX*sizeof (uint8_t));
+     memcpy(request->dist_set, storcli_read_rq_p->dist_set, ROZOFS_SAFE_MAX_STORCLI*sizeof (uint8_t));
      memcpy(request->fid, storcli_read_rq_p->fid, sizeof (sp_uuid_t));
 //CRCrequest->proj_id = projection_id;
      request->proj_id = rozofs_storcli_get_mojette_proj_id(storcli_read_rq_p->dist_set,request->sid,rozofs_forward);

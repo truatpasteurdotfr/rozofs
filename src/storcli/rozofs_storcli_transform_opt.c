@@ -173,7 +173,7 @@ inline int rozofs_storcli_transform_inverse_check_timestamp_tb(rozofs_storcli_pr
     uint8_t rozofs_safe = rozofs_get_rozofs_safe(layout);
     rozofs_storcli_timestamp_ctx_t *p;
     int eof = 1;
-    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX];
+    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX_STORCLI];
     uint8_t  rozofs_storcli_timestamp_next_free_idx=0;
 
     for (prj_ctx_idx = 0; prj_ctx_idx < rozofs_safe; prj_ctx_idx++)
@@ -309,7 +309,7 @@ inline int rozofs_storcli_transform_inverse_check(rozofs_storcli_projection_ctx_
     *effective_len_p = 0;
     rozofs_storcli_timestamp_ctx_t ref_ctx;        
     rozofs_storcli_timestamp_ctx_t *ref_ctx_p = &ref_ctx;        
-    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX];
+    rozofs_storcli_timestamp_ctx_t rozofs_storcli_timestamp_tb[ROZOFS_SAFE_MAX_STORCLI];
     uint8_t  rozofs_storcli_timestamp_next_free_idx=0;
     uint8_t prjid;    
     ref_ctx_p->count = 0;
@@ -517,7 +517,7 @@ static __inline__ unsigned long long rdtsc(void)
           continue;        
         }
         ret =  rozofs_storcli_transform_inverse_check(prj_ctx_p,layout,
-                                                      block_idx, &rozofs_storcli_prj_idx_table[block_idx*ROZOFS_SAFE_MAX],
+                                                      block_idx, &rozofs_storcli_prj_idx_table[block_idx*ROZOFS_SAFE_MAX_STORCLI],
                                                       &block_ctx_p[block_idx].timestamp,
                                                       &block_ctx_p[block_idx].effective_length);
         if (ret < 0)
@@ -577,7 +577,7 @@ static __inline__ unsigned long long rdtsc(void)
  {
 
     projection_t *projections = NULL;
-    projection_t rozofs_inv_projections[ROZOFS_SAFE_MAX]; 
+    projection_t rozofs_inv_projections[ROZOFS_SAFE_MAX_STORCLI]; 
     int block_idx;
     uint16_t projection_id = 0;
     int prj_ctx_idx;
@@ -659,7 +659,7 @@ static __inline__ unsigned long long rdtsc(void)
         */
         int prj_count = 0;
         uint64_t idx_proj_set = projection_classify(prj_ctx_p,block_idx,layout,rozofs_inverse,rozofs_forward,
-	                                            &rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*block_idx]);
+	                                            &rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX_STORCLI*block_idx]);
         /*
         ** search for a count of inverse projection
         */
@@ -683,7 +683,7 @@ static __inline__ unsigned long long rdtsc(void)
            /*
            ** Get the pointer to the beginning of the projection and extract the projection Id
            */
-           prj_ctx_idx = rozofs_storcli_prj_idx_table[idx+ROZOFS_SAFE_MAX*block_idx];
+           prj_ctx_idx = rozofs_storcli_prj_idx_table[idx+ROZOFS_SAFE_MAX_STORCLI*block_idx];
 
            rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins +
 	   ((rozofs_get_max_psize(layout)+((sizeof(rozofs_stor_bins_hdr_t)+sizeof(rozofs_stor_bins_footer_t))/sizeof(bin_t))) * block_idx));
@@ -806,7 +806,7 @@ static inline int rozofs_data_block_check_empty(char *data, int size)
                                        char *data) 
  {
 
-    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
+    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX_STORCLI];
     projection_t *projections; // Table of projections used to transform data
     uint16_t projection_id = 0;
     uint32_t i = 0;    

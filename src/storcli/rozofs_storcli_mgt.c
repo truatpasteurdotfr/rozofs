@@ -454,7 +454,7 @@ void  rozofs_storcli_ctxInit(rozofs_storcli_ctx_t *p,uint8_t creation)
   p->xmitBuf     = NULL;
   p->data_read_p = NULL;
   p->data_read_p = 0;
-  memset(p->prj_ctx,0,sizeof(rozofs_storcli_projection_ctx_t)*ROZOFS_SAFE_MAX);
+  memset(p->prj_ctx,0,sizeof(rozofs_storcli_projection_ctx_t)*ROZOFS_SAFE_MAX_STORCLI);
   /*
   ** clear the array that contains the association between projection_id and load balancing group
   */
@@ -569,7 +569,7 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
   /*
   ** check if there is some buffer to release in the projection context
   */
-  for (i = 0; i < ROZOFS_SAFE_MAX ; i++)
+  for (i = 0; i < ROZOFS_SAFE_MAX_STORCLI ; i++)
   {
     if (ctx_p->prj_ctx[i].prj_buf != NULL)  
     {

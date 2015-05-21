@@ -490,6 +490,7 @@ static inline void  fuse_ctx_read_pending_queue_insert(file_t *f,void *buffer_p)
 {
      rozofs_fuse_save_ctx_t *fuse_save_ctx_p;
      
+     f->pending_read_count +=1;
      fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*)ruc_buf_getPayload(buffer_p);
 
      ruc_objInsertTail((ruc_obj_desc_t*)&f->pending_rd_list,(ruc_obj_desc_t*)&fuse_save_ctx_p->link);
@@ -513,11 +514,32 @@ static inline void  *fuse_ctx_read_pending_queue_get(file_t *f)
      fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*) ruc_objGetFirst((ruc_obj_desc_t*)&f->pending_rd_list);
      if ( fuse_save_ctx_p != NULL)
      {
+       f->pending_read_count -=1;
        ruc_objRemove((ruc_obj_desc_t*)&fuse_save_ctx_p->link);
        return(fuse_save_ctx_p->buf_ref);     
      }
      return NULL;
      
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+* API to check a  fuse request in the read pending list
+  @param f: file_t structure where to queue the buffer
+  
+    @retval buffer : pointer to buffer mgt part or NULL
+
+*/
+static inline void  *fuse_ctx_read_pending_queue_check(file_t *f)
+{
+     rozofs_fuse_save_ctx_t *fuse_save_ctx_p;
+     
+     fuse_save_ctx_p = (rozofs_fuse_save_ctx_t*) ruc_objGetFirst((ruc_obj_desc_t*)&f->pending_rd_list);
+     if (fuse_save_ctx_p == NULL) return NULL;
+
+     return fuse_save_ctx_p->buf_ref;     
 }
 
 

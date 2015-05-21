@@ -166,6 +166,8 @@ set (librozofs_sources
     core/rozofs_host2ip.h    
     core/disk_table_service.c
     core/disk_table_service.h
+    core/rozofs_numa.h
+    core/rozofs_numa.c
 )
 
 add_library(rozofs STATIC ${librozofs_sources})

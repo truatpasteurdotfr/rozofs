@@ -833,7 +833,6 @@ int storio_disk_thread_intf_send(storio_device_mapping_t      * fidCtx,
   }
   
   af_unix_disk_pending_req_count++;
-  sched_yield();
   return 0;
 }
 

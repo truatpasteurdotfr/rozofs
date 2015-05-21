@@ -79,7 +79,7 @@ void show_quota_cache(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 static char * rw_quota_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"quota_get eid <eid> [group|user] <value>: get user or group quota within an eid\n");
+  pChar += sprintf(pChar,"quota_get eid <eid> {group|user} <value>: get user or group quota within an eid\n");
   return pChar; 
 }
 
@@ -136,6 +136,12 @@ void rw_quota_entry(char * argv[], uint32_t tcpRef, void *bufRef) {
     }
     while(1)
     {
+      if (argv[3] == NULL) 
+      {
+	rw_quota_help(pChar);	
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;  	  
+      }
       if (strcmp(argv[3],"user")==0) {   
            type = USRQUOTA;
 	   break;

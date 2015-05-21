@@ -758,7 +758,10 @@ int af_inet_sock_client_create(char *nickname,
        break;
     }
     
-    
+    /*
+    ** set the speculative scheduling
+    */
+    ruc_sockCtrl_set_speculative_mode(sock_p->connectionId,1);
     /*
     ** Set a max SYN retry number to 2
     */

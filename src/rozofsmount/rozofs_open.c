@@ -17,6 +17,7 @@
  */
 
 #include <inttypes.h>
+#include <malloc.h>
 
 #include <rozofs/rpc/eproto.h>
 
@@ -96,7 +97,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
       */
       file = xmalloc(sizeof (file_t));
       memcpy(file->fid, ie->fid, sizeof (uuid_t));
-      file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
+      file->buffer   = memalign(4096,exportclt.bufsize * sizeof (char));
       file->export   =  &exportclt;   
       /*
       ** init of the variable used for buffer management
@@ -313,7 +314,7 @@ void rozofs_ll_open_cbk(void *this,void *param)
             severe("BUGROZOFSWATCH (open:%p),FID(%s) size=%"PRIu64"", file,
                     fid_str, ie->attrs.size);
     }
-    file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
+    file->buffer   = memalign(4096,exportclt.bufsize * sizeof (char));
     file->export   =  &exportclt;   
     /*
     ** init of the variable used for buffer management

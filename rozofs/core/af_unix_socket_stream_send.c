@@ -172,6 +172,10 @@ void af_unix_send_stream_fsm(af_unix_ctx_generic_t *socket_p,com_xmit_template_t
         switch (ret)
         {
           case RUC_OK:
+	  /*
+	  ** update speculative scheduler
+	  */
+	  ruc_sockCtrl_speculative_scheduler_insert(socket_p->connectionId);
           /*
           ** release the buffer that has been sent
           */

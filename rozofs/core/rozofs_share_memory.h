@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <rozofs/common/log.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>

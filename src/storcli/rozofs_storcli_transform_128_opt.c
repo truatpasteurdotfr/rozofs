@@ -125,7 +125,7 @@
         ** projection id in the header of the projections contains in the bins array that has
         ** been read!!
         */
-	transform_inverse_proc(&rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*block_idx],
+	transform_inverse_proc(&rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX_STORCLI*block_idx],
 			       prj_ctx_p,
 			       prj_size_in_msg,
 			       layout,
@@ -188,7 +188,7 @@
                                        char *data) 
  {
 
-    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
+    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX_STORCLI];
     projection_t *projections; // Table of projections used to transform data
     uint16_t projection_id = 0;
     uint32_t i = 0;    

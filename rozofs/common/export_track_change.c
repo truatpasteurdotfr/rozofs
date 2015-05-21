@@ -478,6 +478,7 @@ out:
 static void *expt_thread(void *v) {
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+     uma_dbg_thread_add_self("Meta_trk");
     int expt_thread_period_current_count = 0;
     expt_thread_period_count = 10;
     // Set the frequency of calls

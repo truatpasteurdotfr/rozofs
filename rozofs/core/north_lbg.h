@@ -67,7 +67,7 @@ typedef enum _north_lbg_entry_state_e
   unsigned long long time;\
   struct timeval     timeDay;  \
   buffer->timestampCount++;\
-  gettimeofday(&timeDay,(struct timezone *)0);  \
+  /*gettimeofday(&timeDay,(struct timezone *)0);*/  \
   time = NORTH_LBG_MICROLONG(timeDay); \
   buffer->timestamp =time;\
 }
@@ -76,7 +76,7 @@ typedef enum _north_lbg_entry_state_e
 { \
   unsigned long long timeAfter;\
   struct timeval     timeDay;  \
-    gettimeofday(&timeDay,(struct timezone *)0);  \
+    /*gettimeofday(&timeDay,(struct timezone *)0); */ \
     timeAfter = NORTH_LBG_MICROLONG(timeDay); \
     buffer->timestampElasped += (timeAfter- buffer->timestamp); \
 }
@@ -377,7 +377,7 @@ static inline int north_lbg_get_next_valid_entry(north_lbg_ctx_t *lbg_p)
      /*
      ** update for the next run when externbal line is used
      */
-     if (lbg_p->local == 0) {
+     if (lbg_p->local == 0)  {
        if (lbg_p->next_global_entry_idx_p != NULL)
        {
 	    * lbg_p->next_global_entry_idx_p = check_idx+1;

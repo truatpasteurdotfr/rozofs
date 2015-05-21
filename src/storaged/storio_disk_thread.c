@@ -974,6 +974,37 @@ void *storio_disk_thread(void *arg) {
 
   uma_dbg_thread_add_self("Disk thread");
 
+#if 1
+    {
+      struct sched_param my_priority;
+      int policy=-1;
+      int ret= 0;
+
+     pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          info("storio main thread Scheduling policy   = %s\n",
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+ #if 1
+      my_priority.sched_priority= 98;
+      policy = SCHED_FIFO;
+      ret = pthread_setschedparam(pthread_self(),policy,&my_priority);
+      if (ret < 0) 
+      {
+	severe("error on sched_setscheduler: %s",strerror(errno));	
+      }
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          DEBUG("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+ #endif        
+
+    }  
+#endif     
+
   //info("Disk Thread %d Started !!\n",ctx_p->thread_idx);
   
   while(1) {
@@ -1033,7 +1064,7 @@ void *storio_disk_thread(void *arg) {
         fatal(" unexpected opcode : %d\n",msg.opcode);
         exit(0);       
     }
-    sched_yield();
+//    sched_yield();
   }
 }
 /*

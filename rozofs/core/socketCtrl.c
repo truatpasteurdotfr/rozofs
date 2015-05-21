@@ -38,7 +38,8 @@
 #define RUC_SOCKCTRL_CTX_TOPIC        "ctx_size"
 
 #define APP_POLLING 1
-#define APP_POLLING_OPT 0
+#define APP_POLLING_OPT 1
+#define ROZO_MES 1
 /*
 **  G L O B A L   D A T A
 */
@@ -47,15 +48,19 @@
 **  priority table
 */
 ruc_obj_desc_t  ruc_sockCtl_tabPrio[RUC_SOCKCTL_MAXPRIO+1];
+int ruc_sockCtrl_speculative_sched_enable = 0;
+int ruc_sockCtrl_speculative_count = 0;
 /*
 ** head of the free connection list
 */
 ruc_sockObj_t   *ruc_sockCtl_freeListHead= (ruc_sockObj_t*)NULL;
 ruc_sockObj_t   *ruc_sockCtrl_pFirstCtx = (ruc_sockObj_t*)NULL;
 uint32_t          ruc_sockCtrl_maxConnection = 0;
+uint64_t         af_unix_rcv_buffered =0;
 /*
 ** file descriptor for receiving and transmitting events
 */
+fd_set  sockCtrl_speculative;   
 fd_set  rucRdFdSet;   
 fd_set  rucWrFdSet;   
 fd_set  rucRdFdSetUnconditional;
@@ -76,7 +81,7 @@ uint32_t  ruc_sockCtrl_nb_socket_conditional= 0;
 uint64_t gettimeofday_count = 0;
 uint64_t gettimeofday_cycles = 0;
 int ruc_sockCtrl_max_nr_select = 0;
-
+int ruc_sockCtrl_max_speculative = 0;
 
 
 uint32_t ruc_sockCtrl_lastCpuScheduler = 0;
@@ -95,9 +100,12 @@ uint64_t ruc_applicative_poller_count = 0;
 */
 int socket_recv_count = 0;
 int socket_recv_table[FD_SETSIZE];
+int socket_speculative_table[FD_SETSIZE];
 int socket_xmit_count = 0;
 int socket_xmit_table[FD_SETSIZE];
 ruc_sockObj_t *socket_ctx_table[FD_SETSIZE];
+ruc_sockObj_t *socket_predictive_ctx_table[FD_SETSIZE];
+int socket_predictive_ctx_table_count[FD_SETSIZE];
 int ruc_sockCtrl_max_poll_ctx = 0;
 ruc_obj_desc_t *ruc_sockctl_poll_pnextCur;
 uint64_t ruc_sockCtrl_poll_period = 0;   /**< period in microseconds */ 
@@ -254,6 +262,7 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   uint32_t          average;
 
   p = ruc_sockCtrl_pFirstCtx;
+  pChar += sprintf(pChar,"speculative scheduler    :%s\n",(ruc_sockCtrl_speculative_sched_enable==0)?" Disabled":" Enabled");
   pChar += rozofs_string_append(pChar,"conditional sockets      : ");
   pChar += rozofs_u32_append(pChar ,ruc_sockCtrl_max_nr_select);
   *pChar++ = '\n';
@@ -261,7 +270,14 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   pChar += rozofs_string_append(pChar,"max socket events        : ");
   pChar += rozofs_u32_append(pChar ,ruc_sockCtrl_max_nr_select);
   *pChar++ = '\n';
+  pChar += rozofs_string_append(pChar,"max speculative events   : ");
+  pChar += rozofs_u32_append(pChar ,ruc_sockCtrl_max_speculative);
+  *pChar++ = '(';
+  pChar += rozofs_u32_append(pChar ,ruc_sockCtrl_speculative_count);
+  *pChar++ = ')';
+  *pChar++ = '\n';
   ruc_sockCtrl_max_nr_select = 0;
+  ruc_sockCtrl_max_speculative = 0;
 
   pChar += rozofs_string_append(pChar,"xmit/recv prepare cycles : ");
   pChar += rozofs_u64_append(pChar ,(ruc_count_prepare==0)?0:(long long unsigned)ruc_time_prepare/ruc_count_prepare);
@@ -273,6 +289,10 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
   *pChar++ = '\n';
   ruc_time_prepare = 0;
   ruc_count_prepare = 0;
+  pChar += rozofs_string_append(pChar,"max recv buffered evts   : ");
+  pChar += rozofs_u64_append(pChar ,(long long unsigned) af_unix_rcv_buffered);
+  *pChar++ = '\n';
+  af_unix_rcv_buffered = 0;  
 
   pChar += rozofs_string_append(pChar,"xmit/recv receive cycles : ");
   pChar += rozofs_u64_append(pChar ,(ruc_count_receive==0)?0:(long long unsigned)ruc_time_receive/ruc_count_receive);
@@ -342,6 +362,13 @@ void ruc_sockCtrl_debug_show(uint32_t tcpRef, void * bufRef) {
       pChar += rozofs_u32_append(pChar, (FD_ISSET(p->socketId, &rucRdFdSetUnconditional)==0)?0:1);
       *pChar++ = '-';      
       pChar += rozofs_u32_append(pChar, (FD_ISSET(p->socketId, &rucWrFdSetCongested)==0)?0:1);  
+      *pChar++ = '-';      
+      pChar += rozofs_u32_append(pChar, (p->speculative==0)?0:1);  
+      *pChar++ = '-';      
+      pChar += rozofs_u32_append(pChar, (FD_ISSET(p->socketId, &sockCtrl_speculative)==0)?0:1);  
+      *pChar++ = '-';      
+      pChar += rozofs_u32_append(pChar, socket_predictive_ctx_table_count[p->socketId]);  
+
       *pChar ++ = '\n';
                 
       p->cumulatedTime = 0;
@@ -390,6 +417,7 @@ static char * show_ruc_sockCtrl_conf_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
   pChar += sprintf(pChar,"sockctrl pollcount <value> : set number of polled contexts per activation\n");
   pChar += sprintf(pChar,"sockctrl pollfreq <value>  : set activation period (unit is microseconds)\n");
+  pChar += sprintf(pChar,"sockctrl speculative <enable|disable>  : set/reset speculative scheduler\n");
   pChar += sprintf(pChar,"sockctrl                   : display current configuration\n");
   return pChar; 
 }  
@@ -414,6 +442,33 @@ void ruc_sockCtrl_conf(char * argv[], uint32_t tcpRef, void * bufRef) {
       uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");    
       return;      
     }
+    if (strcmp(argv[1],"speculative")==0) 
+    {
+      if (argv[2] == NULL)
+      {
+       pChar += sprintf(pChar,"missing parameter\n");    
+       pChar = show_ruc_sockCtrl_conf_help(pChar);
+       uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+       return;           
+      } 
+      if (strcmp(argv[2],"enable")==0)  
+      {
+         ruc_sockCtrl_speculative_sched_enable = 1;
+         uma_dbg_send(tcpRef, bufRef, TRUE, "Speculative scheduler is now enabled\n");  
+	 return;        
+      }     
+      if (strcmp(argv[2],"disable")==0)  
+      {
+         ruc_sockCtrl_speculative_sched_enable = 0;
+         uma_dbg_send(tcpRef, bufRef, TRUE, "Speculative scheduler is now disabled\n");  
+	 return;        
+      }  
+
+      pChar += sprintf(pChar,"bad value %s\n",argv[2]);    
+      pChar = show_ruc_sockCtrl_conf_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
+      return;        
+    }
     if (strcmp(argv[1],"pollfreq")==0) 
     {
       errno = 0;       
@@ -432,6 +487,8 @@ void ruc_sockCtrl_conf(char * argv[], uint32_t tcpRef, void * bufRef) {
     uma_dbg_send(tcpRef, bufRef, TRUE, myBuf);
     return;
   }
+  pChar +=sprintf(pChar,"speculative scheduler                    : %s\n",
+          (ruc_sockCtrl_speculative_sched_enable==1)?" Enable":" Disable");
   pChar +=sprintf(pChar,"max number of socket controller contexts : %u\n",ruc_sockCtrl_maxConnection);
   pChar +=sprintf(pChar,"scheduler polling period                 : %llu us\n",(long long unsigned)ruc_sockCtrl_poll_period);
   pChar +=sprintf(pChar,"scheduler polling count                  : %u\n",ruc_sockCtrl_max_poll_ctx);
@@ -585,12 +642,15 @@ uint32_t ruc_sockctl_init(uint32_t maxConnection)
   ** erase the Fd receive & xmit set
   */
   FD_ZERO(&rucRdFdSet);
+  FD_ZERO(&sockCtrl_speculative);
   FD_ZERO(&rucWrFdSet);   
   FD_ZERO(&rucRdFdSetUnconditional);   
   FD_ZERO(&rucWrFdSetCongested);   
   memset(socket_recv_table,0xff,sizeof(int)*FD_SETSIZE);
   memset(socket_xmit_table,0xff,sizeof(int)*FD_SETSIZE);
   memset(socket_ctx_table,0,sizeof(ruc_sockObj_t *)*FD_SETSIZE);
+  memset(socket_predictive_ctx_table,0,sizeof(ruc_sockObj_t *)*FD_SETSIZE);
+  memset(socket_predictive_ctx_table_count,0,sizeof(int)*FD_SETSIZE);
   ruc_sockCtrl_max_poll_ctx = RUC_SOCKCTL_POLLCOUNT;
   ruc_sockctl_poll_pnextCur = NULL;
   ruc_sockCtrl_poll_period = RUC_SOCKCTL_POLLFREQ; /** period of 40 ms */
@@ -618,6 +678,7 @@ uint32_t ruc_sockctl_init(uint32_t maxConnection)
   {
     p->connectId = idx;
     p->socketId = -1;
+    p->speculative = 0;
     p->priority  = -1;
     // 64BITS     p->objRef = -1;
     p->objRef = NULL;
@@ -717,6 +778,7 @@ void * ruc_sockctl_connect(int socketId,
   */
   pelem->socketId = socketId;
   
+  pelem->speculative = 0;
   pelem->objRef = objRef;
   pelem->rcvCount = 0;
   pelem->xmitCount = 0;
@@ -814,6 +876,7 @@ uint32_t ruc_sockctl_disconnect(void * connectionId)
      ** clear the correspond bit on xmit and rcv ready
      */
      FD_CLR(p->socketId,&rucRdFdSet);     
+     FD_CLR(p->socketId,&sockCtrl_speculative);     
      FD_CLR(p->socketId,&rucWrFdSet);
      FD_CLR(p->socketId,&rucRdFdSetUnconditional);
      FD_CLR(p->socketId,&rucWrFdSetCongested);
@@ -821,6 +884,8 @@ uint32_t ruc_sockctl_disconnect(void * connectionId)
      ruc_sockCtrl_remove_socket(socket_recv_table,socket_recv_count,p->socketId);
      ruc_sockCtrl_remove_socket(socket_xmit_table,socket_xmit_count,p->socketId);
      socket_ctx_table[p->socketId] = NULL;
+     socket_predictive_ctx_table[p->socketId] = NULL;
+     socket_predictive_ctx_table_count[p->socketId] = 0; 
      p->socketId = -1;
    }
 
@@ -1030,6 +1095,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
   ruc_sockObj_t *p;
   ruc_sockCallBack_t *pcallBack;
   int socketId;
+  int speculative_count = 0;
   struct timeval     timeDay;
   unsigned long long timeBefore, timeAfter;
 #if APP_POLLING_OPT
@@ -1048,7 +1114,7 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
 	(*ruc_applicative_poller)(0);
         ruc_applicative_poller_cycles += (rdtsc() - cycles_start);
   }
-  ruc_applicative_poller_ticker +=100;
+  ruc_applicative_poller_ticker +=1;
 #endif
   cycles_before = rdtsc();
   /*
@@ -1056,7 +1122,19 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
   */
   socket_recv_count = ruc_sockCtrl_build_sock_table((uint64_t *)&rucRdFdSet,socket_recv_table,nbrSelect);
   socket_xmit_count = ruc_sockCtrl_build_sock_table((uint64_t *)&rucWrFdSet,socket_xmit_table,nbrSelect);
+  /*
+  ** case of the speculative scheduler
+  */
+  if (ruc_sockCtrl_speculative_sched_enable)
+  {
+    speculative_count= ruc_sockCtrl_speculative_count;
+    if (speculative_count > 0)
+    {
+      speculative_count = ruc_sockCtrl_build_sock_table((uint64_t *)&sockCtrl_speculative,socket_speculative_table,speculative_count);
+    }
+    if (ruc_sockCtrl_max_speculative < speculative_count) ruc_sockCtrl_max_speculative = speculative_count;
 
+  }
   cycles_after = rdtsc();
   ruc_time_receive += (cycles_after - cycles_before);
   ruc_count_receive++;
@@ -1084,16 +1162,18 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
     */
     p->rcvCount++;
     pcallBack = p->callBack;
-
+#ifdef ROZO_MES
     gettimeofday(&timeDay,(struct timezone *)0);  
     timeBefore = MICROLONG(timeDay);
-
+#endif
     (*(pcallBack->msgInFunc))(p->objRef,p->socketId);
+#ifdef ROZO_MES
     gettimeofday(&timeDay,(struct timezone *)0);  
     timeAfter = MICROLONG(timeDay);
     p->lastTime = (uint32_t)(timeAfter - timeBefore);
     p->cumulatedTime += p->lastTime;
     p->nbTimes ++;        
+#endif
 #if APP_POLLING_OPT
     if (ruc_applicative_poller != NULL)
     {
@@ -1103,13 +1183,41 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
 	  uint64_t cycles_start = rdtsc();  	
 	  (*ruc_applicative_poller)(0);
           ruc_applicative_poller_cycles += (rdtsc() - cycles_start);  
-	  ruc_applicative_poller_ticker = timeAfter+200;
+	  ruc_applicative_poller_ticker = timeAfter+1;
 	}
 
     }
 #endif
   }
-  
+  /*
+  ** speculative scheduler
+  */
+  for (i = 0; i <speculative_count ; i++)
+  {
+    socketId = socket_speculative_table[i];
+    if (socketId == -1) continue;
+    p = socket_predictive_ctx_table[socketId];
+    if (p == NULL) 
+    {
+      continue;
+    }
+    /*
+    ** call the associated callback
+    */
+    p->rcvCount++;
+    pcallBack = p->callBack;
+
+    gettimeofday(&timeDay,(struct timezone *)0);  
+    timeBefore = MICROLONG(timeDay);
+
+    (*(pcallBack->msgInFunc))(p->objRef,p->socketId);
+    gettimeofday(&timeDay,(struct timezone *)0);  
+    timeAfter = MICROLONG(timeDay);
+    p->lastTime = (uint32_t)(timeAfter - timeBefore);
+    p->cumulatedTime += p->lastTime;
+    p->nbTimes ++;         
+  }
+
   for (i = 0; i <socket_xmit_count ; i++)
   {
     socketId = socket_xmit_table[i];
@@ -1123,17 +1231,18 @@ static inline void ruc_sockCtl_checkRcvAndXmitBits_opt(int nbrSelect)
     FD_CLR(socketId,&rucWrFdSet);
     p->xmitCount++;
     pcallBack = p->callBack;
-
+#ifdef ROZO_MES
     gettimeofday(&timeDay,(struct timezone *)0);  
     timeBefore = MICROLONG(timeDay);
-
+#endif
     (*(pcallBack->xmitEvtFunc))(p->objRef,p->socketId);
 
+#ifdef ROZO_MES
     timeAfter = MICROLONG(timeDay);
     p->lastTime = (uint32_t)(timeAfter - timeBefore);
     p->cumulatedTime += p->lastTime;
     p->nbTimes ++;
-
+#endif
   }
 
 
@@ -1432,14 +1541,13 @@ void ruc_sockCtrl_selectWait()
     int     nbrSelect;    /* nbr of events detected by select function */
     struct timeval     timeDay;
     unsigned long long timeBefore, timeAfter;
-    uint64_t cycles_before;
-    uint64_t cycles_after;
+//    uint64_t cycles_before;
+//    uint64_t cycles_after;
 //    uint32_t  	       timeOutLoopCount;  
     unsigned long long looptimeEnd,looptimeStart = 0;   
      timeBefore = 0;
      timeAfter  = 0;
 //     timeOutLoopCount = 0;
-    int cpt_yield;
 
     /*
     ** update time before call select
@@ -1447,7 +1555,6 @@ void ruc_sockCtrl_selectWait()
     gettimeofday(&timeDay,(struct timezone *)0);  
     timeBefore = MICROLONG(timeDay);
     rozofs_ticker_microseconds = timeBefore;
-    cpt_yield = 5;
 
     while (1)
     {
@@ -1455,27 +1562,17 @@ void ruc_sockCtrl_selectWait()
       **  compute rucRdFdSet and rucWrFdSet
       */
       ruc_sockCtl_prepareRcvAndXmitBits();
-      cycles_before = rdtsc();     
+//      cycles_before = rdtsc();     
       gettimeofday(&timeDay,(struct timezone *)0);  
-      cycles_after = rdtsc();  
-      gettimeofday_cycles+=  cycles_after -  cycles_before;
-      gettimeofday_count +=1;
+//      cycles_after = rdtsc();  
+//      gettimeofday_cycles+=  cycles_after -  cycles_before;
+//      gettimeofday_count +=1;
       looptimeEnd = MICROLONG(timeDay);  
       ruc_sockCtrl_looptime= (uint32_t)(looptimeEnd - looptimeStart); 
       if (ruc_sockCtrl_looptime > ruc_sockCtrl_looptimeMax)
       {
 	  ruc_sockCtrl_looptimeMax = ruc_sockCtrl_looptime;
       }	  
-      /*
-      ** give a change to the NPS to process the
-      ** message from its socket
-      */
-      cpt_yield -=1;
-      if (cpt_yield == 0)
-      {
-	cpt_yield = 2;
-//         sched_yield();
-      }
       /*
       ** wait for event 
       */	  
@@ -1513,7 +1610,7 @@ void ruc_sockCtrl_selectWait()
 	**  insert the first element of each priority list at the
 	**  tail of its priority list.
 	*/
-	ruc_sockCtrl_roundRobbin();
+//	ruc_sockCtrl_roundRobbin();
         gettimeofday(&timeDay,(struct timezone *)0);  
 	timeAfter = MICROLONG(timeDay); 
         rozofs_ticker_microseconds = timeAfter;

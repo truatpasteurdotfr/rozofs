@@ -29,6 +29,7 @@
 #include <rozofs/core/rozofs_host_list.h>
 #include <rozofs/core/rozo_launcher.h>
 #include <rozofs/core/rozofs_string.h>
+#include <rozofs/core/rozofs_numa.h>
 #include <rozofs/common/rozofs_site.h>
 
 #include "rozofs_fuse.h"
@@ -1775,12 +1776,14 @@ int fuseloop(struct fuse_args *args, int fg) {
        ** storcli instance: (rozofsmount<<1 | storcli_instance) (assuming of max of 2 storclis per rozofsmount)
        */
        int key_instance = conf.instance<<SHAREMEM_PER_FSMOUNT_POWER2 | i;
-       ret = rozofs_create_shared_memory(key_instance,i,rozofs_fuse_conf.max_transactions,(conf.buf_size*1024)+1024);
+       ret = rozofs_create_shared_memory(key_instance,i,rozofs_fuse_conf.max_transactions,(conf.buf_size*1024)+4096);
        if (ret < 0)
        {
-         severe("Cannot create the shared memory for storcli %d\n",i);
+         fatal("Cannot create the shared memory for storcli %d\n",i);
        }
     }   
+    rozofs_shared_mem_init_done  = 1;  
+
     /*
     ** start the storcli processes
     */ 
@@ -1904,6 +1907,10 @@ int main(int argc, char *argv[]) {
     if (fuse_opt_parse(&args, &conf, rozofs_opts, myfs_opt_proc) < 0) {
         exit(1);
     }
+    /*
+    **  set the numa node for rozofsmount and its storcli
+    */
+    rozofs_numa_allocate_node(conf.instance);
     /*
     ** init of the site number for that rozofs client
     */

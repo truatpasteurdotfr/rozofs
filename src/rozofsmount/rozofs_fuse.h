@@ -55,6 +55,7 @@ typedef struct _rozofs_fuse_read_write_stats
 extern uint64_t rozofs_write_buf_section_table[];
 extern uint64_t rozofs_read_buf_section_table[];
 extern rozofs_fuse_read_write_stats  rozofs_fuse_read_write_stats_buf;
+extern int fuse_sharemem_enable;
 
  /**
  * Must be the same as sys_recv_pf_t

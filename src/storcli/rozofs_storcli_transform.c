@@ -86,7 +86,7 @@ int transform_libinit()
  {
 
     projection_t *projections = NULL;
-    projection_t rozofs_inv_projections[ROZOFS_SAFE_MAX]; 
+    projection_t rozofs_inv_projections[ROZOFS_SAFE_MAX_STORCLI]; 
     int block_idx;
     uint16_t projection_id = 0;
     int prj_ctx_idx;
@@ -152,7 +152,7 @@ int transform_libinit()
            /*
            ** Get the pointer to the beginning of the projection and extract the projection Id
            */
-           prj_ctx_idx = rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX*block_idx+prj_count];
+           prj_ctx_idx = rozofs_storcli_prj_idx_table[ROZOFS_SAFE_MAX_STORCLI*block_idx+prj_count];
            rozofs_stor_bins_hdr_t *rozofs_bins_hdr_p = (rozofs_stor_bins_hdr_t*)(prj_ctx_p[prj_ctx_idx].bins +
 	   (prj_size_in_msg/sizeof(bin_t)) * block_idx);
             
@@ -234,7 +234,7 @@ int transform_libinit()
                                        uint16_t last_block_size,
                                        char *data) 
  {
-    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX];
+    projection_t rozofs_fwd_projections[ROZOFS_SAFE_MAX_STORCLI];
     projection_t *projections; // Table of projections used to transform data
     uint16_t projection_id = 0;
     uint32_t i = 0;    

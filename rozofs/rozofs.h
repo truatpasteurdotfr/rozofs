@@ -73,6 +73,7 @@ typedef enum _ROZOFS_BSIZE_E {
 // Maximum number of block per message
 #define ROZOFS_MAX_BLOCK_PER_MSG (256/4)
 #define ROZOFS_SAFE_MAX 36
+#define ROZOFS_SAFE_MAX_STORCLI 16
 #define ROZOFS_SAFE_MAX_RPC  (ROZOFS_SAFE_MAX/sizeof(uint32_t))
 /* Instead of using an array of sid_t for store the dist_set, we use an
  * array of uint32_t in the RPC protocol to use less space (see XDR). */
