@@ -31,6 +31,7 @@
 #include <rozofs/core/rozofs_string.h>
 #include <rozofs/core/rozofs_numa.h>
 #include <rozofs/common/rozofs_site.h>
+#include <rozofs/common/common_config.h>
 
 #include "rozofs_fuse.h"
 #include "rozofs_fuse_api.h"
@@ -2112,6 +2113,11 @@ int main(int argc, char *argv[]) {
 
     // Change AF_UNIX datagram socket length
     af_unix_socket_set_datagram_socket_len(128);
+
+    /*
+    ** read common config file
+    */
+    common_config_read(NULL);        
 
     res = fuseloop(&args, fg);
 
