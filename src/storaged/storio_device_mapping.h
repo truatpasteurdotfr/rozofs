@@ -53,7 +53,7 @@ extern "C" {
 * Attributes cache constants
 */
 #define STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2  12
-#define STORIO_DEVICE_MAPPING_MAX_ENTRIES  (64*1024)
+#define STORIO_DEVICE_MAPPING_MAX_ENTRIES  (128*1024)
 
 #define STORIO_DEVICE_MAPPING_LVL0_SZ  (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2) 
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
@@ -154,8 +154,18 @@ extern storio_device_mapping_stat_t storio_device_mapping_stat;
   
 */
 static inline uint32_t storio_device_mapping_hash32bits_compute(storio_device_mapping_key_t *usr_key) {
-  uint32_t * p32 = (uint32_t *) usr_key;
-  return (uint32_t) ((p32[0]^p32[1]^p32[2]^p32[3])+ usr_key->sid);
+  uint32_t        h = 2166136261;
+  unsigned char * d = (unsigned char *) usr_key->fid;
+  int             i;
+
+  /*
+   ** hash on fid
+   */
+  for (i=0; i<sizeof(fid_t); i++,d++) {
+    h = (h * 16777619)^ *d;
+  }
+  h += usr_key->sid; 
+  return h;
 }
 
 /*

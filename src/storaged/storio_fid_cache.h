@@ -75,7 +75,7 @@ typedef uint32_t (*storio_fid_delete_request_fct)(uint32_t index);
 /*
 ** Number of cache entries in power of 2 
 */
-#define  STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2 12
+#define  STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2 13
 
 /*
 ** In an 32 bit is stored the index as well as a hash
@@ -133,6 +133,7 @@ typedef struct storio_fid_stat_t {
   uint64_t        hit;     // count of successfull search
   uint64_t        miss;    // count of failed search
   uint64_t        bkts;    // number of allocated extra buckets
+  uint64_t        mxbkt;   // The biggest number of sub  buckets
   uint64_t        mxcol;   // max collision found on entry hash & bucket index
 } STORIO_FID_STAT_T;
 

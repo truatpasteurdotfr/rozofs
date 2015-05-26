@@ -69,6 +69,7 @@ char * display_cache_fid_stat(char * pChar) {
   DISPLAY_CACHE_FID_STAT(hit);
   DISPLAY_CACHE_FID_STAT(miss);
   DISPLAY_CACHE_FID_STAT(bkts);
+  DISPLAY_CACHE_FID_STAT(mxbkt);
   DISPLAY_CACHE_FID_STAT(mxcol)
   *pChar = 0;
   return pChar;
@@ -134,11 +135,10 @@ int storio_fid_cache_insert(uint32_t hash, uint32_t index) {
   pBucket += (hash & ((1<<STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2)-1));
 
   /*
-  ** Keep upper bits for the entry hash in the bucket
+  ** Subhash within the bucket. Keep upper bits for the entry hash in the bucket
   */  
-  hash = (hash >> STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2) & ((1<<STORIO_FID_CACHE_HASH_BITS)-1);
-  
- 
+  uint32_t subhash = (hash >> STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2) & ((1<<STORIO_FID_CACHE_HASH_BITS)-1);
+   
 restart:  
   /*
   ** Find the 1rst not full sub bucket 
@@ -198,6 +198,11 @@ restart:
       return -1;
     }
     storio_fid_cache_stat.bkts++;
+    
+    if (subIdx > storio_fid_cache_stat.mxbkt) {
+      storio_fid_cache_stat.mxbkt = subIdx;
+    } 
+    
     memset(pSub,0,sizeof(STORIO_FID_CACHE_SUB_BUCKET_T));  
   }
   
@@ -228,7 +233,7 @@ restart:
   /*
   ** Write entry
   */
-  pEntry->s.hash  = hash;
+  pEntry->s.hash  = subhash;
   pEntry->s.index = index; 
   
   
@@ -287,7 +292,7 @@ static inline uint32_t storio_fid_cache_searchOrRemove(uint32_t hash, void * key
   pBucket += (hash & ((1<<STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2)-1));
   
   /*
-  ** Keep upper bits for the entry hash in the bucket
+  ** Subhash within the bucket. Keep upper bits for the entry hash in the bucket
   */  
   hash = (hash >> STORIO_FID_CACHE_LVL0_SZ_POWER_OF_2) & ((1<<STORIO_FID_CACHE_HASH_BITS)-1);
   
