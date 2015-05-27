@@ -123,7 +123,7 @@ add_executable(rozodump
     storio_crc32.c
     storio_crc32.h
 )
-target_link_libraries(rozodump rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY})
+target_link_libraries(rozodump rozofs ${PTHREAD_LIBRARY} ${UUID_LIBRARY} ${CONFIG_LIBRARY})
 
 # Install
 install(CODE "EXECUTE_PROCESS (COMMAND mkdir -p ${ROZOFS_CONFIG_DIR})" COMPONENT storage)

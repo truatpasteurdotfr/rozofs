@@ -44,6 +44,7 @@
 
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/core/rozofs_string.h>
+#include <rozofs/common/common_config.h>
 #include "storage.h"
 #include "storio_crc32.h"
 

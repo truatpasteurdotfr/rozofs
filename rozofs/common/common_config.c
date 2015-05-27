@@ -63,7 +63,8 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_BOOL(crc32c_check);
   COMMON_CONFIG_SHOW_BOOL(crc32c_generate);
   COMMON_CONFIG_SHOW_BOOL(crc32c_hw_forced);
-  COMMON_CONFIG_SHOW_INT(trashed_file_per_run);  
+  COMMON_CONFIG_SHOW_INT(trashed_file_per_run); 
+  COMMON_CONFIG_SHOW_INT(storio_slice_number);    
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -155,6 +156,10 @@ void common_config_read(char * fname) {
     }	    
     config_file_is_read = 0;	    
   }
+  /*
+  ** Number of slices for the storio
+  */  
+  COMMON_CONFIG_READ_INT(storio_slice_number);
 
   /*
   ** Look up for number of core files

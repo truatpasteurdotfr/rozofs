@@ -50,6 +50,9 @@
 #define rozofs_default_crc32c_generate          TRUE
 #define rozofs_default_crc32c_hw_forced         FALSE
 
+#define rozofs_default_storio_slice_number    1024
+#define rozofs_min_storio_slice_number           8
+#define rozofs_max_storio_slice_number    (16*1024) 
 /*
 ** Common configuration parameters
 */
@@ -61,6 +64,7 @@ typedef struct _common_config_t {
   uint32_t    crc32c_generate;
   uint32_t    crc32c_hw_forced;  
   uint32_t    trashed_file_per_run;
+  uint32_t    storio_slice_number;
 } common_config_t;
   
 extern common_config_t common_config;

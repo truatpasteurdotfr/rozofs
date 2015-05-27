@@ -32,6 +32,7 @@
 #include <rozofs/rozofs_srv.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/htable.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/core/rozofs_string.h>
 
 #define ROZOFS_MAX_DISK_THREADS  32
@@ -300,10 +301,11 @@ static inline char * trace_device(uint8_t * device, char * pChar) {
 /*
 ** FID storage slice computing
 */
-#define FID_STORAGE_SLICE_SIZE 8
+#define FID_STORAGE_SLICE_SIZE (common_config.storio_slice_number)
 static inline unsigned int rozofs_storage_fid_slice(void * fid) {
   rozofs_inode_t *fake_inode = (rozofs_inode_t *) fid;
-  return fake_inode->s.usr_id % FID_STORAGE_SLICE_SIZE;
+  uint32_t        val = fake_inode->s.usr_id + (fake_inode->s.file_id<<8);
+  return val % FID_STORAGE_SLICE_SIZE;
 } 
 /*
 ** Build a hdr path on storage disk
@@ -491,7 +493,17 @@ int storage_restore_chunk(storage_t * st, uint8_t * device,fid_t fid, uint8_t sp
  * @return: the device number to hold the mapper file of this FID/nb
  */
 static inline int storage_mapper_device(fid_t fid, int rank, int modulo) {
-  return (fid[2]+rank) % modulo;
+  uint32_t        h = 2166136261;
+  unsigned char * d = (unsigned char *) fid;
+  int             i;
+
+  /*
+  ** hash on fid
+  */
+  for (i=0; i<sizeof(fid_t); i++,d++) {
+    h = (h * 16777619)^ *d;
+  }
+  return (h+rank) % modulo;
 } 
 /*
  ** Write a header/mapper file on a device
