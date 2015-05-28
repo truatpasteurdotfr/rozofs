@@ -61,6 +61,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 		,libfuse2 (>= 2.9.0)
 		,fuse
 		,libnuma1
+		,libconfig8 | libconfig9
 		,rozofs-rozolauncher
 Description: RozoFS filesystem (mount utility)
  rozofsmount mounts RozoFS filesystems using FUSE.

@@ -208,9 +208,11 @@ static inline void * ruc_buf_poolCreate(uint32_t nbBuf,uint32_t bufsize)
      ruc_listDelete((ruc_obj_desc_t*)poolRef);
      return NULL;
    }
+    if (huge_page) {
 #ifdef MADV_HUGEPAGE
-   if (huge_page) madvise(pusrData,alloc_size,MADV_HUGEPAGE);
+        madvise(pusrData, alloc_size, MADV_HUGEPAGE);
 #endif
+    }
    /*
    ** store the pointer address on the head
    */

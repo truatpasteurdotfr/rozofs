@@ -114,34 +114,31 @@ int sconfig_read(sconfig_t *config, const char *fname, int cluster_id) {
         goto out;
     }
 
-    
     /*
     ** Check whether self-healing is configured 
     */
     config->selfHealing  = -1;
     config->export_hosts = NULL;
     selfHealing = -1;
-    
+
     if (config_lookup_int(&cfg, SSELF_HEALING, &selfHealing)) {
-      if (selfHealing>0) {
-        /*
-	** Export hosts list has to be configured too
-	*/
-	if (config_lookup_string(&cfg, SEXPORT_HOSTS, &char_value)) {
-	  config->selfHealing  = selfHealing;
-	  config->export_hosts = strdup(char_value);
-	}
-	else {
-	  severe("%s must be configured along with %s",SEXPORT_HOSTS, SSELF_HEALING);
-	}
-      }	
-      else {
-        severe("Bad %s value %d",SSELF_HEALING,selfHealing);
-	selfHealing = -1;
-      }
+        if (selfHealing > 0) {
+            /*
+             ** Export hosts list has to be configured too
+             */
+            if (config_lookup_string(&cfg, SEXPORT_HOSTS, &char_value)) {
+                config->selfHealing = selfHealing;
+                config->export_hosts = strdup(char_value);
+            } else {
+                severe("%s must be configured along with %s", SEXPORT_HOSTS,
+                        SSELF_HEALING);
+            }
+        } else {
+            severe("%s value must be greater than 0", SSELF_HEALING);
+            selfHealing = -1;
+        }
     }
-    
-    
+
     if (!(ioaddr_settings = config_lookup(&cfg, SIOLISTEN))) {
         errno = ENOKEY;
         severe("can't fetch listen settings.");
