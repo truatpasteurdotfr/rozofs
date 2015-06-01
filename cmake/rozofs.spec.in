@@ -33,7 +33,7 @@ RozoFS process launcher.
 Summary: RozoFS filesystem (export package).
 License: GPLv2
 Group: System Environment/Daemons
-Requires: rpcbind libattr libconfig libuuid rozofs-rozolauncher numactl
+Requires: rpcbind libattr libconfig libuuid rozofs-rozolauncher
 %description exportd
 RozoFS exportd daemon manages metadata for the RozoFS filesystems.
 
@@ -92,7 +92,7 @@ Management daemon for RozoFS.
 Summary: RozoFS filesystem (geo-replication software).
 License: GPLv2
 Group: System Environment/Daemons
-Requires: libconfig rozofs-rozolauncher numactl
+Requires: libconfig rozofs-rozolauncher
 %description geomgr
 Geo-replication daemon for RozoFS.
 

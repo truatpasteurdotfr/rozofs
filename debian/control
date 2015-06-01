@@ -34,7 +34,6 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 		,portmap | rpcbind
 		,libattr1
 		,libuuid1
-		,libnuma1
 		,libconfig8 | libconfig9
 		,rozofs-rozolauncher
 Description: RozoFS filesystem (export daemon)
@@ -73,7 +72,6 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 		,libconfig8 | libconfig9
 		,rozofs-rozolauncher
-		,libnuma1
 Description: RozoFS filesystem (geo-replication software)
  This package contains the software related to geo-replication.
  .
