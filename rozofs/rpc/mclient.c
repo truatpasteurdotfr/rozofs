@@ -95,7 +95,7 @@ out:
         xdr_free((xdrproc_t) xdr_mp_stat_ret_t, (char *) ret);
     return status;
 }
-
+#if 0
 int mclient_remove(mclient_t * clt, fid_t fid) {
     int status = -1;
     mp_status_ret_t *ret = 0;
@@ -120,7 +120,32 @@ out:
         xdr_free((xdrproc_t) xdr_mp_status_ret_t, (char *) ret);
     return status;
 }
+#endif
+int mclient_remove2(mclient_t * clt, fid_t fid,uint8_t spare) {
+    int status = -1;
+    mp_status_ret_t *ret = 0;
+    mp_remove2_arg_t args;
+    DEBUG_FUNCTION;
 
+    args.cid   = clt->cid;
+    args.sid   = clt->sid;
+    args.spare = spare;
+    memcpy(args.fid, fid, sizeof (fid_t));
+
+    if (!(clt->rpcclt.client) || !(ret = mp_remove2_1(&args, clt->rpcclt.client))) {
+        errno = EPROTO;
+        goto out;
+    }
+    if (ret->status != 0) {
+        errno = ret->mp_status_ret_t_u.error;
+        goto out;
+    }
+    status = 0;
+out:
+    if (ret)
+        xdr_free((xdrproc_t) xdr_mp_status_ret_t, (char *) ret);
+    return status;
+}
 int mclient_ports(mclient_t * mclt, int * single, mp_io_address_t * io_address_p) {
     int status = -1;
     mp_ports_ret_t *ret = 0;

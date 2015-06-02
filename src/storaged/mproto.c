@@ -119,7 +119,34 @@ void mp_remove_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
 out:
     STOP_PROFILING(remove);
 }
+void mp_remove2_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
+        void * pt_resp) {
 
+    mp_status_ret_t * ret = (mp_status_ret_t *) pt_resp;
+    mp_remove2_arg_t * args = (mp_remove2_arg_t*) pt_req;
+    storage_t *st = 0;
+
+    DEBUG_FUNCTION;
+
+    START_PROFILING(remove);
+
+    ret->status = MP_FAILURE;
+
+    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+        ret->mp_status_ret_t_u.error = errno;
+        goto out;
+    }
+
+    if (storage_rm2_file(st, (unsigned char *) args->fid, args->spare) != 0) {
+        ret->mp_status_ret_t_u.error = errno;
+        goto out;
+    }
+
+    ret->status = MP_SUCCESS;
+
+out:
+    STOP_PROFILING(remove);
+}
 void mp_ports_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
         void * pt_resp) {
 

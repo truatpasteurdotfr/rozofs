@@ -30,6 +30,13 @@ union mp_status_ret_t switch (mp_status_t status) {
     default:            void;
 };
 
+struct mp_remove2_arg_t {
+    uint16_t    cid;
+    uint8_t     sid;
+    uint8_t     spare;
+    mp_uuid_t   fid;
+};
+
 struct mp_remove_arg_t {
     uint16_t    cid;
     uint8_t     sid;
@@ -125,6 +132,9 @@ program MONITOR_PROGRAM {
 
         mp_list_bins_files_ret_t
         MP_LIST_BINS_FILES(mp_list_bins_files_arg_t)    = 4;
+
+        mp_status_ret_t
+        MP_REMOVE2(mp_remove2_arg_t)                    = 5;
 
     }=1;
 } = 0x20000003;

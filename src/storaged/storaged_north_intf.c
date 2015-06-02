@@ -70,6 +70,7 @@ void mproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * h
       mp_stat_arg_t             stat;
       mp_remove_arg_t           remove;
       mp_list_bins_files_arg_t  list_bins_file;
+      mp_remove2_arg_t          remove2;      
     } mproto_request;
 
     union {
@@ -119,6 +120,13 @@ void mproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * h
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_mp_list_bins_files_ret_t;
       local = mp_list_bins_files_1_svc_nb;
       size = sizeof(mp_list_bins_files_arg_t);
+      break;
+
+    case MP_REMOVE2:
+      rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_mp_remove2_arg_t;
+      rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_mp_status_ret_t;
+      local = mp_remove2_1_svc_nb;
+      size = sizeof(mp_remove_arg_t);
       break;
       
     default:

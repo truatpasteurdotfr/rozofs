@@ -2106,7 +2106,54 @@ int storage_rm_file(storage_t * st, fid_t fid) {
     }
     return 0;
 } 
+int storage_rm2_file(storage_t * st, fid_t fid, uint8_t spare) {
+ STORAGE_READ_HDR_RESULT_E read_hdr_res;
+ int chunk;
+ rozofs_stor_bins_file_hdr_t file_hdr;
 
+
+  /*
+  ** When no device id is given as input, let's read the header file 
+  */      
+  read_hdr_res = storage_read_header_file(st, fid, spare, &file_hdr);
+
+
+  if (read_hdr_res == STORAGE_READ_HDR_ERRORS) {
+    /*
+    ** Error that prevents the file deletion
+    */
+    return -1;
+  }
+  
+  if (read_hdr_res == STORAGE_READ_HDR_NOT_FOUND) {
+    /*
+    ** File already deleted
+    */
+    return  0;
+  }
+    
+  /*
+  ** Delete every chunk
+  */
+  for (chunk=0; chunk<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE; chunk++) {
+
+    if (file_hdr.v0.device[chunk] == ROZOFS_EOF_CHUNK) {
+      break;
+    }
+
+    if (file_hdr.v0.device[chunk] == ROZOFS_EMPTY_CHUNK) {
+      continue;
+    }
+
+    /*
+    ** Remove data chunk
+    */
+    storage_rm_data_chunk(st, file_hdr.v0.device[chunk], fid, spare, chunk, 0 /* No errlog*/);
+  }
+
+  storage_dev_map_distribution_remove(st, fid, spare);
+  return 0;               
+} 
 
 bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t device_id, 
                                               uint8_t spare, uint16_t slice, uint64_t * cookie,

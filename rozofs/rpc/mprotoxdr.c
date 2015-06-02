@@ -46,6 +46,22 @@ xdr_mp_status_ret_t (XDR *xdrs, mp_status_ret_t *objp)
 }
 
 bool_t
+xdr_mp_remove2_arg_t (XDR *xdrs, mp_remove2_arg_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_uint16_t (xdrs, &objp->cid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->sid))
+		 return FALSE;
+	 if (!xdr_uint8_t (xdrs, &objp->spare))
+		 return FALSE;
+	 if (!xdr_mp_uuid_t (xdrs, objp->fid))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_mp_remove_arg_t (XDR *xdrs, mp_remove_arg_t *objp)
 {
 	//register int32_t *buf;

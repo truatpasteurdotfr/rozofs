@@ -41,7 +41,10 @@ void mp_stat_1_svc_nb(void * pt_req,
 void mp_remove_1_svc_nb(void * pt_req, 
                       rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
 		      void * pt_resp);
-		      
+void mp_remove2_1_svc_nb(void * pt_req, 
+                      rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
+		      void * pt_resp);
+		      		      
 void mp_ports_1_svc_nb(void * pt_req, 
                        rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
 		       void * pt_resp);	

@@ -135,6 +135,7 @@ void mclient_release(mclient_t *clt);
 int mclient_stat(mclient_t *clt, sstat_t *st);
 
 int mclient_remove(mclient_t * clt, fid_t fid);
+int mclient_remove2(mclient_t * clt, fid_t fid, uint8_t spare);
 
 int mclient_ports(mclient_t * mclt, int * single, mp_io_address_t * io_address_p);
 

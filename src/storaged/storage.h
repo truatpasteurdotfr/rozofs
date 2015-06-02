@@ -999,6 +999,16 @@ int storage_truncate(storage_t * st, uint8_t * device, uint8_t layout, uint32_t 
  */
 int storage_rm_file(storage_t * st, fid_t fid);
 
+/** Remove a bins file
+ *
+ * @param st: the storage to use.
+ * @param fid: unique file id.
+ * @param spare: whether the storage is spare or not for this FID
+ *
+ * @return: 0 on success -1 otherwise (errno is set)
+ */
+int storage_rm2_file(storage_t * st, fid_t fid, uint8_t spare);
+
 /** Stat a storage
  *
  * @param st: the storage to use.

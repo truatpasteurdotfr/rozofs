@@ -31,6 +31,14 @@ struct mp_status_ret_t {
 };
 typedef struct mp_status_ret_t mp_status_ret_t;
 
+struct mp_remove2_arg_t {
+	uint16_t cid;
+	uint8_t sid;
+	uint8_t spare;
+	mp_uuid_t fid;
+};
+typedef struct mp_remove2_arg_t mp_remove2_arg_t;
+
 struct mp_remove_arg_t {
 	uint16_t cid;
 	uint8_t sid;
@@ -146,6 +154,9 @@ extern  mp_ports_ret_t * mp_ports_1_svc(void *, struct svc_req *);
 #define MP_LIST_BINS_FILES 4
 extern  mp_list_bins_files_ret_t * mp_list_bins_files_1(mp_list_bins_files_arg_t *, CLIENT *);
 extern  mp_list_bins_files_ret_t * mp_list_bins_files_1_svc(mp_list_bins_files_arg_t *, struct svc_req *);
+#define MP_REMOVE2 5
+extern  mp_status_ret_t * mp_remove2_1(mp_remove2_arg_t *, CLIENT *);
+extern  mp_status_ret_t * mp_remove2_1_svc(mp_remove2_arg_t *, struct svc_req *);
 extern int monitor_program_1_freeresult (SVCXPRT *, xdrproc_t, caddr_t);
 
 #else /* K&R C */
@@ -164,6 +175,9 @@ extern  mp_ports_ret_t * mp_ports_1_svc();
 #define MP_LIST_BINS_FILES 4
 extern  mp_list_bins_files_ret_t * mp_list_bins_files_1();
 extern  mp_list_bins_files_ret_t * mp_list_bins_files_1_svc();
+#define MP_REMOVE2 5
+extern  mp_status_ret_t * mp_remove2_1();
+extern  mp_status_ret_t * mp_remove2_1_svc();
 extern int monitor_program_1_freeresult ();
 #endif /* K&R C */
 
@@ -173,6 +187,7 @@ extern int monitor_program_1_freeresult ();
 extern  bool_t xdr_mp_uuid_t (XDR *, mp_uuid_t);
 extern  bool_t xdr_mp_status_t (XDR *, mp_status_t*);
 extern  bool_t xdr_mp_status_ret_t (XDR *, mp_status_ret_t*);
+extern  bool_t xdr_mp_remove2_arg_t (XDR *, mp_remove2_arg_t*);
 extern  bool_t xdr_mp_remove_arg_t (XDR *, mp_remove_arg_t*);
 extern  bool_t xdr_mp_stat_arg_t (XDR *, mp_stat_arg_t*);
 extern  bool_t xdr_mp_sstat_t (XDR *, mp_sstat_t*);
@@ -191,6 +206,7 @@ extern  bool_t xdr_mp_list_bins_files_arg_t (XDR *, mp_list_bins_files_arg_t*);
 extern bool_t xdr_mp_uuid_t ();
 extern bool_t xdr_mp_status_t ();
 extern bool_t xdr_mp_status_ret_t ();
+extern bool_t xdr_mp_remove2_arg_t ();
 extern bool_t xdr_mp_remove_arg_t ();
 extern bool_t xdr_mp_stat_arg_t ();
 extern bool_t xdr_mp_sstat_t ();

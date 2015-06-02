@@ -2798,12 +2798,14 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
     int limit_rm_files = export_limit_rm_files;
     int curr_rm_files = 0;
     uint8_t rozofs_safe = 0;
+    uint8_t rozofs_forward = 0;
     list_t connexions;
 
     DEBUG_FUNCTION;
 
     // Get the nb. of safe storages for this layout
     rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+    rozofs_forward = rozofs_get_rozofs_forward(e->layout);
 
     // For each trash slice (MAX_SLICE_NB slices)
     // Begin with trash bucket idx = *first_bucket_idx
@@ -2874,7 +2876,10 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
             }
 
             // Send remove request
-            if (mclient_remove(stor, entry->fid) != 0) {
+	    int spare;
+	    if (i<rozofs_forward) spare = 0;
+	    else                  spare = 1;
+            if (mclient_remove2(stor, entry->fid,spare) != 0) {
                 // Problem with request
                 warning("mclient_remove failed (cid: %u; sid: %u): %s",
                         stor->cid, stor->sid, strerror(errno));
