@@ -873,7 +873,7 @@ int storage_initialize(storage_t *st,
             severe("%s creation %s",path, strerror(errno));
           }
 	  int slice;
-	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	  for (slice = 0; slice < (common_config.storio_slice_number); slice++) {
 	    rozofs_u32_append(pChar2,slice);
             if (storage_create_dir(path) < 0) {
               severe("%s creation %s",path, strerror(errno));
@@ -888,7 +888,7 @@ int storage_initialize(storage_t *st,
             severe("%s creation %s",path, strerror(errno));
           }	
 	  int slice;
-	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	  for (slice = 0; slice < (common_config.storio_slice_number); slice++) {
 	    rozofs_u32_append(pChar2,slice);	  
             if (storage_create_dir(path) < 0) {
               severe("%s creation %s",path, strerror(errno));
@@ -903,7 +903,7 @@ int storage_initialize(storage_t *st,
             severe("%s creation %s",path, strerror(errno));
           }	
 	  int slice;
-	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	  for (slice = 0; slice < (common_config.storio_slice_number); slice++) {
 	    rozofs_u32_append(pChar2,slice);	 
             if (storage_create_dir(path) < 0) {
               severe("%s creation %s",path, strerror(errno));
@@ -918,7 +918,7 @@ int storage_initialize(storage_t *st,
             severe("%s creation %s",path, strerror(errno));
           }	
 	  int slice;
-	  for (slice = 0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+	  for (slice = 0; slice < (common_config.storio_slice_number); slice++) {
 	    rozofs_u32_append(pChar2,slice);	 
             if (storage_create_dir(path) < 0) {
               severe("%s creation %s",path, strerror(errno));
@@ -2303,7 +2303,7 @@ int storage_list_bins_files_to_rebuild(storage_t * st, sid_t sid, uint8_t * devi
         for (; spare_it < 2; spare_it++,slice_it=0) {
 	
             // For slice
-            for (; slice_it < FID_STORAGE_SLICE_SIZE; slice_it++) {
+            for (; slice_it < (common_config.storio_slice_number); slice_it++) {
 
         	// Build path directory for this layout and this spare type
         	char path[FILENAME_MAX];

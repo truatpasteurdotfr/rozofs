@@ -297,16 +297,6 @@ static inline char * trace_device(uint8_t * device, char * pChar) {
   return pChar;
 } 
 
-
-/*
-** FID storage slice computing
-*/
-#define FID_STORAGE_SLICE_SIZE (common_config.storio_slice_number)
-static inline unsigned int rozofs_storage_fid_slice(void * fid) {
-  rozofs_inode_t *fake_inode = (rozofs_inode_t *) fid;
-  uint32_t        val = fake_inode->s.usr_id + (fake_inode->s.file_id<<8);
-  return val % FID_STORAGE_SLICE_SIZE;
-} 
 /*
 ** Build a hdr path on storage disk
 **

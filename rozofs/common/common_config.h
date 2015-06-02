@@ -27,9 +27,6 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
-#include <rozofs/rozofs.h>
-#include <rozofs/common/log.h>
-
 /*
 ** Default parameter values
 */

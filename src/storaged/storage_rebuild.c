@@ -1231,7 +1231,7 @@ static int rbs_build_device_missing_list_one_cluster(cid_t cid,
       // Check that this directory already exists, otherwise it will be create
       if (access(dir_path, F_OK) == -1) continue;
 
-      for (slice=0; slice < FID_STORAGE_SLICE_SIZE; slice++) {
+      for (slice=0; slice < (common_config.storio_slice_number); slice++) {
 
         storage_build_hdr_path(slicepath, storage_to_rebuild->root, device_it, spare_it, slice);
 

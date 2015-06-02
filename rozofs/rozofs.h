@@ -23,6 +23,7 @@
 #include <uuid/uuid.h>
 
 #include <config.h>
+#include <rozofs/common/common_config.h>
 
 /*
 ** Get ticker
@@ -379,7 +380,27 @@ static inline void rozofs_uuid_generate(fid_t fid,uint8_t export_id)
   fake_inode->s.exp_id = export_id;
   
 }
-
-
+/**
+*  Compute the STORIO slice of a given FID
+  
+   @param fid : pointer to the fid   
+   
+   @retval   The storio slice number
+*/
+static inline unsigned int rozofs_storage_fid_slice(void * fid) {
+  rozofs_inode_t *fake_inode = (rozofs_inode_t *) fid;
+  
+  /*
+  ** The storio slice number is built from the export slice and the
+  ** lower bits of the tracking file number
+  */
+  uint32_t        val = fake_inode->s.usr_id + (fake_inode->s.file_id<<8);
+  
+  /*
+  ** The number of slices within the storio is configurable thanks
+  ** to the common configuration file (field storio_slice_number).
+  */  
+  return val % (common_config.storio_slice_number);
+} 
 
 #endif

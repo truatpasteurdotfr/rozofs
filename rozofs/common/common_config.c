@@ -19,6 +19,8 @@
 #include "config.h"
 #include "common_config.h"
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/rozofs.h>
+#include <rozofs/common/log.h>
 
 
 static char config_file_name[256] = {0};
