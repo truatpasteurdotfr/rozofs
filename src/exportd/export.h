@@ -59,9 +59,7 @@
 #define EXPORT_SET_ATTR_ATIME (1 << 4)
 #define EXPORT_SET_ATTR_MTIME (1 << 5)
 
-/** Variables specific to the removal of the bins files */
-/** Max nb. of subdirectories under trash directory (nb. of buckets) */
-#define RM_MAX_BUCKETS 1024
+
 /** Nb. max of entries to delete during one call of export_rm_bins function */
 #define RM_FILES_MAX 500
 /* Frequency calls of export_rm_bins function */
@@ -151,7 +149,7 @@ typedef struct export {
     lv2_cache_t *lv2_cache; ///< cache of lv2 entries
     export_tracking_table_t *trk_tb_p; 
     geo_rep_srv_ctx_t  *geo_replication_tb[EXPORT_GEO_MAX_CTX];        
-    trash_bucket_t trash_buckets[RM_MAX_BUCKETS]; ///< table for store the list
+    trash_bucket_t * trash_buckets; ///< Address of the array of trash buckets of this export
     // of files to delete for each bucket trash
     pthread_t load_trash_thread; ///< pthread for load the list of trash files
     // to delete when we start or reload this export

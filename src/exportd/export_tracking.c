@@ -835,8 +835,21 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
         return -1;
     }
 
-    // For each trash bucket 
-    for (i = 0; i < RM_MAX_BUCKETS; i++) {
+    /*
+    ** Allocate trash buckets for this export.
+    ** One bucket per STORIO slice number
+    */
+    int sz = sizeof(trash_bucket_t)*common_config.storio_slice_number;
+    e->trash_buckets = malloc(sz); 
+    if (e->trash_buckets == NULL) {
+	severe("out of memory export %d %s. %d slices -> sz %d",eid,root_path,common_config.storio_slice_number,sz);
+	close(e->fdstat);
+	return -1;
+    }
+    /*
+    ** Initialize each trash bucket 
+    */
+    for (i = 0; i < common_config.storio_slice_number; i++) {
         // Initialize list of files to delete
         list_init(&e->trash_buckets[i].rmfiles);
         // Initialize lock for the list of files to delete
@@ -2217,11 +2230,8 @@ int export_unlink_multiple(export_t * e, fid_t parent, char *name, fid_t fid,mat
       deleted_fid_count++;    
 
       // Compute hash value for this fid
-      uint32_t hash = 0;
-      uint8_t *c = 0;
-      for (c = lv2->attributes.s.attrs.fid; c != lv2->attributes.s.attrs.fid + 16; c++)
-	  hash = *c + (hash << 6) + (hash << 16) - hash;
-      hash %= RM_MAX_BUCKETS;	    
+      uint32_t hash = rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid);
+      
       /*
       ** prepare the trash entry
       */
@@ -2435,11 +2445,7 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
         if (S_ISREG(lv2->attributes.s.attrs.mode)) {
 
             // Compute hash value for this fid
-            uint32_t hash = 0;
-            uint8_t *c = 0;
-            for (c = lv2->attributes.s.attrs.fid; c != lv2->attributes.s.attrs.fid + 16; c++)
-                hash = *c + (hash << 6) + (hash << 16) - hash;
-            hash %= RM_MAX_BUCKETS;	    
+            uint32_t hash = rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid);
             /*
 	    ** prepare the trash entry
 	    */
@@ -2807,128 +2813,130 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
     rozofs_safe = rozofs_get_rozofs_safe(e->layout);
     rozofs_forward = rozofs_get_rozofs_forward(e->layout);
 
-    // For each trash slice (MAX_SLICE_NB slices)
-    // Begin with trash bucket idx = *first_bucket_idx
-    for (idx = *first_bucket_idx; idx < (*first_bucket_idx + RM_MAX_BUCKETS);idx++) 
-    {
-
+    // Loop on every bucket
+    for (idx=1; idx <= common_config.storio_slice_number; idx++) {
+           
         /*
-	** compute the slice to check
+	** compute the bucket index to check
 	*/
-        bucket_idx = idx % RM_MAX_BUCKETS;
+        bucket_idx = (idx+*first_bucket_idx) % common_config.storio_slice_number;
 
         // Check if the bucket is empty
-        if (list_empty(&e->trash_buckets[bucket_idx].rmfiles))
-            continue; // Try with the next bucket
+        while (!list_empty(&e->trash_buckets[bucket_idx].rmfiles)) {
 
-        // If the connexions are not initialized
-        if (cnx_init == 0) {
-            // Init list of connexions
-            list_init(&connexions);
-            cnx_init = 1;
-            if (init_storages_cnx(e->volume, &connexions) != 0) {
-                // Problem with lock
-                severe("init_storages_cnx failed: %s", strerror(errno));
-                goto out;
-            }
-        }
 
-        // Acquire lock on this list
-        if ((errno = pthread_rwlock_wrlock
-                (&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
-            severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
-            continue; // Best effort
-        }
-
-        // Remove rmfentry_t from the list of files to remove for this bucket
-        rmfentry_t *entry = list_first_entry(&e->trash_buckets[bucket_idx].rmfiles, rmfentry_t, list);
-        list_remove(&entry->list);
-
-        if ((errno = pthread_rwlock_unlock(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
-            severe("pthread_rwlock_unlock failed: %s", strerror(errno));
-            continue;
-        }
-
-        // Nb. of bins files removed for this file
-        rm_bins_file_nb = 0;
-
-        // For each storage associated with this file
-        for (i = 0; i < rozofs_safe; i++) {
-
-            mclient_t* stor = NULL;
-
-            if (0 == entry->current_dist_set[i]) {
-                // The bins file has already been deleted for this server
-                rm_bins_file_nb++;
-                continue; // Go to the next storage
+            // If the connexions are not initialized
+            if (cnx_init == 0) {
+        	// Init list of connexions
+        	list_init(&connexions);
+        	cnx_init = 1;
+        	if (init_storages_cnx(e->volume, &connexions) != 0) {
+                    // Problem with lock
+                    severe("init_storages_cnx failed: %s", strerror(errno));
+                    goto out;
+        	}
             }
 
-            if ((stor = lookup_cnx(&connexions, entry->cid,
-                    entry->current_dist_set[i])) == NULL) {
-                // lookup_cnx failed !!! 
-                continue; // Go to the next storage
-            }
-
-            if (0 == stor->status) {
-                // This storage is down
-                // it's not necessary to send a request
-                continue; // Go to the next storage
-            }
-
-            // Send remove request
-	    int spare;
-	    if (i<rozofs_forward) spare = 0;
-	    else                  spare = 1;
-            if (mclient_remove2(stor, entry->fid,spare) != 0) {
-                // Problem with request
-                warning("mclient_remove failed (cid: %u; sid: %u): %s",
-                        stor->cid, stor->sid, strerror(errno));
-                continue; // Go to the next storage
-            }
-
-            // The bins file has been deleted successfully
-            // Update distribution and nb. of bins file deleted
-            entry->current_dist_set[i] = 0;
-            rm_bins_file_nb++;
-        }
-
-        // If all bins files are deleted
-        // Remove the file from trash
-        if (rm_bins_file_nb == rozofs_safe) 
-	{
-	    /*
-	    ** remove the entry from the trash file
-	    */
-	    export_rm_bins_done_count++;
-	    export_rmbins_remove_from_tracking_file(e,entry);
-            /*
-	    **  Free entry
-	    */
-            if (entry != NULL)
-                free(entry);
-
-        } else { // If NO all bins are deleted
-
+            // Acquire lock on this list
             if ((errno = pthread_rwlock_wrlock
                     (&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
-                severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
-                continue; // Best effort
+        	severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+        	break; // Best effort
             }
 
-            // Repush back entry in the list of files to delete
-            list_push_back(&e->trash_buckets[bucket_idx].rmfiles, &entry->list);
+            // Remove rmfentry_t from the list of files to remove for this bucket
+            rmfentry_t *entry = list_first_entry(&e->trash_buckets[bucket_idx].rmfiles, rmfentry_t, list);
+            list_remove(&entry->list);
 
-            if ((errno = pthread_rwlock_unlock
-                    (&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
-                severe("pthread_rwlock_unlock failed: %s", strerror(errno));
+            if ((errno = pthread_rwlock_unlock(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+        	severe("pthread_rwlock_unlock failed: %s", strerror(errno));
             }
-        }
-        // Update the nb. of files that have been tested to be deleted.
-        curr_rm_files++;
 
+            // Nb. of bins files removed for this file
+            rm_bins_file_nb = 0;
+
+            // For each storage associated with this file
+            for (i = 0; i < rozofs_safe; i++) {
+
+        	mclient_t* stor = NULL;
+
+        	if (0 == entry->current_dist_set[i]) {
+                    // The bins file has already been deleted for this server
+                    rm_bins_file_nb++;
+                    continue; // Go to the next storage
+        	}
+
+        	if ((stor = lookup_cnx(&connexions, entry->cid,
+                	entry->current_dist_set[i])) == NULL) {
+                    // lookup_cnx failed !!! 
+                    continue; // Go to the next storage
+        	}
+
+        	if (0 == stor->status) {
+                    // This storage is down
+                    // it's not necessary to send a request
+                    continue; // Go to the next storage
+        	}
+
+        	// Send remove request
+		int spare;
+		if (i<rozofs_forward) spare = 0;
+		else                  spare = 1;
+        	if (mclient_remove2(stor, entry->fid,spare) != 0) {
+                    // Problem with request
+                    warning("mclient_remove failed (cid: %u; sid: %u): %s",
+                            stor->cid, stor->sid, strerror(errno));
+                    continue; // Go to the next storage
+        	}
+
+        	// The bins file has been deleted successfully
+        	// Update distribution and nb. of bins file deleted
+        	entry->current_dist_set[i] = 0;
+        	rm_bins_file_nb++;
+            }
+
+            // If all bins files are deleted
+            // Remove the file from trash
+            if (rm_bins_file_nb == rozofs_safe) 
+	    {
+		/*
+		** remove the entry from the trash file
+		*/
+		export_rm_bins_done_count++;
+		export_rmbins_remove_from_tracking_file(e,entry);
+        	/*
+		**  Free entry
+		*/
+        	if (entry != NULL)
+                    free(entry);
+
+            } else { // If NO all bins are deleted
+
+        	if ((errno = pthread_rwlock_wrlock
+                	(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+                    severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+                    continue; // Best effort
+        	}
+
+        	// Repush back entry in the list of files to delete
+        	list_push_back(&e->trash_buckets[bucket_idx].rmfiles, &entry->list);
+
+        	if ((errno = pthread_rwlock_unlock
+                	(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
+                    severe("pthread_rwlock_unlock failed: %s", strerror(errno));
+        	}
+            }
+            // Update the nb. of files that have been tested to be deleted.
+            curr_rm_files++;
+
+            // Check if enough files are removed
+            if (curr_rm_files >= limit_rm_files)
+        	break; // Exit from the loop
+	}   
+	
         // Check if enough files are removed
         if (curr_rm_files >= limit_rm_files)
-            break; // Exit from the loop
+            break; // Exit from the loop	   
     }
 
     // Update the first bucket index to use for the next call
@@ -2938,7 +2946,7 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
         // not necessary but better for debug
         *first_bucket_idx = 0;
     } else {
-        *first_bucket_idx = (bucket_idx + 1) % RM_MAX_BUCKETS;
+        *first_bucket_idx = (bucket_idx) % common_config.storio_slice_number;
     }
 
     status = 0;
@@ -3487,12 +3495,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
                             S_ISREG(lv2_to_replace->attributes.s.attrs.mode)) {
 
                         // Compute hash value for this fid
-                        uint32_t hash = 0;
-                        uint8_t *c = 0;
-                        for (c = lv2_to_replace->attributes.s.attrs.fid;
-                                c != lv2_to_replace->attributes.s.attrs.fid + 16; c++)
-                            hash = *c + (hash << 6) + (hash << 16) - hash;
-                        hash %= RM_MAX_BUCKETS;
+                        uint32_t hash = rozofs_storage_fid_slice(lv2_to_replace->attributes.s.attrs.fid);
         		/*
 			** prepare the trash entry
 			*/

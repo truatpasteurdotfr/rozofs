@@ -474,8 +474,8 @@ static void *remove_bins_thread(void *v) {
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     list_t *iterator = NULL;
     int export_idx = 0;
-    // Set the frequency of calls
-    struct timespec ts = {RM_BINS_PTHREAD_FREQUENCY_SEC, 0};
+    uint64_t        delay;
+    
     
     uma_dbg_thread_add_self("remove bins");
 
@@ -487,6 +487,11 @@ static void *remove_bins_thread(void *v) {
     for (;;) {
         export_idx = 0;
 
+        /*
+	** Read ticker before loop
+	*/
+        delay = rdtsc();
+	
         list_for_each_forward(iterator, &exports) {
             export_entry_t *entry = list_entry(iterator, export_entry_t, list);
 
@@ -497,7 +502,24 @@ static void *remove_bins_thread(void *v) {
             }
             export_idx++;
         }
-        nanosleep(&ts, NULL);
+	
+	/*
+	** Compute number of ticks of the loop
+	*/
+	delay = rdtsc()- delay;
+	
+	/*
+	** Assume a 2GHz frequency 
+	*/
+	if (delay < ((2*GIGA)*RM_BINS_PTHREAD_FREQUENCY_SEC)) {
+	  /*
+	  ** The loop did last less than RM_BINS_PTHREAD_FREQUENCY_SEC.
+	  ** Wait a little...
+	  */ 
+	  delay = ((2*GIGA)*RM_BINS_PTHREAD_FREQUENCY_SEC)-delay;
+	  delay /= 1024;
+          usleep(delay);
+	}  
     }
     return 0;
 }

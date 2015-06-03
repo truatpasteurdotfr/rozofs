@@ -166,11 +166,8 @@ int export_load_rmfentry(export_t * e)
 	    /*
 	    **  Compute hash value for this fid
 	    */
-            uint32_t hash = 0;
-            uint8_t *c = 0;
-            for (c = trash_entry.fid; c != trash_entry.fid + 16; c++)
-                hash = *c + (hash << 6) + (hash << 16) - hash;
-            hash %= RM_MAX_BUCKETS;	  
+            uint32_t hash = rozofs_storage_fid_slice(trash_entry.fid);
+	  
             /* Acquire lock on bucket trash list
 	    */
             if ((errno = pthread_rwlock_wrlock
