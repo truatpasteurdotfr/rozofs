@@ -4119,7 +4119,6 @@ static inline int dirent_openat(int dirfd, const char *pathname, int flags, mode
   if (dirent_writeback_cache_enable == 0)
   {
     mdirent_resolve_path(dirent_export_root_path,dir_fid,(char*)pathname,path);
-    severe("FDL root_path: %s",path);
     fd = open(path,flags,mode);
     return fd;
   }
