@@ -768,6 +768,102 @@ int dirent_wbcache_close(int fd)
   }
   return 0;
 }
+
+
+
+/*
+ *_______________________________________________________________________
+ */
+/**
+* flush the content of a cache entry on disk
+
+  @param cache_p: pointer to the cache entry
+*/
+int dirent_wbcache_diskflush_best_effort(dirent_writeback_entry_t  *cache_p)
+{
+  int fd = -1;
+  int flag = O_WRONLY | O_CREAT | O_NOATIME;
+  dirent_chunk_cache_t *chunk_p;
+  int i;
+  int status = -1;
+  char path[PATH_MAX];
+
+
+  /*
+  ** check if the flush already occur: race between thread and check for flush
+  */
+  if ((cache_p->wr_cpt == 0)&&(dirent_wbcache_check_write_pending(cache_p) == 0))
+  {
+    return 0;     
+  }
+  /*
+  ** open the dirent file
+  */
+  mdirent_resolve_path(dirent_export_root_path,cache_p->dir_fid,(char*)cache_p->pathname,path);
+  if ((fd = open(path, flag, S_IRWXU)) == -1) 
+  {
+     goto error;  
+  } 
+  /*
+  ** goto the entry and find out the section to write on disk
+  */
+   if (pwrite(fd, cache_p->dirent_header, cache_p->size, 0) != cache_p->size) 
+   {
+     goto error;        
+   } 
+   dirent_wb_cache_th_write_bytes_count+= cache_p->size;
+   dirent_wb_write_th_count++;
+   /*
+   ** go through the chunk
+   */
+   chunk_p = &cache_p->chunk[0];
+   for (i = 0; i < DIRENT_CACHE_MAX_CHUNK; i++,chunk_p++)
+   {
+      if (chunk_p->wr_cpt == 0) continue;
+      if (pwrite(fd, chunk_p->chunk_p, chunk_p->size, chunk_p->off) != chunk_p->size) 
+      {
+	goto error;        
+      }       
+      chunk_p->wr_cpt = 0; 
+      dirent_wb_cache_th_write_bytes_count+= chunk_p->size;
+      dirent_wb_write_th_count++;
+   }
+   /*
+   ** clear the header write pointer here to avoid race condition with check for flush
+   */
+   cache_p->wr_cpt = 0;
+   status = 0;
+
+error:
+  if(fd != -1) close(fd);
+  return status;   
+
+}
+/**
+*____________________________________________________________
+*/
+/**
+*  Flush the write back cache on stop
+*/
+void dirent_wbcache_flush_on_stop()
+{
+   dirent_writeback_entry_t  *cache_p;
+   int i;
+
+  if (dirent_writeback_cache_initialized==0) return ;
+
+   cache_p = &dirent_writeback_cache_p[0];
+   for (i = 0; i < DIRENT_CACHE_MAX_ENTRY;i++,cache_p++)
+   {
+      if (cache_p->state == 0) continue;
+      if ((cache_p->wr_cpt == 0)
+      &&  (dirent_wbcache_check_write_pending(cache_p) == 0))
+      {
+	 continue;
+      }
+      dirent_wbcache_diskflush_best_effort(cache_p);
+   }
+}
 /**
 *____________________________________________________________
 */
@@ -784,12 +880,12 @@ int dirent_wbcache_init()
 
   if (dirent_writeback_cache_initialized) return 0;
   dirent_writeback_cache_p = malloc(sizeof(dirent_writeback_entry_t)*DIRENT_CACHE_MAX_ENTRY);
-  if (dirent_writeback_cache_p != NULL)
+  if (dirent_writeback_cache_p == NULL)
   {
-    memset(dirent_writeback_cache_p,0,sizeof(dirent_writeback_entry_t)*DIRENT_CACHE_MAX_ENTRY);
-    dirent_writeback_cache_initialized = 1;
-    dirent_writeback_cache_enable = 1;
+     fatal("Out of memory");
   }
+  memset(dirent_writeback_cache_p,0,sizeof(dirent_writeback_entry_t)*DIRENT_CACHE_MAX_ENTRY);
+
   for (i = 0; i < DIRENT_CACHE_MAX_ENTRY; i++) 
   {
     dirent_writeback_cache_p[i].fd = -1;
@@ -800,6 +896,8 @@ int dirent_wbcache_init()
   /**
   * create the writeback thread
   */
+  dirent_writeback_cache_initialized = 1;
+  dirent_writeback_cache_enable = 1;
   if ((errno = pthread_create(&dirent_wbcache_ctx_thread, NULL,
         dirent_wbcache_thread, NULL)) != 0) {
     severe("can't create writeback cache thread %s", strerror(errno));

@@ -1463,6 +1463,11 @@ static void on_stop() {
       */
       rozofs_session_leader_killer(100000);
     }
+    /*
+    ** flush the dirent write back cache on disk
+    */
+    dirent_wbcache_flush_on_stop();
+    
     
     exportd_release();
     closelog();
