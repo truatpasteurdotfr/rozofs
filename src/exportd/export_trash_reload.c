@@ -59,6 +59,7 @@
 */
 int loop_fdl = 0;
 
+extern uint64_t export_rm_bins_reload_count;
 int export_load_rmfentry(export_t * e) 
 {
    int ret=0;
@@ -185,6 +186,7 @@ int export_load_rmfentry(export_t * e)
             } else {
                 // Add to back of list
                 list_push_back(&e->trash_buckets[hash].rmfiles, &rmfe->list);
+		export_rm_bins_reload_count++;
             }
             if ((errno = pthread_rwlock_unlock
                     (&e->trash_buckets[hash].rm_lock)) != 0) {

@@ -64,6 +64,7 @@
 
 extern epp_profiler_t  gprofiler;
 
+uint64_t export_rm_bins_reload_count = 0; /**< trash thread statistics  */
 uint64_t export_rm_bins_pending_count = 0; /**< trash thread statistics  */
 uint64_t export_rm_bins_done_count = 0;  /**< trash thread statistics  */
 int export_limit_rm_files;
@@ -2784,9 +2785,12 @@ char *export_rm_bins_stats(char *pChar)
 {
    pChar += sprintf(pChar,"Trash thread period         : %d seconds\n",RM_BINS_PTHREAD_FREQUENCY_SEC);
    pChar += sprintf(pChar,"file deletion per period    : %d\n",export_limit_rm_files);  
-   pChar += sprintf(pChar,"delete stats (pending/done) : %llu/%llu\n",(unsigned long long int) export_rm_bins_pending_count,
-           (unsigned long long int) export_rm_bins_done_count);
- 	   
+   pChar += sprintf(pChar,"stats:\n");
+   pChar += sprintf(pChar,"  - reloaded = %llu\n", (unsigned long long int) export_rm_bins_reload_count);
+   pChar += sprintf(pChar,"  - trashed  = %llu\n", (unsigned long long int) export_rm_bins_pending_count);
+   pChar += sprintf(pChar,"  - done     = %llu\n", (unsigned long long int) export_rm_bins_done_count);
+   pChar += sprintf(pChar,"  - pending  = %llu\n", 
+        (unsigned long long int) (export_rm_bins_reload_count+export_rm_bins_pending_count)-export_rm_bins_done_count);
    return pChar;
 }
 
