@@ -53,6 +53,7 @@ uint64_t dirent_wb_write_chunk_count = 0;  /**< incremented each time a chunk ne
 uint64_t dirent_wbcache_flush_counter = 0;
 uint64_t dirent_wbcache_invalidate_counter = 0;
 uint64_t dirent_wb_total_chunk_write_cpt = 0;
+uint64_t dirent_wb_total_chunk_write_only_cpt = 0;
 
 int dirent_wbcache_thread_period_count;
 uint64_t dirent_wbcache_poll_stats[2];
@@ -101,9 +102,8 @@ char * show_wbcache_thread_stats_display(char *pChar)
               (long long unsigned int)dirent_wbcache_hit_counter,
               (long long unsigned int)dirent_wbcache_miss_counter);
 
-     pChar += sprintf(pChar," - chunk flush count :%llu\n",
-              (long long unsigned int)dirent_wb_write_chunk_count);
-
+     pChar += sprintf(pChar," - chunk flush count :%llu/%llu\n",
+              (long long unsigned int)dirent_wb_write_chunk_count, (long long unsigned int)dirent_wb_total_chunk_write_only_cpt);
 
      /*
      ** read and clear counters update
@@ -292,14 +292,21 @@ int dirent_wbcache_diskflush(dirent_writeback_entry_t  *cache_p)
   /*
   ** goto the entry and find out the section to write on disk
   */
-   if (pwrite(fd, cache_p->dirent_header, cache_p->size, 0) != cache_p->size) 
+   if (cache_p->wr_cpt != 0)
    {
-     severe("bad write returned value for %s (len %d): error %s",cache_p->pathname,cache_p->size,strerror(errno));
-     goto error;        
-   } 
-//   info("FDL write header %s offset %llu len %u",cache_p->pathname,0,cache_p->size);
-   dirent_wb_cache_th_write_bytes_count+= cache_p->size;
-   dirent_wb_write_th_count++;
+     if (pwrite(fd, cache_p->dirent_header, cache_p->size, 0) != cache_p->size) 
+     {
+       severe("bad write returned value for %s (len %d): error %s",cache_p->pathname,cache_p->size,strerror(errno));
+       goto error;        
+     } 
+  //   info("FDL write header %s offset %llu len %u",cache_p->pathname,0,cache_p->size);
+     dirent_wb_cache_th_write_bytes_count+= cache_p->size;
+     dirent_wb_write_th_count++;
+   }
+   else
+   {
+      dirent_wb_total_chunk_write_only_cpt++;   
+   }
    /*
    ** go through the chunk
    */
@@ -807,12 +814,15 @@ int dirent_wbcache_diskflush_best_effort(dirent_writeback_entry_t  *cache_p)
   /*
   ** goto the entry and find out the section to write on disk
   */
-   if (pwrite(fd, cache_p->dirent_header, cache_p->size, 0) != cache_p->size) 
-   {
-     goto error;        
-   } 
-   dirent_wb_cache_th_write_bytes_count+= cache_p->size;
-   dirent_wb_write_th_count++;
+  if (cache_p->wr_cpt != 0)
+  {
+     if (pwrite(fd, cache_p->dirent_header, cache_p->size, 0) != cache_p->size) 
+     {
+       goto error;        
+     } 
+     dirent_wb_cache_th_write_bytes_count+= cache_p->size;
+     dirent_wb_write_th_count++;
+   }
    /*
    ** go through the chunk
    */

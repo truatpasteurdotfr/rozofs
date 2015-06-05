@@ -3660,7 +3660,18 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
 
     // Update ctime of renamed file/directory
     lv2_to_rename->attributes.s.attrs.ctime = time(NULL);
-
+    {
+       /*
+       ** udpate the hash values and the new name in the inode attributes
+       */
+      uint32_t hash1,hash2;
+      int len;
+      hash1 = filename_uuid_hash_fnv(0, newname,npfid, &hash2, &len);
+      lv2_to_rename->attributes.s.hash1 = hash1;
+      lv2_to_rename->attributes.s.hash2 = hash2;
+      exp_store_fname_in_inode(&lv2_to_rename->attributes.s.fname,newname,&fid_name_info);           
+    
+    }
     // Write attributes of renamed file
     if (export_lv2_write_attributes(e->trk_tb_p,lv2_to_rename) != 0)
         goto out;
@@ -4018,7 +4029,20 @@ out:
   DISPLAY_ATTR_TITLE(name); \
   p += rozofs_string_append(p,val);\
 }  
-  
+
+static int print_inode_name(ext_mattr_t *ino_p,char *buf)
+{
+   rozofs_inode_fname_t *name_p;
+   
+   name_p = &ino_p->s.fname;
+   if (name_p->name_type == ROZOFS_FNAME_TYPE_DIRECT)
+   {     
+     memcpy(buf,name_p->name,name_p->len);
+     buf[name_p->len] = 0;
+     return name_p->len;
+   }
+   return 0;
+}  
   
 static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, int size) {
   char    * p=value;
@@ -4031,6 +4055,10 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   DISPLAY_ATTR_INT("VID", e->volume->vid);
   DISPLAY_ATTR_INT("LAYOUT", e->layout);  
   DISPLAY_ATTR_INT("BSIZE", e->bsize);  
+  if (print_inode_name(&lv2->attributes,bufall) != 0)
+  {
+    DISPLAY_ATTR_TXT("NAME",bufall);
+  }
   
   DISPLAY_ATTR_TITLE( "FID"); 
   rozofs_uuid_unparse(lv2->attributes.s.attrs.fid,p);
