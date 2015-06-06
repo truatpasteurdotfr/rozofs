@@ -2890,6 +2890,11 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
                     // Problem with request
                     warning("mclient_remove failed (cid: %u; sid: %u): %s",
                             stor->cid, stor->sid, strerror(errno));
+	            /*
+		    ** Say this storage is down not to use it again 
+		    ** during run; this would fill up the log file.
+		    */
+	            stor->status = 0; 
                     continue; // Go to the next storage
         	}
 
@@ -2907,7 +2912,7 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
 		** remove the entry from the trash file
 		*/
 		export_rm_bins_done_count++;
-		export_rmbins_remove_from_tracking_file(e,entry);
+		export_rmbins_remove_from_tracking_file(e,entry); 
         	/*
 		**  Free entry
 		*/
@@ -3526,6 +3531,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
 			** Preparation of the rmfentry
 			*/
         		rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
+			export_rm_bins_pending_count++;
         		memcpy(rmfe->fid, trash_entry.fid, sizeof (fid_t));
         		rmfe->cid = trash_entry.cid;
         		memcpy(rmfe->initial_dist_set, trash_entry.initial_dist_set,
