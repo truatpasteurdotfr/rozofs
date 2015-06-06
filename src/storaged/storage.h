@@ -517,34 +517,6 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
 int storage_write_all_header_files(storage_t * st, fid_t fid, uint8_t spare, rozofs_stor_bins_file_hdr_t * hdr);
  
 
-/** Get the directory path for a given [storage, layout, dist_set, spare]
- *
- * @param st: the storage to be initialized.
- * @param device_id: input current device id or -1 when unkown
- *                   output chossen device id or -1 on error
- * @param chunk: The chunk number that has to be mapped 
- * @param bsize: the block size as defined in ROZOFS_BSIZE_E 
- * @param fid: the fid of the file 
- * @param layout: layout used for store this file.
- * @param dist_set: storages nodes used for store this file.
- * @param spare: indicator on the status of the projection.
- * @param path: the directory path 
- * @param version: the version of the header file 
- *
- * @return: the directory path or NULL on case of error
- */
-
-char *storage_dev_map_distribution_write( 
-                                    storage_t * st, 
-				    uint8_t * device_id,
-				    uint8_t chunk,
-				    uint32_t bsize, 
-				    fid_t fid, 
-				    uint8_t layout,
-                                    sid_t dist_set[ROZOFS_SAFE_MAX], 
-				    uint8_t spare, 
-				    char *path, 
-				    int version);
 				    
 char *storage_dev_map_distribution_read(  storage_t * st, 
 					  uint8_t * device_id,
