@@ -32,15 +32,46 @@
 #include "storaged.h"
 #include "sconfig.h"
 
+#define MAX_STORAGED_CNX_TBL 128     
+storage_t * st_per_cnx[MAX_STORAGED_CNX_TBL]={0};
+
+static inline storage_t * get_storage(cid_t cid, sid_t sid, uint32_t cnx_id) {
+  storage_t * st;
+
+  /*
+  ** Retrieve storage context used for this connection
+  */
+  if (cnx_id<MAX_STORAGED_CNX_TBL) {
+    st = st_per_cnx[cnx_id];
+    if ((st!=NULL) 
+    &&  (st->cid == cid) 
+    &&  (st->sid == sid)) return st;
+  }
+  
+  /*
+  ** Lookup for the storaage the request argument
+  */
+  st = storaged_lookup(cid, sid);
+  
+  /*
+  ** Save the storage in the connection table
+  */
+  if (cnx_id<MAX_STORAGED_CNX_TBL) {
+    st_per_cnx[cnx_id] = st;
+  }
+  
+  return st;
+}
+
 DECLARE_PROFILING(spp_profiler_t);
 
 void mp_null_1_svc_nb(void * pt_req, 
                        rozorpc_srv_ctx_t  * rozorpc_srv_ctx_p,
-                       void * pt_resp) { 
+                       void * pt_resp, uint32_t cnx_id) { 
 }
 
 void mp_stat_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
-        void * pt_resp) {
+        void * pt_resp, uint32_t cnx_id) {
 
     mp_stat_arg_t * args = (mp_stat_arg_t *) pt_req;
     mp_stat_ret_t * ret = (mp_stat_ret_t *) pt_resp;
@@ -91,8 +122,10 @@ out:
     STOP_PROFILING(stat);
 }
 
-void mp_remove_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
-        void * pt_resp) {
+void mp_remove_1_svc_nb(void * pt_req, 
+                        rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
+                        void * pt_resp, 
+			uint32_t cnx_id) {
 
     mp_status_ret_t * ret = (mp_status_ret_t *) pt_resp;
     mp_remove_arg_t * args = (mp_remove_arg_t*) pt_req;
@@ -119,8 +152,10 @@ void mp_remove_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
 out:
     STOP_PROFILING(remove);
 }
-void mp_remove2_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
-        void * pt_resp) {
+void mp_remove2_1_svc_nb(void * pt_req, 
+                         rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
+			 void * pt_resp, 
+			 uint32_t cnx_id) {
 
     mp_status_ret_t * ret = (mp_status_ret_t *) pt_resp;
     mp_remove2_arg_t * args = (mp_remove2_arg_t*) pt_req;
@@ -132,7 +167,7 @@ void mp_remove2_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
 
     ret->status = MP_FAILURE;
 
-    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    if ((st = get_storage(args->cid, args->sid, cnx_id)) == 0) {
         ret->mp_status_ret_t_u.error = errno;
         goto out;
     }
@@ -147,8 +182,10 @@ void mp_remove2_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
 out:
     STOP_PROFILING(remove);
 }
-void mp_ports_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
-        void * pt_resp) {
+void mp_ports_1_svc_nb(void * pt_req, 
+                       rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
+                       void * pt_resp, 
+		       uint32_t cnx_id) {
 
     mp_ports_ret_t * ret = (mp_ports_ret_t *) pt_resp;
 
@@ -170,7 +207,9 @@ void mp_ports_1_svc_nb(void * pt_req, rozorpc_srv_ctx_t *rozorpc_srv_ctx_p,
 }
 
 void mp_list_bins_files_1_svc_nb(void * pt_req,
-        rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, void * pt_resp) {
+                                 rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
+				 void * pt_resp, 
+				 uint32_t cnx_id) {
 
     mp_list_bins_files_ret_t * ret = (mp_list_bins_files_ret_t *) pt_resp;
     mp_list_bins_files_arg_t * args = (mp_list_bins_files_arg_t*)  pt_req;
@@ -183,7 +222,7 @@ void mp_list_bins_files_1_svc_nb(void * pt_req,
 
     DEBUG_FUNCTION;
 
-    if ((st = storaged_lookup(args->cid, args->sid)) == 0) {
+    if ((st = get_storage(args->cid, args->sid, cnx_id)) == 0) {
         ret->mp_list_bins_files_ret_t_u.error = errno;
         goto out;
     }

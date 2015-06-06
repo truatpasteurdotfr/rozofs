@@ -32,25 +32,31 @@
 
 void mp_null_1_svc_nb(void * pt_req, 
                        rozorpc_srv_ctx_t  * rozorpc_srv_ctx_p,
-                       void * pt_resp) ;
+                       void * pt_resp,
+		       uint32_t cnx_id) ;
 		       
 void mp_stat_1_svc_nb(void * pt_req, 
                       rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
-		      void * pt_resp);
+		      void * pt_resp,
+		       uint32_t cnx_id) ;
 		      
 void mp_remove_1_svc_nb(void * pt_req, 
                       rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
-		      void * pt_resp);
+		      void * pt_resp,
+		       uint32_t cnx_id) ;
 void mp_remove2_1_svc_nb(void * pt_req, 
                       rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
-		      void * pt_resp);
+		      void * pt_resp,
+		       uint32_t cnx_id) ;
 		      		      
 void mp_ports_1_svc_nb(void * pt_req, 
                        rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
-		       void * pt_resp);	
+		       void * pt_resp,
+		       uint32_t cnx_id) ;
 		       	      		      
 void mp_list_bins_files_1_svc_nb(void * pt_req, 
                               rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, 
-	 	              void * pt_resp);
+	 	              void * pt_resp,
+		       uint32_t cnx_id) ;
 			      
 #endif

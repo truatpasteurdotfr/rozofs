@@ -64,7 +64,7 @@ extern char * pHostArray[];
   @param hdr                  received RPC header in host format
  
 */
-void mproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * hdr) {
+static void mproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * hdr, uint32_t cnx_id) {
     int             size;
     union {
       mp_stat_arg_t             stat;
@@ -83,7 +83,7 @@ void mproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * h
     
     mproto_response.status.status = MP_FAILURE;
     
-    void (*local)(void * req, rozorpc_srv_ctx_t *, void * resp);
+    void (*local)(void * req, rozorpc_srv_ctx_t *, void * resp, uint32_t cnx_id);
 
     switch (hdr->proc) {
     
@@ -157,7 +157,7 @@ void mproto_svc(rozorpc_srv_ctx_t *rozorpc_srv_ctx_p, rozofs_rpc_call_hdr_t  * h
     /*
     ** call the user call-back
     */
-    (*local)(&mproto_request, rozorpc_srv_ctx_p, &mproto_response);   
+    (*local)(&mproto_request, rozorpc_srv_ctx_p, &mproto_response, cnx_id);   
 
 
 send_response:
@@ -232,7 +232,7 @@ void storaged_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf
     switch (hdr.prog) {
     
       case MONITOR_PROGRAM :
-        mproto_svc(rozorpc_srv_ctx_p, &hdr);
+        mproto_svc(rozorpc_srv_ctx_p, &hdr, socket_ctx_idx);
 	break;
 	
       default:
