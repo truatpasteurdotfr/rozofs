@@ -18,6 +18,6 @@ expect 0 unlink ${n0}
 expect 0 unlink ${name255}
 
 expect 0 create ${n0} 0644
-expect ENAMETOOLONG link ${n0} ${name256}
+expect ENAMETOOLONG link ${n0} ${name511}
 expect 0 unlink ${n0}
-expect ENAMETOOLONG link ${name256} ${n0}
+expect ENAMETOOLONG link ${name511} ${n0}

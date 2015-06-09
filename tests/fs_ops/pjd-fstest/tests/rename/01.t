@@ -16,6 +16,6 @@ expect 0 rename ${n0} ${name255}
 expect 0 unlink ${name255}
 
 expect 0 create ${n0} 0644
-expect ENAMETOOLONG rename ${n0} ${name256}
+expect ENAMETOOLONG rename ${n0} ${name511}
 expect 0 unlink ${n0}
-expect ENAMETOOLONG rename ${name256} ${n0}
+expect ENAMETOOLONG rename ${name511} ${n0}

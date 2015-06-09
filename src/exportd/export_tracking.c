@@ -3366,6 +3366,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
     mdirent_fid_name_info_t fid_name_info;
     int root_dirent_mask_name= 0;
     int root_dirent_mask_newname =0;
+    int xerrno = 0;
     
     START_PROFILING(export_rename);
 
@@ -3686,6 +3687,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
     status = 0;
 
 out:
+    xerrno = errno;
     if( old_parent_fdp !=1) close(old_parent_fdp);
     if( new_parent_fdp !=1) close(new_parent_fdp);
     if( to_replace_fdp !=1) close(to_replace_fdp);
@@ -3693,7 +3695,7 @@ out:
     if(lv2_new_parent!=0 ) export_dir_flush_root_idx_bitmap(e,npfid,lv2_new_parent->dirent_root_idx_p);
     if(lv2_to_rename!=0 )  export_dir_flush_root_idx_bitmap(e,fid_to_rename,lv2_to_rename->dirent_root_idx_p);
     if(lv2_to_replace!=0 )  export_dir_flush_root_idx_bitmap(e,fid_to_replace,lv2_to_replace->dirent_root_idx_p);
-
+    errno = xerrno;
 
     STOP_PROFILING(export_rename);
 

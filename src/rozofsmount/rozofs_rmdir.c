@@ -94,9 +94,9 @@ void rozofs_ll_rmdir_nb(fuse_req_t req, fuse_ino_t parent, const char *name) {
     if (ret < 0) goto error;
     
     /*
-    ** no error:anticipate rmdir response
+    ** no error just waiting for the answer
     */
-    fuse_reply_err(req, 0);
+    //fuse_reply_err(req, 0);
     return;
 
 error:
@@ -121,7 +121,7 @@ error:
 
 void rozofs_ll_rmdir_cbk(void *this,void *param) 
 {
-//   fuse_req_t req; 
+   fuse_req_t req;
    epgw_fid_ret_t ret ;
    fid_t fid;
    ientry_t *ie2 = 0;
@@ -144,7 +144,7 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
    int      bufsize;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
-//   RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,trc_idx);
    RESTORE_FUSE_PARAM(param,parent);
     /*
@@ -269,9 +269,11 @@ void rozofs_ll_rmdir_cbk(void *this,void *param)
       *  update the timestamp in the ientry context
       */
       pie->timestamp = rozofs_get_ticker_us();
-    }   
+    }
+    fuse_reply_err(req, 0);
     goto out;
 error:
+    fuse_reply_err(req, errno);
 out:
 
     /*

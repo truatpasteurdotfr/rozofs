@@ -15,6 +15,6 @@ expect 0 unlink ${n0}
 expect 0 symlink ${n0} ${name255}
 expect 0 unlink ${name255}
 
-expect ENAMETOOLONG symlink ${n0} ${name256}
-expect 0 symlink ${name256} ${n0}
+expect ENAMETOOLONG symlink ${n0} ${name511}
+expect 0 symlink ${name511} ${n0}
 expect 0 unlink ${n0}

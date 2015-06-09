@@ -10,4 +10,4 @@ echo "1..3"
 
 expect 0 mkdir ${name255} 0755
 expect 0 rmdir ${name255}
-expect ENAMETOOLONG mkdir ${name256} 0755
+expect ENAMETOOLONG mkdir ${name511} 0755

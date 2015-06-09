@@ -12,4 +12,4 @@ expect 0 create ${name255} 0644
 expect 0 truncate ${name255} 123
 expect 123 stat ${name255} size
 expect 0 unlink ${name255}
-expect ENAMETOOLONG truncate ${name256} 123
+expect ENAMETOOLONG truncate ${name511} 123
