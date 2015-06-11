@@ -163,7 +163,7 @@ test_storage_io()
   # 1st storage_io
   $ROZDBG -c profiler >  $TMPFILE
  
-  res=`grep GPROFILER $TMPFILE`
+  res=`grep read $TMPFILE`
   case $res in
    "") {
      return 0
@@ -273,7 +273,7 @@ while [ "$1" ]; do
 	   fi
            shift 2
         };;
-	-H | --hostname)  scan_value $1 $2;         host=$value;       shift 2;;	
+	-H | --hostname)  scan_value $1 $2;         hostname=$value;       shift 2;;	
 	-instance)          scan_numeric_value $1 $2; instance=$value;     shift 2;;	
 	-t | --time)      scan_numeric_value $1 $2; time=$value;       shift 2;;
 	-p)               scan_numeric_value $1 $2; port=$value;       shift 2;;
@@ -288,42 +288,54 @@ fi
 
 # Check mandatory parameters are set
 
-if [ -z $host ];
+if [ -z $hostname ];
 then
    display_output $STATE_UNKNOWN "-H option is mandatory"
 fi  
 
-
-
-
-# ping the destination host
-
-ping $host -c 1 >> /dev/null
-if [ $? != 0 ]
-then
-  # re attempt a ping
-  ping $host -c 2 >> /dev/null
+# Split host list and make the list of good hosts and bad hosts 
+hostnames=$(echo $hostname | tr "/" "\n")
+goodhost=""
+badhost=""
+for host in $hostnames
+do
+  
+  # ping the destination host
+  ping $host -c 1 >> /dev/null
   if [ $? != 0 ]
-  then  
-    display_output $STATE_CRITICAL "$host do not respond to ping"
-  fi 
-fi
+  then
+    # re attempt a ping
+    ping $host -c 2 >> /dev/null
+    if [ $? != 0 ]
+    then  
+      badhost=`echo "$badhost $host"`
+      continue
+    fi 
+  fi   
 
+  # Run profiler debug command to check storage status
+  resolve_rozodiag
+  $ROZDBG -c profiler >  $TMPFILE
+  res=`grep "storaged:" $TMPFILE`
+  case $res in
+    "") {
+      display_output $STATE_CRITICAL "$host do not respond to rozodiag"     
+    };;  
+  esac
+  
+  goodhost=`echo "$goodhost $host"`
+done
 
-# Find rozodiag utility and prepare command line parameters
-
-resolve_rozodiag
-
-
-# Run vfstat_stor debug command on export to check storage status
-
-$ROZDBG -c profiler >  $TMPFILE
-res=`grep "storaged:" $TMPFILE`
-case $res in
-  "") {
-    display_output $STATE_CRITICAL "$host do not respond to rozodiag"
-  };;  
+# When no host responds to ping raise a critical alarm
+# When only a few hosts do not repond to ping raise a warning later
+case "$goodhost" in
+  "") display_output $STATE_CRITICAL "Storaged host do not respond to ping"
 esac
+
+
+# Get 1rst good address
+host=$(echo $goodhost | awk '{print $1}')
+resolve_rozodiag
 
 # get the number of I/O processes
 $ROZDBG -c storio_nb >  $TMPFILE
@@ -343,6 +355,11 @@ case "$mode" in
   *) test_storio_single;;
 esac  
 
+# When only a few hosts do not repond to ping raise a warning now
+case "$badhost" in
+  "") ;;
+  *) display_output $STATE_CRITICAL "Storage host do not respond to ping on addresse(s) $badhost";;
+esac  
 
 # Hurra !!!
 display_output $STATE_OK 

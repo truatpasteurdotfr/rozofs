@@ -1065,6 +1065,23 @@ class rozofs_class:
     if dir == "geomgr" : return "%s/build/src/%s/%s"%(os.getcwd(),"geocli",dir)    
     return "%s/build/src/%s/%s"%(os.getcwd(),dir,dir)
 
+  def do_monitor_cfg (self): 
+    global hosts
+    global exportd
+    global mount_points
+    for v in volumes: print "VOLUME %s %s"%(exportd.export_host,v.vid)
+    for h in hosts: print "STORAGE %s"%(h.addr) 
+    for m in mount_points: print "FSMOUNT localhost %s"%(m.instance)
+
+  def monitor(self): 
+    save_stdout = sys.stdout
+    sys.stdout = open("monitor.cfg","w")
+    self.do_monitor_cfg()
+    sys.stdout.close()
+    sys.stdout = save_stdout  
+    cmd_system("./monitor.py 5 -c monitor.cfg")
+    
+     
   def core(self,argv):
     if len(argv) == 2:
       for d in os.listdir(self.core_dir()):
@@ -1196,7 +1213,7 @@ def syntax_all() :
   print  "./setup.py \tcore    \t[<coredir>/<corefile>]"
   print  "./setup.py \tprocess \t[pid]"
   print  "./setup.py \tit..."
-  #print  "./setup.py monitor"
+  print  "./setup.py \tmonitor"
   #print  "./setup.py reload"
   #print  "./setup.py build"
   #print  "./setup.py rebuild"
@@ -1328,6 +1345,7 @@ def test_parse(command, argv):
   elif command == "build"              : cmd_system("./setup.sh build")
   elif command == "rebuild"            : cmd_system("./setup.sh rebuild")
   elif command == "clean"              : cmd_system("./setup.sh clean")
+  elif command == "monitor"            : rozofs.monitor()
 
   elif command == "ifup":
     itf=None 
