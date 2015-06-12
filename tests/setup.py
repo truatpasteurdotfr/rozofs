@@ -851,9 +851,10 @@ class rozofs_class:
     self.bsd_lock = True
     self.disk_size_mb = None
     self.trace = False
-
+    self.storio_slice = 8
   def set_trace(self): self.trace = True
   def storio_mode_single(self):self.storio_mode = "single"  
+  def set_storio_slice(self,sl):self.storio_slice = sl 
   def set_nb_listen(self,nb_listen):self.nb_listen = nb_listen  
   def set_nb_core_file(self,nb_core_file):self.nb_core_file = nb_core_file     
   def set_threads(self,threads):self.threads = threads  
@@ -917,15 +918,18 @@ class rozofs_class:
     print "crc32c_check         = %s;"%(rozofs.crc32)
     print "crc32c_generate      = %s;"%(rozofs.crc32)
     print "crc32c_hw_forced     = True;"
+    print "storio_slice_number  = %s;"%(rozofs.storio_slice)
     if self.storio_mode == "multiple": print "storio_multiple_mode = True;"
-    else:                               print "storio_multiple_mode = False;"
+    else:                              print "storio_multiple_mode = False;"
+    
 
   def create_common_config(self):
     save_stdout = sys.stdout
-    sys.stdout = open("/etc/rozofs/rozofs.conf","w")
+    sys.stdout = open("/usr/local/etc/rozofs/rozofs.conf","w")
     self.display_common_config()
     sys.stdout.close()
     sys.stdout = save_stdout    
+    shutil.copy2('/usr/local/etc/rozofs/rozofs.conf', '/etc/rozofs/rozofs.conf')
 
   def create_config(self):
     global hosts
