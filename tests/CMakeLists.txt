@@ -129,6 +129,8 @@ target_link_libraries(test_sconfig ${CONFIG_LIBRARY})
 add_executable(test_econfig
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
     ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
     ${CMAKE_SOURCE_DIR}/src/exportd/econfig.h
     ${CMAKE_SOURCE_DIR}/src/exportd/econfig.c
     test_econfig.c

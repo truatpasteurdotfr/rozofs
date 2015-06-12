@@ -1837,7 +1837,10 @@ int main(int argc, char *argv[]) {
     ** set the instance id and the role of the exportd
     */
     exportd_set_export_instance_and_role(expgwc_non_blocking_conf.instance,(expgwc_non_blocking_conf.slave==0)?1:0);
-    
+
+    // Load RozoFS parameters
+    rozofs_layout_initialize();
+
     if (econfig_initialize(&exportd_config) != 0) {
         fprintf(stderr, "can't initialize exportd config: %s.\n",
                 strerror(errno));

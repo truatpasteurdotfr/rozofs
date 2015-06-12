@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <config.h>
+#include <rozofs/rozofs_srv.h>
 #include <rozofs/common/log.h>
 #include <rozofs/common/xmalloc.h>
 #include "export.h"
@@ -1007,7 +1008,7 @@ static void econfig_number_storages_per_cluster(volume_config_t *config) {
     }
   }
 }
-/** Checks if maximum storage limits is exceeded for a given volume
+/** Checks if the nb. of storages is valid
  *
  * @param config: volume configuration
  *
@@ -1040,6 +1041,15 @@ static int econfig_validate_storage_nb(volume_config_t *config) {
 
      list_for_each_forward(q, &config->clusters) {
          cluster_config_t *c = list_entry(q, cluster_config_t, list);
+
+         // Check if the nb. of storages in this cluster is sufficient
+         // for this layout
+         if (list_size(c->storages) < rozofs_get_rozofs_safe(config->layout)) {
+             severe("not enough storages (%d) in cluster %d to use layout %d.",
+                     list_size(c->storages), c->cid, config->layout);
+             errno = EINVAL;
+             goto out;
+         }
 
          // For each storage
 
@@ -1131,12 +1141,11 @@ static int econfig_validate_volumes(econfig_t *config) {
     list_for_each_forward(p, &config->volumes) {
         volume_config_t *e1 = list_entry(p, volume_config_t, list);
 
-
-	if (e1->layout >= LAYOUT_MAX) {
+        if (e1->layout >= LAYOUT_MAX) {
             severe("unknown layout: %d.", e1->layout);
             errno = EINVAL;
             goto out;
-	}
+        }
 
         list_for_each_forward(q, &config->volumes) {
             volume_config_t *e2 = list_entry(q, volume_config_t, list);
@@ -1157,8 +1166,8 @@ static int econfig_validate_volumes(econfig_t *config) {
             severe("invalid cluster.");
             goto out;
         }
-	
-	econfig_number_storages_per_cluster(e1);
+
+        econfig_number_storages_per_cluster(e1);
     }
 
     status = 0;
