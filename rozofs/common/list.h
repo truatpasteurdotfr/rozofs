@@ -57,6 +57,19 @@ static inline int list_empty(list_t * head) {
     return head->next == head;
 }
 
+static inline void list_move(list_t * to, list_t * from) {
+
+    if (list_empty(from)) return;
+    
+    to->prev->next   = from->next;
+    from->next->prev = to->prev;
+    
+    from->prev->next = to;
+    to->prev         = from->prev;
+    
+    list_init(from);
+}
+
 static inline int list_size(list_t * head) {
     list_t *iterator;
     int size;
@@ -150,6 +163,11 @@ static inline void list_sort(list_t * head,
 #define list_first_entry(ptr, type, member) \
         list_entry((ptr)->next, type, member)
 
+#define list_last_entry(head, type, member) \
+        ((head)->prev==(head))? NULL : list_entry((head)->prev, type, member);
+#define list_1rst_entry(head, type, member) \
+        ((head)->prev==(head))? NULL : list_entry((head)->next, type, member);
+	
 #define list_for_each_forward(pos, head) \
 	for (pos = (head)->next; pos != (head); pos = pos->next)
 
@@ -163,5 +181,5 @@ static inline void list_sort(list_t * head,
 #define list_for_each_backward_safe(pos, n, head)\
     for (pos = (head)->prev, n = pos->prev; pos != (head); \
     	pos = n, n = pos->prev)
-
+	
 #endif

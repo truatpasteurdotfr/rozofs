@@ -55,6 +55,7 @@
 #include <rozofs/core/rozo_launcher.h>
 #include <rozofs/core/rozofs_core_files.h>
 
+#include <rozofs/core/rozofs_cpu.h>
 #include "config.h"
 #include "exportd.h"
 #include "export.h"
@@ -509,15 +510,17 @@ static void *remove_bins_thread(void *v) {
 	delay = rdtsc()- delay;
 	
 	/*
-	** Assume a 2GHz frequency 
+	** 
 	*/
-	if (delay < ((2*GIGA)*RM_BINS_PTHREAD_FREQUENCY_SEC)) {
+	uint64_t delay_ticks = rozofs_get_cpu_frequency()*RM_BINS_PTHREAD_FREQUENCY_SEC;
+	if (delay < delay_ticks) {
 	  /*
 	  ** The loop did last less than RM_BINS_PTHREAD_FREQUENCY_SEC.
 	  ** Wait a little...
 	  */ 
-	  delay = ((2*GIGA)*RM_BINS_PTHREAD_FREQUENCY_SEC)-delay;
-	  delay /= 1024;
+	  delay = delay_ticks-delay;
+	  delay *= 1000000;
+	  delay /= rozofs_get_cpu_frequency();
           usleep(delay);
 	}  
     }
