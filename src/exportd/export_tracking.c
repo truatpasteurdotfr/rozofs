@@ -2820,7 +2820,7 @@ static inline int export_rm_bucket(export_t * e, list_t * connexions, int bucket
   list_t       todo;
   list_t       failed;
   rmfentry_t * entry;
-  cid_t        cid;
+//  cid_t        cid;
   list_t      * p, *n;
 
   /*
@@ -2841,111 +2841,98 @@ static inline int export_rm_bucket(export_t * e, list_t * connexions, int bucket
     severe("pthread_rwlock_unlock failed: %s", strerror(errno));
   }
 
-  while (TRUE) {
+
+  /*
+  ** get every entry
+  */	
+  list_for_each_forward_safe(p, n, &todo) {
+
+    entry = list_entry(p,rmfentry_t,list);
+    list_remove(&entry->list);
+
+    // Nb. of bins files removed for this file
+    sid_count = 0;
+
+    // For each storage associated with this file
+    for (i = 0; i < safe; i++) {
+
+      mclient_t* stor = NULL;
+
+      if (0 == entry->current_dist_set[i]) {
+        sid_count++;
+        continue; // The bins file has already been deleted for this server
+      }
+
+      if ((stor = lookup_cnx(connexions, entry->cid, entry->current_dist_set[i])) == NULL) {
+        continue;// lookup_cnx failed !!! 
+      }
+
+      if (0 == stor->status) {
+        continue; // This storage is down
+      }
+
+      // Send remove request
+      int spare;
+      if (i<forward) spare = 0;
+      else                  spare = 1;
+      if (mclient_remove2(stor, entry->fid,spare) != 0) {
+        warning("mclient_remove failed (cid: %u; sid: %u): %s",
+                stor->cid, stor->sid, strerror(errno));
+	/*
+	** Say this storage is down not to use it again 
+	** during this run; this would fill up the log file.
+	*/
+	stor->status = 0; 
+        continue; // Go to the next storage
+      }
+
+      // The bins file has been deleted successfully
+      // Update distribution and nb. of bins file deleted
+      entry->current_dist_set[i] = 0;
+      sid_count++;
+    }
+
+    // Update the nb. of files that have been tested to be deleted.
+    processed_files++; 
+
+    if (sid_count == safe) {
+      /*
+      ** remove the entry from the trash file
+      */
+      export_rm_bins_done_count++;
+      export_rmbins_remove_from_tracking_file(e,entry); 
+      free(entry);
+    }
+    else {
+      /*
+      ** Put this entry in the failed list
+      */
+      list_push_back(&failed, &entry->list);
+    }
 
     /*
-    ** get 1rst entry cid
-    */	
-    entry = list_1rst_entry(&todo,rmfentry_t,list);
-    if (entry == NULL) goto out;
-    cid = entry->cid;   
-
-    /*
-    ** get every entry
-    */	
-    list_for_each_forward_safe(p, n, &todo) {
-
-      entry = list_entry(p,rmfentry_t,list);
-
-      /*
-      ** Other clusters will be processed later
-      */
-      if (entry->cid != cid) continue; 
-
-      list_remove(&entry->list);
-
-      // Nb. of bins files removed for this file
-      sid_count = 0;
-
-      // For each storage associated with this file
-      for (i = 0; i < safe; i++) {
-
-	mclient_t* stor = NULL;
-
-	if (0 == entry->current_dist_set[i]) {
-          sid_count++;
-          continue; // The bins file has already been deleted for this server
-	}
-
-	if ((stor = lookup_cnx(connexions, cid, entry->current_dist_set[i])) == NULL) {
-          continue;// lookup_cnx failed !!! 
-	}
-
-	if (0 == stor->status) {
-          continue; // This storage is down
-	}
-
-	// Send remove request
-	int spare;
-	if (i<forward) spare = 0;
-	else                  spare = 1;
-	if (mclient_remove2(stor, entry->fid,spare) != 0) {
-          warning("mclient_remove failed (cid: %u; sid: %u): %s",
-                  stor->cid, stor->sid, strerror(errno));
-	  /*
-	  ** Say this storage is down not to use it again 
-	  ** during this run; this would fill up the log file.
-	  */
-	  stor->status = 0; 
-          continue; // Go to the next storage
-	}
-
-	// The bins file has been deleted successfully
-	// Update distribution and nb. of bins file deleted
-	entry->current_dist_set[i] = 0;
-	sid_count++;
-      }
-
-      // Update the nb. of files that have been tested to be deleted.
-      processed_files++; 
-
-      if (sid_count == safe) {
-	/*
-	** remove the entry from the trash file
-	*/
-	export_rm_bins_done_count++;
-	export_rmbins_remove_from_tracking_file(e,entry); 
-	free(entry);
-      }
-      else {
-	/*
-	** Put this entry in the failed list
-	*/
-	list_push_back(&failed, &entry->list);
-      }
-      
-      /*
-      ** Limit of processed file reached
-      */
-      if (processed_files >= export_limit_rm_files) goto out;
-    }  
-  }
+    ** Limit of processed file reached
+    */
+    if (processed_files >= export_limit_rm_files) goto out;
+  }  
   
 out:
+
+  /*
+  ** Bucket totaly processed successfully
+  */
+  if (list_empty(&todo) && list_empty(&failed)) return 0;
+  
+  
+  /*
+  ** Push back the non processed entries in the bucket
+  */    
   if ((errno = pthread_rwlock_wrlock(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
     severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
   }
-  
-  /*
-  ** Push back the list of entries not yet processed
-  */  
+  list_move(&todo,&e->trash_buckets[bucket_idx].rmfiles);
+  list_move(&todo,&failed);
   list_move(&e->trash_buckets[bucket_idx].rmfiles,&todo);
-
-  /*
-  ** Push then back the failed entries in the trash back
-  */
-  list_move(&e->trash_buckets[bucket_idx].rmfiles,&failed);
-  
   if ((errno = pthread_rwlock_unlock(&e->trash_buckets[bucket_idx].rm_lock)) != 0) {
     severe("pthread_rwlock_unlock failed: %s", strerror(errno));
   }	    
