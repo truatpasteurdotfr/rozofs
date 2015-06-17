@@ -647,6 +647,52 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     time_t elapse;
     int days, hours, mins, secs;
+    time_t  this_time = time(0);    
+    
+    elapse = (int) (this_time - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+
+
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %2.2d:%2.2d:%2.2d\n", gprofiler.vers,days, hours, mins, secs);
+    pChar += sprintf(pChar, " - ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
+    pChar += sprintf(pChar, "   procedure  |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
+    pChar += sprintf(pChar, "--------------+-----------------+-----------+--------------------+-----------------+\n");
+    SHOW_PROFILER_PROBE(lookup);
+    SHOW_PROFILER_PROBE(forget);
+    SHOW_PROFILER_PROBE(getattr);
+    SHOW_PROFILER_PROBE(setattr);
+    SHOW_PROFILER_PROBE(readlink);
+    SHOW_PROFILER_PROBE(mknod);
+    SHOW_PROFILER_PROBE(mkdir);
+    SHOW_PROFILER_PROBE(unlink);
+    SHOW_PROFILER_PROBE(rmdir);
+    SHOW_PROFILER_PROBE(symlink);
+    SHOW_PROFILER_PROBE(rename);
+    SHOW_PROFILER_PROBE(open);
+    SHOW_PROFILER_PROBE(link);
+    SHOW_PROFILER_PROBE_BYTE(read);
+    SHOW_PROFILER_PROBE_BYTE(write);
+    SHOW_PROFILER_PROBE(flush);
+    SHOW_PROFILER_PROBE(release);
+    SHOW_PROFILER_PROBE(opendir);
+    SHOW_PROFILER_PROBE(readdir);
+    SHOW_PROFILER_PROBE(releasedir);
+    SHOW_PROFILER_PROBE(fsyncdir);
+    SHOW_PROFILER_PROBE(statfs);
+    SHOW_PROFILER_PROBE(setxattr);
+    SHOW_PROFILER_PROBE(getxattr);
+    SHOW_PROFILER_PROBE(listxattr);
+    SHOW_PROFILER_PROBE(removexattr);
+    SHOW_PROFILER_PROBE(access);
+    SHOW_PROFILER_PROBE(create);
+    SHOW_PROFILER_PROBE(getlk);
+    SHOW_PROFILER_PROBE(setlk);
+    SHOW_PROFILER_PROBE(setlk_int);
+    SHOW_PROFILER_PROBE(clearlkowner);
+    SHOW_PROFILER_PROBE(ioctl);
     
     if (argv[1] != NULL)
     {
@@ -684,62 +730,16 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE(setlk_int);
 	RESET_PROFILER_PROBE(clearlkowner);      
 	RESET_PROFILER_PROBE(ioctl);
-	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
-	return;
+	pChar += sprintf(pChar,"Reset Done\n");  
+	gprofiler.uptime = this_time;   
       }
-      /*
-      ** Help
-      */
-      pChar = show_profiler_help(pChar);
-      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
-      return;
-    }
-
-    // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
-    days = (int) (elapse / 86400);
-    hours = (int) ((elapse / 3600) - (days * 24));
-    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
-    secs = (int) (elapse % 60);
-
-
-    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
-    pChar += sprintf(pChar, " - ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
-    pChar += sprintf(pChar, "   procedure  |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
-    pChar += sprintf(pChar, "--------------+-----------------+-----------+--------------------+-----------------+\n");
-    SHOW_PROFILER_PROBE(lookup);
-    SHOW_PROFILER_PROBE(forget);
-    SHOW_PROFILER_PROBE(getattr);
-    SHOW_PROFILER_PROBE(setattr);
-    SHOW_PROFILER_PROBE(readlink);
-    SHOW_PROFILER_PROBE(mknod);
-    SHOW_PROFILER_PROBE(mkdir);
-    SHOW_PROFILER_PROBE(unlink);
-    SHOW_PROFILER_PROBE(rmdir);
-    SHOW_PROFILER_PROBE(symlink);
-    SHOW_PROFILER_PROBE(rename);
-    SHOW_PROFILER_PROBE(open);
-    SHOW_PROFILER_PROBE(link);
-    SHOW_PROFILER_PROBE_BYTE(read);
-    SHOW_PROFILER_PROBE_BYTE(write);
-    SHOW_PROFILER_PROBE(flush);
-    SHOW_PROFILER_PROBE(release);
-    SHOW_PROFILER_PROBE(opendir);
-    SHOW_PROFILER_PROBE(readdir);
-    SHOW_PROFILER_PROBE(releasedir);
-    SHOW_PROFILER_PROBE(fsyncdir);
-    SHOW_PROFILER_PROBE(statfs);
-    SHOW_PROFILER_PROBE(setxattr);
-    SHOW_PROFILER_PROBE(getxattr);
-    SHOW_PROFILER_PROBE(listxattr);
-    SHOW_PROFILER_PROBE(removexattr);
-    SHOW_PROFILER_PROBE(access);
-    SHOW_PROFILER_PROBE(create);
-    SHOW_PROFILER_PROBE(getlk);
-    SHOW_PROFILER_PROBE(setlk);
-    SHOW_PROFILER_PROBE(setlk_int);
-    SHOW_PROFILER_PROBE(clearlkowner);
-    SHOW_PROFILER_PROBE(ioctl);
+      else {
+	/*
+	** Help
+	*/
+	pChar = show_profiler_help(pChar);
+      }
+    }    
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 /*__________________________________________________________________________
@@ -2118,6 +2118,8 @@ int main(int argc, char *argv[]) {
     ** read common config file
     */
     common_config_read(NULL);        
+
+    gprofiler.uptime = time(0);
 
     res = fuseloop(&args, fg);
 

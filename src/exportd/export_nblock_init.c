@@ -238,7 +238,13 @@ char * show_profiler_one(char * pChar, uint32_t eid) {
     
     return pChar;
 }
+static char * show_profiler_all(char * pChar) {
+    uint32_t eid;
 
+    for (eid=0; eid <= EXPGW_EID_MAX_IDX; eid++) 
+      pChar = show_profiler_one(pChar,eid);   	  
+    return pChar;
+}
 static char * show_profiler_help(char * pChar) {
   pChar += rozofs_string_append(pChar,"usage:\nprofiler reset [ <eid> ] : reset statistics\nprofiler [ <eid> ]       : display statistics\n");  
   return pChar; 
@@ -249,9 +255,9 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     uint32_t eid;
     int ret;
     *pChar = 0;
+
     if (argv[1] == NULL) {
-      for (eid=0; eid <= EXPGW_EID_MAX_IDX; eid++) 
-        pChar = show_profiler_one(pChar,eid);
+      pChar = show_profiler_all(pChar);
       uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
       return;
     }
@@ -259,8 +265,10 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     if (strcmp(argv[1],"reset")==0) {
 
       if (argv[2] == NULL) {
+        pChar = show_profiler_all(pChar);
 	export_profiler_reset_all();
-	uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");   
+	pChar += sprintf(pChar,"Reset done\n");
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
 	return;	 
       }
       	     
@@ -270,8 +278,10 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
 	return;   
       }
+      pChar = show_profiler_one(pChar,eid);
       export_profiler_reset_one(eid);
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");   	  
+      pChar += sprintf(pChar,"Reset done\n");
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
       return;
     }
 

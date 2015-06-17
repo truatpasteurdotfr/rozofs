@@ -219,7 +219,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 static char * show_profiler_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"profiler reset       : reset statistics\n");
+  pChar += sprintf(pChar,"profiler reset       : display and then reset statistics\n");
   pChar += sprintf(pChar,"profiler             : display statistics\n");  
   return pChar; 
 }
@@ -227,54 +227,11 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
     time_t elapse;
     int days, hours, mins, secs;
-    
-    if (argv[1] != NULL)
-    {
-      if (strcmp(argv[1],"reset")==0) {
-	RESET_PROFILER_PROBE_BYTE(read);
-	RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
-	RESET_PROFILER_PROBE(read_sid_miss);	
-	RESET_PROFILER_PROBE_BYTE(read_prj);
-	RESET_PROFILER_PROBE(read_prj_enoent);	
-	RESET_PROFILER_PROBE(read_prj_err);
-	RESET_PROFILER_PROBE(read_prj_tmo);
-	RESET_PROFILER_PROBE(read_blk_footer);
-	RESET_PROFILER_PROBE(read_blk_crc);
-	RESET_PROFILER_PROBE(read_blk_prjid);
-	RESET_PROFILER_PROBE_BYTE(write)
-	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
-	RESET_PROFILER_PROBE(write_sid_miss);		
-	RESET_PROFILER_PROBE_BYTE(write_prj);
-	RESET_PROFILER_PROBE(write_prj_tmo);
-	RESET_PROFILER_PROBE(write_prj_err);    
-	RESET_PROFILER_PROBE(write_prj_nospace);    
-	RESET_PROFILER_PROBE(write_prj_sid_err);    
-	RESET_PROFILER_PROBE(truncate);
-	RESET_PROFILER_PROBE(truncate_sid_miss);		
-	RESET_PROFILER_PROBE_BYTE(truncate_prj);
-	RESET_PROFILER_PROBE(truncate_prj_tmo);
-	RESET_PROFILER_PROBE(truncate_prj_err);  
-        RESET_PROFILER_PROBE_BYTE(repair)
-	RESET_PROFILER_PROBE_BYTE(repair_prj);
-	RESET_PROFILER_PROBE(repair_prj_tmo);
-	RESET_PROFILER_PROBE(repair_prj_err);    
-	RESET_PROFILER_PROBE(delete);
-	RESET_PROFILER_PROBE_BYTE(delete_prj);
-	RESET_PROFILER_PROBE(delete_prj_tmo);
-	RESET_PROFILER_PROBE(delete_prj_err);  
-	uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done\n");    
-	return;
-      }
-      /*
-      ** Help
-      */
-      pChar = show_profiler_help(pChar);
-      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
-      return;      
-    }
+    time_t  this_time = time(0);
+
 
     // Compute uptime for storaged process
-    elapse = (int) (time(0) - gprofiler.uptime);
+    elapse = (int) (this_time - gprofiler.uptime);
     days = (int) (elapse / 86400);
     hours = (int) ((elapse / 3600) - (days * 24));
     mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
@@ -282,7 +239,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 
 
-    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %d:%d:%d\n", gprofiler.vers,days, hours, mins, secs);
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %2.2d:%2.2d:%2.2d\n", gprofiler.vers,days, hours, mins, secs);
     pChar += sprintf(pChar, "   procedure        |     count        |  time(us)  | cumulated time(us)  |     bytes       |\n");
     pChar += sprintf(pChar, "--------------------+------------------+------------+---------------------+-----------------+\n");
 
@@ -318,6 +275,53 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE_BYTE(delete_prj);
     SHOW_PROFILER_PROBE_COUNT(delete_prj_tmo);
     SHOW_PROFILER_PROBE_COUNT(delete_prj_err);
+    
+    
+    if (argv[1] != NULL)
+    {
+      if (strcmp(argv[1],"reset")==0) {
+	RESET_PROFILER_PROBE_BYTE(read);
+	RESET_PROFILER_KPI_BYTE(Mojette Inv,storcli_kpi_transform_inverse);
+	RESET_PROFILER_PROBE(read_sid_miss);	
+	RESET_PROFILER_PROBE_BYTE(read_prj);
+	RESET_PROFILER_PROBE(read_prj_enoent);	
+	RESET_PROFILER_PROBE(read_prj_err);
+	RESET_PROFILER_PROBE(read_prj_tmo);
+	RESET_PROFILER_PROBE(read_blk_footer);
+	RESET_PROFILER_PROBE(read_blk_crc);
+	RESET_PROFILER_PROBE(read_blk_prjid);
+	RESET_PROFILER_PROBE_BYTE(write)
+	RESET_PROFILER_KPI_BYTE(Mojette Fwd,storcli_kpi_transform_forward);;
+	RESET_PROFILER_PROBE(write_sid_miss);		
+	RESET_PROFILER_PROBE_BYTE(write_prj);
+	RESET_PROFILER_PROBE(write_prj_tmo);
+	RESET_PROFILER_PROBE(write_prj_err);    
+	RESET_PROFILER_PROBE(write_prj_nospace);    
+	RESET_PROFILER_PROBE(write_prj_sid_err);    
+	RESET_PROFILER_PROBE(truncate);
+	RESET_PROFILER_PROBE(truncate_sid_miss);		
+	RESET_PROFILER_PROBE_BYTE(truncate_prj);
+	RESET_PROFILER_PROBE(truncate_prj_tmo);
+	RESET_PROFILER_PROBE(truncate_prj_err);  
+        RESET_PROFILER_PROBE_BYTE(repair)
+	RESET_PROFILER_PROBE_BYTE(repair_prj);
+	RESET_PROFILER_PROBE(repair_prj_tmo);
+	RESET_PROFILER_PROBE(repair_prj_err);    
+	RESET_PROFILER_PROBE(delete);
+	RESET_PROFILER_PROBE_BYTE(delete_prj);
+	RESET_PROFILER_PROBE(delete_prj_tmo);
+	RESET_PROFILER_PROBE(delete_prj_err);  
+	pChar += sprintf(pChar,"Reset Done\n");  
+	gprofiler.uptime = this_time;  
+      }
+      else {
+	/*
+	** Help
+	*/
+	pChar = show_profiler_help(pChar);  
+      }	 
+    }   
+     
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 

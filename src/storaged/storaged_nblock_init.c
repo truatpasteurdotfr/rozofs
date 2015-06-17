@@ -134,25 +134,18 @@ static char * show_profile_storaged_master_display_help(char * pChar) {
 
 static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef, void *bufRef) {
     char *pChar = uma_dbg_get_buffer();
+    time_t elapse;
+    int days, hours, mins, secs;
+    time_t  this_time = time(0);
 
-    if (argv[1] != NULL) {
 
-        if (strcmp(argv[1], "reset") == 0) {
-
-            sp_clear_probe(gprofiler, stat);
-            sp_clear_probe(gprofiler, ports);
-            sp_clear_probe(gprofiler, remove);
-            sp_clear_probe(gprofiler, list_bins_files);
-            uma_dbg_send(tcpRef, bufRef, TRUE, "Reset Done");
-
-            return;
-        }
-
-        pChar = show_profile_storaged_master_display_help(pChar);
-        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-
-        return;
-    }
+    // Compute uptime for storaged process
+    elapse = (int) (this_time - gprofiler.uptime);
+    days = (int) (elapse / 86400);
+    hours = (int) ((elapse / 3600) - (days * 24));
+    mins = (int) ((elapse / 60) - (days * 1440) - (hours * 60));
+    secs = (int) (elapse % 60);
+    pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %2.2d:%2.2d:%2.2d\n", gprofiler.vers,days, hours, mins, secs);
 
     // Print general profiling values for storaged
     pChar += rozofs_string_append(pChar, "storaged: ");
@@ -170,7 +163,21 @@ static void show_profile_storaged_master_display(char * argv[], uint32_t tcpRef,
     sp_display_probe(gprofiler, ports);
     sp_display_probe(gprofiler, remove);
     sp_display_probe(gprofiler, list_bins_files);
+    if (argv[1] != NULL) {
 
+        if (strcmp(argv[1], "reset") == 0) {
+
+            sp_clear_probe(gprofiler, stat);
+            sp_clear_probe(gprofiler, ports);
+            sp_clear_probe(gprofiler, remove);
+            sp_clear_probe(gprofiler, list_bins_files);
+	    pChar += sprintf(pChar,"Reset Done\n");  
+	    gprofiler.uptime = this_time;  	      
+        }
+        else {
+          pChar = show_profile_storaged_master_display_help(pChar);
+        }
+    }
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
 
