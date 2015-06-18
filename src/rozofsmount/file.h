@@ -27,6 +27,8 @@
 #define FILE_CHECK_WORD 0X46696c65
 
 extern int rozofs_bugwatch;
+extern uint64_t rozofs_opened_file;
+
 
 typedef enum 
 {
@@ -179,6 +181,8 @@ static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
     file->file2create = 0;
     file->pending_read_count = 0;
     rozofs_geo_write_reset(file);
+    
+    rozofs_opened_file++;
 }
 
 /**
@@ -234,6 +238,7 @@ static inline int file_close(file_t * f) {
      free(f->buffer);
      f->chekWord = 0;
      free(f);
+     rozofs_opened_file--;
     return 1;
 }
 

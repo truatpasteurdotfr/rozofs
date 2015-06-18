@@ -86,6 +86,10 @@ uint64_t hash_inode_collisions_count = 0;
 uint64_t hash_inode_max_collisions = 0;
 uint64_t hash_inode_cur_collisions;
 
+/*
+** Count the number of opened files
+*/
+uint64_t rozofs_opened_file;
 
 uint64_t   rozofs_client_hash=0;
 /**
@@ -658,6 +662,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 
     pChar += sprintf(pChar, "GPROFILER version %s uptime =  %d days, %2.2d:%2.2d:%2.2d\n", gprofiler.vers,days, hours, mins, secs);
     pChar += sprintf(pChar, " - ientry counter: %llu\n", (long long unsigned int) rozofs_ientries_count);
+    pChar += sprintf(pChar, " - opened file   : %llu\n", (long long unsigned int) rozofs_opened_file);
     pChar += sprintf(pChar, "   procedure  |     count       |  time(us) | cumulated time(us) |     bytes       |\n");
     pChar += sprintf(pChar, "--------------+-----------------+-----------+--------------------+-----------------+\n");
     SHOW_PROFILER_PROBE(lookup);
