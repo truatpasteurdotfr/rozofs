@@ -110,7 +110,7 @@ static char * mojette_thread_debug_help(char * pChar) {
   pChar += sprintf(pChar,"MojetteThreads <read|write> enable  : enable Mojette threads \n");
   pChar += sprintf(pChar,"MojetteThreads <read|write> disable : disable Mojette threads\n");
   pChar += sprintf(pChar,"MojetteThreads                      : display statistics\n");  
-  pChar += sprintf(pChar,"MojetteThreads size <count>         : adjust the bytes threshold for thread activation (unit byte)\n");  
+  pChar += sprintf(pChar,"MojetteThreads count <count>        : adjust the bytes threshold for thread activation (unit byte)\n");  
   return pChar; 
 }  
 void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
