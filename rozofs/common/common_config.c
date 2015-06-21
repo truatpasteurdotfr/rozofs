@@ -31,23 +31,32 @@ common_config_t common_config;
   pChar += rozofs_string_padded_append(pChar, 24, rozofs_left_alignment, #val);\
   if (common_config.val) pChar += rozofs_string_append(pChar, ": True  ");\
   else                   pChar += rozofs_string_append(pChar, ": False ");\
-  if (rozofs_default_##val) pChar += rozofs_string_append(pChar, "\t(True)\n");\
-  else                      pChar += rozofs_string_append(pChar, "\t(False)\n");\
+  if (common_config.val == rozofs_default_##val) {\
+    pChar += rozofs_string_append(pChar, " \t(default)");\
+  }\
+  pChar += rozofs_eol(pChar);\
 }
 
+#define COMMON_CONFIG_SHOW_STRING(val)  {\
+  pChar += rozofs_string_padded_append(pChar, 24, rozofs_left_alignment, #val);\
+  *pChar++ = ':';\
+  *pChar++ = ' ';\
+  *pChar++ = '\"';\
+  if (common_config.val!=NULL) pChar += rozofs_string_append(pChar, common_config.val);\
+  *pChar++ = '\"';\
+  if ((char*)common_config.val == (char*)rozofs_default_##val) {\
+    pChar += rozofs_string_append(pChar, " \t(default)");\
+  }\
+  pChar += rozofs_eol(pChar);\
+}
+    
 #define COMMON_CONFIG_SHOW_INT(val)  {\
   pChar += rozofs_string_padded_append(pChar, 24, rozofs_left_alignment, #val);\
   pChar += rozofs_string_append(pChar, ": ");\
   pChar += rozofs_i32_append(pChar, common_config.val);\
-  pChar += rozofs_string_append(pChar," \t(");\
-  pChar += rozofs_i32_append(pChar, rozofs_default_##val);\
-  *pChar++ = ' ';\
-  *pChar++ = '[';\
-  pChar += rozofs_i32_append(pChar, rozofs_min_##val);\
-  *pChar++ = ':';\
-  pChar += rozofs_i32_append(pChar, rozofs_max_##val);\
-  *pChar++ = ']';\
-  *pChar++ = ')';\
+  if (common_config.val == rozofs_default_##val) {\
+    pChar += rozofs_string_append(pChar, " \t(default)");\
+  }\
   pChar += rozofs_eol(pChar);\
 }  
 void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
@@ -67,6 +76,8 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_BOOL(crc32c_hw_forced);
   COMMON_CONFIG_SHOW_INT(trashed_file_per_run); 
   COMMON_CONFIG_SHOW_INT(storio_slice_number);    
+  COMMON_CONFIG_SHOW_BOOL(allow_disk_spin_down);
+  COMMON_CONFIG_SHOW_STRING(core_file_directory);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -107,6 +118,14 @@ long int          intval;
     else {\
       common_config.val = intval;\
     }\
+  }\
+} 
+
+const char * charval;
+#define COMMON_CONFIG_READ_STRING(val)  {\
+  common_config.val = rozofs_default_##val;\
+  if (config_lookup_string(&cfg, #val, &charval)) {\
+    common_config.val = strdup(charval);\
   }\
 } 
 
@@ -189,6 +208,17 @@ void common_config_read(char * fname) {
 
   /* Number of file deleted in a run of rm bins thread */
   COMMON_CONFIG_READ_INT(trashed_file_per_run);    
+
+  /*
+  ** Whether we must let the disk spin down and so stop
+  ** to access them when no modification has been requested
+  */   
+  COMMON_CONFIG_READ_BOOL(allow_disk_spin_down);
+
+  /*
+  ** What directory to use for core files
+  */   
+  COMMON_CONFIG_READ_STRING(core_file_directory);
   
   /*
   ** Free lib config working structure

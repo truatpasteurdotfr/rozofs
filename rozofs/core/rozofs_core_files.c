@@ -34,8 +34,8 @@
 #include <rozofs/common/log.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/uma_dbg_api.h>
+#include <rozofs/common/common_config.h>
 
-#define ROZOFS_CORE_BASE_PATH  "/var/run/rozofs_core"
 volatile sig_atomic_t     rozofs_fatal_error_processing = 0;
 char                      rozofs_core_file_path[256] = {0};           
 int                       rozofs_max_core_files         = 0;
@@ -180,7 +180,7 @@ void rozofs_clean_core(void) {
   uint32_t        nb,idx;
   uint32_t        younger;
 
-  if (rozofs_mkdir(ROZOFS_CORE_BASE_PATH) < 0) return;
+  if (rozofs_mkdir(common_config.core_file_directory) < 0) return;
 
   /* No core files */
   if (rozofs_core_file_path[0] == 0) return;
@@ -342,7 +342,7 @@ void rozofs_signals_declare(char * application, int max_core_files) {
   
   rozofs_core_file_path[0] = 0;
   if (application == NULL) return;
-  sprintf(rozofs_core_file_path,"%s/%s",ROZOFS_CORE_BASE_PATH,application);
+  sprintf(rozofs_core_file_path,"%s/%s",common_config.core_file_directory,application);
   
   uma_dbg_declare_core_dir(rozofs_core_file_path);
   
