@@ -31,6 +31,7 @@
 #include <dirent.h>
 #include <signal.h>
 #include <errno.h>
+#include <sys/resource.h>
 #include <rozofs/common/log.h>
 #include <rozofs/core/rozofs_core_files.h>
 #include <rozofs/core/uma_dbg_api.h>
@@ -345,6 +346,15 @@ void rozofs_signals_declare(char * application, int max_core_files) {
   sprintf(rozofs_core_file_path,"%s/%s",common_config.core_file_directory,application);
   
   uma_dbg_declare_core_dir(rozofs_core_file_path);
+  
+  /*
+  ** Set no limit for the core file size
+  */
+  struct rlimit core_limit;
+  core_limit.rlim_cur = RLIM_INFINITY;
+  core_limit.rlim_max = RLIM_INFINITY;   
+  setrlimit(RLIMIT_CORE, &core_limit);
+ 
   
   /* Declare the fatal errors handler */
  
