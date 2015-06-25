@@ -45,6 +45,43 @@
 
 extern char * pHostArray[];
 
+uint64_t      storio_device_monitor_nb_run=0;
+uint64_t      storio_device_monitor_no_activity=0;
+time_t        storio_device_monitor_last_activity;
+
+
+/*
+**______________________________________________________________________________
+*/
+/**
+*  Rozodiag monitoring thread show
+
+*/
+char * storio_device_monitor_show(char * pChar)  {
+
+
+  pChar += rozofs_string_append(pChar,"\ndevice monitoring\n  period         : ");
+  pChar += rozofs_u64_append(pChar,STORIO_DEVICE_PERIOD);  
+
+  pChar += rozofs_string_append(pChar," sec\n  nb run         : ");
+  pChar += rozofs_u64_append(pChar,storio_device_monitor_nb_run);
+
+  pChar += rozofs_string_append(pChar,"\n  no activity    : ");
+  pChar += rozofs_u64_append(pChar,storio_device_monitor_no_activity);
+
+  pChar += rozofs_string_append(pChar,"\n  last activity  : ");
+  pChar += rozofs_u64_append(pChar,time(NULL)-storio_device_monitor_last_activity);
+
+  if (common_config.allow_disk_spin_down) {
+    pChar += rozofs_string_append(pChar," sec\n  disk spin down : allowed\n");
+  }
+  else {
+    pChar += rozofs_string_append(pChar," sec\n  disk spin down : not configured\n");
+  }    
+
+  return pChar;    
+}
+
 
 /*_____________________________________
 ** Parameter of the relocate thread
@@ -275,35 +312,31 @@ static inline uint64_t storio_device_monitor_error(storage_t * st) {
 ** 
 **  @param param: Not significant
 */
-void storio_device_monitor() {
+void storio_device_monitor(uint32_t allow_disk_spin_down) {
   int           dev;
   int           passive;
   storage_t   * st;
   storage_device_ctx_t *pDev;
   int           max_failures;
   int           rebuilding;
-  storage_device_info_t *info;
+  storage_share_t *share;
   uint64_t      bfree=0;
   uint64_t      bmax=0;
   uint64_t      bsz=0;   
-    
-
+  uint64_t      nochange=0;    
+  uint64_t      sameStatus=0;   
   /*
   ** Loop on every storage managed by this storio
   */ 
   st = NULL;
   while ((st = storaged_next(st)) != NULL) {
+  
+    storio_device_monitor_nb_run++;
 
     /*
-    ** Resolve share memory with storaged to report device status
+    ** Resolve the share memory address
     */
-    if (st->info == NULL) {
-      st->info = rozofs_share_memory_resolve_from_name(st->root);
-    }
-    info = st->info; 
-    if (info == NULL) {
-      severe("rozofs_share_memory_resolve_from_name(%s) %s",st->root,strerror(errno));
-    }
+    share = storage_get_share(st); 
 
     if (st->selfHealing == -1) {
       /* No self healing configured */
@@ -341,11 +374,31 @@ void storio_device_monitor() {
     */
     passive = 1 - st->device_free.active; 
 
+    /*
+    ** When disk spin down is allowed, do not try to access the disks
+    ** to update the status if no modification has occured on any device.
+    */
+    if (share!=NULL) {
+      if (share->modified==0) {
+        if (allow_disk_spin_down) {
+          nochange = 1;
+        }
+	storio_device_monitor_no_activity++;
+      }
+      else {
+        share->modified = 0;
+        storio_device_monitor_last_activity = time(NULL);
+      }	
+    } 
+
+  
+	  
     for (dev = 0; dev < st->device_number; dev++) {
 
       pDev = &st->device_ctx[dev];
       bfree = 0;
       bmax  = 0;
+      sameStatus = 0;
 
       /*
       ** Check whether re-init is required
@@ -355,7 +408,7 @@ void storio_device_monitor() {
 	** Wait for the end of the relocation to re initialize the device
 	*/
         if (pDev->status != storage_device_status_relocating) {
-	  pDev->action = 0;
+	  pDev->action = STORAGE_DEVICE_NO_ACTION;
 	  pDev->status = storage_device_status_init;
 	}
       }
@@ -364,7 +417,7 @@ void storio_device_monitor() {
       ** Check wether errors must be reset
       */
       if (pDev->action==STORAGE_DEVICE_RESET_ERRORS) {
-	pDev->action = 0;
+	pDev->action = STORAGE_DEVICE_NO_ACTION;
         memset(&st->device_errors, 0, sizeof(storage_device_errors_t));
         storio_clear_faulty_fid();      
       }
@@ -397,11 +450,12 @@ void storio_device_monitor() {
 	  if (st->device_errors.total[dev] != 0 ) {
 	    pDev->status = storage_device_status_degraded;
 	  }
-
-	  /*
-	  ** Check whether the access to the device is still granted
-	  ** and get the number of free blocks
-	  */
+	  
+	  if (nochange) {
+	    sameStatus = 1;
+	    break;
+	  }
+	  
 	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz, &pDev->diagnostic) != 0) {
 	    /*
 	    ** The device is failing !
@@ -419,7 +473,13 @@ void storio_device_monitor() {
 	  if (st->device_errors.total[dev] == 0 ) {
 	    pDev->status = storage_device_status_is;
 	  }
-	  	  /*
+
+	  if (nochange) {
+	    sameStatus = 1;	  
+	    break;
+	  }
+	   
+	  /*
 	  ** Check whether the access to the device is still granted
 	  ** and get the number of free blocks
 	  */
@@ -483,14 +543,27 @@ void storio_device_monitor() {
 	  break;    
       }	
 
+      /*
+      ** The device is unchanged and no access has been done to check it.
+      ** The status is the same as previously
+      */
+      if (sameStatus) {
+        int active = 1 - passive;
+	st->device_free.blocks[passive][dev] = st->device_free.blocks[active][dev]; 
+	continue; 
+      }
+      
+      /*
+      ** The device has been accessed and checked
+      */
       st->device_free.blocks[passive][dev] = bfree;  
 
-      if (info) {
-	info[dev].status     = pDev->status;
-	info[dev].diagnostic = pDev->diagnostic;
-	info[dev].free       = bfree * bsz;
-	info[dev].size       = bmax  * bsz;
-      }	
+      if (share) {
+	share->dev[dev].status     = pDev->status;
+	share->dev[dev].diagnostic = pDev->diagnostic;
+	share->dev[dev].free       = bfree * bsz;
+	share->dev[dev].size       = bmax  * bsz;
+      }
     } 
 
     /*
@@ -515,7 +588,7 @@ void * storio_device_monitor_thread(void * param) {
   */ 
   while ( 1 ) {
     sleep(STORIO_DEVICE_PERIOD);
-    storio_device_monitor();         
+    storio_device_monitor(common_config.allow_disk_spin_down);         
   }  
 }
 
@@ -531,9 +604,11 @@ int storio_device_mapping_monitor_thread_start() {
   pthread_t                  thrdId;
 
   /*
-  ** 1rst call to monitoring function
+  ** 1rst call to monitoring function, and access to the disk 
+  ** to get the disk free space 
   */
-  storio_device_monitor();
+  storio_device_monitor(FALSE);
+  storio_device_monitor_last_activity = time(NULL);
 
   /*
   ** Start monitoring thread

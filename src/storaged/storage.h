@@ -34,6 +34,7 @@
 #include <rozofs/common/htable.h>
 #include <rozofs/common/common_config.h>
 #include <rozofs/core/rozofs_string.h>
+#include <rozofs/core/rozofs_share_memory.h>
 
 #define ROZOFS_MAX_DISK_THREADS  32
 
@@ -142,12 +143,36 @@ static inline char * storage_device_diagnostic2String(storage_device_diagnostic_
     default: return "??";
   }  
 }  
+
+/*
+** Structure of the data in share memory beteen storaged and storio
+*/
+
+/*
+** Substructure per device of a storio
+*/
 typedef struct _storage_device_info_t {
   storage_device_status_e    status;
   storage_device_diagnostic_e diagnostic;
   uint64_t                   free;
   uint64_t                   size;    
 } storage_device_info_t;
+
+/*
+** The structure
+*/
+typedef struct _storage_share_t {
+  /* is set each time a storio disk thread read/write/truncate a file,
+  ** or each time the storaged deletes a file. The storio monitor thread
+  ** resets it on each run. */ 
+  int                    modified;
+  /* An array of context for each device handled by the storio.
+  ** actually more that one... */   
+  storage_device_info_t  dev[1];
+} storage_share_t;
+
+
+
 
 #define STORAGE_DEVICE_NO_ACTION      0
 #define STORAGE_DEVICE_RESET_ERRORS   1
@@ -174,7 +199,7 @@ typedef struct storage {
     storage_device_free_blocks_t device_free;    // available blocks on devices
     storage_device_errors_t      device_errors;  // To monitor errors on device
     storage_device_ctx_t         device_ctx[STORAGE_MAX_DEVICE_NB]; 
-    storage_device_info_t      * info; // share memory between storaged and storio          
+    storage_share_t            * share; // share memory between storaged and storio          
 } storage_t;
 
 /**
@@ -256,6 +281,17 @@ typedef struct _rozofs_rebuild_entry_file_t {
 } rozofs_rebuild_entry_file_t; 
 
 
+/** Retrieve the share memory address for a storage 
+ *
+ * @param st: the storage context
+ */
+static inline storage_share_t * storage_get_share(storage_t * st) {
+
+  if (st->share == NULL) {   
+    st->share = rozofs_share_memory_resolve_from_name(st->root);
+  }
+  return st->share;  
+}
 
 /**
  *  Get the next storage 

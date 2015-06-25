@@ -48,6 +48,7 @@
 
 extern sconfig_t storaged_config;
 
+char * storio_device_monitor_show(char * pChar);
 
 storio_device_mapping_stat_t storio_device_mapping_stat = { };
 STORIO_REBUILD_STAT_S        storio_rebuild_stat = {0};
@@ -391,6 +392,9 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += rozofs_eol(pChar);
     pChar += rozofs_string_append(pChar,"    !!! Check for errors in \"log show\" rozodiag topic\n");
   }  
+  
+  pChar = storio_device_monitor_show(pChar);
+  
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }

@@ -173,7 +173,7 @@ void storio_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv_buf)
       rozorpc_srv_ctx_p->arg_decoder = (xdrproc_t) xdr_sp_write_repair_arg_no_bins_t;
       rozorpc_srv_ctx_p->xdr_result  = (xdrproc_t) xdr_sp_write_ret_t;
       local = sp_write_repair_1_svc_disk_thread;
-      size = sizeof (xdr_sp_write_repair_arg_no_bins_t);
+      size = sizeof (sp_write_repair_arg_no_bins_t);
       break;
 
     case SP_REMOVE:

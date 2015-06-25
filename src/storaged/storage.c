@@ -831,7 +831,7 @@ int storage_initialize(storage_t *st,
     st->mapper_redundancy = mapper_redundancy;
     st->selfHealing       = selfHealing; 
     st->export_hosts      = export_hosts;
-    st->info              = NULL;
+    st->share             = NULL;
     
     st->device_free.active = 0;
     for (dev=0; dev<STORAGE_MAX_DEVICE_NB; dev++) {

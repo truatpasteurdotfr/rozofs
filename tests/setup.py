@@ -434,7 +434,7 @@ class mount_point_class:
     print "sids = %s"%(string)	    
 
   def get_mount_path(self):
-    return "%s/mnt%s_eid%s_site%s"%(os.getcwd(),self.instance,self.eid.eid,self.site)
+    return "%s/mnt%s_eid%s_site%s"%(rozofs.get_config_path(),self.instance,self.eid.eid,self.site)
     
   def create_path(self):
     global rozofs
@@ -852,6 +852,9 @@ class rozofs_class:
     self.disk_size_mb = None
     self.trace = False
     self.storio_slice = 8
+    self.spin_down_allowed = False
+    
+  def allow_disk_spin_down(self): self.spin_down_allowed = True    
   def set_trace(self): self.trace = True
   def storio_mode_single(self):self.storio_mode = "single"  
   def set_storio_slice(self,sl):self.storio_slice = sl 
@@ -875,7 +878,7 @@ class rozofs_class:
     self.disk_size_mb = mb
   
   def get_config_path(self):
-    path = "%s/config_file"%(os.getcwd())
+    path = "%s/SIMU"%(os.getcwd())
     if not os.path.exists(path): os.makedirs(path)
     return path
     
@@ -921,7 +924,8 @@ class rozofs_class:
     print "storio_slice_number  = %s;"%(rozofs.storio_slice)
     if self.storio_mode == "multiple": print "storio_multiple_mode = True;"
     else:                              print "storio_multiple_mode = False;"
-    
+    if rozofs.spin_down_allowed == True:
+      print "allow_disk_spin_down = True;"
 
   def create_common_config(self):
     save_stdout = sys.stdout

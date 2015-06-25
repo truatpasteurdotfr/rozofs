@@ -42,6 +42,10 @@ Boolean (true or false) indicating if a checksum must be generated (thanks to CR
 That boolean (true or false) can be asserted if the information reported by cpuid does not indicates that hardware CRC is supported whilst the current CPU supports it.
 This might be the case with VirtualBox.
 
+.SS allow_disk_spin_down
+This boolean has to be set to enable the spinning down of the disks of a storage node. The STORIO monitoring thread periodically checks the file systems mounted on its disks. This boolean prevents the check to be performed in case no modification takes place on the disk (i.e neither write, truncate nor delete). So when no access is done to the disks, the monitoring thread does not either access to the disk, and the disk spinning down can take place.
+
+It is no use to set this boolean when you do not configure a spin down timeout (see hdparm -S). 
 .SH EXAMPLE
 .PP
 .nf

@@ -223,7 +223,7 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
     char                * pChar = uma_dbg_get_buffer();
     storage_t           * st=NULL;
     int                   device;
-    storage_device_info_t *info;
+    storage_share_t     * share;
     
 
     pChar += rozofs_string_append(pChar," _____ _____ _____ ________ ________________ ________________ ____\n");   
@@ -236,15 +236,13 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
       pChar += rozofs_string_append(pChar,"|_____|_____|_____|________|________________|________________|____|\n");
 
       /*
-      ** Let's resolve the share memory address
+      ** Resolve the share memory address
       */
-      if (st->info == NULL) {
-        st->info = rozofs_share_memory_resolve_from_name(st->root);
-      }	
-      info = st->info;
-      if (info != NULL) {
+      share = storage_get_share(st);    
+
+      if (share != NULL) {
 	for (device=0; device < st->device_number; device++) {
-	  storage_device_info_t *pdev = &info[device];
+	  storage_device_info_t *pdev = &share->dev[device];
 	  sumfree += pdev->free;
 	  sumsize += pdev->size;
 	  *pChar++ = '|';
