@@ -25,7 +25,7 @@ int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
-char mount[128];
+char mount[256];
 
 static void usage() {
     printf("Parameters:\n");
@@ -345,20 +345,17 @@ int do_one_test(char * file, int count) {
 }
 int loop_test_process() {
   int count=0;   
-  char filename[128];
-  char symlink[128];  
-  char dirname[128];  
+  char filename[256];
+  char symlink[256];  
+  char dirname[256];  
   char cmd[256];
   pid_t pid = getpid();
        
-  if (getcwd(cmd,125) == NULL) {
-      return -1;
-  }
   
   pid = getpid();
-  sprintf(filename, "%s/%s/test_file_xattr.%u", cmd, mount, pid);
-  sprintf(symlink, "%s/%s/test_slink_xattr.%u", cmd, mount, pid);
-  sprintf(dirname, "%s/%s/test_dir_xattr.%u", cmd, mount, pid);
+  sprintf(filename, "%s/test_file_xattr.%u", mount, pid);
+  sprintf(symlink, "%s/test_slink_xattr.%u", mount, pid);
+  sprintf(dirname, "%s/test_dir_xattr.%u", mount, pid);
   
   sprintf(cmd, "echo HJKNKJNKNKhuezfqr > %s", filename);
   if (system(cmd) == -1) {

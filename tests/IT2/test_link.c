@@ -26,7 +26,7 @@ int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
-char mount[128];
+char mount[256];
 static void usage() {
     printf("Parameters:\n");
     printf("-mount <mount point> ]  The mount point\n");
@@ -295,9 +295,8 @@ int loop_test_process() {
   int count=0;   
   char baseName[256];
   pid_t pid = getpid();
-       
-  getcwd(cmd,128);  
-  sprintf(baseName, "%s/%s/link_test.%u.", cmd, mount, pid);
+         
+  sprintf(baseName, "%s/link_test.%u.", mount, pid);
             
   while (1) {
     count++;    

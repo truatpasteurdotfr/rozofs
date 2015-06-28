@@ -42,7 +42,7 @@ typedef enum _action_e {
 action_e action  = ACTION_NONE;
 int      nbfiles = DEFAULT_NBFILE;
 int      fNum    = -1;
-char path[128];
+char path[256];
 
 #define HEXDUMP_COLS 16
 void hexdump(void *mem, unsigned int offset, unsigned int len)
@@ -212,7 +212,7 @@ void init_block() {
     }    
   }
 }
-char path_file_name[128];
+char path_file_name[256];
 char * getfilename(int idx) {
   sprintf(path_file_name,"%d", idx);
   return path_file_name;

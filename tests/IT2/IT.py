@@ -1297,14 +1297,7 @@ def resolve_mnt(inst):
     if words[0] == "failures": nb_failures=int(words[2])
     if words[0] == "hosts": hosts=line.split("=")[1].split()
     if words[0] == "sids": sids=line.split("=")[1].split()
-    if words[0] == "path": 
-      p=words[2].split('/')
-      i=0
-      mnt=""
-      while i<len(p) and p[i] != "tests": i = i+1
-      while i<len(p):         
-        mnt="%s/%s"%(mnt,p[i])
-	i = i+1
+    if words[0] == "path": mnt=words[2]
     if words[0] == "layout": 
       inverse=words[2]
       forward=words[3]

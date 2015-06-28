@@ -30,7 +30,7 @@ int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
 long long unsigned int file_mb=DEFAULT_FILE_SIZE_MB*1000000;
-char mount[128];
+char mount[256];
 static void usage() {
     printf("Parameters:\n");
     printf("-mount <mount point> ]  The mount point\n");
@@ -271,9 +271,8 @@ int loop_test_process() {
   int fsize=0;
   char * buf;
   int i;
-  
-  getcwd(path,256);  
-  sprintf(fileName, "%s/%s/f%u", path, mount,pid);
+   
+  sprintf(fileName, "%s/f%u", mount,pid);
    
   f = open(fileName, O_RDWR | O_CREAT | O_TRUNC, 0640);
   if (f == -1) {

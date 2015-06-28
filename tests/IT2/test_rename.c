@@ -26,7 +26,7 @@ int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
-char mount[128];
+char mount[256];
 static void usage() {
     printf("Parameters:\n");
     printf("-mount <mount point> ]  The mount point\n");
@@ -149,7 +149,7 @@ int read_directory(char * d,char * f) {
                                     printf("%d %s should contain %s\n", __LINE__,d,f);\
                                     return ret;\
                                   }
-int do_one_test(char * d1,char * d2, char * dbad) {
+int do_one_test(char * d1,char * d2) {
   int ret = 0;
   int i;
   char f1[256];
@@ -192,7 +192,7 @@ int do_one_test(char * d1,char * d2, char * dbad) {
   } 
   CHECK_FILE_IN_DIR(d1, "f1");
       
-  sprintf(f2, "%s/f2", dbad);  
+  sprintf(f2, "/tmp/f2");  
   ret = rename(f1,f2);
   if ((ret >= 0) || (errno != EXDEV)) {
     printf("%d rename file %s to %s %s\n",__LINE__, f1, f2, strerror(errno));
@@ -236,31 +236,28 @@ int do_one_test(char * d1,char * d2, char * dbad) {
 int loop_test_process() {
   char directoryName1[256];
   char directoryName2[256];
-  char path[128];
   pid_t pid = getpid();
   int ret;
   int count = 0;
-
-  getcwd(path,128);  
   
   
   while (1) {
     count ++;
        
-    sprintf(directoryName1, "%s/%s/d1_%u", path, mount, pid);
+    sprintf(directoryName1, "%s/d1_%u", mount, pid);
     ret = mkdir(directoryName1,755);
     if (ret < 0) {
       printf("proc %3d - mkdir(%s) %s\n", myProcId, directoryName1,strerror(errno));  
       return -1;       
     }
-    sprintf(directoryName2, "%s/%s/d2_%u", path, mount,pid);
+    sprintf(directoryName2, "%s/d2_%u", mount,pid);
     ret = mkdir(directoryName2,755);
     if (ret < 0) {
       printf("proc %3d - mkdir(%s) %s\n", myProcId, directoryName2,strerror(errno));  
       return -1;       
     }
 
-    ret = do_one_test(directoryName1,directoryName2,path);   
+    ret = do_one_test(directoryName1,directoryName2);   
     if (ret < 0) {
       printf("proc %3d - test failed in loop %d(%s) %s\n", myProcId, count);  
       return ret;

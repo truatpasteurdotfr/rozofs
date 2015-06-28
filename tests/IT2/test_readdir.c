@@ -26,7 +26,7 @@ int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
-char mount[128];
+char mount[256];
 static void usage() {
     printf("Parameters:\n");
     printf("-mount <mount point> ]  The mount point\n");
@@ -101,13 +101,13 @@ char *argv[];
     }
 }
 remove_file(int nb) {
-  char file[128];
+  char file[256];
 
   sprintf(file, "./f%d", nb);
   unlink(file); 
 }
 create_file(int nb) {
-  char file[128];
+  char file[256];
 
   sprintf(file, "./f%d", nb);
   
@@ -244,13 +244,12 @@ int do_one_test(int count) {
   return 0;
 }
 int loop_test_process() {
-  char directoryName[64];
-  char path[64];
+  char directoryName[256];
   pid_t pid = getpid();
   int ret, res;
        
-  getcwd(path,128);  
-  sprintf(directoryName, "%s/%s/d%u", path, mount,pid);
+  
+  sprintf(directoryName, "/%s/d%u", mount, pid);
   ret = mkdir(directoryName,755);
   if (ret < 0) {
     printf("proc %3d - mkdir(%s) %s\n", myProcId, directoryName,strerror(errno));  
@@ -264,9 +263,9 @@ int loop_test_process() {
           
   res = do_one_test(loop);   
 
-  ret = chdir(path);
+  ret = chdir("/");
   if (ret < 0) {
-    printf("proc %3d - chdir(%s) %s\n", myProcId, path,strerror(errno));  
+    printf("proc %3d - chdir(%s) %s\n", myProcId, "/",strerror(errno));  
     return -1;       
   }    
   ret = rmdir(directoryName);

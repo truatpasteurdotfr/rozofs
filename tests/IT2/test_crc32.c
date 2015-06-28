@@ -379,12 +379,9 @@ int create(char * filename) {
 
 int main(int argc, char **argv) {
   char filename[256];
-  char cwd[64];
-  
-  getcwd(cwd,64);
     
   read_parameters(argc, argv);
-  sprintf(filename,"%s/%s/%s", cwd, mnt, fname);
+  sprintf(filename,"%s/%s", mnt, fname);
    
   switch(action) {
 

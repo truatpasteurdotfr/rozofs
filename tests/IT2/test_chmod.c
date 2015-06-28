@@ -26,7 +26,7 @@ int nbProcess       = DEFAULT_NB_PROCESS;
 int myProcId;
 int loop=DEFAULT_LOOP;
 int * result;
-char mount[128];
+char mount[256];
 static void usage() {
     printf("Parameters:\n");
     printf("-mount <mount point> ]  The mount point\n");
@@ -159,13 +159,11 @@ int do_one_test(char * d, char * f) {
 int loop_test_process() {
   char directoryName1[512];
   char fileName[512];
-  char path[512];
   pid_t pid = getpid();
   int ret;
   int count = 0;
-
-  getcwd(path,128);  
-  sprintf(directoryName1, "%s/%s/d%u", path, mount,pid);
+ 
+  sprintf(directoryName1, "%s/d%u", mount,pid);
   ret = mkdir(directoryName1,755);
   if (ret < 0) {
     printf("proc %3d - mkdir(%s) %s\n", myProcId, directoryName1,strerror(errno));  
