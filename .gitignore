@@ -1,5 +1,9 @@
 *.[oa]
 *.pyc
+TAGS
+tags
+build
+moj128_opt
 
 CMakeFiles
 Makefile
@@ -20,13 +24,7 @@ libconfig_wrap.c
 
 manager/build/
 manager/timestamp
-src/exportd/exportd
-src/rozofsmount/rozofsmount
-src/rprof/rprof
-src/storaged/storaged
-src/storaged/storio
-src/storcli/storcli
-src/rozodebug/rozodebug
+tests/SIMU
 tests/fs_ops/fileop/fileop
 tests/fs_ops/pjd-fstest/fstest
 tests/rpc_throughput
