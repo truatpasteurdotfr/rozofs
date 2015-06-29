@@ -625,6 +625,10 @@ def wr_close_rd_random_close ():
 def rw2 ():
 #___________________________________________________
   return os.system("./IT2/rw2 -loop %s -file %s/%s"%(loop,mnt,tst_file))
+#___________________________________________________
+def write_parallel ():
+#___________________________________________________
+  return os.system("./IT2/write_parallel -file %s/%s"%(mnt,tst_file))
 
 #___________________________________________________
 def prepare_file_to_read(filename,mega):
@@ -1359,7 +1363,7 @@ parser.add_option("-r","--repeat", action="store", type="string", dest="repeat",
 parser.add_option("-m","--mount", action="store", type="string", dest="mount", help="A comma separated list of mount points to test on.")
 
 # Read/write test list
-TST_RW=['read_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_rd_total_close','wr_rd_partial_close','wr_rd_random_close','wr_close_rd_total','wr_close_rd_partial','wr_close_rd_random','wr_close_rd_total_close','wr_close_rd_partial_close','wr_close_rd_random_close']
+TST_RW=['read_parallel','write_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_rd_total_close','wr_rd_partial_close','wr_rd_random_close','wr_close_rd_total','wr_close_rd_partial','wr_close_rd_random','wr_close_rd_total_close','wr_close_rd_partial_close','wr_close_rd_random_close']
 # Basic test list
 TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking','crc32']
 # Rebuild test list
