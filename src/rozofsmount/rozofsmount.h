@@ -345,6 +345,16 @@ static inline int flush_write_ientry(ientry_t * ie) {
     if ((f = ie->write_pending) != NULL) {
 
        ie->write_pending = NULL;
+       
+       /*
+       ** Double check this file descriptor points to this ie
+       */
+       if (f->ie != ie) {
+         char fid_string[64];
+	 uuid_unparse(ie->fid, fid_string);
+         severe("Bad write pending ino %llu FID %s", (long long unsigned int)ie->inode, fid_string);
+	 return 1;
+       }
      
        fi.fh = (unsigned long) f;
        ret = rozofs_asynchronous_flush(&fi);
