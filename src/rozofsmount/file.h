@@ -217,7 +217,7 @@ static inline void rozofs_geo_write_update(file_t *file,off_t off, size_t size)
  @retval 1  on success
  @retval 0  if pending
  */
-
+extern void rozofs_clear_ientry_write_pending(file_t *f);
 static inline int file_close(file_t * f) {
 
      f->closing = 1;
@@ -232,6 +232,13 @@ static inline int file_close(file_t * f) {
        return 0;
      }
      if (rozofs_bugwatch) severe("BUGROZOFSWATCH free_ctx(%p) ",f);
+     
+     /*
+     ** Release write_pending in ientry
+     ** when this file descriptor occupies it.
+     */
+     rozofs_clear_ientry_write_pending(f);
+
      /*
      ** Release all memory allocated
      */

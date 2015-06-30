@@ -104,7 +104,18 @@ int rozofs_trc_index = 0;
 rozofs_trace_t *rozofs_trc_buffer = NULL;  /**< pointer to the trace buffer */
 int rozofs_xattr_disable = 0; /**< assert to one to disable xattr for the exported file system */
 int rozofs_site_number;  /**< site number for geo-replication */
+/**______________________________________________________________________________
+*/
+/**
+*  get the current site number of the rozofsmount client
 
+*/
+void rozofs_clear_ientry_write_pending(file_t *f) {
+  ientry_t *ie = f->ie;     
+  if ((ie != NULL) && (ie->write_pending == f)) {
+    ie->write_pending = NULL;
+  }
+}   
 /**______________________________________________________________________________
 */
 /**
