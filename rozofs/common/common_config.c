@@ -78,6 +78,7 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_INT(storio_slice_number);    
   COMMON_CONFIG_SHOW_BOOL(allow_disk_spin_down);
   COMMON_CONFIG_SHOW_STRING(core_file_directory);
+  COMMON_CONFIG_SHOW_BOOL(numa_aware);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -219,6 +220,11 @@ void common_config_read(char * fname) {
   ** What directory to use for core files
   */   
   COMMON_CONFIG_READ_STRING(core_file_directory);
+
+  /*
+  ** Shall we take into account the NUMA architecture
+  */
+  COMMON_CONFIG_READ_BOOL(numa_aware);
   
   /*
   ** Free lib config working structure

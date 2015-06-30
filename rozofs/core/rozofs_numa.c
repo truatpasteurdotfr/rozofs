@@ -17,6 +17,7 @@
  */
 #include <numa.h>
 #include "rozofs_numa.h"
+#include <rozofs/common/common_config.h>
 
 /**
 *  case of NUMA: allocate the running node according to the
@@ -29,6 +30,10 @@ void rozofs_numa_allocate_node(int instance)
    int configured_nodes;
    int available;
    int bit;
+   
+   if (!common_config.numa_aware) {
+     return;
+   }  
    
    available = numa_available();
    if (available < 0)

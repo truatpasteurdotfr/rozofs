@@ -57,6 +57,7 @@
 #define rozofs_min_storio_slice_number           8
 #define rozofs_max_storio_slice_number    (16*1024)
 
+#define rozofs_default_numa_aware               FALSE
 /*
 ** Common configuration parameters
 */
@@ -71,6 +72,7 @@ typedef struct _common_config_t {
   uint32_t    storio_slice_number;
   uint32_t    allow_disk_spin_down;
   char      * core_file_directory;
+  uint32_t    numa_aware;  
 } common_config_t;
   
 extern common_config_t common_config;
