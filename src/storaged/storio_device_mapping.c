@@ -466,6 +466,7 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   
    @param st: storage context
 */
+uint32_t storio_allocated_device=0;
 uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   int           dev;
   uint64_t    * pBlocks;
@@ -473,6 +474,11 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   uint64_t      val;
   uint64_t      choosen_device = 0;
   int           active;
+  
+  if (common_config.file_distribution_rule == rozofs_file_distribution_round_robin) {
+     __atomic_fetch_add(&storio_allocated_device,1,__ATOMIC_SEQ_CST);  
+    return storio_allocated_device % st->device_number;
+  }
   
   active = st->device_free.active;
   

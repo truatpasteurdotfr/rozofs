@@ -96,25 +96,25 @@ add_executable(rpc_throughput_server
     rpc_throughputsvc.c
 )
 
-add_executable(test_volume
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_service_ports.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_service_ports.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
-    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mproto.h
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoxdr.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoclt.c
-    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mclient.c
-    ${CMAKE_SOURCE_DIR}/src/exportd/volume.h
-    ${CMAKE_SOURCE_DIR}/src/exportd/volume.c
-    test_volume.c
-)
-target_link_libraries(test_volume ${PTHREAD_LIBRARY})
+#add_executable(test_volume
+#    ${CMAKE_SOURCE_DIR}/rozofs/rozofs.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_srv.c
+#    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_service_ports.c
+#    ${CMAKE_SOURCE_DIR}/rozofs/rozofs_service_ports.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/common/xmalloc.c
+#    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/rpc/rpcclt.c
+#    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mproto.h
+#    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoxdr.c
+#    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mprotoclt.c
+#    ${CMAKE_SOURCE_DIR}/rozofs/rpc/mclient.c
+#    ${CMAKE_SOURCE_DIR}/src/exportd/volume.h
+#    ${CMAKE_SOURCE_DIR}/src/exportd/volume.c
+#    test_volume.c
+#)
+#target_link_libraries(test_volume ${PTHREAD_LIBRARY})
 
 
 add_executable(test_sconfig
