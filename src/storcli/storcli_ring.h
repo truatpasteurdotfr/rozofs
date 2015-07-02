@@ -19,18 +19,53 @@
 #ifndef STORCLI_RING_H
 #define STORCLI_RING_H
 
-#define STORCLI_RING_SZ 512
 #define STORCLI_RUN  1
 #define STORCLI_WAIT 0
 
+typedef struct _stc_rng_list_t
+{
+  struct _stc_rng_list_t  *ps;
+  struct _stc_rng_list_t  *pp;
+
+} stc_rng_list_t;
+
+typedef struct _stc_rng_entry_t
+{
+  stc_rng_list_t list;
+   uint64_t bid;       /**< first block index         */
+   uint64_t nb_blks;  /**< number of blocks                   */
+   void   *obj_ptr;   /**< object context pointer             */
+   uint8_t opcode;    /**< opcode associated with the request */
+   uint8_t state;     /**< 0: RUN/1:WAIT */
+} stc_rng_entry_t;
+
+
+
+#define STC_RNG_HASH_SZ 16
+
+#define STC_RNG_HASH_ENTRIES 128
+#define STC_RNG_HASH_ENTRIES_WORD (STC_RNG_HASH_ENTRIES/(sizeof(uint32_t)*8))
+typedef struct stc_rng_hash_entry_t
+{
+    uint32_t hash_bit[STC_RNG_HASH_ENTRIES_WORD];
+    fid_t    fid_table[STC_RNG_HASH_ENTRIES];
+    stc_rng_list_t  list_table[STC_RNG_HASH_ENTRIES];
+} stc_rng_hash_entry_t;
+
+
+
 extern uint64_t stc_rng_collision_count;
+extern uint64_t stc_rng_full_count;
+extern uint64_t stc_rng_hash_collision_count;
 extern uint64_t stc_rng_submit_count;
 extern uint64_t stc_rng_parallel_count;
-extern uint16_t stc_rng_rd_idx;
-extern uint16_t stc_rng_wr_idx;
+extern int      stc_rng_serialize;
+extern int      stc_rng_max_count; 
 
-extern int      stc_rng_serialize; 
+extern stc_rng_hash_entry_t *stc_ring_tb_p[];
 
+
+void *stc_rng_get_entry_from_obj_ctx(void *p);
 /*
 **____________________________________________________________
 */
@@ -81,13 +116,10 @@ int stc_rng_insert(void *obj_ptr,uint8_t opcode, fid_t fid,uint64_t bid,uint64_t
    @retval 0 on success
    @retval < 0 on error
 */
-int stc_rng_release_entry(int entry_idx, void **next_running_p,uint8_t *opcode_p);
+int stc_rng_release_entry(int entry_idx, void **next_running_p,uint8_t *opcode_p,stc_rng_entry_t *cur_p);
 
 
 static inline int stc_rng_is_full() {
-    uint16_t next_wr_idx = (stc_rng_wr_idx + 1) % STORCLI_RING_SZ;
-    if (next_wr_idx == stc_rng_rd_idx)
-        return 1;
     return 0;
 }
 

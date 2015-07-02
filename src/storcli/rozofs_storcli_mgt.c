@@ -86,6 +86,7 @@ void rozofs_storcli_debug_show(uint32_t tcpRef, void *bufRef) {
   pChar += sprintf(pChar,"FID in parallel: %10llu\n",(unsigned long long int)stc_rng_parallel_count);
   pChar += sprintf(pChar,"buf. depletion : %10llu\n",(unsigned long long int)storcli_buf_depletion_count);
   pChar += sprintf(pChar,"ring full      : %10llu\n",(unsigned long long int)storcli_rng_full_count);
+  pChar += sprintf(pChar,"ring hash coll : %10llu\n",(unsigned long long int)stc_rng_hash_collision_count);
   pChar += sprintf(pChar,"SEND           : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_SEND]);  
   pChar += sprintf(pChar,"SEND_ERR       : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_SEND_ERROR]);  
   pChar += sprintf(pChar,"RECV_OK        : %10llu\n",(unsigned long long int)rozofs_storcli_stats[ROZOFS_STORCLI_RECV_OK]);  
@@ -188,6 +189,22 @@ void rozofs_storcli_debug_init() {
 /*
 **  END OF DEBUG
 */
+/*
+*________________________________________________________
+*/
+/**
+    Get the pointer to the ring entry located in the storcli working context
+    
+    @param p: pointer to the working context
+    
+    @retval pointer to the ring entry 
+*/
+void *stc_rng_get_entry_from_obj_ctx(void *p)
+{
+   rozofs_storcli_ctx_t *bid_p = (rozofs_storcli_ctx_t*)p;
+   return &bid_p->ring;
+}
+
 
 static inline int fid_cmp(void *key1, void *key2) {
     return memcmp(key1, key2, sizeof (fid_t));
@@ -672,7 +689,7 @@ void rozofs_storcli_release_context(rozofs_storcli_ctx_t *ctx_p)
        uint8_t opcode;
 
        if (ctx_p->sched_idx == -1) return;
-       stc_rng_release_entry(ctx_p->sched_idx,(void**) &next_p,&opcode);
+       stc_rng_release_entry(ctx_p->sched_idx,(void**) &next_p,&opcode,&ctx_p->ring);
        if ( next_p != NULL)
        {
            switch (next_p->opcode_key)

@@ -209,6 +209,7 @@ typedef struct _rozofs_storcli_ctx_t
   fid_t               fid_key;       /**< fid value extracted from the read or write request used as a key for the hash table */
   uint32_t            opcode_key;   /**< opcode associated with the request, when the key is not used the value is STORCLI_NULL */
   int       sched_idx;            /**< index within the scheduler table */
+  stc_rng_entry_t ring;           /**< ring buffer entry */
   void      *user_param;           /**< pointer to an opaque user param: used for internal read only        */  
   void      *recv_buf;        /**< pointer to the receive buffer that carries the request        */
   uint32_t   socketRef;       /**< reference of the socket on which the answser must be sent     */
