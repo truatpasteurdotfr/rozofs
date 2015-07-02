@@ -31,6 +31,7 @@
 #include <rozofs/common/log.h>
 #include <rozofs/common/list.h>
 #include <rozofs/common/xmalloc.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rpc/export_profiler.h>
 #include <rozofs/rpc/epproto.h>
 #include <rozofs/rpc/mclient.h>
@@ -645,11 +646,21 @@ int volume_distribute(volume_t *volume,int site_number, cid_t *cid, sid_t *sids)
     cluster_distribute = &volume->cluster_distribute[volume->active_list];
     
     list_for_each_forward(p, cluster_distribute) {
+    
         cluster_t *next_cluster;
         cluster_t *cluster = list_entry(p, cluster_t, list);
+
         if (do_cluster_distribute(volume->layout,site_idx, cluster, sids) == 0) {
+
             *cid = cluster->cid;
             xerrno = 0;
+    
+	    if (common_config.file_distribution_rule == rozofs_file_distribution_round_robin) {
+	      /* In round robin mode put the cluster to the end of the list */
+	      list_remove(&cluster->list);
+	      list_push_back(cluster_distribute, &cluster->list);
+	      break;
+	    }
 	    
 	    /*
 	    ** Decrease the estimated free size of the cluster

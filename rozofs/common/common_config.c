@@ -31,7 +31,7 @@ common_config_t common_config;
   pChar += rozofs_string_padded_append(pChar, 24, rozofs_left_alignment, #val);\
   if (common_config.val) pChar += rozofs_string_append(pChar, ": True  ");\
   else                   pChar += rozofs_string_append(pChar, ": False ");\
-  if (common_config.val == rozofs_default_##val) {\
+  if (common_config.val == rozofs_cc_def_##val) {\
     pChar += rozofs_string_append(pChar, " \t(default)");\
   }\
   pChar += rozofs_eol(pChar);\
@@ -44,7 +44,7 @@ common_config_t common_config;
   *pChar++ = '\"';\
   if (common_config.val!=NULL) pChar += rozofs_string_append(pChar, common_config.val);\
   *pChar++ = '\"';\
-  if ((char*)common_config.val == (char*)rozofs_default_##val) {\
+  if ((char*)common_config.val == (char*)rozofs_cc_def_##val) {\
     pChar += rozofs_string_append(pChar, " \t(default)");\
   }\
   pChar += rozofs_eol(pChar);\
@@ -54,7 +54,7 @@ common_config_t common_config;
   pChar += rozofs_string_padded_append(pChar, 24, rozofs_left_alignment, #val);\
   pChar += rozofs_string_append(pChar, ": ");\
   pChar += rozofs_i32_append(pChar, common_config.val);\
-  if (common_config.val == rozofs_default_##val) {\
+  if (common_config.val == rozofs_cc_def_##val) {\
     pChar += rozofs_string_append(pChar, " \t(default)");\
   }\
   pChar += rozofs_eol(pChar);\
@@ -79,6 +79,7 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_BOOL(allow_disk_spin_down);
   COMMON_CONFIG_SHOW_STRING(core_file_directory);
   COMMON_CONFIG_SHOW_BOOL(numa_aware);
+  COMMON_CONFIG_SHOW_INT(file_distribution_rule);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -93,7 +94,7 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
 
 int  boolval;  
 #define COMMON_CONFIG_READ_BOOL(val)  {\
-  common_config.val = rozofs_default_##val;\
+  common_config.val = rozofs_cc_def_##val;\
   if (config_lookup_bool(&cfg, #val, &boolval)) { \
     common_config.val = boolval;\
   }\
@@ -108,13 +109,13 @@ long int          intval;
 #endif
 
 #define COMMON_CONFIG_READ_INT(val)  {\
-  common_config.val = rozofs_default_##val;\
+  common_config.val = rozofs_cc_def_##val;\
   if (config_lookup_int(&cfg, #val, &intval)) { \
-    if (intval<rozofs_min_##val) {\
-      common_config.val = rozofs_min_##val;\
+    if (intval<rozofs_cc_min_##val) {\
+      common_config.val = rozofs_cc_min_##val;\
     }\
-    else if (intval>rozofs_max_##val) { \
-      common_config.val = rozofs_max_##val;\
+    else if (intval>rozofs_cc_max_##val) { \
+      common_config.val = rozofs_cc_max_##val;\
     }\
     else {\
       common_config.val = intval;\
@@ -124,7 +125,7 @@ long int          intval;
 
 const char * charval;
 #define COMMON_CONFIG_READ_STRING(val)  {\
-  common_config.val = rozofs_default_##val;\
+  common_config.val = rozofs_cc_def_##val;\
   if (config_lookup_string(&cfg, #val, &charval)) {\
     common_config.val = strdup(charval);\
   }\
@@ -225,6 +226,11 @@ void common_config_read(char * fname) {
   ** Shall we take into account the NUMA architecture
   */
   COMMON_CONFIG_READ_BOOL(numa_aware);
+
+  /*
+  ** Read allocation rule 
+  */
+  COMMON_CONFIG_READ_INT(file_distribution_rule);  
   
   /*
   ** Free lib config working structure

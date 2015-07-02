@@ -442,6 +442,11 @@ static void *balance_volume_thread(void *v) {
     struct timespec ts = {5, 0};
 
     uma_dbg_thread_add_self("Volume balance");
+    
+    if (common_config.file_distribution_rule == rozofs_file_distribution_round_robin) {
+      /* In round robin mode less frequent polling is needed */
+      ts.tv_sec = 12;
+    }  
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 

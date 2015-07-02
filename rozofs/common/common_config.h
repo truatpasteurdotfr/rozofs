@@ -30,38 +30,51 @@
 /*
 ** Default parameter values
 */
-#define rozofs_default_trashed_file_per_run   500
-#define rozofs_min_trashed_file_per_run        50
-#define rozofs_max_trashed_file_per_run     50000
+#define rozofs_cc_def_trashed_file_per_run     500
+#define rozofs_cc_min_trashed_file_per_run     50
+#define rozofs_cc_max_trashed_file_per_run     50000
 
-#define rozofs_default_nb_core_file             1
-#define rozofs_min_nb_core_file                 0
-#define rozofs_max_nb_core_file                 4
+#define rozofs_cc_def_nb_core_file             1
+#define rozofs_cc_min_nb_core_file             0
+#define rozofs_cc_max_nb_core_file             8
 
-#define rozofs_default_nb_disk_thread           3
-#define rozofs_min_nb_disk_thread               2
-#define rozofs_max_nb_disk_thread              16
+#define rozofs_cc_def_nb_disk_thread           4
+#define rozofs_cc_min_nb_disk_thread           2
+#define rozofs_cc_max_nb_disk_thread           16
 
-#define rozofs_default_storio_multiple_mode     TRUE
-#define rozofs_default_crc32c_check             TRUE
-#define rozofs_default_crc32c_generate          TRUE
-#define rozofs_default_crc32c_hw_forced         FALSE
+#define rozofs_cc_def_storio_multiple_mode     TRUE
 
-#define rozofs_default_storio_slice_number    1024
-#define rozofs_min_storio_slice_number           8
-#define rozofs_max_storio_slice_number    (16*1024)
+#define rozofs_cc_def_crc32c_check             TRUE
 
-#define rozofs_default_allow_disk_spin_down     FALSE
+#define rozofs_cc_def_crc32c_generate          TRUE
 
-#define rozofs_default_core_file_directory    "/var/run/rozofs_core"
-#define rozofs_min_storio_slice_number           8
-#define rozofs_max_storio_slice_number    (16*1024)
+#define rozofs_cc_def_crc32c_hw_forced         FALSE
 
-#define rozofs_default_numa_aware               FALSE
+#define rozofs_cc_def_storio_slice_number      1024
+#define rozofs_cc_min_storio_slice_number      8
+#define rozofs_cc_max_storio_slice_number      (32*1024)
+
+#define rozofs_cc_def_allow_disk_spin_down     FALSE
+
+#define rozofs_cc_def_core_file_directory      "/var/run/rozofs_core"
+
+#define rozofs_cc_def_numa_aware               FALSE
+
+typedef enum _rozofs_file_distribution_rule_e {
+  rozofs_file_distribution_size_balancing,
+  rozofs_file_distribution_round_robin,
+  
+  rozofs_file_distribution_max
+} rozofs_file_distribution_rule_e;
+#define rozofs_cc_def_file_distribution_rule    rozofs_file_distribution_size_balancing
+#define rozofs_cc_min_file_distribution_rule    0
+#define rozofs_cc_max_file_distribution_rule    (rozofs_file_distribution_max-1)
+
+
 /*
 ** Common configuration parameters
 */
-typedef struct _common_config_t {
+typedef struct _common_config_t { 
   uint32_t    nb_core_file;
   uint32_t    nb_disk_thread; 
   uint32_t    storio_multiple_mode; 
@@ -72,7 +85,8 @@ typedef struct _common_config_t {
   uint32_t    storio_slice_number;
   uint32_t    allow_disk_spin_down;
   char      * core_file_directory;
-  uint32_t    numa_aware;  
+  uint32_t    numa_aware;     
+  uint32_t    file_distribution_rule;
 } common_config_t;
   
 extern common_config_t common_config;
