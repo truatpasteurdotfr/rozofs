@@ -58,7 +58,7 @@ extern "C" {
 #define STORIO_DEVICE_MAPPING_LVL0_SZ  (1 << STORIO_DEVICE_MAPPING_LVL0_SZ_POWER_OF_2) 
 #define STORIO_DEVICE_MAPPING_LVL0_MASK  (STORIO_DEVICE_MAPPING_LVL0_SZ-1)
 
-#define STORIO_DEVICE_PERIOD    3
+extern uint32_t STORIO_DEVICE_PERIOD;
 
 void storio_clear_faulty_fid();
 int storio_device_mapping_monitor_thread_start();

@@ -311,25 +311,34 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
       pChar += rozofs_string_append(pChar," failures)\n");
     }  
       
-    pChar += rozofs_string_append(pChar,"\n    device | status | failures |    blocks    |    errors    | diagnostic\n");
-    pChar += rozofs_string_append(pChar,"    _______|________|__________|______________|______________|___________________\n");
+    pChar += rozofs_string_append(pChar,"\n    device | status | failures |    blocks    |    errors    | diagnostic      |  monitor | inactive | last activity\n");
+    pChar += rozofs_string_append(pChar,"    _______|________|__________|______________|______________|_________________|__________|__________|_______________\n");
 	     
     for (dev = 0; dev < st->device_number; dev++) {
+      storage_device_ctx_t * pDev = &st->device_ctx[dev];
+      
       pChar += rozofs_string_append(pChar,"   ");
       pChar += rozofs_u32_padded_append(pChar, 7, rozofs_right_alignment, dev);
       pChar += rozofs_string_append(pChar," | ");
-      pChar += rozofs_string_padded_append(pChar, 7, rozofs_left_alignment, storage_device_status2string(st->device_ctx[dev].status));
+      pChar += rozofs_string_padded_append(pChar, 7, rozofs_left_alignment, storage_device_status2string(pDev->status));
       pChar += rozofs_string_append(pChar,"|");
-      pChar += rozofs_u32_padded_append(pChar, 9, rozofs_right_alignment, st->device_ctx[dev].failure);
+      pChar += rozofs_u32_padded_append(pChar, 9, rozofs_right_alignment, pDev->failure);
       pChar += rozofs_string_append(pChar," |");
       pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, st->device_free.blocks[st->device_free.active][dev]);
       pChar += rozofs_string_append(pChar," |");
       pChar += rozofs_u64_padded_append(pChar, 13, rozofs_right_alignment, st->device_errors.total[dev]);
       pChar += rozofs_string_append(pChar," | ");
-      pChar += rozofs_string_append(pChar, storage_device_diagnostic2String(st->device_ctx[dev].diagnostic));
+      pChar += rozofs_string_padded_append(pChar, 15, rozofs_left_alignment, storage_device_diagnostic2String(pDev->diagnostic));      
+      pChar += rozofs_string_append(pChar," |");
+      pChar += rozofs_u64_padded_append(pChar, 9, rozofs_right_alignment, pDev->monitor_run);      
+      pChar += rozofs_string_append(pChar," |");
+      pChar += rozofs_u64_padded_append(pChar, 9, rozofs_right_alignment, pDev->monitor_no_activity);      
+      pChar += rozofs_string_append(pChar," | ");
+      pChar += rozofs_u64_padded_append(pChar, 9, rozofs_right_alignment, time(NULL)-pDev->last_activity_time);      
+       
       pChar += rozofs_eol(pChar);
 
-      if (st->device_ctx[dev].status != storage_device_status_is) {
+      if (pDev->status != storage_device_status_is) {
 	faulty_devices[fault++] = dev;
       }  			 
     }
@@ -392,8 +401,6 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     pChar += rozofs_eol(pChar);
     pChar += rozofs_string_append(pChar,"    !!! Check for errors in \"log show\" rozodiag topic\n");
   }  
-  
-  pChar = storio_device_monitor_show(pChar);
   
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         

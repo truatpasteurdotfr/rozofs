@@ -60,7 +60,6 @@ storio_throughput_counter_t storio_read_throughput[STORIO_THROUGHPUT_COUNTERS_NB
 storio_throughput_counter_t storio_write_throughput[STORIO_THROUGHPUT_COUNTERS_NB];
 int storio_throughput_enable = 0;
 
-void storage_set_sid_modified(cid_t cid, sid_t sid) ;
 
 /*_______________________________________________________________________
 * Update a read thoughput counter
@@ -557,12 +556,6 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
     }  
 
     case STORIO_DISK_THREAD_WRITE:{
-      /*
-      ** Tell the storio monitoring thread that some changes occured on disk
-      */
-      sp_write_arg_no_bins_t * req = (sp_write_arg_no_bins_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      storage_set_sid_modified(req->cid, req->sid);
-      
       STOP_PROFILING_IO(write,msg->size);
       update_write_detailed_counters(toc - tic);  
       storio_update_write_counter(tv.tv_sec,msg->size);                      
@@ -571,24 +564,12 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
         
     case STORIO_DISK_THREAD_TRUNCATE:
     {
-      /*
-      ** Tell the storio monitoring thread that some changes occured on disk
-      */
-      sp_truncate_arg_no_bins_t * req = (sp_truncate_arg_no_bins_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      storage_set_sid_modified(req->cid, req->sid);
-          
       STOP_PROFILING(truncate);
       break;
     }  
        
     case STORIO_DISK_THREAD_WRITE_REPAIR:
-    {
-      /*
-      ** Tell the storio monitoring thread that some changes occured on disk
-      */
-      sp_write_repair_arg_no_bins_t * req = (sp_write_repair_arg_no_bins_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      storage_set_sid_modified(req->cid, req->sid);
-          
+    {  
       STOP_PROFILING_IO(repair,msg->size);
       update_write_detailed_counters(toc - tic); 
       break;
@@ -596,24 +577,12 @@ void af_unix_disk_response(storio_disk_thread_msg_t *msg)
           
     case STORIO_DISK_THREAD_REMOVE:
     {
-      /*
-      ** Tell the storio monitoring thread that some changes occured on disk
-      */
-      sp_remove_arg_t * req = (sp_remove_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      storage_set_sid_modified(req->cid, req->sid);
-    
       STOP_PROFILING(remove);
       break; 
     }  
           
     case STORIO_DISK_THREAD_REMOVE_CHUNK:
     {
-      /*
-      ** Tell the storio monitoring thread that some changes occured on disk
-      */
-      sp_remove_chunk_arg_t * req = (sp_remove_chunk_arg_t *) ruc_buf_getPayload(rpcCtx->decoded_arg);
-      storage_set_sid_modified(req->cid, req->sid);
-
       STOP_PROFILING(remove_chunk);
       break;    
     }  

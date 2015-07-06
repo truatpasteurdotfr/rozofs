@@ -45,42 +45,21 @@
 
 extern char * pHostArray[];
 
-uint64_t      storio_device_monitor_nb_run=0;
-uint64_t      storio_device_monitor_no_activity=0;
-time_t        storio_device_monitor_last_activity;
+struct blkio_info {
+	unsigned int rd_ios;	/* Read I/O operations */
+	unsigned int rd_merges;	/* Reads merged */
+	unsigned long long rd_sectors; /* Sectors read */
+	unsigned int rd_ticks;	/* Time in queue + service for read */
+	unsigned int wr_ios;	/* Write I/O operations */
+	unsigned int wr_merges;	/* Writes merged */
+	unsigned long long wr_sectors; /* Sectors written */
+	unsigned int wr_ticks;	/* Time in queue + service for write */
+	unsigned int ticks;	/* Time of requests in queue */
+	unsigned int aveq;	/* Average queue length */
+};
 
+uint32_t STORIO_DEVICE_PERIOD=3;
 
-/*
-**______________________________________________________________________________
-*/
-/**
-*  Rozodiag monitoring thread show
-
-*/
-char * storio_device_monitor_show(char * pChar)  {
-
-
-  pChar += rozofs_string_append(pChar,"\ndevice monitoring\n  period         : ");
-  pChar += rozofs_u64_append(pChar,STORIO_DEVICE_PERIOD);  
-
-  pChar += rozofs_string_append(pChar," sec\n  nb run         : ");
-  pChar += rozofs_u64_append(pChar,storio_device_monitor_nb_run);
-
-  pChar += rozofs_string_append(pChar,"\n  no activity    : ");
-  pChar += rozofs_u64_append(pChar,storio_device_monitor_no_activity);
-
-  pChar += rozofs_string_append(pChar,"\n  last activity  : ");
-  pChar += rozofs_u64_append(pChar,time(NULL)-storio_device_monitor_last_activity);
-
-  if (common_config.allow_disk_spin_down) {
-    pChar += rozofs_string_append(pChar," sec\n  disk spin down : allowed\n");
-  }
-  else {
-    pChar += rozofs_string_append(pChar," sec\n  disk spin down : not configured\n");
-  }    
-
-  return pChar;    
-}
 
 
 /*_____________________________________
@@ -208,9 +187,139 @@ int storio_device_relocate(storage_t * st, int dev) {
 }
 /*
 **____________________________________________________
+** Read linux disk stat file
+** 
+*/
+char disk_stat_buffer[1024*64];
+void storage_read_disk_stats(void) {
+  int                   iofd;
+  
+  disk_stat_buffer[0] = 0;
+  iofd = open("/proc/diskstats", O_RDONLY);
+  if (iofd) {
+    if(pread(iofd, disk_stat_buffer,sizeof(disk_stat_buffer), 0)){}
+  }  
+  close(iofd);
+}
+/*
+**____________________________________________________
+** Get the device activity on the last period
+**
+** @param pDev    The pointer to the device context
+**
+** @retval 0 on success, -1 when this device has not been found 
+*/
+int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_ctx_t *pDev) {
+  char            * p = disk_stat_buffer;
+  int               major,minor;
+  struct blkio_info blkio;
+
+  while (1) {
+  
+    sscanf(p, "%4d %4d %*s %u %u %llu %u %u %u %llu %u %*u %u %u",
+	   &major, &minor,
+	   &blkio.rd_ios, &blkio.rd_merges,
+	   &blkio.rd_sectors, &blkio.rd_ticks, 
+	   &blkio.wr_ios, &blkio.wr_merges,
+	   &blkio.wr_sectors, &blkio.wr_ticks,
+	   &blkio.ticks, &blkio.aveq);
+	   
+    if ((pDev->major == major) && (pDev->minor == minor)) {
+
+      /*
+      ** % of disk usage during the last period
+      */    
+      if (pDev->ticks == 0) {
+        pDev->usage = 0;
+      }
+      else {
+        pDev->usage = (blkio.ticks-pDev->ticks) / (STORIO_DEVICE_PERIOD*10);
+      }	
+      
+      if (pDev->usage>= 50) {
+        info("cid %d sid %d dev %d usage is %d %c",
+	      cid, sid, dev, pDev->usage,'%');
+      }
+      /* Save current ticks for next run */
+      pDev->ticks = blkio.ticks;
+
+      /* Number of read during the last period */
+      pDev->rdDelta     = blkio.rd_ios - pDev->rdCount;
+      /* Save total read count for next run */
+      pDev->rdCount     = blkio.rd_ios;
+      /* Duration of read during the last period */
+      uint32_t rdTicks  = blkio.rd_ticks - pDev->rdTicks;
+      /* Save total read duration for next run */      
+      pDev->rdTicks     = blkio.rd_ticks;
+      /* Average read duration in usec */
+      pDev->rdAvgUs     = pDev->rdDelta ? rdTicks*1000/pDev->rdDelta : 0;
+      if (pDev->rdAvgUs>= 10000) {
+        info("cid %d sid %d dev %d read average is %d us",
+	      cid, sid, dev, pDev->rdAvgUs);
+      }
+      
+      /* Number of write during the last period */
+      pDev->wrDelta     = blkio.wr_ios - pDev->wrCount;
+      /* Save total write count for next run */
+      pDev->wrCount     = blkio.wr_ios;
+      /* Duration of write during the last period */      
+      uint32_t wrTicks  = blkio.wr_ticks - pDev->wrTicks;
+      /* Save total write duration for next run */            
+      pDev->wrTicks     = blkio.wr_ticks;
+      /* Average write duration in usec */      
+      pDev->wrAvgUs     = pDev->wrDelta ? wrTicks*1000/pDev->wrDelta : 0;
+      if (pDev->wrAvgUs>= 10000) {
+        info("cid %d sid %d dev %d write average is %d us",
+	      cid, sid, dev, pDev->wrAvgUs);
+      }
+      return 0;
+    }
+    
+    /* Next line */
+    while((*p!=0)&&(*p!='\n')) p++;
+    if (*p==0) return -1;
+    p++;
+  }  
+  return -1;
+}  
+/*
+**____________________________________________________
+** Get the major and minor of a storage device
+** 
+** @param st      The storage context
+** @param dev     The device number within this storage
+**
+** @retval 0 on success, -1 on error
+*/
+static inline int storio_device_get_major_and_minor(storage_t * st, int dev) {
+  char          path[FILENAME_MAX];
+  char        * pChar = path;
+  struct stat   buf;
+  
+  pChar += rozofs_string_append(pChar, st->root);
+  *pChar++ ='/';
+  pChar += rozofs_u32_append(pChar, dev); 
+
+  if (stat(path, &buf)==0) {
+    st->device_ctx[dev].major = major(buf.st_dev);
+    st->device_ctx[dev].minor = minor(buf.st_dev);  
+    return 0;  
+  }
+  return -1;
+}	  
+/*
+**____________________________________________________
 ** Check whether the access to the device is still granted
 ** and get the number of free blocks
-** 
+**
+** @param root   The storage root path
+** @param dev    The device number
+** @param free   The free space in bytes on this device
+** @param size   The size of the device
+** @param bs     The block size of the FS of the device
+** @param diagnostic A diagnostic of the problem on the device
+**
+** @retval -1 if device is failed, 0 when device is OK
 */
 static inline int storio_device_monitor_get_free_space(char *root, int dev, uint64_t * free, uint64_t * size, uint64_t * bs, storage_device_diagnostic_e * diagnostic) {
   struct statfs sfs;
@@ -308,9 +417,10 @@ static inline uint64_t storio_device_monitor_error(storage_t * st) {
 }
 /*
 **____________________________________________________
-**  Device monotoring 
+**  Device monitoring 
 ** 
-**  @param param: Not significant
+**  @param allow_disk_spin_down  whether disk spin down 
+**                               should be considered
 */
 void storio_device_monitor(uint32_t allow_disk_spin_down) {
   int           dev;
@@ -323,16 +433,15 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
   uint64_t      bfree=0;
   uint64_t      bmax=0;
   uint64_t      bsz=0;   
-  uint64_t      nochange=0;    
-  uint64_t      sameStatus=0;   
+  uint64_t      sameStatus=0;
+  int           activity;
+     
   /*
   ** Loop on every storage managed by this storio
   */ 
   st = NULL;
   while ((st = storaged_next(st)) != NULL) {
   
-    storio_device_monitor_nb_run++;
-
     /*
     ** Resolve the share memory address
     */
@@ -374,24 +483,12 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
     */
     passive = 1 - st->device_free.active; 
 
-    /*
-    ** When disk spin down is allowed, do not try to access the disks
-    ** to update the status if no modification has occured on any device.
-    */
-    if (share!=NULL) {
-      if (share->modified==0) {
-        if (allow_disk_spin_down) {
-          nochange = 1;
-        }
-	storio_device_monitor_no_activity++;
-      }
-      else {
-        share->modified = 0;
-        storio_device_monitor_last_activity = time(NULL);
-      }	
-    } 
 
-  
+    /*
+    ** Read system disk stat file
+    */
+    storage_read_disk_stats();  
+    
 	  
     for (dev = 0; dev < st->device_number; dev++) {
 
@@ -400,6 +497,34 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
       bmax  = 0;
       sameStatus = 0;
 
+      /*
+      ** Get major and minor of the device if not yet done
+      */
+      if (pDev->major == 0) {
+	if (storio_device_get_major_and_minor(st,dev)==0) {
+	  if (share) {
+	    share->dev[dev].major = pDev->major;
+	    share->dev[dev].minor = pDev->minor;
+	  }
+	}
+      }
+      
+      /*
+      ** Read device usage from Linux disk statistics
+      */
+      storage_get_device_usage(st->cid,st->sid,dev,pDev);
+
+      pDev->monitor_run++;
+      if ((pDev->wrDelta==0) && (pDev->rdDelta==0)) {
+        activity = 0;
+        pDev->monitor_no_activity++;
+      }
+      else {
+        activity = 1;
+	pDev->last_activity_time = time(NULL);
+      }		
+
+     
       /*
       ** Check whether re-init is required
       */
@@ -450,11 +575,17 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
 	  if (st->device_errors.total[dev] != 0 ) {
 	    pDev->status = storage_device_status_degraded;
 	  }
-	  
-	  if (nochange) {
-	    sameStatus = 1;
-	    break;
-	  }
+
+	  /*
+	  ** When disk spin down is allowed, do not try to access the disks
+	  ** to update the status if no access has occured on the disk.
+	  */
+	  if (allow_disk_spin_down) {
+	    if (activity==0) {
+              sameStatus = 1;
+	      break;
+            }
+	  } 	  
 	  
 	  if (storio_device_monitor_get_free_space(st->root, dev, &bfree, &bmax, &bsz, &pDev->diagnostic) != 0) {
 	    /*
@@ -473,11 +604,17 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
 	  if (st->device_errors.total[dev] == 0 ) {
 	    pDev->status = storage_device_status_is;
 	  }
-
-	  if (nochange) {
-	    sameStatus = 1;	  
-	    break;
-	  }
+	  
+	  /*
+	  ** When disk spin down is allowed, do not try to access the disks
+	  ** to update the status if no access has occured on the disk.
+	  */
+	  if (allow_disk_spin_down) {
+	    if (activity==0) {
+              sameStatus = 1;
+	      break;
+            }
+	  } 	
 	   
 	  /*
 	  ** Check whether the access to the device is still granted
@@ -550,19 +687,25 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
       if (sameStatus) {
         int active = 1 - passive;
 	st->device_free.blocks[passive][dev] = st->device_free.blocks[active][dev]; 
-	continue; 
+      }
+      else {
+        /*
+        ** The device has been accessed and checked
+        */
+        st->device_free.blocks[passive][dev] = bfree;  
       }
       
-      /*
-      ** The device has been accessed and checked
-      */
-      st->device_free.blocks[passive][dev] = bfree;  
-
       if (share) {
 	share->dev[dev].status     = pDev->status;
 	share->dev[dev].diagnostic = pDev->diagnostic;
 	share->dev[dev].free       = bfree * bsz;
 	share->dev[dev].size       = bmax  * bsz;
+	share->dev[dev].usage      = pDev->usage;
+	share->dev[dev].rdNb       = pDev->rdDelta;
+	share->dev[dev].rdUs       = pDev->rdAvgUs;
+	share->dev[dev].wrNb       = pDev->wrDelta;
+	share->dev[dev].wrUs       = pDev->wrAvgUs;
+	share->dev[dev].lastActivityDelay = time(NULL)-pDev->last_activity_time;
       }
     } 
 
@@ -604,11 +747,17 @@ int storio_device_mapping_monitor_thread_start() {
   pthread_t                  thrdId;
 
   /*
+  ** Set the polling periodicity in seconds
+  */
+  if (common_config.file_distribution_rule == rozofs_file_distribution_round_robin) {
+    STORIO_DEVICE_PERIOD = 10;
+  }
+
+  /*
   ** 1rst call to monitoring function, and access to the disk 
   ** to get the disk free space 
   */
-  storio_device_monitor(FALSE);
-  storio_device_monitor_last_activity = time(NULL);
+  storio_device_monitor(FALSE);;
 
   /*
   ** Start monitoring thread

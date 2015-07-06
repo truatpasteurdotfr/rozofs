@@ -63,26 +63,6 @@ static inline storage_t * get_storage(cid_t cid, sid_t sid, uint32_t cnx_id) {
   return st;
 }
 
-/*
-**_________________________________________________________________
-** Set the modified indicator in the share memory for a given storio
-** This indicator tells the storio monitoring thread that some
-** modification has occured recently on some disk
-**
-** @param st         The storage context
-**
-*/
-static inline void storage_set_storage_modified(storage_t * st) {
-  storage_share_t * share;
-  
-  /*
-  ** Resolve the share memory address
-  */
-  share = storage_get_share(st);
-  if (share != NULL) {
-    share->modified = 1;
-  }   
-}
 
 
 DECLARE_PROFILING(spp_profiler_t);
@@ -169,10 +149,6 @@ void mp_remove_1_svc_nb(void * pt_req,
 
     ret->status = MP_SUCCESS;
 
-    /*
-    ** Let's tell to the storio monitoring thread that some changes occured on some disk
-    */
-    storage_set_storage_modified(st);    
     
 out:
     STOP_PROFILING(remove);
@@ -204,10 +180,6 @@ void mp_remove2_1_svc_nb(void * pt_req,
 
     ret->status = MP_SUCCESS;
     
-    /*
-    ** Let's tell to the storio monitoring thread that some changes occured on some disk
-    */
-    storage_set_storage_modified(st);
      
 out:
     STOP_PROFILING(remove);

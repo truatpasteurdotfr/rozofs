@@ -182,40 +182,6 @@ storage_t *storaged_next(storage_t * st) {
     return NULL;
 }
 
-
-
-/*
-**_________________________________________________________________
-** Set the modified indicator in the share memory for a given storio
-** This indicator tells the storio monitoring thread that some
-** modification has occured recently on some disk.
-**
-** @param cid         The storage cid
-** @param sid         The storage sid
-**
-*/
-void storage_set_sid_modified(cid_t cid, sid_t sid) {
-  storage_share_t * share;
-  storage_t * st;
-    
-  /*
-  ** Lookup for the storaage from its cid/sid
-  */
-  st = storaged_lookup(cid, sid);
-  if (st == NULL) {
-    severe("No such cid/sid %d/%d",cid,sid);
-    return;
-  }
-
-  /*
-  ** Resolve the share memory address
-  */
-  share = storage_get_share(st); 
-  if (share != NULL) {
-    share->modified = 1;
-  }  
-  
-}
 char storage_process_filename[NAME_MAX];
 
 /**

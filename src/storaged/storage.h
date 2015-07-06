@@ -152,6 +152,14 @@ static inline char * storage_device_diagnostic2String(storage_device_diagnostic_
 ** Substructure per device of a storio
 */
 typedef struct _storage_device_info_t {
+  int                        major;
+  int                        minor;
+  uint32_t                   usage;
+  uint32_t                   rdNb;
+  uint32_t                   rdUs;
+  uint32_t                   wrNb;
+  uint32_t                   wrUs;  
+  uint32_t                   lastActivityDelay;
   storage_device_status_e    status;
   storage_device_diagnostic_e diagnostic;
   uint64_t                   free;
@@ -162,10 +170,6 @@ typedef struct _storage_device_info_t {
 ** The structure
 */
 typedef struct _storage_share_t {
-  /* is set each time a storio disk thread read/write/truncate a file,
-  ** or each time the storaged deletes a file. The storio monitor thread
-  ** resets it on each run. */ 
-  int                    modified;
   /* An array of context for each device handled by the storio.
   ** actually more that one... */   
   storage_device_info_t  dev[1];
@@ -182,6 +186,21 @@ typedef struct _storage_device_ctx_t {
   uint64_t                    failure;
   storage_device_diagnostic_e diagnostic;
   uint8_t                     action;
+  int                         major;
+  int                         minor;
+  int                         usage;
+  uint64_t                    ticks;
+  uint32_t                    rdDelta;
+  uint64_t                    rdCount;  
+  uint64_t                    rdTicks;
+  uint32_t                    rdAvgUs;  
+  uint32_t                    wrDelta;
+  uint64_t                    wrCount;  
+  uint64_t                    wrTicks;  
+  uint32_t                    wrAvgUs;
+  uint64_t                    monitor_run;
+  uint64_t                    monitor_no_activity;
+  uint64_t                    last_activity_time;
 } storage_device_ctx_t;
 
 
