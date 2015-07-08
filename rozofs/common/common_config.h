@@ -70,6 +70,17 @@ typedef enum _rozofs_file_distribution_rule_e {
 #define rozofs_cc_min_file_distribution_rule    0
 #define rozofs_cc_max_file_distribution_rule    (rozofs_file_distribution_max-1)
 
+#define rozofs_cc_def_disk_usage_threshold      0
+#define rozofs_cc_min_disk_usage_threshold      0   // No threashold
+#define rozofs_cc_max_disk_usage_threshold      100
+
+#define rozofs_cc_def_disk_read_threshold       0
+#define rozofs_cc_min_disk_read_threshold       0  // No threashold
+#define rozofs_cc_max_disk_read_threshold       1000000
+
+#define rozofs_cc_def_disk_write_threshold      0
+#define rozofs_cc_min_disk_write_threshold      0  // No threashold
+#define rozofs_cc_max_disk_write_threshold      1000000
 
 /*
 ** Common configuration parameters
@@ -87,6 +98,9 @@ typedef struct _common_config_t {
   char      * core_file_directory;
   uint32_t    numa_aware;     
   uint32_t    file_distribution_rule;
+  uint32_t    disk_usage_threshold;
+  uint32_t    disk_read_threshold;  
+  uint32_t    disk_write_threshold;  
 } common_config_t;
   
 extern common_config_t common_config;

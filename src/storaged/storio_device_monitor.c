@@ -236,8 +236,9 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
         pDev->usage = (blkio.ticks-pDev->ticks) / (STORIO_DEVICE_PERIOD*10);
       }	
       
-      if (pDev->usage>= 50) {
-        info("cid %d sid %d dev %d usage is %d %c",
+      if ((common_config.disk_usage_threshold != 0) 
+      &&  (pDev->usage >= common_config.disk_usage_threshold)) {
+        warning("cid %d sid %d dev %d usage is %d %c",
 	      cid, sid, dev, pDev->usage,'%');
       }
       /* Save current ticks for next run */
@@ -253,8 +254,10 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
       pDev->rdTicks     = blkio.rd_ticks;
       /* Average read duration in usec */
       pDev->rdAvgUs     = pDev->rdDelta ? rdTicks*1000/pDev->rdDelta : 0;
-      if (pDev->rdAvgUs>= 10000) {
-        info("cid %d sid %d dev %d read average is %d us",
+      
+      if ((common_config.disk_read_threshold != 0) 
+      &&  (pDev->rdAvgUs >= common_config.disk_read_threshold)) {      
+        warning("cid %d sid %d dev %d read average is %d us",
 	      cid, sid, dev, pDev->rdAvgUs);
       }
       
@@ -268,8 +271,10 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
       pDev->wrTicks     = blkio.wr_ticks;
       /* Average write duration in usec */      
       pDev->wrAvgUs     = pDev->wrDelta ? wrTicks*1000/pDev->wrDelta : 0;
-      if (pDev->wrAvgUs>= 10000) {
-        info("cid %d sid %d dev %d write average is %d us",
+
+      if ((common_config.disk_write_threshold != 0) 
+      &&  (pDev->wrAvgUs >= common_config.disk_write_threshold)) {      
+        warning("cid %d sid %d dev %d write average is %d us",
 	      cid, sid, dev, pDev->wrAvgUs);
       }
       return 0;

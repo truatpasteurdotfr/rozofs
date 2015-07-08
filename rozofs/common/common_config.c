@@ -86,6 +86,9 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_STRING(core_file_directory);
   COMMON_CONFIG_SHOW_BOOL(numa_aware);
   COMMON_CONFIG_SHOW_INT(file_distribution_rule);
+  COMMON_CONFIG_SHOW_INT(disk_usage_threshold);
+  COMMON_CONFIG_SHOW_INT(disk_read_threshold);  
+  COMMON_CONFIG_SHOW_INT(disk_write_threshold);   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -241,7 +244,13 @@ void common_config_read(char * fname) {
   ** Read allocation rule 
   */
   COMMON_CONFIG_READ_INT(file_distribution_rule);  
-  
+
+  /*
+  ** Read warning thresholds for disk usage
+  */
+  COMMON_CONFIG_READ_INT(disk_usage_threshold);
+  COMMON_CONFIG_READ_INT(disk_read_threshold);  
+  COMMON_CONFIG_READ_INT(disk_write_threshold);    
   /*
   ** Free lib config working structure
   */

@@ -63,6 +63,14 @@ Boolean (true or false) indicating if a checksum must be generated (thanks to CR
 That boolean (true or false) can be asserted if the information reported by cpuid does not indicates that hardware CRC is supported whilst the current CPU supports it.
 This might be the case with VirtualBox.
 
+.SS disk_usage_threshold
+when set to non zero value, the storios log a warning when a device percent usage is over or equal to this limit.
+.SS disk_read_threshold
+when set to non zero value, the storios log a warning when the average read delay on a device is over or equal to this limit in micro seconds.
+.SS disk_write_threshold
+when set to non zero value, the storios log a warning when the average write delay on a device is over or equal to this limit in micro seconds.
+
+
 .SS allow_disk_spin_down
 This boolean has to be set to enable the spinning down of the disks of a storage node. The STORIO monitoring thread periodically checks the file systems mounted on its disks. This boolean prevents the check to be performed in case no modification takes place on the disk (i.e neither write, truncate nor delete). So when no access is done to the disks, the monitoring thread does not either access to the disk, and the disk spinning down can take place.
 
