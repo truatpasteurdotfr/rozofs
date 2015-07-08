@@ -61,7 +61,13 @@ common_config_t common_config;
 }  
 void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   char *pChar = uma_dbg_get_buffer();
-
+  
+  if (argv[1] != NULL) {
+    if (strcmp(argv[1],"reload")==0) {  
+      common_config_read(NULL);
+    }
+  }
+      
   if (config_file_is_read==0) {
     pChar += rozofs_string_append(pChar,"Can not read configuration file ");    
   }
@@ -150,22 +156,25 @@ void common_config_read(char * fname) {
   long int          intval;
 #endif      
 
-  uma_dbg_addTopic("cconf",show_common_config);
+  if (config_file_is_read == 0) {
+    uma_dbg_addTopic("cconf",show_common_config);
+
+    /*
+    ** Build the file name
+    */
+    if (fname == NULL) {
+      strcpy(config_file_name,ROZOFS_DEFAULT_CONFIG);
+    }
+    else {
+      strcpy(config_file_name,fname);    
+    } 
+  }
+  
   
   /*
   ** Initialize lib config working structure
   */
   config_init(&cfg);
-
-  /*
-  ** Read the file
-  */
-  if (fname == NULL) {
-    strcpy(config_file_name,ROZOFS_DEFAULT_CONFIG);
-  }
-  else {
-    strcpy(config_file_name,fname);    
-  }  
 
   config_file_is_read = 1;
   if (config_read_file(&cfg, config_file_name) == CONFIG_FALSE) {
@@ -179,6 +188,7 @@ void common_config_read(char * fname) {
     }	    
     config_file_is_read = 0;	    
   }
+  
   /*
   ** Number of slices for the storio
   */  
