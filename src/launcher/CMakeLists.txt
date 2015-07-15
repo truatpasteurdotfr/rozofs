@@ -34,3 +34,5 @@ install(TARGETS rozolauncher
     ARCHIVE DESTINATION lib
     COMPONENT rozolauncher
 )
+
+install(FILES rozofs.conf DESTINATION ${ROZOFS_CONFIG_DIR} COMPONENT rozolauncher)

@@ -73,7 +73,7 @@ Python management libraries for RozoFS.
 Summary: RozoFS filesystem (management cli package).
 License: GPLv2
 Group: System Environment/File
-Requires: rozofs-manager-lib python python
+Requires: rozofs-manager-lib python
 #%if 0%{?rhel} < 7
 Requires: python-argparse
 #%endif
@@ -148,6 +148,9 @@ mkdir -p %{buildroot}%{_initrddir}
 %files rozolauncher
 %defattr(-,root,root)
 %{_bindir}/rozolauncher
+%config(noreplace) %{_sysconfdir}/rozofs/rozofs.conf
+%{_mandir}/man8/rozolauncher.8.gz
+%{_mandir}/man5/rozofs.conf.5.gz
 
 %files exportd
 %defattr(-,root,root)
@@ -170,8 +173,6 @@ mkdir -p %{buildroot}%{_initrddir}
 %{_mandir}/man8/rozo_quotaon.8.gz
 %{_mandir}/man8/rozo_warnquota.8.gz
 %{_mandir}/man8/rozo_setquota.8.gz
-%{_mandir}/man8/rozolauncher.8.gz
-%{_mandir}/man5/rozofs.conf.5.gz
 
 %files storaged
 %defattr(-,root,root)
@@ -190,9 +191,7 @@ mkdir -p %{buildroot}%{_initrddir}
 %{_mandir}/man5/storage.conf.5.gz
 %{_mandir}/man8/storaged.8.gz
 %{_mandir}/man8/storage_rebuild.8.gz
-%{_mandir}/man8/rozolauncher.8.gz
 %{_mandir}/man8/rozodump.8.gz
-%{_mandir}/man5/rozofs.conf.5.gz
 
 %files rozofsmount
 %defattr(-,root,root)
@@ -203,8 +202,6 @@ mkdir -p %{buildroot}%{_initrddir}
 #%{_initrddir}/rozofs-rozofsmount
 #%endif
 %{_mandir}/man8/rozofsmount.8.gz
-%{_mandir}/man8/rozolauncher.8.gz
-%{_mandir}/man5/rozofs.conf.5.gz
 
 %files rozodiag
 %defattr(-,root,root)
@@ -236,7 +233,6 @@ mkdir -p %{buildroot}%{_initrddir}
 %{_mandir}/man5/geomgr.conf.5.gz
 %{_mandir}/man8/geomgr.8.gz
 %{_mandir}/man8/geocli.8.gz
-%{_mandir}/man5/rozofs.conf.5.gz
 %if 0%{?rhel} > 7
 %{_unitdir}/rozofs-geomgr.service
 %else
