@@ -1,4 +1,4 @@
-rozofs (@VERSION@-1) stable; urgency=low
+rozofs (@VERSION@-1@BPO@) stable; urgency=low
 
   Initial release (Closes: #______).
 

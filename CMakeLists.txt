@@ -30,6 +30,9 @@ set(CMAKE_GET ${PROJECT_SOURCE_DIR}/tools/cmake_get.sh ${PROJECT_SOURCE_DIR})
 # Set ROZO_GIT_REF with date + git branch + git commit hash + mojette (FSX or LEGACY)
 execute_process(COMMAND ${CMAKE_GET} date branch commit mojette OUTPUT_VARIABLE ROZO_GIT_REF)
 
+# Set bpo version to append on each debian packages builded
+execute_process(COMMAND ${CMAKE_GET} bpo OUTPUT_VARIABLE BPO)
+
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 
 #
