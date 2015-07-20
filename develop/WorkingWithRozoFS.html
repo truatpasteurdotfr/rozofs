@@ -1,6 +1,5 @@
 
 
-
 <!DOCTYPE html>
 <!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
 <!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
@@ -138,7 +137,7 @@
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>/etc/init.d/rozofs-storaged status
 </pre></div>
 </div>
-<p>To reload the storaged configuration file (<tt class="docutils literal"><span class="pre">storage.conf</span></tt>) after a
+<p>To reload the storaged configuration file (<code class="docutils literal"><span class="pre">storage.conf</span></code>) after a
 configuration changes, the following command is used:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>/etc/init.d/rozofs-storaged reload
 </pre></div>
@@ -172,7 +171,7 @@ enterone of the following command lines.</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>/etc/init.d/rozofs-exportd status
 </pre></div>
 </div>
-<p>To reload the exportd configuration file (<tt class="docutils literal"><span class="pre">export.conf</span></tt>) after a
+<p>To reload the exportd configuration file (<code class="docutils literal"><span class="pre">export.conf</span></code>) after a
 configuration changes, the following command is used:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>/etc/init.d/rozofs-exportd reload
 </pre></div>
@@ -202,7 +201,7 @@ possible: mount manually or automatically.</p>
 </pre></div>
 </div>
 <p>For example, if the exported file system is:
-<tt class="docutils literal"><span class="pre">/srv/rozofs/exports/export_1</span></tt> and IP address for export server is
+<code class="docutils literal"><span class="pre">/srv/rozofs/exports/export_1</span></code> and IP address for export server is
 192.168.1.10:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozofsmount -H 192.168.1.10 -E /srv/rozofs/exports/export_1 /mnt/rozofs/fs-1
 </pre></div>
@@ -211,41 +210,43 @@ possible: mount manually or automatically.</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>umount /mnt/rozofs/fs-1
 </pre></div>
 </div>
-<p>To automatically mount a Rozo file system, edit the <tt class="docutils literal"><span class="pre">/etc/fstab</span></tt> file
+<p>To automatically mount a Rozo file system, edit the <code class="docutils literal"><span class="pre">/etc/fstab</span></code> file
 and add the following line:</p>
-<div class="highlight-python"><pre>rozofsmount MOUNTDIR rozofs exporthost=EXPORT_IP,exportpath=EXPORT_PATH,_netdev 0  0</pre>
+<div class="highlight-python"><div class="highlight"><pre>rozofsmount MOUNTDIR rozofs exporthost=EXPORT_IP,exportpath=EXPORT_PATH,_netdev 0  0
+</pre></div>
 </div>
 <p>For example, if the exported file system is
-<tt class="docutils literal"><span class="pre">/srv/rozofs/exports/export_1</span></tt> and IP address for export server is
+<code class="docutils literal"><span class="pre">/srv/rozofs/exports/export_1</span></code> and IP address for export server is
 192.168.1.10 :</p>
-<div class="highlight-python"><pre>rozofsmount /mnt/rozofs/fs1 rozofs exporthost=192.168.1.10,exportpath=/srv/rozofs/exports/export_1,_netdev 0 0</pre>
+<div class="highlight-python"><div class="highlight"><pre>rozofsmount /mnt/rozofs/fs1 rozofs exporthost=192.168.1.10,exportpath=/srv/rozofs/exports/export_1,_netdev 0 0
+</pre></div>
 </div>
 </div>
 </div>
 <div class="section" id="using-the-rozo-console-manager">
 <h2>Using the Rozo Console Manager<a class="headerlink" href="#using-the-rozo-console-manager" title="Permalink to this headline">¶</a></h2>
-<p>RozoFS comes with a command line utility called <tt class="docutils literal"><span class="pre">rozo</span></tt> that aims to
+<p>RozoFS comes with a command line utility called <code class="docutils literal"><span class="pre">rozo</span></code> that aims to
 automate the <strong>management</strong> process of a RozoFS platform. Its main
 purpose is to chain up the operations required on remote nodes involved
 on a high level management task such as stopping and starting the whole
 platform, add new nodes to the platform in order to extend the capacity,
 add new exports on volume etc…</p>
-<p><tt class="docutils literal"><span class="pre">Rozo</span></tt> is fully independant of RozoFS daemons and processes and is not
+<p><code class="docutils literal"><span class="pre">Rozo</span></code> is fully independant of RozoFS daemons and processes and is not
 required for a fully functional system but when installed aside RozoFS
 on each involved nodes it greatly facilitates configuration as it takes
 care of all the unique id generation of storage locations, clusters and
-so on. Despite not being a monitoring tool, <tt class="docutils literal"><span class="pre">rozo</span></tt> can be however used to
+so on. Despite not being a monitoring tool, <code class="docutils literal"><span class="pre">rozo</span></code> can be however used to
 get easily a description of the platform, its status and its
 configuration.</p>
 <p>Rozo uses the running exportd configuration file as a basic platform
-knowledge, you can use <tt class="docutils literal"><span class="pre">rozo</span></tt> on any nodes (even not involve in the
+knowledge, you can use <code class="docutils literal"><span class="pre">rozo</span></code> on any nodes (even not involve in the
 platform).</p>
-<p>You can have an overview of <tt class="docutils literal"><span class="pre">rozo</span></tt> capabilities and get the help you
+<p>You can have an overview of <code class="docutils literal"><span class="pre">rozo</span></code> capabilities and get the help you
 need by using the rozo manual:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>man rozo
 </pre></div>
 </div>
-<p>See below, examples of <tt class="docutils literal"><span class="pre">rozo</span></tt> usage for common management tasks on a 8
+<p>See below, examples of <code class="docutils literal"><span class="pre">rozo</span></code> usage for common management tasks on a 8
 nodes platform. Each command is launched on the running exportd node.</p>
 <div class="section" id="get-the-list-of-nodes-belonging-to-a-platform">
 <h3>Get the List of Nodes Belonging to a Platform<a class="headerlink" href="#get-the-list-of-nodes-belonging-to-a-platform" title="Permalink to this headline">¶</a></h3>
@@ -264,10 +265,10 @@ nodes platform. Each command is launched on the running exportd node.</p>
 </pre></div>
 </div>
 <p>You can easily list nodes according to their roles (exportd, storaged or
-rozofsmount) using the <tt class="docutils literal"><span class="pre">-r</span></tt> option.</p>
+rozofsmount) using the <code class="docutils literal"><span class="pre">-r</span></code> option.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">If you don&#8217;t want specify the IP address of exportd node for each <tt class="docutils literal"><span class="pre">rozo</span></tt>
+<p class="last">If you don&#8217;t want specify the IP address of exportd node for each <code class="docutils literal"><span class="pre">rozo</span></code>
 command, you can specify the default exportd IP with
 <strong>ROZO_EXPORT_HOSTNAME</strong> environment variable.</p>
 </div>
@@ -293,7 +294,7 @@ command, you can specify the default exportd IP with
 </pre></div>
 </div>
 <p>You can easily get nodes status according to their roles using the
-<tt class="docutils literal"><span class="pre">-r</span></tt> option or get statuses for a specific node using the <tt class="docutils literal"><span class="pre">-n</span></tt>
+<code class="docutils literal"><span class="pre">-r</span></code> option or get statuses for a specific node using the <code class="docutils literal"><span class="pre">-n</span></code>
 option.</p>
 </div>
 <div class="section" id="view-the-platform-configuration">
@@ -348,13 +349,13 @@ option.</p>
       hquota: <span class="s1">&#39;&#39;</span>
 </pre></div>
 </div>
-<p>The output of <tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">node</span> <span class="pre">config</span></tt> let us know each node configuration
+<p>The output of <code class="docutils literal"><span class="pre">rozo</span> <span class="pre">node</span> <span class="pre">config</span></code> let us know each node configuration
 according to its role. We especially notice that this platform has one
 volume with one export relying on it.</p>
 </div>
 <div class="section" id="extend-the-platform">
 <h3>Extend the Platform<a class="headerlink" href="#extend-the-platform" title="Permalink to this headline">¶</a></h3>
-<p>Extend the platform is easy (add nodes) with the <tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">volume</span> <span class="pre">expand</span></tt>
+<p>Extend the platform is easy (add nodes) with the <code class="docutils literal"><span class="pre">rozo</span> <span class="pre">volume</span> <span class="pre">expand</span></code>
 command, for example purpose we will add four new storages nodes.</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo volume expand 192.168.1.201 <span class="se">\</span>
                                  192.168.1.202 <span class="se">\</span>
@@ -364,8 +365,8 @@ command, for example purpose we will add four new storages nodes.</p>
 </pre></div>
 </div>
 <p>As we added nodes without indicating the volume we want to expand,
-<tt class="docutils literal"><span class="pre">rozo</span></tt> has created a new volume (with id 2) as illustrated in the
-<tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">volume</span> <span class="pre">list</span></tt> output extract below:</p>
+<code class="docutils literal"><span class="pre">rozo</span></code> has created a new volume (with id 2) as illustrated in the
+<code class="docutils literal"><span class="pre">rozo</span> <span class="pre">volume</span> <span class="pre">list</span></code> output extract below:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo volume list -E 192.168.1.10
 EXPORTD on 192.168.1.10:
 - VOLUME 1:
@@ -385,27 +386,27 @@ EXPORTD on 192.168.1.10:
 </div>
 <div class="section" id="add-an-export-to-the-platform">
 <h3>Add an Export to the Platform<a class="headerlink" href="#add-an-export-to-the-platform" title="Permalink to this headline">¶</a></h3>
-<p><tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">export</span> <span class="pre">create</span></tt> and (<tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">export</span> <span class="pre">remove</span></tt>) commands manage the
+<p><code class="docutils literal"><span class="pre">rozo</span> <span class="pre">export</span> <span class="pre">create</span></code> and (<code class="docutils literal"><span class="pre">rozo</span> <span class="pre">export</span> <span class="pre">remove</span></code>) commands manage the
 creation (and deletion) of new exports.</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo <span class="nb">export </span>create 2 -E 192.168.1.10
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo <span class="nb">export </span>create <span class="m">2</span> -E 192.168.1.10
 </pre></div>
 </div>
 <p>This will create a new export on volume 2.</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo <span class="nb">export </span>mount -e 2 -E 192.168.1.10
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo <span class="nb">export </span>mount -e <span class="m">2</span> -E 192.168.1.10
 </pre></div>
 </div>
-<p><tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">export</span> <span class="pre">mount</span></tt> command will configure all nodes with a
+<p><code class="docutils literal"><span class="pre">rozo</span> <span class="pre">export</span> <span class="pre">mount</span></code> command will configure all nodes with a
 rozofsmount role to mount this new export (id=2) as illustrated in the
-<tt class="docutils literal"><span class="pre">df</span></tt> output on one of the node.</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>df | grep /mnt/rozofs
-rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_1
-rozofs      4867164832      0 4867164832   0% /mnt/rozofs@192.168.1.10/export_2
+<code class="docutils literal"><span class="pre">df</span></code> output on one of the node.</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>df <span class="p">|</span> grep /mnt/rozofs
+rozofs      <span class="m">4867164832</span>      <span class="m">0</span> <span class="m">4867164832</span>   0% /mnt/rozofs@192.168.1.10/export_1
+rozofs      <span class="m">4867164832</span>      <span class="m">0</span> <span class="m">4867164832</span>   0% /mnt/rozofs@192.168.1.10/export_2
 </pre></div>
 </div>
 </div>
 <div class="section" id="rebuild-a-storage-node">
 <h3>Rebuild a Storage Node<a class="headerlink" href="#rebuild-a-storage-node" title="Permalink to this headline">¶</a></h3>
-<p><tt class="docutils literal"><span class="pre">rozo</span> <span class="pre">node</span> <span class="pre">rebuild</span></tt> command will restart the storaged daemon for one storage
+<p><code class="docutils literal"><span class="pre">rozo</span> <span class="pre">node</span> <span class="pre">rebuild</span></code> command will restart the storaged daemon for one storage
 node with processes for rebuild data of each storage declared in the storaged
 configuration file.</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>rozo node rebuild -n 192.168.1.204 -E 192.168.1.10
@@ -452,7 +453,7 @@ configuration file.</p>
 
     <script type="text/javascript">
         var DOCUMENTATION_OPTIONS = {
-            URL_ROOT:'',
+            URL_ROOT:'./',
             VERSION:'1.4.0',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
