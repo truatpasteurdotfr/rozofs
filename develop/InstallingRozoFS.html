@@ -123,7 +123,7 @@
 <h1>Installing RozoFS<a class="headerlink" href="#installing-rozofs" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="installing-rozofs-from-binary-packages">
 <h2>Installing RozoFS from Binary Packages<a class="headerlink" href="#installing-rozofs-from-binary-packages" title="Permalink to this headline">¶</a></h2>
-<p>Fizians SAS provides <strong>binary packages</strong> for every component of RozoFS
+<p>Rozo Systems SAS provides <strong>binary packages</strong> for every component of RozoFS
 and various GNU/Linux distributions based on Debian (<code class="docutils literal"><span class="pre">.deb</span></code>) and
 Redhat (<code class="docutils literal"><span class="pre">.rpm</span></code>) package format. Using binary packages brings you
 benefits. First, you do not need a full development environment and
@@ -133,34 +133,43 @@ See help of your favorite GNU/Linux distribution&#8217;s package manager for
 package installation. According to their roles, nodes should have at
 least one these packages installed :</p>
 <ul class="simple">
-<li><code class="docutils literal"><span class="pre">rozofs-storaged_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
-<li><code class="docutils literal"><span class="pre">rozofs-exportd_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
-<li><code class="docutils literal"><span class="pre">rozofs-rozofsmount_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
+<li><code class="docutils literal"><span class="pre">rozofs-storaged</span></code></li>
+<li><code class="docutils literal"><span class="pre">rozofs-exportd</span></code></li>
+<li><code class="docutils literal"><span class="pre">rozofs-rozofsmount</span></code></li>
 </ul>
 <p>To help and automate management, the following optional packages should
 be installed on each node involved in a RozoFS platform:</p>
 <ul class="simple">
-<li><code class="docutils literal"><span class="pre">rozofs-manager-lib_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
-<li><code class="docutils literal"><span class="pre">rozofs-manager-cli_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
-<li><code class="docutils literal"><span class="pre">rozofs-manager-agent_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
-<li><code class="docutils literal"><span class="pre">rozofs-rprof_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
-<li><code class="docutils literal"><span class="pre">rozofs-rozodiag_&lt;version&gt;_&lt;arch&gt;.&lt;deb|rpm&gt;</span></code></li>
+<li><code class="docutils literal"><span class="pre">rozofs-manager-lib</span></code></li>
+<li><code class="docutils literal"><span class="pre">rozofs-manager-cli</span></code></li>
+<li><code class="docutils literal"><span class="pre">rozofs-manager-agent</span></code></li>
 </ul>
-<div class="section" id="advance-package-tool-apt-for-debian-wheezy">
-<h3>Advance Package Tool (APT) for Debian Wheezy<a class="headerlink" href="#advance-package-tool-apt-for-debian-wheezy" title="Permalink to this headline">¶</a></h3>
+<p>To monitor and to get statistics about each RozoFS component,
+the following optional packages should be installed on each node involved in a RozoFS platform:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">rozofs-rozodiag</span></code></li>
+<li><code class="docutils literal"><span class="pre">nagios-plugins-rozofs</span></code></li>
+</ul>
+<div class="section" id="advance-package-tool-apt-for-debian-ubuntu">
+<h3>Advance Package Tool (APT) for Debian/Ubuntu<a class="headerlink" href="#advance-package-tool-apt-for-debian-ubuntu" title="Permalink to this headline">¶</a></h3>
+<p>Tested on the following OS:</p>
+<ul class="simple">
+<li>Debian 7 (<em>wheezy</em>), 8 (<em>jessie</em>)</li>
+<li>Ubuntu 14.04 (<em>trusty</em>)</li>
+</ul>
 <div class="section" id="install-release-key">
 <h4>Install Release Key<a class="headerlink" href="#install-release-key" title="Permalink to this headline">¶</a></h4>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>wget -O - http://dl.rozofs.org/deb/devel@rozofs.com.gpg.key <span class="p">|</span> apt-key add -
 </pre></div>
 </div>
 </div>
-<div class="section" id="add-release-packages">
-<h4>Add Release Packages<a class="headerlink" href="#add-release-packages" title="Permalink to this headline">¶</a></h4>
-<p>For the lastest stable release :</p>
+<div class="section" id="add-the-repository">
+<h4>Add the repository<a class="headerlink" href="#add-the-repository" title="Permalink to this headline">¶</a></h4>
+<p>For the lastest stable release:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span><span class="nb">echo </span>deb http://dl.rozofs.org/deb/master <span class="k">$(</span>lsb_release -sc<span class="k">)</span> main <span class="p">|</span> tee /etc/apt/sources.list.d/rozofs.list
 </pre></div>
 </div>
-<p>For the lastest development release :</p>
+<p>For the lastest development release:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span><span class="nb">echo </span>deb http://dl.rozofs.org/deb/develop <span class="k">$(</span>lsb_release -sc<span class="k">)</span> main <span class="p">|</span> tee /etc/apt/sources.list.d/rozofs.list
 </pre></div>
 </div>
@@ -172,8 +181,6 @@ be installed on each node involved in a RozoFS platform:</p>
 <span class="nv">$ </span>apt-get install rozofs-storaged
 <span class="nv">$ </span>apt-get install rozofs-exportd
 <span class="nv">$ </span>apt-get install rozofs-rozofsmount
-<span class="nv">$ </span>apt-get install rozofs-rprof
-<span class="nv">$ </span>apt-get install rozofs-rozodiag
 </pre></div>
 </div>
 <p>To help and automate management:</p>
@@ -182,18 +189,27 @@ be installed on each node involved in a RozoFS platform:</p>
 <span class="nv">$ </span>apt-get install rozofs-manager-agent
 </pre></div>
 </div>
-</div>
-</div>
-<div class="section" id="yum-for-centos-7">
-<h3>Yum for CentOS 7<a class="headerlink" href="#yum-for-centos-7" title="Permalink to this headline">¶</a></h3>
-<div class="section" id="install-repository-package">
-<h4>Install repository Package<a class="headerlink" href="#install-repository-package" title="Permalink to this headline">¶</a></h4>
-<p>For the lastest stable release :</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>yum install http://dl.rozofs.org/rpms/master/el7/noarch/repo-rozofs-master-1.0-1.el7.centos.noarch.rpm
+<p>To monitor and to get statistics:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>apt-get install rozofs-rozodiag
+<span class="nv">$ </span>apt-get install nagios-plugins-rozofs
 </pre></div>
 </div>
-<p>For the lastest development release :</p>
-<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>yum install http://dl.rozofs.org/rpms/develop/el7/noarch/repo-rozofs-master-1.0-1.el7.centos.noarch.rpm
+</div>
+</div>
+<div class="section" id="yum-for-centos-rhel">
+<h3>Yum for CentOS (RHEL)<a class="headerlink" href="#yum-for-centos-rhel" title="Permalink to this headline">¶</a></h3>
+<p>Tested on the following OS:</p>
+<ul class="simple">
+<li>CentOS 6 (<em>el6</em>), 7 (<em>el7</em>)</li>
+</ul>
+<div class="section" id="install-repository-package">
+<h4>Install repository package<a class="headerlink" href="#install-repository-package" title="Permalink to this headline">¶</a></h4>
+<p>For the lastest stable release on <em>el7</em>:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>yum install http://dl.rozofs.org/rpms/master/el7/noarch/repo-rozofs-master-1.0-1.el7.noarch.rpm
+</pre></div>
+</div>
+<p>For the lastest development release on <em>el7</em>:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>yum install http://dl.rozofs.org/rpms/develop/el7/noarch/repo-rozofs-develop-1.0-1.el7.noarch.rpm
 </pre></div>
 </div>
 </div>
@@ -203,8 +219,6 @@ be installed on each node involved in a RozoFS platform:</p>
 <div class="highlight-bash"><div class="highlight"><pre><span class="nv">$ </span>yum install rozofs-storaged
 <span class="nv">$ </span>yum install rozofs-exportd
 <span class="nv">$ </span>yum install rozofs-rozofsmount
-<span class="nv">$ </span>yum install rozofs-rprof
-<span class="nv">$ </span>yum install rozofs-rozodiag
 </pre></div>
 </div>
 <p>To help and automate management:</p>
@@ -213,6 +227,7 @@ be installed on each node involved in a RozoFS platform:</p>
 <span class="nv">$ </span>yum install rozofs-manager-agent
 </pre></div>
 </div>
+<p>To monitor and to get statistics:</p>
 </div>
 </div>
 </div>
