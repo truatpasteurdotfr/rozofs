@@ -30,6 +30,7 @@
 
 #include "uma_dbg_api.h"
 #include "af_unix_socket_generic.h"
+#include "af_unix_socket_generic_api.h"
 
 af_unix_ctx_generic_t *af_unix_context_freeListHead; /**< head of list of the free context  */
 af_unix_ctx_generic_t af_unix_context_activeListHead; /**< list of the active context     */
@@ -239,7 +240,7 @@ void af_unix_debug_show(uint32_t tcpRef, void *bufRef) {
             if (af_unix_check_empty_stats(stats_p) == 1) continue;
 
             pChar += sprintf(pChar, "\n--> %s\n", sock_p->nickname);
-            pChar += sprintf(pChar, "   family/instance[sock_id]: %d/%d[%d]\n", sock_p->family, sock_p->instance_id, sock_p->socketRef);
+            pChar += sprintf(pChar, "   family/dscp[sock_id]: %d/%2.2d[%d]\n", sock_p->family, (af_inet_sock_get_dscp(sock_p->socketRef))>>2,sock_p->socketRef);
             if (sock_p->af_family == AF_UNIX) {
                 if (sock_p->remote_sun_path[0] != 0) {
                     pChar += sprintf(pChar, "   sunpath(dst): %s\n", sock_p->remote_sun_path);
@@ -458,6 +459,7 @@ void af_unix_ctxInit(af_unix_ctx_generic_t *p, uint8_t creation) {
     p->family = -1; /**< identifier of the socket family    */
     p->instance_id = -1; /**< instance number within the family   */
     p->nickname[0] = 0;
+    p->dscp = 0;
 
     p->af_family = -1;
     p->src_sun_path[0] = 0;

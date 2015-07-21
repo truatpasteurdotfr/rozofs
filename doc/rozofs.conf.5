@@ -75,6 +75,11 @@ when set to non zero value, the storios log a warning when the average write del
 This boolean has to be set to enable the spinning down of the disks of a storage node. The STORIO monitoring thread periodically checks the file systems mounted on its disks. This boolean prevents the check to be performed in case no modification takes place on the disk (i.e neither write, truncate nor delete). So when no access is done to the disks, the monitoring thread does not either access to the disk, and the disk spinning down can take place.
 
 It is no use to set this boolean when you do not configure a spin down timeout (see hdparm -S). 
+
+.SS export_dscp
+Value that indicates the DSCP that is associated with TCP connections used to communicate with the Metadata server. By default the value corresponds to Expedited Forwarding (EF) class.
+.SS storio_dscp
+Value that indicates the DSCP that is associated with TCP connections used to communicate with the Storage server. By default the value corresponds to Assured Forwarding (AF41) class.
 .SH EXAMPLE
 .PP
 .nf

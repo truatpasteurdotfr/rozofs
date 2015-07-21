@@ -28,6 +28,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/core/ruc_buffer_api.h>
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
@@ -277,7 +278,12 @@ int expnb_north_interface_init(char *host,uint16_t port) {
        return -1;
     } 
   }
-  export_sharemem_set_listening_metadata_port(port);    
+  export_sharemem_set_listening_metadata_port(port);  
+  /*
+  ** set the dscp code
+  */
+  af_inet_rozofs_north_conf.dscp = (uint8_t) common_config.export_dscp;  
+  af_inet_rozofs_north_conf.dscp = af_inet_rozofs_north_conf.dscp<<2;
   /*
   ** Create the listening sockets
   */ 

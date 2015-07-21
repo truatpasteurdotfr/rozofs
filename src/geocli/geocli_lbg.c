@@ -20,6 +20,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/common/xmalloc.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
@@ -198,6 +199,11 @@ int georep_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
 
     af_inet_exportd_conf.recv_srv_type = ROZOFS_RPC_SRV;
     af_inet_exportd_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
+    /*
+    ** Get the dscp code point
+    */
+    af_inet_exportd_conf.dscp=(uint8_t)common_config.storio_dscp;
+    af_inet_exportd_conf.dscp = af_inet_exportd_conf.dscp<<2;
 
     client->lbg_id = north_lbg_create_af_inet("GEOREP",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,lbg_size,&af_inet_exportd_conf);
     if (client->lbg_id >= 0)

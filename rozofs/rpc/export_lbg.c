@@ -261,6 +261,12 @@ int export_lbg_initialize(exportclt_t *exportclt ,unsigned long prog,
        north_lbg_set_active_standby_mode(client->lbg_id);
      }
 #endif
+     /*
+     ** Get the dscp code point
+     */
+     af_inet_exportd_conf.dscp=(uint8_t)common_config.export_dscp;
+     af_inet_exportd_conf.dscp = af_inet_exportd_conf.dscp<<2;
+     
      client->lbg_id = north_lbg_configure_af_inet(client->lbg_id,"MASTER",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,
                                                   lbg_size,&af_inet_exportd_conf,0);
      if (client->lbg_id >= 0)

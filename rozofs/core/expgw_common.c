@@ -24,6 +24,7 @@
 #include <netdb.h>
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/rpc/eproto.h>
 #include <rozofs/core/rozofs_host_list.h>
 #include <rozofs/core/rozofs_ip_utilities.h>
@@ -289,7 +290,11 @@ int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long pr
       }
       north_lbg_set_active_standby_mode(exportclt->export_lbg_id);
     }
-    
+    /*
+    ** set the dscp code
+    */
+    af_inet_exportd_conf.dscp = (uint8_t) common_config.export_dscp; 
+    af_inet_exportd_conf.dscp = af_inet_exportd_conf.dscp<<2;    
     exportclt->export_lbg_id = north_lbg_configure_af_inet(exportclt->export_lbg_id,"EXPORTD",INADDR_ANY,0,my_list,ROZOFS_SOCK_FAMILY_EXPORT_NORTH,
                                                   lbg_size,&af_inet_exportd_conf,0);
     if (exportclt->export_lbg_id >= 0)

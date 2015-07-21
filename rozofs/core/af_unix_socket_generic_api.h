@@ -312,5 +312,26 @@ int af_unix_socket_listening_family_create (char *nicknamebase_p,char *basename_
 
 void af_unix_info_getsockopt(int fd,char *file,int line);
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Set the DSCP value for a TCP connection
+
+   @param fd: reference of the socket
+   @param dscp: TOS value
+*/
+void af_inet_sock_set_dscp(int fd,uint8_t dscp);
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Set the DSCP value for a TCP connection
+
+   @param fd: reference of the socket
+   
+   @retval dscp: TOS value or 0xff if error
+*/
+int af_inet_sock_get_dscp(int fd);
 
 #endif

@@ -1691,10 +1691,13 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
         xerrno = EIO;
         goto error_read_only;
     }
+#warning FDL-> mknod do not filter the inode mode
+#if 0
     if (!S_ISREG(mode)) {
         errno = ENOTSUP;
         goto error;
     }    
+#endif
     /*
     ** Check that some space os left for the new file in case a hard quota is set
     */

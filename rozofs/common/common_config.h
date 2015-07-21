@@ -58,6 +58,14 @@
 
 #define rozofs_cc_def_core_file_directory      "/var/run/rozofs_core"
 
+#define rozofs_cc_def_export_dscp      46  /* EF   */
+#define rozofs_cc_min_export_dscp      0  /* EF   */
+#define rozofs_cc_max_export_dscp      46  /* EF   */
+#define rozofs_cc_def_storio_dscp      34  /* AF41 */
+#define rozofs_cc_min_storio_dscp      0  /* AF41 */
+#define rozofs_cc_max_storio_dscp      34  /* AF41 */
+
+
 #define rozofs_cc_def_numa_aware               FALSE
 
 typedef enum _rozofs_file_distribution_rule_e {
@@ -101,6 +109,8 @@ typedef struct _common_config_t {
   uint32_t    disk_usage_threshold;
   uint32_t    disk_read_threshold;  
   uint32_t    disk_write_threshold;  
+  uint32_t    export_dscp;  
+  uint32_t    storio_dscp;  
 } common_config_t;
   
 extern common_config_t common_config;

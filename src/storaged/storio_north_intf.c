@@ -305,7 +305,11 @@ int storio_north_interface_init(char * host, int instance_id) {
                (ipAddr>>24)&0xFF, (ipAddr>>16)&0xFF, (ipAddr>>8)&0xFF, (ipAddr>>0)&0xFF); 
       continue;	            
     }
-   
+    /*
+    ** set the dscp
+    */
+    af_inet_rozofs_north_conf.dscp = (uint8_t) common_config.storio_dscp; 
+    af_inet_rozofs_north_conf.dscp = af_inet_rozofs_north_conf.dscp<<2;
     /*
     ** Create the listening sockets
     */ 

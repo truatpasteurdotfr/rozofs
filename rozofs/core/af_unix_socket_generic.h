@@ -136,6 +136,7 @@ typedef struct _af_unix_socket_conf_t
   void          *userRef;           /* user reference that must be recalled in the callbacks */
   void        *xmitPool; /* user pool reference or -1 */
   void        *recvPool; /* user pool reference or -1 */
+  uint8_t      dscp;     /**< QOS for the TCP connection */
 } af_unix_socket_conf_t;
 
 
@@ -345,7 +346,8 @@ typedef struct _af_unix_ctx_generic_t
   com_recv_template_t   recv;
   rozofs_socket_stats_t stats;
   af_inet_check_cnx_t   cnx_supevision; /**< supervision context */
-  uint8_t               cnx_availability_state;  /**< operational state of the connection */  
+  uint8_t               cnx_availability_state;  /**< operational state of the connection */ 
+  uint8_t               dscp;          /**< dscp of the TCP connection */ 
 } af_unix_ctx_generic_t;
 
 

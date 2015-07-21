@@ -89,6 +89,8 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_INT(disk_usage_threshold);
   COMMON_CONFIG_SHOW_INT(disk_read_threshold);  
   COMMON_CONFIG_SHOW_INT(disk_write_threshold);   
+  COMMON_CONFIG_SHOW_INT(export_dscp);   
+  COMMON_CONFIG_SHOW_INT(storio_dscp);   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -250,7 +252,12 @@ void common_config_read(char * fname) {
   */
   COMMON_CONFIG_READ_INT(disk_usage_threshold);
   COMMON_CONFIG_READ_INT(disk_read_threshold);  
-  COMMON_CONFIG_READ_INT(disk_write_threshold);    
+  COMMON_CONFIG_READ_INT(disk_write_threshold);  
+  /*
+  ** read the dscp of the export and storio
+  */
+  COMMON_CONFIG_READ_INT(export_dscp);  
+  COMMON_CONFIG_READ_INT(storio_dscp);      
   /*
   ** Free lib config working structure
   */

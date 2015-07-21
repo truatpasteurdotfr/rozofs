@@ -20,6 +20,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/common/xmalloc.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
@@ -98,7 +99,11 @@ int storaged_lbg_initialize(mstorage_t *s, int index) {
    {
      severe("Cannot configure application TMO");   
    }   
-
+   /*
+   ** set the dscp for storio connections
+   */
+   af_inet_storaged_conf.dscp=(uint8_t)common_config.storio_dscp;
+   af_inet_storaged_conf.dscp = af_inet_storaged_conf.dscp <<2;
     /*
     ** store the IP address and port in the list of the endpoint
     */

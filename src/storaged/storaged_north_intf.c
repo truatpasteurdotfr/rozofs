@@ -28,6 +28,7 @@
 
 #include <rozofs/rozofs.h>
 #include <rozofs/common/log.h>
+#include <rozofs/common/common_config.h>
 #include <rozofs/core/ruc_buffer_api.h>
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
@@ -434,8 +435,11 @@ int storaged_north_interface_init() {
 
   /* Try to get debug port from /etc/services */    
   port = rozofs_get_service_port_storaged_mproto();
-
-
+  /*
+  ** set the dscp code
+  */
+  af_inet_rozofs_north_conf.dscp = (uint8_t) common_config.storio_dscp; 
+  af_inet_rozofs_north_conf.dscp = af_inet_rozofs_north_conf.dscp<<2;
   // No host given => listen on every IP@
   if (pHostArray[0] == NULL) {
     ret = af_inet_sock_listening_create("MPROTO",ip, port, &af_inet_rozofs_north_conf);    
@@ -455,7 +459,11 @@ int storaged_north_interface_init() {
     if (ret != 0) {
       fatal("storaged_north_interface_init can not resolve host \"%s\"", pHostArray[idx]);
     }
-
+    /*
+    ** set the dscp code
+    */
+    af_inet_rozofs_north_conf.dscp = (uint8_t) common_config.storio_dscp; 
+    af_inet_rozofs_north_conf.dscp = af_inet_rozofs_north_conf.dscp<<2;
     // Create the listening socket
     ret = af_inet_sock_listening_create("MPROTO",ip, port, &af_inet_rozofs_north_conf);    
     if (ret < 0) {

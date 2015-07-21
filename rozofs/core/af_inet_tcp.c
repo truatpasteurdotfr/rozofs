@@ -138,7 +138,47 @@ uint32_t af_inet_tcp_tuneTcpSocket(int socketId,int size)
 
 }
 
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Set the DSCP value for a TCP connection
 
+   @param fd: reference of the socket
+   @param dscp: TOS value
+*/
+void af_inet_sock_set_dscp(int fd,uint8_t dscp)
+{
+
+  if (setsockopt (fd,IPPROTO_IP,
+                  IP_TOS,&dscp,sizeof(dscp)) == -1)
+  {
+    RUC_WARNING(errno);
+  }
+}
+
+/*
+**__________________________________________________________________________
+*/
+/**
+*  Set the DSCP value for a TCP connection
+
+   @param fd: reference of the socket
+   
+   @retval dscp: TOS value or 0xff if error
+*/
+int af_inet_sock_get_dscp(int fd)
+{
+  int dscp;
+  int opt_len= sizeof(dscp);
+  
+  if (getsockopt (fd,IPPROTO_IP,
+                  IP_TOS,&dscp,(socklen_t*)&opt_len) == -1)
+  {
+    return -1;
+  }
+  return dscp;
+}
 /*
 **__________________________________________________________________________
 */
@@ -308,6 +348,7 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
 
   return(fd);
 }
+
 
 
 /*
@@ -686,6 +727,10 @@ int af_inet_sock_client_create(char *nickname,
      release_req = 1;
      break;
    }
+   /*
+   ** set the dscp of the TCP connection
+   */
+   af_inet_sock_set_dscp(sock_p->socketRef,conf_p->dscp);
 
    /*
    ** copy the family id and instance id

@@ -593,8 +593,8 @@ int af_unix_sock_accept_create(int socketRef,int af_family, char *nickname,af_un
    }
    else
    {
-//#warning put code for TCP scoket tuning
      af_inet_tcp_tuneTcpSocket(sock_p->socketRef,conf_p->so_sendbufsize);
+     af_inet_sock_set_dscp(sock_p->socketRef,conf_p->dscp);
 
    }
 
