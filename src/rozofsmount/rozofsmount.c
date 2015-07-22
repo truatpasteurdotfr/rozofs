@@ -1287,39 +1287,7 @@ void show_trc_fuse(char * argv[], uint32_t tcpRef, void *bufRef) {
     show_trc_fuse_buffer(pChar);
     uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
  }
-/*__________________________________________________________________________
-*/
-typedef struct _xmalloc_stats_t {
-    uint64_t count;
-    int size;
-} xmalloc_stats_t;
 
-#define XMALLOC_MAX_SIZE  512
-
-extern xmalloc_stats_t *xmalloc_size_table_p;
-
-void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = uma_dbg_get_buffer();
-    int i;
-    xmalloc_stats_t *p;
-
-    if (xmalloc_size_table_p == NULL) {
-        pChar += sprintf(pChar, "xmalloc stats not available\n");
-        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-        return;
-
-    }
-
-    for (i = 0; i < 64; i++) {
-        p = &xmalloc_size_table_p[i];
-        if (p->size == 0) {
-            break;
-        }
-        pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, (long long unsigned int) p->count);
-    }
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-
-}
 static struct fuse_lowlevel_ops rozofs_ll_operations = {
     .init = rozofs_ll_init,
     //.destroy = rozofs_ll_destroy,
@@ -1673,7 +1641,6 @@ int fuseloop(struct fuse_args *args, int fg) {
      */
     uma_dbg_addTopic_option("stclbg", show_stclbg,UMA_DBG_OPTION_RESET);
     uma_dbg_addTopic_option("profiler", show_profiler,UMA_DBG_OPTION_RESET);
-    uma_dbg_addTopic("xmalloc", show_xmalloc);
     uma_dbg_addTopic("exp_route", show_exp_routing_table);
     uma_dbg_addTopic("exp_eid", show_eid_exportd_assoc);
     uma_dbg_addTopic("cache_set", rozofs_set_cache);

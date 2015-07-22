@@ -253,39 +253,6 @@ void show_rotate_modulo(char * argv[], uint32_t tcpRef, void *bufRef) {
   return;     
 }   
 
-/*__________________________________________________________________________
-*/
-typedef struct _xmalloc_stats_t {
-    uint64_t count;
-    int size;
-} xmalloc_stats_t;
-
-#define XMALLOC_MAX_SIZE  512
-
-extern xmalloc_stats_t *xmalloc_size_table_p;
-
-void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
-    char *pChar = uma_dbg_get_buffer();
-    int i;
-    xmalloc_stats_t *p;
-
-    if (xmalloc_size_table_p == NULL) {
-        pChar += sprintf(pChar, "xmalloc stats not available\n");
-        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-        return;
-
-    }
-
-    for (i = 0; i < 64; i++) {
-        p = &xmalloc_size_table_p[i];
-        if (p->size == 0) {
-            break;
-        }
-        pChar += sprintf(pChar, "size %8.8u count %10.10llu \n", p->size, (long long unsigned int) p->count);
-    }
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-
-}
 
 void rozofs_kill_one_storcli(int instance) {
     char pid_file[64];
@@ -453,7 +420,6 @@ int fuseloop(/*struct fuse_args *args,*/ int fg) {
      ** case
      */
     uma_dbg_addTopic("stclbg", show_stclbg);
-    uma_dbg_addTopic("xmalloc", show_xmalloc);
     uma_dbg_addTopic("shared_mem", rozofs_shared_mem_display);
     uma_dbg_addTopic("start_config", show_start_config);
     uma_dbg_addTopic("rotateModulo", show_rotate_modulo);

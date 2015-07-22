@@ -19,59 +19,58 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <sys/types.h>
+
 
 #include "xmalloc.h"
 #include "log.h"
 #include <malloc.h>
-
-
-typedef struct _xmalloc_stats_t
-{
-   uint64_t  count;
-   int       size;
-} xmalloc_stats_t;
-
-#define XMALLOC_MAX_SIZE  512
+#include <rozofs/core/uma_dbg_api.h>
 
 
 xmalloc_stats_t *xmalloc_size_table_p = NULL;
+uint32_t         xmalloc_entries = 0;
 
-void xmalloc_stats_insert(int n)
-{
-   int i;
-   xmalloc_stats_t *p;
-   
-   for (i = 0; i < XMALLOC_MAX_SIZE; i++)
-   {
-      p= &xmalloc_size_table_p[i];
-      if (p->size == n)
-      {
-         p->count++;
-         return;      
-      } 
-      if (p->size == 0)
-      {
-         p->size = n;
-         p->count = 1; 
-         return;              
-      }
-   }   
+/*__________________________________________________________________________
+*/
+void show_xmalloc(char * argv[], uint32_t tcpRef, void *bufRef) {
+    char *pChar = uma_dbg_get_buffer();
+    int i;
+    xmalloc_stats_t *p = xmalloc_size_table_p;
+
+    if (xmalloc_size_table_p == NULL) {
+        pChar += sprintf(pChar, "xmalloc stats not available\n");
+        uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+        return;
+
+    }
+
+    for (i = 0; i < xmalloc_entries; i++,p++) {
+        pChar += sprintf(pChar, "size %8.8u count %10.10llu = %llu\n", p->size, (long long unsigned int) p->count,
+	                 (long long unsigned int)(p->size * (long long unsigned int)p->count));
+    }
+    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+
 }
-
-
+/*__________________________________________________________________________
+*/
 void *xmalloc(size_t n) {
     void *p = 0;
     if (xmalloc_size_table_p == NULL)
     {
       xmalloc_size_table_p = memalign(32,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);
-      memset(xmalloc_size_table_p,0,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);    
+      memset(xmalloc_size_table_p,0,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);   
+      uma_dbg_addTopic("xmalloc", show_xmalloc); 
     }
     xmalloc_stats_insert((int)n);
     p = memalign(32,n);
     check_memory(p);
     return p;
+}
+/*__________________________________________________________________________
+*/
+void xfree(void * p, size_t n) {
+    xmalloc_stats_release(n);
+    free(p);
 }
 
 void *xcalloc(size_t n, size_t s) {

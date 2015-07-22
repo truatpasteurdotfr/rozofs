@@ -21,13 +21,67 @@
 
 #include <stdlib.h>
 
+#include <string.h>
 #include "log.h"
+#include <stdint.h>
+#include <sys/types.h>
 
+typedef struct _xmalloc_stats_t
+{
+   uint64_t  count;
+   int       size;
+} xmalloc_stats_t;
+
+#define XMALLOC_MAX_SIZE  512
 #define check_memory(p) if (p == 0) {\
     fatal("null pointer detected -- exiting.");\
 }
 
+extern xmalloc_stats_t *xmalloc_size_table_p;
+extern uint32_t         xmalloc_entries;
+extern unsigned int     xmalloc_entries;
+
+static inline void xmalloc_stats_insert(int n)
+{
+   int i;
+   xmalloc_stats_t *p = xmalloc_size_table_p;
+   
+   for (i = 0; i < xmalloc_entries; i++,p++)
+   {
+      if (p->size == n)
+      {
+         p->count++;
+         return;      
+      }
+   }  
+   
+   p->size  = n;
+   p->count = 1; 
+   xmalloc_entries++;
+   return;                 
+}
+static inline void xmalloc_stats_release(int n)
+{
+   int i;
+   xmalloc_stats_t *p = xmalloc_size_table_p;
+   
+   for (i = 0; i < xmalloc_entries; i++,p++)
+   {
+      if (p->size == n)
+      {
+         p->count--;
+	 if (p->count != 0) return;
+	 xmalloc_entries--; 
+	 break;
+      } 
+   }
+   
+   for (;i < xmalloc_entries; i++,p++) {   
+      memcpy(p,&p[1],sizeof(xmalloc_stats_t));
+   } 
+}
 void *xmalloc(size_t n);
+void xfree(void * p, size_t n);
 
 void *xcalloc(size_t n, size_t s);
 
