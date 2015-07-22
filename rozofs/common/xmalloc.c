@@ -61,18 +61,21 @@ void *xmalloc(size_t n) {
       memset(xmalloc_size_table_p,0,sizeof(xmalloc_stats_t)*XMALLOC_MAX_SIZE);   
       uma_dbg_addTopic("xmalloc", show_xmalloc); 
     }
-    xmalloc_stats_insert((int)n);
+
     p = memalign(32,n);
     check_memory(p);
+
+    xmalloc_stats_insert(malloc_usable_size(p));
     return p;
 }
 /*__________________________________________________________________________
 */
-void xfree(void * p, size_t n) {
-    xmalloc_stats_release(n);
+void xfree(void * p) {
+    xmalloc_stats_release(malloc_usable_size(p));
     free(p);
 }
 
+#if 0
 void *xcalloc(size_t n, size_t s) {
     void *p = 0;
 
@@ -94,3 +97,4 @@ char *xstrdup(const char *str) {
     check_memory(p);
     return p;
 }
+#endif

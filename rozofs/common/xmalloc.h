@@ -81,7 +81,7 @@ static inline void xmalloc_stats_release(int n)
    } 
 }
 void *xmalloc(size_t n);
-void xfree(void * p, size_t n);
+void xfree(void * p);
 
 void *xcalloc(size_t n, size_t s);
 
