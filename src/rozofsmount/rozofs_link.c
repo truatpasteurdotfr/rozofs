@@ -513,6 +513,9 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
 
     int    ret;        
     void *buffer_p = NULL;
+
+    int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_symlink,parent,(char*)name);
+
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -527,6 +530,7 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
     SAVE_FUSE_PARAM(buffer_p,parent);
     SAVE_FUSE_STRING(buffer_p,name);
     START_PROFILING_NB(buffer_p,rozofs_ll_symlink);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
 
     DEBUG("symlink (%s,%lu,%s)", link, (unsigned long int) parent, name);
 
@@ -570,6 +574,8 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
     */
     return;
 error:
+    rozofs_trc_rsp(srv_rozofs_ll_symlink,parent,NULL,1,trc_idx);
+
     fuse_reply_err(req, errno);
     /*
     ** release the buffer if has been allocated
@@ -597,7 +603,7 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
    fuse_req_t req; 
    epgw_mattr_ret_t ret ;
    struct rpc_msg  rpc_reply;
-
+   int trc_idx;
    
    int status;
    uint8_t  *payload;
@@ -608,11 +614,14 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
    mattr_t  pattrs;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_mattr_ret_t;
    rozofs_fuse_save_ctx_t *fuse_ctx_p;
-    
+
+   errno = 0;
+       
    GET_FUSE_CTX_P(fuse_ctx_p,param);    
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -751,11 +760,13 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     fuse_reply_entry(req, &fep);
     goto out;
 error:
+
     fuse_reply_err(req, errno);
 out:
     /*
     ** release the transaction context and the fuse context
     */
+    rozofs_trc_rsp(srv_rozofs_ll_symlink,(nie==NULL)?0:nie->inode,(nie==NULL)?NULL:nie->attrs.fid,status,trc_idx);
     STOP_PROFILING_NB(param,rozofs_ll_symlink);
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
