@@ -45,7 +45,8 @@ static int volume_storage_compare(list_t * l1, list_t *l2) {
     if ((!e1->status && e2->status) || (e1->status && !e2->status)) {
         return (e2->status - e1->status);
     }
-    return e2->stat.free - e1->stat.free;
+    return e1->stat.free < e2->stat.free;
+//  return e2->stat.free - e1->stat.free;
 }
 
 static int cluster_compare_capacity(list_t *l1, list_t *l2) {
@@ -249,8 +250,10 @@ void volume_balance(volume_t *volume) {
             }
 
             // Update cluster stats
-            cluster->free += vs->stat.free;
-            cluster->size += vs->stat.size;
+        if (vs->status) {
+              cluster->free += vs->stat.free;
+              cluster->size += vs->stat.size;
+        }
 
             mclient_release(&mclt);
         }
@@ -307,7 +310,7 @@ static int cluster_distribute(uint8_t layout, cluster_t *cluster, sid_t *sids) {
 
     list_for_each_forward(p, &cluster->storages) {
         volume_storage_t *vs = list_entry(p, volume_storage_t, list);
-        if (vs->status != 0 || vs->stat.free != 0)
+        if (vs->status != 0 && vs->stat.free != 0)
             ms_ok++;
         sid_local[ms_found++] = vs->sid;
 
