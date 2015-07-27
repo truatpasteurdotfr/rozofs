@@ -4032,6 +4032,7 @@ out:
 #define ROZOFS_USER_XATTR_MAX_SIZE "user.rozofs_maxsize"
 #define ROZOFS_ROOT_XATTR_MAX_SIZE "trusted.rozofs_maxsize"
 
+#define ROZOFS_ROOT_LINK "trusted.rozofs.symlink"
 
 #define DISPLAY_ATTR_TITLE(name) {\
   p += rozofs_string_padded_append(p,8,rozofs_left_alignment,name); \
@@ -4219,6 +4220,62 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
 
   return (p-value);  
 } 
+/*
+** Change the target of a symlink when it exist
+*/
+static inline int set_rozofs_link(export_t *e, lv2_entry_t *lv2, char * link,int length) {
+    export_tracking_table_t *trk_tb_p = e->trk_tb_p;
+    rozofs_inode_t fake_inode;
+    exp_trck_top_header_t *p = NULL;
+    int ret;
+     
+    /*
+    * read the link: the size of the link is found in the common attributes
+    */
+    if (lv2->attributes.s.i_link_name == 0)
+    {
+      errno = EINVAL;
+      return -1;    
+    }
+    fake_inode.fid[1] = lv2->attributes.s.i_link_name;
+
+    if (fake_inode.s.key != ROZOFS_SLNK)
+    {
+      errno = EINVAL;
+      return -1;      
+    }
+    p = trk_tb_p->tracking_table[fake_inode.s.key];
+    if (p == NULL)
+    {
+      errno = EINVAL;
+      return -1;      
+    }   
+        
+    /*
+    ** write the new link name on disk
+    */
+    ret = exp_metadata_write_attributes(p,&fake_inode,link,length);
+    if (ret < 0)
+    { 
+      return -1;      
+    }
+    
+    /*
+    ** If link length has change update it 
+    */
+    if (lv2->attributes.s.attrs.size != length) {
+      lv2->attributes.s.attrs.size = length;
+      /*
+      ** Save new size on disk
+      */
+      ret = export_lv2_write_attributes(e->trk_tb_p,lv2);
+      if (ret < 0)
+      { 
+        return -1;      
+      }
+    }  
+    return 0;  
+}
 static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,int length) {
   char       * p=value;
   int          idx,jdx;
@@ -4918,6 +4975,18 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
       status = set_rozofs_xattr(e,lv2,(char *)value,size);
       goto out;
     }  
+    
+    /*
+    ** Special XATTR to change the target of a symbolic link
+    ** POSIX does not allow to change the target of a symbolic link
+    */
+    if (strcmp(name,ROZOFS_ROOT_LINK)==0) {
+      status = set_rozofs_link(e,lv2,(char *)value,size);
+      goto out;
+    }
+    
+    
+      
     {
       struct dentry entry;
       entry.d_inode = lv2;
