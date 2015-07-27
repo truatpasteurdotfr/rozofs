@@ -190,7 +190,7 @@ int storio_device_relocate(storage_t * st, int dev) {
 ** Read linux disk stat file
 ** 
 */
-char disk_stat_buffer[1024*64];
+char disk_stat_buffer[1024*256];
 void storage_read_disk_stats(void) {
   int                   iofd;
   
