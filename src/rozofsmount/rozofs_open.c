@@ -23,7 +23,7 @@
 
 #include "rozofs_fuse_api.h"
 #include <rozofs/core/rozofs_string.h>
-
+#include <rozofs/common/xmalloc.h>
 DECLARE_PROFILING(mpp_profiler_t);
 
 /**
@@ -95,14 +95,7 @@ void rozofs_ll_open_nb(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
       /*
       ** allocate a context for the file descriptor
       */
-      file = xmalloc(sizeof (file_t));
-      memcpy(file->fid, ie->fid, sizeof (uuid_t));
-      file->buffer   = memalign(4096,exportclt.bufsize * sizeof (char));
-      file->export   =  &exportclt;   
-      /*
-      ** init of the variable used for buffer management
-      */
-      rozofs_file_working_var_init(file,ie);
+      file = rozofs_file_working_var_init(ie,ie->fid);
       if (rozofs_cache_mode == 1)
          fi->direct_io = 1;
       else
@@ -298,28 +291,27 @@ void rozofs_ll_open_cbk(void *this,void *param)
         errno = ENOENT;
         goto error;
     }
-    /*
-    ** allocate a context for the file descriptor
-    */
-    file = xmalloc(sizeof (file_t));
-    memcpy(file->fid, ie->fid, sizeof (uuid_t));
+
     /*
     ** update the attributes in the ientry
     */
     rozofs_ientry_update(ie,&attr);  
-    {
+    if (rozofs_bugwatch){
         char fid_str[37];
         rozofs_uuid_unparse(file->fid, fid_str);
-        if (rozofs_bugwatch)
-            severe("BUGROZOFSWATCH (open:%p),FID(%s) size=%"PRIu64"", file,
+        severe("BUGROZOFSWATCH (open:%p),FID(%s) size=%"PRIu64"", file,
                     fid_str, ie->attrs.size);
     }
-    file->buffer   = memalign(4096,exportclt.bufsize * sizeof (char));
-    file->export   =  &exportclt;   
+    
+    /*
+    ** allocate a context for the file descriptor
+    */
+    file = rozofs_file_working_var_init(ie,ie->fid);
+    
     /*
     ** init of the variable used for buffer management
     */
-    rozofs_file_working_var_init(file,ie);
+    
     if (rozofs_cache_mode == 1)
        fi->direct_io = 1;
     else
@@ -337,9 +329,7 @@ error:
        ** need to release the file structure and the buffer
        */
        int xerrno = errno;
-       free(file->buffer);
-       file->chekWord = 0;
-       free(file);
+       file_close(file);
        errno = xerrno;      
     }
     fuse_reply_err(req, errno);

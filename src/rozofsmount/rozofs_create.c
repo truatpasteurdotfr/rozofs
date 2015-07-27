@@ -15,8 +15,10 @@
   along with this program.  If not, see
   <http://www.gnu.org/licenses/>.
  */
-
+#include <inttypes.h>
+#include <malloc.h>
 #include <rozofs/rpc/eproto.h>
+#include <rozofs/common/xmalloc.h>
 
 #include "rozofs_fuse_api.h"
 
@@ -312,15 +314,7 @@ void rozofs_ll_create_cbk(void *this,void *param)
     /*
     ** allocate a context for the file descriptor
     */
-    file = xmalloc(sizeof (file_t));
-    memcpy(file->fid, nie->fid, sizeof (uuid_t));
-    
-    file->buffer   = xmalloc(exportclt.bufsize * sizeof (char));
-    file->export   =  &exportclt;   
-    /*
-    ** init of the variable used for buffer management
-    */
-    rozofs_file_working_var_init(file,nie);
+    file = rozofs_file_working_var_init(nie,nie->fid);
     
     fi->fh = (unsigned long) file;    
       
@@ -333,9 +327,7 @@ error:
        ** need to release the file structure and the buffer
        */
        int xerrno = errno;
-//       free(file->storages);
-       free(file->buffer);
-       free(file);
+       file_close(file);
        errno = xerrno;      
     }
     fuse_reply_err(req, errno);

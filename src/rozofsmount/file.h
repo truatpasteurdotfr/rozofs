@@ -19,6 +19,8 @@
 #ifndef _FILE_H
 #define _FILE_H
 
+#include <malloc.h>
+
 #include <rozofs/rozofs.h>
 #include <rozofs/rpc/eclient.h>
 #include <rozofs/rpc/sclient.h>
@@ -28,7 +30,7 @@
 
 extern int rozofs_bugwatch;
 extern uint64_t rozofs_opened_file;
-
+extern exportclt_t exportclt; 
 
 typedef enum 
 {
@@ -148,8 +150,19 @@ static inline void rozofs_geo_write_reset(file_t *file)
  
  @retval none
  */
-static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
+static inline file_t * rozofs_file_working_var_init(void * ientry, fid_t fid)
 {
+    file_t * file;
+     
+    /*
+    ** allocate a context for the file descriptor
+    */
+    file = xmalloc(sizeof (file_t));
+    memcpy(file->fid, fid, sizeof (uuid_t));
+    file->buffer   = memalign(4096,exportclt.bufsize * sizeof (char));
+    xmalloc_stats_insert(malloc_usable_size(file->buffer));
+    file->export   =  &exportclt;   
+
     /*
     ** init of the variable used for buffer management
     */
@@ -183,6 +196,8 @@ static inline void rozofs_file_working_var_init(file_t *file, void * ientry)
     rozofs_geo_write_reset(file);
     
     rozofs_opened_file++;
+    
+    return file;
 }
 
 /**
