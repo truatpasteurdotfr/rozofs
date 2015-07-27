@@ -170,6 +170,8 @@ set (librozofs_sources
     core/disk_table_service.h
     core/rozofs_numa.h
     core/rozofs_numa.c
+    core/malloc_tracking.h
+    core/malloc_tracking.c    
 )
 
 add_library(rozofs STATIC ${librozofs_sources})
