@@ -30,6 +30,7 @@
 #include <rozofs/core/rozo_launcher.h>
 #include <rozofs/core/rozofs_string.h>
 #include <rozofs/core/rozofs_numa.h>
+#include <rozofs/core/malloc_tracking.h>
 #include <rozofs/common/rozofs_site.h>
 #include <rozofs/common/common_config.h>
 
@@ -1657,7 +1658,11 @@ int fuseloop(struct fuse_args *args, int fg) {
     uma_dbg_addTopic_option("trc_fuse", show_trc_fuse,UMA_DBG_OPTION_RESET);
     uma_dbg_addTopic("xattr_flt", show_xattr_flt);
     uma_dbg_addTopic("xattr", rozofs_disable_xattr);
-    
+
+    /*
+    ** Register malloc tracking diagnostic service
+    */
+    malloc_tracking_register();    
     /*
     ** Disable extended attributes if required
     */
