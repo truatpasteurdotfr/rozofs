@@ -275,7 +275,10 @@ static void on_start() {
       /*
       ** Allocate share memory to report device status
       */
-      rozofs_share_memory_allocate_from_name(sc->root, STORAGE_MAX_DEVICE_NB*sizeof(storage_device_info_t));
+      void * p = rozofs_share_memory_allocate_from_name(sc->root, STORAGE_MAX_DEVICE_NB*sizeof(storage_device_info_t));
+      if (p) {
+        memset(p,0,STORAGE_MAX_DEVICE_NB*sizeof(storage_device_info_t));
+      }
     }
     
     

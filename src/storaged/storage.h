@@ -154,6 +154,7 @@ static inline char * storage_device_diagnostic2String(storage_device_diagnostic_
 typedef struct _storage_device_info_t {
   int                        major;
   int                        minor;
+  char                       devName[8];
   uint32_t                   usage;
   uint32_t                   rdNb;
   uint32_t                   rdUs;
@@ -188,6 +189,7 @@ typedef struct _storage_device_ctx_t {
   uint8_t                     action;
   int                         major;
   int                         minor;
+  char                        devName[8];
   int                         usage;
   uint64_t                    ticks;
   uint32_t                    rdDelta;

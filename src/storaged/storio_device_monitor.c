@@ -212,12 +212,15 @@ void storage_read_disk_stats(void) {
 int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_ctx_t *pDev) {
   char            * p = disk_stat_buffer;
   int               major,minor;
+  char              devName[128];
   struct blkio_info blkio;
 
   while (1) {
-  
-    sscanf(p, "%4d %4d %*s %u %u %llu %u %u %u %llu %u %*u %u %u",
-	   &major, &minor,
+      
+    devName[0] = 0;
+	       
+    sscanf(p, "%4d %4d %s %u %u %llu %u %u %u %llu %u %*u %u %u",
+	   &major, &minor, &devName,
 	   &blkio.rd_ios, &blkio.rd_merges,
 	   &blkio.rd_sectors, &blkio.rd_ticks, 
 	   &blkio.wr_ios, &blkio.wr_merges,
@@ -226,6 +229,8 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
 	   
     if ((pDev->major == major) && (pDev->minor == minor)) {
 
+      memcpy(pDev->devName,devName,7);
+      pDev->devName[7] = 0;
 
       /* Number of read during the last period */
       pDev->rdDelta     = blkio.rd_ios - pDev->rdCount;
@@ -702,6 +707,7 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
       }
       
       if (share) {
+        memcpy(share->dev[dev].devName,pDev->devName,8);
 	share->dev[dev].status     = pDev->status;
 	share->dev[dev].diagnostic = pDev->diagnostic;
 	share->dev[dev].free       = bfree * bsz;
