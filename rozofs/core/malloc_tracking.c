@@ -395,7 +395,6 @@ static void malloc_tracking_disable (void) {
 */
 #define MAX_LISTING_ENTRY_COUNT 600
 static inline char * malloc_tracking_dbg_list(char * pChar) {
-  int      i;
   list_t * p=NULL;
   uint64_t now = time(NULL);
   int      entry_count = 0;

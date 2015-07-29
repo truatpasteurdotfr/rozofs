@@ -220,7 +220,7 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
     devName[0] = 0;
 	       
     sscanf(p, "%4d %4d %s %u %u %llu %u %u %u %llu %u %*u %u %u",
-	   &major, &minor, &devName,
+	   &major, &minor, (char *)&devName,
 	   &blkio.rd_ios, &blkio.rd_merges,
 	   &blkio.rd_sectors, &blkio.rd_ticks, 
 	   &blkio.wr_ios, &blkio.wr_merges,
