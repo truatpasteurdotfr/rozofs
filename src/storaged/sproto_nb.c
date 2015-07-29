@@ -45,7 +45,7 @@
 /*
 ** Detailed time counters for read and write operation
 */
-#define STORIO_DETAILED_COUNTER_MAX  30
+#define STORIO_DETAILED_COUNTER_MAX  60
 #define STORIO_DETAILED_READ_SLICE   64
 #define STORIO_DETAILED_WRITE_SLICE 128
 typedef struct _STORIO_DETAILED_COUNTERS_T {
