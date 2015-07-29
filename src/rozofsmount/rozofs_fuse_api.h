@@ -285,7 +285,43 @@ static inline void rozofs_trc_rsp(int service,fuse_ino_t ino,fid_t fid,int statu
 void rozofs_trc_rsp(int service,fuse_ino_t ino,fid_t fid,int status,int index);
 
 #endif
-
+static inline void rozofs_trc_rsp_name(int service,fuse_ino_t ino,char *name,int status,int index)
+{
+   rozofs_trace_t *p;
+   if (rozofs_trc_enabled == 0) return;
+   {
+     
+     p = &rozofs_trc_buffer[rozofs_trc_wr_idx];
+     p->hdr.u32 = 0;
+     p->ts = ruc_rdtsc();
+     p->hdr.s.service_id = service;
+     p->hdr.s.trc_type  = rozofs_trc_type_name;
+     if (status==0) p->hdr.s.status=0;
+     else p->hdr.s.status=1;
+     p->hdr.s.index = index;
+     p->ino= ino;
+     p->errno_val = errno;
+     
+     p->par.name.name[0] = 0;
+     if (name != NULL) 
+     {
+        int len = strlen(name);
+	if (len < sizeof(rozofs_trc_name_t)) {
+	  strcpy(p->par.name.name,name);
+	}
+	else {
+	  memcpy(p->par.name.name,&name[len-sizeof(rozofs_trc_name_t)+1],sizeof(rozofs_trc_name_t));
+	  p->par.name.name[0] = '*';
+	}
+     } 
+     rozofs_trc_wr_idx++;
+     if (rozofs_trc_wr_idx >= rozofs_trc_last_idx) 
+     {
+       rozofs_trc_wr_idx= 0;
+       rozofs_trc_buf_full = 1;
+     }
+   }
+}
 static inline void rozofs_trc_rsp_attr(int service,fuse_ino_t ino,fid_t fid,int status,uint64_t size,int index)
 {
    rozofs_trace_t *p;

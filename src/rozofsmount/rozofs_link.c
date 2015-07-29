@@ -332,6 +332,9 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
 
     int    ret;
     void *buffer_p = NULL;
+
+    int trc_idx = rozofs_trc_req(srv_rozofs_ll_readlink,ino,NULL);
+    
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -344,6 +347,7 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     }
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
     
     START_PROFILING_NB(buffer_p,rozofs_ll_readlink);
 
@@ -353,6 +357,8 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
         errno = ENOENT;
         goto error;
     }
+
+
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    
@@ -377,6 +383,7 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     */
     return;    
 error:
+    rozofs_trc_rsp(srv_rozofs_ll_readlink,ino,NULL,1,trc_idx);
     fuse_reply_err(req, errno);
     STOP_PROFILING_NB(buffer_p,rozofs_ll_readlink);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
@@ -403,9 +410,16 @@ void rozofs_ll_readlink_cbk(void *this,void *param)
    epgw_readlink_ret_t  ret;
    struct rpc_msg  rpc_reply;
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_readlink_ret_t;
-
+   int trc_idx;
+   fuse_ino_t ino;
+    
+   target[0] = 0;
+    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,trc_idx);
+   RESTORE_FUSE_PARAM(param,ino);
+   
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -481,6 +495,7 @@ out:
     ** release the transaction context and the fuse context
     */
     STOP_PROFILING_NB(param,rozofs_ll_readlink);
+    rozofs_trc_rsp_name(srv_rozofs_ll_readlink,ino,target,status,trc_idx);    
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);     
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
