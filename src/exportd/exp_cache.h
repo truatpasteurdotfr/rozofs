@@ -56,6 +56,7 @@ typedef struct lv2_entry {
     ext_mattr_t attributes; ///< attributes of this entry
     void        *extended_attr_p; /**< pointer to xattr array */
     void        *dirent_root_idx_p; /**< pointer to bitmap of the dirent root file presence : directory only */
+    char        *symlink_target; ///< symbolic link target name (only for symlink) */
 
     list_t list;        ///< list used by cache    
     union {

@@ -83,7 +83,12 @@ static inline void lv2_cache_unlink(lv2_cache_t *cache,lv2_entry_t *entry) {
   /*
   ** check the presence of the root_idx bitmap : for directory only
   */
-  if (entry->dirent_root_idx_p != NULL) free(entry->dirent_root_idx_p);  
+  if (entry->dirent_root_idx_p != NULL) free(entry->dirent_root_idx_p); 
+  /*
+  ** Remove symbolic link name if any 
+  */
+  if (entry->symlink_target != NULL) free(entry->symlink_target);
+  
   list_remove(&entry->list);
   free(entry);
   cache->size--;  

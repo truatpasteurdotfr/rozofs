@@ -3159,6 +3159,7 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
 
     int status = -1;
     lv2_entry_t *plv2=NULL;
+    lv2_entry_t *lv2=NULL;
     fid_t node_fid;
     int xerrno = errno;
     int fdp = -1;
@@ -3277,6 +3278,17 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
         goto error;
 
     /*
+    ** Put the created symbolic link in the cache
+    */
+    lv2 = lv2_cache_put_forced(e->lv2_cache,ext_attrs.s.attrs.fid,&ext_attrs);
+    if (lv2) {
+      /* 
+      ** Save the symbolic link target name in the cache
+      */
+      lv2->symlink_target = strdup(link);
+    }
+
+    /*
     ** update the inode quota 
     */
     rozofs_qt_inode_update(e->eid,ext_attrs.s.attrs.uid,ext_attrs.s.attrs.gid,1,ROZOFS_QT_INC);
@@ -3353,6 +3365,16 @@ int export_readlink(export_t *e, fid_t fid, char *link) {
       errno = EINVAL;
       goto out;    
     }
+    
+    /*
+    ** Get the symlink target name from the cache when present
+    */
+    if (lv2->symlink_target) {
+      strcpy(link,lv2->symlink_target);
+      status = 0;
+      goto out;
+    }
+    
     p = trk_tb_p->tracking_table[fake_inode.s.key];
     if (p == NULL)
     {
@@ -3368,6 +3390,11 @@ int export_readlink(export_t *e, fid_t fid, char *link) {
       goto out;    
     }
     link[lv2->attributes.s.attrs.size] = 0; 
+    /*
+    ** Save the target name of the symbolic link in the lv2 cache 
+    ** for further call to readlink
+    */
+    lv2->symlink_target = strdup(link);    
     status = 0;
 
 out:
@@ -4250,7 +4277,7 @@ static inline int set_rozofs_link(export_t *e, lv2_entry_t *lv2, char * link,int
       errno = EINVAL;
       return -1;      
     }   
-        
+      
     /*
     ** write the new link name on disk
     */
@@ -4259,7 +4286,32 @@ static inline int set_rozofs_link(export_t *e, lv2_entry_t *lv2, char * link,int
     { 
       return -1;      
     }
-    
+
+    /*
+    ** Update the symlink name in the lv2 cache
+    */
+
+    /* The size of the target is increased, 
+    ** so let's free the target to allocate a bigger one
+    */
+    if ((lv2->symlink_target) && (lv2->attributes.s.attrs.size < length)) {
+      free(lv2->symlink_target);
+      lv2->symlink_target = NULL; 
+    }  
+    /*
+    ** Need to allocate memory to store the new target
+    */
+    if (lv2->symlink_target==NULL) {
+      lv2->symlink_target = malloc(length+1);
+    }  
+    /*
+    ** Save the new target name
+    */
+    if (lv2->symlink_target) {
+      memcpy(lv2->symlink_target,link,length);
+      lv2->symlink_target[length] = 0;
+    }  
+      
     /*
     ** If link length has change update it 
     */
