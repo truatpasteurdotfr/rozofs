@@ -211,8 +211,7 @@ void rozofs_ll_rename_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (fid_t));
-    xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+    memcpy(fid, &ret.status_gw.ep_fid_ret_t_u.fid, sizeof (fid_t));   
     /*
     ** end of decoding section
     */
@@ -230,7 +229,7 @@ void rozofs_ll_rename_cbk(void *this,void *param)
       */
       rozofs_ientry_update(nie,(mattr_t*)&ret.child_attr.ep_mattr_ret_t_u.attrs);  
     }
-    
+    xdr_free((xdrproc_t) decode_proc, (char *) &ret);     
     fuse_reply_err(req, 0);
     goto out;
 error:
