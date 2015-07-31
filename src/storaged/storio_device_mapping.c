@@ -410,9 +410,10 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   STORIO_REBUILD_T             * pRebuild;
   char                         * pChar=uma_dbg_get_buffer();
   int                            nb=0;
+  int                            doreset=0;
 
   if ((argv[1] != NULL) && (strcmp(argv[1],"reset")==0)) {
-    memset(&storio_rebuild_stat,0,sizeof(storio_rebuild_stat));     
+    doreset=1;     
   }
 
   pChar += rozofs_string_append(pChar,"allocated        : ");
@@ -462,6 +463,10 @@ void storage_rebuild_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   if (nb == 0) pChar += rozofs_string_append(pChar,"NONE\n");
   else         pChar += rozofs_eol(pChar);
 
+  if (doreset) {
+    memset(&storio_rebuild_stat,0,sizeof(storio_rebuild_stat));
+    pChar += rozofs_string_append(pChar,"Reset done\n");
+  }    
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }

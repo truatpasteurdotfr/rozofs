@@ -79,16 +79,17 @@ void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRe
   char          * p = uma_dbg_get_buffer();
   int             opcode;
   char          * sep = "+----------------+------------------+------------------+------------------+\n";
+  int             doreset=0;
   
   if (argv[1] != NULL) {
     if (strcmp(argv[1],"reset")==0) {
-      reset_serialization_counters();
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
-      return;
+      doreset = 1;
     }
-    p = display_serialization_counters_help(p);
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
-    return;    
+    else {  
+      p = display_serialization_counters_help(p);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;   
+    }   
   } 
       
   p += rozofs_string_append(p, sep);
@@ -108,6 +109,10 @@ void display_serialization_counters (char * argv[], uint32_t tcpRef, void *bufRe
   }
   p += rozofs_string_append(p, sep);
     
+  if (doreset) {
+    reset_serialization_counters();
+    p += rozofs_string_append(p,"Reset Done\n");
+  }  
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());    
 }
 /*_______________________________________________________________________

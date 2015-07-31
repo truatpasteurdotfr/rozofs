@@ -452,8 +452,10 @@ void show_flock(char * argv[], uint32_t tcpRef, void *bufRef) {
   if (argv[1] != NULL) {
 
     if (strcmp(argv[1],"reset")== 0) {
+      char * p = display_lock_stat(uma_dbg_get_buffer());
       reset_lock_stat();
-      uma_dbg_send(tcpRef, bufRef, TRUE, "Reset done\n");    
+      p += sprintf(p,"Reset done\n");
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());          
       return;
     }
 

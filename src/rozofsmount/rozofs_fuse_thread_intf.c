@@ -106,7 +106,8 @@ static char * fuse_thread_debug_help(char * pChar) {
 void fuse_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   char           *pChar=uma_dbg_get_buffer();
   char           *pLine=pChar;
-  int             lineEmpty=0;;
+  int             lineEmpty=0;
+  int             doreset=0;
   int i;
   rozofs_fuse_thread_ctx_t *p = rozofs_fuse_thread_ctx_tb;
   int startIdx,stopIdx;
@@ -115,15 +116,13 @@ void fuse_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   if (argv[1] != NULL) {
     if (strcmp(argv[1],"reset")==0) {
-      for (i=0; i<af_unix_fuse_thread_count; i++) {
-	memset(&p[i].stat,0,sizeof(p[i].stat));
-      }          
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
-      return;
+      doreset = 1;
     }
-    pChar = fuse_thread_debug_help(pChar);
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-    return;      
+    else {  
+      pChar = fuse_thread_debug_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+      return;
+    }        
   }
   
   memset(&sum, 0, sizeof(sum));
@@ -163,6 +162,12 @@ void fuse_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     *pChar = 0;
   }
 
+  if (doreset) {
+    for (i=0; i<af_unix_fuse_thread_count; i++) {
+      memset(&p[i].stat,0,sizeof(p[i].stat));
+    } 
+    pChar += sprintf(pChar,"reset done\n");    
+  }
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
 }
 

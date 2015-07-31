@@ -317,18 +317,15 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   int startIdx,stopIdx;
   rozofs_disk_thread_stat_t sum;
   int                       last=0;
+  int doreset=0;
   
   if (argv[1] != NULL) {
-    if (strcmp(argv[1],"reset")==0) {
-      for (i=0; i<af_unix_disk_thread_count; i++) {
-	memset(&p[i].stat,0,sizeof(p[i].stat));
-      }          
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
-      return;
-    }
-    pChar = disk_thread_debug_help(pChar);
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
-    return;      
+    if (strcmp(argv[1],"reset")!=0) {    
+      pChar = disk_thread_debug_help(pChar);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+      return;      
+    }  
+    doreset = 1;
   }
   
   memset(&sum, 0, sizeof(sum));
@@ -427,6 +424,13 @@ void disk_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
     *pChar = 0;
   }
 
+  if (doreset) {
+    for (i=0; i<af_unix_disk_thread_count; i++) {
+       memset(&p[i].stat,0,sizeof(p[i].stat));
+    }
+    pChar += rozofs_string_append(pChar,"Reset done\n");                
+  }
+  
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
 }
 

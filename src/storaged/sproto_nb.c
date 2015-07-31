@@ -99,16 +99,17 @@ void display_detailed_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
   int             i;
   int             start_read,stop_read;
   int             start_write,stop_write;
+  int             doreset=0;
   
   if (argv[1] != NULL) {
     if (strcmp(argv[1],"reset")==0) {
-      reset_detailed_counters();
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done");
-      return;
+      doreset = 1;
     }
-    p = display_detailed_counters_help(p);
-    uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
-    return;    
+    else {
+      p = display_detailed_counters_help(p);
+      uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+      return;    
+    }  
   }  
   
   start_read = start_write = 0;
@@ -135,6 +136,11 @@ void display_detailed_counters (char * argv[], uint32_t tcpRef, void *bufRef) {
     stop_read += STORIO_DETAILED_READ_SLICE; 
     start_write = stop_write;
     stop_write += STORIO_DETAILED_WRITE_SLICE;       
+  }
+  
+  if (doreset) {
+    reset_detailed_counters();
+    p += rozofs_string_append(p,"Reset done\n");  
   }
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());    
 }

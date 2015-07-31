@@ -119,14 +119,12 @@ void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint64_t        sum1,sum2;
   int new_val;
   rozofs_mojette_thread_ctx_t *p = rozofs_mojette_thread_ctx_tb;
+  int             doreset=0;
   
-  if (argv[1] != NULL) {
+  while (argv[1] != NULL) {
     if (strcmp(argv[1],"reset")==0) {
-      for (i=0; i<af_unix_mojette_thread_count; i++) {
-	memset(&p[i].stat,0,sizeof(p[i].stat));
-      }          
-      uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done\n");
-      return;
+      doreset = 1;
+      break;
     }
     if (strcmp(argv[1],"read")==0) {
       if(argv[2]!= NULL)
@@ -242,6 +240,13 @@ void mojette_thread_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   display_line_topic("");  
   pChar += sprintf(pChar,"\n");
+  
+  if (doreset) {
+    for (i=0; i<af_unix_mojette_thread_count; i++) {
+      memset(&p[i].stat,0,sizeof(p[i].stat));
+    }          
+    pChar += sprintf(pChar,"Reset Done\n");
+  }
 
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
 }
