@@ -52,6 +52,11 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
     void             *buffer_p = NULL;
     epgw_setxattr_arg_t arg;
 
+
+    DEBUG("setxattr (inode: %lu, name: %s, value: %s, size: %llu)\n",
+            (unsigned long int) ino, name, value,
+            (unsigned long long int) size);
+	    
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -63,20 +68,49 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
       errno = ENOMEM;
       goto error;
     }
-    SAVE_FUSE_PARAM(buffer_p,req);
-    SAVE_FUSE_PARAM(buffer_p,ino);
-    SAVE_FUSE_PARAM(buffer_p,trc_idx);
-    
     START_PROFILING_NB(buffer_p,rozofs_ll_setxattr);
-
-    DEBUG("setxattr (inode: %lu, name: %s, value: %s, size: %llu)\n",
-            (unsigned long int) ino, name, value,
-            (unsigned long long int) size);
 
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
         goto error;
     }
+
+    /*
+    ** Changing the target of a symbolic link 
+    ** via a RozoFS extended attribute
+    */
+    if (strcmp(name,"trusted.rozofs.symlink")==0) {
+      /*
+      ** The inode must be a created symbolic link
+      */
+      if (!S_ISLNK(ie->attrs.mode)) {
+        errno = EINVAL;
+        goto error;
+      }
+      /*
+      ** Update the target of the symbolic link 
+      */
+      if (ie->symlink_target) {
+        int len = strlen(ie->symlink_target);
+	if (len < size) {
+	  free(ie->symlink_target);
+	  ie->symlink_target = NULL;
+	}
+      } 
+      if (ie->symlink_target == NULL) {
+        ie->symlink_target = malloc(size+1);
+      }
+      if (ie->symlink_target) {
+        memcpy(ie->symlink_target,value,size);
+	ie->symlink_target[size] = 0;
+        ie->symlink_ts = rozofs_get_ticker_us();
+      }
+    }
+    
+    SAVE_FUSE_PARAM(buffer_p,req);
+    SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
+
 
     // Invalidate ientry
     if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {

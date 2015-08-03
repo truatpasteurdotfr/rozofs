@@ -181,8 +181,12 @@ static void usage() {
     fprintf(stderr, "    -o rozofsexporttimeout=N\tdefine timeout (s) for exportd requests (default: 25)\n");
     fprintf(stderr, "    -o rozofsstoragetimeout=N\tdefine timeout (s) for IO storaged requests (default: 4)\n");
     fprintf(stderr, "    -o rozofsstorclitimeout=N\tdefine timeout (s) for IO storcli requests (default: 15)\n");
-    fprintf(stderr, "    -o rozofsattrtimeout=N\tdefine timeout (s) for which file/directory attributes are cached (default: 10)\n");
-    fprintf(stderr, "    -o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: 10)\n");
+    fprintf(stderr, "    -o rozofsattrtimeout=N\tdefine timeout (s) for which file/directory attributes are cached (default: %ds)\n",
+                            rozofs_tmr_get(TMR_FUSE_ATTR_CACHE));
+    fprintf(stderr, "    -o rozofsentrytimeout=N\tdefine timeout (s) for which name lookups will be cached (default: %ds)\n",
+                            rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE));
+    fprintf(stderr, "    -o rozofssymlinktimeout=N\tdefine timeout (ms) for which symlink targets will be cached (default: %dms)\n",
+                            rozofs_tmr_get(TMR_LINK_CACHE));
     fprintf(stderr, "    -o debug_port=N\t\tdefine the base debug port for rozofsmount (default: none)\n");
     fprintf(stderr, "    -o instance=N\t\tdefine instance number (default: 0)\n");
     fprintf(stderr, "    -o rozofscachemode=N\tdefine the cache mode: 0: no cache, 1: direct_io, 2: keep_cache (default: 0)\n");
@@ -231,6 +235,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("rozofsstorclitimeout=%u", storcli_timeout, 0),
     MYFS_OPT("rozofsattrtimeout=%u", attr_timeout, 0),
     MYFS_OPT("rozofsentrytimeout=%u", entry_timeout, 0),
+    MYFS_OPT("rozofssymlinktimeout=%u", symlink_timeout, 0),
     MYFS_OPT("debug_port=%u", dbg_port, 0),
     MYFS_OPT("instance=%u", instance, 0),
     MYFS_OPT("rozofscachemode=%u", cache_mode, 0),
@@ -335,11 +340,6 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
         if ((ie->nlookup -= nlookup) == 0) {
             DEBUG("del entry for %lu", ino);
             del_ientry(ie);
-            if (ie->db.p != NULL) {
-                free(ie->db.p);
-                ie->db.p = NULL;
-            }
-            free(ie);
 	    ie = NULL;
         }
     }
@@ -351,7 +351,11 @@ void rozofs_ll_forget(fuse_req_t req, fuse_ino_t ino, unsigned long nlookup) {
 }
 
 
-#define DISPLAY_UINT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field); 
+#define DISPLAY_UINT32_CONFIG(field) {\
+  if (conf.field==-1) pChar += sprintf(pChar,"%-25s = UNDEFINED\n",#field);\
+  else                pChar += sprintf(pChar,"%-25s = %u\n",#field, conf.field);\
+}
+
 #define DISPLAY_INT32_CONFIG(field)   pChar += sprintf(pChar,"%-25s = %d\n",#field, conf.field); 
 #define DISPLAY_STRING_CONFIG(field) \
   if (conf.field == NULL) pChar += sprintf(pChar,"%-25s = NULL\n",#field);\
@@ -377,6 +381,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(cache_mode);  
   DISPLAY_UINT32_CONFIG(attr_timeout);
   DISPLAY_UINT32_CONFIG(entry_timeout);
+  DISPLAY_UINT32_CONFIG(symlink_timeout);
   DISPLAY_UINT32_CONFIG(shaper);  
   DISPLAY_UINT32_CONFIG(rotate);  
   DISPLAY_UINT32_CONFIG(posix_file_lock);  
@@ -1895,8 +1900,9 @@ int main(int argc, char *argv[]) {
     conf.buf_size = 0;
     conf.min_read_size = ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_MIN)/1024;
     conf.max_write_pending = ROZOFS_BSIZE_BYTES(ROZOFS_BSIZE_MIN)/1024; /*  */ 
-    conf.attr_timeout = 10;
-    conf.entry_timeout = 10;
+    conf.attr_timeout = -1;
+    conf.entry_timeout = -1;
+    conf.symlink_timeout = -1; /* Get default value */
     conf.nbstorcli = 0;
     conf.shaper = 0; // Default traffic shaper value
     conf.rotate = 0;
@@ -2043,7 +2049,7 @@ int main(int argc, char *argv[]) {
     }
     rozofs_mode = conf.fs_mode;
     
-    if (conf.attr_timeout != 10) {
+    if (conf.attr_timeout != -1) {
         if (rozofs_tmr_configure(TMR_FUSE_ATTR_CACHE,conf.attr_timeout) < 0)
         {
           fprintf(stderr,
@@ -2052,7 +2058,7 @@ int main(int argc, char *argv[]) {
         }
     }
     
-    if (conf.entry_timeout != 10) {
+    if (conf.entry_timeout != -1) {
         if (rozofs_tmr_configure(TMR_FUSE_ENTRY_CACHE,conf.entry_timeout) < 0)
         {
           fprintf(stderr,
@@ -2060,7 +2066,16 @@ int main(int argc, char *argv[]) {
                   " revert to default setting");
         }
     }
-
+    
+    if (conf.symlink_timeout != -1) {
+        if (rozofs_tmr_configure(TMR_LINK_CACHE,conf.symlink_timeout) < 0)
+        {
+          fprintf(stderr,
+                "timeout for which symlink target will be cached is out of range:"
+                  " revert to default setting");
+        }
+    }
+    
     if (fuse_version() < 28) {
         if (fuse_opt_add_arg(&args, "-o" FUSE27_DEFAULT_OPTIONS) == -1) {
             fprintf(stderr, "fuse_opt_add_arg failed\n");

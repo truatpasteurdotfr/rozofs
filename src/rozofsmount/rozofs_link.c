@@ -358,6 +358,21 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
         goto error;
     }
 
+    /*
+    ** In case we have already asked the readlink few times ago,
+    ** the information may still be valid 
+    ** 
+    */
+    if (ie->symlink_target) {
+      if ((rozofs_mode == 1) 
+      || 
+         ((ie->symlink_ts+rozofs_tmr_get(TMR_LINK_CACHE)*1000) > rozofs_get_ticker_us()))
+      {
+        fuse_reply_readlink(req, (char *) ie->symlink_target);
+        rozofs_trc_rsp_name(srv_rozofs_ll_readlink,ino,ie->symlink_target,0,trc_idx);    
+        goto out;
+      }
+    }
 
     /*
     ** fill up the structure that will be used for creating the xdr message
@@ -385,6 +400,8 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
 error:
     rozofs_trc_rsp(srv_rozofs_ll_readlink,ino,NULL,1,trc_idx);
     fuse_reply_err(req, errno);
+    
+out:    
     STOP_PROFILING_NB(buffer_p,rozofs_ll_readlink);
     if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
@@ -400,7 +417,6 @@ error:
  */ 
 void rozofs_ll_readlink_cbk(void *this,void *param)
 {   
-   char target[PATH_MAX];
    fuse_req_t req; 
    int status;
    uint8_t  *payload;
@@ -412,8 +428,8 @@ void rozofs_ll_readlink_cbk(void *this,void *param)
    xdrproc_t decode_proc = (xdrproc_t)xdr_epgw_readlink_ret_t;
    int trc_idx;
    fuse_ino_t ino;
-    
-   target[0] = 0;
+   ientry_t *ie = NULL;
+   char     *pChar;
     
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -481,12 +497,33 @@ void rozofs_ll_readlink_cbk(void *this,void *param)
         xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
         goto error;
     }
-    strcpy(target, ret.status_gw.ep_readlink_ret_t_u.link);
+    
+    if (!(ie = get_ientry_by_inode(ino))) {
+        errno = ENOENT;
+        goto error;
+    }
+    
+    /*
+    ** Invert pointers from ie and rpc response
+    */
+    /* save ie symlink pointer */
+    pChar = ie->symlink_target;
+    /* stole pointer from the response for the ie */
+    ie->symlink_target = ret.status_gw.ep_readlink_ret_t_u.link;
+    /* Give old symlink pointer to the response */
+    ret.status_gw.ep_readlink_ret_t_u.link = pChar;
+    /* If there is no old ie pointer, simulate a failure to avoid xdfree to free */
+    if (ret.status_gw.ep_readlink_ret_t_u.link == NULL) {
+      ret.status_gw.status = EP_FAILURE;
+    }
+    ie->symlink_ts = rozofs_get_ticker_us();
+      
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+              
     /*
     ** end of decoding
     */
-    fuse_reply_readlink(req, (char *) target);
+    fuse_reply_readlink(req, (char *) ie->symlink_target);
     goto out;
 error:
     fuse_reply_err(req, errno);
@@ -495,7 +532,7 @@ out:
     ** release the transaction context and the fuse context
     */
     STOP_PROFILING_NB(param,rozofs_ll_readlink);
-    rozofs_trc_rsp_name(srv_rozofs_ll_readlink,ino,target,status,trc_idx);    
+    rozofs_trc_rsp_name(srv_rozofs_ll_readlink,ino,ie?ie->symlink_target:NULL,status,trc_idx);    
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);     
     if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
@@ -529,6 +566,7 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
     int    ret;        
     void *buffer_p = NULL;
 
+
     int trc_idx = rozofs_trc_req_name(srv_rozofs_ll_symlink,parent,(char*)name);
 
     /*
@@ -541,10 +579,14 @@ void rozofs_ll_symlink_nb(fuse_req_t req, const char *link, fuse_ino_t parent,
       errno = ENOMEM;
       goto error;
     }
+
+    START_PROFILING_NB(buffer_p,rozofs_ll_symlink);
+
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,parent);
     SAVE_FUSE_STRING(buffer_p,name);
-    START_PROFILING_NB(buffer_p,rozofs_ll_symlink);
+    char * newname = (char*) link;
+    SAVE_FUSE_STRING(buffer_p,newname);
     SAVE_FUSE_PARAM(buffer_p,trc_idx);
 
     DEBUG("symlink (%s,%lu,%s)", link, (unsigned long int) parent, name);
@@ -637,6 +679,7 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,trc_idx);
+      
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -749,6 +792,15 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
         nie = alloc_ientry(attrs.fid);
     }
+    uint64_t time_us = rozofs_get_ticker_us();
+    
+    /*
+    ** Save target of symbolic link in ie
+    */
+    nie->symlink_target  = fuse_ctx_p->newname;
+    fuse_ctx_p->newname  = NULL;
+    nie->symlink_ts      = time_us;
+    
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
     mattr_to_stat(&attrs, &stbuf, exportclt.bsize);
@@ -765,7 +817,7 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     if (pie != NULL)
     {
       memcpy(&pie->attrs,&pattrs, sizeof (mattr_t));
-      pie->timestamp = rozofs_get_ticker_us();
+      pie->timestamp = time_us;
     }  
         
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);

@@ -65,6 +65,7 @@ typedef struct rozofsmnt_conf {
     unsigned cache_mode;  /**< 0: no option, 1: direct_read, 2: keep_cache */
     unsigned attr_timeout;
     unsigned entry_timeout;
+    unsigned symlink_timeout;
     unsigned shaper;
     unsigned rotate;
     unsigned posix_file_lock;    
@@ -112,6 +113,8 @@ typedef struct ientry {
     uint64_t    read_consistency;
     uint64_t    timestamp;
     uint64_t    timestamp_wr_block;
+    char      * symlink_target;
+    uint64_t    symlink_ts;
 } ientry_t;
 
 
@@ -265,6 +268,15 @@ static inline void del_ientry(ientry_t * ie) {
     htable_del(&htable_inode, &ie->inode);
     htable_del(&htable_fid, ie->fid);
     list_remove(&ie->list);
+    if (ie->db.p != NULL) {
+      free(ie->db.p);
+      ie->db.p = NULL;
+    }
+    if (ie->symlink_target) {
+      free(ie->symlink_target);
+      ie->symlink_target = NULL;
+    }
+    free(ie);    
 }
 
 static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
@@ -303,6 +315,8 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 	ie->file_extend_pending = 0;
 	ie->file_extend_running = 0;
 	ie->timestamp_wr_block = 0;
+	ie->symlink_target = NULL;
+        ie->symlink_ts     = 0;
 	put_ientry(ie);
 
 	return ie;
