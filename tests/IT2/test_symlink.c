@@ -212,33 +212,36 @@ int do_one_test(char * base, int count) {
   int i,idx;
   int nb[4] ={1,3,11,101};
   int link=99;
+  int f;
   
   /* Create two files */
-  for i in {1; i<4;i++) {
+  for (i=0; i<4;i++) {
     create_file(base, nb[i]);
   }  
       
   /* create a symbolic link */
   idx = 0;
-  sym_link(base,nb[idx],link); 
-  check_symlink_file(base,nb[idx],link,__LINE__);
+  f = nb[idx];
+  sym_link(base,f,link); 
+  check_symlink_file(base,f,link,__LINE__);
 
   for (i=0; i < 128; i++) {
-    int prev = idx;
+    int prev = f;
     idx = (idx+1)%4;
+    f = nb[idx];
     
     /* Check one can not change symlink via POSIX */
-    sym_link(base,nb[idx],link); 
+    sym_link(base,f,link); 
     if (check_symlink_file(base,prev,link,__LINE__)<0)
       return -1;
   
     /* Use rozofs extended attribute to change the target */
-    sym_relink(base,idx,3); 
-    sym_link(base,nb[idx],link); 
-    if (check_symlink_file(base,nb[idx],link,__LINE__)<0)
+    sym_relink(base,f,link); 
+    sym_link(base,f,link); 
+    if (check_symlink_file(base,f,link,__LINE__)<0)
       return -1;
   }
-  for i in {1; i<4;i++) {
+  for (i=0; i<4;i++) {
     remove_file(base, nb[i]);
   }
   remove_file(base,link);  

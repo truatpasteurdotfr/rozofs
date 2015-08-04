@@ -142,14 +142,21 @@ int get_attribute(char * attr_name, int * prefix, int * idx) {
   printf("No such attribute index\n");  
   return -1;
 }
-int list_xattr (char * file,int option, int exist) {
+int list_xattr (char * file,int option, int exist, int symlink) {
   ssize_t size;
   char *pAttr=buff,*pEnd=buff;
   int nb;
   int idx;
   int prefix;
   
-  size = listxattr(file,buff,BUFFER_SIZE);
+  if (symlink) {
+    /* Apply on symbolic link and not the target */
+    size = llistxattr(file,buff,BUFFER_SIZE);    
+  }
+  else {
+    size = listxattr(file,buff,BUFFER_SIZE);
+  }  
+  
   if (size < 0)  {
     printf("listxattr(%s) %s\n", file, strerror(errno));
     return -1;
@@ -177,8 +184,18 @@ int list_xattr (char * file,int option, int exist) {
       printf("Unexpected attribute %s on file %s\n", pAttr, file);
       return -1;
     }  
+    if (symlink) {
+      if (prefix == 0) {
+	printf("read attribute %s on file %s\n", pAttr, file);
+	return -1;        
+      }
+      /* Apply on symbolic link and not the target */
+      size = lgetxattr(file,pAttr,read_value,BUFFER_SIZE);   
+    } 
+    else {   
+      size = getxattr(file,pAttr,read_value,BUFFER_SIZE);
+    }  
     
-    size = getxattr(file,pAttr,read_value,BUFFER_SIZE);
     if (size == -1) {
       printf("getxattr(%s) on file %s %s\n", pAttr, file, strerror(errno));
       return -1;
@@ -201,13 +218,21 @@ int list_xattr (char * file,int option, int exist) {
     }           
     pAttr += (strlen(pAttr)+1);
   }
-  if (nb != (nbAttr*nb_prefixes)) {
-      printf("Read %d attr while expecting %d\n", nb, (nbAttr*nb_prefixes));
-      return -1;
+  if (symlink) {
+    if (nb != (nbAttr*(nb_prefixes-1))) {
+	printf("Read %d attr while expecting %d\n", nb, (nbAttr*nb_prefixes));
+	return -1;
+    }  
   }
+  else {
+    if (nb != (nbAttr*nb_prefixes)) {
+	printf("Read %d attr while expecting %d\n", nb, (nbAttr*nb_prefixes));
+	return -1;
+    }
+  }  
   return 0;    
 }
-int set_attr (char * file, int option, int exist) {
+int set_attr (char * file, int option, int exist, int symlink) {
   int idx,res;
   int prefix;
   
@@ -220,34 +245,49 @@ int set_attr (char * file, int option, int exist) {
       else {
 	value_modified(prefixes[prefix],idx);
       }
-
-      res = setxattr(file, name, value, strlen(value),option);
-
+      
+      if (symlink) {
+	/* Apply on symbolic link and not the target */
+	res = lsetxattr(file, name, value, strlen(value),option);
+      } 
+      else {         
+        res = setxattr(file, name, value, strlen(value),option);
+      }
+      
+      /* set xattr on symlink not allowed in user mode */
+      if ((symlink) && (prefix==0)) {
+        if ((res >= 0)||(errno!=EPERM)) {
+	  printf("lsetxattr(%s) on file %s should be refused\n", name, file);
+	  return -1;	  
+	}
+	continue;
+      }
+      
       if (option == XATTR_REPLACE) {
 	if (res < 0) {
 	  printf("REPLACE setxattr(%s) on file %s %s\n", name, file, strerror(errno));
 	  return -1;
-	}   
+	}
+	continue;   
       }
-      else {
-	if (exist) {
-	  if ((res >= 0)||(errno!=EEXIST)) {
-	    printf("CREATE & exist setxattr(%s) on file %s %s\n", name, file, strerror(errno));
-	    return -1;
-	  }   
+      
+      if (exist) {
+	if ((res >= 0)||(errno!=EEXIST)) {
+	  printf("CREATE & exist setxattr(%s) on file %s %s\n", name, file, strerror(errno));
+	  return -1;
 	}
-	else {
-	  if (res < 0) {
-	    printf("CREATE & !exist setxattr(%s) on file %s %s\n", name, file, strerror(errno));
-	    return -1;
-	  }   
-	}
+	continue;   
+      }
+      
+      if (res < 0) {
+	printf("CREATE & !exist setxattr(%s) on file %s %s\n", name, file, strerror(errno));
+	return -1;   
       }  
     }
   }  
   return 0;
 }   
-int remove_attr (char * file, int exist) {
+int remove_attr (char * file, int exist, int symlink) {
   int idx,res;
   int prefix;
   
@@ -256,19 +296,35 @@ int remove_attr (char * file, int exist) {
     
       myAttributes(prefixes[prefix],idx);
       
-      res = removexattr(file, name);
+      if (symlink) {
+	/* Apply on symbolic link and not the target */
+	res = lremovexattr(file, name);
+      } 
+      else {
+        res = removexattr(file, name);
+      }
+
+      /* set lremovexattr on symlink not allowed in user mode */
+      if ((symlink) && (prefix==0)) {
+        if ((res >= 0)||(errno!=EPERM)) {
+	  printf("lremovexattr(%s) on file %s should be refused\n", name, file);
+	  return -1;	  
+	}
+	continue;
+      }
+            
       if (exist) {
 	if (res < 0) {
 	    printf("exist .remove_attr(%s) on file %s %s\n", name, file, strerror(errno));
 	    return -1;
 	}
+	continue;
       }
-      else {
-	if (res>= 0) {
-          printf("!exist .remove_attr(%s) on file %s\n", name, file);
-          return -1; 
-	}	
-      }         
+      
+      if (res>= 0) {
+        printf("!exist .remove_attr(%s) on file %s\n", name, file);
+        return -1; 
+      }	         
     }
   }  
   return 0;
@@ -276,67 +332,137 @@ int remove_attr (char * file, int exist) {
 int do_one_test(char * file, int count) {
   int ret = 0;
 
-  ret += list_xattr(file,XATTR_CREATE, 0);
+  ret += list_xattr(file,XATTR_CREATE, 0, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += set_attr (file,XATTR_CREATE, 0);
+  ret += set_attr (file,XATTR_CREATE, 0, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += list_xattr(file,XATTR_CREATE, 1);
+  ret += list_xattr(file,XATTR_CREATE, 1, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
     
-  ret += set_attr (file,XATTR_CREATE, 1);
+  ret += set_attr (file,XATTR_CREATE, 1, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += list_xattr(file,XATTR_CREATE, 1);  
+  ret += list_xattr(file,XATTR_CREATE, 1, 0 /* not on symlink */);  
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += set_attr (file,XATTR_REPLACE, 1);
+  ret += set_attr (file,XATTR_REPLACE, 1, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += list_xattr(file,XATTR_REPLACE, 1);
+  ret += list_xattr(file,XATTR_REPLACE, 1, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += remove_attr (file, 1);
+  ret += remove_attr (file, 1, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += list_xattr(file,XATTR_REPLACE, 0);
+  ret += list_xattr(file,XATTR_REPLACE, 0, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += remove_attr (file, 0);
+  ret += remove_attr (file, 0, 0 /* not on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
   }
   
-  ret += list_xattr(file,XATTR_REPLACE, 0);
+  ret += list_xattr(file,XATTR_REPLACE, 0, 0 /* not on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  return ret;
+}
+int do_one_test_symlink(char * file, int count) {
+  int ret = 0;
+
+  ret += list_xattr(file,XATTR_CREATE, 0, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += set_attr (file,XATTR_CREATE, 0, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += list_xattr(file,XATTR_CREATE, 1, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+    
+  ret += set_attr (file,XATTR_CREATE, 1, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += list_xattr(file,XATTR_CREATE, 1, 1 /* apply on symlink */);  
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += set_attr (file,XATTR_REPLACE, 1, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += list_xattr(file,XATTR_REPLACE, 1, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += remove_attr (file, 1, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += list_xattr(file,XATTR_REPLACE, 0, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += remove_attr (file, 0, 1 /* apply on symlink */);
+  if (ret != 0) {
+    printf("LINE %d file %s\n",__LINE__,file);
+    return;
+  }
+  
+  ret += list_xattr(file,XATTR_REPLACE, 0, 1 /* apply on symlink */);
   if (ret != 0) {
     printf("LINE %d file %s\n",__LINE__,file);
     return;
@@ -382,14 +508,18 @@ int loop_test_process() {
     if  (do_one_test(dirname,count) != 0) {
       printf("proc %3d - ERROR in loop %d %s\n", myProcId, count,dirname); 
       return -1;
-    }     
-    
+    }         
    
     if  (do_one_test(symlink,count) != 0) {
       printf("proc %3d - ERROR in loop %d %s\n", myProcId, count,symlink); 
       return -1;
     }         
-    
+   
+    if  (do_one_test_symlink(symlink,count) != 0) {
+      printf("proc %3d - ERROR in loop %d %s\n", myProcId, count,symlink); 
+      return -1;
+    } 
+        
     if (loop==count) {
       unlink(filename); 
       rmdir(dirname);                   
