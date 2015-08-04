@@ -562,73 +562,73 @@ def snipper (target):
 #___________________________________________________
 def wr_rd_total ():
 #___________________________________________________
-  ret=os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -total -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  ret=os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -total -mount %s"%(process,loop,fileSize,tst_file,mnt))
   return ret  
 
 #___________________________________________________
 def wr_rd_partial ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -partial -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -partial -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_random ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -random -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -random -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_total_close ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -total -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -total -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_partial_close ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -partial -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -partial -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_rd_random_close ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -random -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -random -file %s -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_total ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -total -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial ():
 #___________________________________________________
-  ret=os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  ret=os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
   return ret 
 
 #___________________________________________________
 def wr_close_rd_random ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -random -closeBetween -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_total_close ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -total -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_partial_close ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -partial -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def wr_close_rd_random_close ():
 #___________________________________________________
-  return os.system("./IT2/rw -process %d -loop %d -fileSize %d -file %s -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
+  return os.system("./IT2/rw.exe -process %d -loop %d -fileSize %d -file %s -random -closeBetween -closeAfter -mount %s"%(process,loop,fileSize,tst_file,mnt))
 
 #___________________________________________________
 def rw2 ():
 #___________________________________________________
-  return os.system("./IT2/rw2 -loop %s -file %s/%s"%(loop,mnt,tst_file))
+  return os.system("./IT2/rw2.exe -loop %s -file %s/%s"%(loop,mnt,tst_file))
 #___________________________________________________
 def write_parallel ():
 #___________________________________________________
-  return os.system("./IT2/write_parallel -file %s/%s"%(mnt,tst_file))
+  return os.system("./IT2/write_parallel.exe -file %s/%s"%(mnt,tst_file))
 
 #___________________________________________________
 def prepare_file_to_read(filename,mega):
@@ -643,11 +643,11 @@ def read_parallel ():
 
   zefile='%s/%s'%(mnt,tst_file)
   prepare_file_to_read(zefile,fileSize) 
-  ret=os.system("./IT2/read_parallel -process %s -loop %s -file %s"%(process,loop,zefile)) 
+  ret=os.system("./IT2/read_parallel.exe -process %s -loop %s -file %s"%(process,loop,zefile)) 
   return ret 
 #___________________________________________________
 def crc32_reread():
-  ret = os.system("./IT2/test_crc32 -action REREAD -mount %s -file crc32"%(mnt))
+  ret = os.system("./IT2/test_crc32.exe -action REREAD -mount %s -file crc32"%(mnt))
   if ret != 0:
     print "Reread error"
   return ret    
@@ -663,8 +663,8 @@ def crc32():
     return 1 
     
   # Create CRC32 errors  
-  os.system("./IT2/test_crc32 -action CREATE -mount %s -file crc32"%(mnt))
-  os.system("./IT2/test_crc32 -action CORRUPT -mount %s -file crc32"%(mnt))
+  os.system("./IT2/test_crc32.exe -action CREATE -mount %s -file crc32"%(mnt))
+  os.system("./IT2/test_crc32.exe -action CORRUPT -mount %s -file crc32"%(mnt))
   ret = crc32_reread()
   if ret != 0: return ret
   
@@ -678,33 +678,38 @@ def crc32():
 #___________________________________________________
 def xattr():
 #___________________________________________________
-  return os.system("./IT2/test_xattr -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT2/test_xattr.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def link():
 #___________________________________________________
-  return os.system("./IT2/test_link -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT2/test_link.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
+
+#___________________________________________________
+def symlink():
+#___________________________________________________
+  return os.system("./IT2/test_symlink.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def readdir():
 #___________________________________________________ 
-  return os.system("./IT2/test_readdir -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT2/test_readdir.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def rename():
 #___________________________________________________
-  ret=os.system("./IT2/test_rename -process %d -loop %d -mount %s"%(process,loop,mnt))
+  ret=os.system("./IT2/test_rename.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
   return ret 
 
 #___________________________________________________
 def chmod():
 #___________________________________________________
-  return os.system("./IT2/test_chmod -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT2/test_chmod.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def truncate():
 #___________________________________________________
-  return os.system("./IT2/test_trunc -process %d -loop %d -mount %s"%(process,loop,mnt))
+  return os.system("./IT2/test_trunc.exe -process %d -loop %d -mount %s"%(process,loop,mnt))
 
 #___________________________________________________
 def lock_posix_passing():
@@ -714,7 +719,7 @@ def lock_posix_passing():
     os.remove(zefile)
   except:
     pass  
-  return os.system("./IT2/test_file_lock -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
+  return os.system("./IT2/test_file_lock.exe -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
 
 #___________________________________________________
 def lock_posix_blocking():
@@ -725,7 +730,7 @@ def lock_posix_blocking():
   except:
     pass  
 
-  ret=os.system("./IT2/test_file_lock -process %d -loop %d -file %s"%(process,loop,zefile))
+  ret=os.system("./IT2/test_file_lock.exe -process %d -loop %d -file %s"%(process,loop,zefile))
   return ret 
 
 #___________________________________________________
@@ -736,7 +741,7 @@ def lock_bsd_passing():
     os.remove(zefile)
   except:
     pass  
-  return os.system("./IT2/test_file_lock -process %d -loop %d -file %s -nonBlocking -bsd"%(process,loop,zefile))
+  return os.system("./IT2/test_file_lock.exe -process %d -loop %d -file %s -nonBlocking -bsd"%(process,loop,zefile))
 
 
 #___________________________________________________
@@ -755,7 +760,7 @@ def lock_bsd_blocking():
     os.remove(zefile)
   except:
     pass  
-  return os.system("./IT2/test_file_lock -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
+  return os.system("./IT2/test_file_lock.exe -process %d -loop %d -file %s -nonBlocking"%(process,loop,zefile))  
 
 #___________________________________________________
 def gruyere_one_reread():
@@ -763,7 +768,7 @@ def gruyere_one_reread():
 # their content
 #___________________________________________________ 
   clean_cache()
-  return os.system("./IT2/test_rebuild -action check -nbfiles %d -mount %s"%(int(nbGruyere),mnt))
+  return os.system("./IT2/test_rebuild.exe -action check -nbfiles %d -mount %s"%(int(nbGruyere),mnt))
 
 #___________________________________________________
 def gruyere_reread():
@@ -781,7 +786,7 @@ def gruyere_reread():
 def gruyere_write():
 # Use test_rebuild utility to create a bunch of files
 #___________________________________________________ 
-  return os.system("./IT2/test_rebuild -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
+  return os.system("./IT2/test_rebuild.exe -action create -nbfiles %d -mount %s"%(int(nbGruyere),mnt))  
 #___________________________________________________
 def gruyere():
 # call gruyere_write that create a bunch of files while
@@ -1080,8 +1085,8 @@ def do_compile_program(program):
 # compile program if program.c is younger
 #___________________________________________________
 
-  if not os.path.exists(program) or os.stat(program).st_mtime < os.stat("%s.c"%(program)).st_mtime:
-    os.system("gcc -g %s.c -lpthread -o %s"%(program,program))
+  if not os.path.exists("%s.exe"%(program)) or os.stat("%s.c"%(program)).st_mtime < os.stat("%s.c"%(program)).st_mtime:
+    os.system("gcc -g %s.c -lpthread -o %s.exe"%(program,program))
 
 #___________________________________________________
 def do_compile_programs(): 
@@ -1365,7 +1370,7 @@ parser.add_option("-m","--mount", action="store", type="string", dest="mount", h
 # Read/write test list
 TST_RW=['read_parallel','write_parallel','rw2','wr_rd_total','wr_rd_partial','wr_rd_random','wr_rd_total_close','wr_rd_partial_close','wr_rd_random_close','wr_close_rd_total','wr_close_rd_partial','wr_close_rd_random','wr_close_rd_total_close','wr_close_rd_partial_close','wr_close_rd_random_close']
 # Basic test list
-TST_BASIC=['readdir','xattr','link','rename','chmod','truncate','lock_posix_passing','lock_posix_blocking','crc32']
+TST_BASIC=['readdir','xattr','link','symlink', 'rename','chmod','truncate','lock_posix_passing','lock_posix_blocking','crc32']
 # Rebuild test list
 TST_REBUILD=['gruyere','rebuild_fid','rebuild_one_dev','relocate_one_dev','rebuild_all_dev','rebuild_one_node']
 
