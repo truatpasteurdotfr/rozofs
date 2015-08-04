@@ -2108,7 +2108,7 @@ int main(int argc, char *argv[]) {
     */
     if (conf.fs_mode == 0) {
 
-        if (conf.cache_mode >= 2) {
+        if (conf.cache_mode > 2) {
             rozofs_cache_mode = 0;
         } else {
             rozofs_cache_mode = conf.cache_mode;
