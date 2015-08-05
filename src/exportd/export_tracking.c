@@ -92,6 +92,37 @@ typedef struct _dirent_dir_root_idx_bitmap_t
    char bitmap[DIRENT_FILE_BYTE_BITMAP_SZ];
 } dirent_dir_root_idx_bitmap_t;
 
+
+/*
+**__________________________________________________________________
+** Format a string with a FID and parse some inforamtion within the FID
+** for debug usage. To be used in log traces.
+*/
+static int fid2string(fid_t fid , char * string) {
+  
+  char * p = string;
+  
+  rozofs_uuid_unparse(fid,p);
+  p += 36;
+  *p++ = ' ';
+  
+  rozofs_inode_t * fake_inode_p =  (rozofs_inode_t *) fid;
+  p += rozofs_string_append(p," eid=");
+  p += rozofs_u64_append(p,fake_inode_p->s.eid);
+  p += rozofs_string_append(p," slice=");
+  p += rozofs_u64_append(p,fake_inode_p->s.usr_id);
+  p += rozofs_string_append(p," file_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.file_id);
+  p += rozofs_string_append(p," idx=");
+  p += rozofs_u64_append(p,fake_inode_p->s.idx);
+  p += rozofs_string_append(p," key=");
+  p += rozofs_u64_append(p,fake_inode_p->s.key);
+  p += rozofs_string_append(p," (");
+  p += rozofs_string_append(p,export_attr_type2String(fake_inode_p->s.key));
+  p += rozofs_string_append(p,")");     
+  *p = 0;
+  return 0;
+}
 /*
  **__________________________________________________________________
  */
@@ -1070,15 +1101,24 @@ out:
  *
  * @return: 0 on success -1 otherwise (errno is set)
  */
+uint64_t  last_export_getattr_log = 0;
 int export_getattr(export_t *e, fid_t fid, mattr_t *attrs) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
     START_PROFILING(export_getattr);
+    uint64_t     ts;
 
     if (!(lv2 = export_lookup_fid(e->trk_tb_p,e->lv2_cache, fid))) {
-        severe("export_getattr failed: %s", strerror(errno));
-        goto out;
-    }
+    
+      ts = rdtsc();
+      if (ts>last_export_getattr_log+5000000000UL) {
+        char fidstring[128];
+	fid2string(fid,fidstring);
+        severe("export_getattr failed: %s %s", fidstring, strerror(errno));
+	last_export_getattr_log = ts;
+      }
+      goto out;
+    }   
     memcpy(attrs, &lv2->attributes.s.attrs, sizeof (mattr_t));
 
     status = 0;
@@ -4109,6 +4149,7 @@ out:
   DISPLAY_ATTR_TITLE(name); \
   p += rozofs_string_append(p,val);\
 }  
+
 
 static int print_inode_name(ext_mattr_t *ino_p,char *buf)
 {
