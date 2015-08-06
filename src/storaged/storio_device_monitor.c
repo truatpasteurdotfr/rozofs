@@ -458,7 +458,10 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
     ** Resolve the share memory address
     */
     share = storage_get_share(st); 
-
+    if (share->monitoring_period != STORIO_DEVICE_PERIOD) {
+      share->monitoring_period = STORIO_DEVICE_PERIOD;
+    }  
+ 
     if (st->selfHealing == -1) {
       /* No self healing configured */
       max_failures = -1;

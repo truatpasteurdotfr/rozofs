@@ -225,9 +225,8 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
     storage_t           * st=NULL;
     int                   device;
     storage_share_t     * share;
-
-//    pChar += rozofs_string_append(pChar,"Polling period : ");
-//    pChar += rozofs_u32_append(pChar, );    
+    uint32_t              period;
+    uint32_t              val;
     
     while((st = storaged_next(st)) != NULL) {
       uint64_t sumfree=0;
@@ -236,14 +235,16 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
 
       pChar += rozofs_string_append(pChar," ___ ___ ___ ________ ________ ________ ____ _____ ____ ______ _____ ______ _____ ________\n"); 
       pChar += rozofs_string_append(pChar,"| C | S | D | status |  free  |  max   |free| dev  |busy| rd  | Avg. | wr  | Avg. |  last  |\n");
-      pChar += rozofs_string_append(pChar,"| I | I | E |        |  size  |  size  |  % | name |  % | nb  | rd   | nb  | wr   | access |\n");
+      pChar += rozofs_string_append(pChar,"| I | I | E |        |  size  |  size  |  % | name |  % | /s  | rd   | /s  | wr   | access |\n");
       pChar += rozofs_string_append(pChar,"| D | D | V |        |        |        |    |      |    |     | usec |     | usec |  (sec) |\n");
         pChar += rozofs_string_append(pChar,"|___|___|___|________|________|________|____|______|____|_____|______|_____|______|________|\n");
       	
       /* 
       ** Resolve the share memory address|
       */
-      share = storage_get_share(st);     
+      share = storage_get_share(st);
+      period = share->monitoring_period;
+      if (period == 0) continue;     
 
       if (share != NULL) {
 	for (device=0; device < st->device_number; device++) {
@@ -283,11 +284,31 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
 	  pChar += rozofs_string_append(pChar,"|");	 
 	  pChar += rozofs_u32_padded_append(pChar, 3, rozofs_right_alignment, pdev->usage);
 	  pChar += rozofs_string_append(pChar," |");
-	  pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, pdev->rdNb);
+	  uint32_t val = pdev->rdNb/period;
+	  if (val<100) {
+            pChar += rozofs_u32_padded_append(pChar, 2, rozofs_right_alignment, val);
+	    *pChar++ = '.';
+	    val = (pdev->rdNb-(val*period))*10/period;
+            pChar += rozofs_u32_padded_append(pChar, 1, rozofs_left_alignment, val);
+	  }
+	  else {
+  	    pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, val);
+	  }  
+	  
 	  pChar += rozofs_string_append(pChar," |");
 	  pChar += rozofs_u32_padded_append(pChar, 5, rozofs_right_alignment, pdev->rdUs);
 	  pChar += rozofs_string_append(pChar," |");
-	  pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, pdev->wrNb);
+	  val = pdev->wrNb/period;
+	  if (val<100) {
+            pChar += rozofs_u32_padded_append(pChar, 2, rozofs_right_alignment, val);
+	    *pChar++ = '.';
+	    val = (pdev->wrNb-(val*period))*10/period;
+            pChar += rozofs_u32_padded_append(pChar, 1, rozofs_left_alignment, val);
+	  }
+	  else {
+  	    pChar += rozofs_u32_padded_append(pChar, 4, rozofs_right_alignment, val);
+	  }
+ 	  
 	  pChar += rozofs_string_append(pChar," |");
 	  pChar += rozofs_u32_padded_append(pChar, 5, rozofs_right_alignment, pdev->wrUs);
 	  pChar += rozofs_string_append(pChar," |");

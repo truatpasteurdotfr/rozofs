@@ -171,6 +171,7 @@ typedef struct _storage_device_info_t {
 ** The structure
 */
 typedef struct _storage_share_t {
+  int                    monitoring_period; /* Monitoring periodicity in sec */
   /* An array of context for each device handled by the storio.
   ** actually more that one... */   
   storage_device_info_t  dev[1];
