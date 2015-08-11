@@ -226,7 +226,6 @@ static void show_storage_device_status(char * argv[], uint32_t tcpRef, void *buf
     int                   device;
     storage_share_t     * share;
     uint32_t              period;
-    uint32_t              val;
     
     while((st = storaged_next(st)) != NULL) {
       uint64_t sumfree=0;
