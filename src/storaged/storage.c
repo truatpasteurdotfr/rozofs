@@ -344,7 +344,7 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   // Open bins file
   fd = open(my_path, ROZOFS_ST_BINS_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
   if (fd < 0) {	
-    storio_hdr_error(hdr->v0.fid, dev,"open hdr wr");
+    storio_hdr_error(hdr->v0.fid, dev,"open hdr write");
     storage_error_on_device(st,dev);    
     return -1;
   }      
@@ -585,7 +585,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     // Open hdr file
     fd = open(path, ROZOFS_ST_NO_CREATE_FILE_FLAG, ROZOFS_ST_BINS_FILE_MODE);
     if (fd < 0) {
-      storio_hdr_error(fid, dev,"open hdr wr");       
+      storio_hdr_error(fid, dev,"open hdr read");       
       device_result[dev] = errno;	
       continue;
     }
@@ -608,7 +608,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     if (storio_check_header_crc32(hdr,&st->crc_error, crc32) != 0) {
       crc32_error |= (1ULL<<dev);
       device_result[dev] = EIO;	
-      storio_hdr_error(fid, dev,"crc32");             
+      storio_hdr_error(fid, dev,"crc32 hdr");             
       storage_error_on_device(st,device_id[dev]);   
       continue;      
     }  
