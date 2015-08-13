@@ -69,6 +69,15 @@ when set to non zero value, the storios log a warning when a device percent usag
 when set to non zero value, the storios log a warning when the average read delay on a device is over or equal to this limit in micro seconds.
 .SS disk_write_threshold
 when set to non zero value, the storios log a warning when the average write delay on a device is over or equal to this limit in micro seconds.
+.SS fid_recycle
+Boolean (true or false). When set to TRUE, RozoFS starts recycling the FID upon file deletion. The threshold for which the FID recycling starts can be also
+configured within the 
+.B rozofs.conf 
+file .
+.SS trash_high_threshold
+When 
+.B "fid_recycle"
+is set to TRUE, that parameter provides the threshold for which the FID recycling starts  .
 
 
 .SS allow_disk_spin_down
