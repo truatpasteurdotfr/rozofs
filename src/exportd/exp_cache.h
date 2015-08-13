@@ -295,6 +295,23 @@ int exp_trash_entry_create(export_tracking_table_t *trk_tb_p,uint32_t slice,void
 /*
 **__________________________________________________________________
 */
+/**
+*  Create an entry in the fid recycle tracking file 
+
+ 
+  
+  @param trk_tb_p: export attributes tracking table
+  @param slice: slice of the parent directory
+  @param global_attr_p : pointer to the attributes relative to the object to delete
+  @param link: pointer to the symbolic link (significant for ROZOFS_SLNK only)
+  
+  @retval 0 on success: (the attributes contains the lower part of the fid that is allocated by the service)
+  @retval -1 on error (see errno for details)
+*/
+int exp_recycle_entry_create(export_tracking_table_t *trk_tb_p,uint32_t slice,void *ptr);
+/*
+**__________________________________________________________________
+*/
 /** store the extended attributes part of an attribute cache entry to the export's file system
  *
    @param trk_tb_p: export attributes tracking table

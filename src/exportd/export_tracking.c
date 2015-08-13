@@ -67,9 +67,14 @@ extern epp_profiler_t  gprofiler;
 
 uint64_t export_rm_bins_reload_count = 0; /**< trash thread statistics  */
 uint64_t export_rm_bins_pending_count = 0; /**< trash thread statistics  */
+uint64_t export_recycle_pending_count = 0; /**< recycle thread statistics  */
+uint64_t export_recycle_done_count = 0; /**< recycle thread statistics  */
+uint64_t export_rm_bins_threshold_high = 10; /**< trash threshold  where FID recycling starts */
 uint64_t export_rm_bins_done_count = 0;  /**< trash thread statistics  */
 uint64_t export_last_ticks = 0;
 uint64_t export_last_count = 0; 
+uint64_t export_fid_recycle_reload_count = 0; /**< number of recycle fid reloaded */
+int export_fid_recycle_ready = 0; /**< assert to 1 when fid recycle have been reloaded */
 int export_limit_rm_files;
 
 typedef struct cnxentry {
@@ -92,7 +97,7 @@ typedef struct _dirent_dir_root_idx_bitmap_t
    char bitmap[DIRENT_FILE_BYTE_BITMAP_SZ];
 } dirent_dir_root_idx_bitmap_t;
 
-
+int export_recycle_remove_from_tracking_file(export_t * e,recycle_mem_t *entry);
 /*
 **__________________________________________________________________
 ** Format a string with a FID and parse some inforamtion within the FID
@@ -721,6 +726,12 @@ static void *load_trash_dir_thread(void *v) {
 
     pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
+    // Load files to recycle in the fid recycle list
+    if (export_load_recycle_entry(export) != 0) {
+        severe("export_load_recycle_entry failed: %s", strerror(errno));
+        return 0;
+    }
+
     // Load files to delete in trash list
     if (export_load_rmfentry(export) != 0) {
         severe("export_load_rmfentry failed: %s", strerror(errno));
@@ -876,6 +887,7 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
     */
     int sz = sizeof(trash_bucket_t)*common_config.storio_slice_number;
     e->trash_buckets = malloc(sz); 
+    export_rm_bins_threshold_high = common_config.trash_high_threshold;
     if (e->trash_buckets == NULL) {
 	severe("out of memory export %d %s. %d slices -> sz %d",eid,root_path,common_config.storio_slice_number,sz);
 	close(e->fdstat);
@@ -893,6 +905,35 @@ int export_initialize(export_t * e, volume_t *volume, ROZOFS_BSIZE_E bsize,
             return -1;
         }
     }
+    if (common_config.fid_recycle)
+    {
+      /*
+      ** Allocate recycle buckets for this export.
+      ** One bucket per STORIO slice number
+      */
+      int sz = sizeof(recycle_bucket_t)*MAX_SLICE_NB;
+      e->recycle_buckets = malloc(sz); 
+      if (e->recycle_buckets == NULL) {
+	  severe("out of memory export %d %s. %d slices -> sz %d",eid,root_path,MAX_SLICE_NB,sz);
+	  close(e->fdstat);
+	  return -1;
+      }
+      /*
+      ** Initialize each recycle bucket 
+      */
+      for (i = 0; i < MAX_SLICE_NB; i++) {
+          // Initialize list of files to delete
+          list_init(&e->recycle_buckets[i].rmfiles);
+
+      }
+    }
+    else
+    {
+      e->recycle_buckets = NULL;
+    }
+    export_recycle_pending_count = 0;
+
+
 
     // Initialize pthread for load files to remove
 
@@ -1659,6 +1700,57 @@ out:
     return status;
 }
 
+/*
+**__________________________________________________________________
+*/
+/** create a new file by using a recycled fid for a better world
+ *
+ * @param e: the export managing the file
+ * @param pfid: the id of the parent
+ * @param ext_attrs: pointer to an array where current attributes are returned
+  
+ * @return: NULL or level2 entry pointer associated with the recycle fid
+ */
+lv2_entry_t *  export_get_recycled_inode(export_t *e,fid_t pfid,ext_mattr_t *ext_attrs)
+{   
+   recycle_mem_t *rmfe; 
+   lv2_entry_t *lv2;
+   uint32_t pslice;
+
+   /*
+   ** check if fid recycle is active
+   */
+   if (common_config.fid_recycle == 0) return NULL;
+   /*
+   ** check if there is reload in progress
+   */
+   if (export_fid_recycle_ready == 0) return NULL;
+   /*
+   ** get the slice of the parent
+   */
+   exp_trck_get_slice(pfid,&pslice);
+   rmfe = list_1rst_entry(&e->recycle_buckets[pslice].rmfiles,recycle_mem_t, list);
+   if (rmfe == NULL) return NULL;
+   /*
+   ** remove the entry from the fid recyle list and update the entry on disk
+   */
+   export_recycle_done_count++;
+   list_remove(&rmfe->list);
+   export_recycle_remove_from_tracking_file(e,rmfe);
+   /*
+   ** load up the entry in cache
+   */
+   if (!(lv2 = export_lookup_fid(e->trk_tb_p,e->lv2_cache, rmfe->fid)))
+   {
+      severe("cannot find fid on disk");
+      free(rmfe);
+      return NULL;
+   }
+   memcpy(ext_attrs,&lv2->attributes,sizeof(ext_mattr_t));
+   free(rmfe);
+   return lv2; 
+}
+
 
 /*
 **__________________________________________________________________
@@ -1693,6 +1785,8 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     exp_trck_top_header_t *p = NULL;
     int ret;
     int root_dirent_mask = 0;
+    lv2_entry_t *lv2_recycle=NULL;
+
    
     START_PROFILING(export_mknod);
 
@@ -1771,11 +1865,17 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     memset(&ext_attrs,0x00,sizeof(ext_attrs));
     memcpy(&ext_attrs.s.pfid,pfid,sizeof(fid_t));
     /*
-    ** get the distribution for the file
+    ** check if there some fid to recycle
     */
-    if (volume_distribute(e->volume,site_number, &ext_attrs.s.attrs.cid, ext_attrs.s.attrs.sids) != 0)
-        goto error;
-
+    lv2_recycle = export_get_recycled_inode(e,pfid,&ext_attrs);
+    if (lv2_recycle == NULL)
+    {
+      /*
+      ** get the distribution for the file
+      */
+      if (volume_distribute(e->volume,site_number, &ext_attrs.s.attrs.cid, ext_attrs.s.attrs.sids) != 0)
+          goto error;
+    }
     ext_attrs.s.attrs.mode = mode;
     ext_attrs.s.attrs.uid = uid;
     ext_attrs.s.attrs.gid = gid;
@@ -1790,12 +1890,15 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     if ((ext_attrs.s.attrs.ctime = ext_attrs.s.attrs.atime = ext_attrs.s.attrs.mtime = ext_attrs.s.cr8time= time(NULL)) == -1)
         goto error;
     ext_attrs.s.attrs.size = 0;
-    /*
-    ** create the inode and write the attributes on disk
-    */
-    if(exp_attr_create_write_cond(e->trk_tb_p,pslice,&ext_attrs,ROZOFS_REG,NULL,0) < 0)
-        goto error;
-    inode_allocated = 1;
+    if (lv2_recycle == NULL)
+    {
+      /*
+      ** create the inode and write the attributes on disk
+      */
+      if(exp_attr_create_write_cond(e->trk_tb_p,pslice,&ext_attrs,ROZOFS_REG,NULL,0) < 0)
+          goto error;
+      inode_allocated = 1;
+    }
     /*
     ** update the bit in the root_idx bitmap of the parent directory
     */
@@ -1840,8 +1943,15 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     if (ret < 0)
     { 
       goto error;
-    }  
-    lv2_cache_put_forced(e->lv2_cache,ext_attrs.s.attrs.fid,&ext_attrs);
+    }
+    if (lv2_recycle == NULL)
+    {  
+      lv2_cache_put_forced(e->lv2_cache,ext_attrs.s.attrs.fid,&ext_attrs);
+    }
+    else
+    {
+      memcpy(&lv2_recycle->attributes,&ext_attrs,sizeof(ext_mattr_t));    
+    }
     // Update children nb. and times of parent
     plv2->attributes.s.attrs.children++;
     plv2->attributes.s.attrs.mtime = plv2->attributes.s.attrs.ctime = time(NULL);
@@ -2401,6 +2511,83 @@ out:
     if(fdp != -1) close(fdp);
     return status;
 }
+/*
+**__________________________________________________________________
+*/
+/** attempt to recycle the fid associated with a file
+ *
+ * @param e: the export managing the file
+ * @param lvl2: attributes of the fid within the cache 
+ * 
+ * @return: 0 not recycled
+ * @return: 1  recycled
+ 
+ */
+int export_fid_recycle_attempt(export_t * e,lv2_entry_t *lv2)
+{
+   rozofs_inode_t *fake_inode_p;
+   recycle_disk_t  recycle_entry;
+   uint64_t count;
+   int ret;
+     
+   if (common_config.fid_recycle == 0) return 0;
+   /*
+   ** do not attempt to recycle fid while reload from disk is in progress
+   */
+   if (export_fid_recycle_ready == 0) return 0;
+   
+   memset(&recycle_entry,0,sizeof (recycle_disk_t));
+
+   /*
+   ** check the number of pending fid in trash
+   */
+   count = (export_rm_bins_reload_count+export_rm_bins_pending_count)-export_rm_bins_done_count;
+   if (count < export_rm_bins_threshold_high)
+   {
+     return 0;
+   }
+   /*
+   ** update the version of the fid in the attributes
+   */
+   fake_inode_p =  (rozofs_inode_t *)lv2->attributes.s.attrs.fid;   
+   fake_inode_p->s.recycle_cpt +=1;
+   
+   memcpy(recycle_entry.fid, lv2->attributes.s.attrs.fid, sizeof (fid_t));
+   ret = exp_recycle_entry_create(e->trk_tb_p,fake_inode_p->s.usr_id,&recycle_entry); 
+   if (ret < 0)
+   {
+      /*
+      ** error while inserting entry in recycle file
+      */
+      severe("error on recycle insertion error %s",strerror(errno)); 
+   }
+
+   /*
+   ** write back attributes on disk
+   */ 
+   if (export_lv2_write_attributes(e->trk_tb_p,lv2) != 0)
+   {
+     severe("fail to write attributes on disk");
+   }
+   /*
+   ** save it in memory
+   */
+   /*
+   ** Preparation of the recycle entry in memory
+   */
+   recycle_mem_t *rmfe = xmalloc(sizeof (recycle_mem_t));
+   memset(rmfe,0,sizeof (recycle_mem_t));
+   export_recycle_pending_count++;
+   memcpy(rmfe->fid, recycle_entry.fid, sizeof (fid_t));
+   memcpy(rmfe->recycle_inode,recycle_entry.recycle_inode,sizeof(fid_t));
+   list_init(&rmfe->list);   
+   /*
+   ** insert it the list
+   */   
+   list_push_back(&e->recycle_buckets[fake_inode_p->s.usr_id].rmfiles, &rmfe->list);
+   return 1;
+}
+
 
 /*
 **__________________________________________________________________
@@ -2488,94 +2675,106 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
 
     // Not a hardlink
     if (nlink == 1) {
+        int fid_has_been_recycled = 0;
 
         if (S_ISREG(lv2->attributes.s.attrs.mode)) {
-
-            // Compute hash value for this fid
-            uint32_t hash = rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid);
-            /*
-	    ** prepare the trash entry
-	    */
-	    trash_entry.size = lv2->attributes.s.attrs.size;
-            memcpy(trash_entry.fid, lv2->attributes.s.attrs.fid, sizeof (fid_t));
-            trash_entry.cid = lv2->attributes.s.attrs.cid;
-            memcpy(trash_entry.initial_dist_set, lv2->attributes.s.attrs.sids,
-                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            memcpy(trash_entry.current_dist_set, lv2->attributes.s.attrs.sids,
-                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
-	    fake_inode_p =  (rozofs_inode_t *)parent;   
-            ret = exp_trash_entry_create(e->trk_tb_p,fake_inode_p->s.usr_id,&trash_entry); 
-	    if (ret < 0)
-	    {
-	       /*
-	       ** error while inserting entry in trash file
-	       */
-	       severe("error on trash insertion name %s error %s",name,strerror(errno)); 
-            }
-            /*
-	    ** delete the metadata associated with the file
-	    */
-	    ret = exp_delete_file(e,lv2);
 	    /*
-	    * In case of geo replication, insert a delete request from the 2 sites 
+	    ** check the case of the fid recycle
 	    */
-	    if (e->volume->georep) 
+	    fid_has_been_recycled = export_fid_recycle_attempt(e,lv2);
+	    if (fid_has_been_recycled == 0)
 	    {
-	      /*
-	      ** update the geo replication: set start=end=0 to indicate a deletion 
-	      */
-	      geo_rep_insert_fid(e->geo_replication_tb[0],
-                		 lv2->attributes.s.attrs.fid,
-				 0/*start*/,0/*end*/,
-				 e->layout,
-				 lv2->attributes.s.attrs.cid,
-				 lv2->attributes.s.attrs.sids);
-	      /*
-	      ** update the geo replication: set start=end=0 to indicate a deletion 
-	      */
-	      geo_rep_insert_fid(e->geo_replication_tb[1],
-                		 lv2->attributes.s.attrs.fid,
-				 0/*start*/,0/*end*/,
-				 e->layout,
-				 lv2->attributes.s.attrs.cid,
-				 lv2->attributes.s.attrs.sids);
-	    }	
-            /*
-	    ** Preparation of the rmfentry
-	    */
-            rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
-	    export_rm_bins_pending_count++;
-            memcpy(rmfe->fid, trash_entry.fid, sizeof (fid_t));
-            rmfe->cid = trash_entry.cid;
-            memcpy(rmfe->initial_dist_set, trash_entry.initial_dist_set,
-                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            memcpy(rmfe->current_dist_set, trash_entry.current_dist_set,
-                    sizeof (sid_t) * ROZOFS_SAFE_MAX);
-            memcpy(rmfe->trash_inode,trash_entry.trash_inode,sizeof(fid_t));
-            list_init(&rmfe->list);
-            /* Acquire lock on bucket trash list
-	    */
-            if ((errno = pthread_rwlock_wrlock
-                    (&e->trash_buckets[hash].rm_lock)) != 0) {
-                severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
-                // Best effort
-            }
-            /*
-	    ** Check size of file 
-	    */
-            if (lv2->attributes.s.attrs.size >= RM_FILE_SIZE_TRESHOLD) {
-                // Add to front of list
-                list_push_front(&e->trash_buckets[hash].rmfiles, &rmfe->list);
-            } else {
-                // Add to back of list
-                list_push_back(&e->trash_buckets[hash].rmfiles, &rmfe->list);
-            }
+              // Compute hash value for this fid
+              uint32_t hash = rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid);
 
-            if ((errno = pthread_rwlock_unlock
-                    (&e->trash_buckets[hash].rm_lock)) != 0) {
-                severe("pthread_rwlock_unlock failed: %s", strerror(errno));
-                // Best effort
-            }
+              /*
+	      ** prepare the trash entry
+	      */
+	      trash_entry.size = lv2->attributes.s.attrs.size;
+              memcpy(trash_entry.fid, lv2->attributes.s.attrs.fid, sizeof (fid_t));
+              trash_entry.cid = lv2->attributes.s.attrs.cid;
+              memcpy(trash_entry.initial_dist_set, lv2->attributes.s.attrs.sids,
+                      sizeof (sid_t) * ROZOFS_SAFE_MAX);
+              memcpy(trash_entry.current_dist_set, lv2->attributes.s.attrs.sids,
+                      sizeof (sid_t) * ROZOFS_SAFE_MAX);
+	      fake_inode_p =  (rozofs_inode_t *)parent;   
+              ret = exp_trash_entry_create(e->trk_tb_p,fake_inode_p->s.usr_id,&trash_entry); 
+	      if (ret < 0)
+	      {
+		 /*
+		 ** error while inserting entry in trash file
+		 */
+		 severe("error on trash insertion name %s error %s",name,strerror(errno)); 
+              }
+              /*
+	      ** delete the metadata associated with the file
+	      */
+	      ret = exp_delete_file(e,lv2);
+	      /*
+	      * In case of geo replication, insert a delete request from the 2 sites 
+	      */
+	      if (e->volume->georep) 
+	      {
+		/*
+		** update the geo replication: set start=end=0 to indicate a deletion 
+		*/
+		geo_rep_insert_fid(e->geo_replication_tb[0],
+                		   lv2->attributes.s.attrs.fid,
+				   0/*start*/,0/*end*/,
+				   e->layout,
+				   lv2->attributes.s.attrs.cid,
+				   lv2->attributes.s.attrs.sids);
+		/*
+		** update the geo replication: set start=end=0 to indicate a deletion 
+		*/
+		geo_rep_insert_fid(e->geo_replication_tb[1],
+                		   lv2->attributes.s.attrs.fid,
+				   0/*start*/,0/*end*/,
+				   e->layout,
+				   lv2->attributes.s.attrs.cid,
+				   lv2->attributes.s.attrs.sids);
+	      }	
+              /*
+	      ** Preparation of the rmfentry
+	      */
+              rmfentry_t *rmfe = xmalloc(sizeof (rmfentry_t));
+	      export_rm_bins_pending_count++;
+              memcpy(rmfe->fid, trash_entry.fid, sizeof (fid_t));
+              rmfe->cid = trash_entry.cid;
+              memcpy(rmfe->initial_dist_set, trash_entry.initial_dist_set,
+                      sizeof (sid_t) * ROZOFS_SAFE_MAX);
+              memcpy(rmfe->current_dist_set, trash_entry.current_dist_set,
+                      sizeof (sid_t) * ROZOFS_SAFE_MAX);
+              memcpy(rmfe->trash_inode,trash_entry.trash_inode,sizeof(fid_t));
+              list_init(&rmfe->list);
+              /* Acquire lock on bucket trash list
+	      */
+              if ((errno = pthread_rwlock_wrlock
+                      (&e->trash_buckets[hash].rm_lock)) != 0) {
+                  severe("pthread_rwlock_wrlock failed: %s", strerror(errno));
+                  // Best effort
+              }
+              /*
+	      ** Check size of file 
+	      */
+	      if (hash >= common_config.storio_slice_number )
+	      {	      
+	        severe("FDL bad hash value %d (max %d)",hash,common_config.storio_slice_number);
+	      }
+              if (lv2->attributes.s.attrs.size >= RM_FILE_SIZE_TRESHOLD) {
+                  // Add to front of list
+                  list_push_front(&e->trash_buckets[hash].rmfiles, &rmfe->list);
+              } else {
+                  // Add to back of list
+                  list_push_back(&e->trash_buckets[hash].rmfiles, &rmfe->list);
+              }
+
+              if ((errno = pthread_rwlock_unlock
+                      (&e->trash_buckets[hash].rm_lock)) != 0) {
+                  severe("pthread_rwlock_unlock failed: %s", strerror(errno));
+                  // Best effort
+              }
+	    }
             // Update the nb. of blocks
             if (export_update_blocks(e,0,
                     (((int64_t) lv2->attributes.s.attrs.size + ROZOFS_BSIZE_BYTES(e->bsize) - 1)
@@ -2823,6 +3022,86 @@ int export_rmbins_remove_from_tracking_file(export_t * e,rmfentry_t *entry)
 **_______________________________________________________________________________
 */
 /**
+* remove a recycle entry  from the tracking file 
+
+   e: pointer to exportd data structure
+   entry: pointer to the entry to remove
+   
+*/   
+int export_recycle_remove_from_tracking_file(export_t * e,recycle_mem_t *entry)
+{
+
+   rozofs_inode_t *fake_inode;
+   int nb_entries;
+   int ret;
+   exp_trck_file_header_t tracking_buffer_src;
+   int current_count;
+   exp_trck_header_memory_t *slice_hdr_p;
+   char pathname[1024];
+   exp_trck_top_header_t *trash_p = e->trk_tb_p->tracking_table[ROZOFS_RECYCLE];
+   
+   fake_inode = (rozofs_inode_t*)&entry->recycle_inode;
+   
+   slice_hdr_p = trash_p->entry_p[fake_inode->s.usr_id];
+   
+   ret = exp_attr_delete(e->trk_tb_p,entry->recycle_inode);
+   if (ret < 0)
+   {
+      severe("error while remove file from recycle tracking file ; %s",strerror(errno));   
+   }
+   /*
+   ** check if the tracking file must be released
+   */
+   ret = exp_metadata_get_tracking_file_header(trash_p,fake_inode->s.usr_id,fake_inode->s.file_id,&tracking_buffer_src,&nb_entries);
+   if (ret < 0)
+   {
+     if (errno != ENOENT)
+     {
+        printf("error while reading metadata header %s\n",strerror(errno));
+       return 0;
+     }
+     /*
+     ** nothing the delete there, so continue with the next one
+     */
+     return 0;
+   }
+   /*
+   ** get the current count of file to delete
+   */
+   current_count= exp_metadata_get_tracking_file_count(&tracking_buffer_src);
+   /*
+   ** if the current count is 0 and if the current file does not correspond to the last main index
+   ** the file is deleted
+   */
+   if ((current_count == 0) && (nb_entries == EXP_TRCK_MAX_INODE_PER_FILE))
+   {
+      /*
+      ** delete trashing file and update the first index if that one was the first
+      */
+      sprintf(pathname,"%s/%d/trk_%llu",trash_p->root_path,fake_inode->s.usr_id,(long long unsigned int)fake_inode->s.file_id);
+      ret = unlink(pathname);
+      if (ret < 0)
+      {
+	severe("cannot delete %s:%s\n",pathname,strerror(errno));
+      }
+      /*
+      ** check if the file tracking correspond to the first index of the main tracking file
+      */
+      if (slice_hdr_p->entry.first_idx == fake_inode->s.file_id)
+      {
+	/*
+	** update the main tracking file
+	*/
+	slice_hdr_p->entry.first_idx++;
+	exp_trck_write_main_tracking_file(trash_p->root_path,fake_inode->s.usr_id,0,sizeof(uint64_t),&slice_hdr_p->entry.first_idx);
+      }
+   }
+   return 0;
+}
+/*
+**_______________________________________________________________________________
+*/
+/**
 *  trash statistics display
 
    @param buf : pointer to the buffer that will contains the statistics
@@ -2832,7 +3111,8 @@ char *export_rm_bins_stats(char *pChar)
    uint64_t new_ticks;
    uint64_t new_count;   
    pChar += sprintf(pChar,"Trash thread period         : %d seconds\n",RM_BINS_PTHREAD_FREQUENCY_SEC);
-   pChar += sprintf(pChar,"file deletion per period    : %d\n",export_limit_rm_files);   
+   pChar += sprintf(pChar,"trash rate                  : %d\n",export_limit_rm_files);   
+   pChar += sprintf(pChar,"trash limit                 : %d\n",export_rm_bins_threshold_high);   
       
    new_ticks = rdtsc();
    new_count = export_rm_bins_done_count;
@@ -2845,12 +3125,20 @@ char *export_rm_bins_stats(char *pChar)
    export_last_ticks = new_ticks;
    export_last_count = new_count;
      
-   pChar += sprintf(pChar,"stats:\n");
+   pChar += sprintf(pChar,"trash stats:\n");
    pChar += sprintf(pChar,"  - reloaded = %llu\n", (unsigned long long int) export_rm_bins_reload_count);
    pChar += sprintf(pChar,"  - trashed  = %llu\n", (unsigned long long int) export_rm_bins_pending_count);
    pChar += sprintf(pChar,"  - done     = %llu\n", (unsigned long long int) export_rm_bins_done_count);
    pChar += sprintf(pChar,"  - pending  = %llu\n", 
         (unsigned long long int) (export_rm_bins_reload_count+export_rm_bins_pending_count)-export_rm_bins_done_count);
+
+
+   pChar += sprintf(pChar,"recycle stats:\n");
+   pChar += sprintf(pChar,"  - reloaded = %llu\n", (unsigned long long int) export_fid_recycle_reload_count);
+   pChar += sprintf(pChar,"  - recycled = %llu\n", (unsigned long long int) export_recycle_pending_count);
+   pChar += sprintf(pChar,"  - done     = %llu\n", (unsigned long long int) export_recycle_done_count);
+   pChar += sprintf(pChar,"  - pending  = %llu\n", 
+        (unsigned long long int) (export_fid_recycle_reload_count+export_recycle_pending_count)-export_recycle_done_count);   
    return pChar;
 }
 /*
@@ -4192,6 +4480,8 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   p += rozofs_u64_append(p,fake_inode_p->s.vers);
   p += rozofs_string_append(p," fid_high=");
   p += rozofs_u64_append(p,fake_inode_p->s.fid_high);
+  p += rozofs_string_append(p," recycle=");
+  p += rozofs_u64_append(p,fake_inode_p->s.recycle_cpt);  
   p += rozofs_string_append(p," opcode=");
   p += rozofs_u64_append(p,fake_inode_p->s.opcode);
   p += rozofs_string_append(p," exp_id=");

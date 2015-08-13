@@ -90,7 +90,10 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_INT(disk_read_threshold);  
   COMMON_CONFIG_SHOW_INT(disk_write_threshold);   
   COMMON_CONFIG_SHOW_INT(export_dscp);   
-  COMMON_CONFIG_SHOW_INT(storio_dscp);   
+  COMMON_CONFIG_SHOW_INT(storio_dscp); 
+  COMMON_CONFIG_SHOW_INT(trash_high_threshold); 
+    
+  COMMON_CONFIG_SHOW_BOOL(fid_recycle);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -258,6 +261,16 @@ void common_config_read(char * fname) {
   */
   COMMON_CONFIG_READ_INT(export_dscp);  
   COMMON_CONFIG_READ_INT(storio_dscp);      
+
+  /*
+  ** Shall we take into account the fid recycle
+  */
+  COMMON_CONFIG_READ_BOOL(fid_recycle);
+  /*
+  ** read the trash high threshold when fid recycling starts
+  */
+  COMMON_CONFIG_READ_INT(trash_high_threshold);      
+
   /*
   ** Free lib config working structure
   */

@@ -89,6 +89,13 @@ typedef struct trash_bucket {
     list_t rmfiles; ///< List of files to delete
     pthread_rwlock_t rm_lock; ///< Lock for the list of files to delete
 } trash_bucket_t;
+
+/** structure for store the list of files to recycle
+ * for one recycle bucket.
+ */
+typedef struct recycle_bucket {
+    list_t rmfiles; ///< List of files to recycle
+} recycle_bucket_t;
 /**
 * structuire for tracking file for which there is a deletion in progress
   it corresponds to the structure saved on diosk
@@ -103,6 +110,7 @@ typedef struct _rmfentry_disk_t {
     sid_t current_dist_set[ROZOFS_SAFE_MAX];
 } rmfentry_disk_t;
 
+
 /**
  *  Structure used for store information about a file to remove
  */
@@ -116,6 +124,26 @@ typedef struct rmfentry {
     ///< current sids of storage nodes target for this file.
     list_t list; ///<  pointer for extern list.
 } rmfentry_t;
+
+/**
+* structuire for tracking file for which there is a fid recycle
+  it corresponds to the structure saved on disk
+*/
+typedef struct _recycle_disk_t {
+    fid_t fid;              /**<  unique file id .*/
+    fid_t recycle_inode;      /**< reference of the recycle inode */
+    uint32_t filler[16];
+} recycle_disk_t;
+
+/**
+* structuire for tracking file for which there is a fid recycle
+  it corresponds to the structure saved on disk
+*/
+typedef struct _recycle_mem_t {
+    fid_t fid;              /**<  unique file id .*/
+    fid_t recycle_inode;      /**< reference of the recycle inode */
+    list_t list; ///<  pointer for extern list.
+} recycle_mem_t;
 
 /**
 * exportd gateway entry structure
@@ -150,8 +178,9 @@ typedef struct export {
     export_tracking_table_t *trk_tb_p; 
     geo_rep_srv_ctx_t  *geo_replication_tb[EXPORT_GEO_MAX_CTX];        
     trash_bucket_t * trash_buckets; ///< Address of the array of trash buckets of this export
+    recycle_bucket_t * recycle_buckets; ///< Address of the array of recycle buckets of this export
     // of files to delete for each bucket trash
-    pthread_t load_trash_thread; ///< pthread for load the list of trash files
+    pthread_t load_trash_thread; ///< pthread for load the list of trash and recycle files
     // to delete when we start or reload this export
 } export_t;
 
@@ -176,6 +205,13 @@ char *export_rm_bins_stats(char *pChar);
    
 */
 int export_load_rmfentry(export_t * e) ;
+/**
+*  Reload in memory the files that could have their fid recycled
+
+   @param e : pointer to the export structure
+   
+*/
+int export_load_recycle_entry(export_t * e);
 /**
 * statistics for tracking thread
 */

@@ -186,8 +186,8 @@ int export_load_rmfentry(export_t * e)
             } else {
                 // Add to back of list
                 list_push_back(&e->trash_buckets[hash].rmfiles, &rmfe->list);
-		export_rm_bins_reload_count++;
             }
+            export_rm_bins_reload_count++;
             if ((errno = pthread_rwlock_unlock
                     (&e->trash_buckets[hash].rm_lock)) != 0) {
                 severe("pthread_rwlock_unlock failed: %s", strerror(errno));
@@ -199,5 +199,122 @@ int export_load_rmfentry(export_t * e)
        */
      }   
    }
+   return ret;
+}
+
+/*____________________________________________________________
+*/
+/**
+*  Reload in memory the files that could have their fid recycled
+
+   @param e : pointer to the export structure
+   
+*/
+extern uint64_t export_recycle_pending_count;
+extern uint64_t export_fid_recycle_reload_count;
+extern int export_fid_recycle_ready;
+int export_load_recycle_entry(export_t * e) 
+{
+   int ret=0;
+   int user_id;
+   uint64_t count = 0;
+   uint64_t file_id;
+   rozofs_inode_t inode;
+   int i;
+   recycle_disk_t recycle_entry;
+   exp_trck_top_header_t *tracking_recycle_p; 
+   exp_trck_header_memory_t *slice_hdr_p;
+   exp_trck_file_header_t tracking_buffer;
+   recycle_mem_t *rmfe; 
+   rozofs_inode_t * fake_inode_p;
+   
+   if (common_config.fid_recycle == 0) return 0;
+     
+   /*
+   ** get the pointer to the tracking context associated with the 
+   ** export
+   */
+   tracking_recycle_p = e->trk_tb_p->tracking_table[ROZOFS_RECYCLE];   
+   /*
+   ** go through all the slices of the export check for all the file
+   ** that are under recycle 
+   */ 
+   for (user_id = 0; user_id < EXP_TRCK_MAX_USER_ID; user_id++)
+   {
+     inode.s.usr_id = user_id;
+     file_id = 0;
+    
+     /*
+     ** read the main tracking file of each slices: the main tracking file contains the 
+     ** first and list index of individual tracking file that contains the information
+     ** relative to the file to delete. There are a maximum of 2044 files per tracking
+     * file
+     */
+     slice_hdr_p = tracking_recycle_p->entry_p[user_id];
+     for (file_id = slice_hdr_p->entry.first_idx; file_id <= slice_hdr_p->entry.last_idx; file_id++)
+     {
+       ret = exp_metadata_get_tracking_file_header(tracking_recycle_p,user_id,file_id,&tracking_buffer,NULL);
+       if (ret < 0)
+       {
+	 if (errno != ENOENT)
+	 {
+            severe("error while main tracking file header of slice %d %s\n",user_id,strerror(errno));
+	    continue;
+	 }
+	 ret = 0;
+	 continue;
+       }
+       /*
+       ** get the current count within the tracking file
+       */
+
+       count +=exp_metadata_get_tracking_file_count(&tracking_buffer);
+       inode.s.file_id = file_id;
+
+       for (i = 0; i < EXP_TRCK_MAX_INODE_PER_FILE; i++)
+       {
+          inode.s.idx = i;
+	  if (tracking_buffer.inode_idx_table[i] == 0xffff) continue;
+	  ret = exp_metadata_read_attributes(tracking_recycle_p,&inode,&recycle_entry,sizeof(recycle_entry));
+	  if (ret < 0)
+	  {
+	    severe("error while reading attributes at idx %d for recycle slice %d in file %llu: %s\n",
+	            inode.s.idx,inode.s.usr_id,
+	            (long long unsigned int)inode.s.file_id,
+		    strerror(errno));
+		    continue;
+	  }
+	  /*
+	  ** allocate memory for the file to recycle
+	  */
+            for(;;)
+	    {
+              rmfe = malloc(sizeof (recycle_mem_t));
+	      if (rmfe == NULL)
+	      {
+		 /*
+		 ** out of memory: just wait for a while and then retry
+		 */
+		 sleep(2);
+	      }
+	      break;
+	    }
+	    export_fid_recycle_reload_count++;
+	    memcpy(rmfe->fid, recycle_entry.fid, sizeof (fid_t));
+	    memcpy(rmfe->recycle_inode,recycle_entry.recycle_inode,sizeof(fid_t));
+            list_init(&rmfe->list);
+
+	    fake_inode_p =  (rozofs_inode_t *)recycle_entry.fid;   
+	    list_push_back(&e->recycle_buckets[fake_inode_p->s.usr_id].rmfiles, &rmfe->list);
+       }
+       /*
+       ** try the next
+       */
+     }   
+   }
+   /*
+   ** indicates that fid recycle is now effective
+   */
+   export_fid_recycle_ready = 1;
    return ret;
 }

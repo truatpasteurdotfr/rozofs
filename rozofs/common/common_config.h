@@ -30,8 +30,8 @@
 /*
 ** Default parameter values
 */
-#define rozofs_cc_def_trashed_file_per_run     500
-#define rozofs_cc_min_trashed_file_per_run     50
+#define rozofs_cc_def_trashed_file_per_run     7
+#define rozofs_cc_min_trashed_file_per_run     1
 #define rozofs_cc_max_trashed_file_per_run     50000
 
 #define rozofs_cc_def_nb_core_file             1
@@ -68,6 +68,8 @@
 
 #define rozofs_cc_def_numa_aware               FALSE
 
+#define rozofs_cc_def_fid_recycle             FALSE
+
 typedef enum _rozofs_file_distribution_rule_e {
   rozofs_file_distribution_size_balancing,
   rozofs_file_distribution_round_robin,
@@ -90,6 +92,11 @@ typedef enum _rozofs_file_distribution_rule_e {
 #define rozofs_cc_min_disk_write_threshold      0  // No threashold
 #define rozofs_cc_max_disk_write_threshold      1000000
 
+
+#define rozofs_cc_def_trash_high_threshold      1000
+#define rozofs_cc_min_trash_high_threshold      0  // No threashold
+#define rozofs_cc_max_trash_high_threshold      1000000
+
 /*
 ** Common configuration parameters
 */
@@ -111,6 +118,8 @@ typedef struct _common_config_t {
   uint32_t    disk_write_threshold;  
   uint32_t    export_dscp;  
   uint32_t    storio_dscp;  
+  uint32_t    fid_recycle;  
+  uint32_t    trash_high_threshold;
 } common_config_t;
   
 extern common_config_t common_config;

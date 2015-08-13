@@ -1837,8 +1837,11 @@ int del_mdirentry_internal(void *root_idx_bitmap_p,int dirfd, fid_t fid_parent, 
                 int ret;
 
                 ret = unlink(path);
-                if (ret < 0) {
-                    DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path, strerror(errno), __LINE__);
+                if ((ret < 0) && (errno != ENOENT)){
+		    /*
+		    ** it might be possible that the file does not exist because of the writeback cache behavior
+		    */
+                    DIRENT_SEVERE("Cannot remove file %s: %s( line %d\n)", path, strerror(errno), __LINE__);		    
                     goto out;
                 }
 #endif

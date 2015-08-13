@@ -278,7 +278,9 @@ int exp_meta_get_xattr_block(export_tracking_table_t *trk_tb_p,lv2_entry_t *entr
 lv2_entry_t *lv2_cache_put(export_tracking_table_t *trk_tb_p,lv2_cache_t *cache, fid_t fid) {
     lv2_entry_t *entry;
     int count=0;
-
+    rozofs_inode_t *fake_inode,*fake_inode_attr;
+   
+    fake_inode = (rozofs_inode_t*)fid;
 //    START_PROFILING(lv2_cache_put);
 
     // maybe already cached.
@@ -302,6 +304,21 @@ lv2_entry_t *lv2_cache_put(export_tracking_table_t *trk_tb_p,lv2_cache_t *cache,
       ** cannot get the attributes: need to log the returned errno
       */
       goto error;
+    }
+    /*
+    ** case of the fid recycle
+    */
+
+    if (fake_inode->s.key == ROZOFS_REG)
+    {
+      fake_inode_attr = (rozofs_inode_t*)entry->attributes.s.attrs.fid;
+      if( fake_inode->s.recycle_cpt !=  fake_inode_attr->s.recycle_cpt)
+      {
+         /*
+	 ** it correspond to the case where the fid has been recycled
+	 */
+         goto error;
+      }
     }    
     /*
     ** Initialize file locking 
@@ -1035,6 +1052,62 @@ int exp_trash_entry_create(export_tracking_table_t *trk_tb_p,uint32_t slice,void
   }
   return 0;
 }
+/*
+**__________________________________________________________________
+*/
+/**
+*  Create an entry in the fid recycle tracking file 
+
+ 
+  
+  @param trk_tb_p: export attributes tracking table
+  @param slice: slice of the parent directory
+  @param global_attr_p : pointer to the attributes relative to the object to delete
+  @param link: pointer to the symbolic link (significant for ROZOFS_SLNK only)
+  
+  @retval 0 on success: (the attributes contains the lower part of the fid that is allocated by the service)
+  @retval -1 on error (see errno for details)
+*/
+int exp_recycle_entry_create(export_tracking_table_t *trk_tb_p,uint32_t slice,void *ptr)
+{
+   rozofs_inode_t fake_inode;
+   int ret;
+   exp_trck_top_header_t *p = NULL;
+   recycle_disk_t *global_attr_p = (recycle_disk_t *)ptr;
+   
+   fake_inode.s.key = ROZOFS_RECYCLE;
+   fake_inode.s.usr_id = slice; 
+   fake_inode.s.eid = trk_tb_p->eid;   
+      
+   p = trk_tb_p->tracking_table[fake_inode.s.key];
+   if (p == NULL)
+   {
+     errno = ENOTSUP;
+     return -1;    
+   }   
+   /*
+   ** allocate the inode
+   */
+   ret = exp_metadata_allocate_inode(p,&fake_inode,ROZOFS_RECYCLE,slice);
+   if (ret < 0)
+   { 
+      return -1;
+   }
+
+   /*
+   ** copy the reference of the trash inode
+   */
+   memcpy(&global_attr_p->recycle_inode,&fake_inode,sizeof(rozofs_inode_t));
+   /*
+   ** write the metadata on disk
+   */
+   ret = exp_metadata_write_attributes(p,&fake_inode,global_attr_p,sizeof(recycle_disk_t));
+  if (ret < 0)
+  {
+    return -1;
+  }
+  return 0;
+}
 
 /*
 **__________________________________________________________________
@@ -1212,6 +1285,24 @@ export_tracking_table_t *exp_create_attributes_tracking_context(uint16_t eid, ch
        severe("dir_xattr:creation failure for user_id %d \n",loop);
        goto error;   
      }  
+   }   
+
+   if (common_config.fid_recycle)
+   {
+     /*
+     ** recycle directory
+     */
+     ret = exp_create_one_attributes_tracking_context(tab_p,ROZOFS_RECYCLE,"dir_recycle",sizeof(recycle_disk_t),root_path,create);
+     if (ret < 0) goto error;
+     for (loop= 0; loop < EXP_TRCK_MAX_USER_ID; loop++)
+     {
+       ret = exp_trck_top_add_user_id(tab_p->tracking_table[ROZOFS_RECYCLE],loop);
+       if (ret < 0) 
+       {
+	 severe("dir_recycle:creation failure for user_id %d \n",loop);
+	 goto error;   
+       }  
+     }
    }   
    /*
    ** everything is fine, so store the reference of the context in the table at the index of the eid

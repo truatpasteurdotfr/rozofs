@@ -114,6 +114,7 @@ typedef struct _storio_device_mapping_t
   uint32_t             status:8;
   uint32_t             index:24;
   storio_device_mapping_key_t key;
+  uint32_t             recycle_cpt;
   uint8_t              device[ROZOFS_STORAGE_MAX_CHUNK_PER_FILE];   /**< Device number to write the data on        */
   list_t               running_request;
   list_t               waiting_request;
@@ -157,7 +158,11 @@ static inline uint32_t storio_device_mapping_hash32bits_compute(storio_device_ma
   uint32_t        h = 2166136261;
   unsigned char * d = (unsigned char *) usr_key->fid;
   int             i;
-
+  rozofs_inode_t * fake_inode_p;
+  
+  fake_inode_p = (rozofs_inode_t*)usr_key->fid;
+  fake_inode_p->s.recycle_cpt = 0;
+  
   /*
    ** hash on fid
    */
@@ -439,6 +444,7 @@ static inline void storio_device_mapping_ctx_distributor_init() {
 static inline storio_device_mapping_t * storio_device_mapping_insert(uint8_t cid, uint8_t sid, void * fid) {
   storio_device_mapping_t            * p;  
   uint32_t hash;
+  rozofs_inode_t * fake_inode_p;
   
   /*
   ** allocate an entry
@@ -447,10 +453,11 @@ static inline storio_device_mapping_t * storio_device_mapping_insert(uint8_t cid
   if (p == NULL) {
     return NULL;
   }
-
+  fake_inode_p = (rozofs_inode_t*)fid;
   p->key.cid = cid;
   p->key.sid = sid;  
   memcpy(&p->key.fid,fid,sizeof(fid_t));
+  p->recycle_cpt = fake_inode_p->s.recycle_cpt;
 
   hash = storio_device_mapping_hash32bits_compute(&p->key);  
   if (storio_fid_cache_insert(hash, p->index) != 0) {
@@ -490,8 +497,22 @@ static inline storio_device_mapping_t * storio_device_mapping_search(uint8_t cid
   if (index == -1) {
     return NULL;
   }
-  
+ 
   p = storio_device_mapping_ctx_retrieve(index);
+
+  /*
+  ** Check whether the file is being recycled
+  */
+  rozofs_inode_t * fake_inode_p = (rozofs_inode_t *) fid;
+  if (fake_inode_p->s.recycle_cpt != p->recycle_cpt) {
+    /* 
+    ** This is an old file that is being recycled.
+    ** Let's clear the chunk distribution to force a header file read
+    */
+    memset(p->device,ROZOFS_UNKNOWN_CHUNK,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE); 
+    p->recycle_cpt =  fake_inode_p->s.recycle_cpt;
+  }
+ 
   return p;
   
 #if 0  

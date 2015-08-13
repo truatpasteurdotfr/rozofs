@@ -342,10 +342,12 @@ void show_synchro(char * argv[], uint32_t tcpRef, void *bufRef) {
 /**
 *  trash statistics
 */
+extern uint64_t export_rm_bins_threshold_high; /**< trash threshold  where FID recycling starts */
 
 static char * show_trash_help(char * pChar) {
   pChar += sprintf(pChar,"usage:\n");
-  pChar += sprintf(pChar,"trash limit [nb] : number of file deletions per period (default:%d)\n",RM_FILES_MAX);
+  pChar += sprintf(pChar,"trash rate [nb]  : number of file deletions per period (default:%d)\n",RM_FILES_MAX);
+  pChar += sprintf(pChar,"trash limit [nb] : high trash threshold before fid recycling\n");
   pChar += sprintf(pChar,"trash            : display statistics\n");  
   return pChar; 
 }
@@ -361,7 +363,7 @@ void show_trash(char * argv[], uint32_t tcpRef, void *bufRef) {
       return;
     }
 
-    if (strcmp(argv[1],"limit")==0) {
+    if (strcmp(argv[1],"rate")==0) {
 
       if (argv[2] == NULL) {
         export_limit_rm_files = RM_FILES_MAX;
@@ -377,6 +379,25 @@ void show_trash(char * argv[], uint32_t tcpRef, void *bufRef) {
 	return;   
       }
       export_limit_rm_files = limit;
+      uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");   	  
+      return;
+    }
+
+    if (strcmp(argv[1],"limit")==0) {
+
+      if (argv[2] == NULL) {
+        show_trash_help(pChar);	
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;	 
+      }
+      	     
+      ret = sscanf(argv[2], "%d", &limit);
+      if (ret != 1) {
+        show_trash_help(pChar);	
+	uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   
+	return;   
+      }
+      export_rm_bins_threshold_high = limit;
       uma_dbg_send(tcpRef, bufRef, TRUE, "Done\n");   	  
       return;
     }

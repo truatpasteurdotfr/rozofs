@@ -77,7 +77,12 @@
 ** Initialize a CRC32 from a FID
 */
 static inline uint32_t fid2crc32(uint32_t * fid) {
-  return (fid[0] ^ fid[1] ^ fid[2] ^ fid [3]);
+    uint32_t *fid_p;
+    rozofs_inode_t fake_inode;
+    memcpy(&fake_inode,fid,sizeof(fake_inode));
+    fake_inode.s.recycle_cpt =0;
+    fid_p = (uint32_t*)&fake_inode;
+    return (fid_p[0] ^ fid_p[1] ^ fid_p[2] ^ fid_p [3]);
 }
 
 /*
@@ -356,6 +361,55 @@ static inline char * trace_device(uint8_t * device, char * pChar) {
 } 
 
 /*
+**___________________________________________________________
+** Get a FID value and display it as a string. An end of string
+** is inserted at the end of the string.
+**
+** @param fid     The FID value
+** @param pChar   Where to write the ASCII translation
+**
+** @retval The end of string
+*/
+static inline void rozofs_uuid_unparse_no_recycle(uuid_t fid, char * pChar) {
+  uint8_t * pFid;
+  rozofs_inode_t fake_inode;
+  
+  memcpy(&fake_inode,fid,sizeof(fid_t));
+  fake_inode.s.recycle_cpt = 0;
+  pFid = (uint8_t *)&fake_inode;
+  
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);   
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  
+  *pChar++ = '-';
+  
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+   
+  *pChar++ = '-';
+  
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  
+  *pChar++ = '-';
+  
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  
+  *pChar++ = '-';
+  
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);   
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);
+  pChar = rozofs_u8_2_char(*pFid++,pChar);   
+
+  *pChar = 0;  
+}
+/*
 ** Build a hdr path on storage disk
 **
 ** @param path       where to write the path
@@ -410,7 +464,7 @@ static inline char * storage_build_hdr_file_path(char * path,
    }  
    path += rozofs_u32_append(path,slice);
    *path++ = '/';
-   rozofs_uuid_unparse(fid, path);
+   rozofs_uuid_unparse_no_recycle(fid, path);
    path += 36;     
    *path = 0;
    return path;
@@ -454,7 +508,7 @@ static inline char * storage_build_chunk_path(char * path,
                         		      fid_t fid, 
 					      uint8_t chunk) {	     
     path += strlen(path);
-    rozofs_uuid_unparse(fid, path);
+    rozofs_uuid_unparse_no_recycle(fid, path);
     path += 36;    
     *path++ ='-';    
     if (chunk< 10) {
@@ -496,7 +550,7 @@ static inline char * storage_build_chunk_full_path(char * path,
    path += rozofs_u32_append(path,slice);
    *path++ = '/';
    *path = 0;
-    rozofs_uuid_unparse(fid, path);
+    rozofs_uuid_unparse_no_recycle(fid, path);
     path += 36;    
     *path++ ='-';
     if (chunk< 10) {

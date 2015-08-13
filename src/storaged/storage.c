@@ -338,7 +338,7 @@ int storage_write_header_file(storage_t * st,int dev, char * path, rozofs_stor_b
   strcpy(my_path,path); // Not to modify input path
   pChar = my_path;
   pChar += strlen(my_path);
-  rozofs_uuid_unparse(hdr->v0.fid, pChar);
+  rozofs_uuid_unparse_no_recycle(hdr->v0.fid, pChar);
 
   
   // Open bins file
@@ -442,6 +442,92 @@ int storage_error_on_device(storage_t * st, uint8_t device_nb) {
   st->device_errors.errors[active][device_nb]++;
   return st->device_errors.errors[active][device_nb];
 }
+/**
+*   truncate to 0 a file that has been just recycled
+
+  @param st    : storage we are looking on
+  @param device    : list of the devices per chunk
+  @param storage_slice    : directory number depending on fid
+  @param fid   : fid whose hader file we are looking for
+  @param spare : whether this storage is spare for this FID
+  @param hdr   :  the read header file
+  
+  @retval  0 on success
+  @retval  -1 on error
+  
+*/  
+int storage_truncate_recycle(storage_t * st, uint8_t * device, int storage_slice,uint8_t spare, fid_t fid,rozofs_stor_bins_file_hdr_t *file_hdr) {
+    int status = -1;
+    char path[FILENAME_MAX];
+    int fd = -1;
+    int open_flags;
+    int chunk;
+    int result;
+    int chunk_idx;
+
+
+
+    open_flags = ROZOFS_ST_BINS_FILE_FLAG;     
+    // Build the chunk file name for chunk 0
+    chunk = 0;
+    /*
+    ** A valid device is given as input, so use it
+    */
+    if ((device[chunk] != ROZOFS_EOF_CHUNK)&&(device[chunk] != ROZOFS_EMPTY_CHUNK)&&(device[chunk] != ROZOFS_UNKNOWN_CHUNK)) {
+      /*
+      ** Build the chunk file name using the valid device id given in the device array
+      */
+      storage_build_chunk_full_path(path, st->root, device[chunk], spare, storage_slice, fid, chunk);
+
+      // Open bins file
+      fd = open(path, open_flags, ROZOFS_ST_BINS_FILE_MODE);
+      if (fd < 0) {
+          storio_fid_error(fid, device[chunk], chunk, 0, 0,"open truncate"); 		        
+	  storage_error_on_device(st,file_hdr->v0.device[chunk]);  				    
+          severe("open failed (%s) : %s", path, strerror(errno));
+          goto out;
+      }
+      /*
+      ** truncate the file
+      */
+      status = ftruncate(fd, 0);
+      if (status < 0) goto out;
+    }
+    /*
+    ** Remove the extra chunks
+    */
+    for (chunk_idx=(chunk+1); chunk_idx<ROZOFS_STORAGE_MAX_CHUNK_PER_FILE; chunk_idx++) {
+
+      if (file_hdr->v0.device[chunk_idx] == ROZOFS_EOF_CHUNK) {
+        continue;
+      }
+      
+      if (file_hdr->v0.device[chunk_idx] == ROZOFS_EMPTY_CHUNK) {
+        file_hdr->v0.device[chunk_idx] = ROZOFS_EOF_CHUNK;
+	continue;
+      }
+      
+      storage_rm_data_chunk(st, file_hdr->v0.device[chunk_idx], fid, spare, chunk_idx,1/*errlog*/);
+      file_hdr->v0.device[chunk_idx] = ROZOFS_EOF_CHUNK;
+    }     
+    /* 
+    ** Rewrite file header on disk
+    */   
+    result = storage_write_all_header_files(st, fid, spare, file_hdr);        
+    /*
+    ** Failure on every write operation
+    */ 
+    if (result == 0) goto out;
+      
+    memcpy(device,file_hdr->v0.device,ROZOFS_STORAGE_MAX_CHUNK_PER_FILE);
+       
+    status = 0;
+out:
+
+    if (fd != -1) close(fd);
+    
+    return status;
+}
 
 /*
  ** Read a header/mapper file
@@ -511,7 +597,7 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
     /* 
     ** Fullfill the path with the name of the mapping file
     */
-    rozofs_uuid_unparse(fid, pChar);
+    rozofs_uuid_unparse_no_recycle(fid, pChar);
 
     /*
     ** Get the file attributes
@@ -612,7 +698,18 @@ STORAGE_READ_HDR_RESULT_E storage_read_header_file(storage_t * st, fid_t fid, ui
       storage_error_on_device(st,device_id[dev]);   
       continue;      
     }  
-    
+    /*
+    ** check the recycle case
+    */
+    if (memcmp(hdr->v0.fid,fid,sizeof(fid_t))!= 0)
+    {
+      /*
+      ** need to update the value of the fid in hdr
+      */
+      memcpy(hdr->v0.fid,fid,sizeof(fid_t));
+      storage_truncate_recycle(st,hdr->v0.device,storage_slice,spare,fid,hdr);
+      return STORAGE_READ_HDR_OK;	    
+    }
     /*
     ** Check whether header file is in version 1
     */

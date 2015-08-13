@@ -183,6 +183,7 @@ typedef enum
    ROZOFS_DIR,     /**< directory    */
    ROZOFS_SLNK,    /**< name of symbolic link */
    ROZOFS_DIR_FID,     /**< directory rferenced by its fid  */
+   ROZOFS_RECYCLE,     /**< recycle directory  */
 
    ROZOFS_MAXATTR
 } export_attr_type_e;
@@ -204,7 +205,8 @@ typedef union
    uint64_t fid[2];   /**<   */
    struct {
      uint64_t  vers:4;        /**< fid version */
-     uint64_t  fid_high:43;   /**< highest part of the fid: not used */
+     uint64_t  fid_high:41;   /**< highest part of the fid: not used */
+     uint64_t  recycle_cpt:2;   /**< recycle counter */
      uint64_t  opcode:4;      /**< opcode used for metadata log */
      uint64_t  exp_id:3;      /**< exportd identifier: must remain unchanged for a given server */
      uint64_t  eid:10;        /**< export identifier */     
@@ -215,7 +217,8 @@ typedef union
    } s;
    struct {
      uint64_t  vers:4;        /**< fid version */
-     uint64_t  fid_high:43;   /**< highest part of the fid: not used */
+     uint64_t  fid_high:41;   /**< highest part of the fid: not used */
+     uint64_t  recycle_cpt:2;   /**< recycle counter */
      uint64_t  opcode:4;      /**< opcode used for metadata log */
      uint64_t  exp_id:3;      /**< exportd identifier: must remain unchanged for a given server */
      uint64_t  eid:10;        /**< export identifier */     
