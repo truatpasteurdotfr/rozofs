@@ -2035,6 +2035,7 @@ write_procedure_failure:
    /*
    ** check if the lock is asserted for the case of the write
    */
+   severe("FDL read internal error %s",strerror(errcode));
    if (working_ctx_p->write_ctx_lock == 1) return 0;
    /*
    ** write failure

@@ -720,6 +720,7 @@ retry:
        ** attempt to select a new storage
        **
        */
+       severe("FDL error on send: EIO returned");
        STORCLI_ERR_PROF(read_prj_err);       
        STORCLI_STOP_NORTH_PROF(&working_ctx_p->prj_ctx[projection_id],read_prj,0);
        prj_cxt_p[projection_id].prj_state = ROZOFS_PRJ_READ_ERROR;
@@ -969,6 +970,7 @@ int rozofs_storcli_read_projection_retry(rozofs_storcli_ctx_t *working_ctx_p,uin
         /*
         ** Out of storage !!-> too many storages are down
         */
+        severe("FDL error on send: EIO returned");
         ruc_buf_freeBuffer(xmit_buf);
         error = EIO;
         goto reject;
@@ -1401,6 +1403,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
          /*
          ** there are no enough valid storages to be able to rebuild the initial message
          */
+         severe("FDL error on send: EIO returned");
          STORCLI_ERR_PROF(read_prj_err);       
          error = EIO;
          goto io_error;
