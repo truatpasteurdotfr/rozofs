@@ -3112,7 +3112,7 @@ char *export_rm_bins_stats(char *pChar)
    uint64_t new_count;   
    pChar += sprintf(pChar,"Trash thread period         : %d seconds\n",RM_BINS_PTHREAD_FREQUENCY_SEC);
    pChar += sprintf(pChar,"trash rate                  : %d\n",export_limit_rm_files);   
-   pChar += sprintf(pChar,"trash limit                 : %d\n",export_rm_bins_threshold_high);   
+   pChar += sprintf(pChar,"trash limit                 : %llu\n",(unsigned long long int)export_rm_bins_threshold_high);   
       
    new_ticks = rdtsc();
    new_count = export_rm_bins_done_count;
@@ -4387,7 +4387,10 @@ out:
 #define ROZOFS_USER_XATTR_MAX_SIZE "user.rozofs_maxsize"
 #define ROZOFS_ROOT_XATTR_MAX_SIZE "trusted.rozofs_maxsize"
 
-#define ROZOFS_ROOT_LINK "trusted.rozofs.symlink"
+#define ROZOFS_ROOT_SYMLINK "trusted.rozofs.symlink"
+
+#define ROZOFS_ROOT_DIRSYMLINK "trusted.rozofs.dirsymlink"
+#define ROZOFS_USER_DIRSYMLINK "user.rozofs.dirsymlink"
 
 #define DISPLAY_ATTR_TITLE(name) {\
   p += rozofs_string_padded_append(p,8,rozofs_left_alignment,name); \
@@ -4581,7 +4584,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
 /*
 ** Change the target of a symlink when it exist
 */
-static inline int set_rozofs_link(export_t *e, lv2_entry_t *lv2, char * link,int length) {
+static inline int set_rozofs_link_from_fid(export_t *e, lv2_entry_t *lv2, char * link,int length) {
     export_tracking_table_t *trk_tb_p = e->trk_tb_p;
     rozofs_inode_t fake_inode;
     exp_trck_top_header_t *p = NULL;
@@ -4592,14 +4595,14 @@ static inline int set_rozofs_link(export_t *e, lv2_entry_t *lv2, char * link,int
     */
     if (lv2->attributes.s.i_link_name == 0)
     {
-      errno = EINVAL;
+      errno = EBADF;
       return -1;    
     }
     fake_inode.fid[1] = lv2->attributes.s.i_link_name;
 
     if (fake_inode.s.key != ROZOFS_SLNK)
     {
-      errno = EINVAL;
+      errno = EBADF;
       return -1;      
     }
     p = trk_tb_p->tracking_table[fake_inode.s.key];
@@ -4658,6 +4661,105 @@ static inline int set_rozofs_link(export_t *e, lv2_entry_t *lv2, char * link,int
       }
     }  
     return 0;  
+}
+/*
+** Change the target of a symlink when it exist
+*/
+int set_rozofs_link_from_name(export_t * e, lv2_entry_t *plv2, char * link,int length) {
+  lv2_entry_t *lv2;
+  int status = -1;
+  fid_t child_fid;
+  uint32_t child_type;
+  int fdp = -1;     /* file descriptor of the parent directory */
+  int root_dirent_mask=0;
+      
+  /*
+  ** Check the plv2 entry is a directory
+  */
+  if (!S_ISDIR(plv2->attributes.s.attrs.mode)) {
+    errno = ENOTDIR;
+    return -1;
+  }
+
+  /*
+  ** Parse link content 
+  */
+  char * name = link;
+  /*
+  ** Skip name and got to ' ' 
+  */
+  while ((length) && (*link != ' ')) {
+    link++;
+    length--;
+  }
+  if (length==0) {
+    errno = EINVAL;
+    return -1;
+  }
+  *link = 0;
+  link++;
+  length--;
+  
+  /*
+  ** skip ' ' and go to new target name 
+  */
+  while ((length) && (*link == ' ')) {
+    link++;
+    length--;
+  }    
+
+  if (length==0) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  /*
+  ** load the root_idx bitmap of the old parent
+  */
+  export_dir_load_root_idx_bitmap(e,plv2->attributes.s.attrs.fid,plv2);
+
+
+  fdp = export_open_parent_directory(e,plv2->attributes.s.attrs.fid);
+  if (get_mdirentry(plv2->dirent_root_idx_p,fdp, plv2->attributes.s.attrs.fid, name, child_fid, &child_type,&root_dirent_mask) != 0) {
+    goto out;
+  }
+  
+  // get the lv2
+  if (!(lv2 = export_lookup_fid(e->trk_tb_p,e->lv2_cache, child_fid))) {
+      /*
+       ** It might be possible that the file is still referenced in the dirent file but 
+       ** not present on disk: its FID has been released (and the associated file deleted)
+       ** In that case when attempt to read that fid file, we get a ENOENT error.
+       ** So for that particular case, we remove the entry from the dirent file
+       **
+       **  open point : that issue is not related to regular file but also applied to directory
+       ** 
+       */
+      int xerrno;
+      uint32_t type;
+      fid_t fid;
+      if (errno == ENOENT) {
+          /*
+           ** save the initial errno and remove that entry
+           */
+          xerrno = errno;
+          del_mdirentry(plv2->dirent_root_idx_p,fdp, plv2->attributes.s.attrs.fid, name, fid, &type,root_dirent_mask);
+          errno = xerrno;
+      }
+      goto out;
+  }
+  status = set_rozofs_link_from_fid(e, lv2, link, length);
+
+out:
+  /*
+  ** check if parent root idx bitmap must be updated
+  */
+  if (plv2 != NULL) export_dir_flush_root_idx_bitmap(e,plv2->attributes.s.attrs.fid,plv2->dirent_root_idx_p);
+  /*
+  ** close the parent directory
+  */
+  if (fdp != -1) close(fdp);
+  return status;    
 }
 static inline int set_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value,int length) {
   char       * p=value;
@@ -5353,22 +5455,28 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
         goto out;
     }
 
-
+    /*
+    ** Special XATTR to change the target of a symbolic link
+    ** POSIX does not allow to change the target of a symbolic link
+    */
+    if ((strcmp(name,ROZOFS_ROOT_DIRSYMLINK)==0)||(strcmp(name,ROZOFS_USER_DIRSYMLINK)==0)) {
+      status = set_rozofs_link_from_name(e,lv2,(char *)value,size);
+      goto out;
+    }     
+    
+    if (strcmp(name,ROZOFS_ROOT_SYMLINK)==0) {
+      status = set_rozofs_link_from_fid(e,lv2,(char *)value,size);
+      goto out;
+    }
+       
+    
+    
     if ((strcmp(name,ROZOFS_XATTR)==0)||(strcmp(name,ROZOFS_USER_XATTR)==0)||(strcmp(name,ROZOFS_ROOT_XATTR)==0)) {
       status = set_rozofs_xattr(e,lv2,(char *)value,size);
       goto out;
     }  
     
-    /*
-    ** Special XATTR to change the target of a symbolic link
-    ** POSIX does not allow to change the target of a symbolic link
-    */
-    if (strcmp(name,ROZOFS_ROOT_LINK)==0) {
-      status = set_rozofs_link(e,lv2,(char *)value,size);
-      goto out;
-    }
-    
-    
+
       
     {
       struct dentry entry;
