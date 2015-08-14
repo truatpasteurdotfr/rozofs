@@ -105,7 +105,7 @@ int check_no_file(char * base, int nb, int line) {
   int ret;
   char file[128];
   
-  sprintf(file, "%s%d", base, nb);
+  sprintf(file, "%s/%s%d", mount, base, nb);
   
   ret = lstat(file,&stats);
   if (ret >= 0) {
@@ -123,7 +123,7 @@ int check_regular_file(char * base, int nb, int nlinks, int line) {
   int ret;
   char file[128];
 
-  sprintf(file, "%s%d", base, nb);
+  sprintf(file, "%s/%s%d", mount, base, nb);
     
   ret = lstat(file,&stats);
   if (ret < 0) {
@@ -147,7 +147,7 @@ int check_symlink_file(char * base, int target, int link, int line) {
   char ftarget[128];
   char expected[128];
 
-  sprintf(flink, "%s%d", base, link);
+  sprintf(flink, "%s/%s%d", mount, base, link);
     
   ret = lstat(flink,&stats);
   if (ret < 0) {
@@ -164,7 +164,7 @@ int check_symlink_file(char * base, int target, int link, int line) {
     return -1;
   }
   ftarget[ret] = 0;
-  sprintf(expected, "%s%d", base, target);
+  sprintf(expected, "%s/%s%d", mount, base, target);
   if (strcmp(ftarget,expected) != 0) {
     printf("LINE %d : %s is a link to %s while expecting %s\n",line, flink,ftarget,expected);
     return -1;    
@@ -174,13 +174,13 @@ int check_symlink_file(char * base, int target, int link, int line) {
 remove_file(char * base, int nb) {
   char file[128];
 
-  sprintf(file, "%s%d", base, nb);
+  sprintf(file, "%s/%s%d", mount, base, nb);
   unlink(file); 
 }
 create_file(char * base, int nb) {
   char file[128];
 
-  sprintf(file, "%s%d", base, nb);
+  sprintf(file, "%s/%s%d", mount, base, nb);
   
   sprintf(cmd, "echo %d > %s", nb, file);
   system(cmd);  
@@ -189,21 +189,32 @@ sym_link(char * base, int target,int link) {
   char ftarget[128];
   char flink[128];
   
-  sprintf(flink, "%s%d", base, link); 
-  sprintf(ftarget, "%s%d", base, target); 
+  sprintf(flink, "%s/%s%d", mount, base, link); 
+  sprintf(ftarget, "%s/%s%d", mount, base, target); 
   symlink(ftarget,flink);
 }
-#define ROZOFS_RELINK_XATTR "trusted.rozofs.symlink"
-sym_relink(char * base, int target,int link) {
+#define ROZOFS_RESYMLINK_XATTR "trusted.rozofs.symlink"
+sym_resymlink(char * base, int target,int link) {
   char ftarget[128];
   char flink[128];
   
-  sprintf(flink, "%s%d", base, link); 
-  sprintf(ftarget, "%s%d", base, target); 
+  sprintf(flink, "%s/%s%d", mount, base, link); 
+  sprintf(ftarget, "%s/%s%d", mount, base, target); 
   
-  int ret = lsetxattr(flink, ROZOFS_RELINK_XATTR, ftarget, strlen(ftarget), XATTR_CREATE);   
+  int ret = lsetxattr(flink, ROZOFS_RESYMLINK_XATTR, ftarget, strlen(ftarget), XATTR_CREATE);   
   if (ret < 0) {
     printf("Error lsetxattr(%s,%s) %s\n",flink, ftarget, strerror(errno));
+  } 
+}
+#define ROZOFS_REDIRSYMLINK_XATTR "user.rozofs.dirsymlink"
+sym_redirsymlink(char * base, int target,int link) {
+  char ftarget[128];
+
+  sprintf(ftarget, "%s%d %s/%s%d", base, link, mount, base, target); 
+  
+  int ret = setxattr(mount, ROZOFS_REDIRSYMLINK_XATTR, ftarget, strlen(ftarget), XATTR_CREATE);   
+  if (ret < 0) {
+    printf("Error setxattr(%s,%s) %s\n",mount, ftarget, strerror(errno));
   } 
 }
 int do_one_test(char * base, int count) {
@@ -236,10 +247,18 @@ int do_one_test(char * base, int count) {
       return -1;
   
     /* Use rozofs extended attribute to change the target */
-    sym_relink(base,f,link); 
-    sym_link(base,f,link); 
+    sym_resymlink(base,f,link); 
     if (check_symlink_file(base,f,link,__LINE__)<0)
       return -1;
+
+    idx = (idx+1)%4;
+    f = nb[idx];
+      
+    /* Use rozofs extended attribute to change the target */
+    sym_redirsymlink(base,f,link); 
+    if (check_symlink_file(base,f,link,__LINE__)<0)
+      return -1;      
+  
   }
   for (i=0; i<4;i++) {
     remove_file(base, nb[i]);
@@ -252,7 +271,7 @@ int loop_test_process() {
   char baseName[256];
   pid_t pid = getpid();
          
-  sprintf(baseName, "%s/symlink_test.%u.", mount, pid);
+  sprintf(baseName, "symlink_test.%u.", pid);
             
   while (1) {
     count++;    

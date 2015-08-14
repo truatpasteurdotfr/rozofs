@@ -325,6 +325,7 @@ out:
 * @param ino the inode number
 */
 void rozofs_ll_readlink_cbk(void *this,void *param);
+extern uint64_t rozofs_last_dirsymlink_ts;
 
 void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     ientry_t *ie = NULL;
@@ -364,9 +365,23 @@ void rozofs_ll_readlink_nb(fuse_req_t req, fuse_ino_t ino) {
     ** 
     */
     if (ie->symlink_target) {
-      if ((rozofs_mode == 1) 
+      if
+      ( 
+        (rozofs_mode == 1) 
       || 
-         ((ie->symlink_ts+rozofs_tmr_get(TMR_LINK_CACHE)*1000) > rozofs_get_ticker_us()))
+	(
+	   /* 
+	   ** No setxattr on rozofs.dirsymlink must have been done
+	   ** since the symlink target has been cached 
+	   */
+   	   (ie->symlink_ts > rozofs_last_dirsymlink_ts)
+	 &&
+	   /*
+	   ** The symlink target cached must not be over aged
+	   */
+	   ((ie->symlink_ts+rozofs_tmr_get(TMR_LINK_CACHE)*1000) > rozofs_get_ticker_us())
+	)
+      )
       {
         fuse_reply_readlink(req, (char *) ie->symlink_target);
         rozofs_trc_rsp_name(srv_rozofs_ll_readlink,ino,ie->symlink_target,0,trc_idx);    

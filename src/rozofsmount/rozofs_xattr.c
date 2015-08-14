@@ -26,6 +26,10 @@ DECLARE_PROFILING(mpp_profiler_t);
 #define ROZOFS_XATTR "rozofs"
 #define ROZOFS_USER_XATTR "user.rozofs"
 #define ROZOFS_ROOT_XATTR "trusted.rozofs"
+
+
+uint64_t rozofs_last_dirsymlink_ts = 0;
+
 /*
 **__________________________________________________________________
 */
@@ -106,6 +110,24 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
         ie->symlink_ts = rozofs_get_ticker_us();
       }
     }
+
+    if ((strcmp(name,"trusted.rozofs.dirsymlink")==0)
+    ||  (strcmp(name,"user.rozofs.dirsymlink")==0)
+    ||  (strcmp(name,"rozofs.dirsymlink")==0)) {
+      /*
+      ** The inode must be a created directory
+      */
+      if (!S_ISDIR(ie->attrs.mode)) {
+        errno = ENOTDIR;
+        goto error;
+      }
+      /*
+      ** Must invalidate all symlink cached since we do not know  
+      ** the inode of the link file...
+      */
+      rozofs_last_dirsymlink_ts = rozofs_get_ticker_us();
+    }
+    
     
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,ino);
