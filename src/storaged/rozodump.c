@@ -420,6 +420,12 @@ int main(int argc, char *argv[]) {
   int           block_per_chunk;
   int           chunk;
   int           chunk_stop;
+
+  /*
+  ** read common config file
+  */
+  common_config_read(NULL); 
+  
   
   // Get utility name
   utility_name = basename(argv[0]); 
