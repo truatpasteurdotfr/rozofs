@@ -94,6 +94,8 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_INT(trash_high_threshold); 
     
   COMMON_CONFIG_SHOW_BOOL(fid_recycle);
+  COMMON_CONFIG_SHOW_BOOL(wr_ack_on_inverse);
+  
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
 }
@@ -269,8 +271,11 @@ void common_config_read(char * fname) {
   /*
   ** read the trash high threshold when fid recycling starts
   */
-  COMMON_CONFIG_READ_INT(trash_high_threshold);      
-
+  COMMON_CONFIG_READ_INT(trash_high_threshold); 
+  /*
+  ** get the boolean that indicates if storcli must respond upon write inverse versus forward projections
+  */
+  COMMON_CONFIG_READ_BOOL(wr_ack_on_inverse);
   /*
   ** Free lib config working structure
   */

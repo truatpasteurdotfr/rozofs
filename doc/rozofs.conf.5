@@ -79,6 +79,9 @@ When
 .B "fid_recycle"
 is set to TRUE, that parameter provides the threshold for which the FID recycling starts  .
 
+.SS wr_ack_on_inverse
+Boolean (true or false). When set to TRUE, RozoFS acknowledges a write request once a count of inverse projections have been successfully written. Otherwise, by default
+it waits until a count of forward projections are written. By default, the write acknowlegdment anticipation is not set.
 
 .SS allow_disk_spin_down
 This boolean has to be set to enable the spinning down of the disks of a storage node. The STORIO monitoring thread periodically checks the file systems mounted on its disks. This boolean prevents the check to be performed in case no modification takes place on the disk (i.e neither write, truncate nor delete). So when no access is done to the disks, the monitoring thread does not either access to the disk, and the disk spinning down can take place.

@@ -1642,7 +1642,14 @@ void rozofs_storcli_write_req_processing_cbk(void *this,void *param)
     ** the truncate can block some other requests related with the current
     ** fid
     */
-    rozofs_storcli_start_read_guard_timer(working_ctx_p);    
+    rozofs_storcli_start_read_guard_timer(working_ctx_p);  
+    /*
+    ** answer by anticipation to the client
+    */
+    if (common_config.wr_ack_on_inverse)
+    {
+      rozofs_storcli_write_reply_success(working_ctx_p);    
+    }  
     return;
     
     /*

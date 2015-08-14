@@ -69,6 +69,7 @@
 #define rozofs_cc_def_numa_aware               FALSE
 
 #define rozofs_cc_def_fid_recycle             FALSE
+#define rozofs_cc_def_wr_ack_on_inverse       FALSE
 
 typedef enum _rozofs_file_distribution_rule_e {
   rozofs_file_distribution_size_balancing,
@@ -120,6 +121,7 @@ typedef struct _common_config_t {
   uint32_t    storio_dscp;  
   uint32_t    fid_recycle;  
   uint32_t    trash_high_threshold;
+  uint32_t    wr_ack_on_inverse;
 } common_config_t;
   
 extern common_config_t common_config;
