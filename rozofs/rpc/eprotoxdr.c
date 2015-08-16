@@ -1348,6 +1348,50 @@ xdr_epgw_setxattr_arg_t (XDR *xdrs, epgw_setxattr_arg_t *objp)
 }
 
 bool_t
+xdr_ep_symlink_info_t (XDR *xdrs, ep_symlink_info_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_uuid_t (xdrs, objp->symlink_fid))
+		 return FALSE;
+	 if (!xdr_bytes (xdrs, (char **)&objp->target.target_val, (u_int *) &objp->target.target_len, ~0))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_setxattr_symlink_t (XDR *xdrs, epgw_setxattr_symlink_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_status_t (xdrs, &objp->status))
+		 return FALSE;
+	switch (objp->status) {
+	case EP_SUCCESS:
+		 if (!xdr_ep_symlink_info_t (xdrs, &objp->epgw_setxattr_symlink_t_u.info))
+			 return FALSE;
+		break;
+	default:
+		break;
+	}
+	return TRUE;
+}
+
+bool_t
+xdr_epgw_setxattr_ret_t (XDR *xdrs, epgw_setxattr_ret_t *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_ep_gateway_t (xdrs, &objp->hdr))
+		 return FALSE;
+	 if (!xdr_ep_status_ret_t (xdrs, &objp->status_gw))
+		 return FALSE;
+	 if (!xdr_epgw_setxattr_symlink_t (xdrs, &objp->symlink))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_ep_getxattr_arg_t (XDR *xdrs, ep_getxattr_arg_t *objp)
 {
 	//register int32_t *buf;

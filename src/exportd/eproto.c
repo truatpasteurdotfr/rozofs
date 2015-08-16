@@ -1454,8 +1454,8 @@ out:
     @retval: EP_SUCCESS : no specific returned parameter
     @retval: EP_FAILURE :error code associated with the operation (errno)
 */
-epgw_status_ret_t * ep_setxattr_1_svc(epgw_setxattr_arg_t * arg, struct svc_req * req) {
-    static epgw_status_ret_t ret;
+epgw_setxattr_ret_t * ep_setxattr_1_svc(epgw_setxattr_arg_t * arg, struct svc_req * req) {
+    static epgw_setxattr_ret_t ret;
     export_t *exp;
     DEBUG_FUNCTION;
 
@@ -1463,12 +1463,21 @@ epgw_status_ret_t * ep_setxattr_1_svc(epgw_setxattr_arg_t * arg, struct svc_req 
     export_profiler_eid = arg->arg_gw.eid;
 
     START_PROFILING(ep_setxattr);
+    
+    if ((ret.symlink.status == EP_SUCCESS) 
+    &&  (ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val != NULL)) {
+      free(ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val);
+    }  
+    ret.symlink.status = EP_EMPTY;
+    ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_len = 0;
+    ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val = NULL;    
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
     if (export_setxattr(exp, (unsigned char *) arg->arg_gw.fid, arg->arg_gw.name,
-            arg->arg_gw.value.value_val, arg->arg_gw.value.value_len, arg->arg_gw.flags) != 0) {
+            arg->arg_gw.value.value_val, arg->arg_gw.value.value_len, arg->arg_gw.flags,
+	    &ret.symlink) != 0) {
         goto error;
     }
 

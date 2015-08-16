@@ -853,7 +853,7 @@ class rozofs_class:
     self.trace = False
     self.storio_slice = 8
     self.spin_down_allowed = False
-    self.file_distribution = 0
+    self.file_distribution = 1
     
   def allow_disk_spin_down(self): self.spin_down_allowed = True    
   def set_trace(self): self.trace = True
@@ -870,7 +870,7 @@ class rozofs_class:
   def dual_storcli(self): self.nb_storcli = 2
   def no_posix_lock(self): self.posix_lock = False
   def no_bsd_lock(self): self.bsd_lock = False
-  def set_distribution_rr(self): self.file_distribution = 1
+  def set_file_distribution_origin(self): self.file_distribution = 0
   def set_xfs(self,mb,allocsize=None):
     self.fstype       = "xfs"
     self.disk_size_mb = mb
@@ -928,6 +928,8 @@ class rozofs_class:
     else:                              print "storio_multiple_mode = False;"
     if rozofs.spin_down_allowed == True: print "allow_disk_spin_down = True;"
     print "file_distribution_rule= %s;"%(self.file_distribution)
+    print "fid_recycle          = True;"
+    print "trash_high_threshold = 10;"
 
 
   def create_common_config(self):

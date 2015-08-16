@@ -1363,7 +1363,7 @@ out:
     @retval: EP_FAILURE :error code associated with the operation (errno)
 */
 void ep_setxattr_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
-    static epgw_status_ret_t ret;
+    static epgw_setxattr_ret_t ret;
     epgw_setxattr_arg_t * arg = (epgw_setxattr_arg_t*)pt; 
     export_t *exp;
     DEBUG_FUNCTION;
@@ -1373,12 +1373,21 @@ void ep_setxattr_1_svc_nb(void * pt, rozorpc_srv_ctx_t *req_ctx_p) {
 
 
     START_PROFILING(ep_setxattr);
+    
+    if ((ret.symlink.status == EP_SUCCESS) 
+    &&  (ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val != NULL)) {
+      free(ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val);
+    }  
+    ret.symlink.status = EP_EMPTY;
+    ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_len = 0;
+    ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val = NULL;    
 
     if (!(exp = exports_lookup_export(arg->arg_gw.eid)))
         goto error;
 
     if (export_setxattr(exp, (unsigned char *) arg->arg_gw.fid, arg->arg_gw.name,
-            arg->arg_gw.value.value_val, arg->arg_gw.value.value_len, arg->arg_gw.flags) != 0) {
+            arg->arg_gw.value.value_val, arg->arg_gw.value.value_len, arg->arg_gw.flags,
+	    &ret.symlink) != 0) {
         goto error;
     }
 

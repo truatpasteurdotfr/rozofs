@@ -554,7 +554,23 @@ struct ep_setxattr_arg_t {
 struct  epgw_setxattr_arg_t 
 {
   struct ep_gateway_t hdr;
-  ep_setxattr_arg_t    arg_gw;
+  ep_setxattr_arg_t   arg_gw;
+};
+
+struct ep_symlink_info_t
+{
+      ep_uuid_t          symlink_fid;
+      opaque             target<>;    
+};
+union epgw_setxattr_symlink_t switch (ep_status_t status) {
+    case EP_SUCCESS:    ep_symlink_info_t info;        
+    default:            void;
+};
+struct  epgw_setxattr_ret_t
+{
+  struct ep_gateway_t hdr;
+  ep_status_ret_t    status_gw;
+  epgw_setxattr_symlink_t symlink;  
 };
 
 struct ep_getxattr_arg_t {
@@ -729,7 +745,7 @@ program EXPORT_PROGRAM {
         epgw_mattr_ret_t
         EP_LINK(epgw_link_arg_t)                  = 18;
 
-        epgw_status_ret_t
+        epgw_setxattr_ret_t
         EP_SETXATTR(epgw_setxattr_arg_t)          = 19;
 
         epgw_getxattr_ret_t

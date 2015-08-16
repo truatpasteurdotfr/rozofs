@@ -1096,7 +1096,7 @@ int exportclt_setxattr(exportclt_t * clt, fid_t fid, char * name, void* value,
         uint64_t size, uint8_t flags) {
     int status = -1;
     epgw_setxattr_arg_t arg;
-    epgw_status_ret_t *ret = 0;
+    epgw_setxattr_ret_t *ret = 0;
     int retry = 0;
     DEBUG_FUNCTION;
 

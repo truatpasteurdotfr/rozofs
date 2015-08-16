@@ -4584,7 +4584,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
 /*
 ** Change the target of a symlink when it exist
 */
-static inline int set_rozofs_link_from_fid(export_t *e, lv2_entry_t *lv2, char * link,int length) {
+static inline int set_rozofs_link_from_fid(export_t *e, lv2_entry_t *lv2, char * link,int length,epgw_setxattr_symlink_t *symlink) {
     export_tracking_table_t *trk_tb_p = e->trk_tb_p;
     rozofs_inode_t fake_inode;
     exp_trck_top_header_t *p = NULL;
@@ -4660,12 +4660,20 @@ static inline int set_rozofs_link_from_fid(export_t *e, lv2_entry_t *lv2, char *
         return -1;      
       }
     }  
+    
+    /*
+    ** Update symlink in returned response
+    */
+    symlink->status = EP_SUCCESS;
+    memcpy(symlink->epgw_setxattr_symlink_t_u.info.symlink_fid,lv2->attributes.s.attrs.fid,sizeof(fid_t));
+    symlink->epgw_setxattr_symlink_t_u.info.target.target_len = length+1;
+    symlink->epgw_setxattr_symlink_t_u.info.target.target_val = strdup(lv2->symlink_target);    
     return 0;  
 }
 /*
 ** Change the target of a symlink when it exist
 */
-int set_rozofs_link_from_name(export_t * e, lv2_entry_t *plv2, char * link,int length) {
+int set_rozofs_link_from_name(export_t * e, lv2_entry_t *plv2, char * link,int length, epgw_setxattr_symlink_t *symlink) {
   lv2_entry_t *lv2;
   int status = -1;
   fid_t child_fid;
@@ -4748,7 +4756,7 @@ int set_rozofs_link_from_name(export_t * e, lv2_entry_t *plv2, char * link,int l
       }
       goto out;
   }
-  status = set_rozofs_link_from_fid(e, lv2, link, length);
+  status = set_rozofs_link_from_fid(e, lv2, link, length,symlink);
 
 out:
   /*
@@ -5441,10 +5449,11 @@ int export_poll_file_lock(export_t *e, ep_lock_t * lock_requested, ep_client_inf
  * @param size: the size of a buffer to hold the value associated
  *  with this extended attribute.
  * @param flags: parameter can be used to refine the semantics of the operation.
+ * @param symlink value returned when it makes sense
  * 
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
-int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags) {
+int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags, epgw_setxattr_symlink_t *symlink) {
     int status = -1;
     lv2_entry_t *lv2 = 0;
 
@@ -5460,12 +5469,12 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
     ** POSIX does not allow to change the target of a symbolic link
     */
     if ((strcmp(name,ROZOFS_ROOT_DIRSYMLINK)==0)||(strcmp(name,ROZOFS_USER_DIRSYMLINK)==0)) {
-      status = set_rozofs_link_from_name(e,lv2,(char *)value,size);
+      status = set_rozofs_link_from_name(e,lv2,(char *)value,size,symlink);
       goto out;
     }     
     
     if (strcmp(name,ROZOFS_ROOT_SYMLINK)==0) {
-      status = set_rozofs_link_from_fid(e,lv2,(char *)value,size);
+      status = set_rozofs_link_from_fid(e,lv2,(char *)value,size,symlink);
       goto out;
     }
        

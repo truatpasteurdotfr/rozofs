@@ -8,6 +8,9 @@
 
 #--------------STORIO GENERAL
 
+# Set original RozoFS file distribution
+# rozofs.set_file_distribution_origin()
+
 # Set single storio mode
 # rozofs.storio_mode_single()
 

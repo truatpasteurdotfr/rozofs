@@ -632,6 +632,30 @@ struct epgw_setxattr_arg_t {
 };
 typedef struct epgw_setxattr_arg_t epgw_setxattr_arg_t;
 
+struct ep_symlink_info_t {
+	ep_uuid_t symlink_fid;
+	struct {
+		u_int target_len;
+		char *target_val;
+	} target;
+};
+typedef struct ep_symlink_info_t ep_symlink_info_t;
+
+struct epgw_setxattr_symlink_t {
+	ep_status_t status;
+	union {
+		ep_symlink_info_t info;
+	} epgw_setxattr_symlink_t_u;
+};
+typedef struct epgw_setxattr_symlink_t epgw_setxattr_symlink_t;
+
+struct epgw_setxattr_ret_t {
+	struct ep_gateway_t hdr;
+	ep_status_ret_t status_gw;
+	epgw_setxattr_symlink_t symlink;
+};
+typedef struct epgw_setxattr_ret_t epgw_setxattr_ret_t;
+
 struct ep_getxattr_arg_t {
 	uint32_t eid;
 	ep_uuid_t fid;
@@ -829,8 +853,8 @@ extern  epgw_mattr_ret_t * ep_write_block_1_svc(epgw_write_block_arg_t *, struct
 extern  epgw_mattr_ret_t * ep_link_1(epgw_link_arg_t *, CLIENT *);
 extern  epgw_mattr_ret_t * ep_link_1_svc(epgw_link_arg_t *, struct svc_req *);
 #define EP_SETXATTR 19
-extern  epgw_status_ret_t * ep_setxattr_1(epgw_setxattr_arg_t *, CLIENT *);
-extern  epgw_status_ret_t * ep_setxattr_1_svc(epgw_setxattr_arg_t *, struct svc_req *);
+extern  epgw_setxattr_ret_t * ep_setxattr_1(epgw_setxattr_arg_t *, CLIENT *);
+extern  epgw_setxattr_ret_t * ep_setxattr_1_svc(epgw_setxattr_arg_t *, struct svc_req *);
 #define EP_GETXATTR 20
 extern  epgw_getxattr_ret_t * ep_getxattr_1(epgw_getxattr_arg_t *, CLIENT *);
 extern  epgw_getxattr_ret_t * ep_getxattr_1_svc(epgw_getxattr_arg_t *, struct svc_req *);
@@ -928,8 +952,8 @@ extern  epgw_mattr_ret_t * ep_write_block_1_svc();
 extern  epgw_mattr_ret_t * ep_link_1();
 extern  epgw_mattr_ret_t * ep_link_1_svc();
 #define EP_SETXATTR 19
-extern  epgw_status_ret_t * ep_setxattr_1();
-extern  epgw_status_ret_t * ep_setxattr_1_svc();
+extern  epgw_setxattr_ret_t * ep_setxattr_1();
+extern  epgw_setxattr_ret_t * ep_setxattr_1_svc();
 #define EP_GETXATTR 20
 extern  epgw_getxattr_ret_t * ep_getxattr_1();
 extern  epgw_getxattr_ret_t * ep_getxattr_1_svc();
@@ -1063,6 +1087,9 @@ extern  bool_t xdr_ep_io_ret_t (XDR *, ep_io_ret_t*);
 extern  bool_t xdr_epgw_io_ret_t (XDR *, epgw_io_ret_t*);
 extern  bool_t xdr_ep_setxattr_arg_t (XDR *, ep_setxattr_arg_t*);
 extern  bool_t xdr_epgw_setxattr_arg_t (XDR *, epgw_setxattr_arg_t*);
+extern  bool_t xdr_ep_symlink_info_t (XDR *, ep_symlink_info_t*);
+extern  bool_t xdr_epgw_setxattr_symlink_t (XDR *, epgw_setxattr_symlink_t*);
+extern  bool_t xdr_epgw_setxattr_ret_t (XDR *, epgw_setxattr_ret_t*);
 extern  bool_t xdr_ep_getxattr_arg_t (XDR *, ep_getxattr_arg_t*);
 extern  bool_t xdr_epgw_getxattr_arg_t (XDR *, epgw_getxattr_arg_t*);
 extern  bool_t xdr_ep_getxattr_t (XDR *, ep_getxattr_t*);
@@ -1171,6 +1198,9 @@ extern bool_t xdr_ep_io_ret_t ();
 extern bool_t xdr_epgw_io_ret_t ();
 extern bool_t xdr_ep_setxattr_arg_t ();
 extern bool_t xdr_epgw_setxattr_arg_t ();
+extern bool_t xdr_ep_symlink_info_t ();
+extern bool_t xdr_epgw_setxattr_symlink_t ();
+extern bool_t xdr_epgw_setxattr_ret_t ();
 extern bool_t xdr_ep_getxattr_arg_t ();
 extern bool_t xdr_epgw_getxattr_arg_t ();
 extern bool_t xdr_ep_getxattr_t ();

@@ -535,7 +535,7 @@ ssize_t export_getxattr(export_t *e, fid_t fid, const char *name, void *value, s
  * 
  * @return: On success, zero is returned.  On failure, -1 is returned.
  */
-int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags);
+int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_t size, int flags, epgw_setxattr_symlink_t *symlink);
 
 /** remove an extended attribute from a file or directory.
  *

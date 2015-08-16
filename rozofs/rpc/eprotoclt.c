@@ -281,15 +281,15 @@ ep_link_1(epgw_link_arg_t *argp, CLIENT *clnt)
 	return (&clnt_res);
 }
 
-epgw_status_ret_t *
+epgw_setxattr_ret_t *
 ep_setxattr_1(epgw_setxattr_arg_t *argp, CLIENT *clnt)
 {
-	static epgw_status_ret_t clnt_res;
+	static epgw_setxattr_ret_t clnt_res;
 
 	memset((char *)&clnt_res, 0, sizeof(clnt_res));
 	if (clnt_call (clnt, EP_SETXATTR,
 		(xdrproc_t) xdr_epgw_setxattr_arg_t, (caddr_t) argp,
-		(xdrproc_t) xdr_epgw_status_ret_t, (caddr_t) &clnt_res,
+		(xdrproc_t) xdr_epgw_setxattr_ret_t, (caddr_t) &clnt_res,
 		TIMEOUT) != RPC_SUCCESS) {
 		return (NULL);
 	}

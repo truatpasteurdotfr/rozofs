@@ -28,8 +28,6 @@ DECLARE_PROFILING(mpp_profiler_t);
 #define ROZOFS_ROOT_XATTR "trusted.rozofs"
 
 
-uint64_t rozofs_last_dirsymlink_ts = 0;
-
 /*
 **__________________________________________________________________
 */
@@ -79,55 +77,6 @@ void rozofs_ll_setxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, con
         goto error;
     }
 
-    /*
-    ** Changing the target of a symbolic link 
-    ** via a RozoFS extended attribute
-    */
-    if (strcmp(name,"trusted.rozofs.symlink")==0) {
-      /*
-      ** The inode must be a created symbolic link
-      */
-      if (!S_ISLNK(ie->attrs.mode)) {
-        errno = EINVAL;
-        goto error;
-      }
-      /*
-      ** Update the target of the symbolic link 
-      */
-      if (ie->symlink_target) {
-        int len = strlen(ie->symlink_target);
-	if (len < size) {
-	  free(ie->symlink_target);
-	  ie->symlink_target = NULL;
-	}
-      } 
-      if (ie->symlink_target == NULL) {
-        ie->symlink_target = malloc(size+1);
-      }
-      if (ie->symlink_target) {
-        memcpy(ie->symlink_target,value,size);
-	ie->symlink_target[size] = 0;
-        ie->symlink_ts = rozofs_get_ticker_us();
-      }
-    }
-
-    if ((strcmp(name,"trusted.rozofs.dirsymlink")==0)
-    ||  (strcmp(name,"user.rozofs.dirsymlink")==0)
-    ||  (strcmp(name,"rozofs.dirsymlink")==0)) {
-      /*
-      ** The inode must be a created directory
-      */
-      if (!S_ISDIR(ie->attrs.mode)) {
-        errno = ENOTDIR;
-        goto error;
-      }
-      /*
-      ** Must invalidate all symlink cached since we do not know  
-      ** the inode of the link file...
-      */
-      rozofs_last_dirsymlink_ts = rozofs_get_ticker_us();
-    }
-    
     
     SAVE_FUSE_PARAM(buffer_p,req);
     SAVE_FUSE_PARAM(buffer_p,ino);
@@ -190,14 +139,14 @@ error:
 void rozofs_ll_setxattr_cbk(void *this,void *param)
 {
    fuse_req_t req; 
-   epgw_status_ret_t ret ;
+   epgw_setxattr_ret_t ret ;
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    struct rpc_msg  rpc_reply;
-   xdrproc_t decode_proc = (xdrproc_t) xdr_epgw_status_ret_t;
+   xdrproc_t decode_proc = (xdrproc_t) xdr_epgw_setxattr_ret_t;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    int trc_idx;
    fuse_ino_t ino;
@@ -270,6 +219,26 @@ void rozofs_ll_setxattr_cbk(void *this,void *param)
         xdr_free(decode_proc, (char *) &ret);    
         goto error;
     }
+    
+    /*
+    ** Case of a setxattr that has modified the target of a symbolic link.
+    ** The new target is in the response, so update the ientry
+    */
+    if ((ret.symlink.status == EP_SUCCESS) 
+    &&  (ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val != NULL)) {
+      ientry_t * ie = get_ientry_by_fid((unsigned char*)ret.symlink.epgw_setxattr_symlink_t_u.info.symlink_fid);
+      if (ie != NULL) {
+        /*
+	** Invert pointers from response and ientry
+	*/
+        char * pt = ie->symlink_target;
+	ie->symlink_target = ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val;
+	ret.symlink.epgw_setxattr_symlink_t_u.info.target.target_val = pt;
+	if (pt == NULL) ret.symlink.status = EP_EMPTY;
+	ie->symlink_ts = rozofs_get_ticker_us();
+      }       
+    } 
+    
     xdr_free(decode_proc, (char *) &ret);   
      
     fuse_reply_err(req, 0);

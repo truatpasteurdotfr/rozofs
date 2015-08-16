@@ -168,7 +168,7 @@ export_program_1(struct svc_req *rqstp, register SVCXPRT *transp)
 
 	case EP_SETXATTR:
 		_xdr_argument = (xdrproc_t) xdr_epgw_setxattr_arg_t;
-		_xdr_result = (xdrproc_t) xdr_epgw_status_ret_t;
+		_xdr_result = (xdrproc_t) xdr_epgw_setxattr_ret_t;
 		local = (char *(*)(char *, struct svc_req *)) ep_setxattr_1_svc;
 		break;
 
