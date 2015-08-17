@@ -1053,10 +1053,14 @@ class rozofs_class:
       if words[0] =="VID": 
         vid = words[2]
 	continue      	 
+      if words[0] =="ST.NAME": 
+        st_name = words[2]
+	continue      	 
 
     SID_LIST=dist.split('-')
     
     c = cids[int(cid)-1]
+    
     for site in range(0,2):
     
       print "__________________Site %s"%(site) 
@@ -1064,7 +1068,7 @@ class rozofs_class:
         print ""
         s = c.sid[int(sid)-1]
 	path = s.get_site_root_path(site)
-        string="find %s -name \"%s*\""%(path,fid)
+        string="find %s -name \"%s*\""%(path,st_name)
 	parsed = shlex.split(string)
 	cmd = subprocess.Popen(parsed, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         for line in cmd.stdout: 

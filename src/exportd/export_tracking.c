@@ -4462,6 +4462,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   int       left;
   char      bufall[128];
   uint8_t   rozofs_safe = rozofs_get_rozofs_safe(e->layout);
+  rozofs_inode_t inode; 
   
   DISPLAY_ATTR_INT("EID", e->eid);
   DISPLAY_ATTR_INT("VID", e->volume->vid);
@@ -4503,7 +4504,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   p += rozofs_string_append(p,export_attr_type2String(fake_inode_p->s.key));
   p += rozofs_string_append(p,")");     
   p += rozofs_eol(p);
-  
+    
   uint32_t bucket_idx = ((lv2->attributes.s.hash2 >> 16) ^ (lv2->attributes.s.hash2 & 0xffff))&((1<<8)-1);
   DISPLAY_ATTR_HASH("HASH1/2",lv2->attributes.s.hash1,lv2->attributes.s.hash2,bucket_idx);
   DISPLAY_ATTR_2INT("UID/GID",lv2->attributes.s.attrs.uid,lv2->attributes.s.attrs.gid);
@@ -4534,6 +4535,20 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
     *p++ = '-';
     p += rozofs_u32_padded_append(p,3, rozofs_zero,lv2->attributes.s.attrs.sids[idx]);
   } 
+  p += rozofs_eol(p);
+  
+  DISPLAY_ATTR_TITLE("ST.SLICE");
+  p += rozofs_u32_append(p,rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid)); 
+  p += rozofs_eol(p);
+  
+  DISPLAY_ATTR_TITLE("ST.NAME");
+  memcpy(&inode,fake_inode_p,sizeof(rozofs_inode_t));
+  inode.s.recycle_cpt = 0;
+  rozofs_uuid_unparse((unsigned char *)&inode,p);
+  p += 36;
+  *p++ = '\n';
+  
+  p += rozofs_u32_append(p,rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid)); 
   p += rozofs_eol(p);
 
   DISPLAY_ATTR_INT("NLINK",lv2->attributes.s.attrs.nlink);
