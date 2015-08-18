@@ -4547,9 +4547,6 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   rozofs_uuid_unparse((unsigned char *)&inode,p);
   p += 36;
   *p++ = '\n';
-  
-  p += rozofs_u32_append(p,rozofs_storage_fid_slice(lv2->attributes.s.attrs.fid)); 
-  p += rozofs_eol(p);
 
   DISPLAY_ATTR_INT("NLINK",lv2->attributes.s.attrs.nlink);
   DISPLAY_ATTR_LONG("SIZE",lv2->attributes.s.attrs.size);
