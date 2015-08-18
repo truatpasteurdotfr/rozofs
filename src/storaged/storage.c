@@ -2435,7 +2435,8 @@ bins_file_rebuild_t ** storage_list_bins_file(storage_t * st, sid_t sid, uint8_t
             // Alloc a new bins_file_rebuild_t
             *iterator = xmalloc(sizeof (bins_file_rebuild_t)); // XXX FREE ?
             // Copy FID
-            rozofs_uuid_parse(ep->d_name, (*iterator)->fid);
+            //rozofs_uuid_parse(ep->d_name, (*iterator)->fid);
+	    memcpy((*iterator)->fid,file_hdr.v0.fid,sizeof(fid_t));
             // Copy current dist_set
             memcpy((*iterator)->dist_set_current, file_hdr.v0.dist_set_current,
                     sizeof (sid_t) * ROZOFS_SAFE_MAX);
