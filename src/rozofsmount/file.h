@@ -231,9 +231,12 @@ static inline void rozofs_geo_write_update(file_t *file,off_t off, size_t size)
  
  @retval 1  on success
  @retval 0  if pending
+ @retval -1 on error
  */
 extern void rozofs_clear_ientry_write_pending(file_t *f);
 static inline int file_close(file_t * f) {
+
+     if (f==NULL) return -1;
 
      f->closing = 1;
      /*

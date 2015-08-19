@@ -1921,16 +1921,21 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     */
     SAVE_FUSE_CALLBACK(buffer_p,rozofs_ll_release_cbk);
     
-    // Sanity check
-    if (!(ie = get_ientry_by_inode(ino))) {
-        errno = ENOENT;
-        goto error;
-    }
 
     if (!(f = (file_t *) (unsigned long) fi->fh)) {
         errno = EBADF;
         goto error;
     }
+    
+    // Sanity check
+    if (!(ie = get_ientry_by_inode(ino))) {
+        char fidString[64];
+	rozofs_uuid_unparse(f->fid,fidString);
+	severe("rozofs_ll_release_nb no such inode %llu FID %s",
+	        ino, fidString);
+        errno = ENOENT;
+        goto error;
+    }    
     /*
     ** check the status of the last write operation
     */
