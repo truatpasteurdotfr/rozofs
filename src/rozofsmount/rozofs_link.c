@@ -267,6 +267,7 @@ void rozofs_ll_link_cbk(void *this,void *param)
     if (!(ie = get_ientry_by_fid(attrs.fid))) {
         ie = alloc_ientry(attrs.fid);
     }
+    
     memset(&fep, 0, sizeof (fep));
     fep.ino = ie->inode;
     mattr_to_stat(&attrs, &stbuf, exportclt.bsize);
@@ -295,6 +296,10 @@ void rozofs_ll_link_cbk(void *this,void *param)
     fep.entry_timeout = 0;
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     ie->nlookup++;
+
+    rozofs_inode_t * finode = (rozofs_inode_t *) ie->attrs.fid;
+    fep.generation = finode->fid[0];    
+
     fuse_reply_entry(req, &fep);
     goto out;
 error:
@@ -798,6 +803,10 @@ void rozofs_ll_symlink_cbk(void *this,void *param)
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
         nie = alloc_ientry(attrs.fid);
     }
+    else {
+      recycle_ientry(nie,attrs.fid);
+    }
+        
     uint64_t time_us = rozofs_get_ticker_us();
     
     /*

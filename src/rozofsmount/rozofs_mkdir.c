@@ -295,6 +295,10 @@ void rozofs_ll_mkdir_cbk(void *this,void *param)
     fep.attr_timeout = rozofs_tmr_get(TMR_FUSE_ATTR_CACHE);
     fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
+
+    rozofs_inode_t * finode = (rozofs_inode_t *) nie->attrs.fid;
+    fep.generation = finode->fid[0];  
+    
     nie->nlookup++;
 
     fuse_reply_entry(req, &fep);

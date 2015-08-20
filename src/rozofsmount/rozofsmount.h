@@ -243,7 +243,8 @@ static inline unsigned int fid_hash(void *key) {
 
 static inline void ientries_release() {
     list_t *p, *q;
-
+    return;
+ 
     htable_release(&htable_inode);
     htable_release(&htable_fid);
 
@@ -258,7 +259,7 @@ static inline void put_ientry(ientry_t * ie) {
     DEBUG("put inode: %llx\n",(unsigned long long int)ie->inode);
     rozofs_ientries_count++;
     htable_put(&htable_inode, &ie->inode, ie);
-    htable_put(&htable_fid, ie->fid, ie);
+//    htable_put(&htable_fid, ie->fid, ie);
     list_push_front(&inode_entries, &ie->list);
 }
 
@@ -266,7 +267,7 @@ static inline void del_ientry(ientry_t * ie) {
     DEBUG("del inode: %llx\n",(unsigned long long int) ie->inode);
     rozofs_ientries_count--;
     htable_del(&htable_inode, &ie->inode);
-    htable_del(&htable_fid, ie->fid);
+//    htable_del(&htable_fid, ie->fid);
     list_remove(&ie->list);
     if (ie->db.p != NULL) {
       free(ie->db.p);
@@ -292,7 +293,8 @@ static inline ientry_t *get_ientry_by_inode(fuse_ino_t ino) {
 }
 
 static inline ientry_t *get_ientry_by_fid(fid_t fid) {
-    return htable_get(&htable_fid, fid);
+    rozofs_inode_t *fake_id = (rozofs_inode_t *) fid;
+    return get_ientry_by_inode(fake_id->fid[1]);
 }
 
 static inline ientry_t *alloc_ientry(fid_t fid) {
@@ -321,6 +323,33 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 
 	return ie;
 }
+static inline ientry_t *recycle_ientry(ientry_t * ie, fid_t fid) {
+	rozofs_inode_t *inode_p ;
+	
+	inode_p = (rozofs_inode_t*) fid;
+
+	memcpy(ie->fid, fid, sizeof(fid_t));
+	ie->db.size = 0;
+	ie->db.eof = 0;
+	ie->db.cookie = 0;
+	if (ie->db.p != NULL) {
+	  free(ie->db.p);
+	  ie->db.p = NULL;
+	}	
+	// ie->nlookup = 0;
+        ie->write_pending = NULL; 
+        ie->read_consistency = 1;
+	ie->file_extend_pending = 0;
+	ie->file_extend_running = 0;
+	ie->timestamp_wr_block = 0;
+	if (ie->symlink_target) {
+	  free(ie->symlink_target);
+	  ie->symlink_target = NULL;
+	}	
+        ie->symlink_ts     = 0;
+	return ie;
+}
+
 /*
 **__________________________________________________________________
 */

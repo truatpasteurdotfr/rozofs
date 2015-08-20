@@ -276,6 +276,9 @@ void rozofs_ll_create_cbk(void *this,void *param)
     if (!(nie = get_ientry_by_fid(attrs.fid))) {
         nie = alloc_ientry(attrs.fid);
     }
+    else {
+      recycle_ientry(nie,attrs.fid);
+    }
     memset(&fep, 0, sizeof (fep));
     fep.ino = nie->inode;
     mattr_to_stat(&attrs, &stbuf, exportclt.bsize);
@@ -311,6 +314,10 @@ void rozofs_ll_create_cbk(void *this,void *param)
     fep.entry_timeout = rozofs_tmr_get(TMR_FUSE_ENTRY_CACHE);
     memcpy(&fep.attr, &stbuf, sizeof (struct stat));
     nie->nlookup++;
+    
+    rozofs_inode_t * finode = (rozofs_inode_t *) nie->attrs.fid;
+    fep.generation = finode->fid[0];  
+
     /*
     ** allocate a context for the file descriptor
     */

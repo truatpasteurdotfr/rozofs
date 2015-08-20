@@ -1901,6 +1901,12 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     int trc_idx = rozofs_trc_req(srv_rozofs_ll_release,(fuse_ino_t)fi->fh,NULL);
 
     DEBUG("release (%lu)\n", (unsigned long int) ino);
+
+    if (!(f = (file_t *) (unsigned long) fi->fh)) {
+        errno = EBADF;
+        goto error;
+    }
+
     /*
     ** allocate a context for saving the fuse parameters
     */
@@ -1921,11 +1927,6 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
     */
     SAVE_FUSE_CALLBACK(buffer_p,rozofs_ll_release_cbk);
     
-
-    if (!(f = (file_t *) (unsigned long) fi->fh)) {
-        errno = EBADF;
-        goto error;
-    }
     
     // Sanity check
     if (!(ie = get_ientry_by_inode(ino))) {

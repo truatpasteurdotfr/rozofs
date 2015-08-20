@@ -308,7 +308,7 @@ exportclt_t exportclt;
 
 list_t inode_entries;
 htable_t htable_inode;
-htable_t htable_fid;
+//htable_t htable_fid;
 uint64_t rozofs_ientries_count = 0;
 
 static void rozofs_ll_init(void *userdata, struct fuse_conn_info *conn) {
@@ -1538,7 +1538,7 @@ int fuseloop(struct fuse_args *args, int fg) {
     /* Initialize list and htables for inode_entries */
     list_init(&inode_entries);
     htable_initialize(&htable_inode, INODE_HSIZE, fuse_ino_hash, fuse_ino_cmp);
-    htable_initialize(&htable_fid, PATH_HSIZE, fid_hash, fid_cmp);
+//    htable_initialize(&htable_fid, PATH_HSIZE, fid_hash, fid_cmp);
 
     /* Put the root inode entry*/
     ientry_t *root = xmalloc(sizeof (ientry_t));
