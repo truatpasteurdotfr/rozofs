@@ -324,9 +324,6 @@ static inline ientry_t *alloc_ientry(fid_t fid) {
 	return ie;
 }
 static inline ientry_t *recycle_ientry(ientry_t * ie, fid_t fid) {
-	rozofs_inode_t *inode_p ;
-	
-	inode_p = (rozofs_inode_t*) fid;
 
 	memcpy(ie->fid, fid, sizeof(fid_t));
 	ie->db.size = 0;
