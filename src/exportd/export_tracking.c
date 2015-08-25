@@ -2800,8 +2800,11 @@ int export_unlink(export_t * e, fid_t parent, char *name, fid_t fid,mattr_t * pa
        // Update export files
         export_update_files(e, -1);
 	
-        // Remove from the cache (will be closed and freed)
-        lv2_cache_del(e->lv2_cache, child_fid);
+        // Remove from the cache when deleted (will be closed and freed)
+        if (fid_has_been_recycled == 0)
+	{
+          lv2_cache_del(e->lv2_cache, child_fid);
+	}  
     }
     // It's a hardlink
     if (nlink > 1) {

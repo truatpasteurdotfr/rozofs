@@ -50,16 +50,37 @@ export_tracking_table_t * export_tracking_table[EXPGW_EID_MAX_IDX+1] = { 0 };
  * hashing function used to find lv2 entry in the cache
  */
 static inline uint32_t lv2_hash(void *key) {
-    uint32_t hash = 0;
-    uint8_t *c;
+    uint32_t       hash = 0;
+    uint8_t       *c;
+    int            i;
+    rozofs_inode_t fake_inode;
+    
+    /*
+    ** Clear recycle counter in key (which is a FID)
+    */
+    memcpy(&fake_inode,key,sizeof(rozofs_inode_t));
+    fake_inode.s.recycle_cpt = 0;
 
-    for (c = key; c != key + 16; c++)
+    c = (uint8_t *) &fake_inode;
+    for (i = 0; i < sizeof(rozofs_inode_t); c++,i++)
         hash = *c + (hash << 6) + (hash << 16) - hash;
     return hash;
 }
 
 static inline int lv2_cmp(void *k1, void *k2) {
-    return uuid_compare(k1, k2);
+    rozofs_inode_t fake_inode1;
+    rozofs_inode_t fake_inode2;  
+      
+    /*
+    ** Clear recycle counter in keys (which are FIDs)
+    */
+    memcpy(&fake_inode1,k1,sizeof(rozofs_inode_t));
+    fake_inode1.s.recycle_cpt = 0;
+
+    memcpy(&fake_inode2,k2,sizeof(rozofs_inode_t));
+    fake_inode2.s.recycle_cpt = 0;
+    
+    return uuid_compare((uint8_t*)&fake_inode1, (uint8_t*)&fake_inode2);
 }
 /*
 **__________________________________________________________________
