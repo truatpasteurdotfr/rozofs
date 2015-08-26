@@ -41,6 +41,9 @@
 #include "config.h"
 #include "../rozofs_service_ports.h"
 
+
+char rozofs_github_reference[256];
+
 uint32_t   uma_dbg_initialized=FALSE;
 char     * uma_gdb_system_name=NULL;
 static time_t uptime=0;
@@ -558,7 +561,7 @@ void uma_dbg_show_version(char * argv[], uint32_t tcpRef, void *bufRef) {
 void uma_dbg_show_git_ref(char * argv[], uint32_t tcpRef, void *bufRef) {  
   char * pt = uma_dbg_get_buffer();
   pt += rozofs_string_append(pt,"git : ");
-  pt += rozofs_string_append(pt,ROZO_GIT_REF);
+  pt += rozofs_string_append(pt,rozofs_github_reference);
   pt += rozofs_eol(pt);
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
@@ -1433,6 +1436,11 @@ void uma_dbg_init(uint32_t nbElements,uint32_t ipAddr, uint16_t serverPort) {
   void                      *idx;
   uint32_t                    tcpCnxServer;
   char                     * pChar;
+  
+  /*
+  ** Save version reference in global variable
+  */
+  sprintf(rozofs_github_reference,"%s %s", VERSION, ROZO_GIT_REF);
 
   /* Create a TCP connection server */
   inputArgs.userRef    = 0;

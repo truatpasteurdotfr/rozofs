@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LIST="date commit branch mojette bpo"
+LIST="date commit branch mojette bpo pretty"
 
 syntax() {
   usage="Usage : cmake_get.sh <source directory> ["
@@ -60,6 +60,25 @@ rozo_bpo() {
     ;;
   esac
   printf "%s" "${ROZO_BPO}"
+}
+# Get bpo version to append on each debian packages builded
+rozo_pretty() {
+  if [ -s "/etc/os-release" ] 
+  then
+    PRETTY_NAME=`awk -F'"' '{if ($1=="PRETTY_NAME=") print $2; }' /etc/os-release`
+  elif [ -s "/etc/system-release" ]
+  then
+    PRETTY_NAME=`cat /etc/system-release`
+  elif [ -s "/etc/redhat-release" ]  
+  then  
+    PRETTY_NAME=`cat /etc/redhat-release`  
+  elif [ -s "/etc/centos-release" ]   
+  then
+    PRETTY_NAME=`cat /etc/centos-release` 
+  else
+    PRETTY_NAME="??"  
+  fi    
+  printf "%s" "${PRETTY_NAME}"
 }
 rozo_param() {
   lower=`echo "$1" | tr '[:upper:]' '[:lower:]'`
