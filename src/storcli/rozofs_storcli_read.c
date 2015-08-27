@@ -7,7 +7,7 @@
   by the Free Software Foundation, version 2.
 
   Rozofs is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
+  WITHOUT ANY WARRANTY; without L1406even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
   General Public License for more details.
 
@@ -1403,7 +1403,7 @@ void rozofs_storcli_read_req_processing_cbk(void *this,void *param)
          /*
          ** there are no enough valid storages to be able to rebuild the initial message
          */
-         severe("FDL error on send: EIO returned");
+         fatal("FDL error on send: EIO returned");
          STORCLI_ERR_PROF(read_prj_err);       
          error = EIO;
          goto io_error;
