@@ -111,7 +111,7 @@ void * storio_device_relocate_thread(void *arg) {
     pChar += rozofs_u32_append(pChar,pRelocate->dev);
     
     if (pHostArray[0] != NULL) {
-      pChar += rozofs_string_append(pChar,"-H ");
+      pChar += rozofs_string_append(pChar," -H ");
       pChar += rozofs_string_append(pChar,pHostArray[0]);
       int idx=1;
       while (pHostArray[idx] != NULL) {
