@@ -2913,9 +2913,6 @@ static mclient_t * lookup_cnx(list_t *list, cid_t cid, sid_t sid) {
         }
     }
 
-    severe("lookup_cnx failed: storage connexion (cid: %u; sid: %u) not found",
-            cid, sid);
-
     errno = EINVAL;
 
     return NULL;
@@ -3198,6 +3195,20 @@ static inline int export_rm_bucket(export_t * e, list_t * connexions, int bucket
       }
 
       if ((stor = lookup_cnx(connexions, entry->cid, entry->current_dist_set[i])) == NULL) {
+        char   text[512];
+	char * p = text;
+
+        p += rozofs_string_append(p,"lookup_cnx failed FID ");
+        rozofs_uuid_unparse(entry->fid,p);
+	p += 36;
+	p += rozofs_string_append(p," trash inode ");
+        rozofs_uuid_unparse(entry->trash_inode,p);
+	p += 36;	
+	p += rozofs_string_append(p," cid ");
+	p += rozofs_u32_append(p,entry->cid);
+	p += rozofs_string_append(p," sid ");	
+	p += rozofs_u32_append(p,entry->current_dist_set[i]);	
+        severe("%s",text);
         continue;// lookup_cnx failed !!! 
       }
 
