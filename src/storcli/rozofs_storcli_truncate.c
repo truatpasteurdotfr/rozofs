@@ -102,7 +102,7 @@ static inline int rozofs_storcli_all_prj_truncate_check(uint8_t layout,rozofs_st
   ** Get the rozofs_forward value for the layout
   */
   uint8_t   rozofs_forward = rozofs_get_rozofs_forward(layout);
-  uint8_t   rozofs_inverse = rozofs_get_rozofs_inverse(layout);
+  //JPM comment out anticipated response uint8_t   rozofs_inverse = rozofs_get_rozofs_inverse(layout);
   int i;
   int received = 0;
   
@@ -114,7 +114,7 @@ static inline int rozofs_storcli_all_prj_truncate_check(uint8_t layout,rozofs_st
     }
     if (received == rozofs_forward) return 2;   
   }
-  if (received == rozofs_inverse) return 1;   
+  //JPM comment out anticipated response if (received == rozofs_inverse) return 1;   
   return 0;
 }
 
