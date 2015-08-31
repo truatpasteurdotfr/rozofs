@@ -24,6 +24,7 @@
 
 #include <config.h>
 #include <rozofs/common/common_config.h>
+#include <rozofs/core/rozofs_string.h>
 
 /*
 ** Get ticker
@@ -196,6 +197,7 @@ static inline char * export_attr_type2String(export_attr_type_e val) {
     case ROZOFS_DIR: return "DIR";
     case ROZOFS_SLNK: return "SLNK";
     case ROZOFS_DIR_FID: return "DIR_FID";
+    case ROZOFS_RECYCLE: return "RECYCLE";
     default:
       return "?";
   }
@@ -405,5 +407,47 @@ static inline unsigned int rozofs_storage_fid_slice(void * fid) {
   */  
   return val % (common_config.storio_slice_number);
 } 
-
+/*
+**__________________________________________________________________
+** Format a string with a FID and parse some inforamtion within the FID
+** for debug usage. To be used in log traces.
+*/
+static inline char * fid2string(fid_t fid , char * string) {
+  
+  char * p = string;
+  
+  rozofs_uuid_unparse(fid,p);
+  p += 36;
+  *p++ = ' ';
+  
+  rozofs_inode_t * fake_inode_p =  (rozofs_inode_t *) fid;
+  
+  p += rozofs_string_append(p,"vers=");
+  p += rozofs_u64_append(p,fake_inode_p->s.vers);
+  p += rozofs_string_append(p," fid_high=");
+  p += rozofs_u64_append(p,fake_inode_p->s.fid_high);
+  p += rozofs_string_append(p," recycle=");
+  p += rozofs_u64_append(p,fake_inode_p->s.recycle_cpt);  
+  p += rozofs_string_append(p," opcode=");
+  p += rozofs_u64_append(p,fake_inode_p->s.opcode);
+  p += rozofs_string_append(p," exp_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.exp_id);
+  p += rozofs_string_append(p," eid=");
+  p += rozofs_u64_append(p,fake_inode_p->s.eid);
+  p += rozofs_string_append(p," usr_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.usr_id);
+  p += rozofs_string_append(p," file_id=");
+  p += rozofs_u64_append(p,fake_inode_p->s.file_id);
+  p += rozofs_string_append(p," idx=");
+  p += rozofs_u64_append(p,fake_inode_p->s.idx);
+  p += rozofs_string_append(p," key=");
+  p += rozofs_u64_append(p,fake_inode_p->s.key);
+  p += rozofs_string_append(p," (");
+  p += rozofs_string_append(p,export_attr_type2String(fake_inode_p->s.key));
+  p += rozofs_string_append(p,")");          
+  p += rozofs_string_append(p," storage slice=");
+  p += rozofs_u64_append(p,rozofs_storage_fid_slice(fid));  
+  *p = 0;
+  return p;
+}
 #endif

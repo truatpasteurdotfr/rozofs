@@ -408,6 +408,34 @@ void show_trash(char * argv[], uint32_t tcpRef, void *bufRef) {
 *_______________________________________________________________________
 */
 /**
+* Parse and display a RozoFS FID
+*/
+void uma_dbg_split_fid(char * argv[], uint32_t tcpRef, void *bufRef) {
+  char *pChar = uma_dbg_get_buffer();
+
+  if (argv[1] == NULL) {
+    rozofs_string_append(pChar, "Missing FID parameter");   	      
+  }  
+  else {
+    uuid_t fid;
+    if (rozofs_uuid_parse(argv[1], fid)<0) {
+      *pChar ++ = '"';
+      pChar += rozofs_string_append(pChar, argv[1]);   	
+      *pChar ++ =  '"';                   
+      rozofs_string_append(pChar, " is not a FID");   	          
+    }
+    else {
+      pChar = fid2string(fid,pChar);
+      pChar += rozofs_eol(pChar);   	
+    }  
+  }  
+  uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());   	  
+}
+
+/*
+*_______________________________________________________________________
+*/
+/**
 * dirent cache
 */
 char *dirent_cache_display(char *pChar);
@@ -1030,6 +1058,7 @@ int expgwc_start_nb_blocking_th(void *args) {
       fatal("Fatal error on expnb_north_interface_init()\n");
       return -1;
     }
+    uma_dbg_addTopic("fid_parse",uma_dbg_split_fid);
     /*
     ** add profiler subject (exportd statistics)
     */

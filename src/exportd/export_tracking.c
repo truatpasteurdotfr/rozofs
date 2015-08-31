@@ -98,36 +98,7 @@ typedef struct _dirent_dir_root_idx_bitmap_t
 } dirent_dir_root_idx_bitmap_t;
 
 int export_recycle_remove_from_tracking_file(export_t * e,recycle_mem_t *entry);
-/*
-**__________________________________________________________________
-** Format a string with a FID and parse some inforamtion within the FID
-** for debug usage. To be used in log traces.
-*/
-static int fid2string(fid_t fid , char * string) {
-  
-  char * p = string;
-  
-  rozofs_uuid_unparse(fid,p);
-  p += 36;
-  *p++ = ' ';
-  
-  rozofs_inode_t * fake_inode_p =  (rozofs_inode_t *) fid;
-  p += rozofs_string_append(p," eid=");
-  p += rozofs_u64_append(p,fake_inode_p->s.eid);
-  p += rozofs_string_append(p," slice=");
-  p += rozofs_u64_append(p,fake_inode_p->s.usr_id);
-  p += rozofs_string_append(p," file_id=");
-  p += rozofs_u64_append(p,fake_inode_p->s.file_id);
-  p += rozofs_string_append(p," idx=");
-  p += rozofs_u64_append(p,fake_inode_p->s.idx);
-  p += rozofs_string_append(p," key=");
-  p += rozofs_u64_append(p,fake_inode_p->s.key);
-  p += rozofs_string_append(p," (");
-  p += rozofs_string_append(p,export_attr_type2String(fake_inode_p->s.key));
-  p += rozofs_string_append(p,")");     
-  *p = 0;
-  return 0;
-}
+
 /*
  **__________________________________________________________________
  */
