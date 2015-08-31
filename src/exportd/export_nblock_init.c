@@ -1162,7 +1162,35 @@ int expgwc_start_nb_blocking_th(void *args) {
     while (export_non_blocking_thread_can_process_messages==0) {
       sleep(1);
     }
+  /*
+  **  change the priority of the main thread
+  */
+    {
+      struct sched_param my_priority;
+      int policy=-1;
+      int ret= 0;
 
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          info("storio main thread Scheduling policy   = %s\n",
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+      my_priority.sched_priority= 97;
+      policy = SCHED_RR;
+      ret = pthread_setschedparam(pthread_self(),policy,&my_priority);
+      if (ret < 0) 
+      {
+	severe("error on sched_setscheduler: %s",strerror(errno));	
+      }
+      pthread_getschedparam(pthread_self(),&policy,&my_priority);
+          DEBUG("RozoFS thread Scheduling policy (prio %d)  = %s\n",my_priority.sched_priority,
+                    (policy == SCHED_OTHER) ? "SCHED_OTHER" :
+                    (policy == SCHED_FIFO)  ? "SCHED_FIFO" :
+                    (policy == SCHED_RR)    ? "SCHED_RR" :
+                    "???");
+     
+    }  
     info("exportd non-blocking thread running (instance: %d, port: %d).",
             args_p->instance, args_p->debug_port);
     
