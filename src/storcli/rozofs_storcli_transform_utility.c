@@ -199,7 +199,7 @@ inline int rozofs_storcli_transform_inverse_check_timestamp_tb(rozofs_storcli_pr
       ** effective length are 0. That situation can occur when a storage was in fault at the writing time, so we can face
       ** the situation where the projections read on the different storages do not return the same number of block.
       */
-      if ((rozofs_bins_hdr_p->s.timestamp == 0)&&(rozofs_bins_hdr_p->s.effective_length == 0))  continue;
+      //if ((rozofs_bins_hdr_p->s.timestamp == 0)&&(rozofs_bins_hdr_p->s.effective_length == 0))  continue;
       /*
       ** check the case of CRC error
       */
