@@ -446,7 +446,10 @@ static inline char * fid2string(fid_t fid , char * string) {
   p += rozofs_string_append(p,export_attr_type2String(fake_inode_p->s.key));
   p += rozofs_string_append(p,")");          
   p += rozofs_string_append(p," storage slice=");
-  p += rozofs_u64_append(p,rozofs_storage_fid_slice(fid));  
+  p += rozofs_u64_append(p,rozofs_storage_fid_slice(fid));
+  p += rozofs_string_append(p,"/");
+  p += rozofs_u64_append(p,common_config.storio_slice_number);  
+    
   *p = 0;
   return p;
 }
