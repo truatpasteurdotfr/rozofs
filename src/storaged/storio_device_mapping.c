@@ -488,12 +488,33 @@ uint32_t storio_device_mapping_allocate_device(storage_t * st) {
   int           active;
   
   if (common_config.file_distribution_rule == rozofs_file_distribution_round_robin) {
-     __atomic_fetch_add(&storio_allocated_device,1,__ATOMIC_SEQ_CST);  
-    return storio_allocated_device % st->device_number;
+    int count = 0;
+    
+    while(count < st->device_number) {
+    
+      /*
+      ** Get next device number
+      */  
+      __atomic_fetch_add(&storio_allocated_device,1,__ATOMIC_SEQ_CST);  
+      dev = storio_allocated_device % st->device_number;
+
+      /*
+      ** Check that the device is usable
+      */     
+      if (st->device_ctx[dev].status <= storage_device_status_degraded) return dev;
+
+      /*
+      ** Bad device. Get the next one
+      */
+      count++;
+    }
+    /*
+    ** Well !!!
+    */
+    return dev;
   }
   
   active = st->device_free.active;
-  
   for (dev = 0; dev < st->device_number; dev++,pBlocks++) {
     
     val = st->device_free.blocks[active][dev];
