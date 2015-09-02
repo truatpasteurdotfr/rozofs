@@ -2814,14 +2814,14 @@ out:
 */
 static int init_storages_cnx(volume_t *volume, list_t *list) {
     list_t *p, *q;
-    int status = -1;
+    int status = 0;
     DEBUG_FUNCTION;
     int i;
     
     if ((errno = pthread_rwlock_rdlock(&volume->lock)) != 0) {
         severe("pthread_rwlock_rdlock failed (vid: %d): %s", volume->vid,
                 strerror(errno));
-        goto out;
+        return -1;
     }
 
     list_for_each_forward(p, &volume->clusters) {
@@ -2835,7 +2835,8 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
               mclient_t * mclt = mclient_allocate(vs->host, cluster->cid, vs->sid);
 	      if (mclt == NULL) {
 	        severe("out of memory");
-		continue;
+                status = -1;
+		goto out;		
 	      }
 
               struct timeval timeo;
@@ -2856,14 +2857,11 @@ static int init_storages_cnx(volume_t *volume, list_t *list) {
 	}
     }
 
+out:
     if ((errno = pthread_rwlock_unlock(&volume->lock)) != 0) {
         severe("pthread_rwlock_unlock failed (vid: %d): %s", volume->vid,
                 strerror(errno));
-        goto out;
     }
-
-    status = 0;
-out:
 
     return status;
 }
@@ -3180,6 +3178,11 @@ static inline int export_rm_bucket(export_t * e, list_t * connexions, int bucket
 	p += rozofs_string_append(p," sid ");	
 	p += rozofs_u32_append(p,entry->current_dist_set[i]);	
         severe("%s",text);
+	
+	/*
+	** Invalid cid/sid
+	*/
+	sid_count++;
         continue;// lookup_cnx failed !!! 
       }
 
@@ -3292,8 +3295,6 @@ int export_rm_bins(export_t * e, uint16_t * first_bucket_idx) {
             list_init(&connexions);
             cnx_init = 1;
             if (init_storages_cnx(e->volume, &connexions) != 0) {
-                // Problem with lock
-                severe("init_storages_cnx failed: %s", strerror(errno));
                 goto out;
             }
         }
