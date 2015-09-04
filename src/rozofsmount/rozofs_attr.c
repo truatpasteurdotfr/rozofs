@@ -420,61 +420,68 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
       ** their data must be read from disk
       */
       ie->read_consistency++;  
+      
+      /*
+      ** When no0trunc is configured, do not send truncate to zero to the storages.
+      ** Only send the set attribute to the exportd
+      */
+      if((!conf.no0trunc)||(attr.size!=0)) {
 
-      storcli_truncate_arg_t  args;
-      int ret;
-      int storcli_idx;
-      uint64_t bid;
-      uint16_t last_seg;
-      /*
-      ** flush the entry from the modeblock cache: to goal it to avoid returning
-      ** non zero data when the file has been truncated. Another way to do it was
-      ** to find out the 8K blocks that are impacted, but this implies more complexity
-      ** in the cache management for something with is not frequent. So it is better 
-      ** to flush the entry and keep the performance of the caceh for regular usage
-      */
-      rozofs_mbcache_remove(ie->fid);
-      /*
-      ** translate the size in a block index for the storaged
-      */
-      bid = attr.size / bbytes;
-      last_seg = (attr.size % bbytes);
+	storcli_truncate_arg_t  args;
+	int ret;
+	int storcli_idx;
+	uint64_t bid;
+	uint16_t last_seg;
+	/*
+	** flush the entry from the modeblock cache: to goal it to avoid returning
+	** non zero data when the file has been truncated. Another way to do it was
+	** to find out the 8K blocks that are impacted, but this implies more complexity
+	** in the cache management for something with is not frequent. So it is better 
+	** to flush the entry and keep the performance of the caceh for regular usage
+	*/
+	rozofs_mbcache_remove(ie->fid);
+	/*
+	** translate the size in a block index for the storaged
+	*/
+	bid = attr.size / bbytes;
+	last_seg = (attr.size % bbytes);
 
-      SAVE_FUSE_PARAM(buffer_p,to_set);
-      SAVE_FUSE_STRUCT(buffer_p,stbuf,sizeof(struct stat ));      
-      /*
-      **  Fill the truncate request:
-      **  we take the file information in terms of cid, distribution from the attributes
-      **  saved in the ientry
-      */
-      args.cid = ie->attrs.cid;
-      args.layout = exportclt.layout;
-      args.bsize = exportclt.bsize;
-      memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
-      memcpy(args.fid, ie->fid, sizeof (fid_t));
-      args.bid      = bid;
-      args.last_seg = last_seg;
-//      lbg_id = storcli_lbg_get_lbg_from_fid(ie->fid);
-      /*
-      ** get the storcli to use for the transaction
-      */      
-      storcli_idx = stclbg_storcli_idx_from_fid(ie->fid);
-      /*
-      ** now initiates the transaction towards the remote end
-      */
-      ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
-                                STORCLI_TRUNCATE,(xdrproc_t) xdr_storcli_truncate_arg_t,(void *)&args,
-                                rozofs_ll_truncate_cbk,buffer_p,storcli_idx,ie->fid); 
-      if (ret < 0) goto error;
-      /*
-      ** indicates that there is a pending file size update
-      */
-      ie->file_extend_pending = 1;
-      /*
-      ** all is fine, wait from the response of the storcli and then updates the exportd upon
-      ** receiving the answer from storcli
-      */
-      return;
+	SAVE_FUSE_PARAM(buffer_p,to_set);
+	SAVE_FUSE_STRUCT(buffer_p,stbuf,sizeof(struct stat ));      
+	/*
+	**  Fill the truncate request:
+	**  we take the file information in terms of cid, distribution from the attributes
+	**  saved in the ientry
+	*/
+	args.cid = ie->attrs.cid;
+	args.layout = exportclt.layout;
+	args.bsize = exportclt.bsize;
+	memcpy(args.dist_set, ie->attrs.sids, sizeof (sid_t) * ROZOFS_SAFE_MAX);
+	memcpy(args.fid, ie->fid, sizeof (fid_t));
+	args.bid      = bid;
+	args.last_seg = last_seg;
+  //      lbg_id = storcli_lbg_get_lbg_from_fid(ie->fid);
+	/*
+	** get the storcli to use for the transaction
+	*/      
+	storcli_idx = stclbg_storcli_idx_from_fid(ie->fid);
+	/*
+	** now initiates the transaction towards the remote end
+	*/
+	ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
+                                  STORCLI_TRUNCATE,(xdrproc_t) xdr_storcli_truncate_arg_t,(void *)&args,
+                                  rozofs_ll_truncate_cbk,buffer_p,storcli_idx,ie->fid); 
+	if (ret < 0) goto error;
+	/*
+	** indicates that there is a pending file size update
+	*/
+	ie->file_extend_pending = 1;
+	/*
+	** all is fine, wait from the response of the storcli and then updates the exportd upon
+	** receiving the answer from storcli
+	*/
+	return;
+      }	
     }
     
     /*

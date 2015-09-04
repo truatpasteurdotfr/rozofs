@@ -78,8 +78,10 @@ typedef struct rozofsmnt_conf {
     unsigned running_site;
     unsigned mojThreadWrite;
     unsigned mojThreadRead;    
-    unsigned mojThreadThreshold;        
+    unsigned mojThreadThreshold;  
+    unsigned no0trunc;          
 } rozofsmnt_conf_t;
+rozofsmnt_conf_t conf;
 
 typedef struct dirbuf {
     char *p;
