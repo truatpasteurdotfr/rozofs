@@ -244,12 +244,6 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
       /* Average read duration in usec */
       pDev->rdAvgUs     = pDev->rdDelta ? rdTicks*1000/pDev->rdDelta : 0;
       
-      if ((common_config.disk_read_threshold != 0) 
-      &&  (pDev->rdAvgUs >= common_config.disk_read_threshold)) {      
-        warning("cid %d sid %d dev %d : %d read with average of %d us",
-	      cid, sid, dev, pDev->rdDelta, pDev->rdAvgUs);
-      }
-      
       /* Number of write during the last period */
       pDev->wrDelta     = blkio.wr_ios - pDev->wrCount;
       /* Save total write count for next run */
@@ -261,12 +255,6 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
       /* Average write duration in usec */      
       pDev->wrAvgUs     = pDev->wrDelta ? wrTicks*1000/pDev->wrDelta : 0;
 
-      if ((common_config.disk_write_threshold != 0) 
-      &&  (pDev->wrAvgUs >= common_config.disk_write_threshold)) {      
-        warning("cid %d sid %d dev %d : %d write with average of %d us",
-	      cid, sid, dev, pDev->wrDelta, pDev->wrAvgUs);
-      }
-      
       /*
       ** % of disk usage during the last period
       */    
@@ -277,10 +265,28 @@ int storage_get_device_usage(cid_t cid, sid_t sid, uint8_t dev, storage_device_c
         pDev->usage = (blkio.ticks-pDev->ticks) / (STORIO_DEVICE_PERIOD*10);
       }	
       
+      /*
+      ** Log warning when configured for
+      */
+      if ((common_config.disk_read_threshold != 0) 
+      &&  (pDev->rdAvgUs >= common_config.disk_read_threshold)) {      
+        warning("%s cid %d sid %d dev %d READ AVG %d us (%dsec: %d wr + %d rd = %d%c)",
+	      devName, cid, sid, dev, pDev->rdAvgUs, 
+	      STORIO_DEVICE_PERIOD,pDev->wrDelta, pDev->rdDelta, pDev->usage,'%');
+      }
+
+      if ((common_config.disk_write_threshold != 0) 
+      &&  (pDev->wrAvgUs >= common_config.disk_write_threshold)) {      
+        warning("%s cid %d sid %d dev %d WRITE AVG %d us (%dsec: %d wr + %d rd = %d%c)",
+	      devName, cid, sid, dev, pDev->wrAvgUs, 
+	      STORIO_DEVICE_PERIOD,pDev->wrDelta, pDev->rdDelta, pDev->usage,'%');
+      }
+                  
       if ((common_config.disk_usage_threshold != 0) 
       &&  (pDev->usage >= common_config.disk_usage_threshold)) {
-        warning("cid %d sid %d dev %d : %d read + %d write usage is %d %c",
-	      cid, sid, dev, pDev->rdDelta, pDev->wrDelta, pDev->usage,'%');
+        warning("%s cid %d sid %d dev %d USAGE (%dsec: %d wr + %d rd = %d%c)",
+	      devName, cid, sid, dev,
+	      STORIO_DEVICE_PERIOD,pDev->wrDelta, pDev->rdDelta, pDev->usage,'%');      
       }
       /* Save current ticks for next run */
       pDev->ticks = blkio.ticks;
