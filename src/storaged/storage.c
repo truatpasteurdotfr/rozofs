@@ -304,7 +304,95 @@ void storio_device_error_log_init(void) {
 
 
 
+static inline void storage_get_projection_size(uint8_t spare, 
+                                               sid_t sid, 
+					       uint8_t layout, 
+					       uint32_t bsize,
+					       sid_t * dist_set,
+					       uint16_t * msg,
+				    	       uint16_t * disk) { 
+  int prj_id;
+  int idx;
+  int safe;
+  int forward;
+  char mylog[128];
+  char * p = mylog;
+    
+  /* Size of a block in a message received from the client */  
+  *msg = rozofs_get_max_psize_in_msg(layout,bsize);
+  
+  /*
+  ** On a spare storage, we store the projections as received.
+  ** That is one block takes the maximum projection block size.
+  */
+  if (spare) {
+    *disk = *msg;
+    return;
+  }
+    
+  /*
+  ** On a non spare storage, we store the projections on its exact size.
+  */
+  
+  forward = rozofs_get_rozofs_forward(layout);
+  safe    = rozofs_get_rozofs_safe(layout);
 
+  /* Retrieve the current sid in the given distribution */
+  for (prj_id=0; prj_id < safe; prj_id++) {
+    if (sid == dist_set[prj_id]) break;
+  }
+  
+  /* The sid is within the forward 1rst sids : this is what we expected */
+  if (prj_id < forward) {
+    *disk = rozofs_get_psizes_on_disk(layout,bsize,prj_id);
+    return;
+  }	  
+
+  /* This is abnormal. The sid is not supposed to be spare */
+  p += rozofs_string_append(p, " safe ");
+  p += rozofs_u32_append(p,safe);
+  for (idx=0; idx < safe; idx++) {
+    *p++ = '/';
+    p += rozofs_u32_append(p,dist_set[idx]);    
+  }    
+  p += rozofs_string_append(p, " storage_get_projection_size spare ");
+  p += rozofs_u32_append(p,spare);
+  p += rozofs_string_append(p, " sid ");
+  p += rozofs_u32_append(p,sid);
+
+  if (prj_id < safe) {
+    /* spare should have been set to 1 !? */
+    severe("%s",mylog);
+    *disk = *msg;
+    return;
+  }
+  
+  /* !!! sid not in the distribution !!!! */
+  fatal("%s",mylog);	
+}  
+static inline void storage_get_projid_size(uint8_t spare, 
+                                           uint8_t prj_id, 
+					   uint8_t layout,
+					   uint32_t bsize,
+					   uint16_t * msg,
+				    	   uint16_t * disk) { 
+
+  *msg = rozofs_get_max_psize_in_msg(layout,bsize);
+  
+  /*
+  ** On a spare storage, we store the projections as received.
+  ** That is one block takes the maximum projection block size.
+  */
+  if (spare) {
+    *disk = *msg;
+    return;
+  }
+    
+  /*
+  ** On a non spare storage, we store the projections on its exact size.
+  */
+  *disk = rozofs_get_psizes_on_disk(layout,bsize,prj_id);		
+} 
 
 
 
@@ -466,7 +554,6 @@ int storage_truncate_recycle(storage_t * st, uint8_t * device, int storage_slice
     int chunk_idx;
 
 
-
     open_flags = ROZOFS_ST_BINS_FILE_FLAG;     
     // Build the chunk file name for chunk 0
     chunk = 0;
@@ -490,7 +577,26 @@ int storage_truncate_recycle(storage_t * st, uint8_t * device, int storage_slice
       /*
       ** truncate the file
       */
-      status = ftruncate(fd, 0);
+      uint8_t  prj_id  = 0;
+      uint8_t  forward = rozofs_get_rozofs_forward(file_hdr->v0.layout);
+      uint16_t rozofs_msg_psize=0, rozofs_disk_psize=0;
+      
+      if (!spare) {
+	for (prj_id=0; prj_id< forward; prj_id++) {
+          if (file_hdr->v0.dist_set_current[prj_id] == file_hdr->v1.sid) break;
+	}
+      }
+      /*
+      ** Retrieve the projection size in the message 
+      ** and the projection size on disk
+      */      
+      storage_get_projid_size(spare, prj_id, file_hdr->v0.layout, file_hdr->v0.bsize,
+                              &rozofs_msg_psize, &rozofs_disk_psize);
+			             
+      uint64_t truncate_size = common_config.recycle_truncate_blocks;
+      truncate_size *= rozofs_disk_psize;
+      
+      status = ftruncate(fd, truncate_size);
       if (status < 0) goto out;
     }
     /*
@@ -1097,95 +1203,7 @@ void storage_release(storage_t * st) {
     st->root[0] = 0;
 
 }
-static inline void storage_get_projection_size(uint8_t spare, 
-                                               sid_t sid, 
-					       uint8_t layout, 
-					       uint32_t bsize,
-					       sid_t * dist_set,
-					       uint16_t * msg,
-				    	       uint16_t * disk) { 
-  int prj_id;
-  int idx;
-  int safe;
-  int forward;
-  char mylog[128];
-  char * p = mylog;
-    
-  /* Size of a block in a message received from the client */  
-  *msg = rozofs_get_max_psize_in_msg(layout,bsize);
-  
-  /*
-  ** On a spare storage, we store the projections as received.
-  ** That is one block takes the maximum projection block size.
-  */
-  if (spare) {
-    *disk = *msg;
-    return;
-  }
-    
-  /*
-  ** On a non spare storage, we store the projections on its exact size.
-  */
-  
-  forward = rozofs_get_rozofs_forward(layout);
-  safe    = rozofs_get_rozofs_safe(layout);
 
-  /* Retrieve the current sid in the given distribution */
-  for (prj_id=0; prj_id < safe; prj_id++) {
-    if (sid == dist_set[prj_id]) break;
-  }
-  
-  /* The sid is within the forward 1rst sids : this is what we expected */
-  if (prj_id < forward) {
-    *disk = rozofs_get_psizes_on_disk(layout,bsize,prj_id);
-    return;
-  }	  
-
-  /* This is abnormal. The sid is not supposed to be spare */
-  p += rozofs_string_append(p, " safe ");
-  p += rozofs_u32_append(p,safe);
-  for (idx=0; idx < safe; idx++) {
-    *p++ = '/';
-    p += rozofs_u32_append(p,dist_set[idx]);    
-  }    
-  p += rozofs_string_append(p, " storage_get_projection_size spare ");
-  p += rozofs_u32_append(p,spare);
-  p += rozofs_string_append(p, " sid ");
-  p += rozofs_u32_append(p,sid);
-
-  if (prj_id < safe) {
-    /* spare should have been set to 1 !? */
-    severe("%s",mylog);
-    *disk = *msg;
-    return;
-  }
-  
-  /* !!! sid not in the distribution !!!! */
-  fatal("%s",mylog);	
-}  
-static inline void storage_get_projid_size(uint8_t spare, 
-                                           uint8_t prj_id, 
-					   uint8_t layout,
-					   uint32_t bsize,
-					   uint16_t * msg,
-				    	   uint16_t * disk) { 
-
-  *msg = rozofs_get_max_psize_in_msg(layout,bsize);
-  
-  /*
-  ** On a spare storage, we store the projections as received.
-  ** That is one block takes the maximum projection block size.
-  */
-  if (spare) {
-    *disk = *msg;
-    return;
-  }
-    
-  /*
-  ** On a non spare storage, we store the projections on its exact size.
-  */
-  *disk = rozofs_get_psizes_on_disk(layout,bsize,prj_id);		
-} 
 uint64_t buf_ts_storage_write[STORIO_CACHE_BCOUNT];
 
 

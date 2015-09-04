@@ -98,6 +98,10 @@ typedef enum _rozofs_file_distribution_rule_e {
 #define rozofs_cc_min_trash_high_threshold      0  // No threashold
 #define rozofs_cc_max_trash_high_threshold      1000000
 
+#define rozofs_cc_def_recycle_truncate_blocks     0 // by default truncate file to 0 when recycling it
+#define rozofs_cc_min_recycle_truncate_blocks     0  
+#define rozofs_cc_max_recycle_truncate_blocks     0x7FFFFFFF
+
 /*
 ** Common configuration parameters
 */
@@ -122,6 +126,11 @@ typedef struct _common_config_t {
   uint32_t    fid_recycle;  
   uint32_t    trash_high_threshold;
   uint32_t    wr_ack_on_inverse;
+  /* 
+  ** Number of block to which the file should be truncated 
+  ** on storage at the time it is recycled
+  */ 
+  uint32_t    recycle_truncate_blocks;
 } common_config_t;
   
 extern common_config_t common_config;
