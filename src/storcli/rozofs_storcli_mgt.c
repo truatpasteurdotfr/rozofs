@@ -23,6 +23,7 @@
 #include <rozofs/core/ruc_buffer_debug.h>
 
 #include "rozofs_storcli.h"
+#include <rozofs/rozofs_srv.h>
 
 rozofs_storcli_ctx_t *rozofs_storcli_ctx_freeListHead;  /**< head of list of the free context  */
 rozofs_storcli_ctx_t rozofs_storcli_ctx_activeListHead;  /**< list of the active context     */
@@ -806,16 +807,22 @@ uint32_t rozofs_storcli_module_init()
    uint32_t ret = RUC_OK;
    
     rozofs_storcli_read_init_timer_module();
+    int count = STORCLI_CTX_CNT*rozofs_get_rozofs_safe(conf.layout);
+    int bufsize = ROZOFS_MAX_FILE_BUF_SZ/rozofs_get_rozofs_inverse(conf.layout);
+    /*
+    ** add space for RPC encoding and projection headers
+    */
+    bufsize +=(16*1024);
 
     rozofs_storcli_north_small_buf_count  = STORCLI_NORTH_MOD_INTERNAL_READ_BUF_CNT ;
     rozofs_storcli_north_small_buf_sz     = STORCLI_NORTH_MOD_INTERNAL_READ_BUF_SZ    ;
     rozofs_storcli_north_large_buf_count  = STORCLI_NORTH_MOD_XMIT_BUF_CNT ;
     rozofs_storcli_north_large_buf_sz     = STORCLI_NORTH_MOD_XMIT_BUF_SZ    ;
     
-    rozofs_storcli_south_small_buf_count  = STORCLI_CNF_NO_BUF_CNT ;
-    rozofs_storcli_south_small_buf_sz     = STORCLI_CNF_NO_BUF_SZ  ;
-    rozofs_storcli_south_large_buf_count  = STORCLI_SOUTH_TX_XMIT_BUF_CNT   ;
-    rozofs_storcli_south_large_buf_sz     = STORCLI_SOUTH_TX_XMIT_BUF_SZ  ;  
+    rozofs_storcli_south_small_buf_count  = count ;
+    rozofs_storcli_south_small_buf_sz     = STORCLI_SOUTH_TX_XMIT_SMALL_BUF_SZ  ;
+    rozofs_storcli_south_large_buf_count  = count   ;
+    rozofs_storcli_south_large_buf_sz     = bufsize  ;  
    
    rozofs_storcli_ctx_allocated = 0;
    rozofs_storcli_ctx_count = STORCLI_CTX_CNT;

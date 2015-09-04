@@ -44,6 +44,44 @@
 
 static north_remote_ip_list_t my_list[STORAGE_NODE_PORTS_MAX];  /**< list of the connection for the exportd */
 
+/*
+ **____________________________________________________
+ */
+
+/**
+ *  
+  Callback to allocate a buffer for receiving a rpc message (mainly a RPC response
+ 
+ 
+ The service might reject the buffer allocation because the pool runs
+ out of buffer or because there is no pool with a buffer that is large enough
+ for receiving the message because of a out of range size.
+
+ @param userRef : pointer to a user reference: not used here
+ @param socket_context_ref: socket context reference
+ @param len : length of the incoming message
+ 
+ @retval <>NULL pointer to a receive buffer
+ @retval == NULL no buffer 
+ */
+void * storage_lbg_userRcvAllocBufCallBack(void *userRef, uint32_t socket_context_ref, uint32_t len) {
+
+   void *buf=NULL;
+    /*
+     ** check if a small or a large buffer must be allocated
+     */
+    if (len <= rozofs_storcli_south_small_buf_sz) {
+        buf = ruc_buf_getBuffer(ROZOFS_STORCLI_SOUTH_SMALL_POOL);
+	if (buf != NULL) return buf;
+    }
+
+    if (len <= rozofs_storcli_south_large_buf_sz) {
+        return ruc_buf_getBuffer(ROZOFS_STORCLI_SOUTH_LARGE_POOL);
+    }
+    fatal("Out of range received size: %d (max %d)",len,rozofs_storcli_south_large_buf_sz);
+    return NULL;
+}
+
  /**
  *  socket configuration for the family
  */
@@ -57,7 +95,7 @@ static af_unix_socket_conf_t  af_inet_storaged_conf =
   
   (1024*256), /*  bufSize        -> length of buffer (xmit and received)        */
   (300*1024), /*  so_sendbufsize -> length of buffer (xmit and received)        */
-  rozofs_tx_userRcvAllocBufCallBack, /*  userRcvAllocBufCallBack -> user callback for buffer allocation             */
+  storage_lbg_userRcvAllocBufCallBack, /*  userRcvAllocBufCallBack -> user callback for buffer allocation             */
   rozofs_tx_recv_rpc_cbk,            /*  userRcvCallBack         -> callback provided by the connection owner block */
   rozofs_tx_xmit_abort_rpc_cbk,      /*  userDiscCallBack        ->callBack for TCP disconnection detection         */
   NULL,                              /* userConnectCallBack     -> callback for client connection only              */
@@ -115,7 +153,7 @@ int storaged_lbg_initialize(mstorage_t *s, int index) {
       if (!is_this_ipV4_local(s->sclients[i].ipv4)) local = 0;
     }
      af_inet_storaged_conf.recv_srv_type = ROZOFS_RPC_SRV;
-     af_inet_storaged_conf.rpc_recv_max_sz = rozofs_large_tx_recv_size;
+     af_inet_storaged_conf.rpc_recv_max_sz = rozofs_storcli_south_large_buf_sz;
               
      ret = north_lbg_configure_af_inet(s->lbg_id[index],
                                           s->host,

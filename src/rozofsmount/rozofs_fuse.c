@@ -349,6 +349,15 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
       rozofs_fuse_buffer_depletion_count++;
       return FALSE;
     }          
+    /*
+    ** Check the amount of read buffer (shared pool)
+    */
+    buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_WRITE);
+    if (buffer_count < 2) 
+    {
+      rozofs_fuse_buffer_depletion_count++;
+      return FALSE;
+    }   
     return TRUE;
 }
   
@@ -396,6 +405,12 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
 	 rozofs_fuse_buffer_depletion_count++;
 	 return TRUE;
        }           
+       buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_WRITE);
+       if (buffer_count < 2) 
+       {
+	 rozofs_fuse_buffer_depletion_count++;
+	 return TRUE;
+       }  
        rozofs_fuse_session_loop(ctx_p,&empty);
        if (empty) return TRUE;
      }
@@ -609,6 +624,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   /*
   ** display the cache mode
   */
+  pChar +=  sprintf(pChar,"buffer sz  : %d\n",rozofs_fuse_ctx_p->bufsize); 
   pChar +=  sprintf(pChar,"poll count : %d\n",rozofs_fuse_loop_count); 
   pChar +=  sprintf(pChar,"FS Mode    : "); 
   if (rozofs_mode== 0)

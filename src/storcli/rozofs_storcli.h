@@ -78,7 +78,7 @@ extern uint64_t storcli_rng_full_count; /**< ring request full counter */
 * Buffer s associated with the reception of the load balancing group on north interface
 */
 #define STORCLI_NORTH_LBG_BUF_RECV_CNT   STORCLI_CTX_CNT  /**< number of reception buffer to receive from rozofsmount */
-#define STORCLI_NORTH_LBG_BUF_RECV_SZ    (1024*258)  /**< max user data payload is 256K       */
+#define STORCLI_NORTH_LBG_BUF_RECV_SZ    (1024*12)  /**< max user data payload is 12K       */
 /**
 * Storcli buffer mangement configuration
 *  INTERNAL_READ are small buffer used when a write request requires too trigger read of first and/or last block
@@ -91,6 +91,7 @@ extern uint64_t storcli_rng_full_count; /**< ring request full counter */
 
 #define STORCLI_SOUTH_TX_XMIT_BUF_CNT   (STORCLI_CTX_CNT*ROZOFS_MAX_LAYOUT)  /**< rozofs_storcli_south_large_buf_count  */
 #define STORCLI_SOUTH_TX_XMIT_BUF_SZ    (1024*160)                           /**< rozofs_storcli_south_large_buf_sz  */
+#define STORCLI_SOUTH_TX_XMIT_SMALL_BUF_SZ    (1024*4)                           /**< rozofs_storcli_south_small_buf_sz  */
 
 /**
 * configuartion of the resource of the transaction module
@@ -444,6 +445,32 @@ extern void *rozofs_storcli_pool[];
 #define ROZOFS_STORCLI_SOUTH_SMALL_POOL rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_SMALL_POOL]
 #define ROZOFS_STORCLI_SOUTH_LARGE_POOL rozofs_storcli_pool[_ROZOFS_STORCLI_SOUTH_LARGE_POOL]
 
+
+/**
+ * data structure used to store the configuration parameter of a storcli process
+ */
+typedef struct storcli_conf {
+    char *host; /**< hostname of the export from which the storcli will get the mstorage configuration  */
+    char *export; /**< pathname of the exportd (unique) */
+    char *passwd; /**< user password */
+    char *mount; /**< mount point */
+    int module_index; /**< storcli instance number within the exportd: more that one storcli processes can be started */
+    int layout; /**< storcli layout */
+    int bsize; /**< fs blocksize */
+    unsigned buf_size;
+    unsigned max_retry;
+    unsigned dbg_port;
+    unsigned rozofsmount_instance;
+    key_t sharedmem_key;
+    unsigned shaper;
+    unsigned site;
+    char *owner;
+    unsigned mojThreadWrite;
+    unsigned mojThreadRead;    
+    unsigned mojThreadThreshold;   
+} storcli_conf;
+
+extern storcli_conf conf;
 /*
 **_________________________________________________________________________________
 */

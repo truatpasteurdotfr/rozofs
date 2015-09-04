@@ -64,8 +64,9 @@
 
 #define CACHE_TIMEOUT 10.0
 
-#define ROZOFSMOUNT_MAX_TX 32
-
+#define ROZOFSMOUNT_MAX_EXPORT_TX 32
+#define ROZOFSMOUNT_MAX_STORCLI_TX  32
+#define ROZOFSMOUNT_MAX_TX (ROZOFSMOUNT_MAX_EXPORT_TX+ROZOFSMOUNT_MAX_STORCLI_TX)
 #define CONNECTION_THREAD_TIMESPEC  2
 
 
@@ -1408,6 +1409,7 @@ void rozofs_start_one_storcli(int instance) {
       cmd_p += sprintf(cmd_p, "-l %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_sz);       
       cmd_p += sprintf(cmd_p, "-c %d ",rozofs_storcli_shared_mem[SHAREMEM_IDX_READ].buf_count);       
     }
+    cmd_p += sprintf(cmd_p, "-L %d -B %d ",exportclt.layout, exportclt.bsize);       
 
     sprintf(pid_file,"/var/run/launcher_rozofsmount_%d_storcli_%d.pid", conf.instance, instance);
     rozo_launcher_start(pid_file,cmd);
@@ -1786,7 +1788,7 @@ int fuseloop(struct fuse_args *args, int fg) {
        ** storcli instance: (rozofsmount<<1 | storcli_instance) (assuming of max of 2 storclis per rozofsmount)
        */
        int key_instance = conf.instance<<SHAREMEM_PER_FSMOUNT_POWER2 | i;
-       ret = rozofs_create_shared_memory(key_instance,i,rozofs_fuse_conf.max_transactions,(conf.buf_size*1024)+4096);
+       ret = rozofs_create_shared_memory(key_instance,i,ROZOFSMOUNT_MAX_STORCLI_TX,(conf.buf_size*1024)+4096);
        if (ret < 0)
        {
          fatal("Cannot create the shared memory for storcli %d\n",i);

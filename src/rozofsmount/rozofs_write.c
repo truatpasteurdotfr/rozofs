@@ -1933,7 +1933,7 @@ void rozofs_ll_release_nb(fuse_req_t req, fuse_ino_t ino,
         char fidString[64];
 	rozofs_uuid_unparse(f->fid,fidString);
 	severe("rozofs_ll_release_nb no such inode %llu FID %s",
-	        ino, fidString);
+	        (long long unsigned int)ino, fidString);
         errno = ENOENT;
         goto error;
     }    
