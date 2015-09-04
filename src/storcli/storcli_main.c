@@ -74,27 +74,7 @@ DEFINE_PROFILING(stcpp_profiler_t) = {0};
 storcli_shared_t storcli_rozofsmount_shared_mem[SHAREMEM_PER_FSMOUNT];
 
 
-/**
- * data structure used to store the configuration parameter of a storcli process
- */
-typedef struct storcli_conf {
-    char *host; /**< hostname of the export from which the storcli will get the mstorage configuration  */
-    char *export; /**< pathname of the exportd (unique) */
-    char *passwd; /**< user password */
-    char *mount; /**< mount point */
-    int module_index; /**< storcli instance number within the exportd: more that one storcli processes can be started */
-    unsigned buf_size;
-    unsigned max_retry;
-    unsigned dbg_port;
-    unsigned rozofsmount_instance;
-    key_t sharedmem_key;
-    unsigned shaper;
-    unsigned site;
-    char *owner;
-    unsigned mojThreadWrite;
-    unsigned mojThreadRead;    
-    unsigned mojThreadThreshold;   
-} storcli_conf;
+
 
 /*
 ** KPI for Mojette transform
@@ -112,7 +92,7 @@ int storcli_site_number = 0;
  */
  
 
-static storcli_conf conf;
+storcli_conf conf;
 
 /*__________________________________________________________________________
  */
@@ -155,6 +135,8 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_STRING_CONFIG(mount);  
   DISPLAY_STRING_CONFIG(owner);  
   DISPLAY_UINT32_CONFIG(module_index);
+  DISPLAY_UINT32_CONFIG(layout);
+  DISPLAY_UINT32_CONFIG(bsize);
   DISPLAY_UINT32_CONFIG(buf_size);
   DISPLAY_UINT32_CONFIG(max_retry);
   DISPLAY_UINT32_CONFIG(dbg_port);
@@ -1040,7 +1022,6 @@ int rozofs_storcli_get_export_config(storcli_conf *conf) {
     char * pHost;
 	  
     /* Initialize rozofs */
-    transform_libinit();
 //    rozofs_layout_initialize();
 
     struct timeval timeout_exportd;
@@ -1197,6 +1178,8 @@ void usage() {
     printf("\t-r,--mojThreadRead <enable|disable>\t\tWhether the read mojette threads are enabled\n");
     printf("\t-w,--mojThreadWrite <enable|disable>\t\tWhether the read mojette threads are enabled\n");
     printf("\t-m,--mojThreadThreshold value\t\tThe number of bytes from which the storage threads are called\n");
+    printf("\t-L,--layout <0|1|2>\t\tredundancy level supported by the process\n");
+    printf("\t-B,--bsize <0|1|2>\t\tfile system block size (0:4K/1:8K/2:16K\n");
 
 }
 
@@ -1229,6 +1212,8 @@ int main(int argc, char *argv[]) {
         { "mojThreadRead", required_argument, 0, 'r'},
         { "mojThreadWrite", required_argument, 0, 'w'},
         { "mojThreadThreshold", required_argument, 0, 'm'},
+        { "layout", required_argument, 0, 'L'},
+        { "bsize", required_argument, 0, 'B'},
         { "geosite", required_argument, 0, 'g'},
         { "owner", required_argument, 0, 'o'},
         { 0, 0, 0, 0}
@@ -1240,11 +1225,19 @@ int main(int argc, char *argv[]) {
     if (chdir("/")!=0) {}
 
     uma_dbg_thread_add_self("Main");
+    /*
+    ** Make the syslog available for the process
+    */
+    uma_dbg_record_syslog_name("storcli");
 
     /*
     ** init of the timer configuration
     */
     rozofs_tmr_init_configuration();
+    /*
+    ** init of the transform library
+    */
+    transform_libinit();
     
     /*
     ** init of the shared memory reference
@@ -1268,6 +1261,8 @@ int main(int argc, char *argv[]) {
     conf.export = NULL;
     conf.mount = NULL;
     conf.module_index = -1;
+    conf.layout = -1;
+    conf.bsize = -1;
     conf.buf_size = 256;
     conf.max_retry = 3;
     conf.dbg_port = 0;
@@ -1284,7 +1279,7 @@ int main(int argc, char *argv[]) {
     while (1) {
 
         int option_index = 0;
-        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:k:c:l:S:g:o:r:w:m:", long_options, &option_index);
+        c = getopt_long(argc, argv, "hH:E:P:i:D:M:R:s:k:c:l:S:g:o:r:w:m:L:B:", long_options, &option_index);
 
         if (c == -1)
             break;
@@ -1318,6 +1313,38 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 conf.module_index = val;
+                break;
+             case 'L':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+		if ((val < 0) || (val >= LAYOUT_MAX))
+		{
+		    severe("out of range layout %d",val);
+                    usage();
+                    exit(EXIT_FAILURE);				
+		}
+                conf.layout = val;
+                break;
+             case 'B':
+                errno = 0;
+                val = (int) strtol(optarg, (char **) NULL, 10);
+                if (errno != 0) {
+                    strerror(errno);
+                    usage();
+                    exit(EXIT_FAILURE);
+                }
+		if ((val < 0) || (val >= 2))
+		{
+		    severe("out of range blocksize %d",val);
+                    usage();
+                    exit(EXIT_FAILURE);				
+		}
+                conf.bsize = val;
                 break;
             case 'g':
                 errno = 0;
@@ -1474,7 +1501,16 @@ int main(int argc, char *argv[]) {
         usage();
         exit(EXIT_FAILURE);
     }
-
+    if (conf.layout == -1) {
+        printf("layout is mandatory!\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
+    if (conf.bsize == -1) {
+        printf("block size is mandatory!\n");
+        usage();
+        exit(EXIT_FAILURE);
+    }
     if (conf.host == NULL) {
         conf.host = strdup("rozofsexport");
     }
@@ -1486,7 +1522,6 @@ int main(int argc, char *argv[]) {
     if (conf.passwd == NULL) {
         conf.passwd = strdup("none");
     }
-    uma_dbg_record_syslog_name("storcli");
     
     /*
     ** read common config file

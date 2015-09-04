@@ -232,7 +232,8 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t rozofsmount_instance)
                                  STORCLI_CNF_NO_BUF_CNT,STORCLI_CNF_NO_BUF_SZ,        // xmit small [count,size]
                                  STORCLI_CNF_NO_BUF_CNT,STORCLI_CNF_NO_BUF_SZ,  // xmit large [count,size]
                                  STORCLI_CNF_NO_BUF_CNT,STORCLI_CNF_NO_BUF_SZ,        // recv small [count,size]
-                                 STORCLI_SOUTH_TX_RECV_BUF_CNT,STORCLI_SOUTH_TX_RECV_BUF_SZ);  // recv large [count,size];  
+                                 STORCLI_CNF_NO_BUF_CNT,STORCLI_CNF_NO_BUF_SZ);  // recv large [count,size];  
+
      break;
      
 

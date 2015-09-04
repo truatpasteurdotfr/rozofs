@@ -30,6 +30,7 @@
 #include <rozofs/core/ruc_list.h>
 #include <rozofs/core/af_unix_socket_generic_api.h>
 #include <rozofs/core/af_unix_socket_generic.h>
+#include <rozofs/core/ruc_buffer_debug.h>
 #include "rozofs_storcli_rpc.h"
 #include <rozofs/rpc/storcli_proto.h>
 #include "rozofs_storcli.h"
@@ -304,6 +305,10 @@ int rozofs_storcli_north_interface_init(uint32_t eid,uint16_t rozofsmount_instan
        severe( "ruc_buf_poolCreate(%d,%d)", rozofs_storcli_read_write_buf_count, rozofs_storcli_read_write_buf_sz ); 
        break;
     }
+    /*
+    ** register the pool
+    */
+    ruc_buffer_debug_register_pool("Rozofsmount_rcv",storcli_north_buffer_pool_p);
     /*
     ** create the listening af unix socket on the north interface
     */

@@ -212,11 +212,11 @@ uint32_t ruc_init(uint32_t test, uint16_t debug_port,uint16_t export_listening_p
         ret = north_lbg_module_init(mx_lbg_north_ctx);
         if (ret != RUC_OK) break;
 
-        ret = rozofs_tx_module_init(args_p->max_transactions+32, // fuse trx + internal trx
-                args_p->max_transactions+32, 2048, // xmit small [count,size]
-                args_p->max_transactions, (1024 * 258), // xmit large [count,size]
+        ret = rozofs_tx_module_init(args_p->max_transactions*2, // fuse trx + internal trx
+                args_p->max_transactions*2, 2048, // xmit small [count,size]
+                args_p->max_transactions, (1024 * 2), // xmit large [count,size]
                 args_p->max_transactions, 1024, // recv small [count,size]
-                args_p->max_transactions, (1024 * 258)); // recv large [count,size];  
+                args_p->max_transactions, (1024 * 64)); // recv large [count,size];  
 
         if (ret != RUC_OK) break;
 #endif    
