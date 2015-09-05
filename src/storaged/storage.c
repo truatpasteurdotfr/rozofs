@@ -574,31 +574,52 @@ int storage_truncate_recycle(storage_t * st, uint8_t * device, int storage_slice
           severe("open failed (%s) : %s", path, strerror(errno));
           goto out;
       }
+      
+      /* 
+      ** truncate the file to the required size
+      */      
+      if ((spare) || (common_config.recycle_truncate_blocks==0)) {
+        if (ftruncate(fd, 0)){}
+	goto next_chunks;
+      }
+
       /*
-      ** truncate the file
+      ** Find out the projection identifier for this sid
       */
       uint8_t  prj_id  = 0;
       uint8_t  forward = rozofs_get_rozofs_forward(file_hdr->v0.layout);
       uint16_t rozofs_msg_psize=0, rozofs_disk_psize=0;
-      
-      if (!spare) {
-	for (prj_id=0; prj_id< forward; prj_id++) {
-          if (file_hdr->v0.dist_set_current[prj_id] == file_hdr->v1.sid) break;
-	}
+
+      for (prj_id=0; prj_id< forward; prj_id++) {
+        if (file_hdr->v0.dist_set_current[prj_id] == file_hdr->v1.sid) break;
       }
+
       /*
-      ** Retrieve the projection size in the message 
-      ** and the projection size on disk
+      ** Retrieve the projection size on disk
       */      
       storage_get_projid_size(spare, prj_id, file_hdr->v0.layout, file_hdr->v0.bsize,
                               &rozofs_msg_psize, &rozofs_disk_psize);
-			             
+      /*
+      ** compute the truncate size
+      */
       uint64_t truncate_size = common_config.recycle_truncate_blocks;
       truncate_size *= rozofs_disk_psize;
+
+      /*
+      ** compare the truncate size and the file size
+      */
+      struct stat buf;
+      if (fstat(fd, &buf)<0) {     
+        if (ftruncate(fd, 0)){}
+	goto next_chunks;	  
+      }
       
-      status = ftruncate(fd, truncate_size);
-      if (status < 0) goto out;
+      if (buf.st_size > truncate_size) {
+        if (ftruncate(fd, truncate_size)){}            	  
+      }
     }
+    
+next_chunks:    
     /*
     ** Remove the extra chunks
     */
