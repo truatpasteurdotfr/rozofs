@@ -31,10 +31,19 @@ union storcli_status_ret_t switch (storcli_status_t status) {
     default:            void;
 };
 
+/*
+** Flags to be set in flags field
+*/
+enum storcli_flags_e {
+    STORCLI_FLAGS_NONE=0,
+    STORCLI_FLAGS_EMPTY_FILE=1,
+    STORCLI_FLAGS_NO_END_REREAD=2
+};
+
 struct storcli_write_arg_t {
     uint16_t    cid;
     uint8_t     sid;
-    uint8_t     empty_file;           
+    uint8_t     flags;           
     uint8_t     layout;
     uint8_t     bsize; /* Block size as define in enum ROZOFS_BSIZE_E */
     uint8_t     dist_set[ROZOFS_SAFE_MAX];
@@ -46,7 +55,7 @@ struct storcli_write_arg_t {
 struct storcli_write_arg_no_data_t {
     uint16_t    cid;
     uint8_t     sid;
-    uint8_t     empty_file;                         
+    uint8_t     flags;                         
     uint8_t     layout;
     uint8_t     bsize; /* Block size as define in enum ROZOFS_BSIZE_E */   
     uint8_t     dist_set[ROZOFS_SAFE_MAX];

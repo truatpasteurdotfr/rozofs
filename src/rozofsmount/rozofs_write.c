@@ -864,13 +864,19 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     /* 
     **If file was empty at opening tell it to storcli at 1rts write
     */
+    args.flags = 0;
     if (f->file2create == 1) {
-
-      args.empty_file = 1;
+      args.flags |= STORCLI_FLAGS_EMPTY_FILE;
       f->file2create = 0;
     }
-    else {
-      args.empty_file = 0;
+    /*
+    ** No need to re-read the last block when not aligned when we extend 
+    ** the file since this client is the only writter of the file
+    */
+    if (conf.onlyWriter) {
+      if (off+len >= ie->attrs.size) {
+        args.flags |= STORCLI_FLAGS_NO_END_REREAD;    
+      }
     }
     /*
     ** get the storcli to use for the transaction

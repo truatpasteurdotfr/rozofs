@@ -31,10 +31,17 @@ struct storcli_status_ret_t {
 };
 typedef struct storcli_status_ret_t storcli_status_ret_t;
 
+enum storcli_flags_e {
+	STORCLI_FLAGS_NONE = 0,
+	STORCLI_FLAGS_EMPTY_FILE = 1,
+	STORCLI_FLAGS_NO_END_REREAD = 2,
+};
+typedef enum storcli_flags_e storcli_flags_e;
+
 struct storcli_write_arg_t {
 	uint16_t cid;
 	uint8_t sid;
-	uint8_t empty_file;
+	uint8_t flags;
 	uint8_t layout;
 	uint8_t bsize;
 	uint8_t dist_set[ROZOFS_SAFE_MAX];
@@ -50,7 +57,7 @@ typedef struct storcli_write_arg_t storcli_write_arg_t;
 struct storcli_write_arg_no_data_t {
 	uint16_t cid;
 	uint8_t sid;
-	uint8_t empty_file;
+	uint8_t flags;
 	uint8_t layout;
 	uint8_t bsize;
 	uint8_t dist_set[ROZOFS_SAFE_MAX];
@@ -179,6 +186,7 @@ extern int storcli_program_1_freeresult ();
 extern  bool_t xdr_storcli_uuid_t (XDR *, storcli_uuid_t);
 extern  bool_t xdr_storcli_status_t (XDR *, storcli_status_t*);
 extern  bool_t xdr_storcli_status_ret_t (XDR *, storcli_status_ret_t*);
+extern  bool_t xdr_storcli_flags_e (XDR *, storcli_flags_e*);
 extern  bool_t xdr_storcli_write_arg_t (XDR *, storcli_write_arg_t*);
 extern  bool_t xdr_storcli_write_arg_no_data_t (XDR *, storcli_write_arg_no_data_t*);
 extern  bool_t xdr_storcli_read_arg_t (XDR *, storcli_read_arg_t*);
@@ -193,6 +201,7 @@ extern  bool_t xdr_storcli_read_ret_t (XDR *, storcli_read_ret_t*);
 extern bool_t xdr_storcli_uuid_t ();
 extern bool_t xdr_storcli_status_t ();
 extern bool_t xdr_storcli_status_ret_t ();
+extern bool_t xdr_storcli_flags_e ();
 extern bool_t xdr_storcli_write_arg_t ();
 extern bool_t xdr_storcli_write_arg_no_data_t ();
 extern bool_t xdr_storcli_read_arg_t ();

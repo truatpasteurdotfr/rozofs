@@ -199,6 +199,7 @@ static void usage() {
     fprintf(stderr, "    -o bsdlock\t\t\tactive support for BSD file lock\n");
     fprintf(stderr, "    -o noXattr\t\t\tdisable support of extended attributes\n");
     fprintf(stderr, "    -o no0trunc\t\t\tdisable sending truncate to zero to storages\n");
+    fprintf(stderr, "    -o onlyWriter\t\t\tthis client is the only writer of the file it writes\n");
     fprintf(stderr, "    -o site=N\t\t\tsite number for geo-replication purpose (default:0)\n");
     fprintf(stderr, "    -o mojThreadWrite=0|1\t\t\tdisable|enable Mojette threads use for write in storcli\n");
     fprintf(stderr, "    -o mojThreadRead=0|1\t\t\tdisable|enable Mojette threads use for read in storcli\n");
@@ -254,6 +255,7 @@ static struct fuse_opt rozofs_opts[] = {
     MYFS_OPT("mojThreadRead=%u",mojThreadRead,-1),
     MYFS_OPT("mojThreadThreshold=%u",mojThreadThreshold,-1),
     MYFS_OPT("no0trunc", no0trunc, 1),
+    MYFS_OPT("onlyWriter", onlyWriter, 1),
    
     FUSE_OPT_KEY("-H ", KEY_EXPORT_HOST),
     FUSE_OPT_KEY("-E ", KEY_EXPORT_PATH),
@@ -389,6 +391,7 @@ void show_start_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   DISPLAY_UINT32_CONFIG(bsd_file_lock);  
   DISPLAY_UINT32_CONFIG(noXattr); 
   DISPLAY_UINT32_CONFIG(no0trunc);
+  DISPLAY_UINT32_CONFIG(onlyWriter);
   DISPLAY_INT32_CONFIG(site); 
   DISPLAY_INT32_CONFIG(conf_site_file); 
   DISPLAY_UINT32_CONFIG(running_site);  
@@ -1913,6 +1916,7 @@ int main(int argc, char *argv[]) {
     conf.bsd_file_lock = 0;   // No BSD file lock until explicitly activated    man 2 flock)
     conf.noXattr = 0;   // By default extended attributes are supported
     conf.no0trunc = 0;  // By default truncate to zero are sent to exportd and storages
+    conf.onlyWriter = 0;  // By default this client is not the only writer of the file it writes to
     conf.site = -1;
     conf.conf_site_file = -1; /* no site file  */
     conf.mojThreadWrite     = -1; // By default, do not modify the storli default

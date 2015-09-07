@@ -46,6 +46,16 @@ xdr_storcli_status_ret_t (XDR *xdrs, storcli_status_ret_t *objp)
 }
 
 bool_t
+xdr_storcli_flags_e (XDR *xdrs, storcli_flags_e *objp)
+{
+	//register int32_t *buf;
+
+	 if (!xdr_enum (xdrs, (enum_t *) objp))
+		 return FALSE;
+	return TRUE;
+}
+
+bool_t
 xdr_storcli_write_arg_t (XDR *xdrs, storcli_write_arg_t *objp)
 {
 	//register int32_t *buf;
@@ -55,7 +65,7 @@ xdr_storcli_write_arg_t (XDR *xdrs, storcli_write_arg_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->empty_file))
+	 if (!xdr_uint8_t (xdrs, &objp->flags))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;
@@ -83,7 +93,7 @@ xdr_storcli_write_arg_no_data_t (XDR *xdrs, storcli_write_arg_no_data_t *objp)
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->sid))
 		 return FALSE;
-	 if (!xdr_uint8_t (xdrs, &objp->empty_file))
+	 if (!xdr_uint8_t (xdrs, &objp->flags))
 		 return FALSE;
 	 if (!xdr_uint8_t (xdrs, &objp->layout))
 		 return FALSE;

@@ -69,7 +69,7 @@ int rzcp_write_req(rzcp_copy_ctx_t * cpy_p)
     ** mode for copying. However it might more interesting to insert it on the first
     ** write in the case of the geo-replication
      */
-      args.empty_file = 1;
+      args.flags = STORCLI_FLAGS_EMPTY_FILE;
     /*
     ** get the storcli to use for the transaction
     */

@@ -317,6 +317,7 @@ void rozofs_storcli_prepare2write_empty_file(rozofs_storcli_ctx_t *working_ctx_p
  * @param len: length to write
  * @param bid_p: pointer  to the array when the function returns the index of the first block to write
  * @param nb_blocks_p: pointer  to the array when the function returns the number of blocks to write
+ * @param flags: flags of the write request (when STORCLI_FLAGS_NO_END_REREAD is set, no need to re-read the last block)
  *
  * @return: none
  */
@@ -325,7 +326,8 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
                                   uint64_t off, 
                                   uint32_t len,
                                   uint64_t *bid_p,
-                                  uint32_t *nb_blocks_p) {
+                                  uint32_t *nb_blocks_p,
+				  uint8_t   flags) {
     int64_t length = -1;
     uint64_t first = 0;
     uint64_t last = 0;
@@ -378,10 +380,16 @@ void rozofs_storcli_prepare2write(rozofs_storcli_ctx_t *working_ctx_p,
     /*
     ** Is it necesary to read the last block ?
     */
-    if (loffset != bbytes)
-//    if (last < (file_size / bbytes) && loffset != bbytes)
-        lread = 1;
-
+    if (loffset != bbytes) {
+      /*
+      ** Last block is not aligned on a block bondary. Nevertheless this client is
+      ** the only writter of the file and knows that the end of the block is empty.
+      ** So no need to ask for the last block reading.
+      */ 
+      if ((flags & STORCLI_FLAGS_NO_END_REREAD)==0) {
+         lread = 1;
+      }
+    }   
     /*
     **  it is not possible to know the last_block_size. So by default we set ROZOFS_BSIZE
     ** because the transform will be done on a MIDDLE buffer that has full projection size.
@@ -854,7 +862,8 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
                               storcli_write_rq_p->off , 
                               storcli_write_rq_p->len,
                               &working_ctx_p->wr_bid,
-                              &working_ctx_p->wr_nb_blocks
+                              &working_ctx_p->wr_nb_blocks,
+			      storcli_write_rq_p->flags
                               );				
 
    /*
@@ -866,7 +875,7 @@ void rozofs_storcli_write_req_init(uint32_t  socket_ctx_idx, void *recv_buf,rozo
        int ret;
        uint64_t wr_bid;
        uint64_t wr_nb_blocks;
-       if (storcli_write_rq_p->empty_file == 0)
+       if ((storcli_write_rq_p->flags & STORCLI_FLAGS_EMPTY_FILE)==0)
        {
 	 wr_bid = working_ctx_p->wr_bid;
 	 wr_nb_blocks = working_ctx_p->wr_nb_blocks;

@@ -79,7 +79,13 @@ typedef struct rozofsmnt_conf {
     unsigned mojThreadWrite;
     unsigned mojThreadRead;    
     unsigned mojThreadThreshold;  
-    unsigned no0trunc;          
+    unsigned no0trunc;     
+    /*
+    ** when set this options tells that this client is the only writter of
+    ** the file it writes, and so can avoid some internal re-read when writes
+    ** are not aligned on block bondary
+    */
+    unsigned onlyWriter;         
 } rozofsmnt_conf_t;
 rozofsmnt_conf_t conf;
 
