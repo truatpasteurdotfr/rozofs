@@ -47,6 +47,7 @@ typedef struct _rozofs_fuse_read_write_stats
     uint64_t   readahead_cpt;   /**< number of times readahead is called                    */
     uint64_t   read_req_cpt;    /**< number of times a read request is sent to storio       */
     uint64_t   read_fuse_cpt;    /**< number of times read request is received from fuse       */
+    uint64_t   big_write_cpt;    /**< big write counter: greater or equal to 256K       */
 }  rozofs_fuse_read_write_stats;
 
 #define ROZOFS_PAGE_SZ  4096

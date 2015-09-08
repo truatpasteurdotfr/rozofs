@@ -482,21 +482,42 @@ void buf_file_write_nb(ientry_t * ie,
             p->buf_write_wait,
             (long long unsigned int)p->write_from,(long long unsigned int)p->write_pos,
             (long long unsigned int)p->read_from,(long long unsigned int)p->read_pos);
-#endif            
-      p->write_from = off_requested; 
-      p->write_pos  = pos_requested; 
-      p->buf_write_wait = 1;
-      p->read_from = off_requested; 
-      p->read_pos  = pos_requested; 
-      /*
-      ** copy the buffer
-      */
-      memcpy(p->buffer,buf,len);
+#endif 
       /*
       ** fill the status section
       */
       status_p->status = BUF_STATUS_DONE;
       status_p->errcode = 0;
+      
+      if (len < ROZOFS_MAX_FILE_BUF_SZ)
+      {           
+	p->write_from = off_requested; 
+	p->write_pos  = pos_requested; 
+	p->buf_write_wait = 1;
+	p->read_from = off_requested; 
+	p->read_pos  = pos_requested; 
+	/*
+	** copy the buffer
+	*/
+	memcpy(p->buffer,buf,len);
+      }
+      else
+      {
+         /*
+	 ** flush the buffer without storing the
+	 ** data in the buffer associated with the opened file
+	 */
+	 rozofs_fuse_read_write_stats_buf.big_write_cpt++;
+         if ((write_buf_nb(fuse_ctx_p,p, off_requested, buf, len)) < 0) 
+	 { 
+	  status_p->status = BUF_STATUS_FAILURE;
+	  status_p->errcode = errno;
+	 }     
+	 else
+	 {
+	  status_p->status = BUF_STATUS_WR_IN_PRG;	 
+	 }    
+      }
       break;
 
     case BUF_ACT_COPY:
@@ -690,7 +711,15 @@ void buf_file_write_nb(ientry_t * ie,
 #endif
       if (p->buf_write_wait != 0) 
       {
-        ret = buf_flush(fuse_ctx_p,p);
+        if (len < ROZOFS_MAX_FILE_BUF_SZ)
+	{
+	  ret = buf_flush(fuse_ctx_p,p);
+	}
+	else
+	{
+	  ret = flush_write_ientry(ie);
+	  if (ret == 0) ret = -1;
+	}
         if (ret < 0)
         {
           status_p->status = BUF_STATUS_FAILURE;
@@ -711,15 +740,35 @@ void buf_file_write_nb(ientry_t * ie,
         status_p->status = BUF_STATUS_DONE;
         status_p->errcode = 0;            
       }
-      p->write_from = off_requested; 
-      p->write_pos  = pos_requested; 
-      p->read_from = off_requested; 
-      p->read_pos  = pos_requested; 
-      p->buf_write_wait = 1;
-      /*
-      ** copy the buffer
-      */
-      memcpy(p->buffer,buf,len);
+      if (len < ROZOFS_MAX_FILE_BUF_SZ)
+      {
+	p->write_from = off_requested; 
+	p->write_pos  = pos_requested; 
+	p->read_from = off_requested; 
+	p->read_pos  = pos_requested; 
+	p->buf_write_wait = 1;
+	/*
+	** copy the buffer
+	*/
+	memcpy(p->buffer,buf,len);
+      }
+      else
+      {
+         /*
+	 ** flush the buffer without storing the
+	 ** data in the buffer associated with the opened file
+	 */
+	 rozofs_fuse_read_write_stats_buf.big_write_cpt++;
+         if ((write_buf_nb(fuse_ctx_p,p, off_requested, buf, len)) < 0) 
+	 { 
+	  status_p->status = BUF_STATUS_FAILURE;
+	  status_p->errcode = errno;
+	 } 
+	 else
+	 {
+	  status_p->status = BUF_STATUS_WR_IN_PRG;	 
+	 }        
+      }
 
       break;    
   
