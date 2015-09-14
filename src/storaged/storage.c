@@ -1517,7 +1517,8 @@ open:
     } 
 
     if (nb_write != length_to_write) {
-
+	
+        if (errno==0) errno = ENOSPC;
 	storio_fid_error(fid, device[chunk], chunk, bid, nb_proj,"write");
         
 	/*
