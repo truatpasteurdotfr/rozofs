@@ -685,6 +685,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   /**
   *  read/write statistics
   */
+  pChar +=sprintf(pChar,"big write count           : %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.big_write_cpt);  
   pChar +=sprintf(pChar,"flush buf. count          : %8llu\n",(long long unsigned int)rozofs_fuse_read_write_stats_buf.flush_buf_cpt);  
   pChar +=sprintf(pChar,"  start aligned/unaligned : %8llu/%llu\n",
                  (long long unsigned int)rozofs_aligned_write_start[0],
@@ -796,7 +797,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      /*
      ** get the receive buffer size for former channel in order to create the request distributor
      */
-     int bufsize = fuse_chan_bufsize(ch);
+     int bufsize = fuse_chan_bufsize(ch)*2;
      rozofs_fuse_ctx_p->bufsize = bufsize;
      /*
      ** create the pool
@@ -831,7 +832,7 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
      /*
      ** create a new channel with the specific operation for rozofs (non-blocking)
      */  
-     rozofs_fuse_ctx_p->ch = fuse_chan_new(&rozofs_fuse_ch_ops,fuse_chan_fd(ch),fuse_chan_bufsize(ch),rozofs_fuse_ctx_p);  
+     rozofs_fuse_ctx_p->ch = fuse_chan_new(&rozofs_fuse_ch_ops,fuse_chan_fd(ch),bufsize,rozofs_fuse_ctx_p);  
      if (rozofs_fuse_ctx_p->ch == NULL)
      {
         severe( "rozofs_fuse_init fuse_chan_new error"  ) ;
