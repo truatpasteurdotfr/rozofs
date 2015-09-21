@@ -279,7 +279,7 @@ int expgw_export_lbg_initialize(expgw_exportd_ctx_t *exportclt ,unsigned long pr
 	 severe("failure while configuring EXPORTD load balancing group");
 	 goto out;     
       }
-      ret = north_lbg_set_application_tmo4supervision(exportclt->export_lbg_id,3);
+      ret = north_lbg_set_application_tmo4supervision(exportclt->export_lbg_id,15);
       if (ret < 0)
       {
          /*

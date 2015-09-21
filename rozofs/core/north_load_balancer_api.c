@@ -1510,7 +1510,7 @@ reloop:
     {
       af_unix_ctx_generic_t *this = af_unix_getObjCtx_p(entry_p->sock_ctx_ref);
       af_inet_enable_cnx_supervision(this);
-      af_inet_set_cnx_tmo(this,lbg_p->tmo_supervision_in_sec*10);
+      af_inet_set_cnx_tmo(this,lbg_p->tmo_supervision_in_sec*10*5);
     }
     lbg_p->stats.totalXmit++; 
     entry_p->stats.totalXmit++;     

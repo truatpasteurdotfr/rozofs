@@ -41,7 +41,7 @@
 #include <rozofs/rpc/rpcclt.h>
 #include "rozofs_storcli.h"
 #include <rozofs/core/rozofs_ip_utilities.h>
-
+#include <rozofs/rozofs_timer_conf.h>
 static north_remote_ip_list_t my_list[STORAGE_NODE_PORTS_MAX];  /**< list of the connection for the exportd */
 
 /*
@@ -132,7 +132,7 @@ int storaged_lbg_initialize(mstorage_t *s, int index) {
    }
 
 
-   ret =  north_lbg_set_application_tmo4supervision(s->lbg_id[index],3);
+   ret =  north_lbg_set_application_tmo4supervision(s->lbg_id[index],20);
    if (ret < 0)
    {
      severe("Cannot configure application TMO");   
