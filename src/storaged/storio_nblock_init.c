@@ -318,7 +318,7 @@ uint32_t ruc_init(uint32_t test, storaged_start_conf_param_t *arg_p) {
         /*
         ** RPC SERVER MODULE INIT
         */
-        ret = rozorpc_srv_module_init();
+        ret = rozorpc_srv_module_init_ctx_only(common_config.storio_buf_cnt);
         if (ret != RUC_OK) break; 
 
 
@@ -376,7 +376,7 @@ int storio_start_nb_th(void *args) {
   if (size < sizeof(sp_write_repair_arg_no_bins_t)) size = sizeof(sp_write_repair_arg_no_bins_t);
 
 
-  decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
+  decoded_rpc_buffer_pool = ruc_buf_poolCreate(common_config.storio_buf_cnt,size);
   if (decoded_rpc_buffer_pool == NULL) {
     fatal("Can not allocate decoded_rpc_buffer_pool");
     return -1;
@@ -395,7 +395,7 @@ int storio_start_nb_th(void *args) {
   /*
   ** Init of the north interface (read/write request processing)
   */ 
-  ret = storio_north_interface_buffer_init(ROZORPC_SRV_CTX_CNT, STORIO_BUF_RECV_SZ);
+  ret = storio_north_interface_buffer_init(common_config.storio_buf_cnt, STORIO_BUF_RECV_SZ);
   if (ret < 0) {
     fatal("Fatal error on storio_north_interface_buffer_init()\n");
     return -1;

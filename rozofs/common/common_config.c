@@ -96,7 +96,9 @@ void show_common_config(char * argv[], uint32_t tcpRef, void *bufRef) {
   COMMON_CONFIG_SHOW_BOOL(fid_recycle);
   COMMON_CONFIG_SHOW_BOOL(wr_ack_on_inverse);
   COMMON_CONFIG_SHOW_INT(recycle_truncate_blocks);
-#
+  COMMON_CONFIG_SHOW_INT(storio_buf_cnt);
+  COMMON_CONFIG_SHOW_INT(export_buf_cnt);
+
   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
   return;          
@@ -283,6 +285,8 @@ void common_config_read(char * fname) {
   ** at the time it is recycled
   */
   COMMON_CONFIG_READ_INT(recycle_truncate_blocks);  
+  COMMON_CONFIG_READ_INT(storio_buf_cnt);  
+  COMMON_CONFIG_READ_INT(export_buf_cnt);  
 
   /*
   ** Free lib config working structure

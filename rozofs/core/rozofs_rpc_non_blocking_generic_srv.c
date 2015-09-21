@@ -714,5 +714,84 @@ uint32_t rozorpc_srv_module_init()
 }
 
 
+/*
+**__________________________________________________________________________
+*/
+/**
+   rozorpc_srv_module_init
+
+  create the Transaction context pool
+  
+  @param count: number of transaction contexts
+
+
+@retval   : RUC_OK : done
+@retval          RUC_NOK : out of memory
+*/
+uint32_t rozorpc_srv_module_init_ctx_only(uint32_t count)
+{
+   rozorpc_srv_ctx_t *p;
+   uint32_t idxCur;
+   ruc_obj_desc_t *pnext;
+   uint32_t ret = RUC_OK;
+   
+   if (rozorpc_srv_module_initialized) return RUC_OK;
+   rozorpc_srv_module_initialized = 1;
+   
+    memset(&gprofiler,0,sizeof(gprofiler));
+   
+   rozorpc_srv_ctx_allocated = 0;
+   rozorpc_srv_ctx_count = count;
+ 
+   rozorpc_srv_ctx_freeListHead = (rozorpc_srv_ctx_t*)NULL;
+
+   /*
+   **  create the active list
+   */
+   ruc_listHdrInit((ruc_obj_desc_t*)&rozorpc_srv_ctx_activeListHead);    
+
+   /*
+   ** create the Read/write Transaction context pool
+   */
+   rozorpc_srv_ctx_freeListHead = (rozorpc_srv_ctx_t*)ruc_listCreate(rozorpc_srv_ctx_count,sizeof(rozorpc_srv_ctx_t));
+   if (rozorpc_srv_ctx_freeListHead == (rozorpc_srv_ctx_t*)NULL)
+   {
+     /* 
+     **  out of memory
+     */
+
+     RUC_WARNING(rozorpc_srv_ctx_count*sizeof(rozorpc_srv_ctx_t));
+     return RUC_NOK;
+   }
+   /*
+   ** store the pointer to the first context
+   */
+   rozorpc_srv_ctx_pfirst = rozorpc_srv_ctx_freeListHead;
+
+   /*
+   **  initialize each entry of the free list
+   */
+   idxCur = 0;
+   pnext = (ruc_obj_desc_t*)NULL;
+   while ((p = (rozorpc_srv_ctx_t*)ruc_objGetNext((ruc_obj_desc_t*)rozorpc_srv_ctx_freeListHead,
+                                        &pnext))
+               !=(rozorpc_srv_ctx_t*)NULL) 
+   {
+  
+      p->index = idxCur;
+      p->free  = TRUE;
+      rozorpc_srv_ctxInit(p,TRUE);
+      idxCur++;
+   } 
+   /*
+   ** Clear the statistics counter
+   */
+   memset(rozorpc_srv_stats,0,sizeof(uint64_t)*ROZORPC_SRV_COUNTER_MAX);
+   rozorpc_srv_debug_init();
+      
+   return ret;
+}
+
+
 
 

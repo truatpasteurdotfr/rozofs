@@ -77,6 +77,7 @@ extern void expnb_req_rcv_cbk(void *userRef,uint32_t  socket_ctx_idx, void *recv
 */
 void * expnb_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref,uint32_t len)
 {
+#if 0
   /*
   ** We need at least a response buffer
   */
@@ -85,7 +86,7 @@ void * expnb_north_RcvAllocBufCallBack(void *userRef,uint32_t socket_context_ref
   {
     return NULL;
   }
-
+#endif
 
    /*
    ** check if a small or a large buffer must be allocated
@@ -232,7 +233,7 @@ int expnb_north_interface_buffer_init(int read_write_buf_count,int read_write_bu
        return -1;
     }
     ruc_buffer_debug_register_pool("Pool_meta_rcv",  expnb_receive_buffer_pool_p);
-
+#if 0
     /*
     ** create the pool for sending requests to rozofsmount
     */
@@ -243,7 +244,7 @@ int expnb_north_interface_buffer_init(int read_write_buf_count,int read_write_bu
        return -1;
     }
     ruc_buffer_debug_register_pool("Pool_meta_snd",  expnb_xmit_buffer_pool_p);
-
+#endif
     return 0;
 
 }

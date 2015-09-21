@@ -885,7 +885,7 @@ uint32_t ruc_init(uint32_t test,uint16_t dbg_port,uint16_t exportd_instance) {
      /*
      ** RPC SERVER MODULE INIT
      */
-     ret = rozorpc_srv_module_init();
+     ret = rozorpc_srv_module_init_ctx_only(common_config.export_buf_cnt);
      if (ret != RUC_OK) break; 
      /*
      ** Init of the module that handles the configuration channel with main process of exportd
@@ -1038,7 +1038,7 @@ int expgwc_start_nb_blocking_th(void *args) {
 	    epgw_lock_arg_t ep_poll_file_lock_1_arg;
     } argument;
     size = sizeof(argument);
-    decoded_rpc_buffer_pool = ruc_buf_poolCreate(ROZORPC_SRV_CTX_CNT,size);
+    decoded_rpc_buffer_pool = ruc_buf_poolCreate(common_config.export_buf_cnt,size);
     if (decoded_rpc_buffer_pool == NULL) {
       fatal("Can not allocate decoded_rpc_buffer_pool");
       return -1;
@@ -1048,7 +1048,7 @@ int expgwc_start_nb_blocking_th(void *args) {
     /*
     ** Init of the north interface (read/write request processing)
     */ 
-    ret = expnb_north_interface_buffer_init(EXPNB_BUF_RECV_CNT, EXPNB_BUF_RECV_SZ);
+    ret = expnb_north_interface_buffer_init(common_config.export_buf_cnt, EXPNB_BUF_RECV_SZ);
     if (ret < 0) {
       fatal("Fatal error on storio_north_interface_buffer_init()\n");
       return -1;

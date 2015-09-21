@@ -102,6 +102,16 @@ typedef enum _rozofs_file_distribution_rule_e {
 #define rozofs_cc_min_recycle_truncate_blocks     0  
 #define rozofs_cc_max_recycle_truncate_blocks     0x7FFFFFFF
 
+
+#define rozofs_cc_def_storio_buf_cnt      128
+#define rozofs_cc_min_storio_buf_cnt      64  // No threashold
+#define rozofs_cc_max_storio_buf_cnt      1024
+
+
+#define rozofs_cc_def_export_buf_cnt      128
+#define rozofs_cc_min_export_buf_cnt      32  // No threashold
+#define rozofs_cc_max_export_buf_cnt      1024
+
 /*
 ** Common configuration parameters
 */
@@ -131,6 +141,8 @@ typedef struct _common_config_t {
   ** on storage at the time it is recycled
   */ 
   uint32_t    recycle_truncate_blocks;
+  uint32_t    storio_buf_cnt;
+  uint32_t    export_buf_cnt;
 } common_config_t;
   
 extern common_config_t common_config;

@@ -361,6 +361,21 @@ void rozorpc_srv_forward_reply (rozorpc_srv_ctx_t *p,char * arg_ret);
 */
 uint32_t rozorpc_srv_module_init();
 
+/*
+**__________________________________________________________________________
+*/
+/**
+   rozorpc_srv_module_init
+
+  create the buffer pools for receiving ans sending rpc messages
+
+  @param count: number of transaction contexts
+
+@retval   : RUC_OK : done
+@retval          RUC_NOK : out of memory
+*/
+uint32_t rozorpc_srv_module_init_ctx_only(uint32_t count);
+
 
 /*
 **__________________________________________________________________________
