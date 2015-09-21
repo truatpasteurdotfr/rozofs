@@ -243,7 +243,7 @@ static void on_start() {
 
     session_id = setsid();
 
-    af_unix_socket_set_datagram_socket_len(128);
+    af_unix_socket_set_datagram_socket_len(common_config.storio_buf_cnt);
     storage_process_filename[0] = 0;
 
     // Initialization of the storage configuration
