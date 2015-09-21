@@ -61,11 +61,11 @@ uint32_t af_inet_tcp_tuneTcpSocket(int socketId,int size)
   int sockRcvdSize = size*4;
   int fileflags;
 
-#if 0
+#if 1
   int YES = 1;
-  int IDLE = 2;
-  int INTVL = 2;
-  int COUNT = 3;
+  int IDLE = 30;
+  int INTVL = 10;
+  int COUNT = 5;
  /*
   ** active keepalive on the new connection
   */
@@ -312,9 +312,9 @@ int af_inet_sock_stream_client_create_internal(af_unix_ctx_generic_t *sock_p,int
   }
 #endif
   int YES = 1;
-  int IDLE = 10;
-  int INTVL = 2;
-  int COUNT = 3;
+  int IDLE = 30;
+  int INTVL = 10;
+  int COUNT = 5;
  /*
   ** active keepalive on the new connection
   */
