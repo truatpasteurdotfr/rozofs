@@ -107,11 +107,18 @@ uint32_t af_unix_recv_stream_sock_recv(af_unix_ctx_generic_t  *sock_p, void *buf
        case EBADF:
        case EFAULT:
        case EINVAL:
+         /*
+         ** We might need to double checl if the socket must be killed
+         */
+         //RUC_WARNING(errno);
+         sock_p->stats.totalRecvError++;
+         return RUC_DISC;
+	        
        default:
          /*
          ** We might need to double checl if the socket must be killed
          */
-//         RUC_WARNING(errno);
+         warning("af_unix_recv_stream_sock_recv %s",strerror(errno));
          sock_p->stats.totalRecvError++;
          return RUC_DISC;
      }
