@@ -123,6 +123,9 @@ Enable|disable the use of the Mojette threads in the STORCLI for reads.
 .TP
 \fB\-o mojThreadThreshold=\fP\fIbytes\fP
 Modify the threshold in number of bytes above which the Mojette threads in the STORCLI are used.
+.TP
+\fB\-o writerOnly
+Tells the client that it is the only writter on the files it writes, and so needs not to re-read the last block when extending a file.
 .PP
 .SH "REPORTING BUGS"
 Report bugs to <bugs@fizians.org>.
