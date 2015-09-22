@@ -121,6 +121,7 @@ int storaged_lbg_initialize(mstorage_t *s, int index) {
     int local=1;
     
     DEBUG_FUNCTION;    
+#if 0
     
     /*
     ** configure the callback that is intended to perform the polling of the storaged on each TCP connection
@@ -137,6 +138,7 @@ int storaged_lbg_initialize(mstorage_t *s, int index) {
    {
      severe("Cannot configure application TMO");   
    }   
+#endif
    /*
    ** set the dscp for storio connections
    */

@@ -1157,9 +1157,11 @@ static inline int rozofs_storcli_lbg_prj_is_lbg_selectable(rozofs_storcli_lbg_pr
   ** check if the lbg is not in quarantine
   */
   if (north_lbg_is_available(lbg_assoc_p[index].lbg_id) == 0) return 0;
-  
-  if (storcli_lbg_cnx_sup_is_selectable(lbg_assoc_p[index].lbg_id) == 0) return 0;
-  
+
+#warning work-around to activate the polling of the lbg without taking care of the status.  
+//  if (storcli_lbg_cnx_sup_is_selectable(lbg_assoc_p[index].lbg_id) == 0) return 0;
+
+  storcli_lbg_cnx_sup_is_selectable(lbg_assoc_p[index].lbg_id);
   if (lbg_assoc_p[index].state == NORTH_LBG_UP)
   {
     return 1;
