@@ -44,14 +44,14 @@ rozofs_configure_param_t rozofs_timer_conf[TMR_MAX_ENTRY];
 */
 void rozofs_tmr_init_configuration()
 {
-  DEF_TMR(EXPORT_PROGRAM,4,30,25,TMR_SEC); /**< exportd transaction timeout :default 25 s */
-  DEF_TMR(STORAGE_PROGRAM,2,30,4,TMR_SEC);  /**< storaged transaction timeout : default 4 s  */
-  DEF_TMR(STORCLI_PROGRAM,2,30,15,TMR_SEC);            /**< storagd client transaction timeout :      default 15 s */
-  DEF_TMR(EXPORTD_PROFILE_PROGRAM,5,30,25,TMR_SEC);     /**< exportd profiler program                  default 25 s */
-  DEF_TMR(ROZOFSMOUNT_PROFILE_PROGRAM,5,30,25,TMR_SEC); /**< rozofsmount profiler program              default 25 s */
+  DEF_TMR(EXPORT_PROGRAM,4,120,25,TMR_SEC); /**< exportd transaction timeout :default 25 s */
+  DEF_TMR(STORAGE_PROGRAM,2,120,4,TMR_SEC);  /**< storaged transaction timeout : default 4 s  */
+  DEF_TMR(STORCLI_PROGRAM,2,120,15,TMR_SEC);            /**< storagd client transaction timeout :      default 15 s */
+  DEF_TMR(EXPORTD_PROFILE_PROGRAM,5,120,25,TMR_SEC);     /**< exportd profiler program                  default 25 s */
+  DEF_TMR(ROZOFSMOUNT_PROFILE_PROGRAM,5,120,25,TMR_SEC); /**< rozofsmount profiler program              default 25 s */
   DEF_TMR(MONITOR_PROGRAM,2,30,4,TMR_SEC);             /**< storaged monitor program                  default 4 s  */
-  DEF_TMR(STORAGED_PROFILE_PROGRAM,2,30,25,TMR_SEC);    /**< storaged profiler program                 default 25 s */
-  DEF_TMR(STORCLI_PROFILE_PROGRAM,2,30,25,TMR_SEC);     /**< storaged client profiler program          default 25 s */
+  DEF_TMR(STORAGED_PROFILE_PROGRAM,2,120,25,TMR_SEC);    /**< storaged profiler program                 default 25 s */
+  DEF_TMR(STORCLI_PROFILE_PROGRAM,2,120,25,TMR_SEC);     /**< storaged client profiler program          default 25 s */
   /*
   ** timers related to dirent cache
   */
@@ -62,8 +62,8 @@ void rozofs_tmr_init_configuration()
   */
   DEF_TMR(TCP_FIRST_RECONNECT,2,10,2,TMR_SEC);        /**< TCP timer for the first TCP re-connect attempt  default   2 s */
   DEF_TMR(TCP_RECONNECT,2,30,4,TMR_SEC);              /**< TCP timer for subsequent TCP re-connect attempts  default 4 s */
-  DEF_TMR(RPC_NULL_PROC_TCP,2,30,3,TMR_SEC);          /**< timer associated to a null rpc procedure polling initiated from TCP cnx default 3 s */
-  DEF_TMR(RPC_NULL_PROC_LBG,3,30,4,TMR_SEC);          /**< timer associated to a null rpc procedure polling initiated from TCP cnx default 4 s */
+  DEF_TMR(RPC_NULL_PROC_TCP,2,120,3,TMR_SEC);          /**< timer associated to a null rpc procedure polling initiated from TCP cnx default 3 s */
+  DEF_TMR(RPC_NULL_PROC_LBG,3,120,4,TMR_SEC);          /**< timer associated to a null rpc procedure polling initiated from TCP cnx default 4 s */
   /*
   ** timer related to projection read/write
   */
