@@ -727,7 +727,7 @@ void storio_device_monitor(uint32_t allow_disk_spin_down) {
 	share->dev[dev].rdUs       = pDev->rdAvgUs;
 	share->dev[dev].wrNb       = pDev->wrDelta;
 	share->dev[dev].wrUs       = pDev->wrAvgUs;
-	share->dev[dev].lastActivityDelay = time(NULL)-pDev->last_activity_time;
+	share->dev[dev].lastActivityDelay = pDev->last_activity_time;
       }
     } 
 
