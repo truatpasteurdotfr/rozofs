@@ -965,4 +965,9 @@ static inline uint32_t af_unix_get_remote_ip(uint32_t af_unix_ctx_id) {
     return p->remote_ipaddr_host;
     
 }
+/*__________________________________________________________________________
+** API to tell that the current process do not want disconnection from
+** remote side to be logegd
+*/
+void af_unix_socket_no_disconnect_log(void);
 #endif

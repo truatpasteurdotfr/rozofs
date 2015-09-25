@@ -242,6 +242,11 @@ static void on_start() {
     DEBUG_FUNCTION;
 
     session_id = setsid();
+    
+    /*
+    ** Do not log each remote end disconnection
+    */
+    af_unix_socket_no_disconnect_log();
 
     af_unix_socket_set_datagram_socket_len(common_config.storio_buf_cnt);
     storage_process_filename[0] = 0;

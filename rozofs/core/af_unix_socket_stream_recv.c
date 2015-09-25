@@ -33,6 +33,17 @@
 #include <rozofs/common/log.h>
 extern uint64_t af_unix_rcv_buffered;
 
+/*__________________________________________________________________________
+** Whether remote disconnection must be logged or not
+** This depends on the processes. A process that do not want to log
+** remote disconnection must call this API in its initialization
+*/
+int             af_unix_socket_log_remote_disconnection = 1;
+void            af_unix_socket_no_disconnect_log(void) {
+  af_unix_socket_log_remote_disconnection = 0;
+}
+
+
 
 /**
 *  Intaernal API for reading data from an AF_UNIX sock_stream socket
@@ -113,12 +124,16 @@ uint32_t af_unix_recv_stream_sock_recv(af_unix_ctx_generic_t  *sock_p, void *buf
          //RUC_WARNING(errno);
          sock_p->stats.totalRecvError++;
          return RUC_DISC;
-	        
+         		
        default:
          /*
-         ** We might need to double checl if the socket must be killed
+         ** Log error.
+	 ** Do not log remote disconnection when not explicitly requested for 
+	 ** this process.
          */
-         warning("af_unix_recv_stream_sock_recv %s",strerror(errno));
+	 if ((errno!=ECONNRESET) || (af_unix_socket_log_remote_disconnection)) {
+           warning("af_unix_recv_stream_sock_recv %s",strerror(errno));
+	 }  
          sock_p->stats.totalRecvError++;
          return RUC_DISC;
      }
