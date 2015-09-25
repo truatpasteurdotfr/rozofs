@@ -196,13 +196,6 @@ void storio_device_error_log_display (char * argv[], uint32_t tcpRef, void *bufR
   storio_device_error_log_record_t * p = storio_device_error_log.record;
   struct tm                          ts;
   char                             * line_sep = "+-----+--------------------------------------+-------+-----+-----+-----------+-------------------+-----------------+--------------------------------+\n";
-
-    
-  if ((argv[1] != NULL) && (strcmp(argv[1],"reset")==0)) {
-    storio_device_error_log_reset();
-    uma_dbg_send(tcpRef,bufRef,TRUE,"Reset Done\n");
-    return;
-  }
   
     
   pChar += rozofs_string_append(pChar,"nb log  : ");
@@ -271,6 +264,16 @@ void storio_device_error_log_display (char * argv[], uint32_t tcpRef, void *bufR
 
   } 
   pChar += rozofs_string_append(pChar, line_sep);
+  
+  
+  /*
+  ** Reset log when requested
+  */
+  if ((argv[1] != NULL) && (strcmp(argv[1],"reset")==0)) {
+    storio_device_error_log_reset();
+    pChar += rozofs_string_append(pChar, "Reset Done\n");
+  }
+
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
 
 }

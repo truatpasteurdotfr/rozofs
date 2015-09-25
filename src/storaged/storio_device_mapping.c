@@ -268,7 +268,32 @@ void storage_fid_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   uma_dbg_send(tcpRef,bufRef,TRUE,uma_dbg_get_buffer());
   return;         
 }
- 
+
+/*
+** Reset error counter on every device
+*/
+void storage_device_error_reset(void) {
+  storage_t   * st;
+  int           idx;
+
+  /*
+  ** Loop on storage context and clear errors on every device 
+  */
+  st = NULL;
+  while ((st = storaged_next(st)) != NULL) {
+    for (idx=0; idx< st->device_number;idx++) {
+      if (st->device_ctx[idx].action < STORAGE_DEVICE_RESET_ERRORS) {
+	st->device_ctx[idx].action = STORAGE_DEVICE_RESET_ERRORS;
+      }  
+    }
+  }
+  
+  /*
+  ** By the way reset memory log
+  */
+  storio_device_error_log_reset();
+}  
+
 void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
   char                         * pChar=uma_dbg_get_buffer();
   int                            idx,threadNb; 
@@ -276,6 +301,11 @@ void storage_device_debug(char * argv[], uint32_t tcpRef, void *bufRef) {
 
   storage_t   * st;
   int           faulty_devices[STORAGE_MAX_DEVICE_NB];
+  
+  if ((argv[1] != NULL)&&(strcmp(argv[1],"reset")==0)) {
+    storage_device_error_reset();
+    uma_dbg_send(tcpRef,bufRef,TRUE,"Device error counters have been reset");    
+  } 
 
   st = NULL;
   while ((st = storaged_next(st)) != NULL) {

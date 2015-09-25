@@ -1200,5 +1200,9 @@ static inline void storio_pid_file(char * pidfile, char * storaged_hostname, int
   pidfile += rozofs_string_append(pidfile, ".pid");
 
 }
+/*
+** Reset memory log off encountered errors
+*/
+void storio_device_error_log_reset();
 #endif
 
