@@ -66,6 +66,7 @@ struct mpp_profiler_t {
 	uint64_t rozofs_ll_setlk_int[2];
 	uint64_t rozofs_ll_ioctl[2];
 	uint64_t rozofs_ll_clearlkowner[2];
+	uint64_t rozofs_ll_truncate[2];
 };
 typedef struct mpp_profiler_t mpp_profiler_t;
 

@@ -147,6 +147,7 @@ typedef enum {
 	srv_rozofs_ll_setlk_int,
 	srv_rozofs_ll_ioctl,
 	srv_rozofs_ll_clearlkowner,
+	srv_rozofs_ll_truncate,
 } rozofs_service_e;
 
 extern int rozofs_trc_wr_idx;

@@ -693,6 +693,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
     SHOW_PROFILER_PROBE(forget);
     SHOW_PROFILER_PROBE(getattr);
     SHOW_PROFILER_PROBE(setattr);
+    SHOW_PROFILER_PROBE(truncate);    
     SHOW_PROFILER_PROBE(readlink);
     SHOW_PROFILER_PROBE(mknod);
     SHOW_PROFILER_PROBE(mkdir);
@@ -730,6 +731,7 @@ void show_profiler(char * argv[], uint32_t tcpRef, void *bufRef) {
 	RESET_PROFILER_PROBE(forget);
 	RESET_PROFILER_PROBE(getattr);
 	RESET_PROFILER_PROBE(setattr);
+	RESET_PROFILER_PROBE(truncate);	
 	RESET_PROFILER_PROBE(readlink);
 	RESET_PROFILER_PROBE(mknod);
 	RESET_PROFILER_PROBE(mkdir);
@@ -1114,6 +1116,8 @@ char *trc_fuse_display_srv(int srv)
 	case srv_rozofs_ll_ioctl:return "wr_block";
 
 	case srv_rozofs_ll_clearlkowner:return "clearlkowner";
+	case srv_rozofs_ll_truncate:return "truncate";
+	
 	default: return "??unknown??";
     }
 }
