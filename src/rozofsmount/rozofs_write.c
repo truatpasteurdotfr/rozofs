@@ -972,6 +972,7 @@ static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char 
     /*
     ** now initiates the transaction towards the remote end
     */
+    if (shared_buf_ref == NULL) severe("Out of buffer");
     GET_FUSE_CALLBACK(buffer_p,callback);
     f->buf_write_pending++;
     f->write_block_pending = 1;
@@ -1205,6 +1206,11 @@ void rozofs_ll_write_cbk(void *this,void *param)
    errno = 0;
    int trc_idx;
    rpc_reply.acpted_rply.ar_results.proc = NULL;
+   /*
+   ** update the number of storcli pending request
+   */
+   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+   
 
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
    RESTORE_FUSE_PARAM(param,trc_idx);
@@ -1604,6 +1610,11 @@ void rozofs_asynchronous_flush_cbk(void *this,void *param)
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
    file_t *file = NULL;
 
+   /*
+   ** update the number of storcli pending request
+   */
+   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
 //   RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_STRUCT(param,fi,sizeof( struct fuse_file_info));    
@@ -1761,7 +1772,11 @@ void rozofs_ll_flush_cbk(void *this,void *param)
    file_t *file = NULL;
    int trc_idx;
    errno = 0;
-   
+   /*
+   ** update the number of storcli pending request
+   */
+   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+      
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,trc_idx);
@@ -2102,6 +2117,11 @@ void rozofs_ll_release_cbk(void *this,void *param)
    file_t *file = NULL;
    errno = 0;
    int trc_idx;
+   /*
+   ** update the number of storcli pending request
+   */
+   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+   
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);

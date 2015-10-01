@@ -51,6 +51,9 @@ int rozofs_fuse_loop_count = 2;
 int fuse_sharemem_init_done = 0;
 int fuse_sharemem_enable = 0;
 uint64_t fuse_profile[3];
+int rozofs_storcli_pending_req_count= 0;
+uint64_t rozofs_storcli_xoff_count= 0;
+uint64_t rozofs_storcli_xon_count= 0;
 
 void  rozofs_fuse_share_mem_init();
 
@@ -283,6 +286,35 @@ void rozofs_fuse_invalidate_inode_cache(fuse_ino_t ino, uint64_t offset, uint64_
     }  
     fuse_lowlevel_notify_inval_inode(rozofs_fuse_ctx_p->ch, ino, offset, len);
 }
+
+static inline uint32_t rozofs_xoff()
+{
+   if (rozofs_fuse_ctx_p->ioctl_supported)
+   {
+      if (rozofs_fuse_ctx_p->data_xon == 1)
+      {
+         rozofs_fuse_ctx_p->data_xon = 0;
+	 rozofs_storcli_xoff_count++;
+	 ioctl(rozofs_fuse_ctx_p->fd,rozofs_fuse_ctx_p->data_xon,NULL);      
+      }
+      return TRUE;
+   }
+   return FALSE;
+
+}
+
+static inline void rozofs_xon()
+{
+   if (rozofs_fuse_ctx_p->ioctl_supported)
+   {
+      if (rozofs_fuse_ctx_p->data_xon == 0)
+      {
+         rozofs_fuse_ctx_p->data_xon = 1;
+	 rozofs_storcli_xon_count++;
+	 ioctl(rozofs_fuse_ctx_p->fd,rozofs_fuse_ctx_p->data_xon,NULL);      
+      }
+   }
+}
 /*
 **__________________________________________________________________________
 */
@@ -305,6 +337,7 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
 {
     rozofs_fuse_ctx_t  *ctx_p;
     uint32_t            buffer_count;
+    uint32_t            status;
     
     
     ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;
@@ -341,13 +374,23 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     }
     
     /*
+    ** check the number of requests towards the storcli
+    */
+    if (rozofs_storcli_pending_req_count >= ROZOFSMOUNT_MAX_STORCLI_TX)
+    {
+      status = rozofs_xoff();
+      rozofs_fuse_buffer_depletion_count++;
+      return status;
+    }   
+    /*
     ** Check the amount of read buffer (shared pool)
     */
     buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_READ);
     if (buffer_count < 2) 
     {
+      status = rozofs_xoff();
       rozofs_fuse_buffer_depletion_count++;
-      return FALSE;
+      return status;
     }          
     /*
     ** Check the amount of read buffer (shared pool)
@@ -355,9 +398,11 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_WRITE);
     if (buffer_count < 2) 
     {
+      status = rozofs_xoff();
       rozofs_fuse_buffer_depletion_count++;
-      return FALSE;
-    }   
+      return status;
+    }
+    rozofs_xon();   
     return TRUE;
 }
   
@@ -385,6 +430,7 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
     int k;
     uint32_t            buffer_count;
     int empty = 0;
+    uint32_t status;
     
     ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;   
      
@@ -393,24 +439,40 @@ uint32_t rozofs_fuse_rcvMsgsock(void * rozofs_fuse_ctx_p,int socketId)
        buffer_count = ruc_buf_getFreeBufferCount(ctx_p->fuseReqPoolRef);
        if (buffer_count < 2) 
        {
-	 rozofs_fuse_buffer_depletion_count++;
 	 return TRUE;
        }
+       /*
+       ** check the number of requests towards the storcli
+       */
+       if (rozofs_storcli_pending_req_count >= ROZOFSMOUNT_MAX_STORCLI_TX)
+       {
+	 status = rozofs_xoff();
+	 if (status== FALSE) 
+	 {
+	   return TRUE;
+	 }
+       }   
        /*
        ** Check the amount of read buffer (shared pool)
        */
        buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_READ);
        if (buffer_count < 2) 
        {
-	 rozofs_fuse_buffer_depletion_count++;
-	 return TRUE;
+	 status = rozofs_xoff();
+	 if (status== FALSE) 
+	 {
+	   return TRUE;
+	 }
        }           
        buffer_count = rozofs_get_shared_storcli_buf_free(SHAREMEM_IDX_WRITE);
        if (buffer_count < 2) 
        {
-	 rozofs_fuse_buffer_depletion_count++;
-	 return TRUE;
-       }  
+	 status = rozofs_xoff();
+	 if (status== FALSE) 
+	 {
+	   return TRUE;
+	 }
+       }
        rozofs_fuse_session_loop(ctx_p,&empty);
        if (empty) return TRUE;
      }
@@ -561,7 +623,6 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
     rozofs_fuse_ctx_t  *ctx_p;
 
     ctx_p = (rozofs_fuse_ctx_t*)rozofs_fuse_ctx_p;
-
     /*
     ** active the fsm for end of congestion (xmit ready and credit reload
     */
@@ -578,12 +639,28 @@ uint32_t rozofs_fuse_xmitEvtsock(void * rozofs_fuse_ctx_p,int socketId)
 void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   uint32_t            buffer_count=0;
   char                status[16];
-  int   new_val;   
+  int   new_val; 
+  int   ret;  
   
   char *pChar = uma_dbg_get_buffer();
 
   if (argv[1] != NULL)
   {
+      if (strcmp(argv[1],"kernel")==0) 
+      {
+	 if (rozofs_fuse_ctx_p->ioctl_supported)
+	 {
+	   ioctl(rozofs_fuse_ctx_p->fd,100,NULL);  
+           pChar += sprintf(pChar, "check result in dmesg: ROZOFS_FUSE...\n",argv[2]);
+	 } 
+	 else
+	 { 
+           pChar += sprintf(pChar, "ioctl not supported with that fuse kernel version\n");
+	 }
+
+	 uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
+	 return;
+      }
       if (strcmp(argv[1],"loop")==0) 
       {
 	 errno = 0;
@@ -663,7 +740,7 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   memset(rozofs_write_merge_stats_tab,0,sizeof(uint64_t)*RZ_FUSE_WRITE_MAX);
   pChar +=sprintf(pChar,"fuse req_in (count/bytes): %8llu/%llu\n",(long long unsigned int)rozofs_fuse_req_count,
                                                     (long long unsigned int)rozofs_fuse_req_byte_in);  
-  pChar +=sprintf(pChar,"fuse time                :%8llu (%8llu)\n",
+  pChar +=sprintf(pChar,"fuse time                :%8llu (%llu)\n",
           (long long unsigned int)(fuse_profile[P_COUNT]?fuse_profile[P_ELAPSE]/fuse_profile[P_COUNT]:0),
           (long long unsigned int)fuse_profile[P_COUNT]);
 
@@ -677,11 +754,18 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
                                                      (long long unsigned int)rozofs_fuse_req_enoent_count);  
 
   pChar +=sprintf(pChar,"fuse buffer depletion    : %8llu\n",(long long unsigned int)rozofs_fuse_buffer_depletion_count);
+  pChar +=sprintf(pChar,"pending storcli requests : %8d\n",rozofs_storcli_pending_req_count);
+  pChar +=sprintf(pChar,"fuse kernel xoff/xon     : %8llu/%llu\n",(long long unsigned int)rozofs_storcli_xoff_count,
+                                                                   (long long unsigned int)rozofs_storcli_xon_count);
+
+
   rozofs_fuse_buffer_depletion_count =0;
   rozofs_fuse_req_count = 0;
   rozofs_fuse_req_byte_in = 0;
   rozofs_fuse_req_eagain_count = 0;
   rozofs_fuse_req_enoent_count = 0;
+  rozofs_storcli_xoff_count = 0;
+  rozofs_storcli_xon_count = 0;
   /**
   *  read/write statistics
   */
@@ -728,6 +812,10 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   
   uma_dbg_send(tcpRef, bufRef, TRUE, uma_dbg_get_buffer());
 }
+
+
+
+
 
 /*__________________________________________________________________________
 */
@@ -862,6 +950,24 @@ int rozofs_fuse_init(struct fuse_chan *ch,struct fuse_session *se,int rozofs_fus
        RUC_WARNING(errno);
        status = -1; 
        break;   
+     }
+     /*
+     ** send XON to the fuse channel
+     */
+     {
+        int ret;
+	rozofs_fuse_ctx_p->ioctl_supported = 1;
+	rozofs_fuse_ctx_p->data_xon        = 1;
+	
+	ret = ioctl(rozofs_fuse_ctx_p->fd,1,NULL);
+	if (ret < 0) 
+	{
+	   severe("ioctl error %s",strerror(errno));
+	   rozofs_fuse_ctx_p->ioctl_supported = 0;
+	   
+	}
+     
+     
      }
      /*
      ** perform the connection with the socket controller

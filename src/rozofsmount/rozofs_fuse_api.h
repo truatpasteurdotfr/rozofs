@@ -46,6 +46,8 @@
 extern rozofs_fuse_save_ctx_t *rozofs_fuse_usr_ctx_table[];
 extern uint32_t rozofs_fuse_usr_ctx_idx ;
 extern uint64_t rozofs_write_merge_stats_tab[];
+/**< number of pending requests on the storcli side  */
+extern int rozofs_storcli_pending_req_count;
 
 
 typedef enum {

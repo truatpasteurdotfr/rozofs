@@ -29,6 +29,10 @@
 
 #include "file.h"
 
+#define ROZOFSMOUNT_MAX_EXPORT_TX 32
+#define ROZOFSMOUNT_MAX_STORCLI_TX  32
+#define ROZOFSMOUNT_MAX_TX (ROZOFSMOUNT_MAX_EXPORT_TX+ROZOFSMOUNT_MAX_STORCLI_TX)
+
 #define hash_xor8(n)    (((n) ^ ((n)>>8) ^ ((n)>>16) ^ ((n)>>24)) & 0xff)
 #define ROOT_INODE 1
 

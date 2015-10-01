@@ -352,8 +352,7 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     mattr_t attr;
     epgw_setattr_arg_t arg;
     int     ret;
-    void *buffer_setattr = NULL;
-    void *buffer_truncate = NULL;
+    void *buffer_p = NULL;
     int trc_idx;
     uint32_t bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
 
@@ -372,18 +371,18 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     /*
     ** allocate a context for saving the fuse parameters
     */
-    buffer_setattr = rozofs_fuse_alloc_saved_context();
-    if (buffer_setattr == NULL)
+    buffer_p = rozofs_fuse_alloc_saved_context();
+    if (buffer_p == NULL)
     {
       severe("out of fuse saved context");
       errno = ENOMEM;
       goto error;
     }
-    SAVE_FUSE_PARAM(buffer_setattr,req);
-    SAVE_FUSE_PARAM(buffer_setattr,ino);
-    SAVE_FUSE_PARAM(buffer_setattr,trc_idx);
-    SAVE_FUSE_STRUCT(buffer_setattr,fi,sizeof( struct fuse_file_info));
-    START_PROFILING_NB(buffer_setattr,rozofs_ll_setattr);
+    SAVE_FUSE_PARAM(buffer_p,req);
+    SAVE_FUSE_PARAM(buffer_p,ino);
+    SAVE_FUSE_PARAM(buffer_p,trc_idx);
+    SAVE_FUSE_STRUCT(buffer_p,fi,sizeof( struct fuse_file_info));
+    START_PROFILING_NB(buffer_p,rozofs_ll_setattr);
     
     DEBUG("setattr for inode: %lu\n", (unsigned long int) ino);
 
@@ -400,19 +399,17 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
     {
       /*
       ** case of the truncate
-      ** Run the set attribute transation toward the export while at the same time
-      ** an internal truncate request is run toward the STORCLI. The internal truncate
-      ** will not trigger any feed back to fuse.
+      ** start by updating the storaged and then updates the exportd
+      ** need to store the setattr attributes in the fuse context
       */
 
       // Check file size 
-      if (attr.size >= ROZOFS_FILESIZE_MAX) {
+      if (attr.size < ROZOFS_FILESIZE_MAX) {
+        ie->attrs.size = attr.size;
+      }else{
         errno = EFBIG;
         goto error;
       } 
-        
-      ie->attrs.size = attr.size;
-
       /*
       ** Flush on disk any pending data in any buffer open on this file 
       ** before reading.
@@ -448,22 +445,9 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
 	*/
 	bid = attr.size / bbytes;
 	last_seg = (attr.size % bbytes);
-	
-	/*
-	** Allocate a so called fuse context to track the intrenal truncate with
-	** the STORCLI
-	*/
-	buffer_truncate = rozofs_fuse_alloc_saved_context();
-	if (buffer_truncate == NULL)
-	{
-	  severe("out of fuse saved context");
-	  errno = ENOMEM;
-	  goto error;
-	}
-  
-        START_PROFILING_NB(buffer_truncate,rozofs_ll_truncate);
-        SAVE_FUSE_PARAM(buffer_truncate,ino);
-	
+
+	SAVE_FUSE_PARAM(buffer_p,to_set);
+	SAVE_FUSE_STRUCT(buffer_p,stbuf,sizeof(struct stat ));      
 	/*
 	**  Fill the truncate request:
 	**  we take the file information in terms of cid, distribution from the attributes
@@ -486,31 +470,22 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
 	*/
 	ret = rozofs_storcli_send_common(NULL,ROZOFS_TMR_GET(TMR_STORCLI_PROGRAM),STORCLI_PROGRAM, STORCLI_VERSION,
                                   STORCLI_TRUNCATE,(xdrproc_t) xdr_storcli_truncate_arg_t,(void *)&args,
-                                  rozofs_ll_truncate_cbk,buffer_truncate,storcli_idx,ie->fid); 
-
-        if (ret==0) {
-	  /*
-	  ** Put internal transaction in the Fuse trace buffer
-	  */
-          int trc_idx_save = trc_idx;
-	  trc_idx = rozofs_trc_req_io(srv_rozofs_ll_truncate,ino,args.fid,attr.size,0);    
-          SAVE_FUSE_PARAM(buffer_truncate,trc_idx);
-	  trc_idx = trc_idx_save;	  
-	}
-	else {
-	  rozofs_fuse_release_saved_context(buffer_truncate);
-	}
-      }
-
-      /*
-      ** indicates that there is a pending file size update
-      ** to be reported to the export
-      */
-      ie->file_extend_pending = 1;      	
+                                  rozofs_ll_truncate_cbk,buffer_p,storcli_idx,ie->fid); 
+	if (ret < 0) goto error;
+	/*
+	** indicates that there is a pending file size update
+	*/
+	ie->file_extend_pending = 1;
+	/*
+	** all is fine, wait from the response of the storcli and then updates the exportd upon
+	** receiving the answer from storcli
+	*/
+	return;
+      }	
     }
     
     /*
-    ** The size may not be given as argument of settattr, 
+    ** The size is not given as argument of settattr, 
     ** nevertheless a size modification is pending.
     ** so let's send the size modification along with 
     ** the other modified attributes
@@ -532,12 +507,12 @@ void rozofs_ll_setattr_nb(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf,
 #if 1
     ret = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
-                              rozofs_ll_setattr_cbk,buffer_setattr); 
+                              rozofs_ll_setattr_cbk,buffer_p); 
 
 #else
     ret = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
                               EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
-                              rozofs_ll_setattr_cbk,buffer_setattr); 
+                              rozofs_ll_setattr_cbk,buffer_p); 
 #endif
 
     if (ret < 0) goto error;
@@ -558,8 +533,8 @@ error:
     ** release the buffer if has been allocated
     */
     rozofs_trc_rsp(srv_rozofs_ll_setattr,ino,NULL,1,trc_idx);
-    STOP_PROFILING_NB(buffer_setattr,rozofs_ll_setattr);
-    if (buffer_setattr != NULL) rozofs_fuse_release_saved_context(buffer_setattr);
+    STOP_PROFILING_NB(buffer_p,rozofs_ll_setattr);
+    if (buffer_p != NULL) rozofs_fuse_release_saved_context(buffer_p);
     return;
 }
 
@@ -758,28 +733,48 @@ out:
 * Truncate  Call back function call upon a success rpc, timeout or any other rpc failure
 *
  @param this : pointer to the transaction context
- @param param: pointer to the associated rozofs_fuse_context 
+ @param param: pointer to the associated rozofs_fuse_context
  
  @return none
  */
 void rozofs_ll_truncate_cbk(void *this,void *param) 
 {
    struct rpc_msg  rpc_reply;
+   struct stat *stbuf;
    fuse_ino_t ino;
+   ientry_t *ie = 0;
+   fuse_req_t req; 
+   mattr_t attr;
+   int to_set;
+   epgw_setattr_arg_t arg;
+       
    int status;
    uint8_t  *payload;
    void     *recv_buf = NULL;   
    XDR       xdrs;    
    int      bufsize;
    storcli_status_ret_t ret;
+   int retcode;
    xdrproc_t decode_proc = (xdrproc_t)xdr_storcli_status_ret_t;
-   int trc_idx;
 
    rpc_reply.acpted_rply.ar_results.proc = NULL;
+   /*
+   ** update the number of storcli pending request
+   */
+   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
 
-    RESTORE_FUSE_PARAM(param,ino);
-    RESTORE_FUSE_PARAM(param,trc_idx);
-
+   RESTORE_FUSE_PARAM(param,req);
+   RESTORE_FUSE_PARAM(param,ino);
+   RESTORE_FUSE_PARAM(param,to_set);
+   RESTORE_FUSE_STRUCT_PTR(param,stbuf);      
+    /*
+    ** Update the exportd with the filesize if that one has changed
+    */ 
+    ie = get_ientry_by_inode(ino);
+    if (ie != NULL)
+    {
+      ie->file_extend_pending = 0;
+    }
     /*
     ** get the pointer to the transaction context:
     ** it is required to get the information related to the receive buffer
@@ -796,10 +791,8 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
        */
        errno = rozofs_tx_get_errno(this); 
        severe(" transaction error %s",strerror(errno));
-       goto out; 
+       goto error; 
     }
-    status = -1;
-    
     /*
     ** get the pointer to the receive buffer payload
     */
@@ -811,7 +804,7 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
        */
        errno = EFAULT;  
        severe(" transaction error %s",strerror(errno));
-       goto out;         
+       goto error;         
     }
     payload  = (uint8_t*) ruc_buf_getPayload(recv_buf);
     payload += sizeof(uint32_t); /* skip length*/
@@ -828,10 +821,10 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
      TX_STATS(ROZOFS_TX_DECODING_ERROR);
      errno = EPROTO;
      severe(" transaction error %s",strerror(errno));
-     goto out;
+     goto error;
     }
     /*
-    ** ok now call the procedure to decode the message
+    ** ok now call the procedure to encode the message
     */
     memset(&ret,0, sizeof(ret));                    
     if (decode_proc(&xdrs,&ret) == FALSE)
@@ -840,27 +833,77 @@ void rozofs_ll_truncate_cbk(void *this,void *param)
        errno = EPROTO;
        xdr_free((xdrproc_t) decode_proc, (char *) &ret);
        severe(" transaction error %s",strerror(errno));
-       goto out;
+       goto error;
     }   
     if (ret.status == STORCLI_FAILURE) {
         errno = ret.storcli_status_ret_t_u.error;
-        warning("truncate error %s",strerror(errno));
+        xdr_free((xdrproc_t) decode_proc, (char *) &ret);    
+        goto error;
     }
     /*
     ** no error, so get the length of the data part
     */
     xdr_free((xdrproc_t) decode_proc, (char *) &ret);
-    status = 0;
-    errno = 0;
+    /*
+    ** Keep the fuse context since we need to trigger the update of 
+    ** the attributes of the file
+    */
+    rozofs_tx_free_from_ptr(rozofs_tx_ctx_p); 
+    ruc_buf_freeBuffer(recv_buf);  
+    /*
+    ** exit in error if the ientry context is not found
+    */
+    if (ie == NULL) {
+        errno = ENOENT;
+        goto error;
+    }
+    /*
+    ** set to attr the attributes that must be set: indicated by to_set
+    */
+    stat_to_mattr(stbuf, &attr,to_set);
+    /*
+    ** set the argument to encode
+    */
+    arg.arg_gw.eid = exportclt.eid;
+    memcpy(&arg.arg_gw.attrs, &attr, sizeof (mattr_t));
+    memcpy(arg.arg_gw.attrs.fid, ie->fid, sizeof (fid_t));
+    arg.arg_gw.to_set = to_set;
+    /*
+    ** now initiates the transaction towards the remote end
+    */
+#if 1
+    retcode = rozofs_expgateway_send_routing_common(arg.arg_gw.eid,ie->fid,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,param); 
 
-out:
+#else
+    retcode = rozofs_export_send_common(&exportclt,EXPORT_PROGRAM, EXPORT_VERSION,
+                              EP_SETATTR,(xdrproc_t) xdr_epgw_setattr_arg_t,(void *)&arg,
+                              rozofs_ll_setattr_cbk,param); 
+#endif
 
-    rozofs_trc_rsp_attr(srv_rozofs_ll_truncate,ino,NULL/*FID*/,status,0,trc_idx);
+    if (retcode < 0) goto error;
+    /*
+    ** indicates that an file size update is in progress: in that case the file size to consider
+    ** is the one found in the ientry context
+    */
+    ie->file_extend_running = 1;
+   
+    /*
+    ** now wait for the response of the exportd
+    */
+    return;
 
-    STOP_PROFILING_NB(param,rozofs_ll_truncate);
-
+error:
+    /*
+    ** reply to fuse and release the transaction context and the fuse context
+    */
+    fuse_reply_err(req, errno);
+    STOP_PROFILING_NB(param,rozofs_ll_setattr);
+    
     rozofs_fuse_release_saved_context(param);
     if (rozofs_tx_ctx_p != NULL) rozofs_tx_free_from_ptr(rozofs_tx_ctx_p);    
-    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);       
+    if (recv_buf != NULL) ruc_buf_freeBuffer(recv_buf);   
+    
     return;
 }

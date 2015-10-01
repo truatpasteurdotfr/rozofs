@@ -874,9 +874,14 @@ int rozofs_storcli_send_common(exportclt_t * clt,uint32_t timeout_sec,uint32_t p
     ** now send the message
     */
 //    int lbg_id = storcli_lbg_get_load_balancing_reference();
+    /*
+    ** increment the number of pending request towards the storcli
+    */
+    rozofs_storcli_pending_req_count++;
     ret = north_lbg_send(lbg_id,xmit_buf);
     if (ret < 0)
     {
+       if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
        TX_STATS(ROZOFS_TX_SEND_ERROR);
        errno = EFAULT;
       goto error;  

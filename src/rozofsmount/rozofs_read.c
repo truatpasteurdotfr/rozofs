@@ -678,6 +678,11 @@ void rozofs_ll_read_cbk(void *this,void *param)
    int bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
    ientry_t *ie;
 
+   /*
+   ** update the number of storcli pending request
+   */
+   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+   
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
    RESTORE_FUSE_PARAM(param,size);
