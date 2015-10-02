@@ -1056,6 +1056,7 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs,mattr_t *p
 	goto out;
       } 
        memcpy(attrs, &lv2->attributes.s.attrs, sizeof (mattr_t));
+       if (lv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
        status = 0;  
        goto out;      
     }
@@ -1089,7 +1090,7 @@ int export_lookup(export_t *e, fid_t pfid, char *name, mattr_t *attrs,mattr_t *p
         goto out;
     }
     memcpy(attrs, &lv2->attributes.s.attrs, sizeof (mattr_t));
-
+    if (lv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     status = 0;
 out:
     /*
@@ -1133,6 +1134,7 @@ int export_getattr(export_t *e, fid_t fid, mattr_t *attrs) {
       goto out;
     }   
     memcpy(attrs, &lv2->attributes.s.attrs, sizeof (mattr_t));
+    if (lv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
 
     status = 0;
 out:
@@ -1327,10 +1329,12 @@ int export_link(export_t *e, fid_t inode, fid_t newparent, char *newname, mattr_
 
     // Return attributes
     memcpy(attrs, &target->attributes, sizeof (mattr_t));
+    if (target->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     /*
     ** return the parent attributes
     */
     memcpy(pattrs, &plv2->attributes.s.attrs, sizeof (mattr_t));
+    if (plv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&pattrs->mode);
     status = 0;
 
 out:
@@ -1635,7 +1639,9 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
     ** return the parent attributes and the child attributes
     */
     memcpy(pattrs, &plv2->attributes.s.attrs, sizeof (mattr_t));
+    if (plv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&pattrs->mode);
     memcpy(attrs, &buf_attr_p->s.attrs, sizeof (mattr_t));
+    if (buf_attr_p->s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     goto out;
 
 error:
@@ -1945,7 +1951,9 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
     ** return the parent attributes and the child attributes
     */
     memcpy(pattrs, &plv2->attributes.s.attrs, sizeof (mattr_t));
+    if (plv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&pattrs->mode);
     memcpy(attrs, &ext_attrs.s.attrs, sizeof (mattr_t));
+    if (ext_attrs.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     goto out;
 
 error:
@@ -2177,7 +2185,9 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     ** return the parent and child attributes
     */
     memcpy(attrs, &ext_attrs.s.attrs, sizeof (mattr_t));
+    if (ext_attrs.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     memcpy(pattrs, &plv2->attributes.s.attrs, sizeof (mattr_t));
+    if (plv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&pattrs->mode);
     goto out;
 
 error:
@@ -3624,7 +3634,9 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     ** return the parent and child attributes
     */
     memcpy(attrs, &ext_attrs.s.attrs, sizeof (mattr_t));
+    if (ext_attrs.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     memcpy(pattrs, &plv2->attributes.s.attrs, sizeof (mattr_t));
+    if (plv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&pattrs->mode);
     goto out;
 
 error:
@@ -4079,6 +4091,7 @@ int export_rename(export_t *e, fid_t pfid, char *name, fid_t npfid,
         goto out;
 
     memcpy(attrs,&lv2_to_rename->attributes,sizeof(mattr_t));
+    if (lv2_to_rename->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     status = 0;
 
 out:
@@ -4257,6 +4270,7 @@ int64_t export_write_block(export_t *e, fid_t fid, uint64_t bid, uint32_t n,
     ** return the parent attributes
     */
     memcpy(attrs, &lv2->attributes.s.attrs, sizeof (mattr_t));
+    if (lv2->attributes.s.i_state == 0) rozofs_clear_xattr_flag(&attrs->mode);
     length = len;
     if (e->volume->georep) 
     {
@@ -4514,6 +4528,7 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   {
     DISPLAY_ATTR_TXT("XATTR", "NO");    
   }
+  DISPLAY_ATTR_INT("I-STATE",lv2->attributes.s.i_state);
   if (S_ISDIR(lv2->attributes.s.attrs.mode)) {
     DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
     DISPLAY_ATTR_INT("CHILDREN",lv2->attributes.s.attrs.children);
