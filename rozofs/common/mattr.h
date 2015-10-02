@@ -29,7 +29,19 @@
  * attributes fid, cid, sids are rozofs data storage information.
  * others are a used the same way struct stat(2)
  */
-typedef struct mattr {
+ #define ROZOFS_HAS_XATTRIBUTES 0x80000000
+ 
+static inline void rozofs_set_xattr_flag(uint32_t *mode) 
+{*mode &= (~ROZOFS_HAS_XATTRIBUTES);} 
+
+static inline void  rozofs_clear_xattr_flag(uint32_t *mode) {*mode |= (ROZOFS_HAS_XATTRIBUTES);}
+
+static inline int rozofs_has_xattr(uint32_t mode)
+ {
+    return (mode&ROZOFS_HAS_XATTRIBUTES)?0:1; 
+ }
+ 
+ typedef struct mattr {
     fid_t fid;                      /**< unique file id */
     sid_t sids[ROZOFS_SAFE_MAX];    /**< sid of storage nodes target (regular file only)*/
     cid_t cid;                      /**< cluster id 0 for non regular files */

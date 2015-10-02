@@ -275,6 +275,9 @@ out:
  * @param size the size of the attribute
  */
  void rozofs_ll_getxattr_cbk(void *this,void *param);
+#define ROZOFS_XATTR "rozofs"
+#define ROZOFS_USER_XATTR "user.rozofs"
+#define ROZOFS_ROOT_XATTR "trusted.rozofs"
 
 void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, size_t size) 
 {
@@ -325,8 +328,18 @@ void rozofs_ll_getxattr_nb(fuse_req_t req, fuse_ino_t ino, const char *name, siz
     if (!(ie = get_ientry_by_inode(ino))) {
         errno = ENOENT;
         goto error;
+    } 
+    /*
+    ** Check if the i-node has extended attributs that are not the rozofs extended attributes
+    */
+    if (rozofs_has_xattr(ie->attrs.mode)==0)
+    {
+      if ((strncmp(name,ROZOFS_XATTR,6)!=0)&&(strncmp(name,ROZOFS_USER_XATTR,11)!=0)&&(strncmp(name,ROZOFS_ROOT_XATTR,14)!=0))  
+      {
+        errno = ENODATA;
+        goto error;  
+      }
     }
-
     /*
     ** fill up the structure that will be used for creating the xdr message
     */    

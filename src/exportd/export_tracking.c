@@ -621,6 +621,7 @@ int export_create(const char *root,export_t * e,lv2_cache_t *lv2_cache) {
 
       // Put the default mode for the root directory
       ext_attrs.s.attrs.mode = EXPORT_DEFAULT_ROOT_MODE;
+      rozofs_clear_xattr_flag(&ext_attrs.s.attrs.mode);
 
       ext_attrs.s.attrs.nlink = 2;
       ext_attrs.s.attrs.uid = 0; // root
@@ -1191,7 +1192,11 @@ int export_setattr(export_t *e, fid_t fid, mattr_t *attrs, int to_set) {
     }
 
     if (to_set & EXPORT_SET_ATTR_MODE)
+    {
+        if (rozofs_has_xattr(lv2->attributes.s.attrs.mode)) rozofs_set_xattr_flag(&attrs->mode);
+	else rozofs_clear_xattr_flag(&attrs->mode);
         lv2->attributes.s.attrs.mode = attrs->mode;
+    }
     if (to_set & EXPORT_SET_ATTR_UID)
     {
         quota_uid = lv2->attributes.s.attrs.uid;
@@ -1511,6 +1516,7 @@ int export_mknod_multiple(export_t *e,uint32_t site_number,fid_t pfid, char *nam
       ** get the distribution for the file
       */
       buf_attr_work_p->s.attrs.mode = mode;
+      rozofs_clear_xattr_flag(&buf_attr_work_p->s.attrs.mode);
       buf_attr_work_p->s.attrs.uid = uid;
       buf_attr_work_p->s.attrs.gid = gid;
       buf_attr_work_p->s.attrs.nlink = 1;
@@ -1848,6 +1854,7 @@ int export_mknod(export_t *e,uint32_t site_number,fid_t pfid, char *name, uint32
           goto error;
     }
     ext_attrs.s.attrs.mode = mode;
+    rozofs_clear_xattr_flag(&ext_attrs.s.attrs.mode);
     ext_attrs.s.attrs.uid = uid;
     ext_attrs.s.attrs.gid = gid;
     ext_attrs.s.attrs.nlink = 1;
@@ -2064,6 +2071,7 @@ int export_mkdir(export_t *e, fid_t pfid, char *name, uint32_t uid,
     ext_attrs.s.i_file_acl = 0;
     ext_attrs.s.i_link_name = 0;
     ext_attrs.s.attrs.mode = mode;
+    rozofs_clear_xattr_flag(&ext_attrs.s.attrs.mode);
     ext_attrs.s.attrs.uid = uid;
     ext_attrs.s.attrs.gid = gid;
     ext_attrs.s.attrs.nlink = 2;
@@ -3526,6 +3534,8 @@ int export_symlink(export_t * e, char *link, fid_t pfid, char *name,
     memset(ext_attrs.s.attrs.sids, 0, ROZOFS_SAFE_MAX * sizeof (sid_t));
     ext_attrs.s.attrs.mode = S_IFLNK | S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP |
             S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
+    rozofs_clear_xattr_flag(&ext_attrs.s.attrs.mode);
+
     ext_attrs.s.attrs.uid = getuid();
     ext_attrs.s.attrs.gid = getgid();
     ext_attrs.s.attrs.nlink = 1;
@@ -4497,7 +4507,13 @@ static inline int get_rozofs_xattr(export_t *e, lv2_entry_t *lv2, char * value, 
   bufall[0] = 0;
   ctime_r((const time_t *)&lv2->attributes.s.cr8time,bufall);
   DISPLAY_ATTR_TXT_NOCR("CREATE", bufall);
-
+  if (rozofs_has_xattr(lv2->attributes.s.attrs.mode)) {
+    DISPLAY_ATTR_TXT("XATTR", "YES");  
+  }
+  else
+  {
+    DISPLAY_ATTR_TXT("XATTR", "NO");    
+  }
   if (S_ISDIR(lv2->attributes.s.attrs.mode)) {
     DISPLAY_ATTR_TXT("MODE", "DIRECTORY");
     DISPLAY_ATTR_INT("CHILDREN",lv2->attributes.s.attrs.children);
@@ -5489,7 +5505,7 @@ int export_setxattr(export_t *e, fid_t fid, char *name, const void *value, size_
       struct dentry entry;
       entry.d_inode = lv2;
       entry.trk_tb_p = e->trk_tb_p;
-    
+      rozofs_set_xattr_flag(&lv2->attributes.s.attrs.mode);
       if ((status = rozofs_setxattr(&entry, name, value, size, flags)) != 0) {
           goto out;
       }
