@@ -295,6 +295,11 @@ void af_unix_fuse_response(rozofs_fuse_thread_msg_t *msg)
      severe("Shared buffer reference missing");
      return;
   }
+  /*
+  ** update the count of available shared buffer
+  */
+  if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+
   uint32_t *p32 = (uint32_t*)ruc_buf_getPayload(msg->bufRef);    
   /*
   ** clear the timestamp

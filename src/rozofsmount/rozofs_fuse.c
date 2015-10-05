@@ -47,6 +47,7 @@ uint64_t rozofs_fuse_req_eagain_count = 0;
 uint64_t rozofs_fuse_req_enoent_count = 0;
 uint64_t rozofs_fuse_req_tic = 0;
 uint64_t rozofs_fuse_buffer_depletion_count = 0;
+uint64_t rozofs_storcli_buffer_depletion_count = 0;
 int rozofs_fuse_loop_count = 2;
 int fuse_sharemem_init_done = 0;
 int fuse_sharemem_enable = 0;
@@ -379,7 +380,7 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     if (rozofs_storcli_pending_req_count >= ROZOFSMOUNT_MAX_STORCLI_TX)
     {
       status = rozofs_xoff();
-      rozofs_fuse_buffer_depletion_count++;
+      rozofs_storcli_buffer_depletion_count++;
       return status;
     }   
     /*
@@ -389,7 +390,7 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     if (buffer_count < 2) 
     {
       status = rozofs_xoff();
-      rozofs_fuse_buffer_depletion_count++;
+      rozofs_storcli_buffer_depletion_count++;
       return status;
     }          
     /*
@@ -399,7 +400,7 @@ uint32_t rozofs_fuse_rcvReadysock(void * rozofs_fuse_ctx_p,int socketId)
     if (buffer_count < 2) 
     {
       status = rozofs_xoff();
-      rozofs_fuse_buffer_depletion_count++;
+      rozofs_storcli_buffer_depletion_count++;
       return status;
     }
     rozofs_xon();   
@@ -753,12 +754,13 @@ void rozofs_fuse_show(char * argv[], uint32_t tcpRef, void *bufRef) {
   pChar +=sprintf(pChar,"fuse req_in EAGAIN/ENOENT: %8llu/%llu\n",(long long unsigned int)rozofs_fuse_req_eagain_count,
                                                      (long long unsigned int)rozofs_fuse_req_enoent_count);  
 
-  pChar +=sprintf(pChar,"fuse buffer depletion    : %8llu\n",(long long unsigned int)rozofs_fuse_buffer_depletion_count);
+  pChar +=sprintf(pChar,"fuse buffer depletion    : %8llu\n",(long long unsigned int)rozofs_fuse_buffer_depletion_count);  
+  pChar +=sprintf(pChar,"storcli buffer depletion : %8llu\n",(long long unsigned int)rozofs_storcli_buffer_depletion_count);
   pChar +=sprintf(pChar,"pending storcli requests : %8d\n",rozofs_storcli_pending_req_count);
   pChar +=sprintf(pChar,"fuse kernel xoff/xon     : %8llu/%llu\n",(long long unsigned int)rozofs_storcli_xoff_count,
                                                                    (long long unsigned int)rozofs_storcli_xon_count);
 
-
+  rozofs_storcli_buffer_depletion_count =0;
   rozofs_fuse_buffer_depletion_count =0;
   rozofs_fuse_req_count = 0;
   rozofs_fuse_req_byte_in = 0;

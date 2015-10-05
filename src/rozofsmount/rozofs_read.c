@@ -677,11 +677,8 @@ void rozofs_ll_read_cbk(void *this,void *param)
    errno =0;
    int bbytes = ROZOFS_BSIZE_BYTES(exportclt.bsize);
    ientry_t *ie;
+   int update_pending_buffer_todo = 1;
 
-   /*
-   ** update the number of storcli pending request
-   */
-   if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
    
    rpc_reply.acpted_rply.ar_results.proc = NULL;
    RESTORE_FUSE_PARAM(param,req);
@@ -1361,7 +1358,11 @@ void rozofs_ll_read_cbk(void *this,void *param)
 	     SAVE_FUSE_PARAM(param,shared_buf_ref); 
 	     shared_buf_ref = save_shared_buf_ref; 
 	   }
-
+	  /*
+	  ** do not update the shared buffer counter since it will be released just
+	  ** after the reply read thread processing
+	  */
+          update_pending_buffer_todo = 0;
 	  rozofs_thread_fuse_reply_buf(req, (char *) buff, length,shared_buf_ref,0);
 	}
 	else
@@ -1506,6 +1507,13 @@ out:
     if (rozofs_is_file_closing(file))
     {
        file_close(file);
+    }
+    if (update_pending_buffer_todo)
+    {
+      /*
+      ** update the number of storcli pending request
+      */
+      if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
     }
     return;
 }
