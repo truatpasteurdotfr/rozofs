@@ -1480,6 +1480,13 @@ error:
       fuse_reply_err(req, errno);
     }
 out:
+    if (update_pending_buffer_todo)
+    {
+      /*
+      ** update the number of storcli pending request
+      */
+      if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
+    }
     /*
     ** release the transaction context and the fuse context
     */
@@ -1507,13 +1514,6 @@ out:
     if (rozofs_is_file_closing(file))
     {
        file_close(file);
-    }
-    if (update_pending_buffer_todo)
-    {
-      /*
-      ** update the number of storcli pending request
-      */
-      if (rozofs_storcli_pending_req_count > 0) rozofs_storcli_pending_req_count--;
     }
     return;
 }
