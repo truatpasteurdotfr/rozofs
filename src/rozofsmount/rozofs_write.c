@@ -31,7 +31,7 @@ DECLARE_PROFILING(mpp_profiler_t);
 
 void export_write_block_nb(void *fuse_ctx_p, file_t *file_p);
 void export_write_block_error_nb(void *fuse_ctx_p, file_t *file_p);
-
+char *rozofs_buf_scratch_p=NULL;
 static int64_t write_buf_nb(void *buffer_p,file_t * f, uint64_t off, const char *buf, uint32_t len);
 
 void rozofs_ll_write_cbk(void *this,void *param);
@@ -1023,9 +1023,14 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
 {
     ientry_t *ie = 0;
     void *buffer_p = NULL;
+    off_t off_aligned;
     rozo_buf_rw_status_t status;
    int deferred_fuse_write_response;
    errno = 0;
+
+   const char *buf_out = buf;
+   off_t off_out       = off;
+   size_t size_out     = size;
 
     file_t *file = (file_t *) (unsigned long) fi->fh;
 
@@ -1068,7 +1073,27 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
         errno = ENOENT;
         goto error;
     }
-    
+/*    if (conf.onlyWriter) */
+    {
+      int bbytes= ROZOFS_BSIZE_BYTES(exportclt.bsize);
+      if ((size == 1) && ((off+1)%bbytes == 0))
+      {
+	off_aligned = (off%bbytes)*bbytes;
+	if (ie->attrs.size <= off_aligned)
+	{
+           if (rozofs_buf_scratch_p == NULL) 
+	   {
+	     rozofs_buf_scratch_p = malloc(bbytes);
+	     if (rozofs_buf_scratch_p == NULL) fatal("out of memory");
+             memset(rozofs_buf_scratch_p,0,bbytes);
+	   }	    
+           rozofs_buf_scratch_p[bbytes-1] = buf[0];
+	   buf_out = rozofs_buf_scratch_p;
+	   off_out = off_aligned;
+	   size_out = bbytes;	 
+	} 
+      }
+    }
     if (ie->attrs.size < (off + size)) {
 
         /*
@@ -1116,7 +1141,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
     */
     rozofs_geo_write_update(file,off,size);
     
-    buf_file_write_nb(ie,buffer_p,&status,file,off,buf,size);
+    buf_file_write_nb(ie,buffer_p,&status,file,off_out,buf_out,size_out);
     /*
     ** check the returned status
     */
