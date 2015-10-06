@@ -1078,7 +1078,7 @@ void rozofs_ll_write_nb(fuse_req_t req, fuse_ino_t ino, const char *buf,
       int bbytes= ROZOFS_BSIZE_BYTES(exportclt.bsize);
       if ((size == 1) && ((off+1)%bbytes == 0))
       {
-	off_aligned = (off%bbytes)*bbytes;
+	off_aligned = (off/bbytes)*bbytes;
 	if (ie->attrs.size <= off_aligned)
 	{
            if (rozofs_buf_scratch_p == NULL) 
